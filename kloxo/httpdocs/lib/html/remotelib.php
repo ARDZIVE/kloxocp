@@ -790,7 +790,9 @@ function process_server_input($total)
 		return process_server_auth_fail($env['reason']);
 	}
 
-	reload_slave_password();
+	if (is_object($login)) {
+		reload_slave_password();
+	}
 
 	if (!kloxo_remote_verify_network_pass($env['user'], $env['pass'])) {
 		return process_server_auth_fail('remote_authentication_failed');
@@ -957,7 +959,14 @@ function reload_slave_password()
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	static $time;
+	static $time = 0;
+
+	// process_single.php (C daemon) never sets $login. Writing through a null
+	// object fatals on PHP 8 and was a warning on PHP 5. Password fallback in
+	// kloxo_remote_verify_network_pass() reads slave_db itself when needed.
+	if (!is_object($login)) {
+		return;
+	}
 
 	if (!lxfile_exists('__path_slave_db')) {
 		return;

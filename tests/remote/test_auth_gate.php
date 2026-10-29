@@ -158,6 +158,20 @@ if (!empty($env['ok']) && $env['payload_b64'] === $g && C1Probe::$hit === false)
     bad("good password returns payload still serialized", 'hit=' . (int)C1Probe::$hit);
 }
 
+echo "== verify with no panel context\n";
+
+$login = null;
+try {
+    $v = kloxo_remote_verify_network_pass('slave', 'correct-horse');
+    if ($v === false) {
+        ok("verify with null \$login returns false (no crash)");
+    } else {
+        bad("verify with null \$login returns false (no crash)", "got true");
+    }
+} catch (Throwable $e) {
+    bad("verify with null \$login returns false (no crash)", $e->getMessage());
+}
+
 echo "== process_server_input source invariant\n";
 
 $src = file_get_contents($root . '/kloxo/httpdocs/lib/html/remotelib.php');
@@ -217,6 +231,16 @@ if ($src === false) {
             ok("do_remote_exec puts user/password on the envelope");
         } else {
             bad("do_remote_exec puts user/password on the envelope");
+        }
+    }
+
+    if (!preg_match('/function reload_slave_password\s*\(\s*\)\s*\{(.*?)(?=\nfunction )/s', $src, $rm)) {
+        bad("found reload_slave_password");
+    } else {
+        if (str_contains($rm[1], 'is_object($login)')) {
+            ok("reload_slave_password refuses a null \$login");
+        } else {
+            bad("reload_slave_password refuses a null \$login");
         }
     }
 }

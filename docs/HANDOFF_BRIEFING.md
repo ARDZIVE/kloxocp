@@ -88,8 +88,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
    and the legacy installer no longer `chmod ug+s`; `exec_with_all_closed*` no longer calls a
    helper. Remaining `chmod 4755` on qmail `vchkpw` in `pscript/fixmail-all` waits for P1.
 8. **P0.3 (C1) closed** for `process_server_input()`: auth envelope required before unserialize;
-   `do_remote_exec` always sends it (including localhost). Tests: `tests/remote/`. JSON
-   replacement is planned, not built. Other unserialize-on-untrusted-input sites remain.
+   `do_remote_exec` always sends it (including localhost). `reload_slave_password()` no longer
+   writes through a null `$login` (C daemon / `process_single.php`). Tests: `tests/remote/`.
+   JSON replacement is planned, not built. Other unserialize-on-untrusted-input sites remain.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
