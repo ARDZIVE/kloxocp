@@ -1,5 +1,7 @@
 <?php
 
+include_once dirname(__FILE__) . '/remote_auth_gate.php';
+
 function do_remote($rmt)
 {
 	if ($rmt->action === 'set') {
@@ -214,11 +216,12 @@ function do_remote_exec($machine, $rmt, $cmdtype, $nname, $dbaction)
 
 	$var = base64_encode(serialize($rmt));
 
-	if (!isLocalhost($rmt->machine)) {
-		$user = base64_encode('slave');
-		$pass = base64_encode($rmt->password);
-		$var = $remotechar . "\n" . $user . "\n" . $pass . "\n" . $var;
-	}
+	// Always send credentials in the envelope. The old localhost path sent a
+	// naked serialized object and process_server_input unserialized it before
+	// any password check (audit C1).
+	$user = base64_encode('slave');
+	$pass = base64_encode($rmt->password);
+	$var = $remotechar . "\n" . $user . "\n" . $pass . "\n" . $var;
 
 	$totalout = send_to_some_server($machine, $var);
 
@@ -766,45 +769,42 @@ function do_master_get_data($var)
 	return null;
 }
 
+function process_server_auth_fail($reason)
+{
+	$res = new Remote();
+	$res->message = "Remote Authentication failed";
+	$res->exception = new lxException($reason, '');
+	$res->ddata = null;
+
+	return base64_encode(serialize($res));
+}
+
 function process_server_input($total)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
 	$remotechar = $sgbl->__var_remote_char;
 
-	if (csb($total, $remotechar)) {
-		$list = explode("\n", $total);
-		$remoteuser = base64_decode($list[1]);
-		$remotepass = base64_decode($list[2]);
-
-	//	dprintr("Remote Password: $remotepass\n");
-
-		reload_slave_password();
-
-		if (check_remote_pass($remoteuser, $remotepass)) {
-			$rmt = unserialize(base64_decode($list[3]));
-			$rmt->authenticated = true;
-			save_slave_name($rmt);
-		} else {
-			$res = new Remote();
-			$res->message = "Remote Authentication failed";
-			$res->exception = new lxException("remote_authentication_failed", '');
-			$res->ddata = null;
-			$out = base64_encode(serialize($res));
-
-			return $out;
-		}
-	} else {
-		$rmt = unserialize(base64_decode($total));
-		$rmt->authenticated = false;
+	$env = kloxo_remote_parse_envelope($total, $remotechar);
+	if (empty($env['ok'])) {
+		return process_server_auth_fail($env['reason']);
 	}
 
+	reload_slave_password();
+
+	if (!kloxo_remote_verify_network_pass($env['user'], $env['pass'])) {
+		return process_server_auth_fail('remote_authentication_failed');
+	}
+
+	$rmt = unserialize(base64_decode($env['payload_b64']));
 	if ($rmt) {
+		$rmt->authenticated = true;
+		save_slave_name($rmt);
 		$res = do_remote($rmt);
 	} else {
 		$res = new Remote();
 		$res->message = "Got Error From Your End";
-		$res->exception = new lxException("got_error_from_ur_end", $rmt->machine);
+		$res->exception = new lxException("got_error_from_ur_end", '');
 		$res->ddata = null;
 	}
 

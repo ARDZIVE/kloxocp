@@ -37,6 +37,7 @@ kloxo/            panel source; installs to /opt/kloxo
   file/mail/             NEW: Postfix, Dovecot, Rspamd templates and the mail DB schema
 tests/mail/       NEW: 73 static + 25 live end-to-end mail tests
 tests/tls/        NEW: generate-tls-keys checks
+tests/remote/     NEW: backend auth-before-unserialize checks (audit C1)
 docs/             audit, design, mail stack, changelog, legacy notes
 tools/            rebrand_to_kloxocp.py (reproducible rebrand step)
 NOTICE            origin and attribution

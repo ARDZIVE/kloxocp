@@ -58,6 +58,7 @@ kloxo-cp/
     legacy/                      obsolete RHEL install notes
   tests/mail/                    run-tests.sh (73 checks), e2e.py (25 live checks), README.md
   tests/tls/                     generate-tls-keys checks (php-cli + openssl)
+  tests/remote/                  C1 auth-before-unserialize checks (php-cli only)
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
 
@@ -86,6 +87,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
 7. **P0.2 (C4) closed:** deleted `cexe/closeinput.c`, `closeallinput.c`, `lxmisc.c`; Makefile
    and the legacy installer no longer `chmod ug+s`; `exec_with_all_closed*` no longer calls a
    helper. Remaining `chmod 4755` on qmail `vchkpw` in `pscript/fixmail-all` waits for P1.
+8. **P0.3 (C1) closed** for `process_server_input()`: auth envelope required before unserialize;
+   `do_remote_exec` always sends it (including localhost). Tests: `tests/remote/`. JSON
+   replacement is planned, not built. Other unserialize-on-untrusted-input sites remain.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -103,7 +107,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
 
 Critical (fix first):
 
-* **C1** `httpdocs/lib/html/remotelib.php`, `process_server_input()`: network input is `unserialize(base64_decode(...))` **before any authentication**. Plus about 31 other unserialize-on-untrusted-input sites.
+* **C1** **CLOSED** for `process_server_input()`: the unauthenticated `unserialize(base64_decode($total))` path is gone. Credentials are required in the `_._` envelope **before** the payload is unserialized (`remote_auth_gate.php`). Localhost uses the same envelope. Other unserialize-on-untrusted-input sites (~31, plus `process_in_master` / `remote_main`) remain until the JSON replacement.
 * **C2** `kloxo/cexe/kloxo.c` (backend daemon): binds all interfaces, `SSLv23_method`, `verify_client = OFF` hard-coded, unbounded `strcpy/sprintf`, no message-size limit, executes PHP on received data.
 * **C3** **CLOSED.** Committed private keys and matching certs deleted. Unique keys are generated at install by `kloxo/bin/install/generate-tls-keys`. Old keys remain compromised anywhere they were copied.
 * **C4** **CLOSED.** Setuid helpers and sources deleted; Makefile and installer no longer set the setuid bit on `cexe/`. Qmail `vchkpw` setuid in `pscript/fixmail-all` remains until P1 removes qmail.
@@ -161,7 +165,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
 ### P0: security clean-up (phase 1a), no PHP port needed
 1. **DONE.** Committed private keys/certs deleted; `generate-tls-keys` writes unique material. *Accept:* no PEM private-key blocks in the tree; remaining "PRIVATE KEY" strings are UI labels (`desclib.php`) and tests/docs.
 2. **DONE.** Setuid helper sources, Makefile `chmod ug+s`, installer `chmod -R ug+s` on `cexe/`, and callers removed. *Accept:* no `chmod ug+s` commands in the tree (qmail `vchkpw` 4755 remains until P1).
-3. Remove the unauthenticated `unserialize` path in `process_server_input()`; require authentication before any parsing; plan JSON replacement. *Accept:* no `unserialize` reachable before auth.
+3. **DONE.** `process_server_input()` requires the credential envelope and verifies the password before `unserialize`. JSON replacement is documented in `remote_auth_gate.php` and `AUDIT_REPORT.md` (not built). *Accept:* gadget payloads without a valid envelope do not run `__wakeup`.
 4. Remove/disable `web-console/`, the easyinstaller feature, and the sudoers rule in `pscript/set-kloxo-php`.
 5. Bind the backend daemon to localhost/Unix socket by default; enforce TLS 1.2+; add input size limits. Long term: replace with a small allow-listed privileged agent (Unix socket, JSON, audit log).
 
@@ -208,6 +212,6 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 
 ## 10. Suggested first prompts for Cursor
 
-* "Read `docs/HANDOFF_BRIEFING.md` and `AGENTS.md`. Then do P0 item 3 only: remove the unauthenticated unserialize path in `process_server_input()`; add a regression test; do not change anything else."
 * "Do P0 item 4 only: remove/disable `web-console/`, easyinstaller, and the sudoers rule in `pscript/set-kloxo-php`."
+* "Do P0 item 5 only: bind the backend daemon to localhost/Unix socket by default; enforce TLS 1.2+; add input size limits."
 * "Start P3: create the `kloxocp` CLI skeleton (status, doctor) with tests, following the pattern of `kloxo/bin/mail/kloxo-mail`."

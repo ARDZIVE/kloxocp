@@ -31,14 +31,24 @@ Severity is my judgement; "C" = critical, "H" = high, "M" = medium.
 
 ### Critical
 
-**C1: Unauthenticated `unserialize()` of network input.**
-`httpdocs/lib/html/remotelib.php`, `process_server_input()` (about line 798): when the
-request does not start with the "remote char" marker, the payload is
+**C1: Unauthenticated `unserialize()` of network input. CLOSED for `process_server_input()`.**
+Was: `httpdocs/lib/html/remotelib.php`, `process_server_input()`: when the request did not
+start with the remote-char marker (`_._`), the payload was
 `unserialize(base64_decode($total))` and processed by `do_remote()` **without any
-password check**. Combined with the 31 other `unserialize(...base64/\$_REQUEST...)` sites, this
-is a PHP object-injection surface reachable from the backend port.
-*Fix:* remove PHP serialization from all network protocols; replace with JSON + schema
-validation + mandatory authentication before any parsing.
+password check**. Localhost used that path on purpose (password lived *inside* the
+serialized object, so it could not be checked first). Combined with about 31 other
+`unserialize(...base64/\$_REQUEST...)` sites, this was a PHP object-injection surface
+reachable from the backend port.
+*Closed by:* `kloxo/httpdocs/lib/html/remote_auth_gate.php` — parse the `_._` / user / pass
+envelope as strings, verify the password, and only then allow the caller to unserialize
+the payload. `do_remote_exec` always attaches that envelope, including for localhost.
+Regression: `tests/remote/` (object-injection gadget is not woken without credentials).
+*Still open:* other unserialize-on-untrusted-input sites, including `process_in_master()`
+and `remote_main()` (`frm_rmt`). Those are not this path.
+*JSON replacement (planned, not built):* drop PHP serialization from the backend protocol.
+Payload becomes a versioned JSON object with a schema (action, class, nname, argument list);
+validate before dispatch. Transport: Unix socket for same-host (P0.5), mutual TLS only if
+multi-server stays in scope. Do not add further `unserialize()` of network input.
 
 **C2: Backend daemon is an unauthenticated, network-facing code runner.**
 `cexe/kloxo.c` binds `INADDR_ANY` with `listen(…, 500000)`, uses `SSLv23_method()`
@@ -174,7 +184,7 @@ characterization-test harness is the first port step.
 | Phase | Work | Exit criteria |
 |---|---|---|
 | 0 (done) | Rebrand, neutralise dead endpoints, remove stale binaries, audit | This ZIP |
-| 1a | Delete `closeinput`/`closeallinput` (C4 done); remove committed keys (C3 done); remaining: sudoers rule; `web-console`, easyinstaller; unauthenticated unserialize path; bind backend to localhost | C1, C2, C5 still open |
+| 1a | C3/C4/C1 (`process_server_input`) done. Remaining: sudoers rule; `web-console`, easyinstaller; bind backend to localhost (C2); easyinstaller HTTP (C5) | C2, C5 still open |
 | 1b | Remove Apache/Lighttpd/Varnish/Squid/ATS/Hiawatha-site drivers and templates; keep Nginx + panel Hiawatha | Smaller tree, tests for Nginx templates |
 | 1c | PHP 8.3 port (core first: `lxlib`, `lxclass`, `sgbl`, DB layer to PDO/mysqli), replace PEAR/WebDAV/PHPMailer | `php -l` clean, smoke tests pass |
 | 1d | New Ubuntu 24.04 installer (apt, systemd, ufw), OS abstraction layer, unique keys per install | Fresh VM install boots the panel on HTTPS |
