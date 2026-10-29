@@ -186,14 +186,14 @@ characterization-test harness is the first port step.
 | 1a (done) | C1–C5 / H3 / H6 for phase 1a: keys, setuid helpers, auth-before-unserialize, web-console, easyinstaller HTTP, sudoers, localhost bind, TLS 1.2+, size limits | Remaining: PHP 8.3 port, installer, agent rewrite, qmail removal |
 | 1b (web/DNS done) | Remove Apache/Lighttpd/Varnish/Squid/ATS/Hiawatha-site/unused-DNS drivers and templates; keep Nginx + panel Hiawatha + BIND/PowerDNS | `tests/p1/` 31 checks. qmail still present |
 | 1c (parse slice done) | PHP 8.3 port: first-party `php -l` clean; autoload; boot-path ereg; `Sqlite` already mysqli | `tests/p2/`. Remaining: panel boot, PEAR/PHPMailer, `lxphp.exe` |
-| 1d | New Ubuntu 24.04 installer (apt, systemd, ufw), OS abstraction layer, unique keys per install | Fresh VM install boots the panel on HTTPS |
+| 1d (CLI skeleton done) | `kloxocp` status/doctor/snapshot/rollback + `install.sh` pre-flight. Remaining: apt repo, Debian packages, `kloxocp update` | `tests/p3/` 20 checks. Fresh VM install still UNVERIFIED |
 | 1e | Mail stack: Postfix + Dovecot + Rspamd driver | Create mailbox, send and receive |
 | 2 | Backend agent redesign (JSON over Unix socket, allow-listed actions), password hashing migration, test suite and CI | Audit re-run |
 | 3 | AlmaLinux/Rocky 9 support; billing extension point; new branding assets | |
 
 ## 7. What I need from you for the next step
 
-1. P2 first-party parse and `include.php` boot are done. Next: P3 (installer/CLI) or remaining third-party runtime APIs. Browser login is unverified. qmail stays until P4.
+1. P2 first-party parse and `include.php` boot are done. P3 CLI skeleton (`kloxocp` status/doctor/snapshot/rollback) is done; apt packaging and `kloxocp update` are not. Next: remaining third-party runtime APIs, Debian packaging, or P4 postfix UI. Browser login is unverified. qmail stays until P4.
 2. A fresh Ubuntu 24.04 VM (root, 2-4 GB RAM) so that I can give you tested install steps and you can report errors back.
 3. Whether to keep multi-server (master/slave) in v1; dropping it would let the backend daemon be removed from the first release.
 4. A logo and domain/GitHub name when you have them.

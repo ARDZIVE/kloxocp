@@ -1,8 +1,12 @@
 # Kloxo CP: Install, Update and Stability Design
 
-Status: design for the work that follows the audit. The installer, packages and
-`kloxocp` CLI are not built yet. Unique TLS key generation (`kloxo/bin/install/generate-tls-keys`)
-exists and is tested; the installer should call it on first run.
+Status: design for the work that follows the audit. The `kloxocp` CLI skeleton
+(`status`, `doctor`, `snapshot`, `rollback`, `component list`) is in
+`kloxo/bin/kloxocp` with tests in `tests/p3/`. `install.sh` is pre-flight only
+(`kloxocp install` → `doctor --install`, then exit 2). Apt packages, signed repo,
+and `kloxocp update` are **not built**. Unique TLS key generation
+(`kloxo/bin/install/generate-tls-keys`) exists and is tested; the installer should
+call it on first run.
 
 ## 0. Honest framing
 
@@ -84,6 +88,22 @@ Rule: the panel never edits a service config it cannot validate, and never reloa
 
 Out of scope for v1: automatic Ubuntu release upgrades (e.g. 24.04 to the next LTS). A documented, tested migration path will come later.
 
+### 2.4 What the current `kloxocp` implements
+
+The CLI in `kloxo/bin/kloxocp` is PHP 8.3, `declare(strict_types=1)`, argument-array
+`proc_open`, validated `--root` / `--snap-dir` (reject NUL and `..`).
+
+| Command | Behaviour today |
+|---|---|
+| `status` | Program root, `kloxoversion`, PHP, TLS file presence, login page, `systemctl is-active` when available |
+| `doctor` | Layout, PHP ≥ 8.3, login page, TLS mode, Ubuntu 24.04 (warn unless `--install`), required binaries. `--install` also requires root and rejects cPanel/Plesk/ISPConfig |
+| `snapshot` | Copies `bin/kloxoversion`, `init`, `etc`, `file/ssl`, `httpdocs/login` into `<snap-dir>/<UTC stamp>/` plus `MANIFEST.json`. Keeps last `--keep` (default 5) |
+| `rollback` | Restores those paths from `--stamp` or the latest stamp |
+| `component list` | Names from the design table |
+| `update`, `component upgrade`, apt `install` | Exit 2 |
+
+Snapshot does **not** dump the panel DB, generated service configs, or take LVM/ZFS snapshots. Treat `--snap-dir` as secret (it can hold copies of `file/ssl`).
+
 ## 3. Stability plan
 
 * **Small scope first.** Ubuntu 24.04 only, Nginx only, one DNS, one FTP, one mail stack. Remove Apache, Lighttpd, Varnish, Squid, ATS and extra DNS drivers.
@@ -108,7 +128,7 @@ Out of scope for v1: automatic Ubuntu release upgrades (e.g. 24.04 to the next L
 
 1. Security clean-up from the audit (section 6 of `AUDIT_REPORT.md`, phase 1a).
 2. Remove unused stacks and legacy installer parts.
-3. `kloxocp` CLI skeleton (status, doctor, update, rollback) and the snapshot/validate/rollback engine, which can be built and tested independent of the PHP port.
+3. `kloxocp` CLI skeleton (status, doctor, update, rollback) and the snapshot/validate/rollback engine, which can be built and tested independent of the PHP port. **Partial:** status/doctor/snapshot/rollback of allow-listed panel paths exist; update and package-level rollback do not.
 4. Debian packaging (`debian/` directory) and a private apt repo.
 5. PHP 8.3 port with characterization tests.
 6. New installer on top of the packages; CI matrix on real Ubuntu 24.04 VMs.

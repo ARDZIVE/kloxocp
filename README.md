@@ -4,8 +4,10 @@ A web hosting control panel, derived from **Kloxo-MR** (itself a fork of **Kloxo
 
 > **Status: 0.1.0-dev, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. The legacy PHP is still PHP 5-era in behaviour,
-> the one-command installer is not built yet, and a full UI login against MariaDB is not
-> verified. First-party PHP now **parses and loads** on PHP 8 (`include.php` boot smoke).
+> apt packaging is not built, and a full UI login against MariaDB is not verified.
+> First-party PHP now **parses and loads** on PHP 8 (`include.php` boot smoke).
+> The `kloxocp` CLI (`status`, `doctor`, `snapshot`, `rollback`) is in this tree;
+> `update` and the signed apt installer are not.
 >
 > Read `docs/AUDIT_REPORT.md` (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md`
 > (the intended production installer), and `docs/MAIL_DESIGN.md` (mail stack, which is
@@ -15,8 +17,8 @@ A web hosting control panel, derived from **Kloxo-MR** (itself a fork of **Kloxo
 
 | Item | Decision |
 |---|---|
-| Install | One command, under 10 minutes on a clean server (designed, not built) |
-| Updates | One command or one button, with backup, health check and rollback (designed, not built) |
+| Install | One command, under 10 minutes on a clean server (pre-flight CLI exists; apt installer not built) |
+| Updates | One command or one button, with backup, health check and rollback (`snapshot`/`rollback` exist; `update` not built) |
 | Target OS | Ubuntu 24.04 LTS first; AlmaLinux/Rocky 9 later |
 | Customer websites | Nginx + PHP-FPM (multiple PHP versions side by side) |
 | Mail | Postfix + Dovecot + Rspamd, mailboxes in MariaDB |
@@ -27,10 +29,25 @@ A web hosting control panel, derived from **Kloxo-MR** (itself a fork of **Kloxo
 
 ## Installation
 
-There is **no** `install.sh` / apt repo yet (`docs/INSTALL_AND_UPDATE_DESIGN.md` is the
-design). What follows is the current **manual** path on a disposable Ubuntu 24.04 machine
-as root. It is the procedure that matches the code in this tree. Re-run commands are
-idempotent where noted.
+`install.sh` is a **pre-flight wrapper** (`kloxocp install` → `doctor --install`). It
+does not add an apt repo or install packages. `docs/INSTALL_AND_UPDATE_DESIGN.md` is the
+target design. What follows is the current **manual** path on a disposable Ubuntu 24.04
+machine as root. Re-run commands are idempotent where noted.
+
+On any host with `php-cli` (including a laptop):
+
+```
+php kloxo/bin/kloxocp help
+php kloxo/bin/kloxocp doctor --root="$(pwd)/kloxo"
+php kloxo/bin/kloxocp status --root="$(pwd)/kloxo" --json
+# snapshot / rollback of allow-listed paths (bin/kloxoversion, init, etc,
+# file/ssl, httpdocs/login) into --snap-dir (default: <root>/var/backups/kloxocp):
+php kloxo/bin/kloxocp snapshot --root="$(pwd)/kloxo" --snap-dir=/tmp/kloxocp-snaps
+php kloxo/bin/kloxocp rollback --root="$(pwd)/kloxo" --snap-dir=/tmp/kloxocp-snaps
+bash install.sh            # same as: php kloxo/bin/kloxocp install
+                           # exits 1 if pre-flight fails, 2 if pre-flight ok
+                           # (packages not built)
+```
 
 A Mac or other non-Ubuntu host can run the php-cli tests and generate TLS keys. It cannot
 run Hiawatha, the systemd units, or the live mail tests.
@@ -198,7 +215,7 @@ Unauthenticated requests redirect to `/login/`. **Login against MariaDB is not v
 
 The panel database name is `kloxo`, DB user `kloxo`. The schema loader is
 `kloxo/bin/install/create.php`, written for CentOS/`lxphp.exe`/yum. On Ubuntu it is
-**UNVERIFIED**. A future P3 installer will replace it.
+**UNVERIFIED**. The P3 CLI does not replace it yet.
 
 If you experiment anyway, you will need a MariaDB root account and:
 
@@ -246,11 +263,13 @@ bash tests/remote/run-tests.sh
 bash tests/security/run-tests.sh
 bash tests/p1/run-tests.sh
 bash tests/p2/run-tests.sh
+bash tests/p3/run-tests.sh
 php kloxo/bin/install/generate-tls-keys --help
 php kloxo/bin/mail/kloxo-mail help
+php kloxo/bin/kloxocp help
 ```
 
-### Intended future install (not implemented)
+### Intended future install (apt path not implemented)
 
 ```
 wget https://<project-domain>/install.sh
@@ -258,8 +277,9 @@ sha256sum -c install.sh.sha256
 sudo bash install.sh
 ```
 
-That path is specified in `docs/INSTALL_AND_UPDATE_DESIGN.md`. Do not look for those
-URLs yet (`kloxocp.invalid` is a placeholder).
+The `install.sh` in this tree only runs pre-flight. The signed apt repo, Debian
+packages, and `kloxocp update` are specified in `docs/INSTALL_AND_UPDATE_DESIGN.md`
+and are not built. Do not look for those URLs yet (`kloxocp.invalid` is a placeholder).
 
 ## Layout
 
@@ -271,9 +291,11 @@ kloxo/            panel source; installs to /opt/kloxo
   init/           panel systemd units, Hiawatha, PHP-FPM pool, php-cli.sh
   file/           service config templates (nginx, bind, pdns, qmail, mail)
   install/        LEGACY RPM/CentOS installer (do not use on Ubuntu)
+  bin/kloxocp            operator CLI (status, doctor, snapshot, rollback)
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)
   bin/install/generate-tls-keys  unique TLS keys per install
-tests/            mail, tls, remote, security, p1, p2
+install.sh        pre-flight only (calls kloxocp install)
+tests/            mail, tls, remote, security, p1, p2, p3
 docs/             audit, design, mail stack, changelog, legacy notes
 ```
 

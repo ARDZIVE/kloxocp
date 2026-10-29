@@ -1,0 +1,594 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * kloxocp: operator CLI for Kloxo CP (status, doctor, snapshot, rollback).
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version. See LICENSE.txt.
+ *
+ * Standalone: no legacy panel includes. PHP 8.3, argument-array process
+ * execution, validated paths. update / component upgrade / full install.sh
+ * apt path are not built yet (exit 2).
+ *
+ * Usage: kloxocp <command> [arguments] [--options]
+ */
+
+const KCP_VERSION = '0.1.0-dev';
+
+/** Paths copied by snapshot / rollback, relative to the program root. */
+const KCP_SNAP_PATHS = [
+    'bin/kloxoversion',
+    'init',
+    'etc',
+    'file/ssl',
+    'httpdocs/login',
+];
+
+const KCP_COMPONENTS = [
+    'kloxo-cp' => 'Panel tree and this CLI',
+    'nginx' => 'Customer websites',
+    'php-fpm' => 'Panel and site PHP',
+    'mariadb' => 'Panel and mail databases',
+    'bind9' => 'DNS (BIND)',
+    'hiawatha' => 'Panel UI web server',
+    'postfix' => 'Mail MTA (via kloxo-mail)',
+    'dovecot' => 'Mail IMAP/POP3 (via kloxo-mail)',
+    'rspamd' => 'Mail filtering (via kloxo-mail)',
+];
+
+final class KcpException extends RuntimeException
+{
+}
+
+final class Proc
+{
+    /** @param list<string> $cmd */
+    public static function run(array $cmd, ?string $stdin = null): array
+    {
+        $p = @proc_open($cmd, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($p)) {
+            return [127, '', 'cannot execute ' . $cmd[0]];
+        }
+        if ($stdin !== null) {
+            fwrite($pipes[0], $stdin);
+        }
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]);
+        $err = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        return [proc_close($p), (string)$out, (string)$err];
+    }
+
+    public static function exists(string $bin): bool
+    {
+        foreach (explode(':', (string)getenv('PATH') . ':/usr/sbin:/sbin:/opt/homebrew/bin') as $d) {
+            if ($d !== '' && is_executable("$d/$bin")) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+final class Fs
+{
+    public static function realDir(string $path, string $label): string
+    {
+        $path = rtrim($path, '/');
+        if ($path === '' || str_contains($path, "\0")) {
+            throw new KcpException("Invalid $label");
+        }
+        if (!is_dir($path) && !mkdir($path, 0750, true) && !is_dir($path)) {
+            throw new KcpException("Cannot create $label: $path");
+        }
+        $real = realpath($path);
+        if ($real === false) {
+            throw new KcpException("Cannot resolve $label: $path");
+        }
+        return $real;
+    }
+
+    public static function copyPath(string $src, string $dst): void
+    {
+        if (is_link($src) || is_file($src)) {
+            $dir = dirname($dst);
+            if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+                throw new KcpException("Cannot create $dir");
+            }
+            if (!copy($src, $dst)) {
+                throw new KcpException("Copy failed: $src");
+            }
+            $mode = fileperms($src);
+            if ($mode !== false) {
+                chmod($dst, $mode & 0777);
+            }
+            return;
+        }
+        if (!is_dir($src)) {
+            return;
+        }
+        if (!is_dir($dst) && !mkdir($dst, 0750, true) && !is_dir($dst)) {
+            throw new KcpException("Cannot create $dst");
+        }
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($src, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+        foreach ($it as $f) {
+            $rel = substr($f->getPathname(), strlen($src) + 1);
+            if ($rel === false || $rel === '') {
+                continue;
+            }
+            if (str_contains($rel, '..')) {
+                throw new KcpException("Refusing path with .. : $rel");
+            }
+            $target = $dst . '/' . $rel;
+            if ($f->isDir() && !$f->isLink()) {
+                if (!is_dir($target) && !mkdir($target, 0750, true) && !is_dir($target)) {
+                    throw new KcpException("Cannot create $target");
+                }
+                continue;
+            }
+            self::copyPath($f->getPathname(), $target);
+        }
+    }
+
+    public static function rmTree(string $path): void
+    {
+        if (is_file($path) || is_link($path)) {
+            unlink($path);
+            return;
+        }
+        $real = realpath($path);
+        if ($real === false) {
+            return;
+        }
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($real, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $f) {
+            $f->isDir() && !$f->isLink() ? rmdir($f->getPathname()) : unlink($f->getPathname());
+        }
+        rmdir($real);
+    }
+}
+
+final class App
+{
+    /** @var array<string,string|true> */
+    private array $opt = [];
+    private bool $json = false;
+    private string $root;
+    private string $snapDir;
+
+    public function run(array $argv): int
+    {
+        array_shift($argv);
+        $cmd = 'help';
+        $rest = [];
+        foreach ($argv as $a) {
+            if ($a === '--json') {
+                $this->json = true;
+                continue;
+            }
+            if (str_starts_with($a, '--')) {
+                [$k, $v] = array_pad(explode('=', substr($a, 2), 2), 2, true);
+                if ($k === '' || !preg_match('/^[a-z0-9-]+$/', $k)) {
+                    fwrite(STDERR, "error: bad option: $a\n");
+                    return 64;
+                }
+                $this->opt[$k] = $v;
+                continue;
+            }
+            if ($cmd === 'help' && $rest === []) {
+                $cmd = $a;
+            } else {
+                $rest[] = $a;
+            }
+        }
+
+        try {
+            $this->root = $this->resolveRoot();
+            $this->snapDir = $this->resolveSnapDir();
+            return match ($cmd) {
+                'help', '--help', '-h' => $this->help(),
+                'version', '--version' => $this->say(['version' => KCP_VERSION], 'kloxocp ' . KCP_VERSION),
+                'status' => $this->status(),
+                'doctor' => $this->doctor(),
+                'snapshot' => $this->snapshot(),
+                'rollback' => $this->rollback(),
+                'update' => $this->notImplemented('update'),
+                'install' => $this->install(),
+                'component' => $this->component($rest),
+                default => $this->unknown($cmd),
+            };
+        } catch (KcpException $e) {
+            fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+            return 1;
+        }
+    }
+
+    private function resolveRoot(): string
+    {
+        $opt = $this->opt['root'] ?? getenv('KLOXO_ROOT');
+        if (is_string($opt) && $opt !== '') {
+            $r = rtrim($opt, '/');
+            if (str_contains($r, "\0") || str_contains($r, '..')) {
+                throw new KcpException('Invalid --root');
+            }
+            return $r;
+        }
+        if (is_dir('/opt/kloxo/httpdocs')) {
+            return '/opt/kloxo';
+        }
+        return dirname(__DIR__);
+    }
+
+    private function resolveSnapDir(): string
+    {
+        $opt = $this->opt['snap-dir'] ?? '';
+        if (is_string($opt) && $opt !== true && $opt !== '') {
+            if (str_contains($opt, "\0") || str_contains($opt, '..')) {
+                throw new KcpException('Invalid --snap-dir');
+            }
+            return rtrim($opt, '/');
+        }
+        return $this->root . '/var/backups/kloxocp';
+    }
+
+    private function help(): int
+    {
+        $v = KCP_VERSION;
+        echo <<<TXT
+kloxocp — Kloxo CP operator CLI ($v)
+
+  kloxocp help
+  kloxocp version
+  kloxocp status [--root=DIR] [--json]
+  kloxocp doctor [--root=DIR] [--json] [--install]
+  kloxocp snapshot [--root=DIR] [--snap-dir=DIR] [--keep=N] [--json]
+  kloxocp rollback [--root=DIR] [--snap-dir=DIR] [--stamp=UTC] [--json]
+  kloxocp component list
+  kloxocp update            (not built)
+  kloxocp install           (pre-flight only; apt installer not built)
+
+  --root=DIR      program root (default: /opt/kloxo if present, else this tree)
+  --snap-dir=DIR  snapshot directory (default: <root>/var/backups/kloxocp)
+  --json          machine-readable output
+  --install       doctor in installer mode (extra host checks)
+
+Exit 0 ok, 1 failed check, 2 not implemented, 64 usage.
+
+TXT;
+        return 0;
+    }
+
+    private function unknown(string $cmd): int
+    {
+        fwrite(STDERR, "error: unknown command: $cmd (try kloxocp help)\n");
+        return 64;
+    }
+
+    private function notImplemented(string $what): int
+    {
+        $msg = "$what is not implemented yet (see docs/INSTALL_AND_UPDATE_DESIGN.md)";
+        $this->say(['implemented' => false, 'command' => $what], $msg);
+        return 2;
+    }
+
+    private function status(): int
+    {
+        $php = PHP_VERSION;
+        $verfile = $this->root . '/bin/kloxoversion';
+        $ver = is_file($verfile) ? trim((string)file_get_contents($verfile)) : '';
+        $tlsKey = $this->root . '/init/backend.key';
+        $tlsPem = $this->root . '/file/ssl/default.pem';
+        $services = [];
+        foreach (['kloxo-php', 'kloxo-web', 'kloxo-wrap', 'nginx', 'mariadb', 'named'] as $svc) {
+            $services[$svc] = $this->serviceState($svc);
+        }
+        $rep = [
+            'root' => $this->root,
+            'kloxocp' => KCP_VERSION,
+            'kloxoversion' => $ver,
+            'php' => $php,
+            'php_sapi' => PHP_SAPI,
+            'tls' => [
+                'backend_key' => is_file($tlsKey),
+                'default_pem' => is_file($tlsPem),
+            ],
+            'login' => is_file($this->root . '/httpdocs/login/index.php'),
+            'services' => $services,
+        ];
+        $txt = "root={$this->root}\n"
+            . "kloxocp=" . KCP_VERSION . " kloxoversion=" . ($ver !== '' ? $ver : '(missing)') . "\n"
+            . "php={$php}\n"
+            . 'tls backend_key=' . ($rep['tls']['backend_key'] ? 'yes' : 'no')
+            . ' default_pem=' . ($rep['tls']['default_pem'] ? 'yes' : 'no') . "\n"
+            . 'login=' . ($rep['login'] ? 'yes' : 'no') . "\n";
+        foreach ($services as $n => $s) {
+            $txt .= "service {$n}={$s}\n";
+        }
+        return $this->say($rep, rtrim($txt));
+    }
+
+    private function serviceState(string $name): string
+    {
+        if (!Proc::exists('systemctl')) {
+            return 'unknown';
+        }
+        [$rc, $out] = Proc::run(['systemctl', 'is-active', $name]);
+        $st = trim($out);
+        return $st !== '' ? $st : ($rc === 0 ? 'active' : 'inactive');
+    }
+
+    private function doctor(): int
+    {
+        $install = isset($this->opt['install']);
+        $checks = [];
+        $fail = 0;
+
+        $phpOk = version_compare(PHP_VERSION, '8.3.0', '>=');
+        $checks[] = $this->check(
+            'php_version',
+            $phpOk ? 'pass' : (version_compare(PHP_VERSION, '8.0.0', '>=') ? 'warn' : 'fail'),
+            'PHP ' . PHP_VERSION . ($phpOk ? '' : ' (need 8.3+)')
+        );
+
+        $layout = is_dir($this->root . '/httpdocs') && is_dir($this->root . '/bin') && is_dir($this->root . '/init');
+        $checks[] = $this->check('program_layout', $layout ? 'pass' : 'fail', $layout ? $this->root : "missing httpdocs/bin/init under {$this->root}");
+
+        $verfile = $this->root . '/bin/kloxoversion';
+        $checks[] = $this->check('kloxoversion', is_file($verfile) ? 'pass' : 'warn', is_file($verfile) ? trim((string)file_get_contents($verfile)) : 'missing');
+
+        $login = is_file($this->root . '/httpdocs/login/index.php');
+        $checks[] = $this->check('login_page', $login ? 'pass' : 'fail', $login ? 'httpdocs/login/index.php' : 'login page not shipped');
+
+        $cli = is_file($this->root . '/init/php-cli.sh') && is_readable($this->root . '/init/php-cli.sh');
+        $checks[] = $this->check('php_cli_wrapper', $cli ? 'pass' : 'warn', $cli ? 'init/php-cli.sh' : 'init/php-cli.sh missing');
+
+        $key = $this->root . '/init/backend.key';
+        if (!is_file($key)) {
+            $checks[] = $this->check('tls_backend_key', 'warn', 'missing (run generate-tls-keys)');
+        } else {
+            $world = (fileperms($key) & 0004) !== 0;
+            $checks[] = $this->check('tls_backend_key', $world ? 'fail' : 'pass', $world ? 'world-readable (must be 0600)' : 'present, not world-readable');
+        }
+        $pem = $this->root . '/file/ssl/default.pem';
+        $checks[] = $this->check('tls_default_pem', is_file($pem) ? 'pass' : 'warn', is_file($pem) ? 'present' : 'missing (run generate-tls-keys)');
+
+        $os = $this->osId();
+        $ubuntu = ($os['id'] === 'ubuntu' && str_starts_with($os['version'], '24.04'));
+        $checks[] = $this->check(
+            'os_ubuntu_2404',
+            $ubuntu ? 'pass' : ($install ? 'fail' : 'warn'),
+            $os['pretty'] !== '' ? $os['pretty'] : 'os-release not found'
+        );
+
+        foreach (['php' => true, 'openssl' => true, 'nginx' => false, 'mariadbd' => false, 'named' => false] as $bin => $req) {
+            $ex = Proc::exists($bin) || ($bin === 'mariadbd' && (Proc::exists('mysqld') || Proc::exists('mariadb')));
+            $checks[] = $this->check(
+                'bin_' . $bin,
+                $ex ? 'pass' : ($req ? 'fail' : 'warn'),
+                $ex ? 'found' : 'not in PATH'
+            );
+        }
+
+        if ($install) {
+            $uid = function_exists('posix_geteuid') ? posix_geteuid() : -1;
+            $checks[] = $this->check('root', $uid === 0 ? 'pass' : 'fail', $uid === 0 ? 'euid 0' : 'installer must run as root');
+            foreach ([
+                '/usr/local/cpanel' => 'cPanel',
+                '/usr/local/psa' => 'Plesk',
+                '/usr/local/ispconfig' => 'ISPConfig',
+            ] as $path => $name) {
+                $hit = is_dir($path);
+                $checks[] = $this->check('conflict_' . strtolower($name), $hit ? 'fail' : 'pass', $hit ? "$name detected at $path" : "no $name");
+            }
+        }
+
+        foreach ($checks as $c) {
+            if ($c['result'] === 'fail') {
+                $fail++;
+            }
+        }
+        $ok = $fail === 0;
+        $txt = '';
+        foreach ($checks as $c) {
+            $txt .= sprintf("%-4s %-18s %s\n", strtoupper($c['result']), $c['id'], $c['message']);
+        }
+        $txt .= $ok ? "doctor: ok ($fail fail)\n" : "doctor: FAILED ($fail fail)\n";
+        $this->say(['ok' => $ok, 'root' => $this->root, 'checks' => $checks], rtrim($txt));
+        return $ok ? 0 : 1;
+    }
+
+    /** @return array{id:string,result:string,message:string} */
+    private function check(string $id, string $result, string $message): array
+    {
+        return ['id' => $id, 'result' => $result, 'message' => $message];
+    }
+
+    /** @return array{id:string,version:string,pretty:string} */
+    private function osId(): array
+    {
+        $file = '/etc/os-release';
+        $id = '';
+        $ver = '';
+        $pretty = '';
+        if (is_readable($file)) {
+            foreach (file($file, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+                if (str_starts_with($line, 'ID=')) {
+                    $id = trim(trim(substr($line, 3)), '"');
+                }
+                if (str_starts_with($line, 'VERSION_ID=')) {
+                    $ver = trim(trim(substr($line, 11)), '"');
+                }
+                if (str_starts_with($line, 'PRETTY_NAME=')) {
+                    $pretty = trim(trim(substr($line, 12)), '"');
+                }
+            }
+        }
+        return ['id' => $id, 'version' => $ver, 'pretty' => $pretty];
+    }
+
+    private function snapshot(): int
+    {
+        if (!is_dir($this->root . '/httpdocs')) {
+            throw new KcpException("Not a program root (no httpdocs): {$this->root}");
+        }
+        $keep = 5;
+        if (isset($this->opt['keep']) && is_string($this->opt['keep']) && ctype_digit($this->opt['keep'])) {
+            $keep = (int)$this->opt['keep'];
+            if ($keep < 1 || $keep > 50) {
+                throw new KcpException('--keep must be 1–50');
+            }
+        }
+        $stamp = gmdate('YmdHis');
+        $dest = Fs::realDir($this->snapDir, 'snap-dir') . '/' . $stamp;
+        if (is_dir($dest)) {
+            throw new KcpException("Snapshot already exists: $dest");
+        }
+        if (!mkdir($dest, 0750, true) && !is_dir($dest)) {
+            throw new KcpException("Cannot create $dest");
+        }
+        $copied = [];
+        foreach (KCP_SNAP_PATHS as $rel) {
+            $src = $this->root . '/' . $rel;
+            if (!file_exists($src)) {
+                continue;
+            }
+            Fs::copyPath($src, $dest . '/' . $rel);
+            $copied[] = $rel;
+        }
+        $manifest = [
+            'stamp' => $stamp,
+            'created_utc' => gmdate('c'),
+            'kloxocp' => KCP_VERSION,
+            'root' => $this->root,
+            'paths' => $copied,
+        ];
+        file_put_contents($dest . '/MANIFEST.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        $this->pruneSnapshots($keep);
+        $msg = "snapshot $stamp (" . count($copied) . ' paths) -> ' . $dest;
+        return $this->say($manifest + ['dir' => $dest], $msg);
+    }
+
+    private function rollback(): int
+    {
+        $snapRoot = $this->snapDir;
+        if (!is_dir($snapRoot)) {
+            throw new KcpException("No snapshots in $snapRoot");
+        }
+        $stamp = $this->opt['stamp'] ?? '';
+        if (!is_string($stamp) || $stamp === '' || $stamp === true) {
+            $stamp = $this->latestStamp($snapRoot);
+        }
+        if ($stamp === null || !preg_match('/^[0-9]{14}$/', $stamp)) {
+            throw new KcpException('No snapshot stamp (run kloxocp snapshot first)');
+        }
+        $src = $snapRoot . '/' . $stamp;
+        if (!is_file($src . '/MANIFEST.json')) {
+            throw new KcpException("Invalid snapshot: $src");
+        }
+        if (!is_dir($this->root . '/httpdocs')) {
+            throw new KcpException("Not a program root: {$this->root}");
+        }
+        $restored = [];
+        foreach (KCP_SNAP_PATHS as $rel) {
+            $from = $src . '/' . $rel;
+            if (!file_exists($from)) {
+                continue;
+            }
+            $to = $this->root . '/' . $rel;
+            $bak = $to . '.kloxocp-pre-rollback';
+            Fs::rmTree($bak);
+            if (is_dir($to) || is_file($to) || is_link($to)) {
+                rename($to, $bak);
+            }
+            Fs::copyPath($from, $to);
+            Fs::rmTree($bak);
+            $restored[] = $rel;
+        }
+        $rep = ['stamp' => $stamp, 'restored' => $restored, 'root' => $this->root];
+        return $this->say($rep, 'restored snapshot ' . $stamp . ' (' . count($restored) . ' paths)');
+    }
+
+    private function latestStamp(string $snapRoot): ?string
+    {
+        $best = null;
+        foreach (scandir($snapRoot) ?: [] as $n) {
+            if (preg_match('/^[0-9]{14}$/', $n) && is_file("$snapRoot/$n/MANIFEST.json")) {
+                if ($best === null || $n > $best) {
+                    $best = $n;
+                }
+            }
+        }
+        return $best;
+    }
+
+    private function pruneSnapshots(int $keep): void
+    {
+        if (!is_dir($this->snapDir)) {
+            return;
+        }
+        $stamps = [];
+        foreach (scandir($this->snapDir) ?: [] as $n) {
+            if (preg_match('/^[0-9]{14}$/', $n) && is_dir($this->snapDir . '/' . $n)) {
+                $stamps[] = $n;
+            }
+        }
+        rsort($stamps, SORT_STRING);
+        foreach (array_slice($stamps, $keep) as $old) {
+            Fs::rmTree($this->snapDir . '/' . $old);
+        }
+    }
+
+    /** @param list<string> $rest */
+    private function component(array $rest): int
+    {
+        $sub = $rest[0] ?? 'list';
+        if ($sub === 'list') {
+            $lines = [];
+            foreach (KCP_COMPONENTS as $name => $desc) {
+                $lines[] = sprintf("%-12s %s", $name, $desc);
+            }
+            return $this->say(['components' => array_keys(KCP_COMPONENTS)], implode("\n", $lines));
+        }
+        return $this->notImplemented('component ' . $sub);
+    }
+
+    private function install(): int
+    {
+        $this->opt['install'] = true;
+        $rc = $this->doctor();
+        if ($rc !== 0) {
+            fwrite(STDERR, "error: pre-flight failed; not installing\n");
+            return 1;
+        }
+        $msg = "pre-flight ok. apt repo and package install are not built yet.\n"
+            . "See docs/INSTALL_AND_UPDATE_DESIGN.md and README.md (manual Ubuntu 24.04 steps).";
+        $this->say(['implemented' => false, 'preflight' => true], $msg);
+        return 2;
+    }
+
+    /** @param array<string,mixed> $data */
+    private function say(array $data, string $text): int
+    {
+        if ($this->json) {
+            echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n";
+        } else {
+            echo $text . "\n";
+        }
+        return 0;
+    }
+}
+
+exit((new App())->run($argv));

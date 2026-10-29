@@ -43,6 +43,7 @@ kloxo-cp/
   kloxo/                         panel source; installs to /opt/kloxo (was upstream "kloxo/")
     httpdocs/                    web UI, libs (lib/, driver/, theme/, lang/), PEAR/WebDAV bundle (webdisk/)
     bin/ sbin/ pscript/          backend and maintenance scripts (PHP and shell)
+    bin/kloxocp                  NEW operator CLI (PHP 8.3: status, doctor, snapshot, rollback)
     bin/mail/kloxo-mail          NEW mail tool (PHP 8.3, standalone)
     bin/install/generate-tls-keys  NEW: unique TLS keys per install (PHP 8.3)
     cexe/                        C sources: backend daemon (kloxo.c) only; no setuid helpers
@@ -52,7 +53,7 @@ kloxo-cp/
   docs/
     HANDOFF_BRIEFING.md          this file
     AUDIT_REPORT.md              security + PHP 8 audit and roadmap
-    INSTALL_AND_UPDATE_DESIGN.md install/update/stability design (nothing implemented yet)
+    INSTALL_AND_UPDATE_DESIGN.md install/update/stability design (CLI skeleton exists; apt not built)
     MAIL_DESIGN.md               mail stack design, tests, gaps
     REBRAND_CHANGELOG.md         exactly what the rebrand changed / did not change
     legacy/                      obsolete RHEL install notes
@@ -62,6 +63,8 @@ kloxo-cp/
   tests/security/                P0.4/P0.5 source invariants (php-cli only)
   tests/p1/                      P1 stack-shrink source invariants (php-cli only)
   tests/p2/                      P2 first-party PHP 8 parse + autoload characterization (php-cli only)
+  tests/p3/                      P3 kloxocp CLI + snapshot/rollback (php-cli only)
+  install.sh                     pre-flight only (execs kloxocp install; apt not built)
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
 
@@ -113,8 +116,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Program root is derived from the tree / `KLOXO_ROOT` (not a missing `/opt/kloxo`).
     PHP binary is distro `php` (`kloxo_php_binary()`, `init/php-cli.sh`). Login page files
     are shipped under `httpdocs/login/`. Hiawatha min TLS is 1.2; PHP-FPM unit uses
-    `php-fpm8.3`. Browser login against MariaDB is **UNVERIFIED**. The one-command installer
-    is still P3.
+    `php-fpm8.3`. Browser login against MariaDB is **UNVERIFIED**.
+14. **P3 CLI skeleton:** `kloxo/bin/kloxocp` (`help`, `version`, `status`, `doctor`,
+    `snapshot`, `rollback`, `component list`). `update` / `component upgrade` /
+    `install` after a clean doctor exit **2** (not implemented). `install.sh` is a
+    pre-flight wrapper. Snapshot copies allow-listed paths under `--root` into
+    `--snap-dir`. Apt repo, Debian packages, package-level update/rollback, and
+    `create.php` Ubuntu replacement are **not built**. Tests: `tests/p3/`.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -172,7 +180,8 @@ Real server with systemd; real DNS/PTR/certificate; outbound delivery and delive
 * Development target: Ubuntu 24.04, PHP 8.3 (`php-cli php-mysql`), MariaDB with root via unix socket (Ubuntu default), Postfix + `postfix-mysql` + `postfix-lmdb`, Dovecot (`-imapd -pop3d -lmtpd -mysql -sieve -managesieved`), Rspamd, Redis.
 * Tests: see `tests/mail/README.md`. **Run only on a disposable machine/container**: tests create the `vmail` user and the live test rewrites `/etc/postfix`, `/etc/dovecot`, `/etc/rspamd/local.d`.
 * The static tests use their own DB (`kloxo_mail_test`) and accounts (`kloxo_mail_test_{rw,ro}`); DB account names follow the DB name so instances never share accounts.
-* Lint the legacy tree with `php -l` per file (a loop; parallel xargs output interleaves). Current baseline: 50 failures (section 4).
+* Lint the legacy tree with `php -l` per file (a loop; parallel xargs output interleaves). Current baseline: 50 failures (section 4). First-party files are clean (`tests/p2/`).
+* Operator CLI: `php kloxo/bin/kloxocp help`. Checks: `bash tests/p3/run-tests.sh` (php-cli only; uses a temp `--root`).
 
 ### Environment lessons from the previous session (avoid repeating)
 
@@ -197,15 +206,26 @@ Work in this order. Keep every change small, tested and committed separately. Do
 ### P1: shrink the tree (phase 1b)
 1. **DONE for web/DNS.** Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`. Webcache: `none`. DNS: `none`, `bind`, `pdns`. Panel Hiawatha kept in `init/`. Default web driver is nginx. Tests: `tests/p1/`.
 2. **NOT DONE.** qmail/courier/ezmlm/bogofilter/spamassassin drivers stay until P4 postfix UI drivers exist.
-3. Confirm Hiawatha availability on Ubuntu 24.04 (**UNVERIFIED**); if no package, build a pinned binary in the installer. `lib.php` still contains dead Apache install/chown branches (legacy installer, replaced in P3).
+3. Confirm Hiawatha availability on Ubuntu 24.04 (**UNVERIFIED**); if no package, build a pinned binary in the installer. `lib.php` still contains dead Apache install/chown branches (legacy installer; P3 CLI does not replace it yet).
 
 ### P2: PHP 8.3 port (phase 1c)
 1. **DONE: first-party parse.** First-party `.php`/`.inc` files `php -l` clean. `__autoload` → `kloxo_autoload` + `spl_autoload_register`. `includecore.php` no longer calls `ereg*`. `char_search_beg` accepts the extra `csb()` argument. Tests: `tests/p2/`.
 2. **DONE: library boot.** `include.php` constructs `Sgbl` on PHP 8 (`test_boot.php`). Paths follow the tree / `KLOXO_ROOT`. Distro PHP via `kloxo_php_binary` and `init/php-cli.sh`. `#[AllowDynamicProperties]` on `Lxclass`, `Sgbl`, `HtmlLib`. Login files shipped. systemd PHP-FPM unit uses `php-fpm8.3`; Hiawatha min TLS 1.2.
-3. **NOT DONE.** Browser login + MariaDB schema on Ubuntu (`create.php` is still CentOS). Hiawatha Ubuntu package. Remaining compile failures are third-party (`webdisk/PEAR*`, formmail, urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees. P3 installer.
+3. **NOT DONE.** Browser login + MariaDB schema on Ubuntu (`create.php` is still CentOS). Hiawatha Ubuntu package. Remaining compile failures are third-party (`webdisk/PEAR*`, formmail, urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
 
 ### P3: installer, packaging, updater (phase 1d)
-Implement `docs/INSTALL_AND_UPDATE_DESIGN.md`: `install.sh` (pre-flight, signed apt repo), Debian packaging (`debian/`), `kloxocp` CLI (`status`, `doctor`, `update`, `rollback`, `component ...`) with snapshot/validate/health-check/rollback. Much of this is new code independent of the legacy PHP, so it can start in parallel with P2. Reuse the pattern already proven in `kloxo-mail apply`.
+1. **DONE: CLI skeleton.** `kloxo/bin/kloxocp` implements `help`, `version`, `status`,
+   `doctor` (optional `--install` host checks: root, Ubuntu 24.04, no cPanel/Plesk/ISPConfig),
+   `snapshot` / `rollback` of allow-listed paths (`bin/kloxoversion`, `init`, `etc`,
+   `file/ssl`, `httpdocs/login`) under `--root` / `--snap-dir`. `component list` works;
+   `update` and `component upgrade` exit 2. PHP 8.3, `declare(strict_types=1)`,
+   argument-array `proc_open`, no shell strings. Tests: `tests/p3/` (20 checks, php-cli only).
+2. **DONE: install.sh pre-flight.** Repo-root `install.sh` execs `kloxocp install`
+   (`doctor --install`, then exit 2). Does not add an apt repo or install packages.
+3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →
+   snapshot → apt → migrate → validate → health-check → auto-rollback), LVM/ZFS snapshots,
+   panel-DB dump in the snapshot, `create.php` Ubuntu replacement. Reuse `kloxo-mail apply`
+   for service config once packages exist.
 
 ### P4: connect mail to the panel (phase 1e)
 Add thin `*__postfix` drivers (`Mmail__Postfix`, `Mailaccount__Postfix`, `Mailforward__Postfix`, `Servermail__Postfix`...) in `httpdocs/driver/mmail/` that call `kloxo-mail` (via the agent). Keep the existing UI screens. Then add Roundcube, Sieve vacation autoresponder, queue view, per-domain TLS, qmail import. Requires P2.
@@ -241,6 +261,6 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 
 ## 10. Suggested first prompts for Cursor
 
-* "Start P3: create the `kloxocp` CLI skeleton (status, doctor) with tests, following the pattern of `kloxo/bin/mail/kloxo-mail`."
-* "Add characterization tests, then start the PHP 8.3 port of `lxlib.php` / `lxclass.php` / the DB layer."
-* "Start P4 mail UI drivers only after P2: thin `*__postfix` wrappers around `kloxo-mail`, then drop qmail."
+* "Start Debian packaging (`debian/`) and a private apt repo so `kloxocp update` has packages to orchestrate."
+* "Add characterization tests, then continue the PHP 8.3 port of remaining runtime (`split`/`ereg*` in third-party trees, `create.php` Ubuntu)."
+* "Start P4 mail UI drivers: thin `*__postfix` wrappers around `kloxo-mail`, then drop qmail."

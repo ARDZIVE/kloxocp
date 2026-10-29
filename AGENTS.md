@@ -13,8 +13,9 @@ rollback (designed, not built).
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerDNS; qmail still
 present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
-Browser login against MariaDB is not verified. Next: P3 (installer/CLI) or remaining P2 runtime
-in third-party trees. See briefing section 7.
+P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback; `update` and
+apt packaging are not). Browser login against MariaDB is not verified. Next: remaining P2
+runtime, Debian packaging, or P4 postfix UI. See briefing section 7.
 
 ## Commands
 ```
@@ -25,9 +26,11 @@ bash tests/remote/run-tests.sh        # C1 auth-before-unserialize checks (php-c
 bash tests/security/run-tests.sh      # P0.4/P0.5 source invariants (php-cli only)
 bash tests/p1/run-tests.sh            # P1 stack-shrink source invariants (php-cli only)
 bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload (php-cli only)
+bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
 bash tests/mail/run-tests.sh          # 73 mail checks (needs MariaDB root socket; disposable machine only)
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Postfix/Dovecot/Rspamd; see tests/mail/README.md)
 php kloxo/bin/mail/kloxo-mail help
+php kloxo/bin/kloxocp help            # status, doctor, snapshot, rollback; update exits 2
 ```
 
 ## Hard rules

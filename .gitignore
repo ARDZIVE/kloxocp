@@ -1,6 +1,9 @@
 
 /.idea
 
+# Operator CLI snapshots (may contain copies of TLS keys)
+/kloxo/var/backups/
+
 # TLS material generated per install (never commit private keys)
 /kloxo/init/backend.key
 /kloxo/init/backend.crt
