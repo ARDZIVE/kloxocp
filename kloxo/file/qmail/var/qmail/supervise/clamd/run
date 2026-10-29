@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if [ -f ./custom.run ] ; then
+	. ./custom.run
+	return $?
+fi
+
+if [ "$(pgrep -a ^clamd)" == "" ] ; then
+	exec /usr/bin/setuidgid clamscan /usr/sbin/clamd 2>&1
+fi

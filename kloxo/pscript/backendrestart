@@ -1,0 +1,4 @@
+#!/bin/sh
+
+service $(cat /script/programname) backendrestart
+

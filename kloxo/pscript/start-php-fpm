@@ -1,0 +1,36 @@
+#!/bin/sh
+
+if [ -f /script/custom.restart-list.inc ] ; then
+	. /script/custom.restart-list.inc
+else
+	. /script/restart-list.inc
+fi
+
+list=${list_phpfpm[*]}
+
+if [ "$1" == "--help" ] || [ "$1" == "-h" ] ; then
+	echo ""
+	echo " ------------------------------------------------------------------------------"
+	echo "  format: sh $0"
+	echo " ------------------------------------------------------------------------------"
+	echo ""
+	exit
+else
+	ASQMAIL=""
+
+	for item in ${list[*]} ; do
+		svc_on='no'
+		if [ "$(chkconfig --list ${item} 2>/dev/null|grep ':on')" != "" ] ; then
+			svc_on='yes'
+		fi
+		#if [ "$(command -v systemctl)" != "" ] ; then
+		if [ "$(ps --no-headers -o comm 1)" == "systemd" ] ; then
+			if [ "$(systemctl list-unit-files|grep ${item}|grep 'enabled')" != "" ] ; then
+				svc_on='yes'
+			fi
+		fi
+		if [ "${svc_on}" == 'yes' ] ; then
+			service ${item} start
+		fi
+	done
+fi

@@ -1,0 +1,40 @@
+#!/bin/sh
+
+if [ "${1}" == "--help" ] ; then
+	select=$(cat /opt/kloxo/etc/list/php.lst|tr ',' '\n'|tr '_(as' ' '|awk '{print $1}'|tr '\n' ' '|xargs|tr ' ' '/')
+	echo
+	echo " ---------------------------------------------------------------------------"
+	echo "  format: sh $0 <${select}>"
+	echo " ---------------------------------------------------------------------------"
+	echo
+	exit
+fi
+
+echo
+echo "- For help, type '$0 --help'"
+
+if [ "${#}" == 0 ] ; then
+	echo "- No argument supplied. Run 'sh $0 --help'"
+	exit
+fi
+
+if [ "$(ps --no-headers -o comm 1)" != "systemd" ] ; then
+	yum replace -y libmemcached --replace-with=libmemcached10
+fi
+
+if [ -f /script/custom.php-branch-installer.inc ] ; then
+	. /script/custom.php-branch-installer.inc
+else
+	. /script/php-branch-installer.inc
+fi
+
+if [ ! -d /etc/php.d ] ; then
+	mkdir -p /etc/php.d
+fi
+
+repoquery -l ${1}*|grep '.ini'|grep '/etc/php.d/' > /etc/php.d/ini.lst
+
+
+eval ${php_run}
+
+sh /script/phpm-config-setup php

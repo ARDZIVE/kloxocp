@@ -1,0 +1,15 @@
+[Unit]
+Description=Startup script for Kloxo CP.
+Documentation=https://kloxocp.invalid/
+After=network.target remote-fs.target nss-lookup.target
+ 
+[Service]
+Type=forking
+PIDFile=/opt/kloxo/init/kloxo-phpcgi.pid
+ExecStart=/opt/kloxo/init/kloxo-phpcgi -y /opt/kloxo/init/kloxo-php-fpm.conf -c /opt/php56s/custom/php.ini -R
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+ 
+[Install]
+WantedBy=multi-user.target

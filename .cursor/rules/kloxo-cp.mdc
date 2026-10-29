@@ -1,0 +1,23 @@
+---
+description: Kloxo CP project rules (always apply)
+alwaysApply: true
+---
+
+Before any work, read `docs/HANDOFF_BRIEFING.md` and `AGENTS.md`.
+
+- Project: Kloxo CP, fork of Kloxo-MR, AGPLv3. Target Ubuntu 24.04, PHP 8.3, Nginx + PHP-FPM for sites,
+  Hiawatha for the panel only, Postfix + Dovecot + Rspamd + MariaDB for mail, no billing, keep the UI.
+- The legacy PHP under `kloxo/httpdocs` is PHP 5-era and UNSAFE. Do not run it on a public server.
+  Fix security items P0 in the briefing before porting anything.
+- Do not mass-rename `lx*` identifiers, DB columns, or the `lxlabs` account. Do not remove copyright notices.
+- Never commit secrets or private keys. Generate keys at install time.
+- New PHP: `declare(strict_types=1)`, PDO prepared statements, argument-array process execution (never shell
+  strings), validate all input, add tests next to the change.
+- Service configuration is generated from templates (`kloxo/file/mail/` is the model): render, validate with
+  the service's own checker, install atomically, roll back on failure. Never edit generated files by hand.
+- Mail design invariants (do not regress): TLS required for logins; Argon2id hashes; sender must match the
+  authenticated login; unknown recipients rejected during SMTP; quota check before `permit_mynetworks`;
+  catch-all must not swallow real mailboxes; `milter_default_action = tempfail`; DKIM via generated maps;
+  flush Dovecot auth cache on account changes.
+- Prefer deleting dead code (Apache, Lighttpd, Varnish, Squid, ATS, qmail, ezmlm, billing) over porting it.
+- Never claim a thing works without running it; state what was and was not tested.

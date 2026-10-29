@@ -1,0 +1,55 @@
+#!/bin/sh
+
+if [ "$(rpm -qa rpmdevtools)" == "" ] ; then
+	yum install rpmdevtools -y
+fi
+
+if [ "${1}" == "" ] ; then
+	newver="10.3"
+else
+	newver=${1}
+fi
+
+oldver=$(rpm -q --queryformat '%{VERSION}' MariaDB-server)
+
+rpmdev-vercmp ${oldver} ${newver} >/dev/null 2>&1
+status="$?"
+
+echo "*** Upgrade MariaDB from ${oldver} to ${newver} ***"
+
+if [ "${status}" == "12" ] ; then
+	echo "- Begin process..."
+
+	sed -i -e "s:yum.mariadb.org/\(.*\)/centos/\(.*\):yum.mariadb.org/${newver}/centos/\2:g" /etc/yum.repos.d/mratwork.repo
+	yum clean all
+	yum update MariaDB* -y
+	yum remove MariaDB-server -y
+	yum install MariaDB-server -y
+
+	mv -f /etc/my.cnf.d/server.cnf /etc/my.cnf.d/server.cnf.rpmnew
+	mv -f /etc/my.cnf.d/server.cnf.rpmsave /etc/my.cnf.d/server.cnf
+
+	if [ "$(yum list MariaDB-rocksdb-engine)" != "" ] ; then
+		yum install MariaDB-rocksdb-engine -y
+	fi
+
+	sh /script/restart-mysql
+
+	. /script/directory
+
+	pass=$(lxphp.exe ../bin/common/mp.php)
+
+	mysql_upgrade -u root -p${pass} --force
+
+	sh /script/restart-mysql
+
+	echo "- End process..."
+else
+	echo "- Already upgrade to ${newver}"
+fi
+
+echo
+echo "* Note:"
+echo "  - Format: $0 [target-version]"
+echo "    where [target-version] = 10.3 (by default)"
+

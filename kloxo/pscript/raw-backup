@@ -1,0 +1,77 @@
+#!/bin/sh
+
+homepath=/home
+mysqlpath=/var/lib/mysql
+logpath=/var/log
+stamp=$(date +"%Y-%m-%d-%H-%M")
+zipfile=kloxo_raw_$stamp.tgz
+homefile=home.tgz
+mysqlfile=mysql.tgz
+logfile=log.tgz
+clistfile=clients.txt
+bckpath=/home/kloxo/client/admin/__backup
+
+. /script/counter-start.inc
+
+echo
+echo "*** Kloxo CP raw-backup - BEGIN ***"
+echo
+
+if [ -f /etc/rc.d/init.d/mysqld ] || [ -f /usr/lib/systemd/system/mysqld.service ] ; then
+	service mysqld stop >/dev/null 2>&1
+else
+	service mysql stop >/dev/null 2>&1
+fi
+
+cd /tmp
+
+echo "- Create zip file"
+
+echo "-- 'mysql' portion"
+nice -n +10 ionice -c3 tar -czf "$mysqlfile" "$mysqlpath" >/dev/null 2>&1
+
+if [ -f /etc/rc.d/init.d/mysqld ] || [ -f /usr/lib/systemd/system/mysqld.service ] ; then
+	service mysqld start >/dev/null 2>&1
+else
+	service mysql start >/dev/null 2>&1
+fi
+
+echo "-- 'home' portion"
+nice -n +10 ionice -c3 tar -czf "$homefile" "$homepath" \
+	--exclude "$homepath/kloxo/client/*/__backup/*" \
+	--exclude "$homepath/backuper/*" >/dev/null 2>&1
+
+echo "-- 'log' portion"
+nice -n +10 ionice -c3 tar -czf "$logfile" "$logpath" >/dev/null 2>&1
+
+
+clist=$(dir -l /home/kloxo/client | grep "^d"|awk '{ print $NF }')
+echo $clist > $clistfile >/dev/null 2>&1
+
+echo "-- portions merge"
+nice -n +10 ionice -c3 tar -czf "$zipfile" "$mysqlfile" "$homefile" "$logfile" "$clistfile" >/dev/null 2>&1
+
+echo "-- move to $bckpath"
+if [ -f $bckpath ] ; then
+	rm -rf $bckpath
+fi
+
+if [ ! -d $bckpath ] ; then
+	mkdir -p $bckpath
+fi
+
+mv -f $zipfile $bckpath >/dev/null 2>&1
+
+. /script/counter-start.inc
+
+echo
+echo "Attention:"
+echo "- Raw backup only work for MariaDB/MySQL with MyISAM storage-engine."
+echo "  Run 'sh /script/mysql-convert' for convert to MyISAM"
+echo
+echo "- Your '$zipfile' move to: "
+echo "  '$bckpath'"
+echo
+echo "*** Kloxo CP raw-backup - END ***"
+echo
+

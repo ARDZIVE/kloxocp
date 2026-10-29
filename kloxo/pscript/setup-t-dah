@@ -1,0 +1,23 @@
+#!/bin/sh
+
+path="/home/kloxo/httpd/webmail/t-dah"
+
+if [ "${1}" == "-y" ] ; then
+	if [ ! -f ${path}/index.php ] ; then
+		yum install kloxo-webmail-t-dah -y
+		chown -R apache:apache ${path}
+	fi
+fi
+
+echo "*** T-Dah Webmail setup ***"
+	
+if [ ! -f ${path}/index.php ] ; then
+	echo "- Application not exists. Exit"
+	exit
+fi
+
+echo "- Preparing Configs"
+
+'cp' -f ${path}/inc/config/t-dah_config.mail.php ${path}/inc/config/config.mail.php
+'cp' -f ${path}/inc/config/t-dah_config.paths.php ${path}/inc/config/config.paths.php
+'cp' -f ${path}/inc/config/t-dah_config.php ${path}/inc/config/config.php

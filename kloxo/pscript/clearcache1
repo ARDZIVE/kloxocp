@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# release on Kloxo CP 6.5.0.f
+# by mustafa.ramadhan@lxcenter.org
+
+sh /script/clearcache --select=1
+

@@ -1,0 +1,17 @@
+[Unit]
+Description=Startup script for Kloxo CP.
+Documentation=https://kloxocp.invalid/
+After=network.target remote-fs.target nss-lookup.target
+ 
+[Service]
+Type=forking
+PIDFile=/opt/kloxo/init/kloxo-hiawatha.pid
+ExecStartPre=-/usr/bin/bash -c "if [ \"$(pgrep ^mysql)\" == \"\" ]; then /usr/bin/bash /script/restart-mysql; fi"
+ExecStartPre=/usr/bin/lxphp.exe -f /opt/kloxo/init/changeport.php
+ExecStart=/opt/kloxo/init/kloxo-hiawatha -c /opt/kloxo/init
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+ 
+[Install]
+WantedBy=multi-user.target

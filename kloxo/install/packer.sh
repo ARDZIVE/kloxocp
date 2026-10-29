@@ -1,0 +1,138 @@
+#!/bin/sh
+
+#    Kloxo CP - Hosting Control Panel
+#
+#    Copyright (C) 2013 - MRatWork
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+#
+# MRatWork - Kloxo CP dev Installer
+#
+# Version: 1.0 (2013-01-11 - by Mustafa Ramadhan <mustafa@bigraf.com>)
+#
+
+if [ "$1" == "--help" ] || [ "$1" == "-h" ] ; then
+	echo
+	echo " ----------------------------------------------------------------------"
+	echo "  format: sh $0 --fork=<> --branch=<>"
+	echo " ----------------------------------------------------------------------"
+	echo "  --fork - example: lxcenter or mustafaramadhan (for certain developer)"
+	echo "  --branch - example: master or dev"
+	echo
+	echo "  * Pack main kloxo package from git"
+	echo "  * Thirdparty packages download directly for latest version"
+	echo "  * Then run kloxo-installer.sh which the same place with local copy"
+	echo
+	echo " - If detect './kloxo/httpdocs' and then used it as source" 
+	exit
+fi
+
+echo "Start pack..."
+
+if [ "$1" == "" ] ; then
+	kloxo_fork="mustafaramadhan"
+else
+	kloxo_fork=${1#--fork\=}
+fi
+
+if [ "$2" == "" ] ; then
+	kloxo_branch="dev"
+else
+	kloxo_branch=${2#--branch\=}
+fi
+
+if [ "$(rpm -qa|grep unzip)" == "" ] ; then
+	yum install zip unzip -y
+fi
+
+if [ "$(rpm -qa|grep wget)" == "" ] ; then
+	yum install wget -y
+fi
+
+if [ ! -d ./kloxo/httpdocs ] ; then
+	echo "Download git"
+	'rm' -rf ${kloxo_branch}* > /dev/null 2>&1
+	wget https://github.com/${kloxo_fork}/kloxo/archive/${kloxo_branch}.zip -O kloxo-${kloxo_branch}.zip
+
+	unzip -oq kloxo-${kloxo_branch}.zip > /dev/null 2>&1
+	'rm' -rf kloxo-${kloxo_branch}.zip > /dev/null 2>&1
+	'mv' -f ./kloxo*-${kloxo_branch}/kloxo ./
+	'rm' -rf ./kloxo*-${kloxo_branch}
+else
+	echo "No download and use local copy already exist"
+fi
+
+'cp' -rf ./kloxo/install/installer.sh ./
+
+ver=`cat ./kloxo/bin/kloxoversion`
+
+'mv' ./kloxo ./kloxo7-$ver
+
+# delete dirs except en-us
+find ./kloxo7-$ver/httpdocs/lang/* -type d ! -name 'en-us' -exec rm -R {} \;
+
+### 4. zipped process
+tar -czf kloxo7-$ver.tar.gz "./kloxo7-$ver/bin" "./kloxo7-$ver/cexe" "./kloxo7-$ver/file" \
+	"./kloxo7-$ver/httpdocs" "./kloxo7-$ver/pscript" "./kloxo7-$ver/sbin" \
+	"./kloxo7-$ver/RELEASEINFO" "./kloxo7-$ver/etc/process" \
+	"./kloxo7-$ver/etc/config.ini" \
+	"./kloxo7-$ver/install" "./kloxo7-$ver/init" \
+	"./kloxo7-$ver/etc/list" \
+	--exclude "./kloxo7-$ver/httpdocs/commands.php" \
+	--exclude "./kloxo7-$ver/httpdocs/newpass" \
+	--exclude "./kloxo7-$ver/httpdocs/.php.err" \
+	--exclude "./kloxo7-$ver/httpdocs/thirdparty" \
+	--exclude "./kloxo7-$ver/httpdocs/editor" \
+	--exclude "./kloxo7-$ver/file/cache" \
+	--exclude "./kloxo7-$ver/file/*.repo" \
+	--exclude "./kloxo7-$ver/serverfile" \
+	--exclude "./kloxo7-$ver/session" \
+	--exclude "./kloxo7-$ver/etc/.restart" \
+	--exclude "./kloxo7-$ver/etc/conf/*" \
+	--exclude "./kloxo7-$ver/etc/flag/*" \
+	--exclude "./kloxo7-$ver/etc/slavedb/*" \
+	--exclude "./kloxo7-$ver/etc/last_sisinfoc" \
+	--exclude "./kloxo7-$ver/etc/program.*" \
+	--exclude "./kloxo7-$ver/etc/watchdog.conf" \
+	--exclude "./kloxo7-$ver/install/*.log" \
+	--exclude "./kloxo7-$ver/log" \
+	--exclude "./kloxo7-$ver/pid" \
+	--exclude "./kloxo7-$ver/init/kloxo_php_active" \
+	--exclude "./kloxo7-$ver/init/*.sock" \
+	--exclude "./kloxo7-$ver/init/*.pid" \
+	--exclude "./kloxo7-$ver/init/kloxo-hiawatha" \
+	--exclude "./kloxo7-$ver/init/kloxo-phpcgi" \
+	--exclude "./kloxo7-$ver/*.old" \
+	--exclude "./kloxo7-$ver/*.bck" \
+	--exclude "./kloxo7-$ver/*.pyo" \
+	--exclude "./kloxo7-$ver/*.pyc" \
+	--exclude "./kloxo7-$ver/init/php_active" \
+	--exclude "./kloxo7-$ver/httpdocs/login/*.php" \
+	--exclude "./kloxo7-$ver/httpdocs/login/*.html" \
+	--exclude "./kloxo7-$ver/httpdocs/login/.norandomimage" \
+	--exclude "./kloxo7-$ver/httpdocs/login/images" \
+	--exclude "./kloxo7-$ver/*/user-logo.png"
+
+
+'rm' -rf ./kloxo7-$ver > /dev/null 2>&1
+'rm' -rf ./kloxo-install > /dev/null 2>&1
+'rm' -rf ./install > /dev/null 2>&1
+
+echo
+echo "Now you can run 'sh ./installer.sh' for installing"
+echo
+echo "Run '$0 --help' for helping"
+echo
+echo "... the end"

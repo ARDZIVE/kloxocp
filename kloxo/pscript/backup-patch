@@ -1,0 +1,18 @@
+#!/bin/sh
+
+echo;
+echo "- This patch apply to Kloxo 6.1.x for to make NO 'could_not_zip_dir' warning";
+echo "  for certain condition";
+echo;
+
+
+if [ -f /opt/kloxo/bin/kloxoversion ] ; then
+	echo "- No need running this patch for Kloxo CP. Just update your Kloxo CP";
+else
+	echo " - Patch for Backup/Restore on Kloxo 6.1.12,";
+
+	sed -i 's:\t\tthrow new lxException("could_not_zip_dir:\t\/\/\tthrow new lxException("could_not_zip_dir:' \
+		/opt/kloxo/httpdocs/htmllib/lib/lib.php
+fi
+
+echo;

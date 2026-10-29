@@ -1,0 +1,26 @@
+#!/bin/sh
+
+cd /tmp
+if [ -f installatron_setup.sh ] ; then
+	'rm' -f installatron_setup.sh
+	'rm' -f installatron-plugin.sh
+fi
+wget http://dal01.installatron.com/installatron-plugin.sh
+chmod 755 installatron-plugin.sh
+./installatron-plugin.sh -f
+
+ln -sf /opt/kloxo/httpdocs/lib/html /var/installatron/frontend/htmllib
+
+### MR -- fix issue if Kloxo CP 6.5.1 installed together with webmin
+
+#source="/var/installatron/frontend"
+#target="/opt/kloxo/httpdocs/installatron"
+#ini="/usr/local/installatron/etc/settings.ini"
+
+#if [ ! -L $target ] ; then
+#	ln -sf $source $target
+#	#sed -i 's:path_gui=:#path_gui=:' $ini
+#	#sed -i 's:admin=root:admin=admin:' $ini
+#fi
+
+#rpm -Uvh http://data.installatron.com/installatron-plugin-kloxo-latest.noarch.rpm

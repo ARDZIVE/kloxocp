@@ -1,0 +1,24 @@
+# It's not recommended to modify this file in-place, because it will be
+# overwritten during package upgrades.
+
+# To alter the FPM environment, drop a file with the suffix
+# .conf in /etc/systemd/system/php-fpm.service.d, with
+#     [Service]
+#     Environment=FOO=bar
+
+[Unit]
+Description=The PHP FastCGI Process Manager
+After=syslog.target network.target
+
+[Service]
+Type=notify
+PIDFile=/run/php-fpm/php-fpm.pid
+ExecStartPre=/usr/bin/rm -f /opt/configs/php-fpm/sock/php-*.sock >/dev/null 2>&1
+ExecStart=/usr/sbin/__custom_name__-fpm -y /opt/configs/php-fpm/conf/php/php-fpm.conf --nodaemonize
+ExecReload=/bin/kill -USR2 $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+

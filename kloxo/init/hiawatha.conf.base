@@ -1,0 +1,132 @@
+# Hiawatha main configuration file
+# Convictions Hosting Custom - September 9th
+
+ServerString = Hiawatha_for_KloxoCP
+
+ServerId = lxlabs
+ConnectionsTotal = 2048
+ConnectionsPerIP = 64
+SystemLogfile = /opt/kloxo/log/hiawatha-system.log
+GarbageLogfile = /opt/kloxo/log/hiawatha-garbage.log
+ExploitLogfile = /opt/kloxo/log/hiawatha-exploit.log
+ErrorLogfile = /opt/kloxo/log/hiawatha-error.log
+AccessLogfile = /opt/kloxo/log/hiawatha-access.log
+
+MaxUrlLength = 65536
+
+PIDfile = /opt/kloxo/init/kloxo-hiawatha.pid
+
+ChallengeClient = 300, httpheader, 60
+
+BanOnGarbage = 300
+BanOnMaxPerIP = 60
+BanOnMaxReqSize = 300
+KickOnBan = yes
+RebanDuringBan = yes
+
+ThreadPoolSize = 50
+
+CGIhandler = /usr/bin/perl:pl
+CGIhandler = /usr/bin/perl:cgi
+CGIhandler = /usr/bin/__php__-cgi:php
+CGIhandler = /usr/bin/python:py
+CGIhandler = /usr/bin/ruby:rb
+CGIhandler = /usr/bin/ssi-cgi:shtml
+#CGIextension = php
+
+#CGIwrapper = /usr/sbin/cgi-wrapper
+
+ExecuteCGI = yes
+WaitForCGI = yes
+
+MinTLSversion = TLS1.0
+
+FastCGIserver {
+	FastCGIid = PHP5
+	#ConnectTo = 127.0.0.1:39000
+	ConnectTo = /opt/kloxo/init/kloxo-phpcgi.sock
+	Extension = php
+	SessionTimeout = 3600
+}
+
+MimetypeConfig = hiawatha-mimetype.conf
+
+UrlToolkit {
+	ToolkitID = block_shellshock
+	#Header * \(\)\s*\{ DenyAccess
+	Header User-Agent \(\)\s*\{ DenyAccess
+	Header Referer \(\)\s*\{ DenyAccess
+}
+
+UrlToolkit {
+	ToolkitID = block_httpoxy
+	Header Proxy .* DenyAccess
+}
+
+UrlToolkit {
+	ToolkitID = findindexfile
+	Match ^([^?]*)/(\?.*)?$ Rewrite $1/index.php$2 Continue
+	RequestURI isfile Return
+	Match ^([^?]*)/index\.php(\?.*)?$ Rewrite $1/index.html$2 Continue
+	RequestURI isfile Return
+	Match ^([^?]*)/index\.html(\?.*)?$ Rewrite $1/index.htm$2 Continue
+	RequestURI isfile Return
+	Match ^([^?]*)/index\.htm(\?.*)?$ Rewrite $1/$2 Continue
+}
+
+Directory {
+	DirectoryID = static_file
+	Path = /
+	Extensions = css,eot,gif,htm,html,ico,jpeg,jpg,js,otf,pdf,png,ps,psd,svg,swf,ttf,txt,woff,woff2
+	ExpirePeriod = 1 weeks
+}
+
+Binding {
+	BindingId = port_nonssl
+	Port = __nonssl_port__
+	#Interface = 0.0.0.0
+	MaxKeepAlive = 3600
+	TimeForRequest = 3600
+	MaxRequestSize = 2096128
+	MaxUploadSize = 2047
+}
+
+Binding {
+	BindingId = port_ssl
+	Port = __ssl_port__
+	#Interface = 0.0.0.0
+	MaxKeepAlive = 3600
+	TimeForRequest = 3600
+	MaxRequestSize = 2096128
+	MaxUploadSize = 2047
+	#RequiredCA = /opt/kloxo/etc/program.ca
+	TLScertFile = /opt/kloxo/etc/program.pem
+}
+
+## CF - no need for Virtual Host, all default to this:
+Hostname = 0.0.0.0, ::
+Alias = /.well-known/acme-challenge:/var/run/acme/acme-challenge
+WebsiteRoot = /opt/kloxo/httpdocs
+StartFile = index.php
+SecureURL = no
+__fpmdisabled__UseFastCGI = PHP5
+UseToolkit = block_shellshock, block_httpoxy, findindexfile
+UseDirectory = static_file
+TimeForCGI = 3600
+UseLocalConfig = no
+
+#ErrorHandler = 400:/error/400.html
+ErrorHandler = 401:/error/401.html
+ErrorHandler = 403:/error/403.html
+#ErrorHandler = 404:/error/404.html
+ErrorHandler = 404:/theme/lbin/sitepreview.php
+#ErrorHandler = 500:/error/500.html
+ErrorHandler = 501:/error/501.html
+#ErrorHandler = 502:/error/502.html
+ErrorHandler = 503:/error/503.html
+#ErrorHandler = 504:/error/504.html
+
+CustomHeader = X-Content-Type-Options:nosniff
+CustomHeader = X-XSS-Protection:1;mode=block
+CustomHeader = X-Frame-Options:SAMEORIGIN
+CustomHeader = Access-Control-Allow-Origin:*

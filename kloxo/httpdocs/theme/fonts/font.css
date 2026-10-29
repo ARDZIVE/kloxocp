@@ -1,0 +1,33 @@
+@font-face {
+	font-family: 'WebHostingHub-Glyphs';
+	src: url('/theme/fonts/webhostinghub-glyphs.eot');
+	src: url('/theme/fonts/webhostinghub-glyphs.eot?#iefix') format('embedded-opentype'),
+		url('/theme/fonts/webhostinghub-glyphs.ttf') format('truetype'),
+		url('/theme/fonts/webhostinghub-glyphs.svg#WebHostingHub-Glyphs') format('svg');
+	font-weight: normal;
+	font-style: normal;
+	-moz-font-feature-settings: "calt=0,liga=0";
+
+}
+
+.if32 {
+	font-family: 'WebHostingHub-Glyphs';
+	font-size: 32px;
+}
+
+.if16 {
+	font-family: 'WebHostingHub-Glyphs';
+	font-size: 16px;
+}
+
+.if12 {
+	font-family: 'WebHostingHub-Glyphs';
+	font-size: 12px;
+}
+
+.if8 {
+	font-family: 'WebHostingHub-Glyphs';
+	font-size: 8px;
+}
+
+

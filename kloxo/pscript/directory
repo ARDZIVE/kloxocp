@@ -1,0 +1,1 @@
+cd /opt/kloxo/$(cat /script/programname)/httpdocs

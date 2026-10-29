@@ -1,0 +1,15 @@
+#!/bin/sh
+
+if [ -f /script/custom.restart-list.inc ] ; then
+	. /script/custom.restart-list.inc
+else
+	. /script/restart-list.inc
+fi
+
+list=${list_mail[*]}
+
+if [ -f /script/custom.restart.inc ] ; then
+	. /script/custom.restart.inc
+else
+	. /script/restart.inc
+fi

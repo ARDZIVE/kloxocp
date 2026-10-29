@@ -1,0 +1,41 @@
+#!/bin/sh
+
+list="php "$(ls -ld /opt/php* 2>/dev/null | grep -v 's'$ | awk '{print $9}' | sed 's:/opt/::g' | tr '\n' ' ')
+
+flagpath="/opt/kloxo/etc/flag"
+
+if [ "${1}" == "" ] ; then
+	echo "- Enable for all php-fpm (branch and multiple php)"
+	for x in ${list} ; do
+		if [ -f ${flagpath}/enablemultiplephp.flg ] ; then
+			if [ ${x} == "php52m" ] ; then
+				if [ -f ${flagpath}/enable_php52m-fpm.flg ] ; then
+					echo "-- Enable for ${x}-fpm"
+					chkconfig ${x}-fpm on >/dev/null 2>&1
+				else
+					echo "-- Disable for ${x}-fpm"
+					chkconfig ${x}-fpm off >/dev/null 2>&1
+				fi
+			else
+				echo "-- Enable for ${x}-fpm"
+				chkconfig ${x}-fpm on >/dev/null 2>&1
+			fi
+		else
+			if [ "${x}" != "php" ] ; then
+				echo "-- Disable for ${x}-fpm"
+				chkconfig ${x}-fpm off >/dev/null 2>&1
+			else
+				echo "-- Enable for ${x}-fpm"
+				chkconfig ${x}-fpm on >/dev/null 2>&1
+			fi
+		fi
+	done
+else
+	echo "- Enable for ${1}-fpm"
+	chkconfig ${1}-fpm on >/dev/null 2>&1
+fi
+
+#if [ "$(command -v systemctl)" != "" ] ; then
+if [ "$(ps --no-headers -o comm 1)" == "systemd" ] ; then
+	systemctl daemon-reload >/dev/null 2>&1
+fi

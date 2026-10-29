@@ -1,0 +1,15 @@
+#!/bin/sh
+
+echo "*** Restart for XINETD service ***"
+
+if [ ! -f /var/run/xinetd.pid ] ; then
+	if [ -f /var/lock/subsys/xinetd ] ; then
+		'rm' -f /var/lock/subsys/xinetd
+	fi
+fi
+
+prog='xinetd'
+
+. /script/directory
+
+. ../etc/process/service.inc

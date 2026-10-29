@@ -1,0 +1,96 @@
+#! /bin/sh
+#
+# chkconfig: - 84 16
+# description:  PHP FastCGI Process Manager
+# processname: php-fpm
+# config: /etc/php-fpm.conf
+# pidfile: /var/run/php-fpm/php-fpm.pid
+
+# Standard LSB functions
+#. /lib/lsb/init-functions
+
+# Source function library.
+. /etc/init.d/functions
+
+# Check that networking is up.
+. /etc/sysconfig/network
+
+if [ "$NETWORKING" = "no" ]
+then
+    exit 0
+fi
+
+RETVAL=0
+prog="__custom_name__-fpm"
+pidfile=${PIDFILE-/var/run/php-fpm/__custom_name__-fpm.pid}
+lockfile=${LOCKFILE-/var/lock/subsys/__custom_name__-fpm}
+STOP_TIMEOUT=${STOP_TIMEOUT-30}
+
+start () {
+    echo -n $"Starting $prog (Multiple Php): "
+    if [ "$prog" == "php-fpm" ] ; then
+        ## MR -- bug fix for handle 'php branch'
+        export PHP_INI_SCAN_DIR="/etc/php.d"
+    fi
+    daemon --pidfile ${pidfile} $prog -y /opt/configs/php-fpm/conf/__custom_name__/php-fpm.conf
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch ${lockfile}
+}
+stop () {
+    echo -n $"Stopping $prog (Multiple Php): "
+    killproc -p ${pidfile} -d ${STOP_TIMEOUT} $prog
+    RETVAL=$?
+    echo
+    if [ $RETVAL -eq 0 ] ; then
+        rm -f ${lockfile} ${pidfile}
+        for sockfile in $(dir -l /opt/configs/php-fpm/sock/__custom_name__-*.sock 2>/dev/null|awk '{print $9}') ; do
+            if [ "${sockfile}" != "" ] ; then
+                echo "- Delete $sockfile"
+                unlink $sockfile >/dev/null 2>&1
+            fi
+        done
+    fi
+}
+
+restart () {
+    stop
+    start
+}
+
+reload () {
+    echo -n $"Reloading $prog (Multiple Php): "
+    killproc -p ${pidfile} -d ${STOP_TIMEOUT} $prog -USR2
+    RETVAL=$?
+    echo
+}
+
+
+# See how we were called.
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  status)
+    status -p ${pidfile} $prog
+    RETVAL=$?
+    ;;
+  restart)
+    restart
+    ;;
+  reload|force-reload)
+    reload
+    ;;
+  condrestart|try-restart)
+    [ -f ${lockfile} ] && restart || :
+    ;;
+  *)
+    echo $"Usage: $0 {start|stop|status|restart|reload|force-reload|condrestart|try-restart}"
+    RETVAL=2
+        ;;
+esac
+
+exit $RETVAL

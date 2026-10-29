@@ -1,0 +1,13 @@
+all:
+	#yum install openssl-devel -y
+
+	rm -f kloxo.exe
+	rm -f kloxo.o
+
+	gcc -o kloxo.exe kloxo.c -lssl -lcrypto
+
+	# Do not chmod ug+s: the daemon must not be setuid (audit C4).
+	chmod 0755 kloxo.exe
+
+	cp -f kloxo.exe ../sbin/kloxo.exe
+	cp -f kloxo.exe ../sbin/kloxo.exe.core

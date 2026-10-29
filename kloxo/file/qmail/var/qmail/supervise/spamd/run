@@ -1,0 +1,4 @@
+#!/bin/sh
+
+#exec /usr/bin/spamd -x -u vpopmail -s stderr -i 0.0.0.0 2>&1
+exec /usr/bin/spamd --virtual-config-dir=/home/kloxomail/mail/spamassassin/%d/%l/.spamassassin -x -u vpopmail -s stderr -i 127.0.0.1 -A 127.0.0.1 2>&1

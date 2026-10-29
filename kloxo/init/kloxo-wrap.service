@@ -1,0 +1,15 @@
+[Unit]
+Description=Startup script for Kloxo CP.
+Documentation=https://kloxocp.invalid/
+After=network.target remote-fs.target nss-lookup.target
+ 
+[Service]
+Type=forking
+PIDFile=/opt/kloxo/pid/wrapper.pid
+ExecStart=/usr/bin/sh /script/run-kloxo-wrapper &
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+ 
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,20 @@
+#!/bin/sh
+program=$1
+shift
+if [ $program = 'kloxo' ] ; then
+	db="kloxo4_2"
+else 
+	db="hypervm1_0"
+fi
+
+echo -n "Taking backup of the current databse...   "
+lxphp.exe ../bin/common/mebackup.php >/dev/null
+echo "done.."
+
+if [ -z $1 ] ; then
+	echo need the secondary slave address
+	exit;
+fi
+echo "Syncing database from $@ to this server"
+ssh "$@" sh /opt/kloxo/$program/bin/common/databasedump $program | mysql -u $program -p`cat /opt/kloxo/$program/etc/conf/$program.pass` $db
+echo "done"

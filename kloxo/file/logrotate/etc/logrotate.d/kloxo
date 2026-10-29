@@ -1,0 +1,29 @@
+# Kloxo CP LogRotate
+# Initial version
+# Needs cleanup
+# Using this one on LxCenter server
+# Created by Danny Terweij <d.terweij@lxcenter.org>
+#
+# Daily rotates (compressed) and keeps maximum of 30 days
+#
+# add and modified by Mustafa Ramadhan <mustafa.ramadhan@lxcenter.org>
+
+/home/httpd/*/stats/*_log
+/home/*/__processed_stats/*_log
+## MR -- disable for kloxo because using fixlogdir in scavenge
+#/opt/kloxo/log/*
+#/opt/kloxo/processed_log/*
+{
+    daily
+    #create 0664 apache apache
+    #rotate 52
+    compress
+    delaycompress
+    notifempty
+    missingok
+    sharedscripts
+    postrotate
+        sh /script/restart-web -y >/dev/null 2>&1 || true
+        sh /script/restart -y >/dev/null 2>&1 || true
+    endscript
+}

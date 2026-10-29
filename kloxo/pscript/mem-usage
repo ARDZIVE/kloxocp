@@ -1,0 +1,32 @@
+#!/bin/bash
+
+#ps hax -o rss,user | awk '{a[$2]+=$1;}END{for(i in a)print i" "int(a[i]/1024+0.5);}'
+
+#ps -eo user,pid,ppid,rss,vsize,pcpu,pmem,command --sort vsize
+
+if [ "$(rpm -qa smem)" == "" ] ; then
+	yum install smem -y
+fi
+
+echo "*************************************************************************"
+echo ""
+free -m
+echo ""
+echo "*************************************************************************"
+echo ""
+if [ "$1" == "" ] ; then
+	/usr/bin/smem -u -t -k -p
+else
+	/usr/bin/smem $1
+fi
+echo ""
+echo "* Under: "
+echo "  - root:   dns server, php-fpm master, qmail supervise, ftp server,"
+echo "            nginx master"
+echo "  - apache: hiawatha, lighttpd, httpd, 'default' php-fpm, fcgiwrap,"
+echo "            nginx worker/cache manager"
+echo "  - lxlabs: hiawatha for Kloxo CP panel"
+echo ""
+echo "  - Others services may running under root and apache"
+echo ""
+echo "*************************************************************************"

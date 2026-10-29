@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if [[ "$1" == *"--admin-password="* ]] ; then
+	. /script/directory
+	lxphp.exe ../bin/install/create.php --install-type=slave "$@"
+	sh /script/restart -y
+else
+	echo "*NOTE: run with"
+	echo "$0 --install-type=slave --admin-password=YourAdminPassword"
+fi

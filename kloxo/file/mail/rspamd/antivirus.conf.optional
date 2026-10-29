@@ -1,0 +1,10 @@
+# Kloxo CP: ClamAV integration. Only installed with the "full" profile
+# (ClamAV needs about 1 GB of RAM). Rename to antivirus.conf to enable.
+clamav {
+  action = "reject";
+  scan_mime_parts = true;
+  symbol = "CLAM_VIRUS";
+  type = "clamav";
+  log_clean = true;
+  servers = "/run/clamav/clamd.ctl";
+}

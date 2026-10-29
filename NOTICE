@@ -1,0 +1,21 @@
+Kloxo CP
+========
+
+Kloxo CP is a derivative work. Its lineage:
+
+  Kloxo       Copyright (C) 2000-2009 LxLabs; 2009-2012 LxCenter
+              https://github.com/lxcenter/kloxo (AGPLv3)
+  Kloxo-MR    Copyright (C) 2013-2019 Mustafa Ramadhan / MRatWork
+              https://github.com/mustafaramadhan/kloxo (AGPLv3)
+              Base commit: e0dfc28a15663fc3c682ee55c35d41f4032633f4 (branch "dev",
+              version 7.0.0.c-2019072201)
+  Kloxo CP    modifications from this fork (AGPLv3)
+
+All upstream copyright and authorship notices in source files have been preserved
+unchanged. This fork is an independent project and is not affiliated with or endorsed
+by LxCenter or MRatWork. The name "Kloxo" belongs to the upstream project; make sure you
+are comfortable with using "Kloxo CP" (and check trademark rules) before public release.
+
+Third-party components bundled in the source tree (PEAR, HTTP_WebDAV_Server, PHPMailer,
+ExtJS, formmail, qmail/courier/maradns/nsd/webalizer config templates, etc.) keep their
+own licenses and copyright notices.

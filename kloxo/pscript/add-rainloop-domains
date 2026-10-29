@@ -1,0 +1,33 @@
+#!/bin/sh
+
+echo "*** Add domain ini for Rainloop webmail ***"
+
+read -r -d '' ini_content << EOF
+imap_host = "127.0.0.1"
+imap_port = 993
+imap_secure = "SSL"
+smtp_host = "127.0.0.1"
+smtp_port = 587
+smtp_secure = "TLS"
+smtp_auth = On
+EOF
+
+rdir="/home/kloxo/httpd/webmail/rainloop"
+
+if [ -d ${rdir}/data/_data_ ] ; then
+	dir=$(dirname ${rdir}/data/_data_*/_default_/domains)/domains
+
+	if [ "${1}" == "" ] ; then
+		doms=$(/home/vpopmail/bin/vdominfo|grep 'domain:'|awk '{print $2}')
+	
+		for x in ${doms} ; do
+			echo "- '${x}.ini' added"
+			echo "${ini_content}" > ${dir}/${x}.ini
+		done
+	else
+		echo "- '${1}.ini' added"
+		echo "${ini_content}" > ${dir}/${1}.ini
+	fi
+else
+	echo "- Need browse 'your webmail.yourdomain.com' and then select rainloop"
+fi

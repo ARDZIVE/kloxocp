@@ -1,0 +1,1103 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * kloxo-mail: provisioning and configuration tool for the Kloxo CP mail stack
+ * (Postfix + Dovecot + Rspamd, mailboxes in a dedicated MariaDB database).
+ *
+ * Standalone on purpose: no dependency on the legacy panel code, PHP 8.3, prepared
+ * statements only, no shell strings (commands are run as argument arrays).
+ *
+ * Usage: kloxo-mail <command> [arguments] [--options]      (kloxo-mail help)
+ */
+
+const KM_VERSION = '0.1.0';
+
+final class KmException extends RuntimeException
+{
+}
+
+// ---------------------------------------------------------------------------
+// Configuration file (/etc/kloxo/mail.ini, mode 0600): key = "json-encoded value"
+// ---------------------------------------------------------------------------
+final class Conf
+{
+    public const DEFAULTS = [
+        'hostname'           => '',
+        'db_socket'          => '/run/mysqld/mysqld.sock',
+        'db_name'            => 'kloxo_mail',
+        'db_rw_user'         => 'kloxo_mail_rw',
+        'db_rw_pass'         => '',
+        'db_ro_user'         => 'kloxo_mail_ro',
+        'db_ro_pass'         => '',
+        'vmail_dir'          => '/var/vmail',
+        'vmail_uid'          => 5000,
+        'vmail_gid'          => 5000,
+        'dkim_dir'           => '/var/lib/rspamd/dkim',
+        'dkim_selector'      => 'kloxo',
+        'rspamd_dir'         => '/etc/rspamd',
+        'message_size_limit' => 52428800,
+        'tls_cert'           => '/etc/ssl/certs/ssl-cert-snakeoil.pem',
+        'tls_key'            => '/etc/ssl/private/ssl-cert-snakeoil.key',
+        'custom_dir'         => '/etc/kloxo/mail.d',
+        'rspamd_ctrl_hash'   => '',
+    ];
+
+    /** @var array<string,mixed> */
+    public array $v = self::DEFAULTS;
+
+    public static function load(string $path): self
+    {
+        if (!is_file($path)) {
+            throw new KmException("Config file not found: $path (run `kloxo-mail init` first)");
+        }
+        $c = new self();
+        foreach (file($path, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#' || $line[0] === ';') {
+                continue;
+            }
+            [$k, $val] = array_pad(explode('=', $line, 2), 2, '');
+            $k = trim($k);
+            $val = trim($val);
+            if ($val !== '' && $val[0] === '"') {
+                $val = json_decode($val, false, 8, JSON_THROW_ON_ERROR);
+            } elseif (is_numeric($val)) {
+                $val = $val + 0;
+            }
+            $c->v[$k] = $val;
+        }
+        return $c;
+    }
+
+    public function save(string $path): void
+    {
+        $dir = dirname($path);
+        if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+            throw new KmException("Cannot create $dir");
+        }
+        $out = "# Kloxo CP mail tool configuration. Contains secrets: keep mode 0600.\n";
+        foreach ($this->v as $k => $val) {
+            $out .= $k . ' = ' . json_encode($val, JSON_UNESCAPED_SLASHES) . "\n";
+        }
+        $tmp = $path . '.tmp' . getmypid();
+        file_put_contents($tmp, $out);
+        chmod($tmp, 0600);
+        rename($tmp, $path);
+    }
+
+    public function get(string $k): mixed
+    {
+        return $this->v[$k] ?? null;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Input validation: everything that reaches SQL, a path or a config file
+// ---------------------------------------------------------------------------
+final class V
+{
+    private const DOMAIN = '/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/';
+    private const LOCAL  = '/^[a-z0-9](?:[a-z0-9._+-]{0,62}[a-z0-9])?$/';
+
+    public static function domain(string $d): string
+    {
+        $d = strtolower(trim($d));
+        if (!preg_match(self::DOMAIN, $d)) {
+            throw new KmException("Invalid domain name: $d (use ASCII/punycode)");
+        }
+        return $d;
+    }
+
+    /** @return array{0:string,1:string,2:string} [email, local, domain] */
+    public static function email(string $e): array
+    {
+        $e = strtolower(trim($e));
+        $parts = explode('@', $e);
+        if (count($parts) !== 2 || strlen($e) > 320) {
+            throw new KmException("Invalid email address: $e");
+        }
+        [$l, $d] = $parts;
+        if (!preg_match(self::LOCAL, $l) || str_contains($l, '..')) {
+            throw new KmException("Invalid local part: $l");
+        }
+        return [$l . '@' . self::domain($d), $l, self::domain($d)];
+    }
+
+    /** Alias source: user@domain or catch-all @domain. @return array{0:string,1:string} [source, domain] */
+    public static function aliasSource(string $s): array
+    {
+        $s = strtolower(trim($s));
+        if (str_starts_with($s, '@')) {
+            $d = self::domain(substr($s, 1));
+            return ['@' . $d, $d];
+        }
+        [$e, , $d] = self::email($s);
+        return [$e, $d];
+    }
+
+    public static function password(string $p): string
+    {
+        if (strlen($p) < 10) {
+            throw new KmException('Password must be at least 10 characters');
+        }
+        if (strlen($p) > 256 || preg_match('/[\r\n\0]/', $p)) {
+            throw new KmException('Password contains invalid characters or is too long');
+        }
+        return $p;
+    }
+
+    public static function selector(string $s): string
+    {
+        if (!preg_match('/^[a-z0-9]{1,32}$/', $s)) {
+            throw new KmException('Invalid DKIM selector');
+        }
+        return $s;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Small process helper: argument arrays, never a shell
+// ---------------------------------------------------------------------------
+final class Proc
+{
+    /** @param list<string> $cmd */
+    public static function run(array $cmd, ?string $stdin = null): array
+    {
+        $p = @proc_open($cmd, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($p)) {
+            return [127, '', 'cannot execute ' . $cmd[0]];
+        }
+        if ($stdin !== null) {
+            fwrite($pipes[0], $stdin);
+        }
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]);
+        $err = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        return [proc_close($p), (string)$out, (string)$err];
+    }
+
+    public static function exists(string $bin): bool
+    {
+        foreach (explode(':', (string)getenv('PATH') . ':/usr/sbin:/sbin') as $d) {
+            if ($d !== '' && is_executable("$d/$bin")) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Database access
+// ---------------------------------------------------------------------------
+final class Db
+{
+    private ?PDO $pdo = null;
+
+    public function __construct(private Conf $c)
+    {
+    }
+
+    public function pdo(): PDO
+    {
+        if ($this->pdo === null) {
+            $dsn = 'mysql:unix_socket=' . $this->c->get('db_socket') . ';dbname=' . $this->c->get('db_name') . ';charset=utf8mb4';
+            $this->pdo = new PDO($dsn, (string)$this->c->get('db_rw_user'), (string)$this->c->get('db_rw_pass'), [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES   => false,
+            ]);
+        }
+        return $this->pdo;
+    }
+
+    /** @param list<mixed> $args */
+    public function all(string $sql, array $args = []): array
+    {
+        $st = $this->pdo()->prepare($sql);
+        $st->execute($args);
+        return $st->fetchAll();
+    }
+
+    /** @param list<mixed> $args */
+    public function one(string $sql, array $args = []): ?array
+    {
+        $r = $this->all($sql, $args);
+        return $r[0] ?? null;
+    }
+
+    /** @param list<mixed> $args */
+    public function exec(string $sql, array $args = []): int
+    {
+        $st = $this->pdo()->prepare($sql);
+        $st->execute($args);
+        return $st->rowCount();
+    }
+
+    public function domain(string $name): array
+    {
+        $d = $this->one('SELECT * FROM domains WHERE name = ?', [$name]);
+        if (!$d) {
+            throw new KmException("Domain not found: $name");
+        }
+        return $d;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DKIM keys (2048-bit RSA, one per domain, read by Rspamd)
+// ---------------------------------------------------------------------------
+final class Dkim
+{
+    public function __construct(private Conf $c)
+    {
+    }
+
+    public function keyPath(string $domain, string $selector): string
+    {
+        return $this->c->get('dkim_dir') . "/$domain.$selector.key";
+    }
+
+    /** @return string TXT record value */
+    public function generate(string $domain, string $selector, bool $force): string
+    {
+        $path = $this->keyPath($domain, $selector);
+        if (is_file($path) && !$force) {
+            return $this->txt($path);
+        }
+        $dir = (string)$this->c->get('dkim_dir');
+        if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+            throw new KmException("Cannot create $dir");
+        }
+        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        if ($key === false || !openssl_pkey_export($key, $pem)) {
+            throw new KmException('OpenSSL key generation failed');
+        }
+        $tmp = $path . '.tmp';
+        file_put_contents($tmp, $pem);
+        chmod($tmp, 0640);
+        if (function_exists('posix_getgrnam') && ($g = posix_getgrnam('_rspamd'))) {
+            @chgrp($tmp, $g['gid']);
+        }
+        rename($tmp, $path);
+        return $this->txt($path);
+    }
+
+    public function txt(string $keyPath): string
+    {
+        $key = openssl_pkey_get_private((string)file_get_contents($keyPath));
+        if ($key === false) {
+            throw new KmException("Cannot read DKIM key $keyPath");
+        }
+        $pub = openssl_pkey_get_details($key)['key'] ?? '';
+        $b64 = preg_replace('/-----[A-Z ]+-----|\s+/', '', $pub);
+        return 'v=DKIM1; k=rsa; p=' . $b64;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Template rendering and safe apply (backup, validate, reload, roll back)
+// ---------------------------------------------------------------------------
+final class Renderer
+{
+    /** template (relative to template dir) => [target path (relative to root), mode, group|null] */
+    private const MAP = [
+        'postfix/main.cf'                 => ['etc/postfix/main.cf', 0644, null],
+        'postfix/master.cf'               => ['etc/postfix/master.cf', 0644, null],
+        'postfix/sql/virtual-domains.cf'  => ['etc/postfix/sql/virtual-domains.cf', 0640, 'postfix'],
+        'postfix/sql/virtual-mailboxes.cf' => ['etc/postfix/sql/virtual-mailboxes.cf', 0640, 'postfix'],
+        'postfix/sql/virtual-aliases.cf'  => ['etc/postfix/sql/virtual-aliases.cf', 0640, 'postfix'],
+        'postfix/sql/sender-login.cf'     => ['etc/postfix/sql/sender-login.cf', 0640, 'postfix'],
+        'dovecot/dovecot.conf'            => ['etc/dovecot/dovecot.conf', 0644, null],
+        'dovecot/dovecot-sql.conf.ext'    => ['etc/dovecot/dovecot-sql.conf.ext', 0640, 'vmail'],
+        'sieve/before.sieve'              => ['var/lib/dovecot/sieve/before.d/00-kloxo-spam.sieve', 0644, null],
+        'rspamd/worker-proxy.inc'         => ['etc/rspamd/local.d/worker-proxy.inc', 0644, null],
+        'rspamd/worker-normal.inc'        => ['etc/rspamd/local.d/worker-normal.inc', 0644, null],
+        'rspamd/worker-controller.inc'    => ['etc/rspamd/local.d/worker-controller.inc', 0640, '_rspamd'],
+        'rspamd/redis.conf'               => ['etc/rspamd/local.d/redis.conf', 0644, null],
+        'rspamd/dkim_signing.conf'        => ['etc/rspamd/local.d/dkim_signing.conf', 0644, null],
+        'rspamd/actions.conf'             => ['etc/rspamd/local.d/actions.conf', 0644, null],
+        'rspamd/milter_headers.conf'      => ['etc/rspamd/local.d/milter_headers.conf', 0644, null],
+        'rspamd/classifier-bayes.conf'    => ['etc/rspamd/local.d/classifier-bayes.conf', 0644, null],
+        'fail2ban/kloxo-mail.conf'        => ['etc/fail2ban/jail.d/kloxo-mail.conf', 0644, null],
+    ];
+
+    /** custom snippets appended to generated files: target => custom file name */
+    private const CUSTOM = [
+        'etc/postfix/main.cf'   => 'postfix-main.cf',
+        'etc/postfix/master.cf' => 'postfix-master.cf',
+        'etc/dovecot/dovecot.conf' => 'dovecot.conf',
+    ];
+
+    public function __construct(private Conf $c, private string $tplDir)
+    {
+    }
+
+    /** @return array<string,string> */
+    private function vars(): array
+    {
+        $h = (string)$this->c->get('hostname');
+        if ($h === '') {
+            throw new KmException('hostname is not set in the config');
+        }
+        V::domain($h);
+        if (!$this->c->get('rspamd_ctrl_hash')) {
+            throw new KmException('rspamd_ctrl_hash is empty: install Rspamd and run `kloxo-mail init --force` or set it');
+        }
+        return [
+            'HOSTNAME' => $h,
+            'DB_SOCKET' => (string)$this->c->get('db_socket'),
+            'DB_NAME' => (string)$this->c->get('db_name'),
+            'DB_RO_USER' => (string)$this->c->get('db_ro_user'),
+            'DB_RO_PASS' => (string)$this->c->get('db_ro_pass'),
+            'VMAIL_DIR' => rtrim((string)$this->c->get('vmail_dir'), '/'),
+            'VMAIL_UID' => (string)$this->c->get('vmail_uid'),
+            'VMAIL_GID' => (string)$this->c->get('vmail_gid'),
+            'DKIM_DIR' => rtrim((string)$this->c->get('dkim_dir'), '/'),
+            'DKIM_SELECTOR' => (string)$this->c->get('dkim_selector'),
+            'RSPAMD_DIR' => rtrim((string)$this->c->get('rspamd_dir'), '/'),
+            'MESSAGE_SIZE_LIMIT' => (string)$this->c->get('message_size_limit'),
+            'TLS_CERT' => (string)$this->c->get('tls_cert'),
+            'TLS_KEY' => (string)$this->c->get('tls_key'),
+            'RSPAMD_CTRL_HASH' => (string)$this->c->get('rspamd_ctrl_hash'),
+            // servers without IPv6 in the kernel cannot bind '::' and Dovecot would refuse to start
+            'DOVECOT_LISTEN' => is_file('/proc/net/if_inet6') ? '*, ::' : '*',
+        ];
+    }
+
+    /** Render all templates below $out. @return list<string> written relative paths */
+    public function render(string $out, array $extra = []): array
+    {
+        $vars = $this->vars();
+        $written = [];
+        foreach (self::MAP as $tpl => [$target, $mode, $group]) {
+            $src = $this->tplDir . '/' . $tpl;
+            $text = file_get_contents($src);
+            if ($text === false) {
+                throw new KmException("Template missing: $src");
+            }
+            $text = preg_replace_callback('/@@([A-Z_]+)@@/', function (array $m) use ($vars, $tpl): string {
+                if (!array_key_exists($m[1], $vars)) {
+                    throw new KmException("Unknown placeholder @@{$m[1]}@@ in $tpl");
+                }
+                return $vars[$m[1]];
+            }, $text);
+            if (isset(self::CUSTOM[$target])) {
+                $custom = rtrim((string)$this->c->get('custom_dir'), '/') . '/' . self::CUSTOM[$target];
+                if (is_file($custom)) {
+                    $text .= "\n# --- custom settings from $custom ---\n" . file_get_contents($custom);
+                }
+            }
+            $dst = rtrim($out, '/') . '/' . $target;
+            if (!is_dir(dirname($dst)) && !mkdir(dirname($dst), 0750, true) && !is_dir(dirname($dst))) {
+                throw new KmException('Cannot create ' . dirname($dst));
+            }
+            file_put_contents($dst, $text);
+            chmod($dst, $mode);
+            $written[] = $target;
+        }
+        // generated data files (e.g. DKIM maps built from the database)
+        foreach ($extra as $target => $text) {
+            $dst = rtrim($out, '/') . '/' . $target;
+            if (!is_dir(dirname($dst)) && !mkdir(dirname($dst), 0755, true) && !is_dir(dirname($dst))) {
+                throw new KmException('Cannot create ' . dirname($dst));
+            }
+            file_put_contents($dst, $text);
+            chmod($dst, 0644);
+            $written[] = $target;
+        }
+        return $written;
+    }
+
+    /** @return array<string,array{0:int,1:?string}> target => [mode, group] */
+    public function targets(): array
+    {
+        $r = [];
+        foreach (self::MAP as [$t, $m, $g]) {
+            $r[$t] = [$m, $g];
+        }
+        return $r;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Command line application
+// ---------------------------------------------------------------------------
+final class App
+{
+    private Conf $c;
+    private ?Db $db = null;
+    private bool $json = false;
+    /** @var list<string> */
+    private array $args = [];
+    /** @var array<string,string|true> */
+    private array $opt = [];
+    private string $confPath;
+
+    public function run(array $argv): int
+    {
+        array_shift($argv);
+        foreach ($argv as $a) {
+            if (str_starts_with($a, '--')) {
+                [$k, $v] = array_pad(explode('=', substr($a, 2), 2), 2, true);
+                $this->opt[$k] = $v;
+            } else {
+                $this->args[] = $a;
+            }
+        }
+        $this->json = isset($this->opt['json']);
+        $cmd = array_shift($this->args) ?? 'help';
+        $this->confPath = (string)($this->opt['conf'] ?? getenv('KLOXO_MAIL_CONF') ?: '/etc/kloxo/mail.ini');
+
+        try {
+            if (!in_array($cmd, ['help', '--help', 'version', 'init'], true)) {
+                $this->c = Conf::load($this->confPath);
+                $this->db = new Db($this->c);
+            }
+            return $this->dispatch($cmd);
+        } catch (KmException $e) {
+            fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+            return 1;
+        } catch (PDOException $e) {
+            fwrite(STDERR, 'database error: ' . $e->getMessage() . "\n");
+            return 2;
+        }
+    }
+
+    private function dispatch(string $cmd): int
+    {
+        return match ($cmd) {
+            'help', '--help'  => $this->help(),
+            'version'         => $this->say(['version' => KM_VERSION], 'kloxo-mail ' . KM_VERSION),
+            'init'            => $this->init(),
+            'domain:add'      => $this->domainAdd(),
+            'domain:del'      => $this->domainDel(),
+            'domain:list'     => $this->domainList(),
+            'domain:enable'   => $this->domainActive(1),
+            'domain:disable'  => $this->domainActive(0),
+            'mailbox:add'     => $this->mailboxAdd(),
+            'mailbox:passwd'  => $this->mailboxPasswd(),
+            'mailbox:quota'   => $this->mailboxQuota(),
+            'mailbox:enable'  => $this->mailboxActive(1),
+            'mailbox:disable' => $this->mailboxActive(0),
+            'mailbox:del'     => $this->mailboxDel(),
+            'mailbox:list'    => $this->mailboxList(),
+            'alias:add'       => $this->aliasAdd(),
+            'alias:del'       => $this->aliasDel(),
+            'alias:list'      => $this->aliasList(),
+            'dkim:generate'   => $this->dkimGenerate(),
+            'dkim:show'       => $this->dkimShow(),
+            'dns:records'     => $this->dnsRecords(),
+            'render'          => $this->render(),
+            'apply'           => $this->apply(),
+            'check'           => $this->check(),
+            default           => throw new KmException("Unknown command: $cmd (try `kloxo-mail help`)"),
+        };
+    }
+
+    // --- output helpers ---------------------------------------------------------
+    private function say(array $data, string $text): int
+    {
+        echo $this->json ? json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n" : $text . "\n";
+        return 0;
+    }
+
+    private function arg(int $i, string $name): string
+    {
+        if (!isset($this->args[$i])) {
+            throw new KmException("Missing argument: <$name>");
+        }
+        return $this->args[$i];
+    }
+
+    private function db(): Db
+    {
+        return $this->db ?? throw new KmException('No database connection');
+    }
+
+    /** Password from stdin (first line) or from an environment variable; never from argv. */
+    private function readPassword(): string
+    {
+        if (isset($this->opt['password-env'])) {
+            $p = getenv((string)$this->opt['password-env']);
+            if ($p === false || $p === '') {
+                throw new KmException('Environment variable for --password-env is empty');
+            }
+        } elseif (isset($this->opt['password-stdin'])) {
+            $p = rtrim((string)fgets(STDIN), "\r\n");
+        } else {
+            throw new KmException('Give the password with --password-stdin or --password-env=VAR (never on the command line)');
+        }
+        return V::password($p);
+    }
+
+    /** Dovecot caches auth/userdb lookups; flush so password, quota and enable/disable changes act immediately. */
+    private function flushAuthCache(string $user = ''): void
+    {
+        if (Proc::exists('doveadm')) {
+            Proc::run($user === '' ? ['doveadm', 'auth', 'cache', 'flush'] : ['doveadm', 'auth', 'cache', 'flush', $user]);
+        }
+    }
+
+    private function hash(string $pw): string
+    {
+        return '{ARGON2ID}' . password_hash($pw, PASSWORD_ARGON2ID);
+    }
+
+    private function help(): int
+    {
+        echo <<<TXT
+kloxo-mail {$this->v()}: mail stack tool for Kloxo CP
+
+  init --hostname=mail.example.com [--conf=FILE] [--admin-socket=SOCK] [--vmail-dir=DIR]
+       [--tls-cert=FILE --tls-key=FILE] [--rspamd-dir=DIR] [--skip-system] [--force]
+  domain:add <domain> [--quota=MB] [--no-dkim]     domain:del <domain> [--purge]
+  domain:list | domain:enable <d> | domain:disable <d>
+  mailbox:add <email> (--password-stdin | --password-env=VAR) [--quota=MB]
+  mailbox:passwd <email> (--password-stdin | --password-env=VAR)
+  mailbox:quota <email> <MB>   mailbox:enable|disable <email>   mailbox:del <email> [--purge]
+  mailbox:list [domain]
+  alias:add <source|@domain> <target>...           alias:del <source> [target]   alias:list [domain]
+  dkim:generate <domain> [--selector=S] [--force]  dkim:show <domain>
+  dns:records <domain> [--ip=1.2.3.4]
+  render --out=DIR                                  write all config files below DIR
+  apply [--root=/] [--no-reload]                    render, back up, validate, reload, roll back on failure
+  check                                             database and tool self-check
+Global options: --json  --conf=FILE (default /etc/kloxo/mail.ini or \$KLOXO_MAIL_CONF)
+
+TXT;
+        return 0;
+    }
+
+    private function v(): string
+    {
+        return KM_VERSION;
+    }
+
+    // --- init ----------------------------------------------------------------------
+    private function init(): int
+    {
+        if (is_file($this->confPath) && !isset($this->opt['force'])) {
+            throw new KmException("{$this->confPath} already exists (use --force to re-initialise)");
+        }
+        $c = new Conf();
+        $c->v['hostname'] = V::domain((string)($this->opt['hostname'] ?? ''));
+        foreach (['vmail-dir' => 'vmail_dir', 'tls-cert' => 'tls_cert', 'tls-key' => 'tls_key', 'dkim-dir' => 'dkim_dir', 'db-name' => 'db_name', 'rspamd-dir' => 'rspamd_dir'] as $o => $k) {
+            if (isset($this->opt[$o]) && $this->opt[$o] !== true) {
+                $c->v[$k] = (string)$this->opt[$o];
+            }
+        }
+        if (isset($this->opt['vmail-uid'])) {
+            $c->v['vmail_uid'] = $c->v['vmail_gid'] = (int)$this->opt['vmail-uid'];
+        }
+        if (!preg_match('/^[A-Za-z0-9_]{1,48}$/', (string)$c->v['db_name'])) {
+            throw new KmException('Invalid database name');
+        }
+        // DB account names follow the database name, so several instances (and tests) never share accounts
+        $c->v['db_rw_user'] = $c->v['db_name'] . '_rw';
+        $c->v['db_ro_user'] = $c->v['db_name'] . '_ro';
+        $adminSock = (string)($this->opt['admin-socket'] ?? $c->v['db_socket']);
+        $c->v['db_socket'] = $adminSock;
+        $c->v['db_rw_pass'] = bin2hex(random_bytes(24));
+        $c->v['db_ro_pass'] = bin2hex(random_bytes(24));
+
+        $admin = new PDO("mysql:unix_socket=$adminSock;charset=utf8mb4", 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        $dbn = $c->v['db_name'];
+        $admin->exec("CREATE DATABASE IF NOT EXISTS `$dbn` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+        $schema = (string)file_get_contents($this->tplDir() . '/schema.sql');
+        $schema = preg_replace('/^\s*--.*$/m', '', $schema);
+        $admin->exec("USE `$dbn`");
+        foreach (array_filter(array_map('trim', explode(';', (string)$schema))) as $stmt) {
+            $admin->exec($stmt);
+        }
+        foreach ([['db_rw_user', 'db_rw_pass', 'SELECT, INSERT, UPDATE, DELETE'], ['db_ro_user', 'db_ro_pass', 'SELECT']] as [$u, $p, $grant]) {
+            $user = (string)$c->v[$u];
+            $admin->prepare("CREATE USER IF NOT EXISTS '$user'@'localhost' IDENTIFIED BY ?")->execute([$c->v[$p]]);
+            $admin->prepare("ALTER USER '$user'@'localhost' IDENTIFIED BY ?")->execute([$c->v[$p]]);
+            $admin->exec("GRANT $grant ON `$dbn`.* TO '$user'@'localhost'");
+        }
+        if (Proc::exists('rspamadm')) {
+            [$rc, $out] = Proc::run(['rspamadm', 'pw', '-q', '-p', bin2hex(random_bytes(16))]);
+            $c->v['rspamd_ctrl_hash'] = $rc === 0 ? trim($out) : '';
+        }
+        if (!isset($this->opt['skip-system'])) {
+            $this->systemSetup($c);
+        }
+        $c->save($this->confPath);
+        return $this->say(['config' => $this->confPath, 'database' => $dbn], "Initialised. Config written to {$this->confPath} (mode 0600).\nNext: kloxo-mail apply");
+    }
+
+    private function systemSetup(Conf $c): void
+    {
+        $uid = (int)$c->v['vmail_uid'];
+        Proc::run(['groupadd', '-g', (string)$uid, 'vmail']);
+        Proc::run(['useradd', '-r', '-u', (string)$uid, '-g', 'vmail', '-d', (string)$c->v['vmail_dir'], '-s', '/usr/sbin/nologin', 'vmail']);
+        foreach ([(string)$c->v['vmail_dir'] => 0750] as $dir => $mode) {
+            if (!is_dir($dir)) {
+                mkdir($dir, $mode, true);
+            }
+            @chown($dir, 'vmail');
+            @chgrp($dir, 'vmail');
+        }
+        $dk = (string)$c->v['dkim_dir'];
+        if (!is_dir($dk)) {
+            mkdir($dk, 0750, true);
+        }
+        if (function_exists('posix_getgrnam') && posix_getgrnam('_rspamd')) {
+            @chgrp($dk, '_rspamd');
+        }
+    }
+
+    private function tplDir(): string
+    {
+        return (string)(getenv('KLOXO_MAIL_TEMPLATES') ?: dirname(__DIR__, 2) . '/file/mail');
+    }
+
+    // --- domains -------------------------------------------------------------------------
+    private function domainAdd(): int
+    {
+        $d = V::domain($this->arg(0, 'domain'));
+        $quota = (int)($this->opt['quota'] ?? 1024);
+        $sel = V::selector((string)($this->opt['selector'] ?? $this->c->get('dkim_selector')));
+        $this->db()->exec('INSERT INTO domains (name, default_quota_mb, dkim_selector) VALUES (?, ?, ?)', [$d, $quota, isset($this->opt['no-dkim']) ? null : $sel]);
+        $txt = null;
+        if (!isset($this->opt['no-dkim'])) {
+            $txt = (new Dkim($this->c))->generate($d, $sel, false);
+        }
+        $this->syncDkimMaps();
+        return $this->say(['domain' => $d, 'dkim_txt' => $txt], "Domain $d added." . ($txt ? "\nDKIM: $sel._domainkey.$d TXT \"$txt\"" : ''));
+    }
+
+    private function domainDel(): int
+    {
+        $d = V::domain($this->arg(0, 'domain'));
+        $row = $this->db()->domain($d);
+        $this->db()->exec('DELETE FROM domains WHERE id = ?', [$row['id']]);
+        $this->flushAuthCache();
+        if (isset($this->opt['purge'])) {
+            $this->rmTree(rtrim((string)$this->c->get('vmail_dir'), '/') . '/' . $d);
+            foreach (glob($this->c->get('dkim_dir') . "/$d.*.key") ?: [] as $f) {
+                @unlink($f);
+            }
+        }
+        $this->syncDkimMaps();
+        return $this->say(['deleted' => $d], "Domain $d deleted" . (isset($this->opt['purge']) ? ' (mail and DKIM keys purged)' : ' (mail files kept; use --purge to remove)'));
+    }
+
+    private function domainList(): int
+    {
+        $rows = $this->db()->all('SELECT d.name, d.active, d.default_quota_mb, d.dkim_selector, (SELECT COUNT(*) FROM mailboxes m WHERE m.domain_id = d.id) AS mailboxes FROM domains d ORDER BY d.name');
+        $txt = $rows ? implode("\n", array_map(fn($r) => sprintf('%-40s %-8s mailboxes=%d', $r['name'], $r['active'] ? 'active' : 'disabled', $r['mailboxes']), $rows)) : '(no domains)';
+        return $this->say(['domains' => $rows], $txt);
+    }
+
+    private function domainActive(int $state): int
+    {
+        $d = V::domain($this->arg(0, 'domain'));
+        $this->db()->domain($d);
+        $this->db()->exec('UPDATE domains SET active = ? WHERE name = ?', [$state, $d]);
+        $this->syncDkimMaps();
+        $this->flushAuthCache();
+        return $this->say(['domain' => $d, 'active' => $state], "Domain $d " . ($state ? 'enabled' : 'disabled'));
+    }
+
+    // --- mailboxes -----------------------------------------------------------------------
+    private function mailboxAdd(): int
+    {
+        [$email, , $dom] = V::email($this->arg(0, 'email'));
+        $d = $this->db()->domain($dom);
+        if (!$d['active']) {
+            throw new KmException("Domain $dom is disabled");
+        }
+        if ((int)$d['max_mailboxes'] > 0) {
+            $n = (int)$this->db()->one('SELECT COUNT(*) AS n FROM mailboxes WHERE domain_id = ?', [$d['id']])['n'];
+            if ($n >= (int)$d['max_mailboxes']) {
+                throw new KmException("Mailbox limit reached for $dom");
+            }
+        }
+        if ($this->db()->one('SELECT 1 FROM aliases WHERE source = ?', [$email])) {
+            throw new KmException("$email already exists as an alias");
+        }
+        $pw = $this->readPassword();
+        $quota = isset($this->opt['quota']) ? (int)$this->opt['quota'] : (int)$d['default_quota_mb'];
+        [$e, $l] = [$email, explode('@', $email)[0]];
+        $this->db()->exec('INSERT INTO mailboxes (domain_id, local_part, email, password_hash, quota_mb) VALUES (?, ?, ?, ?, ?)', [$d['id'], $l, $e, $this->hash($pw), $quota]);
+        return $this->say(['mailbox' => $e, 'quota_mb' => $quota], "Mailbox $e created (quota {$quota} MB)");
+    }
+
+    private function mailboxRow(string $raw): array
+    {
+        [$e] = V::email($raw);
+        $r = $this->db()->one('SELECT * FROM mailboxes WHERE email = ?', [$e]);
+        if (!$r) {
+            throw new KmException("Mailbox not found: $e");
+        }
+        return $r;
+    }
+
+    private function mailboxPasswd(): int
+    {
+        $r = $this->mailboxRow($this->arg(0, 'email'));
+        $this->db()->exec('UPDATE mailboxes SET password_hash = ? WHERE id = ?', [$this->hash($this->readPassword()), $r['id']]);
+        $this->flushAuthCache($r['email']);
+        return $this->say(['mailbox' => $r['email']], "Password changed for {$r['email']}");
+    }
+
+    private function mailboxQuota(): int
+    {
+        $r = $this->mailboxRow($this->arg(0, 'email'));
+        $mb = (int)$this->arg(1, 'MB');
+        if ($mb < 0) {
+            throw new KmException('Quota must be >= 0 (0 = unlimited)');
+        }
+        $this->db()->exec('UPDATE mailboxes SET quota_mb = ? WHERE id = ?', [$mb, $r['id']]);
+        $this->flushAuthCache($r['email']);
+        return $this->say(['mailbox' => $r['email'], 'quota_mb' => $mb], "Quota for {$r['email']} set to $mb MB");
+    }
+
+    private function mailboxActive(int $state): int
+    {
+        $r = $this->mailboxRow($this->arg(0, 'email'));
+        $this->db()->exec('UPDATE mailboxes SET active = ? WHERE id = ?', [$state, $r['id']]);
+        $this->flushAuthCache($r['email']);
+        return $this->say(['mailbox' => $r['email'], 'active' => $state], "Mailbox {$r['email']} " . ($state ? 'enabled' : 'disabled'));
+    }
+
+    private function mailboxDel(): int
+    {
+        $r = $this->mailboxRow($this->arg(0, 'email'));
+        $this->db()->exec('DELETE FROM mailboxes WHERE id = ?', [$r['id']]);
+        $this->db()->exec('DELETE t FROM alias_targets t WHERE t.target = ?', [$r['email']]);
+        $this->flushAuthCache($r['email']);
+        if (isset($this->opt['purge'])) {
+            [, $l, $d] = V::email($r['email']);
+            $this->rmTree(rtrim((string)$this->c->get('vmail_dir'), '/') . "/$d/$l");
+        }
+        return $this->say(['deleted' => $r['email']], "Mailbox {$r['email']} deleted" . (isset($this->opt['purge']) ? ' (mail purged)' : ' (mail files kept; use --purge to remove)'));
+    }
+
+    private function mailboxList(): int
+    {
+        $sql = 'SELECT m.email, m.quota_mb, m.active FROM mailboxes m JOIN domains d ON d.id = m.domain_id';
+        $args = [];
+        if (isset($this->args[0])) {
+            $sql .= ' WHERE d.name = ?';
+            $args[] = V::domain($this->args[0]);
+        }
+        $rows = $this->db()->all($sql . ' ORDER BY m.email', $args);
+        $txt = $rows ? implode("\n", array_map(fn($r) => sprintf('%-50s %6d MB %s', $r['email'], $r['quota_mb'], $r['active'] ? '' : '(disabled)'), $rows)) : '(no mailboxes)';
+        return $this->say(['mailboxes' => $rows], $txt);
+    }
+
+    // --- aliases, forwarders, catch-all --------------------------------------------------------
+    private function aliasAdd(): int
+    {
+        [$src, $dom] = V::aliasSource($this->arg(0, 'source'));
+        $targets = array_slice($this->args, 1);
+        if (!$targets) {
+            throw new KmException('Give at least one target address');
+        }
+        $d = $this->db()->domain($dom);
+        if (!str_starts_with($src, '@') && $this->db()->one('SELECT 1 FROM mailboxes WHERE email = ?', [$src]) && !in_array($src, array_map(fn($t) => V::email($t)[0], $targets), true)) {
+            // Forwarding a real mailbox without keeping a copy is allowed, but say so.
+            fwrite(STDERR, "note: $src is a mailbox; mail will be forwarded without a local copy unless you add $src as a target\n");
+        }
+        $pdo = $this->db()->pdo();
+        $pdo->beginTransaction();
+        try {
+            $a = $this->db()->one('SELECT id FROM aliases WHERE source = ?', [$src]);
+            $id = $a ? (int)$a['id'] : null;
+            if ($id === null) {
+                $this->db()->exec('INSERT INTO aliases (domain_id, source) VALUES (?, ?)', [$d['id'], $src]);
+                $id = (int)$pdo->lastInsertId();
+            }
+            foreach ($targets as $t) {
+                [$te] = V::email($t);
+                $this->db()->exec('INSERT IGNORE INTO alias_targets (alias_id, target) VALUES (?, ?)', [$id, $te]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+        return $this->say(['alias' => $src, 'targets' => array_map(fn($t) => V::email($t)[0], $targets)], "Alias $src updated");
+    }
+
+    private function aliasDel(): int
+    {
+        [$src] = V::aliasSource($this->arg(0, 'source'));
+        $a = $this->db()->one('SELECT id FROM aliases WHERE source = ?', [$src]);
+        if (!$a) {
+            throw new KmException("Alias not found: $src");
+        }
+        if (isset($this->args[1])) {
+            [$t] = V::email($this->args[1]);
+            $this->db()->exec('DELETE FROM alias_targets WHERE alias_id = ? AND target = ?', [$a['id'], $t]);
+            if (!$this->db()->one('SELECT 1 FROM alias_targets WHERE alias_id = ?', [$a['id']])) {
+                $this->db()->exec('DELETE FROM aliases WHERE id = ?', [$a['id']]);
+            }
+        } else {
+            $this->db()->exec('DELETE FROM aliases WHERE id = ?', [$a['id']]);
+        }
+        return $this->say(['alias' => $src], "Alias $src updated/removed");
+    }
+
+    private function aliasList(): int
+    {
+        $sql = 'SELECT a.source, GROUP_CONCAT(t.target ORDER BY t.target SEPARATOR ", ") AS targets FROM aliases a JOIN alias_targets t ON t.alias_id = a.id JOIN domains d ON d.id = a.domain_id';
+        $args = [];
+        if (isset($this->args[0])) {
+            $sql .= ' WHERE d.name = ?';
+            $args[] = V::domain($this->args[0]);
+        }
+        $rows = $this->db()->all($sql . ' GROUP BY a.id ORDER BY a.source', $args);
+        $txt = $rows ? implode("\n", array_map(fn($r) => "{$r['source']} -> {$r['targets']}", $rows)) : '(no aliases)';
+        return $this->say(['aliases' => $rows], $txt);
+    }
+
+    // --- DKIM and DNS ---------------------------------------------------------------------------
+    private function dkimGenerate(): int
+    {
+        $d = V::domain($this->arg(0, 'domain'));
+        $this->db()->domain($d);
+        $sel = V::selector((string)($this->opt['selector'] ?? $this->c->get('dkim_selector')));
+        $txt = (new Dkim($this->c))->generate($d, $sel, isset($this->opt['force']));
+        $this->db()->exec('UPDATE domains SET dkim_selector = ? WHERE name = ?', [$sel, $d]);
+        $this->syncDkimMaps();
+        return $this->say(['domain' => $d, 'selector' => $sel, 'txt' => $txt], "$sel._domainkey.$d TXT \"$txt\"");
+    }
+
+    private function dkimShow(): int
+    {
+        $d = V::domain($this->arg(0, 'domain'));
+        $row = $this->db()->domain($d);
+        $sel = (string)($row['dkim_selector'] ?? '');
+        if ($sel === '') {
+            throw new KmException("No DKIM key for $d (run dkim:generate)");
+        }
+        $txt = (new Dkim($this->c))->txt((new Dkim($this->c))->keyPath($d, $sel));
+        return $this->say(['domain' => $d, 'selector' => $sel, 'txt' => $txt], "$sel._domainkey.$d TXT \"$txt\"");
+    }
+
+    private function dnsRecords(): int
+    {
+        $d = V::domain($this->arg(0, 'domain'));
+        $row = $this->db()->domain($d);
+        $host = (string)$this->c->get('hostname');
+        $ip = isset($this->opt['ip']) && filter_var($this->opt['ip'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) ? ' ip4:' . $this->opt['ip'] : '';
+        $rec = [
+            ['name' => $d, 'type' => 'MX', 'value' => "10 $host."],
+            ['name' => $d, 'type' => 'TXT', 'value' => "v=spf1 mx$ip -all"],
+            ['name' => "_dmarc.$d", 'type' => 'TXT', 'value' => "v=DMARC1; p=none; rua=mailto:postmaster@$d; adkim=s; aspf=s"],
+        ];
+        $sel = (string)($row['dkim_selector'] ?? '');
+        if ($sel !== '' && is_file((new Dkim($this->c))->keyPath($d, $sel))) {
+            $rec[] = ['name' => "$sel._domainkey.$d", 'type' => 'TXT', 'value' => (new Dkim($this->c))->txt((new Dkim($this->c))->keyPath($d, $sel))];
+        }
+        $rec[] = ['name' => "autoconfig.$d", 'type' => 'CNAME', 'value' => "$host."];
+        $txt = implode("\n", array_map(fn($r) => sprintf('%-32s %-6s %s', $r['name'], $r['type'], $r['value']), $rec))
+            . "\n\nAlso set the reverse DNS (PTR) of the server IP to $host. Start DMARC with p=none, then move to quarantine/reject once reports look clean.";
+        return $this->say(['records' => $rec], $txt);
+    }
+
+    // --- rendering and applying configuration ---------------------------------------------------------
+    /** DKIM maps for Rspamd, built from the database: only domains that really have a key are listed. */
+    private function dkimMaps(): array
+    {
+        $dk = new Dkim($this->c);
+        $sel = "# Kloxo CP (GENERATED): domain selector\n";
+        $path = "# Kloxo CP (GENERATED): domain key-file\n";
+        foreach ($this->db()->all('SELECT name, dkim_selector FROM domains WHERE dkim_selector IS NOT NULL AND active = 1 ORDER BY name') as $d) {
+            $kp = $dk->keyPath($d['name'], $d['dkim_selector']);
+            if (is_file($kp)) {
+                $sel .= "{$d['name']} {$d['dkim_selector']}\n";
+                $path .= "{$d['name']} $kp\n";
+            }
+        }
+        return [
+            'etc/rspamd/kloxo/dkim_selectors.map' => $sel,
+            'etc/rspamd/kloxo/dkim_paths.map' => $path,
+        ];
+    }
+
+    /** Rewrite the DKIM maps in place (Rspamd watches map files, no reload needed). */
+    private function syncDkimMaps(): void
+    {
+        $dir = rtrim((string)$this->c->get('rspamd_dir'), '/') . '/kloxo';
+        if (!is_dir($dir)) {
+            return; // not applied yet; `apply` creates the maps
+        }
+        foreach ($this->dkimMaps() as $target => $text) {
+            $dst = $dir . '/' . basename($target);
+            file_put_contents($dst . '.new', $text);
+            chmod($dst . '.new', 0644);
+            rename($dst . '.new', $dst);
+        }
+    }
+
+    private function renderer(): Renderer
+    {
+        return new Renderer($this->c, $this->tplDir());
+    }
+
+    private function render(): int
+    {
+        $out = (string)($this->opt['out'] ?? '');
+        if ($out === '' || $out === '1') {
+            throw new KmException('Give --out=DIR');
+        }
+        $files = $this->renderer()->render($out, $this->dkimMaps());
+        return $this->say(['out' => $out, 'files' => $files], count($files) . " files written below $out");
+    }
+
+    private function apply(): int
+    {
+        $root = rtrim((string)($this->opt['root'] ?? '/'), '/');
+        $live = ($root === '');
+        $tmp = sys_get_temp_dir() . '/kloxo-mail-' . bin2hex(random_bytes(6));
+        mkdir($tmp, 0700);
+        $r = $this->renderer();
+        $extra = $this->dkimMaps();
+        $r->render($tmp, $extra);
+
+        $stamp = date('Ymd-His');
+        $backup = $live ? "/var/backups/kloxo-mail/$stamp" : "$tmp.backup";
+        $done = [];
+        $fail = null;
+        try {
+            $all = $r->targets();
+            foreach (array_keys($extra) as $x) {
+                $all[$x] = [0644, null];
+            }
+            foreach ($all as $target => [$mode, $group]) {
+                $dst = "$root/$target";
+                if (is_file($dst)) {
+                    @mkdir(dirname("$backup/$target"), 0700, true);
+                    copy($dst, "$backup/$target");
+                }
+                @mkdir(dirname($dst), 0755, true);
+                $t = $dst . '.kloxo-new';
+                copy("$tmp/$target", $t);
+                chmod($t, $mode);
+                if ($group !== null && function_exists('posix_getgrnam') && ($g = posix_getgrnam($group))) {
+                    @chgrp($t, $g['gid']);
+                }
+                rename($t, $dst);
+                $done[] = $target;
+            }
+            if ($live) {
+                $this->validateLive();
+            }
+        } catch (Throwable $e) {
+            $fail = $e->getMessage();
+        }
+
+        if ($fail !== null) {
+            foreach ($done as $target) {
+                $dst = "$root/$target";
+                if (is_file("$backup/$target")) {
+                    copy("$backup/$target", $dst);
+                } else {
+                    @unlink($dst);
+                }
+            }
+            $this->rmTree($tmp);
+            throw new KmException("apply failed and was rolled back: $fail");
+        }
+        $this->rmTree($tmp);
+
+        $msg = count($done) . ' files installed' . ($live ? '' : " below $root");
+        if ($live && !isset($this->opt['no-reload'])) {
+            foreach (['postfix', 'dovecot', 'rspamd'] as $svc) {
+                [$rc, , $err] = Proc::run(['systemctl', 'reload-or-restart', $svc]);
+                if ($rc !== 0) {
+                    // roll back files and try to bring the old configuration up again
+                    foreach ($done as $target) {
+                        is_file("$backup/$target") ? copy("$backup/$target", "/$target") : @unlink("/$target");
+                    }
+                    foreach (['postfix', 'dovecot', 'rspamd'] as $s) {
+                        Proc::run(['systemctl', 'reload-or-restart', $s]);
+                    }
+                    throw new KmException("reload of $svc failed ($err); previous configuration restored");
+                }
+            }
+            $msg .= '; services reloaded';
+        }
+        return $this->say(['installed' => $done, 'backup' => $live ? $backup : null], $msg . ($live ? "\nBackup of previous files: $backup" : ''));
+    }
+
+    /** Validate the installed configuration with the services' own checkers. */
+    private function validateLive(): void
+    {
+        [$rc, , $err] = Proc::run(['sievec', '/var/lib/dovecot/sieve/before.d/00-kloxo-spam.sieve']);
+        if ($rc !== 0 && Proc::exists('sievec')) {
+            throw new KmException("sieve script invalid: $err");
+        }
+        foreach ([['postfix', 'check'], ['doveconf', '-n'], ['rspamadm', 'configtest']] as $cmd) {
+            if (!Proc::exists($cmd[0])) {
+                continue;
+            }
+            [$rc, $out, $err] = Proc::run($cmd);
+            if ($rc !== 0) {
+                throw new KmException(implode(' ', $cmd) . ' failed: ' . substr(trim($err !== '' ? $err : $out), 0, 800));
+            }
+        }
+        foreach (['virtual-domains', 'virtual-mailboxes', 'virtual-aliases', 'sender-login'] as $m) {
+            [$rc, , $err] = Proc::run(['postmap', '-q', 'probe.invalid', "mysql:/etc/postfix/sql/$m.cf"]);
+            // hosts without IPv6 print a harmless "inet_protocols: disabling IPv6" warning
+            $err = implode("\n", array_filter(explode("\n", $err), fn(string $l): bool => !str_contains($l, 'inet_protocols: disabling IPv6')));
+            if ($rc > 1 || preg_match('/warning|error|fatal/i', $err)) {
+                throw new KmException("SQL map $m failed: " . trim($err));
+            }
+        }
+    }
+
+    private function check(): int
+    {
+        $rep = [];
+        $ver = $this->db()->one('SELECT MAX(version) AS v FROM schema_version');
+        $rep['schema_version'] = (int)($ver['v'] ?? 0);
+        $rep['domains'] = (int)$this->db()->one('SELECT COUNT(*) AS n FROM domains')['n'];
+        $rep['mailboxes'] = (int)$this->db()->one('SELECT COUNT(*) AS n FROM mailboxes')['n'];
+        $missing = [];
+        foreach ($this->db()->all('SELECT name, dkim_selector FROM domains WHERE dkim_selector IS NOT NULL') as $d) {
+            if (!is_file((new Dkim($this->c))->keyPath($d['name'], $d['dkim_selector']))) {
+                $missing[] = $d['name'];
+            }
+        }
+        $rep['domains_missing_dkim_key'] = $missing;
+        foreach (['postfix', 'doveadm', 'rspamadm'] as $t) {
+            $rep['tools'][$t] = Proc::exists($t);
+        }
+        $txt = "schema v{$rep['schema_version']}, {$rep['domains']} domains, {$rep['mailboxes']} mailboxes\n"
+            . ($missing ? 'DKIM key missing for: ' . implode(', ', $missing) . "\n" : "all DKIM keys present\n")
+            . 'tools: ' . implode(', ', array_map(fn($k, $v) => "$k=" . ($v ? 'yes' : 'no'), array_keys($rep['tools']), $rep['tools']));
+        return $this->say($rep, $txt);
+    }
+
+    private function rmTree(string $path): void
+    {
+        $vm = rtrim((string)($this->c->v['vmail_dir'] ?? ''), '/');
+        $real = realpath($path);
+        if ($real === false) {
+            return;
+        }
+        // never delete anything outside the mail store or a temp dir created by this tool
+        $okTmp = str_starts_with($real, realpath(sys_get_temp_dir()) . '/kloxo-mail-');
+        $okVmail = $vm !== '' && str_starts_with($real, (realpath($vm) ?: $vm) . '/');
+        if (!$okTmp && !$okVmail) {
+            throw new KmException("Refusing to delete $real");
+        }
+        $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($real, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($it as $f) {
+            $f->isDir() && !$f->isLink() ? rmdir($f->getPathname()) : unlink($f->getPathname());
+        }
+        rmdir($real);
+    }
+}
+
+exit((new App())->run($argv));

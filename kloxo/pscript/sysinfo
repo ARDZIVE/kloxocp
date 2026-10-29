@@ -1,0 +1,18 @@
+#!/bin/sh
+
+. /script/counter-start.inc
+
+echo "*** Please wait...***"; echo -en "\e[1A\e[1A"
+
+if [ "$1" == "-y" ] ; then
+	sh /script/fix-service-list >/dev/null 2>&1
+fi
+
+. /script/directory
+lxphp.exe ../bin/fix/sysinfo.php $*
+
+. /script/counter-end.inc
+
+echo "* Note: run 'sh $0 -y' if you want run 'fix-service-list' also"
+echo "        (importance after Kloxo CP update)"
+echo

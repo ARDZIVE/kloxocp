@@ -1,0 +1,14 @@
+#!/bin/sh
+
+if [ "$(yum list installed|grep 'openssl-devel')" == "" ] ; then
+	yum install openssl-devel -y
+fi
+
+if [ "$(yum list installed|grep 'glibc-static')" == "" ] ; then
+	yum install glibc-static -y
+fi
+
+cd /opt/kloxo/cexe
+mv _Makefile Makefile
+make
+mv Makefile _Makefile

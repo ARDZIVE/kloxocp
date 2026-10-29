@@ -1,0 +1,9 @@
+#!/bin/sh
+
+. /script/counter-start.inc
+
+sh /script/fixftp $*
+
+sh /script/fixftpuser $*
+
+. /script/counter-end.inc

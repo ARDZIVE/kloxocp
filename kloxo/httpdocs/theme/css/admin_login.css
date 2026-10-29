@@ -1,0 +1,128 @@
+body {
+ 	margin: 0;
+	padding: 0;
+	color: #333;
+	background-color: #FFF;
+	font-size: 9pt;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
+}
+
+#wrapper {
+	border: 0;
+	margin: 0;
+	margin-left: auto;
+	margin-right: auto;
+	padding: 0;
+}
+
+#break {
+	height: 20px;
+}
+
+form {
+	margin: 0px;
+}
+
+.button {
+	border: solid 1px #cccccc;
+	background: #E9ECEF;
+	color: #666666;
+	font-weight: bold;
+	font-size: 9pt;
+	padding: 4px;
+}
+
+.login {
+	margin-left: auto;
+	margin-right: auto;
+	margin-top: 6em;
+	padding: 15px;
+	border: 1px solid #cccccc;
+	width: 429px;
+	background: #F1F3F5;
+}
+	
+.login p {
+	padding: 0 1em 0 1em;
+}
+					
+.form-block {
+	border: 1px solid #cccccc;
+	background: #E9ECEF;
+	padding-top: 15px;
+	padding-left: 10px;
+	padding-bottom: 10px;
+	padding-right: 10px;
+}
+
+.login-form {
+	text-align: left;
+	float: right;
+	width: 60%;
+}
+
+.login-text {
+	text-align: left;
+	width: 40%;
+	float: left;
+}
+
+.inputlabel {
+	font-weight: bold;
+	text-align: left;
+}
+
+.inputbox {
+	color: #000000;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
+	font-size: 9pt;
+	border: 1px solid #666666;
+	width: 190px;
+	padding: 2px 2px 3px 2px;
+	margin: 0px;
+	background: URL(/theme/login/user.gif) no-repeat;
+	background-position: 1px 1px;
+	background-color: #FFFFFF;
+	padding-left: 18px;
+	vertical-align: middle;
+	margin: 0 0 1em 0;
+	border: 1px solid #cccccc;
+}
+.passbox {
+	color: #000000;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
+	font-size: 9pt;
+	border: 1px solid #666666;
+	width: 190px;
+	padding: 2px 2px 3px 2px;
+	margin: 0px;
+	background-position: 1px 1px;
+	background-color: #FFFFFF;
+	vertical-align: middle;
+	margin: 0 0 1em 0;
+	border: 1px solid #cccccc;
+}
+
+.clr {
+	clear:both;
+}
+
+.ctr {
+	text-align: center;
+}
+
+.version {
+	font-size: 10pt;
+}
+
+.message {
+	margin-top: 10px; 
+	padding: 7px; 
+	width: 400px;
+	border: 1px solid #B22222;
+	background: #F1F3F5;
+	color: #B22222;	
+	font-weight: bold;
+	font-size: 10pt;
+}
+

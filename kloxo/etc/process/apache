@@ -1,0 +1,13 @@
+#!/bin/sh
+
+echo "*** Restart for HTTPD service ***"
+
+if [ ! -f /var/run/httpd.pid ] ; then
+	if [ -f /var/lock/subsys/httpd ] ; then
+		'rm' -f /var/lock/subsys/httpd
+	fi
+fi
+
+prog='httpd'
+
+. /opt/kloxo/etc/process/service.inc

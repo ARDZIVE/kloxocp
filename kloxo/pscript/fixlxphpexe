@@ -1,0 +1,102 @@
+#!/bin/sh
+
+if [ "$1" == "--help" ] || [ "$1" == "-h" ] ; then
+	echo
+	echo " ------------------------------------------------------------------------------"
+	echo "  format: sh $0 <php53s/php54s>"
+	echo " ------------------------------------------------------------------------------"
+	echo
+	exit
+fi
+
+INIT_DIR="/opt/kloxo/init"
+
+if [ "$1" != "" ] ; then
+	 if [[ "$1" != "php"* ]] ; then
+		echo "Use 'sh $0 --help'"
+		exit
+	fi
+
+	base_name="$1"
+
+	if [ ! -f /opt/${base_name}/custom/php-cli.sh ] ; then
+		echo "File: '/opt/${base_name}/custom/php-cli.sh' not exists. Installing..."
+		sh /script/phpm-installer ${base_name}
+	else
+		echo "${base_name}" > ${INIT_DIR}/kloxo_php_active
+	fi
+else
+	if [ -f ${INIT_DIR}/php_active ] ; then
+		'mv' -f ${INIT_DIR}/php_active ${INIT_DIR}/kloxo_php_active
+	fi
+
+	if [ -f ${INIT_DIR}/kloxo_php_active ] ; then
+		base_name="$(cat ${INIT_DIR}/kloxo_php_active)"
+	else
+		if [ ! -f /opt/php56s/custom/php-cli.sh ] ; then
+			base_name="php56s"
+		else
+			base_name="php54s"
+		fi
+
+		if [ ! -f /opt/${base_name}/custom/php-cli.sh ] ; then
+			echo "File: '/opt/${base_name}/custom/php-cli.sh' not exists. Installing..."
+			sh /script/phpm-installer ${base_name} -y
+		fi
+
+		echo "${base_name}" > ${INIT_DIR}/kloxo_php_active
+	fi
+fi
+
+mkdir -p /opt/${base_name}/custom
+
+if [ -f /opt/${base_name}/custom/custom.php.ini ] ; then
+	'cp' -f /opt/${base_name}/custom/custom.php.ini /opt/${base_name}/custom/php.ini
+fi
+
+chown -R root:root /opt/${base_name}
+
+'rm' -f /usr/bin/lphp.exe
+'rm' -f /usr/bin/lxphp.exe
+
+ln -sf /opt/${base_name}/custom/php-cli.sh /usr/bin/lphp.exe
+ln -sf /opt/${base_name}/custom/php-cli.sh /usr/bin/lxphp.exe
+
+if [ -f /usr/lib/systemd/system/kloxo.service ] ; then
+	'rm' -f /usr/lib/systemd/system/kloxo.service
+fi
+
+if [ -f /etc/rc.d/init.d/kloxo ] ; then
+	'rm' -f /etc/rc.d/init.d/kloxo
+fi
+
+#if [ "$(command -v systemctl)" != "" ] ; then
+if [ "$(ps --no-headers -o comm 1)" == "systemd" ] ; then
+	for i in web php wrap ; do
+		if [ -f ${INIT_DIR}/custom.kloxo-${i}.service ] ; then
+			'cp' -f ${INIT_DIR}/custom.kloxo-${i}.service /usr/lib/systemd/system/kloxo-${i}.service
+		else
+			'cp' -f ${INIT_DIR}/kloxo-${i}.service /usr/lib/systemd/system/kloxo-${i}.service
+		fi
+
+		chown root:root /usr/lib/systemd/system/kloxo-${i}.service
+		chmod 0644 /usr/lib/systemd/system/kloxo-${i}.service
+		chkconfig kloxo-${i} on 2>/dev/null
+	done
+
+	systemctl daemon-reload
+else
+	for i in web php wrap ; do
+		if [ -f ${INIT_DIR}/custom.kloxo-${i}.init ] ; then
+			'cp' -f ${INIT_DIR}/custom.kloxo-${i}.init /etc/rc.d/init.d/kloxo-${i}
+		else
+			'cp' -f ${INIT_DIR}/kloxo-${i}.init /etc/rc.d/init.d/kloxo-${i}
+		fi
+
+		chown root:root /etc/rc.d/init.d/kloxo-${i}
+		chmod 0775 /etc/rc.d/init.d/kloxo-${i}
+		chkconfig kloxo-${i} on 2>/dev/null
+	done
+fi
+
+echo "Execute fixlxphpexe for ${base_name}..."

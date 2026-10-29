@@ -1,0 +1,12 @@
+csv2 = {}
+ipv4_bind_addresses = "127.0.0.1"
+chroot_dir = "/opt/configs/maradns/conf/master"
+
+### begin - acl - do not remove/modify this line
+# No acl
+### end - acl - do not remove/modify this line
+
+### begin - zone - do not remove/modify this line
+# No zone
+### end - zone - do not remove/modify this line
+

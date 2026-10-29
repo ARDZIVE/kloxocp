@@ -1,0 +1,22 @@
+#!/bin/sh
+
+yum clean all
+
+if [ "$(rpm -qa|grep 'mratwork-')" != "" ] ; then
+	yum update mratwork* -y
+else
+	cd /tmp
+
+	'rm' -rf /etc/yum.repos.d/kloxo.repo
+	'rm' -rf /etc/yum.repos.d/kloxo.repo
+	'rm' -rf /etc/yum.repos.d/kloxo-custom.repo
+	'rm' -rf /etc/yum.repos.d/lxcenter.repo
+	'rm' -rf /etc/yum.repos.d/lxlabs.repo	
+	'rm' -rf /etc/yum.repos.d/mratwork.repo.*
+	
+	wget https://github.com/mustafaramadhan/kloxo/raw/rpms/release/neutral/noarch/mratwork-release-0.0.1-1.noarch.rpm --no-check-certificate
+	rpm -ivh mratwork-release-0.0.1-1.noarch.rpm
+	yum update mratwork-* -y
+fi
+
+. /script/fix-urgent

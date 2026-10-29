@@ -1,0 +1,15 @@
+#!/bin/sh
+
+echo "*** Restart for BIND service ***"
+
+if [ ! -f /var/run/named.pid ] ; then
+	if [ -f /var/lock/subsys/named ] ; then
+		'rm' -f /var/lock/subsys/named
+	fi
+fi
+
+prog='named'
+
+. /opt/kloxo/etc/process/service.inc
+
+## Note: possible transfer zone with 'rndc retranfer' but need each zone - it's not practice

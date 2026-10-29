@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if [ "$1" != "" ] ; then
+	path="$1"
+else
+	path="/home"
+fi
+
+#nice -n19 ionice -n5 clamscan -r $path
+nice -n +10 ionice -c3 clamscan -r $path 

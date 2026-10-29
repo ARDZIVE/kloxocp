@@ -1,0 +1,9 @@
+#!/bin/sh
+
+kloxopath='/opt/kloxo'
+acmepath='/root/.acme.sh'
+
+if [ -f ${acmepath}/acme.sh ] ; then
+	${acmepath}/acme.sh --force --renew-all
+	sh /script/fixssl
+fi

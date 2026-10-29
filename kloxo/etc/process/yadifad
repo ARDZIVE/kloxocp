@@ -1,0 +1,15 @@
+#!/bin/sh
+
+echo "*** Restart for YADIFA service ***"
+
+if [ ! -f /var/run/yadifad.pid ] ; then
+	if [ -f /var/lock/subsys/yadifad ] ; then
+		'rm' -f /var/lock/subsys/yadifad
+	fi
+fi
+
+prog='yadifad'
+
+. /script/directory
+
+. ../etc/process/service.inc

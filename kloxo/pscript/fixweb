@@ -1,0 +1,31 @@
+#!/bin/sh
+
+echo "*** >>> Web portion <<<***"
+
+. /script/counter-start.inc
+
+if [ ! -f /etc/ssl/certs/dhparam.pem ] ; then
+	echo "Wait for dh-parm key for ssl create..."
+	if [ ! -d /etc/ssl/certs ] ; then
+		mkdir -p /etc/ssl/certs
+	fi
+	cd /etc/ssl/certs
+	openssl dhparam -out dhparam.pem 2048 >/dev/null 2>&1
+fi
+
+if [ -f /script/custom.fix.inc ] ; then
+	. /script/custom.fix.inc
+else
+	. /script/fix.inc
+fi
+
+. /script/directory
+lxphp.exe ../bin/fix/fixweb.php $*
+
+. /script/counter-end.inc
+
+echo "-------------------------------------"
+echo
+echo "*** >>> PHP portion <<<***"
+
+sh /script/fixphp

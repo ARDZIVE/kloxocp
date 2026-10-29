@@ -1,0 +1,64 @@
+#!/bin/sh
+
+if [ "$1" == "httpd24" ] ; then
+	if [ "$(rpm -qa httpd24u)" == "" ] ; then
+		if [ "$(rpm -qa|grep 'httpd-')" == "" ] ; then
+			echo
+			echo "- Need select apache or proxy in 'Switch Programs'"
+			echo
+			exit
+		else
+			service httpd stop
+			yum -y replace httpd --replace-with=httpd24u
+			yum -y remove mod_ssl mod_rpaf mod_ruid2 mod_suphp mod_fastcgi mod_fcgid mod_define
+			yum -y install mod24u_ssl mod24u_session mod24u_suphp mod24u_ruid2 mod24u_fcgid mod24u_fastcgi
+			cp -f /opt/configs/apache/etc/conf/httpd24.conf /etc/httpd/conf/httpd.conf
+			chkconfig httpd on
+
+			echo
+			echo "- Then, run 'sh /script/fixweb; sh /script/fixphp; sh /script/restart-web -y'"
+			echo
+			exit
+		fi
+	else
+		echo
+		echo "- httpd24 already installed"
+		echo
+		exit
+	fi
+
+	cat '' > /opt/kloxo/etc/flag/use_apache24.flg
+elif [ "$1" == "httpd" ] ; then
+	if [ "$(rpm -qa httpd)" == "" ] ; then
+		if [ "$(rpm -qa|grep 'httpd24u-')" == "" ] ; then
+			echo
+			echo "- Need select apache or proxy in 'Switch Programs'"
+			echo
+			exit
+		else
+			service httpd stop
+			yum -y replace httpd24u --replace-with=httpd
+			yum -y remove mod24u_ssl mod24u_session mod24u_suphp mod24u_ruid2 mod24u_fcgid mod24u_fastcgi
+			yum -y install mod_ssl mod_rpaf mod_ruid2 mod_suphp mod_fastcgi mod_fcgid mod_define
+			cp -f /opt/configs/apache/etc/conf/httpd.conf /etc/httpd/conf/httpd.conf
+			chkconfig httpd on
+
+			echo
+			echo "- Then, run 'sh /script/fixweb; sh /script/fixphp; sh /script/restart-web -y'"
+			echo
+			exit
+		fi
+	else
+		echo
+		echo "- httpd already installed"
+		echo
+		exit
+	fi
+	
+	rm -f /opt/kloxo/etc/flag/use_apache24.flg
+else
+	echo
+	echo "- Execute: '$0 httpd' or '$0 httpd24'"
+	echo
+fi
+

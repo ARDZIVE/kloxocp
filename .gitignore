@@ -1,0 +1,13 @@
+
+/.idea
+
+# TLS material generated per install (never commit private keys)
+/kloxo/init/backend.key
+/kloxo/init/backend.crt
+/kloxo/file/ssl/default.key
+/kloxo/file/ssl/default.crt
+/kloxo/file/ssl/default.pem
+/kloxo/file/ssl/default.csr
+/kloxo/file/ssl/default.ca
+/kloxo/file/ssl/rootCA.key
+/kloxo/file/ssl/rootCA.crt

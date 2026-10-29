@@ -1,0 +1,320 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * generate-tls-keys: unique TLS material for one Kloxo CP installation.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version. See LICENSE.txt.
+ *
+ * Standalone on purpose: no dependency on the legacy panel code. PHP 8.3,
+ * openssl via argument arrays (never a shell string), no keys printed.
+ *
+ * Usage: generate-tls-keys [--root=DIR] [--hostname=NAME] [--days=N] [--force]
+ *
+ * Writes (never committed; generated at install):
+ *   <root>/init/backend.key          (0600)  C daemon
+ *   <root>/init/backend.crt          (0644)
+ *   <root>/file/ssl/default.key      (0600)  panel / per-IP fallback
+ *   <root>/file/ssl/default.crt      (0644)
+ *   <root>/file/ssl/default.pem      (0600)  key+cert concatenated
+ *
+ * Does not create a private CA. Self-signed RSA-2048, SHA-256.
+ */
+
+const GTK_VERSION = '0.1.0';
+
+final class GtkException extends RuntimeException
+{
+}
+
+final class Proc
+{
+    /** @param list<string> $cmd */
+    public static function run(array $cmd, ?string $stdin = null): array
+    {
+        $p = @proc_open($cmd, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($p)) {
+            return [127, '', 'cannot execute ' . $cmd[0]];
+        }
+        if ($stdin !== null) {
+            fwrite($pipes[0], $stdin);
+        }
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]);
+        $err = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        return [proc_close($p), (string)$out, (string)$err];
+    }
+
+    public static function exists(string $bin): bool
+    {
+        foreach (explode(':', (string)getenv('PATH') . ':/usr/sbin:/sbin:/opt/homebrew/bin') as $d) {
+            if ($d !== '' && is_executable("$d/$bin")) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+final class App
+{
+    /** @var array<string,string|true> */
+    private array $opt = [];
+    private string $root;
+    private string $hostname;
+    private int $days;
+    private bool $force = false;
+
+    public function run(array $argv): int
+    {
+        array_shift($argv);
+        $cmd = 'generate';
+        foreach ($argv as $a) {
+            if ($a === 'help' || $a === '--help' || $a === '-h') {
+                $cmd = 'help';
+                continue;
+            }
+            if ($a === 'version' || $a === '--version') {
+                $cmd = 'version';
+                continue;
+            }
+            if (str_starts_with($a, '--')) {
+                [$k, $v] = array_pad(explode('=', substr($a, 2), 2), 2, true);
+                $this->opt[$k] = $v;
+            } elseif ($a !== 'generate') {
+                fwrite(STDERR, "error: unexpected argument: $a (try --help)\n");
+                return 1;
+            }
+        }
+
+        try {
+            return match ($cmd) {
+                'help'    => $this->help(),
+                'version' => $this->say('generate-tls-keys ' . GTK_VERSION),
+                default   => $this->generate(),
+            };
+        } catch (GtkException $e) {
+            fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+            return 1;
+        }
+    }
+
+    private function help(): int
+    {
+        echo <<<TXT
+generate-tls-keys — unique TLS keys for one Kloxo CP install (never ship keys in git)
+
+  generate-tls-keys [--root=DIR] [--hostname=NAME] [--days=N] [--force]
+
+  --root=DIR       program root (default: the kloxo/ directory this script lives in)
+  --hostname=NAME  CN and SAN DNS name (default: this machine's hostname)
+  --days=N         self-signed lifetime, 1–3650 (default: 825)
+  --force          overwrite existing key/cert files
+
+Writes backend.{key,crt} under <root>/init and default.{key,crt,pem} under
+<root>/file/ssl. Modes: keys 0600, certs 0644. Does not print key material.
+Does not create a private CA.
+
+TXT;
+        return 0;
+    }
+
+    private function generate(): int
+    {
+        if (!Proc::exists('openssl')) {
+            throw new GtkException('openssl is not installed');
+        }
+        $this->root = $this->resolveRoot();
+        $this->hostname = $this->resolveHostname();
+        $this->days = $this->resolveDays();
+        $this->force = isset($this->opt['force']);
+
+        $targets = $this->targets();
+        $existing = [];
+        foreach ($targets as $path) {
+            if (is_file($path)) {
+                $existing[] = $path;
+            }
+        }
+        if ($existing && !$this->force) {
+            throw new GtkException(
+                "refusing to overwrite existing files (pass --force):\n  " . implode("\n  ", $existing)
+            );
+        }
+
+        $this->writePair($targets['backend_key'], $targets['backend_crt'], $this->hostname);
+        $this->writePair($targets['default_key'], $targets['default_crt'], $this->hostname);
+        $this->writePem($targets['default_pem'], $targets['default_key'], $targets['default_crt']);
+
+        echo "wrote TLS material under {$this->root} (hostname={$this->hostname}, days={$this->days})\n";
+        echo "  init/backend.key  init/backend.crt\n";
+        echo "  file/ssl/default.key  file/ssl/default.crt  file/ssl/default.pem\n";
+        return 0;
+    }
+
+    /** @return array<string,string> */
+    private function targets(): array
+    {
+        return [
+            'backend_key' => $this->root . '/init/backend.key',
+            'backend_crt' => $this->root . '/init/backend.crt',
+            'default_key' => $this->root . '/file/ssl/default.key',
+            'default_crt' => $this->root . '/file/ssl/default.crt',
+            'default_pem' => $this->root . '/file/ssl/default.pem',
+        ];
+    }
+
+    private function writePair(string $keyPath, string $crtPath, string $cn): void
+    {
+        $this->ensureDir(dirname($keyPath));
+        $this->ensureDir(dirname($crtPath));
+        $tmpKey = $keyPath . '.tmp.' . bin2hex(random_bytes(4));
+        $tmpCrt = $crtPath . '.tmp.' . bin2hex(random_bytes(4));
+        $tmpCfg = $keyPath . '.cnf.' . bin2hex(random_bytes(4));
+
+        $cfg = "[req]\n"
+            . "distinguished_name = dn\n"
+            . "x509_extensions = v3_req\n"
+            . "prompt = no\n"
+            . "[dn]\n"
+            . "CN = {$cn}\n"
+            . "[v3_req]\n"
+            . "subjectAltName = DNS:{$cn}\n"
+            . "basicConstraints = CA:FALSE\n"
+            . "keyUsage = digitalSignature, keyEncipherment\n"
+            . "extendedKeyUsage = serverAuth\n";
+
+        try {
+            if (file_put_contents($tmpCfg, $cfg) === false) {
+                throw new GtkException("cannot write $tmpCfg");
+            }
+            [$rc, $out, $err] = Proc::run([
+                'openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-sha256', '-nodes',
+                '-keyout', $tmpKey,
+                '-out', $tmpCrt,
+                '-days', (string)$this->days,
+                '-config', $tmpCfg,
+            ]);
+            $combined = $out . $err;
+            if (str_contains($combined, 'BEGIN ') && str_contains($combined, 'PRIVATE KEY')) {
+                throw new GtkException('openssl printed key material; aborting');
+            }
+            if ($rc !== 0 || !is_file($tmpKey) || !is_file($tmpCrt)) {
+                throw new GtkException('openssl req failed: ' . trim($err));
+            }
+            $this->chmodPath($tmpKey, 0600);
+            $this->chmodPath($tmpCrt, 0644);
+            $this->renameOver($tmpKey, $keyPath);
+            $this->renameOver($tmpCrt, $crtPath);
+        } finally {
+            @unlink($tmpCfg);
+            @unlink($tmpKey);
+            @unlink($tmpCrt);
+        }
+    }
+
+    private function writePem(string $pemPath, string $keyPath, string $crtPath): void
+    {
+        $key = file_get_contents($keyPath);
+        $crt = file_get_contents($crtPath);
+        if ($key === false || $crt === false) {
+            throw new GtkException("cannot read $keyPath or $crtPath");
+        }
+        $tmp = $pemPath . '.tmp.' . bin2hex(random_bytes(4));
+        try {
+            if (file_put_contents($tmp, $key . $crt) === false) {
+                throw new GtkException("cannot write $tmp");
+            }
+            $this->chmodPath($tmp, 0600);
+            $this->renameOver($tmp, $pemPath);
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    private function resolveRoot(): string
+    {
+        if (isset($this->opt['root']) && $this->opt['root'] !== true) {
+            $root = (string)$this->opt['root'];
+        } else {
+            $root = dirname(__DIR__, 2);
+        }
+        $root = rtrim($root, '/');
+        if ($root === '' || $root === '.') {
+            throw new GtkException('invalid --root');
+        }
+        if (str_contains($root, "\0")) {
+            throw new GtkException('invalid --root');
+        }
+        return $root;
+    }
+
+    private function resolveHostname(): string
+    {
+        if (isset($this->opt['hostname']) && $this->opt['hostname'] !== true) {
+            $h = (string)$this->opt['hostname'];
+        } else {
+            $h = (string)(gethostname() ?: 'kloxo.local');
+        }
+        $h = strtolower(trim($h));
+        if ($h === '' || strlen($h) > 253) {
+            throw new GtkException('invalid --hostname');
+        }
+        if (!preg_match('/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/', $h)) {
+            throw new GtkException('invalid --hostname (DNS labels only)');
+        }
+        return $h;
+    }
+
+    private function resolveDays(): int
+    {
+        $d = 825;
+        if (isset($this->opt['days']) && $this->opt['days'] !== true) {
+            if (!preg_match('/^[0-9]+$/', (string)$this->opt['days'])) {
+                throw new GtkException('--days must be an integer');
+            }
+            $d = (int)$this->opt['days'];
+        }
+        if ($d < 1 || $d > 3650) {
+            throw new GtkException('--days must be between 1 and 3650');
+        }
+        return $d;
+    }
+
+    private function ensureDir(string $dir): void
+    {
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new GtkException("cannot create $dir");
+        }
+    }
+
+    private function chmodPath(string $path, int $mode): void
+    {
+        if (!chmod($path, $mode)) {
+            throw new GtkException("cannot chmod $path");
+        }
+    }
+
+    private function renameOver(string $from, string $to): void
+    {
+        if (!rename($from, $to)) {
+            throw new GtkException("cannot install $to");
+        }
+    }
+
+    private function say(string $text): int
+    {
+        echo $text . "\n";
+        return 0;
+    }
+}
+
+exit((new App())->run($argv));

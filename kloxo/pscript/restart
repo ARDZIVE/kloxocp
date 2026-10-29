@@ -1,0 +1,51 @@
+#!/bin/sh
+
+if [ "$(pgrep ^mysql)" == "" ] ; then
+	sh /script/restart-mysql
+fi
+
+#list=(kloxo)
+
+if [ -f /script/custom.restart-list.inc ] ; then
+	. /script/custom.restart-list.inc
+else
+	. /script/restart-list.inc
+fi
+
+bpath="/opt/kloxo"
+spath="${bpath}/file/pages"
+tpath="${bpath}/httpdocs/login"
+
+opath="$(dirname $0)"
+
+if [ -f ${bpath}/init/php_active ] ; then
+	mv -f ${bpath}/init/php_active ${bpath}/init/kloxo_php_active
+fi
+
+ln -sf /usr/sbin/hiawatha ${bpath}/init/kloxo-hiawatha
+ln -sf /opt/$(cat ${bpath}/init/kloxo_php_active)/custom/php-fpm.sh ${bpath}/init/kloxo-phpcgi
+
+if [ ! -f ${bpath}/sbin/kloxo.exe ] ; then
+	sh /script/create-kloxoexe
+fi
+
+cp -f ${spath}/default_index.php ${tpath}/index.php
+cp -f ${spath}/login_inc.php ${tpath}/inc.php
+cp -f ${spath}/login_inc2.php ${tpath}/inc2.php
+
+for i in kloxo-web kloxo-php kloxo-wrap ; do
+	chkconfig ${i} on  >/dev/null 2>&1
+done
+
+if [ -f ${bpath}/init/kloxo_use_php-cgi ] ; then
+	chkconfig kloxo-php off >/dev/null 2>&1
+	service kloxo-php stop >/dev/null 2>&1
+fi
+
+list=${list_kloxo[*]}
+
+if [ -f /script/custom.restart.inc ] ; then
+	. /script/custom.restart.inc
+else
+	. /script/restart.inc
+fi
