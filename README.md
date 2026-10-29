@@ -2,6 +2,19 @@
 
 A web hosting control panel, derived from **Kloxo-MR** (itself a fork of **Kloxo** by LxLabs / LxCenter).
 
+## Version
+
+| What | Value |
+|---|---|
+| **Kloxo CP** (this fork) | **0.1.0-dev** |
+| Legacy `kloxo/bin/kloxoversion` | **7.0.0.c-2019072201** |
+| Upstream base | Kloxo-MR `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` |
+
+`php kloxo/bin/kloxocp version` prints the fork version (`0.1.0-dev`). The panel UI
+and legacy parsers still read `kloxo/bin/kloxoversion` (`7.0.0.c-2019072201`); that
+file is **not** rewritten, because existing version parsers expect that format. A
+single Kloxo CP version scheme comes with packaging (not built yet).
+
 > **Status: 0.1.0-dev, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. The legacy PHP is still PHP 5-era in behaviour,
 > apt packaging is not built, and a full UI login against MariaDB is not verified.
