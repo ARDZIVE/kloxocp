@@ -19,8 +19,9 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 > Do not expose this on a public network. The legacy PHP is still PHP 5-era in behaviour,
 > apt packaging is not built, and a full UI login against MariaDB is not verified.
 > First-party PHP now **parses and loads** on PHP 8 (`include.php` boot smoke).
-> The `kloxocp` CLI (`status`, `doctor`, `snapshot`, `rollback`) is in this tree;
-> `update` and the signed apt installer are not.
+> The `kloxocp` CLI (`status`, `doctor`, `snapshot`, `rollback`) is in this tree.
+> Ubuntu 24.04 `install.sh` clones https://github.com/ARDZIVE/kloxocp.git;
+> `kloxocp update` and signed apt packages are not built.
 >
 > Read `docs/AUDIT_REPORT.md` (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md`
 > (the intended production installer), and `docs/MAIL_DESIGN.md` (mail stack, which is
@@ -30,7 +31,7 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 | Item | Decision |
 |---|---|
-| Install | One command, under 10 minutes on a clean server (pre-flight CLI exists; apt installer not built) |
+| Install | One command on Ubuntu 24.04 (`install.sh` clones this git tree and bootstraps; apt repo not built) |
 | Updates | One command or one button, with backup, health check and rollback (`snapshot`/`rollback` exist; `update` not built) |
 | Target OS | Ubuntu 24.04 LTS first; AlmaLinux/Rocky 9 later |
 | Customer websites | Nginx + PHP-FPM (multiple PHP versions side by side) |
@@ -42,10 +43,37 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 ## Installation
 
-`install.sh` is a **pre-flight wrapper** (`kloxocp install` → `doctor --install`). It
-does not add an apt repo or install packages. `docs/INSTALL_AND_UPDATE_DESIGN.md` is the
-target design. What follows is the current **manual** path on a disposable Ubuntu 24.04
-machine as root. Re-run commands are idempotent where noted.
+**Ubuntu 24.04, one line (as root).** This clones
+https://github.com/ARDZIVE/kloxocp.git (public, branch `main`) and runs `install.sh`:
+
+```
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'
+```
+
+Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
+The clone-then-run line above is the supported form. Do not run this on a
+machine that already has cPanel, Plesk, or ISPConfig. Push this tree to
+`kloxocp` before running the one-liner on a server, or it will install an
+older revision.
+
+`install.sh` installs distro packages, links `/opt/kloxo` to the clone,
+generates TLS keys, and starts `kloxo-php` when `php-fpm8.3` is present.
+It does **not** create the panel MariaDB schema (legacy `create.php` is
+CentOS-only), does not run `kloxo-mail apply` unless you pass
+`--profile=full` for mail *packages* only, and does not prove a browser
+login. Hiawatha is used if `apt` provides it; otherwise the UI does not
+listen. Log: `/var/log/kloxo-install.log`.
+
+From an existing clone:
+
+```
+sudo bash install.sh
+sudo bash install.sh --profile=full    # also apt-install postfix/dovecot/rspamd
+sudo bash install.sh --help
+```
+
+Signed apt packages (`docs/INSTALL_AND_UPDATE_DESIGN.md`) are not built.
+The rest of this section is the same path, spelled out by hand.
 
 On any host with `php-cli` (including a laptop):
 
@@ -57,9 +85,7 @@ php kloxo/bin/kloxocp status --root="$(pwd)/kloxo" --json
 # file/ssl, httpdocs/login) into --snap-dir (default: <root>/var/backups/kloxocp):
 php kloxo/bin/kloxocp snapshot --root="$(pwd)/kloxo" --snap-dir=/tmp/kloxocp-snaps
 php kloxo/bin/kloxocp rollback --root="$(pwd)/kloxo" --snap-dir=/tmp/kloxocp-snaps
-bash install.sh            # same as: php kloxo/bin/kloxocp install
-                           # exits 1 if pre-flight fails, 2 if pre-flight ok
-                           # (packages not built)
+php kloxo/bin/kloxocp install   # doctor --install only; Ubuntu bootstrap is install.sh
 ```
 
 A Mac or other non-Ubuntu host can run the php-cli tests and generate TLS keys. It cannot
@@ -71,10 +97,10 @@ run Hiawatha, the systemd units, or the live mail tests.
 at distro PHP 8, create runtime directories, install OS packages, optionally configure
 the mail stack, and confirm `include.php` loads.
 
-**Does not (yet):** a signed apt package, automatic rollback installer, Let's Encrypt for
-the panel hostname, a verified Hiawatha Ubuntu package, or a verified admin login through
-the browser. The legacy `kloxo/install/` scripts are CentOS/RPM-only — do not run them on
-Ubuntu.
+**Does not (yet):** a signed apt package, Let's Encrypt for the panel hostname, a
+verified Hiawatha Ubuntu package, panel DB schema, or a verified admin login
+through the browser. The legacy `kloxo/install/` scripts are CentOS/RPM-only —
+do not run them on Ubuntu.
 
 ### 1. Requirements
 
@@ -290,9 +316,10 @@ sha256sum -c install.sh.sha256
 sudo bash install.sh
 ```
 
-The `install.sh` in this tree only runs pre-flight. The signed apt repo, Debian
-packages, and `kloxocp update` are specified in `docs/INSTALL_AND_UPDATE_DESIGN.md`
-and are not built. Do not look for those URLs yet (`kloxocp.invalid` is a placeholder).
+`install.sh` bootstraps from git (see the one-liner above). The signed apt repo,
+Debian packages, and `kloxocp update` are specified in
+`docs/INSTALL_AND_UPDATE_DESIGN.md` and are not built. `kloxocp.invalid` is a
+placeholder, not a download host.
 
 ## Layout
 
@@ -307,7 +334,7 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/kloxocp            operator CLI (status, doctor, snapshot, rollback)
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)
   bin/install/generate-tls-keys  unique TLS keys per install
-install.sh        pre-flight only (calls kloxocp install)
+install.sh        Ubuntu 24.04 bootstrap (clone + apt + layout + TLS)
 tests/            mail, tls, remote, security, p1, p2, p3
 docs/             audit, design, mail stack, changelog, legacy notes
 ```

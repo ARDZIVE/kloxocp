@@ -65,9 +65,14 @@ got="$(cat "$FAKE/httpdocs/login/index.php")"
 fails "snap-dir with .. rejected" "${TOOL[@]}" snapshot --root="$FAKE" --snap-dir="$SNAP/../evil"
 fails "root with .. rejected" "${TOOL[@]}" status --root="$ROOT/kloxo/../kloxo"
 
-echo "== install.sh pre-flight wrapper"
-check "php -l via install.sh is kloxocp" test -x "$ROOT/install.sh"
-head -n 8 "$ROOT/install.sh" | grep -q kloxocp && ok "install.sh execs kloxocp" || bad "install.sh execs kloxocp"
+echo "== install.sh Ubuntu bootstrap"
+check "install.sh is executable" test -x "$ROOT/install.sh"
+check "install.sh --help" bash "$ROOT/install.sh" --help
+check "install.sh --dry-run" bash "$ROOT/install.sh" --dry-run
+helpout="$(bash "$ROOT/install.sh" --help)"
+echo "$helpout" | grep -q 'github.com/ARDZIVE/kloxocp.git' && ok "help names git URL" || bad "help names git URL"
+echo "$helpout" | grep -q 'Ubuntu 24.04' && ok "help names Ubuntu 24.04" || bad "help names Ubuntu 24.04"
+fails "install.sh refuses non-root" bash "$ROOT/install.sh"
 
 echo
 echo "$PASS passed, $FAIL failed"

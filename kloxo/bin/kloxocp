@@ -258,7 +258,7 @@ kloxocp — Kloxo CP operator CLI ($v)
   kloxocp rollback [--root=DIR] [--snap-dir=DIR] [--stamp=UTC] [--json]
   kloxocp component list
   kloxocp update            (not built)
-  kloxocp install           (pre-flight only; apt installer not built)
+  kloxocp install           (pre-flight; Ubuntu bootstrap is install.sh)
 
   --root=DIR      program root (default: /opt/kloxo if present, else this tree)
   --snap-dir=DIR  snapshot directory (default: <root>/var/backups/kloxocp)
@@ -573,8 +573,8 @@ TXT;
             fwrite(STDERR, "error: pre-flight failed; not installing\n");
             return 1;
         }
-        $msg = "pre-flight ok. apt repo and package install are not built yet.\n"
-            . "See docs/INSTALL_AND_UPDATE_DESIGN.md and README.md (manual Ubuntu 24.04 steps).";
+        $msg = "pre-flight ok. Run install.sh on Ubuntu 24.04 as root (see README.md).\n"
+            . "Debian packages / signed apt repo are not built.";
         $this->say(['implemented' => false, 'preflight' => true], $msg);
         return 2;
     }

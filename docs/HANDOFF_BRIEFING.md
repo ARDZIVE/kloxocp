@@ -64,7 +64,7 @@ kloxo-cp/
   tests/p1/                      P1 stack-shrink source invariants (php-cli only)
   tests/p2/                      P2 first-party PHP 8 parse + autoload characterization (php-cli only)
   tests/p3/                      P3 kloxocp CLI + snapshot/rollback (php-cli only)
-  install.sh                     pre-flight only (execs kloxocp install; apt not built)
+  install.sh                     Ubuntu 24.04 bootstrap from https://github.com/ARDZIVE/kloxocp.git
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
 
@@ -119,10 +119,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `php-fpm8.3`. Browser login against MariaDB is **UNVERIFIED**.
 14. **P3 CLI skeleton:** `kloxo/bin/kloxocp` (`help`, `version`, `status`, `doctor`,
     `snapshot`, `rollback`, `component list`). `update` / `component upgrade` /
-    `install` after a clean doctor exit **2** (not implemented). `install.sh` is a
-    pre-flight wrapper. Snapshot copies allow-listed paths under `--root` into
-    `--snap-dir`. Apt repo, Debian packages, package-level update/rollback, and
-    `create.php` Ubuntu replacement are **not built**. Tests: `tests/p3/`.
+    `install` after a clean doctor still exits **2**. `install.sh` bootstraps
+    Ubuntu 24.04 from `https://github.com/ARDZIVE/kloxocp.git` (public; apt packages,
+    `/opt/kloxo` symlink, TLS keys, `kloxo-php` unit). Apt repo, Debian packages,
+    package-level update/rollback, and `create.php` Ubuntu replacement are **not
+    built**. Tests: `tests/p3/` (php-cli; does not run the Ubuntu installer).
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -220,8 +221,11 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `file/ssl`, `httpdocs/login`) under `--root` / `--snap-dir`. `component list` works;
    `update` and `component upgrade` exit 2. PHP 8.3, `declare(strict_types=1)`,
    argument-array `proc_open`, no shell strings. Tests: `tests/p3/` (20 checks, php-cli only).
-2. **DONE: install.sh pre-flight.** Repo-root `install.sh` execs `kloxocp install`
-   (`doctor --install`, then exit 2). Does not add an apt repo or install packages.
+2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
+   `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
+   packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`.
+   One-liner is in `README.md`. **UNVERIFIED on a real Ubuntu VM.** Does not add
+   a signed apt repo.
 3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →
    snapshot → apt → migrate → validate → health-check → auto-rollback), LVM/ZFS snapshots,
    panel-DB dump in the snapshot, `create.php` Ubuntu replacement. Reuse `kloxo-mail apply`
