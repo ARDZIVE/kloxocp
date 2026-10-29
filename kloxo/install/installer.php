@@ -439,7 +439,7 @@ function kloxo_install_step2()
 	}
 
 	if (!file_exists("{$kloxopath}/etc/slavedb/driver")) {
-		$driverdata = 'O:6:"Remote":1:{s:4:"data";a:3:{s:3:"web";s:6:"apache";' .
+		$driverdata = 'O:6:"Remote":1:{s:4:"data";a:3:{s:3:"web";s:5:"nginx";' .
 			's:4:"spam";s:10:"bogofilter";s:3:"dns";s:4:"bind";' .
 			's:4:"pop3";s:7:"courier";s:4:"smtp";s:5:"qmail";}}';
 	//	system("echo '{$driverdata}' > {$kloxopath}/etc/slavedb/driver");
@@ -455,9 +455,7 @@ function kloxo_install_step2()
 
 function kloxo_install_easyinstaller()
 {
-	print(">>> Installing 'Easy Installer' <<<\n");
-	@system("/script/easyinstaller-update"); // First run (gets easyinstallerdata)
-	@system("/script/easyinstaller-update"); // Second run (gets applications)
+	print(">>> Easy Installer is disabled and will not be installed <<<\n");
 }
 
 function kloxo_prepare_kloxo_httpd_dir()

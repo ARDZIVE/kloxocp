@@ -274,7 +274,7 @@ kloxo_install_step2() {
 	fi
 
 	if [ ! -d ${kloxopath}/etc/slavedb/driver ] ; then
-		driverdata='O:6:"Remote":1:{s:4:"data";a:3:{s:3:"web";s:6:"apache";'
+		driverdata='O:6:"Remote":1:{s:4:"data";a:3:{s:3:"web";s:5:"nginx";'
 		driverdata=${driverdata}'s:4:"spam";s:10:"bogofilter";'
 		driverdata=${driverdata}'s:3:"dns";s:4:"bind";'
 		driverdata=${driverdata}'s:4:"pop3";s:7:"courier";'
@@ -310,13 +310,7 @@ kloxo_install_step2() {
 }
 
 kloxo_install_easyinstaller() {
-	echo ">>> Install 'Easy Installer' <<<"
-
-	## First run (gets easyinstallerdata)
-	/script/easyinstaller-update
-
-	## Second run (gets applications)
-	/script/easyinstaller-update
+	echo ">>> Easy Installer is disabled and will not be installed <<<"
 }
 
 kloxo_prepare_kloxo_httpd_dir() {

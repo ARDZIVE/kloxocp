@@ -47,7 +47,7 @@ kloxo-cp/
     bin/install/generate-tls-keys  NEW: unique TLS keys per install (PHP 8.3)
     cexe/                        C sources: backend daemon (kloxo.c) only; no setuid helpers
     init/                        panel service units, Hiawatha base config, php-fpm templates
-    file/                        service config templates (apache, nginx, hiawatha, bind, qmail... and NEW file/mail/)
+    file/                        service config templates (nginx, bind, pdns, qmail, NEW file/mail/; Apache/Lighttpd/cache/unused-DNS trees removed)
     install/                     LEGACY RPM/CentOS installer (reference only, to be replaced)
   docs/
     HANDOFF_BRIEFING.md          this file
@@ -59,10 +59,12 @@ kloxo-cp/
   tests/mail/                    run-tests.sh (73 checks), e2e.py (25 live checks), README.md
   tests/tls/                     generate-tls-keys checks (php-cli + openssl)
   tests/remote/                  C1 auth-before-unserialize checks (php-cli only)
+  tests/security/                P0.4/P0.5 source invariants (php-cli only)
+  tests/p1/                      P1 stack-shrink source invariants (php-cli only)
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
 
-Size: about 597 PHP files, roughly 165k lines (about 45k are the bundled PEAR/WebDAV in `httpdocs/webdisk`).
+Size: about 555 PHP files after P1 deletions (was ~597). Roughly 165k lines remain in the rest of the tree (about 45k are the bundled PEAR/WebDAV in `httpdocs/webdisk`).
 Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bin` about 7k.
 
 ---
@@ -86,11 +88,21 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
    Treat every copy of the old keys as compromised.
 7. **P0.2 (C4) closed:** deleted `cexe/closeinput.c`, `closeallinput.c`, `lxmisc.c`; Makefile
    and the legacy installer no longer `chmod ug+s`; `exec_with_all_closed*` no longer calls a
-   helper. Remaining `chmod 4755` on qmail `vchkpw` in `pscript/fixmail-all` waits for P1.
+   helper. Remaining `chmod 4755` on qmail `vchkpw` in `pscript/fixmail-all` waits until qmail is removed.
 8. **P0.3 (C1) closed** for `process_server_input()`: auth envelope required before unserialize;
    `do_remote_exec` always sends it (including localhost). `reload_slave_password()` no longer
    writes through a null `$login` (C daemon / `process_single.php`). Tests: `tests/remote/`.
    JSON replacement is planned, not built. Other unserialize-on-untrusted-input sites remain.
+9. **P0.4 closed:** web-console stub (no unserialize); Easy Installer disabled (no HTTP
+   download/unpack); `set-kloxo-php` no longer writes NOPASSWD sudoers. Tests: `tests/security/`.
+10. **P0.5 closed for defaults:** daemon and PHP SSL listener bind localhost; TLS 1.2+; 1 MiB
+    input cap; missing keys fail closed (`generate-tls-keys`). Long-term allow-listed agent is
+    not built. Multi-server (non-localhost bind) is an explicit later choice.
+11. **P1 (web/DNS shrink) closed:** customer web is Nginx or none; webcache is none; DNS is
+    none/BIND/PowerDNS. Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey,
+    OpenLiteSpeed, and unused DNS (djbdns/nsd/mydns/yadifa/maradns) drivers and `file/` templates
+    deleted. Panel Hiawatha stays under `init/hiawatha.conf.base`. Default web driver is nginx.
+    qmail/courier/ezmlm/spamassassin remain until postfix UI drivers exist. Tests: `tests/p1/`.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -109,12 +121,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
 Critical (fix first):
 
 * **C1** **CLOSED** for `process_server_input()`: the unauthenticated `unserialize(base64_decode($total))` path is gone. Credentials are required in the `_._` envelope **before** the payload is unserialized (`remote_auth_gate.php`). Localhost uses the same envelope. Other unserialize-on-untrusted-input sites (~31, plus `process_in_master` / `remote_main`) remain until the JSON replacement.
-* **C2** `kloxo/cexe/kloxo.c` (backend daemon): binds all interfaces, `SSLv23_method`, `verify_client = OFF` hard-coded, unbounded `strcpy/sprintf`, no message-size limit, executes PHP on received data.
+* **C2** **CLOSED for P0.5 defaults.** Daemon binds `INADDR_LOOPBACK`, `TLS_server_method` with TLS 1.2 minimum, 1 MiB message cap, no payload logging. PHP SSL listener binds `127.0.0.1`. Remaining: it still runs PHP on received data (replace with an allow-listed agent, P0.5 long-term); `verify_client` is still off (acceptable on localhost).
 * **C3** **CLOSED.** Committed private keys and matching certs deleted. Unique keys are generated at install by `kloxo/bin/install/generate-tls-keys`. Old keys remain compromised anywhere they were copied.
-* **C4** **CLOSED.** Setuid helpers and sources deleted; Makefile and installer no longer set the setuid bit on `cexe/`. Qmail `vchkpw` setuid in `pscript/fixmail-all` remains until P1 removes qmail.
-* **C5** Code downloads and unpacks code over plain HTTP (`programlib.php`, `bin/easyinstaller-update.php`, ...). Neutralised by the `.invalid` hosts, but the feature still exists.
+* **C4** **CLOSED.** Setuid helpers and sources deleted; Makefile and installer no longer set the setuid bit on `cexe/`. Qmail `vchkpw` setuid in `pscript/fixmail-all` remains until qmail is removed.
+* **C5** **CLOSED.** Easy Installer will not download or unpack software. `download_file()` refuses `http://`. Version and wordlist HTTP fetches are disabled.
 
-High: 787 shell-execution call sites (+379 `lxshell_*`), 55 `eval()`, 25 `extract()`, `web-console/` (browser shell), MD5/crypt password hashing (admin password via MD5-crypt), TLS verification disabled in 12 places, `pscript/set-kloxo-php` writes sudoers `lxlabs ALL=(ALL:ALL) NOPASSWD:/opt/kloxo`, outdated bundles (PHPMailer 5.2.19, PEAR/WebDAV, ExtJS 2.x, formmail.php 2001-2004).
+High: 787 shell-execution call sites (+379 `lxshell_*`), 55 `eval()`, 25 `extract()`, MD5/crypt password hashing (admin password via MD5-crypt), TLS verification disabled in 12 places, outdated bundles (PHPMailer 5.2.19, PEAR/WebDAV, ExtJS 2.x, formmail.php 2001-2004). **H3** (web-console) and **H6** (sudoers NOPASSWD) are closed.
 
 PHP 8.3: `php -l` fails on 50 of 621 files: 42 third-party/example code, and these first-party/bundled: `lib/php/lxclass.php:2425`, `lib/php/common.inc:8` (`__autoload`), `lib/html/ippoollib.php:116`, `api/api.php:36`, `lib/demologins.php:38`, `bin/common/iptraffic.php:74`, `driver/web/easyinstaller__linuxlib.php:82`, `lib/extra/PHPMailerAutoload.php:45`. Runtime breakage is far larger: `mysql_*` (59 uses), `split` (59), `ereg*` (29), `each` (27), `create_function` (6), magic-quotes (about 80), `$HTTP_*_VARS`, `/e` regexes, ioncube references. There are **no tests** for the legacy code.
 
@@ -165,13 +177,15 @@ Work in this order. Keep every change small, tested and committed separately. Do
 
 ### P0: security clean-up (phase 1a), no PHP port needed
 1. **DONE.** Committed private keys/certs deleted; `generate-tls-keys` writes unique material. *Accept:* no PEM private-key blocks in the tree; remaining "PRIVATE KEY" strings are UI labels (`desclib.php`) and tests/docs.
-2. **DONE.** Setuid helper sources, Makefile `chmod ug+s`, installer `chmod -R ug+s` on `cexe/`, and callers removed. *Accept:* no `chmod ug+s` commands in the tree (qmail `vchkpw` 4755 remains until P1).
+2. **DONE.** Setuid helper sources, Makefile `chmod ug+s`, installer `chmod -R ug+s` on `cexe/`, and callers removed. *Accept:* no `chmod ug+s` commands in the tree (qmail `vchkpw` 4755 remains until qmail is removed).
 3. **DONE.** `process_server_input()` requires the credential envelope and verifies the password before `unserialize`. JSON replacement is documented in `remote_auth_gate.php` and `AUDIT_REPORT.md` (not built). *Accept:* gadget payloads without a valid envelope do not run `__wakeup`.
-4. Remove/disable `web-console/`, the easyinstaller feature, and the sudoers rule in `pscript/set-kloxo-php`.
-5. Bind the backend daemon to localhost/Unix socket by default; enforce TLS 1.2+; add input size limits. Long term: replace with a small allow-listed privileged agent (Unix socket, JSON, audit log).
+4. **DONE.** web-console removed; Easy Installer disabled; sudoers NOPASSWD removed. *Accept:* no in-browser shell, no HTTP app fetch, no `NOPASSWD:/opt/kloxo`.
+5. **DONE for defaults.** Bind localhost, TLS 1.2+, 1 MiB cap, missing keys fail closed. Long term: replace with an allow-listed privileged agent (Unix socket, JSON, audit log).
 
 ### P1: shrink the tree (phase 1b)
-Remove Apache, Lighttpd, Varnish, Squid, Apache Traffic Server drivers/templates, unused DNS drivers (keep BIND, optionally PowerDNS), qmail/courier/ezmlm/bogofilter/spamassassin drivers *after* the new mail drivers exist. Keep Nginx and the panel's Hiawatha. Confirm Hiawatha availability on Ubuntu 24.04 (**UNVERIFIED**); if no package, build a pinned binary in the installer.
+1. **DONE for web/DNS.** Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`. Webcache: `none`. DNS: `none`, `bind`, `pdns`. Panel Hiawatha kept in `init/`. Default web driver is nginx. Tests: `tests/p1/`.
+2. **NOT DONE.** qmail/courier/ezmlm/bogofilter/spamassassin drivers stay until P4 postfix UI drivers exist.
+3. Confirm Hiawatha availability on Ubuntu 24.04 (**UNVERIFIED**); if no package, build a pinned binary in the installer. `lib.php` still contains dead Apache install/chown branches (legacy installer, replaced in P3).
 
 ### P2: PHP 8.3 port (phase 1c)
 Add characterization tests first. Port core (`lib/php/lxlib.php`, `lxclass.php`, `lib/sgbl.php`, DB layer to PDO/mysqli), then drivers. Replace PEAR/WebDAV/PHPMailer or drop features. Target: `php -l` clean, then smoke tests. Replace the custom PHP 5.2/5.3 wrapper layer (`lxphp.exe`, `init/php-cgi.sh.base`) with distro PHP-FPM.
@@ -213,6 +227,6 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 
 ## 10. Suggested first prompts for Cursor
 
-* "Do P0 item 4 only: remove/disable `web-console/`, easyinstaller, and the sudoers rule in `pscript/set-kloxo-php`."
-* "Do P0 item 5 only: bind the backend daemon to localhost/Unix socket by default; enforce TLS 1.2+; add input size limits."
 * "Start P3: create the `kloxocp` CLI skeleton (status, doctor) with tests, following the pattern of `kloxo/bin/mail/kloxo-mail`."
+* "Add characterization tests, then start the PHP 8.3 port of `lxlib.php` / `lxclass.php` / the DB layer."
+* "Start P4 mail UI drivers only after P2: thin `*__postfix` wrappers around `kloxo-mail`, then drop qmail."

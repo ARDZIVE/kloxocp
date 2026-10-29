@@ -1,4 +1,3 @@
 #!/bin/sh
-
-. /script/directory
-## lxphp.exe ../bin/easyinstaller-update.php
+echo "Easy Installer is disabled and will not download software."
+exit 1

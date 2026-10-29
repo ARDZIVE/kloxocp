@@ -45,6 +45,7 @@ fixes were made in `install/installer.php`, `install/step2.inc` and `lib/sgbl.ph
 * `docs/INSTALL_AND_UPDATE_DESIGN.md`, `docs/MAIL_DESIGN.md`, `docs/AUDIT_REPORT.md`.
 * `kloxo/bin/install/generate-tls-keys`: unique TLS keys per install (PHP 8.3); `tests/tls/`.
 * `kloxo/httpdocs/lib/html/remote_auth_gate.php`: auth before unserialize of backend payloads (audit C1); `tests/remote/`.
+* web-console shell deleted; Easy Installer disabled; sudoers NOPASSWD removed; backend binds localhost with TLS 1.2+ and a 1 MiB cap; `tests/security/`.
 * Committed private keys/certs removed (`init/backend.*`, `file/ssl/default.*`, `file/ssl/rootCA.*`,
   `theme/filecore/p.c`/`p.k`); setuid helper sources `cexe/closeinput.c`, `closeallinput.c`,
   `lxmisc.c` deleted.

@@ -27,10 +27,7 @@ else
 	fi
 fi
 
-#if [ ! -f /etc/sudoers.d/mount ] ; then
-	echo 'lxlabs ALL=(ALL:ALL) NOPASSWD:/opt/kloxo' > /etc/sudoers.d/mount
-	chmod 0440 /etc/sudoers.d/mount
-#fi
+# Passwordless sudo for the web-facing lxlabs account was removed (audit H6).
 
 if [ "${2}" == "" ] ; then
 	echo "- No php selected. Defaulting to 'php56s'"

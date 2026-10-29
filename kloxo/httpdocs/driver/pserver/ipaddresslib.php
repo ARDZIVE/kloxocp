@@ -397,12 +397,18 @@ class Ipaddress extends Lxdb
 			lxfile_mkdir("__path_ssl_root");
 		}
 
+		$defcrt = "{$ppath}/file/ssl/default.crt";
+		$defkey = "{$ppath}/file/ssl/default.key";
+		if (!lxfile_exists($defcrt) || !lxfile_exists($defkey)) {
+			throw new lxException("tls_material_missing._run_generate-tls-keys", '');
+		}
+
 		if (!lxfile_exists("{$spath}/$name.crt")) {
-			lxfile_cp("{$ppath}/file/ssl/default.crt", "{$spath}/$name.crt");
+			lxfile_cp($defcrt, "{$spath}/$name.crt");
 		}
 
 		if (!lxfile_exists("{$spath}/$name.key")) {
-			lxfile_cp("{$ppath}/file/ssl/default.key", "{$spath}/$name.key");
+			lxfile_cp($defkey, "{$spath}/$name.key");
 		}
 
 		if (!lxfile_exists("{$spath}/$name.ca")) {

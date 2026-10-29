@@ -2997,6 +2997,11 @@ function download_file($url, $localfile = null)
 {
 	log_log("download", "$url $localfile");
 
+	if (stripos((string)$url, 'http://') === 0) {
+		log_log("download", "refused plain HTTP (audit C5): $url");
+		return;
+	}
+
 	$ch = curl_init($url);
 
 	if (!$localfile) {
@@ -5235,10 +5240,13 @@ function installEasyinstaller($nolog = null)
 {
 	global $sgbl;
 
+	log_cleanup("Initialize 'Easy Installer'", $nolog);
+	log_cleanup("- Easy Installer is removed (will not download software)", $nolog);
+	exec("echo 1 > ../etc/flag/disableeasyinstaller.flg");
+	return;
+
 	// Install/Update easyinstaller if needed or remove easyinstaller when easyinstaller is disabled.
 	// Added in Kloxo 6.1.4
-
-	log_cleanup("Initialize 'Easy Installer'", $nolog);
 
 	//--- trick for no install on kloxo install process
 	if (lxfile_exists("/var/cache/kloxo/kloxo-install-disableeasyinstaller.flg")) {
@@ -6633,8 +6641,8 @@ function install_bogofilter($nolog = null)
 	lxfile_mkdir($dir);
 
 	lxfile_rm($wordlist);
-	$content = file_get_contents("http://download.kloxocp.invalid/download/wordlist.db");
-	file_put_contents($wordlist, $content);
+	log_cleanup("- Skipping HTTP download of wordlist.db (audit C5)", $nolog);
+	return;
 	lxfile_unix_chown_rec($dir, "lxpopuser:lxpopgroup");
 	lxfile_cp($wordlist, $kloxo_wordlist);
 }
@@ -8163,7 +8171,7 @@ function setSyncDrivers($nolog = null)
 
 //	include "../file/driver/rhel.inc";
 
-	$classlist = array('web' => 'apache', 'webcache' => 'none', 'dns' => 'bind',
+	$classlist = array('web' => 'nginx', 'webcache' => 'none', 'dns' => 'bind',
 		'pop3' => 'courier', 'smtp' => 'qmail', 'spam' => 'bogofilter');
 
 	$nodriver = false;

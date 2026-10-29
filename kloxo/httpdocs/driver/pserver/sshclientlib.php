@@ -60,13 +60,9 @@ class sshclient extends lxclass
 		}
 
 		if ($login->nname === 'admin') {
-			$ar['ip_address'] = $gbl->c_session->ip_address;
-			$ar['session'] = $gbl->c_session->tsessionid;
-			lfile_put_serialize("../session/ssh_{$ar['session']}", $ar['ip_address']);
-			$servar = base64_encode(serialize($ar));
 ?>
 <div style="text-align:center">
-<IFRAME style="width:800px; height:600px" src="web-console/index.php?session=<?php echo $servar; ?>"></IFRAME>
+<p>The in-browser web console was removed. Use SSH on the server instead.</p>
 </div>
 <?php
 		} else {

@@ -1,4 +1,0 @@
-<?php
-
-	// no action here
-

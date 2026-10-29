@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <errno.h>
 #include <wait.h>
@@ -45,6 +46,10 @@
 #define ON     1
 #define OFF    0
 
+/* Audit C2: cap request size; never log the payload (it contains passwords). */
+#define MAX_BACKEND_MSG (1024 * 1024)
+#define BACKEND_LISTEN_BACKLOG 128
+
 #define RESTART_INTERVAL  60
 #define SCAVENGE_INTERVAL 60
 #define SISINFOC_INTERVAL 60 * 5 
@@ -62,31 +67,41 @@ static time_t sisinfoc_timer = (time_t)0;
 int run_php_prog_ssl(SSL *ssl, int sock)
 {
 	char ftempname[BUFSIZ];
-	char tmpname[BUFSIZ];
+	char tmpname[] = "/tmp/kloxo_backendXXXXXX";
 	char buf[BUFSIZ];
+	char dummy[BUFSIZ];
 	int pid;
 	int err;
-	int n, p, totaln;
+	int n, p;
+	int totaln = 0;
 	int pipefd[2];
+	int tfd;
 	FILE *fp;
 	char *data = NULL;
-	char *data1 = NULL;
+	size_t dlen = 0;
 
 	bzero(buf, sizeof(buf));
 	while (1) {
 		err = ssl_or_tcp_read(ssl, sock, buf, sizeof(buf) - 1);
 		if (err <= 0) {
-			printf("Got EOF\n");
 			break;
 		}
-		buf[err] = '\0';
-		if (data) {
-			data1 = malloc(strlen(data) + strlen(buf) + 1);
-			sprintf(data1, "%s%s", data, buf);
-			data = data1;
-		} else {
-			data = malloc(strlen(buf) + 1);
-			strcpy(data, buf);
+		if (dlen + (size_t)err > MAX_BACKEND_MSG) {
+			fprintf(stderr, "backend message exceeds %d bytes\n", MAX_BACKEND_MSG);
+			free(data);
+			exit(1);
+		}
+		{
+			char *nbuf = realloc(data, dlen + (size_t)err + 1);
+			if (!nbuf) {
+				fprintf(stderr, "out of memory\n");
+				free(data);
+				exit(1);
+			}
+			data = nbuf;
+			memcpy(data + dlen, buf, (size_t)err);
+			dlen += (size_t)err;
+			data[dlen] = '\0';
 		}
 
 		if (strstr(data, "___...___")) {
@@ -94,17 +109,39 @@ int run_php_prog_ssl(SSL *ssl, int sock)
 		}
 	}
 
-	printf("Input %d %s\n", strlen(data), data);
-	bzero(buf, sizeof(buf));
-	//printf ("Received %d chars:'%s'\n", err, buf);
+	if (!data || dlen == 0) {
+		fprintf(stderr, "empty backend message\n");
+		free(data);
+		exit(1);
+	}
 
-	strcpy(tmpname, "/tmp/kloxo_backendXXXXXX");
-	mkstemp(tmpname);
-	fp = fopen(tmpname, "w");
-	fwrite(data, strlen(data), 1, fp);
+	printf("Input %zu bytes\n", dlen);
+
+	tfd = mkstemp(tmpname);
+	if (tfd < 0) {
+		perror("mkstemp");
+		free(data);
+		exit(1);
+	}
+	fp = fdopen(tfd, "w");
+	if (!fp) {
+		perror("fdopen");
+		close(tfd);
+		unlink(tmpname);
+		free(data);
+		exit(1);
+	}
+	fwrite(data, 1, dlen, fp);
 	fclose(fp);
+	free(data);
+	data = NULL;
+
 	snprintf(ftempname, sizeof(ftempname), "--temp-input-file=%s", tmpname);
-	pipe(pipefd);
+	if (pipe(pipefd) != 0) {
+		perror("pipe");
+		unlink(tmpname);
+		exit(1);
+	}
 	pid = fork();
 	if (pid == 0) {
 		dup2(pipefd[1], 1);
@@ -114,19 +151,15 @@ int run_php_prog_ssl(SSL *ssl, int sock)
 		exit(0);
 	} else {
 		close(pipefd[1]);
-		printf("Pipe %d\n", pipefd[0]);
 		while (1) {
 			n = read(pipefd[0], buf, sizeof(buf));
-			totaln += n;
 			if (n > 0) {
+				totaln += n;
 				p = ssl_or_tcp_write(ssl, sock, buf, n);
+				(void)p;
 			} else {
-				printf("Got %d\n\n", totaln);
-				// Dummy Read... A Must
 				while (1) {
-					bzero(tmpname, sizeof(tmpname));
-					p = ssl_or_tcp_read(ssl, sock, tmpname, sizeof(tmpname));
-					printf("Got %s\n\n", tmpname);
+					p = ssl_or_tcp_read(ssl, sock, dummy, sizeof(dummy));
 					if (p <= 0) {
 						break;
 					}
@@ -153,7 +186,6 @@ int ssl_or_tcp_read(SSL *ssl, int sock, char * buf, int n)
 
 	if (sock) {
 		p = read(sock, buf, n);
-		printf("Read %d %s \n", p, buf);
 	} else {
 		p = SSL_read(ssl, buf, n);
 	}
@@ -180,9 +212,8 @@ SSL_CTX * ssl_init()
 	/* Load the error strings for SSL & CRYPTO APIs */
 	SSL_load_error_strings();
 
-	/* Create a SSL_METHOD structure (choose a SSL/TLS protocol version) */
-	//meth = TLSv1_method();
-	meth = SSLv23_method();
+	/* TLS 1.2+ only (audit C2). */
+	meth = TLS_server_method();
 
 	/* Create a SSL_CTX structure */
 	ctx = SSL_CTX_new(meth);
@@ -192,14 +223,26 @@ SSL_CTX * ssl_init()
 		exit(1);
 	}
 
+#if defined(TLS1_2_VERSION) && defined(SSL_CTX_set_min_proto_version)
+	if (SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION) != 1) {
+		fprintf(stderr, "cannot set minimum TLS 1.2\n");
+		exit(1);
+	}
+#endif
+#ifdef SSL_OP_NO_SSLv2
+	SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
+#endif
+
 	/* Load the server certificate into the SSL_CTX structure */
 	if (SSL_CTX_use_certificate_file(ctx, RSA_SERVER_CERT, SSL_FILETYPE_PEM) <= 0) {
+		fprintf(stderr, "missing TLS cert %s (run generate-tls-keys)\n", RSA_SERVER_CERT);
 		ERR_print_errors_fp(stderr);
 		exit(1);
 	}
 
 	/* Load the private-key corresponding to the server certificate */
 	if (SSL_CTX_use_PrivateKey_file(ctx, RSA_SERVER_KEY, SSL_FILETYPE_PEM) <= 0) {
+		fprintf(stderr, "missing TLS key %s (run generate-tls-keys)\n", RSA_SERVER_KEY);
 		ERR_print_errors_fp(stderr);
 		exit(1);
 	}
@@ -241,11 +284,12 @@ char tcp_create_socket(short int s_port)
 	RETURN_ERR(listen_sock, "socket");
 	memset(&sa_serv, '\0', sizeof(sa_serv));
 	sa_serv.sin_family = AF_INET;
-	sa_serv.sin_addr.s_addr = INADDR_ANY;
+	/* Localhost only by default (audit C2). Multi-server is an explicit later choice. */
+	sa_serv.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	sa_serv.sin_port = htons(s_port); /* Server Port number */
 	err = bind(listen_sock, (struct sockaddr*)&sa_serv, sizeof(sa_serv));
 	RETURN_ERR(err, "bind");
-	err = listen(listen_sock, 500000);
+	err = listen(listen_sock, BACKEND_LISTEN_BACKLOG);
 	return listen_sock;
 }
 

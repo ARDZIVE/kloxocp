@@ -3499,8 +3499,7 @@ function if_demo_throw_exception($where = null)
 
 function get_package_version($name)
 {
-	$cont = curl_general_get("http://download.kloxocp.invalid/download/version/$name");
-	return trim($cont);
+	return '';
 }
 
 function getClassFromName($cgi_clientname)

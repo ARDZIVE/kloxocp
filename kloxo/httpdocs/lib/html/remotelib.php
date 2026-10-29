@@ -516,16 +516,34 @@ function createSslStream()
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$sockr = stream_socket_server("ssl://0.0.0.0:{$sgbl->__var_remote_port}");
+	$pem = "{$sgbl->__path_program_root}/file/ssl/default.pem";
+	if (!is_file($pem)) {
+		die("TLS material missing ($pem). Run generate-tls-keys.\n");
+	}
 
-	stream_context_set_option($sockr, 'ssl', 'verify_peer', false);
-//	stream_set_timeout($sockr, 30000000);
-	stream_context_set_option($sockr, 'ssl', 'allow_self_signed', true);
-//	stream_context_set_option($sock, 'ssl', 'cafile', "/etc/httpd/conf/ssl.crt/server.crt");
-	stream_context_set_option($sockr, 'ssl', 'local_cert', "$sgbl->__path_program_root/file/ssl/default.pem");
+	$crypto = 0;
+	if (defined('STREAM_CRYPTO_METHOD_TLSv1_2_SERVER')) {
+		$crypto |= STREAM_CRYPTO_METHOD_TLSv1_2_SERVER;
+	}
+	if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_SERVER')) {
+		$crypto |= STREAM_CRYPTO_METHOD_TLSv1_3_SERVER;
+	}
+
+	$opts = array(
+		'ssl' => array(
+			'local_cert' => $pem,
+			'verify_peer' => false,
+			'allow_self_signed' => true,
+		),
+	);
+	if ($crypto) {
+		$opts['ssl']['crypto_method'] = $crypto;
+	}
+	$ctx = stream_context_create($opts);
+	$sockr = stream_socket_server("ssl://127.0.0.1:{$sgbl->__var_remote_port}", $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $ctx);
 
 	if (!$sockr) {
-		die("Could not bind Remote address\n");
+		die("Could not bind Remote address on 127.0.0.1: {$errstr}\n");
 	}
 
 	return $sockr;

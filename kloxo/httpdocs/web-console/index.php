@@ -1,17 +1,10 @@
 <?php
-
-$v = $_REQUEST['session'];
-
-$v = unserialize(base64_decode($v));
-
-$r = unserialize(file_get_contents("../../session/ssh_{$v['session']}"));
-
-if ($r !== $_SERVER['REMOTE_ADDR']) {
-	print("No Session. You can access this only through kloxo and needs proper authentication. " .
-		"If you are indeed accessing from Inside Kloxo CP, then please logout and login again, " .
-		"so that a new session is created properly.\n");
-
-	exit;
-} else {
-	include_once "web-console.php";
-}
+/**
+ * The in-browser command shell was removed (audit H3).
+ * This stub does not parse session input and does not run commands.
+ */
+header('HTTP/1.1 403 Forbidden');
+header('Content-Type: text/plain; charset=UTF-8');
+header('X-Content-Type-Options: nosniff');
+echo "The in-browser web console was removed from Kloxo CP.\n";
+exit;

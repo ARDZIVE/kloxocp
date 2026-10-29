@@ -6,6 +6,8 @@ class easyinstaller__linux extends LxDriverclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		throw new lxException($login ? $login->getThrow('easyinstaller_removed') : 'easyinstaller_removed', '');
+
 	//	dprintr($this->main);
 
 		// Syncaddd happens when website is moved from one server to another.
@@ -244,6 +246,10 @@ class easyinstaller__linux extends LxDriverclass
 
 	function dbactionUpdate($subaction)
 	{
+		global $login;
+
+		throw new lxException($login ? $login->getThrow('easyinstaller_removed') : 'easyinstaller_removed', '');
+
 		switch($subaction) {
 			case "snapshot":
 				$this->do_snapshot();

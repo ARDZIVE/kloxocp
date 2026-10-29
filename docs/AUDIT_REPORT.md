@@ -19,10 +19,10 @@ test; absence of a finding is not proof of safety.
 
 ## 2. Codebase inventory
 
-* 597 PHP files, about 165k lines (the PEAR/WebDAV/ExtJS bundles are about 45k of those lines in `webdisk/` alone).
+* 555 PHP files after P1 deletions (was 597), about 165k lines remaining (the PEAR/WebDAV/ExtJS bundles are about 45k of those lines in `webdisk/` alone).
 * Core (`httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `lang` 3k, `bin` 7k).
 * Entry points: `httpdocs/*.php` (UI), `httpdocs/api`, `httpdocs/web-console`, `bin/*.php`, `sbin/kloxo.php`, C daemon `cexe/kloxo.c`.
-* Legacy stacks to remove in phase 1 (size of `file/<dir>`): apache 472K, nginx 276K (keep), lighttpd 160K, hiawatha 96K (keep, panel only), trafficserver 156K, squid 132K, varnish 68K, qmail 284K, maradns 64K, djbdns 40K, nsd 72K, mydns 60K; bind 100K and pdns 96K are candidates to keep.
+* Legacy stacks: Apache/Lighttpd/Varnish/Squid/ATS/Hiawatha-site and unused DNS template trees **removed** in P1. Remaining `file/<dir>` sizes: nginx 236K, bind 76K, pdns 76K, qmail 152K (kept until postfix UI drivers). Panel Hiawatha config is `init/` only (96K for the whole init dir).
 * Bundled third-party code: PEAR + HTTP_WebDAV (about 1.9 MB), PHPMailer **5.2.19**, ExtJS 2.x (about 2.1 MB), `formmail.php` (2001-2004), webalizer/qmail/courier templates.
 
 ## 3. Security findings
@@ -50,17 +50,14 @@ Payload becomes a versioned JSON object with a schema (action, class, nname, arg
 validate before dispatch. Transport: Unix socket for same-host (P0.5), mutual TLS only if
 multi-server stays in scope. Do not add further `unserialize()` of network input.
 
-**C2: Backend daemon is an unauthenticated, network-facing code runner.**
-`cexe/kloxo.c` binds `INADDR_ANY` with `listen(…, 500000)`, uses `SSLv23_method()`
-(legacy protocols allowed), and has `verify_client = OFF` hard-coded (lines 166, 255),
-so no client certificate is required. It writes the received bytes to a temp file and
-executes `lxphp.exe bin/common/process_single.php` with it. Memory-safety issues: unbounded
-`strcpy/sprintf/strlen` on `data`, unchecked `malloc`, no maximum message size
-(memory DoS), uninitialised `totaln`, `mkstemp()` result ignored (fd leak and a file name
-race), and `printf("Input %d %s")` logging full payloads (which include passwords).
-*Fix:* bind to localhost or a Unix socket by default; enforce mutual TLS (TLS 1.2+) for
-multi-server mode; add size limits; rewrite the daemon in a memory-safe language or as a
-small, audited privileged agent with a fixed command allow-list.
+**C2: Backend daemon is an unauthenticated, network-facing code runner. CLOSED for P0.5 defaults.**
+Was: `cexe/kloxo.c` bound `INADDR_ANY` with `listen(…, 500000)`, used `SSLv23_method()`,
+`verify_client = OFF`, unbounded receive, ignored `mkstemp()`, logged full payloads.
+*Closed by:* bind `INADDR_LOOPBACK`, listen backlog 128, `TLS_server_method` with TLS 1.2
+minimum, 1 MiB cap, `realloc` receive path, `mkstemp` checked, payload not logged. PHP
+`createSslStream()` binds `127.0.0.1` and requires `default.pem`. Missing keys fail closed.
+*Still open (later):* the daemon still executes PHP on received data; replace with an
+allow-listed privileged agent. Multi-server bind is an explicit later choice.
 
 **C3: Private keys committed to the repository. CLOSED.**
 Were: `init/backend.key`, `file/ssl/rootCA.key`, `file/ssl/default.key` (and matching certs),
@@ -79,15 +76,15 @@ also ran `chmod -R ug+s` on `cexe/`. `lxmisc.c` was an unused setuid-style wrapp
 (comment in the file from 2010; `do_exec_system` never actually invoked it).
 *Closed by:* deleting the three sources; Makefile builds `kloxo.exe` mode 0755 only;
 installer no longer sets the setuid bit; `exec_with_all_closed*` runs without a helper.
-Qmail `chmod 4755 …/vchkpw` in `pscript/fixmail-all` remains until P1 removes qmail.
+Qmail `chmod 4755 …/vchkpw` in `pscript/fixmail-all` remains until qmail is removed.
 
-**C5: Remote code download over plain HTTP.**
-`lib/programlib.php`, `bin/easyinstaller-update.php`, `lib/php/lxlib.php`, `lib/html/lib.php`
-fetch lists/zips with `wget http://…` / `curl` from `download.lxcenter.org` and unpack/execute them.
-The domain is no longer under project control, so this is a supply-chain risk.
-*Mitigation already applied:* all those hosts were replaced by `*.kloxocp.invalid`
-(non-resolvable). *Fix:* remove the "easyinstaller" feature or re-implement it with HTTPS and
-signature verification.
+**C5: Remote code download over plain HTTP. CLOSED.**
+Was: Easy Installer and related helpers fetched lists/zips with `wget http://` / `curl` from
+hosts the project does not control, then unpacked them.
+*Closed by:* `easyinstaller-update.php` / `easyinstaller-upload.php` / `pscript/easyinstaller-update`
+exit without downloading; `easyinstaller__linux::dbactionAdd/Update` throw; `easyinstaller_data_update()`
+is a no-op; `download_file()` refuses `http://`; version and wordlist HTTP fetches disabled;
+`kloxo/etc/flag/disableeasyinstaller.flg` is shipped. UI classes remain until a later tree shrink.
 
 ### High
 
@@ -96,17 +93,16 @@ signature verification.
   of building shell strings with user-supplied names (domains, usernames, paths) is the
   classic route to command injection.
 * **H2: 55 `eval()` calls and 25 `extract()` calls**; 23 variable-path `include/require`.
-* **H3: `httpdocs/web-console/`**: an in-browser command shell with its own account list
-  and hashing. Remove, or gate behind admin-only, TLS-only, audited access.
+* **H3: `httpdocs/web-console/` CLOSED.** The shell (`web-console.php`) is deleted; `index.php`
+  is a 403 stub that does not unserialize. The SSH-client iframe no longer loads it.
 * **H4: Weak credential handling.** 35 `md5()` and 35 `crypt()` uses; the admin password is
   created with MD5-crypt (`crypt($pass, '$1$…')`) in `lib/html/initlib.php`. Only 4
   `password_hash` uses. *Fix:* argon2id/bcrypt via `password_hash`, with rehash on login.
 * **H5: Transport security.** 12 places disable certificate verification (`CURLOPT_SSL_VERIFY*`),
   28 `wget/curl http://` calls, `MinTLSversion = TLS1.0` in `init/hiawatha.conf.base`.
-* **H6: Sudoers rule** written by `pscript/set-kloxo-php`:
-  `lxlabs ALL=(ALL:ALL) NOPASSWD:/opt/kloxo`. Written to `/etc/sudoers.d/mount`. The
-  command spec is a directory, which makes the intent unclear; any passwordless sudo for the
-  web-facing account is dangerous. Remove and replace with the agent design.
+* **H6: Sudoers rule CLOSED.** `pscript/set-kloxo-php` no longer writes
+  `lxlabs ALL=(ALL:ALL) NOPASSWD:/opt/kloxo` to `/etc/sudoers.d/mount`. Existing installs
+  that already have that file must delete it by hand.
 * **H7: Outdated bundled code.** PHPMailer 5.2.19 (EOL, known CVEs fixed in later
   releases), PEAR/WebDAV (do not even parse on PHP 8), `formmail.php` (2001-2004, a historic spam/injection
   target), ExtJS 2.x. Replace or drop each.
@@ -161,18 +157,18 @@ characterization-test harness is the first port step.
 
 * **OS coupling:** `install/`, `pscript/`, `file/driver/linux.inc` are RPM/yum/chkconfig/`service`
   based; init scripts are SysV (`init/*.init`) with systemd units as an afterthought.
-* **Web stack:** Apache, Lighttpd, Hiawatha (as site server), Varnish, Squid, ATS drivers and
-  their templates make up a large share of `driver/web` and `file/`. Decision: customer sites
-  Nginx only; remove the rest.
+* **Web stack (P1 done):** selectable site drivers are `none` and `nginx`; webcache is `none`.
+  Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey and OpenLiteSpeed
+  drivers and `file/` templates are gone. `lib.php` still has dead Apache install/chown
+  branches used by the legacy installer (P3).
 * **Panel web server (Hiawatha), kept as requested:** configured through
-  `init/hiawatha.conf.base`, `init/kloxo-web.init`, `file/hiawatha/etc/conf/hiawatha_*.conf`; it
-  talks to PHP over a FastCGI Unix socket (`/opt/kloxo/init/kloxo-phpcgi.sock`). Hiawatha is
-  actively used by this design but its availability as a packaged binary on Ubuntu 24.04 is
-  **not confirmed**; I could not verify it in my sandbox. Plan for a pinned build from source in the
-  installer if the package is missing. Panel-only use keeps the migration small, but the
-  CGI/PHP5 specifics in `hiawatha.conf.base` (`CGIhandler`, `PHP5` FastCGI id, TLS 1.0) must be rewritten.
+  `init/hiawatha.conf.base`, `init/kloxo-web.init` (site templates under `file/hiawatha` were
+  removed). It talks to PHP over a FastCGI Unix socket (`/opt/kloxo/init/kloxo-phpcgi.sock`).
+  Hiawatha availability as a packaged binary on Ubuntu 24.04 is **not confirmed**. Plan for a
+  pinned build from source in the installer if the package is missing. The CGI/PHP5 specifics
+  in `hiawatha.conf.base` (`CGIhandler`, `PHP5` FastCGI id, TLS 1.0) must be rewritten.
 * **Mail:** the legacy qmail-toaster stack (+ courier, vpopmail, SpamAssassin, bogofilter, ezmlm) is replaced by Postfix + Dovecot + Rspamd; the new stack is implemented and tested, see `docs/MAIL_DESIGN.md`. Connecting it to the legacy UI drivers (`driver/mmail`) is still open.
-* **DNS drivers:** bind, djbdns, nsd, maradns, mydns, pdns, yadifa. Keep bind (and optionally pdns).
+* **DNS drivers (P1 done):** selectable `none`, `bind`, `pdns`. djbdns/nsd/mydns/yadifa/maradns drivers and templates removed.
 * **Billing:** no billing module is bundled. The only traces were `pscript/setup-tht` (a TheHostingTool installer, **removed**) and a "fix for WHMCS needing pserver" workaround in the command-line API (`lib/html/commandlinelib.php`), which is left in place as part of the generic API. A clean billing extension point can be added later.
 * **Distro abstraction:** paths (`/etc/httpd`, `/var/named`, `/etc/init.d`...), package names
   and service names are hard-coded. Needs a per-distro map.
@@ -184,8 +180,8 @@ characterization-test harness is the first port step.
 | Phase | Work | Exit criteria |
 |---|---|---|
 | 0 (done) | Rebrand, neutralise dead endpoints, remove stale binaries, audit | This ZIP |
-| 1a | C3/C4/C1 (`process_server_input`) done. Remaining: sudoers rule; `web-console`, easyinstaller; bind backend to localhost (C2); easyinstaller HTTP (C5) | C2, C5 still open |
-| 1b | Remove Apache/Lighttpd/Varnish/Squid/ATS/Hiawatha-site drivers and templates; keep Nginx + panel Hiawatha | Smaller tree, tests for Nginx templates |
+| 1a (done) | C1–C5 / H3 / H6 for phase 1a: keys, setuid helpers, auth-before-unserialize, web-console, easyinstaller HTTP, sudoers, localhost bind, TLS 1.2+, size limits | Remaining: PHP 8.3 port, installer, agent rewrite, qmail removal |
+| 1b (web/DNS done) | Remove Apache/Lighttpd/Varnish/Squid/ATS/Hiawatha-site/unused-DNS drivers and templates; keep Nginx + panel Hiawatha + BIND/PowerDNS | `tests/p1/` 31 checks. qmail still present |
 | 1c | PHP 8.3 port (core first: `lxlib`, `lxclass`, `sgbl`, DB layer to PDO/mysqli), replace PEAR/WebDAV/PHPMailer | `php -l` clean, smoke tests pass |
 | 1d | New Ubuntu 24.04 installer (apt, systemd, ufw), OS abstraction layer, unique keys per install | Fresh VM install boots the panel on HTTPS |
 | 1e | Mail stack: Postfix + Dovecot + Rspamd driver | Create mailbox, send and receive |
@@ -194,7 +190,7 @@ characterization-test harness is the first port step.
 
 ## 7. What I need from you for the next step
 
-1. Confirm priority: security clean-up (1a) first, as recommended.
+1. Phase 1a security and P1 web/DNS shrink are done. Next: P2 (PHP 8.3 port) or P3 (installer/CLI). qmail stays until P4.
 2. A fresh Ubuntu 24.04 VM (root, 2-4 GB RAM) so that I can give you tested install steps and you can report errors back.
 3. Whether to keep multi-server (master/slave) in v1; dropping it would let the backend daemon be removed from the first release.
 4. A logo and domain/GitHub name when you have them.

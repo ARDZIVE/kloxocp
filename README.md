@@ -38,6 +38,8 @@ kloxo/            panel source; installs to /opt/kloxo
 tests/mail/       NEW: 73 static + 25 live end-to-end mail tests
 tests/tls/        NEW: generate-tls-keys checks
 tests/remote/     NEW: backend auth-before-unserialize checks (audit C1)
+tests/security/   NEW: P0.4/P0.5 source invariants
+tests/p1/         NEW: Nginx-only / unused-stack removal checks
 docs/             audit, design, mail stack, changelog, legacy notes
 tools/            rebrand_to_kloxocp.py (reproducible rebrand step)
 NOTICE            origin and attribution

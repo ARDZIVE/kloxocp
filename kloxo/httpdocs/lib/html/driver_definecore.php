@@ -1,13 +1,7 @@
 <?php 
 $gl_class_array['dns__bind'] =  "driver/dns/dns__bindlib.php";
-$gl_class_array['dns__djbdns'] =  "driver/dns/dns__djbdnslib.php";
 $gl_class_array['dns__pdns'] =  "driver/dns/dns__pdnslib.php";
-//--// $gl_class_array['dns__maradns'] =  "driver/dns/dns__maradnslib.php";
-$gl_class_array['dns__nsd'] =  "driver/dns/dns__nsdlib.php";
 $gl_class_array['dns__none'] =  "driver/dns/dns__nonelib.php";
-//--// $gl_class_array['dns__msdns'] =  "driver/dns/dns__msdnslib.php";
-$gl_class_array['dns__mydns'] =  "driver/dns/dns__mydnslib.php";
-$gl_class_array['dns__yadifa'] =  "driver/dns/dns__yadifalib.php";
 
 $gl_class_array['anonftpipaddress__pureftp'] =  "driver/ftp/anonftpipaddress__pureftplib.php";
 $gl_class_array['service__linux'] =  "driver/pserver/service__linuxlib.php";
@@ -41,8 +35,7 @@ $gl_class_array['mysqldbuser__mysql'] =  "driver/pserver/mysqldbuser__mysqllib.p
 
 $gl_class_array['reversedns__bind'] =  "driver/pserver/reversedns__bindlib.php";
 
-$gl_class_array["mimetype__apache"] = "driver/web/mimetype__apachelib.php";
-$gl_class_array["mimetype__lighttpd"] = "driver/web/mimetype__lighttpdlib.php";
+$gl_class_array["mimetype__nginx"] = "driver/web/mimehandler__nginxlib.php";
 
 $gl_class_array['cron__linux'] = "driver/pserver/cron__linuxlib.php";
 //--// $gl_class_array['cron__windows'] = "driver/pserver/cron__windowslib.php";
