@@ -389,7 +389,7 @@ class Sqlite
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$countres = $this->rawquery("select count(*) from {$this->__sqtable} where ${query}");
+		$countres = $this->rawquery("select count(*) from {$this->__sqtable} where {$query}");
 	
 		if ($sgbl->__var_database_type === 'mysql') {
 			$countres = $countres[0]['count(*)'];

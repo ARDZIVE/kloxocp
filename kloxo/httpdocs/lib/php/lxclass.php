@@ -11,6 +11,7 @@ class vpsipaddress extends lxclass
 	function write() { }
 }
 
+#[AllowDynamicProperties]
 abstract class Lxclass
 {
 	public $nname;
@@ -1121,7 +1122,7 @@ abstract class Lxclass
 		return $ret;
 	}
 
-	static function getdbFilter($filter = null, $class)
+	static function getdbFilter($filter = null, $class = null)
 	{
 		static $oplist = array('gt' => '>', 'lt' => '<', 'eq' => '===', 'ne' => '!=', 'cont' => 'LIKE');
 		$total = null;
@@ -2422,7 +2423,7 @@ abstract class Lxclass
 			if ($sortby) {
 				$__tvar = "__sortby_{$class}";
 
-				if (!isset($this->$__tvar) || $this->__sortby_{$class} != $sortby || $this->__sortdir != $sortdir) {
+				if (!isset($this->$__tvar) || $this->{"__sortby_{$class}"} != $sortby || $this->__sortdir != $sortdir) {
 					$this->__sortby = $sortby;
 					$this->__sortdir = $sortdir;
 					$this->$__tvar = $sortby;

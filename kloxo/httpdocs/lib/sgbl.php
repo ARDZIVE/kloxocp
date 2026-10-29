@@ -1,5 +1,38 @@
-<?php 
+<?php
 
+function kloxo_program_root()
+{
+	$env = getenv('KLOXO_ROOT');
+	if (is_string($env) && $env !== '' && is_dir($env . '/httpdocs')) {
+		return rtrim($env, '/');
+	}
+
+	return dirname(__DIR__, 2);
+}
+
+function kloxo_php_binary()
+{
+	$env = getenv('KLOXO_PHP');
+	if (is_string($env) && $env !== '' && is_executable($env)) {
+		return $env;
+	}
+
+	if (defined('PHP_BINARY') && PHP_BINARY !== '' && is_executable(PHP_BINARY)
+		&& strpos(PHP_BINARY, 'php-fpm') === false
+		&& strpos(PHP_BINARY, 'php-cgi') === false) {
+		return PHP_BINARY;
+	}
+
+	foreach (array('/usr/bin/php8.3', '/usr/bin/php') as $p) {
+		if (is_executable($p)) {
+			return $p;
+		}
+	}
+
+	return '/usr/bin/php';
+}
+
+#[AllowDynamicProperties]
 class Sgbl
 {
 	function __construct()
@@ -19,33 +52,40 @@ class Sgbl
 		} else {
 			$this->__running_in_cli = true;
 		}
-			
+
+		$this->__var_program_name = 'kloxo';
+
+		$root = kloxo_program_root();
+		$this->__path_lxlabs_base = $root;
+		$this->__path_program_root = $root;
+		$this->__path_program_etc = $root . "/etc/";
+		$this->__path_program_htmlbase = $root . "/httpdocs";
+		$this->__path_php_path = kloxo_php_binary();
+
 		$this->initDeviceDescriptions();
 		$this->initLanguages();
 		$this->initLTypes();
 		$this->initCtTypes();
 
-		$this->__var_program_name = 'kloxo';
-
-		$t = file_get_contents('/opt/kloxo/bin/kloxoversion');
-		$a = explode('.', $t);
+		$verfile = $root . '/bin/kloxoversion';
+		$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
+		$a = ($t !== '') ? explode('.', $t) : array();
 
 		$this->__ver_name = 'Kloxo CP';
 		$this->__ver_note = 'Kloxo fork by Mustafa Ramadhan';
 
-		$this->__ver_major = ($t) ? $a[0] : '[unknown]';
-		$this->__ver_minor = ($t) ? $a[1] : '[unknown]';
-		$this->__ver_release = ($t) ? $a[2] : '[unknown]';
-		
-		$s = ($t) ? $a[3] : '[unknown]';
+		$this->__ver_major = isset($a[0]) ? $a[0] : '[unknown]';
+		$this->__ver_minor = isset($a[1]) ? $a[1] : '[unknown]';
+		$this->__ver_release = isset($a[2]) ? $a[2] : '[unknown]';
+
+		$s = isset($a[3]) ? $a[3] : '[unknown]';
 		$b = explode('-', $s);
-		
-		$this->__ver_extra = ($b) ? $b[0] : '[unknown]';
-		
+
+		$this->__ver_extra = isset($b[0]) ? $b[0] : '[unknown]';
+
 		$this->__ver_step = $this->__ver_extra;
-		
-		// MR -- add new var!
-		$this->__ver_stamp = ($b) ? $b[1] : '[unknown]';
+
+		$this->__ver_stamp = isset($b[1]) ? $b[1] : '[unknown]';
 
 		$this->__ver_enterprise = "Single Server Edition";
 		$this->__ver_type = "production";
@@ -103,12 +143,6 @@ class Sgbl
 
 		$this->__path_kloxo_httpd_root = "/home/kloxo/httpd";
 		$this->__path_kloxo_root = "/home/kloxo";
-		$this->__path_lxlabs_base = "/opt/kloxo";
-		$this->__path_program_etc = "/opt/kloxo/etc/";
-		$this->__path_program_root = "/opt/kloxo";
-		$this->__path_program_htmlbase = "/opt/kloxo/httpdocs";
-
-		$this->__path_php_path = "/usr/bin/lxphp.exe";
 
 		$this->__path_serverfile = $this->__path_lxlabs_base . "/serverfile";
 		$this->__path_download_dir = $this->__path_lxlabs_base . "/download";
@@ -202,9 +236,15 @@ class Sgbl
 	private function initLanguages()
 	{
 		// MR -- change reading language list
-		$path = "/opt/kloxo/httpdocs/lang";
+		$path = $this->__path_program_htmlbase . "/lang";
+		if (!is_dir($path)) {
+			return;
+		}
 
 		$dirs = scandir($path);
+		if (!is_array($dirs)) {
+			return;
+		}
 
 		foreach ($dirs as &$dir) {
 			$file = "{$path}/{$dir}/language";

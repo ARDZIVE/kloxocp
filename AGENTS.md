@@ -12,8 +12,9 @@ rollback (designed, not built).
 0.1.0-dev. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerDNS; qmail still
-present). The panel still cannot boot on PHP 8.3. Next: P2 (PHP 8.3 port) or P3 (installer/CLI).
-See briefing section 7.
+present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
+Browser login against MariaDB is not verified. Next: P3 (installer/CLI) or remaining P2 runtime
+in third-party trees. See briefing section 7.
 
 ## Commands
 ```
@@ -23,6 +24,7 @@ php kloxo/bin/install/generate-tls-keys --help
 bash tests/remote/run-tests.sh        # C1 auth-before-unserialize checks (php-cli only)
 bash tests/security/run-tests.sh      # P0.4/P0.5 source invariants (php-cli only)
 bash tests/p1/run-tests.sh            # P1 stack-shrink source invariants (php-cli only)
+bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload (php-cli only)
 bash tests/mail/run-tests.sh          # 73 mail checks (needs MariaDB root socket; disposable machine only)
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Postfix/Dovecot/Rspamd; see tests/mail/README.md)
 php kloxo/bin/mail/kloxo-mail help

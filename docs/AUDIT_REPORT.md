@@ -122,12 +122,15 @@ is a no-op; `download_file()` refuses `http://`; version and wordlist HTTP fetch
 
 ## 4. PHP 8.3 compatibility
 
-`php -l` (PHP 8.3.6) on 621 PHP files: **50 files fail to compile**.
-* 42 are third-party/example code (`webdisk/PEAR*`, `HTTP/WebDAV`, `lib/urlrewrite/example*`, `file/formmail`).
-* 8 are first-party or bundled: `lib/php/lxclass.php:2425` (curly-brace string offset),
-  `lib/php/common.inc:8` (`__autoload`), `lib/html/ippoollib.php:116`, `api/api.php:36`,
-  `lib/demologins.php:38`, `bin/common/iptraffic.php:74`, `driver/web/easyinstaller__linuxlib.php:82`,
-  `lib/extra/PHPMailerAutoload.php:45`.
+`php -l` on first-party code (499 `.php`/`.inc` files, excluding `webdisk/`, `file/formmail/`,
+urlrewrite examples): **clean** after the P2 first slice (PHP 8.5.2 in this workspace).
+Third-party/example trees still fail (`webdisk/PEAR*`, `HTTP/WebDAV`, `lib/urlrewrite/example*`,
+`file/formmail`).
+*Closed first-party parse errors:* `lib/php/lxclass.php` curly property, `lib/php/common.inc`
+`__autoload`, `lib/html/ippoollib.php` missing `$`, `api/api.php` unclosed function,
+`lib/demologins.php` invalid `<?= {$v[0]} ?>`, `bin/common/iptraffic.php` broken interpolation,
+`driver/web/easyinstaller__linuxlib.php` missing quote, `lib/extra/PHPMailerAutoload.php`
+`__autoload`. Regression: `tests/p2/`.
 
 `php -l` only finds compile-time errors. Pattern scan of removed or deprecated features
 (runtime failures on 8.x):
@@ -182,7 +185,7 @@ characterization-test harness is the first port step.
 | 0 (done) | Rebrand, neutralise dead endpoints, remove stale binaries, audit | This ZIP |
 | 1a (done) | C1–C5 / H3 / H6 for phase 1a: keys, setuid helpers, auth-before-unserialize, web-console, easyinstaller HTTP, sudoers, localhost bind, TLS 1.2+, size limits | Remaining: PHP 8.3 port, installer, agent rewrite, qmail removal |
 | 1b (web/DNS done) | Remove Apache/Lighttpd/Varnish/Squid/ATS/Hiawatha-site/unused-DNS drivers and templates; keep Nginx + panel Hiawatha + BIND/PowerDNS | `tests/p1/` 31 checks. qmail still present |
-| 1c | PHP 8.3 port (core first: `lxlib`, `lxclass`, `sgbl`, DB layer to PDO/mysqli), replace PEAR/WebDAV/PHPMailer | `php -l` clean, smoke tests pass |
+| 1c (parse slice done) | PHP 8.3 port: first-party `php -l` clean; autoload; boot-path ereg; `Sqlite` already mysqli | `tests/p2/`. Remaining: panel boot, PEAR/PHPMailer, `lxphp.exe` |
 | 1d | New Ubuntu 24.04 installer (apt, systemd, ufw), OS abstraction layer, unique keys per install | Fresh VM install boots the panel on HTTPS |
 | 1e | Mail stack: Postfix + Dovecot + Rspamd driver | Create mailbox, send and receive |
 | 2 | Backend agent redesign (JSON over Unix socket, allow-listed actions), password hashing migration, test suite and CI | Audit re-run |
@@ -190,7 +193,7 @@ characterization-test harness is the first port step.
 
 ## 7. What I need from you for the next step
 
-1. Phase 1a security and P1 web/DNS shrink are done. Next: P2 (PHP 8.3 port) or P3 (installer/CLI). qmail stays until P4.
+1. P2 first-party parse and `include.php` boot are done. Next: P3 (installer/CLI) or remaining third-party runtime APIs. Browser login is unverified. qmail stays until P4.
 2. A fresh Ubuntu 24.04 VM (root, 2-4 GB RAM) so that I can give you tested install steps and you can report errors back.
 3. Whether to keep multi-server (master/slave) in v1; dropping it would let the backend daemon be removed from the first release.
 4. A logo and domain/GitHub name when you have them.

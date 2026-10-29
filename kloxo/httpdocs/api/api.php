@@ -32,4 +32,6 @@ Password:<br>
 
 <input type='submit' name='submit' value='submit'><br>
 
+<?php
+}
 

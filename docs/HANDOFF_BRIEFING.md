@@ -61,6 +61,7 @@ kloxo-cp/
   tests/remote/                  C1 auth-before-unserialize checks (php-cli only)
   tests/security/                P0.4/P0.5 source invariants (php-cli only)
   tests/p1/                      P1 stack-shrink source invariants (php-cli only)
+  tests/p2/                      P2 first-party PHP 8 parse + autoload characterization (php-cli only)
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
 
@@ -103,6 +104,17 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     OpenLiteSpeed, and unused DNS (djbdns/nsd/mydns/yadifa/maradns) drivers and `file/` templates
     deleted. Panel Hiawatha stays under `init/hiawatha.conf.base`. Default web driver is nginx.
     qmail/courier/ezmlm/spamassassin remain until postfix UI drivers exist. Tests: `tests/p1/`.
+12. **P2 first slice:** first-party `php -l` is clean (499 files; PEAR/WebDAV, formmail and
+    urlrewrite examples still fail). `__autoload` replaced by `spl_autoload_register`
+    (`kloxo_autoload`). Boot-path `ereg*` in `includecore.php` replaced. `csb()` no longer
+    throws `ArgumentCountError`. Core `Sqlite` class already used mysqli/PDO (upstream).
+    Tests: `tests/p2/`.
+13. **P2 boot slice:** `include.php` loads on PHP 8 without throwing (`tests/p2/test_boot.php`).
+    Program root is derived from the tree / `KLOXO_ROOT` (not a missing `/opt/kloxo`).
+    PHP binary is distro `php` (`kloxo_php_binary()`, `init/php-cli.sh`). Login page files
+    are shipped under `httpdocs/login/`. Hiawatha min TLS is 1.2; PHP-FPM unit uses
+    `php-fpm8.3`. Browser login against MariaDB is **UNVERIFIED**. The one-command installer
+    is still P3.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -188,7 +200,9 @@ Work in this order. Keep every change small, tested and committed separately. Do
 3. Confirm Hiawatha availability on Ubuntu 24.04 (**UNVERIFIED**); if no package, build a pinned binary in the installer. `lib.php` still contains dead Apache install/chown branches (legacy installer, replaced in P3).
 
 ### P2: PHP 8.3 port (phase 1c)
-Add characterization tests first. Port core (`lib/php/lxlib.php`, `lxclass.php`, `lib/sgbl.php`, DB layer to PDO/mysqli), then drivers. Replace PEAR/WebDAV/PHPMailer or drop features. Target: `php -l` clean, then smoke tests. Replace the custom PHP 5.2/5.3 wrapper layer (`lxphp.exe`, `init/php-cgi.sh.base`) with distro PHP-FPM.
+1. **DONE: first-party parse.** First-party `.php`/`.inc` files `php -l` clean. `__autoload` → `kloxo_autoload` + `spl_autoload_register`. `includecore.php` no longer calls `ereg*`. `char_search_beg` accepts the extra `csb()` argument. Tests: `tests/p2/`.
+2. **DONE: library boot.** `include.php` constructs `Sgbl` on PHP 8 (`test_boot.php`). Paths follow the tree / `KLOXO_ROOT`. Distro PHP via `kloxo_php_binary` and `init/php-cli.sh`. `#[AllowDynamicProperties]` on `Lxclass`, `Sgbl`, `HtmlLib`. Login files shipped. systemd PHP-FPM unit uses `php-fpm8.3`; Hiawatha min TLS 1.2.
+3. **NOT DONE.** Browser login + MariaDB schema on Ubuntu (`create.php` is still CentOS). Hiawatha Ubuntu package. Remaining compile failures are third-party (`webdisk/PEAR*`, formmail, urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees. P3 installer.
 
 ### P3: installer, packaging, updater (phase 1d)
 Implement `docs/INSTALL_AND_UPDATE_DESIGN.md`: `install.sh` (pre-flight, signed apt repo), Debian packaging (`debian/`), `kloxocp` CLI (`status`, `doctor`, `update`, `rollback`, `component ...`) with snapshot/validate/health-check/rollback. Much of this is new code independent of the legacy PHP, so it can start in parallel with P2. Reuse the pattern already proven in `kloxo-mail apply`.

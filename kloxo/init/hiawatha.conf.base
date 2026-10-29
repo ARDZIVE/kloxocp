@@ -39,10 +39,10 @@ CGIhandler = /usr/bin/ssi-cgi:shtml
 ExecuteCGI = yes
 WaitForCGI = yes
 
-MinTLSversion = TLS1.0
+MinTLSversion = TLS1.2
 
 FastCGIserver {
-	FastCGIid = PHP5
+	FastCGIid = PHP
 	#ConnectTo = 127.0.0.1:39000
 	ConnectTo = /opt/kloxo/init/kloxo-phpcgi.sock
 	Extension = php
@@ -109,7 +109,7 @@ Alias = /.well-known/acme-challenge:/var/run/acme/acme-challenge
 WebsiteRoot = /opt/kloxo/httpdocs
 StartFile = index.php
 SecureURL = no
-__fpmdisabled__UseFastCGI = PHP5
+__fpmdisabled__UseFastCGI = PHP
 UseToolkit = block_shellshock, block_httpoxy, findindexfile
 UseDirectory = static_file
 TimeForCGI = 3600

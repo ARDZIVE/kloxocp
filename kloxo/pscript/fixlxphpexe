@@ -11,6 +11,19 @@ fi
 
 INIT_DIR="/opt/kloxo/init"
 
+# Ubuntu 24.04 / distro PHP 8: do not install the old /opt/php56s tree.
+if [ "$1" = "" ] && command -v php >/dev/null 2>&1 ; then
+	if php -r 'exit(PHP_MAJOR_VERSION >= 8 ? 0 : 1);' ; then
+		if [ -x "${INIT_DIR}/php-cli.sh" ] ; then
+			rm -f /usr/bin/lphp.exe /usr/bin/lxphp.exe
+			ln -sf "${INIT_DIR}/php-cli.sh" /usr/bin/lphp.exe
+			ln -sf "${INIT_DIR}/php-cli.sh" /usr/bin/lxphp.exe
+			echo "lxphp.exe -> distro php (${INIT_DIR}/php-cli.sh)"
+			echo "php8" > "${INIT_DIR}/kloxo_php_active"
+		fi
+	fi
+fi
+
 if [ "$1" != "" ] ; then
 	 if [[ "$1" != "php"* ]] ; then
 		echo "Use 'sh $0 --help'"

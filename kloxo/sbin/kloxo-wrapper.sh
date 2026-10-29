@@ -2,7 +2,13 @@
 
 progname=kloxo
 
-__path_php_path="/usr/bin/lxphp.exe";
+if [ -x /usr/bin/lxphp.exe ] ; then
+	__path_php_path="/usr/bin/lxphp.exe"
+elif [ -x /usr/bin/php ] ; then
+	__path_php_path="/usr/bin/php"
+else
+	__path_php_path="/usr/bin/php"
+fi
 
 __path_program_root="/opt/kloxo/${progname}";
 __path_slave_db="${__path_program_root}/etc/conf/slave-db.db";

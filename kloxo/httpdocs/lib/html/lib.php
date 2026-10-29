@@ -7975,7 +7975,7 @@ function colourBrightness($hex, $percent)
 }
 
 // MR -- this function to replace eval($sgbl->arg_getting_string) in php 5.3
-function get_function_arglist($start = 0, $transforming_func)
+function get_function_arglist($start = 0, $transforming_func = null)
 {
 	$arglist = array();
 
@@ -8022,11 +8022,16 @@ function exec_out($input)
 // taken from http://www.binarytides.com/php-check-running-cli/
 function is_cli()
 {
-	if (defined('STDIN')) {
+	if (defined('STDIN') && STDIN) {
 		return true;
 	}
 
-	if (empty($_SERVER['REMOTE_ADDR']) and !isset($_SERVER['HTTP_USER_AGENT']) and count($_SERVER['argv']) > 0) {
+	if (defined('PHP_SAPI') && PHP_SAPI === 'cli') {
+		return true;
+	}
+
+	if (empty($_SERVER['REMOTE_ADDR']) && !isset($_SERVER['HTTP_USER_AGENT'])
+		&& isset($_SERVER['argv']) && is_array($_SERVER['argv']) && count($_SERVER['argv']) > 0) {
 		return true;
 	}
 

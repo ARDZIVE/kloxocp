@@ -8,6 +8,7 @@ class FormVar
 	}
 }
 
+#[AllowDynamicProperties]
 class HtmlLib
 {
 	public $__message;
