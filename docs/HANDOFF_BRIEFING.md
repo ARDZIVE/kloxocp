@@ -165,8 +165,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `traceroute_failed` when the Ubuntu binary is missing; it uses
     `traceroute`/`tracepath` with a validated host and an empty list on
     failure. Server Information prefills description and FQDN
-    (`localhost` / hostname). Live browser login is still
-    **UNVERIFIED**.
+    (`localhost` / hostname). `init-panel-db` rewrites the 2014 dump
+    for MariaDB 10.6+/11.8 (error 1118 row size > 8126 on
+    `client`/`domain`/`web`): quota columns `varchar(32)`, other
+    nullable `varchar(255)` become TEXT, `ROW_FORMAT=DYNAMIC`. Hiawatha
+    is not in Ubuntu apt; `install.sh` builds pinned 12.4 **before**
+    the schema (so a MariaDB error cannot skip the panel server) with
+    static bundled mbed TLS, then starts `kloxo-web` on 7777/7778.
+    Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

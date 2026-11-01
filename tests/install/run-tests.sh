@@ -106,6 +106,18 @@ if grep -q 'install-hiawatha' "$ROOT/install.sh"; then
 else
   bad "install.sh calls install-hiawatha"
 fi
+hia_line="$(grep -n 'install-hiawatha' "$ROOT/install.sh" | head -n1 | cut -d: -f1)"
+db_line="$(grep -n 'init-panel-db' "$ROOT/install.sh" | grep -v 'chmod' | tail -n1 | cut -d: -f1)"
+if [[ -n "$hia_line" && -n "$db_line" && "$hia_line" -lt "$db_line" ]]; then
+  ok "install.sh builds Hiawatha before the panel schema"
+else
+  bad "install.sh builds Hiawatha before the panel schema"
+fi
+if grep -q 'USE_STATIC_MBEDTLS_LIBRARY=on' "$ROOT/kloxo/bin/install/install-hiawatha"; then
+  ok "Hiawatha links bundled mbed TLS statically"
+else
+  bad "Hiawatha links bundled mbed TLS statically"
+fi
 PMA="$ROOT/kloxo/bin/install/install-phpmyadmin"
 check "install-phpmyadmin --help" bash "$PMA" --help
 check "install-phpmyadmin --dry-run" bash "$PMA" --dry-run --root="$ROOT/kloxo"
@@ -305,6 +317,16 @@ else
 fi
 check "php -l kloxo_traceroute.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_traceroute.php"
 check "traceroute host validation" php "$HERE/test_traceroute.php"
+if grep -q 'apt-get install -y hiawatha' "$ROOT/install.sh"; then
+  bad "install.sh does not apt-get hiawatha (source build only)"
+else
+  ok "install.sh does not apt-get hiawatha (source build only)"
+fi
+if grep -q 'function innodbSafe' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'ROW_FORMAT=DYNAMIC' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db rewrites wide tables for MariaDB 11"
+else
+  bad "init-panel-db rewrites wide tables for MariaDB 11"
+fi
 check "init-panel-db --self-test" "${INITDB[@]}" --self-test
 
 echo

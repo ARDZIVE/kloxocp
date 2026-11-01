@@ -88,6 +88,52 @@ final class SqlFile
         sort($names);
         return $names;
     }
+
+    /**
+     * MariaDB 10.6+/11.x rejects the legacy dump: client/domain/web have
+     * ~100 varchar(255) columns and error 1118 (row size > 8126).
+     * Quota flags become varchar(32); other nullable varchar(255) become TEXT
+     * (off-page). Indexed nname/parent_clname stay varchar(255).
+     */
+    public static function innodbSafe(string $stmt): string
+    {
+        if (preg_match('/^\s*CREATE\s+TABLE/i', $stmt) !== 1) {
+            return $stmt;
+        }
+        $out = preg_replace(
+            '/`(priv_q_[A-Za-z0-9_]+|used_q_[A-Za-z0-9_]+)`\s+varchar\(255\)/i',
+            '`$1` varchar(32)',
+            $stmt
+        );
+        $stmt = is_string($out) ? $out : $stmt;
+        $out = preg_replace_callback(
+            '/`([A-Za-z0-9_]+)`\s+varchar\(255\)\s+DEFAULT NULL/i',
+            static function (array $m): string {
+                $col = strtolower($m[1]);
+                if ($col === 'nname' || $col === 'parent_clname') {
+                    return $m[0];
+                }
+
+                return '`' . $m[1] . '` TEXT DEFAULT NULL';
+            },
+            $stmt
+        );
+        $stmt = is_string($out) ? $out : $stmt;
+        if (preg_match('/ENGINE\s*=/i', $stmt) !== 1) {
+            $out = preg_replace(
+                '/\)\s*(DEFAULT CHARSET=)/i',
+                ') ENGINE=InnoDB ROW_FORMAT=DYNAMIC $1',
+                $stmt,
+                1
+            );
+            $stmt = is_string($out) ? $out : $stmt;
+        } elseif (stripos($stmt, 'ROW_FORMAT') === false) {
+            $out = preg_replace('/ENGINE\s*=\s*(\w+)/i', 'ENGINE=$1 ROW_FORMAT=DYNAMIC', $stmt, 1);
+            $stmt = is_string($out) ? $out : $stmt;
+        }
+
+        return $stmt;
+    }
 }
 
 final class App
@@ -210,15 +256,21 @@ TXT;
         $dbPass = $this->dbPassword($passFile);
         $pdo = $this->openAdmin($rootUser, $dbPass);
         $pdo->exec('USE `' . $this->dbName . '`');
+        $pdo->exec('SET SESSION innodb_strict_mode = 0');
+        try {
+            $pdo->exec("SET SESSION innodb_default_row_format = 'dynamic'");
+        } catch (PDOException $e) {
+            // older MariaDB: ignore
+        }
 
         $base = (string)file_get_contents($this->sqlPath('db-structure-base.sql'));
         foreach (SqlFile::statements($base) as $stmt) {
-            $pdo->exec($stmt);
+            $this->execSchema($pdo, $stmt);
         }
         $updPath = $this->sqlPath('db-structure-update.sql');
         if (is_file($updPath)) {
             foreach (SqlFile::statements((string)file_get_contents($updPath)) as $stmt) {
-                $pdo->exec($stmt);
+                $this->execSchema($pdo, $stmt);
             }
         }
 
@@ -433,8 +485,38 @@ TXT;
             fwrite(STDERR, "phpini blob failed\n");
             return 1;
         }
-        echo "self-test ok\n";
-        return 0;
+        $sample = "CREATE TABLE IF NOT EXISTS `client` (\n"
+            . "  `nname` varchar(255) NOT NULL,\n"
+            . "  `parent_clname` varchar(255) DEFAULT NULL,\n"
+            . "  `priv_q_domain_num` varchar(255) DEFAULT NULL,\n"
+            . "  `used_q_domain_num` varchar(255) DEFAULT NULL,\n"
+            . "  `contactemail` varchar(255) DEFAULT NULL,\n"
+            . "  PRIMARY KEY (`nname`),\n"
+            . "  KEY `parent_clname_client` (`parent_clname`)\n"
+            . ") DEFAULT CHARSET=latin1";
+        $safe = SqlFile::innodbSafe($sample);
+        if (str_contains($safe, '`priv_q_domain_num` varchar(32)')
+            && str_contains($safe, '`used_q_domain_num` varchar(32)')
+            && str_contains($safe, '`contactemail` TEXT DEFAULT NULL')
+            && str_contains($safe, '`nname` varchar(255) NOT NULL')
+            && str_contains($safe, '`parent_clname` varchar(255) DEFAULT NULL')
+            && str_contains($safe, 'ENGINE=InnoDB ROW_FORMAT=DYNAMIC')) {
+            echo "self-test ok\n";
+            return 0;
+        }
+        fwrite(STDERR, "innodbSafe rewrite failed\n");
+        return 1;
+    }
+
+    private function execSchema(PDO $pdo, string $stmt): void
+    {
+        $sql = SqlFile::innodbSafe($stmt);
+        try {
+            $pdo->exec($sql);
+        } catch (PDOException $e) {
+            $head = preg_replace('/\s+/', ' ', substr($sql, 0, 96)) ?? substr($sql, 0, 96);
+            throw new IpdbException('schema failed: ' . $e->getMessage() . ' [' . $head . ']');
+        }
     }
 
     private function writePass(string $passFile, string $dbPass): void

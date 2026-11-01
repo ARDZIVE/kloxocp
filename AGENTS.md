@@ -16,8 +16,8 @@ HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerD
 present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
-(Hiawatha 12.4 source build + `init-panel-db`; `update` and signed apt packaging
-are not). Default panel login is admin/admin; the UI requires a password
+(Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
+`update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
 change after first login. Admin Servers list seeds `localhost`. The Update
 screen shows the local `kloxoversion` (`kloxocp update` still exits 2).
 Switch Program loads `dns__none` / `web__none`. PHP Module Status

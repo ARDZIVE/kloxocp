@@ -173,9 +173,7 @@ if [[ "$WITH_MAIL" -eq 1 ]]; then
     rspamd redis-server
 fi
 
-if ! apt-get install -y hiawatha; then
-  log "hiawatha is not in this apt archive; will build the pinned 12.4 source later"
-fi
+log "Hiawatha is not an Ubuntu package; will build pinned 12.4 from source"
 
 clone_url="$KLOXO_GIT_URL"
 if [[ -n "${KLOXO_GIT_TOKEN:-}" ]]; then
@@ -265,6 +263,9 @@ else
   die "no php-fpm binary (install php-fpm)"
 fi
 
+log "building Hiawatha 12.4 from source (not in Ubuntu apt)"
+bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"
+
 systemctl enable --now nginx mariadb named 2>/dev/null || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
 
 wait_mariadb() {
@@ -290,11 +291,9 @@ install -d -m 0700 /root
 printf '%s\n' "$admin_env" > /root/kloxo-admin-password
 chmod 600 /root/kloxo-admin-password
 KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
-    --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root \
-    >/dev/null
+    --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root
 log "panel schema ready"
 
-bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"
 bash "$ROOT/bin/install/install-phpmyadmin" --root="$ROOT"
 systemctl is-active --quiet kloxo-php || die "kloxo-php is not active"
 systemctl is-active --quiet kloxo-web || die "kloxo-web is not active"

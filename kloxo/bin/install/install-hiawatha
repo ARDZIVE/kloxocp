@@ -137,7 +137,9 @@ else
         -DCMAKE_BUILD_TYPE=Release \
         -DENABLE_TLS=on \
         -DENABLE_XSLT=off \
-        -DENABLE_TOMAHAWK=off
+        -DENABLE_TOMAHAWK=off \
+        -DUSE_STATIC_MBEDTLS_LIBRARY=on \
+        -DUSE_SHARED_MBEDTLS_LIBRARY=off
       if ! make -j"$(nproc)"; then
         log "parallel make failed; retrying single-threaded"
         make
@@ -149,6 +151,10 @@ else
 fi
 
 [[ -x "$ROOT/init/kloxo-hiawatha" ]] || die "kloxo-hiawatha missing after install"
+if command -v ldd >/dev/null 2>&1 && ldd "$ROOT/init/kloxo-hiawatha" | grep -q 'not found'; then
+  ldd "$ROOT/init/kloxo-hiawatha" >&2 || true
+  die "kloxo-hiawatha is missing a shared library"
+fi
 
 if [[ -f "$ROOT/file/ssl/default.pem" && ! -f "$ROOT/etc/program.pem" ]]; then
   install -d -m 0750 "$ROOT/etc"
