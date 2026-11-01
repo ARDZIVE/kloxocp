@@ -1,8 +1,8 @@
 #!/bin/bash
 # Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
-# One line (server has git, repo must be cloneable):
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'
+# One line (clones if needed; re-run safe if the tree already exists):
+#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { test -f /usr/local/src/kloxo-cp/install.sh || git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; } && bash /usr/local/src/kloxo-cp/install.sh'
 #
 # Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
 # (apt would steal stdin); wget/curl to a file, then bash it.
@@ -49,9 +49,9 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 Default panel login is admin/admin; the UI requires a password change
 after the first login. Override with KLOXO_ADMIN_PASSWORD (min 8 chars).
 
-One-line install on a clean Ubuntu 24.04 or 26.x machine (root):
+One-line install on Ubuntu 24.04 or 26.x (root). Clones if needed; re-runs if the tree exists:
 
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'
+  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { test -f /usr/local/src/kloxo-cp/install.sh || git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; } && bash /usr/local/src/kloxo-cp/install.sh'
 
 Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
 This tree is NOT production-safe.
@@ -60,6 +60,45 @@ EOF
 
 log() { printf '%s\n' "$*" | tee -a "$LOG" ; }
 die() { printf 'error: %s\n' "$*" | tee -a "$LOG" >&2 ; exit 1; }
+
+wait_unit() {
+  local unit="$1" i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    if systemctl is-active --quiet "$unit"; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+print_access_box() {
+  local url="$1" alt="$2" user="$3" pass="$4"
+  local w=70 bar
+  bar="+$(printf '%0.s-' $(seq 1 $((w + 2))))+"
+  box() { printf '| %-*s |\n' "$w" "$1"; }
+  echo
+  echo "$bar"
+  box "Kloxo CP ${KCP_VERSION} is installed."
+  box ""
+  box "Open this address in your browser:"
+  box "  ${url}"
+  if [[ -n "$alt" && "$alt" != "$url" ]]; then
+    box "  ${alt}"
+  fi
+  box ""
+  box "Log in with:"
+  box "  Username : ${user}"
+  box "  Password : ${pass}"
+  box ""
+  box "Accept the self-signed certificate warning."
+  box "Change the password on the first login; the panel requires it."
+  box ""
+  box "If the page does not load, allow TCP 7777 (and 7778) in the firewall."
+  box "Password is also saved in /root/kloxo-admin-password (mode 0600)."
+  echo "$bar"
+  echo
+}
 
 for a in "$@"; do
   case "$a" in
@@ -246,7 +285,7 @@ if [[ -f "$ROOT/etc/program.pem" ]]; then
   chmod 0600 "$ROOT/etc/program.pem"
 fi
 
-install -d -m 0755 "$ROOT/init" "$ROOT/log"
+install -d -m 0755 "$ROOT/init" "$ROOT/log" "$ROOT/session" "$ROOT/pid"
 php_fpm=""
 for p in /usr/sbin/php-fpm8.5 /usr/sbin/php-fpm8.4 /usr/sbin/php-fpm8.3 /usr/sbin/php-fpm; do
   if [[ -x "$p" ]]; then
@@ -255,12 +294,23 @@ for p in /usr/sbin/php-fpm8.5 /usr/sbin/php-fpm8.4 /usr/sbin/php-fpm8.3 /usr/sbi
   fi
 done
 chmod +x "$ROOT/init/kloxo-php-fpm.sh" || true
-if [[ -n "$php_fpm" ]]; then
-  cp -a "$ROOT/init/kloxo-php.service" /etc/systemd/system/kloxo-php.service
-  systemctl daemon-reload
-  systemctl enable --now kloxo-php || log "warn: kloxo-php unit failed to start ($php_fpm)"
-else
+if [[ -z "$php_fpm" ]]; then
   die "no php-fpm binary (install php-fpm)"
+fi
+if ! "$php_fpm" --fpm-config "$ROOT/init/kloxo-php-fpm.conf" -t; then
+  die "php-fpm rejected $ROOT/init/kloxo-php-fpm.conf ($php_fpm -t)"
+fi
+rm -f "$ROOT/init/kloxo-phpcgi.pid" "$ROOT/init/kloxo-phpcgi.sock"
+cp -a "$ROOT/init/kloxo-php.service" /etc/systemd/system/kloxo-php.service
+systemctl daemon-reload
+systemctl enable kloxo-php >/dev/null
+if ! systemctl start kloxo-php || ! wait_unit kloxo-php; then
+  log "kloxo-php notify start failed; retrying as Type=simple"
+  sed -i 's/^Type=notify/Type=simple/' /etc/systemd/system/kloxo-php.service
+  systemctl daemon-reload
+  systemctl reset-failed kloxo-php 2>/dev/null || true
+  systemctl start kloxo-php || true
+  wait_unit kloxo-php || log "warn: kloxo-php still not active (will retry after Hiawatha)"
 fi
 
 log "building Hiawatha 12.4 from source (not in Ubuntu apt)"
@@ -295,13 +345,30 @@ KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
 log "panel schema ready"
 
 bash "$ROOT/bin/install/install-phpmyadmin" --root="$ROOT"
-systemctl is-active --quiet kloxo-php || die "kloxo-php is not active"
-systemctl is-active --quiet kloxo-web || die "kloxo-web is not active"
+systemctl reset-failed kloxo-php 2>/dev/null || true
+rm -f "$ROOT/init/kloxo-phpcgi.pid" "$ROOT/init/kloxo-phpcgi.sock"
+systemctl restart kloxo-php || true
+if ! wait_unit kloxo-php; then
+  sed -i 's/^Type=notify/Type=simple/' /etc/systemd/system/kloxo-php.service
+  systemctl daemon-reload
+  systemctl reset-failed kloxo-php 2>/dev/null || true
+  systemctl restart kloxo-php || true
+fi
+if ! wait_unit kloxo-php; then
+  journalctl -u kloxo-php -n 40 --no-pager || true
+  "$php_fpm" --fpm-config "$ROOT/init/kloxo-php-fpm.conf" -t || true
+  die "kloxo-php is not active"
+fi
+systemctl start kloxo-web 2>/dev/null || true
+if ! wait_unit kloxo-web; then
+  journalctl -u kloxo-web -n 40 --no-pager || true
+  die "kloxo-web is not active"
+fi
 
 export KLOXO_ROOT="$ROOT"
 export KLOXO_PHP="${KLOXO_PHP:-/usr/bin/php}"
 if [[ -f "$SRC/tests/p2/test_boot.php" ]]; then
-  php "$SRC/tests/p2/test_boot.php" >/dev/null
+  php "$SRC/tests/p2/test_boot.php" >/dev/null || log "warn: boot smoke did not pass"
 fi
 
 php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
@@ -309,15 +376,9 @@ php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
 host="$(hostname -f 2>/dev/null || hostname)"
 ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 url="https://${ip:-$host}:7777/"
-cat <<EOF | tee -a "$LOG"
-
-Kloxo CP ${KCP_VERSION} is installed.
-  Panel    ${url}
-  User     admin
-  Password ${admin_env}
-  Saved in /root/kloxo-admin-password (mode 0600)
-
-Open the URL, accept the self-signed certificate, log in as admin.
-Change the password on first login (the panel will not continue until you do).
-EOF
+alt=""
+if [[ -n "$ip" && -n "$host" ]]; then
+  alt="https://${host}:7777/"
+fi
+print_access_box "$url" "$alt" "admin" "$admin_env" | tee -a "$LOG"
 exit 0

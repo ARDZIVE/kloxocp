@@ -95,11 +95,21 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'"
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { test -f /usr/local/src/kloxo-cp/install.sh || git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; } && bash /usr/local/src/kloxo-cp/install.sh'"
 if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
   ok "README and install.sh share the same one-liner"
 else
   bad "README and install.sh share the same one-liner"
+fi
+if echo "$ONELINER" | grep -q 'test -f /usr/local/src/kloxo-cp/install.sh || git clone'; then
+  ok "one-liner re-runs when the clone already exists"
+else
+  bad "one-liner re-runs when the clone already exists"
+fi
+if grep -q 'print_access_box' "$ROOT/install.sh" && grep -q 'Username' "$ROOT/install.sh" && grep -q 'first login' "$ROOT/install.sh"; then
+  ok "installer prints a login access box"
+else
+  bad "installer prints a login access box"
 fi
 if grep -q 'install-hiawatha' "$ROOT/install.sh"; then
   ok "install.sh calls install-hiawatha"
@@ -170,6 +180,21 @@ if grep -q 'php-fpm8.3' "$ROOT/kloxo/init/kloxo-php.service"; then
   bad "kloxo-php.service uses kloxo-php-fpm.sh (not php-fpm8.3)"
 else
   ok "kloxo-php.service uses kloxo-php-fpm.sh (not php-fpm8.3)"
+fi
+if grep -qE 'magic_quotes_gpc|allow_url_include|mysql\.allow_persistent|enable_dl' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
+  bad "kloxo-php-fpm.conf has no removed PHP 8 INI flags"
+else
+  ok "kloxo-php-fpm.conf has no removed PHP 8 INI flags"
+fi
+if grep -q 'Type=notify' "$ROOT/kloxo/init/kloxo-php.service"; then
+  ok "kloxo-php.service is Type=notify"
+else
+  bad "kloxo-php.service is Type=notify"
+fi
+if grep -q 'kloxo-php-fpm.conf" -t' "$ROOT/install.sh" && grep -q '"$ROOT/session"' "$ROOT/install.sh"; then
+  ok "install.sh tests the FPM pool and creates session dir"
+else
+  bad "install.sh tests the FPM pool and creates session dir"
 fi
 if grep -q '/usr/bin/php8.5' "$ROOT/kloxo/init/php-cli.sh" && grep -q '/usr/bin/php8.3' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
   ok "php-cli and sgbl look for php8.5 and php8.3"

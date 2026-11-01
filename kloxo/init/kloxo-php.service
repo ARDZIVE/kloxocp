@@ -1,15 +1,15 @@
 [Unit]
-Description=Startup script for Kloxo CP.
+Description=Kloxo CP panel PHP-FPM
 Documentation=https://kloxocp.invalid/
 After=network.target remote-fs.target nss-lookup.target
- 
+
 [Service]
-Type=simple
+Type=notify
 PIDFile=/opt/kloxo/init/kloxo-phpcgi.pid
 ExecStart=/opt/kloxo/init/kloxo-php-fpm.sh
-ExecReload=/bin/kill -s HUP $MAINPID
-ExecStop=/bin/kill -s QUIT $MAINPID
+ExecReload=/bin/kill -USR2 $MAINPID
+KillMode=mixed
 PrivateTmp=true
- 
+
 [Install]
 WantedBy=multi-user.target

@@ -44,19 +44,24 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 ## Installation
 
-**Ubuntu 24.04 or 26.x, one line (as root, clean machine).** This clones
-https://github.com/ARDZIVE/kloxocp.git (public, branch `main`) and runs `install.sh`:
+**Ubuntu 24.04 or 26.x, one line (as root).** Clones
+https://github.com/ARDZIVE/kloxocp.git (public, branch `main`) if needed,
+then runs `install.sh`. Safe to repeat after a failed or partial install:
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { test -f /usr/local/src/kloxo-cp/install.sh || git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; } && bash /usr/local/src/kloxo-cp/install.sh'
 ```
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
-The clone-then-run line above is the supported form. Do not run this on a
-machine that already has cPanel, Plesk, or ISPConfig. The one-liner installs
-whatever is on GitHub `main`; it fails if `/usr/local/src/kloxo-cp` already
-exists. To install this working tree instead, copy it to the server and run
+The line above is the supported form. Do not run this on a machine that
+already has cPanel, Plesk, or ISPConfig. It installs whatever is on GitHub
+`main`. To install this working tree instead, copy it to the server and run
 `sudo bash install.sh` from that directory.
+
+When it finishes, the installer prints a box with the panel URL
+(`https://<ip>:7777/`), username `admin`, and password `admin`. Accept the
+self-signed certificate and change the password on first login. If the page
+does not load, allow TCP 7777 (and 7778) in the host firewall.
 
 `install.sh` installs distro packages, links `/opt/kloxo` to the clone,
 generates TLS keys, starts `kloxo-php` when a distro `php-fpm` is present
