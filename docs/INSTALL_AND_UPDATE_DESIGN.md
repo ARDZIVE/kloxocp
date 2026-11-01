@@ -29,7 +29,7 @@ sudo bash install.sh                             # or: --profile minimal|full|no
 ```
 
 The script only does five things:
-1. **Pre-flight checks:** Ubuntu 24.04, root, 2 GB RAM and 10 GB disk minimum, FQDN hostname,
+1. **Pre-flight checks:** Ubuntu 24.04 or 26.x, root, 2 GB RAM and 10 GB disk minimum, FQDN hostname,
    ports 80/443/8443 free, no other panel (cPanel, Plesk, ISPConfig...) installed.
 2. Add the **signed Kloxo CP apt repository** (GPG key pinned).
 3. `apt install kloxo-cp` (meta-package that depends on the core plus the chosen profile:
@@ -96,7 +96,7 @@ The CLI in `kloxo/bin/kloxocp` is PHP 8.3, `declare(strict_types=1)`, argument-a
 | Command | Behaviour today |
 |---|---|
 | `status` | Program root, `kloxoversion`, PHP, TLS file presence, login page, `systemctl is-active` when available |
-| `doctor` | Layout, PHP ≥ 8.3, login page, TLS mode, Ubuntu 24.04 (warn unless `--install`), required binaries. `--install` also requires root and rejects cPanel/Plesk/ISPConfig |
+| `doctor` | Layout, PHP ≥ 8.3, login page, TLS mode, Ubuntu 24.04 or 26.x (warn unless `--install`), required binaries. `--install` also requires root and rejects cPanel/Plesk/ISPConfig |
 | `snapshot` | Copies `bin/kloxoversion`, `init`, `etc`, `file/ssl`, `httpdocs/login` into `<snap-dir>/<UTC stamp>/` plus `MANIFEST.json`. Keeps last `--keep` (default 5) |
 | `rollback` | Restores those paths from `--stamp` or the latest stamp |
 | `component list` | Names from the design table |

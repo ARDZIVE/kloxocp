@@ -365,12 +365,25 @@ TXT;
         $pem = $this->root . '/file/ssl/default.pem';
         $checks[] = $this->check('tls_default_pem', is_file($pem) ? 'pass' : 'warn', is_file($pem) ? 'present' : 'missing (run generate-tls-keys)');
 
-        $os = $this->osId();
-        $ubuntu = ($os['id'] === 'ubuntu' && str_starts_with($os['version'], '24.04'));
+        $hia = $this->root . '/init/kloxo-hiawatha';
         $checks[] = $this->check(
-            'os_ubuntu_2404',
+            'hiawatha_binary',
+            is_executable($hia) || Proc::exists('hiawatha') ? 'pass' : 'warn',
+            is_executable($hia) ? 'init/kloxo-hiawatha' : (Proc::exists('hiawatha') ? 'hiawatha in PATH' : 'missing (run install-hiawatha)')
+        );
+        $passfile = $this->root . '/etc/conf/kloxo.pass';
+        $checks[] = $this->check(
+            'panel_db_pass',
+            is_file($passfile) ? 'pass' : 'warn',
+            is_file($passfile) ? 'etc/conf/kloxo.pass' : 'missing (run init-panel-db)'
+        );
+
+        $os = $this->osId();
+        $ubuntu = self::ubuntuSupported($os['id'], $os['version']);
+        $checks[] = $this->check(
+            'os_ubuntu',
             $ubuntu ? 'pass' : ($install ? 'fail' : 'warn'),
-            $os['pretty'] !== '' ? $os['pretty'] : 'os-release not found'
+            $os['pretty'] !== '' ? $os['pretty'] : 'os-release not found (need Ubuntu 24.04 or 26.x)'
         );
 
         foreach (['php' => true, 'openssl' => true, 'nginx' => false, 'mariadbd' => false, 'named' => false] as $bin => $req) {
@@ -414,6 +427,14 @@ TXT;
     private function check(string $id, string $result, string $message): array
     {
         return ['id' => $id, 'result' => $result, 'message' => $message];
+    }
+
+    public static function ubuntuSupported(string $id, string $version): bool
+    {
+        if ($id !== 'ubuntu') {
+            return false;
+        }
+        return str_starts_with($version, '24.04') || str_starts_with($version, '26.');
     }
 
     /** @return array{id:string,version:string,pretty:string} */
@@ -573,7 +594,7 @@ TXT;
             fwrite(STDERR, "error: pre-flight failed; not installing\n");
             return 1;
         }
-        $msg = "pre-flight ok. Run install.sh on Ubuntu 24.04 as root (see README.md).\n"
+        $msg = "pre-flight ok. Run install.sh on Ubuntu 24.04 or 26.x as root (see README.md).\n"
             . "Debian packages / signed apt repo are not built.";
         $this->say(['implemented' => false, 'preflight' => true], $msg);
         return 2;

@@ -24,8 +24,11 @@ function init_main($admin_pass)
 	*/
 
 	} catch (Exception $e) {
-		print($e->getMessage());
-	//	print("\\n\n\n\n\n\n\n\n\n\nn\n");
+		print("init_main failed: " . $e->getMessage() . "\n");
+		if (isset($e->variable)) {
+			print("  " . $e->variable . " " . $e->value . "\n");
+		}
+		exit(1);
 	}
 
 	print("\n");

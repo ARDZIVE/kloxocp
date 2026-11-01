@@ -1,11 +1,11 @@
 #!/bin/sh
-# Distro PHP CLI wrapper. Replaces /usr/bin/lxphp.exe on Ubuntu 24.04.
-# Override with KLOXO_PHP=/path/to/php
+# Distro PHP CLI wrapper. Replaces /usr/bin/lxphp.exe.
+# Ubuntu 24.04: php8.3; Ubuntu 26.04: php8.5. Override with KLOXO_PHP=/path/to/php
 set -e
 if [ -n "${KLOXO_PHP:-}" ] && [ -x "$KLOXO_PHP" ]; then
 	exec "$KLOXO_PHP" "$@"
 fi
-for p in /usr/bin/php8.3 /usr/bin/php; do
+for p in /usr/bin/php /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.3; do
 	if [ -x "$p" ]; then
 		exec "$p" "$@"
 	fi

@@ -1,0 +1,398 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * init-panel-db: create the Kloxo CP panel MariaDB schema on Ubuntu 24.04 / 26.x.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version. See LICENSE.txt.
+ *
+ * Standalone: no legacy panel includes. PHP 8.3, PDO, prepared statements,
+ * no shell strings. Idempotent: safe to re-run on a half-finished install.
+ *
+ * Usage:
+ *   init-panel-db --root=DIR [--admin-password-env=VAR] [--db-socket=PATH]
+ *   init-panel-db --print-schema-stats --root=DIR
+ *   init-panel-db --help
+ */
+
+const IPDB_VERSION = '0.1.0';
+
+final class IpdbException extends RuntimeException
+{
+}
+
+final class SqlFile
+{
+    /** @return list<string> */
+    public static function statements(string $sql): array
+    {
+        $sql = preg_replace('/^\s*--.*$/m', '', $sql) ?? $sql;
+        $out = [];
+        foreach (explode(';', $sql) as $chunk) {
+            $stmt = trim($chunk);
+            if ($stmt === '') {
+                continue;
+            }
+            if (preg_match('/^(CREATE\s+DATABASE|USE\s+|SET\s+|\/\*!)/i', $stmt) === 1) {
+                continue;
+            }
+            $out[] = $stmt;
+        }
+        return $out;
+    }
+
+    /** @return list<string> */
+    public static function tables(string $sql): array
+    {
+        $names = [];
+        if (preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?([A-Za-z0-9_]+)`?/i', $sql, $m) > 0) {
+            $names = $m[1];
+        }
+        sort($names);
+        return $names;
+    }
+}
+
+final class App
+{
+    /** @var array<string,string|true> */
+    private array $opt = [];
+    private string $root;
+    private string $dbName = 'kloxo';
+    private string $dbUser = 'kloxo';
+    private string $socket = '';
+
+    public function run(array $argv): int
+    {
+        array_shift($argv);
+        foreach ($argv as $a) {
+            if ($a === '--help' || $a === '-h') {
+                return $this->help();
+            }
+            if ($a === '--version') {
+                echo 'init-panel-db ' . IPDB_VERSION . "\n";
+                return 0;
+            }
+            if ($a === '--print-schema-stats') {
+                $this->opt['print-schema-stats'] = true;
+                continue;
+            }
+            if (str_starts_with($a, '--') && str_contains($a, '=')) {
+                [$k, $v] = explode('=', substr($a, 2), 2);
+                $this->opt[$k] = $v;
+                continue;
+            }
+            if (str_starts_with($a, '--')) {
+                $this->opt[substr($a, 2)] = true;
+                continue;
+            }
+            throw new IpdbException("Unknown argument: $a");
+        }
+
+        $this->root = $this->optRoot();
+        if (isset($this->opt['print-schema-stats'])) {
+            return $this->printStats();
+        }
+        return $this->init();
+    }
+
+    private function help(): int
+    {
+        echo <<<TXT
+init-panel-db 0.1.0: create the Kloxo CP panel MariaDB schema
+
+  init-panel-db --root=DIR [--admin-password-env=VAR] [--db-socket=PATH]
+                [--db-rootuser=root] [--db-name=kloxo] [--db-user=kloxo]
+  init-panel-db --print-schema-stats --root=DIR
+  init-panel-db --help
+
+Loads kloxo/file/sql/db-structure-base.sql (and -update.sql) synchronously.
+Creates the kloxo database user with MariaDB 10.11 syntax (CREATE USER +
+GRANT; never GRANT ... IDENTIFIED BY). Writes <root>/etc/conf/kloxo.pass
+(0600). Inserts admin / general rows if they are missing.
+
+Admin UI password: --admin-password-env=VAR (preferred) or
+--admin-password= (visible in ps). Default is rejected; you must set one
+of at least 8 characters.
+
+Ubuntu 24.04 / 26.x root auth is the unix socket (empty password). Re-run is safe
+on a half-finished install (CREATE TABLE IF NOT EXISTS, INSERT IGNORE).
+
+TXT;
+        return 0;
+    }
+
+    private function printStats(): int
+    {
+        $base = $this->sqlPath('db-structure-base.sql');
+        $upd = $this->sqlPath('db-structure-update.sql');
+        $sql = (string)file_get_contents($base);
+        $tables = SqlFile::tables($sql);
+        $need = ['client', 'domain', 'general', 'pserver', 'web'];
+        $missing = array_values(array_diff($need, $tables));
+        $data = [
+            'base' => $base,
+            'update' => is_file($upd) ? $upd : null,
+            'statements' => count(SqlFile::statements($sql)),
+            'tables' => count($tables),
+            'has_client' => in_array('client', $tables, true),
+            'has_general' => in_array('general', $tables, true),
+            'has_web' => in_array('web', $tables, true),
+            'has_domain' => in_array('domain', $tables, true),
+            'has_pserver' => in_array('pserver', $tables, true),
+            'missing_required' => $missing,
+        ];
+        echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n";
+        return $missing === [] ? 0 : 1;
+    }
+
+    private function init(): int
+    {
+        $this->dbName = $this->ident((string)($this->opt['db-name'] ?? 'kloxo'), 'database name');
+        $this->dbUser = $this->ident((string)($this->opt['db-user'] ?? 'kloxo'), 'database user');
+        $adminPass = $this->adminPassword();
+        $rootUser = (string)($this->opt['db-rootuser'] ?? 'root');
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $rootUser)) {
+            throw new IpdbException('Invalid --db-rootuser');
+        }
+
+        $pdo = $this->connectRoot($rootUser);
+        $pdo->exec('CREATE DATABASE IF NOT EXISTS `' . $this->dbName . '` CHARACTER SET latin1');
+        $pdo->exec('USE `' . $this->dbName . '`');
+
+        $base = (string)file_get_contents($this->sqlPath('db-structure-base.sql'));
+        foreach (SqlFile::statements($base) as $stmt) {
+            $pdo->exec($stmt);
+        }
+        $updPath = $this->sqlPath('db-structure-update.sql');
+        if (is_file($updPath)) {
+            foreach (SqlFile::statements((string)file_get_contents($updPath)) as $stmt) {
+                $pdo->exec($stmt);
+            }
+        }
+
+        $passFile = $this->root . '/etc/conf/kloxo.pass';
+        $dbPass = $this->dbPassword($passFile);
+        $this->ensureUser($pdo, $dbPass);
+        $this->writePass($passFile, $dbPass);
+        $this->seedAdmin($pdo, $adminPass);
+        $this->seedGeneral($pdo);
+
+        $client = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
+        $general = (int)$pdo->query("SELECT COUNT(*) FROM general")->fetchColumn();
+        $tables = (int)$pdo->query('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ' . $pdo->quote($this->dbName))->fetchColumn();
+        echo "panel db ready: {$this->dbName} ($tables tables), admin row=$client, general rows=$general\n";
+        echo "db password file: $passFile\n";
+        return ($client === 1 && $general >= 1 && $tables >= 40) ? 0 : 1;
+    }
+
+    private function connectRoot(string $user): PDO
+    {
+        $pass = (string)($this->opt['db-rootpassword'] ?? '');
+        $hosts = [];
+        if (isset($this->opt['db-socket']) && $this->opt['db-socket'] !== true) {
+            $hosts[] = (string)$this->opt['db-socket'];
+        }
+        $hosts[] = '/run/mysqld/mysqld.sock';
+        $hosts[] = '/run/mysqld/mariadb.sock';
+        $hosts[] = '/run/mariadb/mysqld.sock';
+        $hosts[] = '/var/run/mysqld/mysqld.sock';
+        $hosts[] = '/var/lib/mysql/mysql.sock';
+        $last = null;
+        foreach ($hosts as $sock) {
+            if ($sock === '' || str_contains($sock, "\0") || !is_string($sock)) {
+                continue;
+            }
+            if (!is_file($sock) && !is_link($sock)) {
+                continue;
+            }
+            try {
+                $pdo = new PDO(
+                    'mysql:unix_socket=' . $sock . ';charset=utf8mb4',
+                    $user,
+                    $pass,
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
+                $this->socket = $sock;
+                return $pdo;
+            } catch (PDOException $e) {
+                $last = $e;
+            }
+        }
+        try {
+            return new PDO(
+                'mysql:host=127.0.0.1;charset=utf8mb4',
+                $user,
+                $pass,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+        } catch (PDOException $e) {
+            $msg = $last !== null ? $last->getMessage() . '; ' : '';
+            throw new IpdbException('Cannot connect to MariaDB as ' . $user . ': ' . $msg . $e->getMessage());
+        }
+    }
+
+    private function ensureUser(PDO $pdo, string $dbPass): void
+    {
+        $u = $this->dbUser;
+        $db = $this->dbName;
+        $stmt = $pdo->prepare("CREATE USER IF NOT EXISTS '{$u}'@'localhost' IDENTIFIED BY ?");
+        $stmt->execute([$dbPass]);
+        $stmt = $pdo->prepare("ALTER USER '{$u}'@'localhost' IDENTIFIED BY ?");
+        $stmt->execute([$dbPass]);
+        $pdo->exec("GRANT ALL PRIVILEGES ON `{$db}`.* TO '{$u}'@'localhost'");
+        $pdo->exec('FLUSH PRIVILEGES');
+    }
+
+    private function dbPassword(string $passFile): string
+    {
+        if (is_file($passFile)) {
+            $existing = trim((string)file_get_contents($passFile));
+            if ($existing !== '') {
+                return $existing;
+            }
+        }
+        return bin2hex(random_bytes(16));
+    }
+
+    private function writePass(string $passFile, string $dbPass): void
+    {
+        $dir = dirname($passFile);
+        if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
+            throw new IpdbException("Cannot create $dir");
+        }
+        if (file_put_contents($passFile, $dbPass . "\n") === false) {
+            throw new IpdbException("Cannot write $passFile");
+        }
+        chmod($passFile, 0600);
+    }
+
+    private function seedAdmin(PDO $pdo, string $adminPass): void
+    {
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
+        $hash = $this->md5Crypt($adminPass);
+        if ($n > 0) {
+            $stmt = $pdo->prepare("UPDATE client SET password = ?, cttype = 'admin', cpstatus = 'on', status = 'on' WHERE nname = 'admin'");
+            $stmt->execute([$hash]);
+            return;
+        }
+        $stmt = $pdo->prepare(
+            "INSERT INTO client (nname, password, cttype, cpstatus, status, ddate, parent_clname, parent_cmlist)
+             VALUES ('admin', ?, 'admin', 'on', 'on', ?, '', '')"
+        );
+        $stmt->execute([$hash, (string)time()]);
+    }
+
+    private function seedGeneral(PDO $pdo): void
+    {
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM general WHERE nname = 'admin'")->fetchColumn();
+        if ($n > 0) {
+            return;
+        }
+        $pdo->exec("INSERT INTO general (nname, parent_clname, parent_cmlist) VALUES ('admin', '', '')");
+    }
+
+    private function md5Crypt(string $pass): string
+    {
+        $salt = '$1$' . substr(bin2hex(random_bytes(6)), 0, 8) . '$';
+        $hash = crypt($pass, $salt);
+        if (!is_string($hash) || $hash === '' || $hash === '*0' || $hash === '*1') {
+            throw new IpdbException('crypt() failed to hash the admin password');
+        }
+        if (crypt($pass, $hash) !== $hash) {
+            throw new IpdbException('admin password hash did not verify');
+        }
+        return $hash;
+    }
+
+    private function adminPassword(): string
+    {
+        if (isset($this->opt['admin-password-env']) && $this->opt['admin-password-env'] !== true) {
+            $var = (string)$this->opt['admin-password-env'];
+            if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $var)) {
+                throw new IpdbException('Invalid --admin-password-env');
+            }
+            $v = getenv($var);
+            if (!is_string($v) || $v === '') {
+                throw new IpdbException("Environment variable $var is empty");
+            }
+            $this->assertAdminPass($v);
+            return $v;
+        }
+        if (isset($this->opt['admin-password']) && $this->opt['admin-password'] !== true) {
+            $v = (string)$this->opt['admin-password'];
+            $this->assertAdminPass($v);
+            return $v;
+        }
+        throw new IpdbException('Need --admin-password-env=VAR or --admin-password= (min 8 characters)');
+    }
+
+    private function assertAdminPass(string $v): void
+    {
+        if (strlen($v) < 8) {
+            throw new IpdbException('Admin password must be at least 8 characters');
+        }
+        if (str_contains($v, "\0")) {
+            throw new IpdbException('Admin password contains NUL');
+        }
+    }
+
+    private function optRoot(): string
+    {
+        $root = (string)($this->opt['root'] ?? getenv('KLOXO_ROOT') ?: '');
+        if ($root === '') {
+            $guess = dirname(__DIR__, 2);
+            if (is_dir($guess . '/httpdocs') && is_dir($guess . '/file/sql')) {
+                $root = $guess;
+            }
+        }
+        $root = rtrim($root, '/');
+        if ($root === '' || str_contains($root, "\0") || str_contains($root, '..')) {
+            throw new IpdbException('Need --root=DIR (no ..)');
+        }
+        if (!is_dir($root . '/file/sql')) {
+            throw new IpdbException("Not a Kloxo program root: $root");
+        }
+        $real = realpath($root);
+        if ($real === false) {
+            throw new IpdbException("Cannot resolve --root: $root");
+        }
+        return $real;
+    }
+
+    private function sqlPath(string $name): string
+    {
+        if (!preg_match('/^[A-Za-z0-9._-]+$/', $name)) {
+            throw new IpdbException('Invalid SQL file name');
+        }
+        $path = $this->root . '/file/sql/' . $name;
+        if ($name !== 'db-structure-update.sql' && !is_file($path)) {
+            throw new IpdbException("Missing $path");
+        }
+        return $path;
+    }
+
+    private function ident(string $name, string $label): string
+    {
+        if (!preg_match('/^[A-Za-z][A-Za-z0-9_]{0,47}$/', $name)) {
+            throw new IpdbException("Invalid $label");
+        }
+        return $name;
+    }
+}
+
+try {
+    exit((new App())->run($argv));
+} catch (IpdbException $e) {
+    fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+    exit(1);
+} catch (Throwable $e) {
+    fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+    exit(1);
+}

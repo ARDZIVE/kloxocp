@@ -6,22 +6,24 @@ function create_mysql_db($type, $opt, $admin_pass)
 
 	$progname = $sgbl->__var_program_name;
 
-	if (!isset($opt['db-rootuser']) || !isset($opt['db-rootpassword'])) {
-		print("Need db Root User and password --db-rootuser, --db-rootpassword \n");
-
-		exit;
+	if (!isset($opt['db-rootuser'])) {
+		print("Need --db-rootuser (Ubuntu socket auth: pass --db-rootpassword= empty)\n");
+		exit(1);
 	}
 
 	if ($sgbl->__var_database_type === 'mysql') {
-		$req = new mysqli('localhost', $opt['db-rootuser'], $opt['db-rootpassword']);
+		$rootpass = isset($opt['db-rootpassword']) ? $opt['db-rootpassword'] : '';
+		$req = new mysqli('localhost', $opt['db-rootuser'], $rootpass);
 
 	} else {
 		$req = new PDO("sqlite:$sgbl->__var_dbf");
 	}
 
 
-	if (!$req) {
-		print("Could not Connect to Database on localhost using root user\n");
+	if (!$req || ($req instanceof mysqli && $req->connect_error)) {
+		$err = ($req instanceof mysqli) ? $req->connect_error : 'connect failed';
+		print("Could not Connect to Database on localhost using root user: {$err}\n");
+		exit(1);
 	}
 
 	$dp = randomString(9);
@@ -29,10 +31,31 @@ function create_mysql_db($type, $opt, $admin_pass)
 
 	$dbname = $sgbl->__var_dbf;
 	$pguser = $sgbl->__var_admin_user;
+	if (!preg_match('/^[A-Za-z][A-Za-z0-9_]{0,47}$/', (string)$dbname)
+		|| !preg_match('/^[A-Za-z][A-Za-z0-9_]{0,47}$/', (string)$pguser)) {
+		print("Invalid database name or user\n");
+		exit(1);
+	}
 
 	if ($sgbl->__var_database_type === 'mysql') {
-		$req->query("create database $dbname");
-		$req->query("grant all on $dbname.* to '$pguser'@'localhost' identified by '$dbadminpass';");
+		// MariaDB 10.4+ removed GRANT ... IDENTIFIED BY. Use CREATE USER + GRANT.
+		if (is_file($sgbl->__path_admin_pass)) {
+			$existing = trim((string)file_get_contents($sgbl->__path_admin_pass));
+			if ($existing !== '') {
+				$dbadminpass = $existing;
+			}
+		}
+		$req->query("CREATE DATABASE IF NOT EXISTS `{$dbname}` CHARACTER SET latin1");
+		$stmt = $req->prepare("CREATE USER IF NOT EXISTS '{$pguser}'@'localhost' IDENTIFIED BY ?");
+		$stmt->bind_param('s', $dbadminpass);
+		$stmt->execute();
+		$stmt->close();
+		$stmt = $req->prepare("ALTER USER '{$pguser}'@'localhost' IDENTIFIED BY ?");
+		$stmt->bind_param('s', $dbadminpass);
+		$stmt->execute();
+		$stmt->close();
+		$req->query("GRANT ALL PRIVILEGES ON `{$dbname}`.* TO '{$pguser}'@'localhost'");
+		$req->query("FLUSH PRIVILEGES");
 	}
 
 	lfile_put_contents($sgbl->__path_admin_pass, $dbadminpass);
@@ -94,6 +117,12 @@ function add_admin($pass)
 function create_general()
 {
 	global $sgbl, $login, $ghtml; 
+
+	$ddb = new Sqlite(null, "general");
+	if ($ddb->existInTable("nname", 'admin')) {
+		print(">>> general already exists, skip <<<\n");
+		return;
+	}
 
 	$gen = new General(null, null, 'admin');
 	$gen->initThisDef();

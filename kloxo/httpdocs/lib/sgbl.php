@@ -23,7 +23,7 @@ function kloxo_php_binary()
 		return PHP_BINARY;
 	}
 
-	foreach (array('/usr/bin/php8.3', '/usr/bin/php') as $p) {
+	foreach (array('/usr/bin/php', '/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.3') as $p) {
 		if (is_executable($p)) {
 			return $p;
 		}

@@ -5,7 +5,8 @@ alwaysApply: true
 
 Before any work, read `docs/HANDOFF_BRIEFING.md` and `AGENTS.md`.
 
-- Project: Kloxo CP, fork of Kloxo-MR, AGPLv3. Target Ubuntu 24.04, PHP 8.3, Nginx + PHP-FPM for sites,
+- Project: Kloxo CP, fork of Kloxo-MR, AGPLv3. Target Ubuntu 24.04 (PHP 8.3) and Ubuntu 26.x (PHP 8.5),
+  Nginx + PHP-FPM for sites,
   Hiawatha for the panel only, Postfix + Dovecot + Rspamd + MariaDB for mail, no billing, keep the UI.
 - The legacy PHP under `kloxo/httpdocs` is PHP 5-era and UNSAFE. Do not run it on a public server.
   Fix security items P0 in the briefing before porting anything.

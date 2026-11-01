@@ -1,0 +1,192 @@
+#!/bin/bash
+# Build a pinned Hiawatha and hook it up as the Kloxo CP panel web server.
+#
+# Ubuntu 24.04 / 26.x have no hiawatha package. This script downloads v12.4 (sha256
+# pinned), builds the binary, copies it to <root>/init/kloxo-hiawatha, renders
+# hiawatha.conf, checks it with `hiawatha -k`, and enables kloxo-web.
+#
+# Copyright (C) 2026 Kloxo CP contributors
+# GNU Affero General Public License v3. See LICENSE.txt.
+set -euo pipefail
+
+HIAWATHA_VERSION="12.4"
+HIAWATHA_TARBALL="hiawatha-${HIAWATHA_VERSION}.tar.gz"
+HIAWATHA_SHA256="c80f87b5f9f04520b57af96ac52905198f96de38c3b7d988abc0f758cdd46d2e"
+HIAWATHA_URL="https://hiawatha.leisink.net/files/download/${HIAWATHA_TARBALL}"
+HIAWATHA_URL_FALLBACK="https://gitlab.com/hsleisink/hiawatha/-/archive/v${HIAWATHA_VERSION}/hiawatha-v${HIAWATHA_VERSION}.tar.gz"
+
+ROOT="${KLOXO_ROOT:-/opt/kloxo}"
+SRC_DIR="/usr/local/src"
+BUILD_DIR=""
+FORCE=0
+DRY=0
+SKIP_START=0
+NONSSL=7778
+SSL=7777
+
+usage() {
+  cat <<EOF
+install-hiawatha: build Hiawatha ${HIAWATHA_VERSION} for Kloxo CP
+
+  sudo bash install-hiawatha [--root=DIR] [--force] [--dry-run] [--no-start]
+
+  --root=DIR    program root (default: ${ROOT})
+  --force       rebuild even if kloxo-hiawatha already exists
+  --dry-run     print the plan and exit
+  --no-start    install the binary and config; do not enable kloxo-web
+  --help
+
+Pinned source: ${HIAWATHA_URL}
+sha256: ${HIAWATHA_SHA256}
+EOF
+}
+
+log() { printf '%s\n' "$*"; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+digest() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    die "need sha256sum or shasum"
+  fi
+}
+
+for a in "$@"; do
+  case "$a" in
+    --help|-h) usage; exit 0 ;;
+    --force) FORCE=1 ;;
+    --dry-run) DRY=1 ;;
+    --no-start) SKIP_START=1 ;;
+    --root=*) ROOT="${a#--root=}" ;;
+    *) die "unknown option: $a (try --help)" ;;
+  esac
+done
+
+if [[ "$ROOT" == *..* || "$ROOT" == *$'\n'* ]]; then
+  die "invalid --root"
+fi
+
+if [[ "$DRY" -eq 1 ]]; then
+  cat <<EOF
+plan: install Hiawatha ${HIAWATHA_VERSION}
+  root     $ROOT
+  binary   $ROOT/init/kloxo-hiawatha
+  config   $ROOT/init/hiawatha.conf (from hiawatha.conf.base)
+  ports    ${SSL} (TLS), ${NONSSL} (plain)
+  source   $HIAWATHA_URL
+  sha256   $HIAWATHA_SHA256
+  force    $FORCE
+EOF
+  exit 0
+fi
+
+[[ "$(id -u)" -eq 0 ]] || die "run as root (sudo bash install-hiawatha)"
+[[ -d "$ROOT/init" && -f "$ROOT/init/hiawatha.conf.base" ]] || die "$ROOT is not a Kloxo program root"
+
+if [[ -x "$ROOT/init/kloxo-hiawatha" && "$FORCE" -eq 0 ]]; then
+  log "kloxo-hiawatha already present; skip build (pass --force to rebuild)"
+else
+  apt-get install -y build-essential cmake libssl-dev zlib1g-dev ca-certificates curl
+
+  existing=""
+  if [[ -x /usr/sbin/hiawatha ]]; then
+    existing=/usr/sbin/hiawatha
+  elif command -v hiawatha >/dev/null 2>&1; then
+    existing="$(command -v hiawatha)"
+  fi
+  if [[ -n "$existing" && "$FORCE" -eq 0 ]]; then
+    log "using existing hiawatha at $existing"
+    install -m 0755 "$existing" "$ROOT/init/kloxo-hiawatha"
+  else
+    mkdir -p "$SRC_DIR"
+    tarball="$SRC_DIR/$HIAWATHA_TARBALL"
+    if [[ ! -f "$tarball" ]]; then
+      log "downloading $HIAWATHA_URL"
+      if ! curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL"; then
+        log "primary URL failed; trying GitLab archive"
+        curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL_FALLBACK" || die "download failed"
+      fi
+    fi
+    got="$(digest "$tarball")"
+    if [[ "$got" != "$HIAWATHA_SHA256" ]]; then
+      # GitLab archives have a different hash; only accept the official tarball hash.
+      # If this is the official file it must match. Re-download once on mismatch.
+      log "sha256 mismatch ($got); re-downloading official tarball"
+      rm -f "$tarball"
+      curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL" || die "download failed"
+      got="$(digest "$tarball")"
+      [[ "$got" == "$HIAWATHA_SHA256" ]] || die "sha256 mismatch: expected $HIAWATHA_SHA256 got $got"
+    fi
+
+    BUILD_DIR="$SRC_DIR/hiawatha-${HIAWATHA_VERSION}"
+    rm -rf "$BUILD_DIR"
+    tar -xzf "$tarball" -C "$SRC_DIR"
+    if [[ ! -d "$BUILD_DIR" ]]; then
+      # GitLab archive unpacks as hiawatha-v12.4
+      alt="$SRC_DIR/hiawatha-v${HIAWATHA_VERSION}"
+      [[ -d "$alt" ]] || die "tarball did not unpack to $BUILD_DIR"
+      BUILD_DIR="$alt"
+    fi
+    mkdir -p "$BUILD_DIR/build"
+    (
+      cd "$BUILD_DIR/build"
+      cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_TLS=on \
+        -DENABLE_XSLT=off \
+        -DENABLE_TOMAHAWK=off
+      if ! make -j"$(nproc)"; then
+        log "parallel make failed; retrying single-threaded"
+        make
+      fi
+    )
+    [[ -x "$BUILD_DIR/build/hiawatha" ]] || die "build produced no hiawatha binary"
+    install -m 0755 "$BUILD_DIR/build/hiawatha" "$ROOT/init/kloxo-hiawatha"
+  fi
+fi
+
+[[ -x "$ROOT/init/kloxo-hiawatha" ]] || die "kloxo-hiawatha missing after install"
+
+if [[ -f "$ROOT/file/ssl/default.pem" && ! -f "$ROOT/etc/program.pem" ]]; then
+  install -d -m 0750 "$ROOT/etc"
+  install -m 0600 "$ROOT/file/ssl/default.pem" "$ROOT/etc/program.pem"
+fi
+if [[ -f "$ROOT/etc/program.pem" ]]; then
+  if id -u lxlabs >/dev/null 2>&1; then
+    chown lxlabs:lxlabs "$ROOT/etc/program.pem"
+  fi
+  chmod 0600 "$ROOT/etc/program.pem"
+fi
+
+mkdir -p "$ROOT/log"
+if id -u lxlabs >/dev/null 2>&1; then
+  chown lxlabs:lxlabs "$ROOT/log" || true
+fi
+chmod 0750 "$ROOT/log"
+
+sed -e "s/__nonssl_port__/${NONSSL}/g" -e "s/__ssl_port__/${SSL}/g" \
+    -e 's/__fpmdisabled__//g' -e 's/__php__/php/g' \
+    "$ROOT/init/hiawatha.conf.base" > "$ROOT/init/hiawatha.conf"
+chmod 0644 "$ROOT/init/hiawatha.conf"
+
+if ! "$ROOT/init/kloxo-hiawatha" -k -c "$ROOT/init"; then
+  die "hiawatha rejected $ROOT/init/hiawatha.conf (hiawatha -k -c $ROOT/init)"
+fi
+
+if [[ "$ROOT" == /opt/kloxo ]]; then
+  install -m 0644 "$ROOT/init/kloxo-web.service" /etc/systemd/system/kloxo-web.service
+  if [[ "$SKIP_START" -eq 0 ]]; then
+    systemctl daemon-reload
+    systemctl enable --now kloxo-web
+    systemctl --no-pager --full status kloxo-web || true
+  fi
+else
+  log "root is not /opt/kloxo; skipped systemd unit"
+fi
+
+log "Hiawatha ${HIAWATHA_VERSION} installed as $ROOT/init/kloxo-hiawatha"
+log "config: $ROOT/init/hiawatha.conf  ports ${SSL} (TLS) / ${NONSSL}"
+exit 0

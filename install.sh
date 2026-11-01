@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kloxo CP bootstrap for Ubuntu 24.04.
+# Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
 # One line (server has git, repo must be cloneable):
 #   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'
@@ -8,9 +8,9 @@
 # (apt would steal stdin); wget/curl to a file, then bash it.
 #
 # Does: pre-flight, clone (if needed), apt packages, /opt/kloxo layout, TLS keys,
-# lxphp.exe wrappers, kloxo-php systemd unit, Hiawatha unit if a binary exists.
-# Does not: MariaDB panel schema (create.php is CentOS), Let's Encrypt, apt repo,
-# kloxo-mail apply, verified browser login.
+# lxphp.exe wrappers, kloxo-php systemd unit, pinned Hiawatha 12.4 build,
+# panel MariaDB schema via init-panel-db.
+# Does not: Let's Encrypt, apt repo, kloxo-mail apply, verified browser login.
 set -euo pipefail
 LOG="/dev/null"
 
@@ -30,7 +30,7 @@ ROOT="$KLOXO_ROOT_DEFAULT"
 
 usage() {
   cat <<EOF
-Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04)
+Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 
   sudo bash install.sh [--profile=core|full] [--yes] [--force]
 
@@ -46,7 +46,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04)
   --repo=URL       git URL (default: ${KLOXO_GIT_URL})
   --help
 
-One-line install on a clean Ubuntu 24.04 machine (root):
+One-line install on a clean Ubuntu 24.04 or 26.x machine (root):
 
   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'
 
@@ -128,7 +128,15 @@ if [[ -r /etc/os-release ]]; then
   os_ver="${VERSION_ID:-}"
   os_pretty="${PRETTY_NAME:-}"
 fi
-[[ "$os_id" == "ubuntu" && "$os_ver" == 24.04* ]] || die "Ubuntu 24.04 required (found ${os_pretty:-unknown})"
+kloxo_ubuntu_ok() {
+  # 24.04 LTS (PHP 8.3) and 26.x (26.04 LTS / 26.10; PHP 8.5).
+  [[ "${1:-}" == "ubuntu" ]] || return 1
+  case "${2:-}" in
+    24.04*|26.*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+kloxo_ubuntu_ok "$os_id" "$os_ver" || die "Ubuntu 24.04 or 26.x required (found ${os_pretty:-unknown})"
 
 for p in /usr/local/cpanel /usr/local/psa /usr/local/ispconfig; do
   [[ -d "$p" ]] && die "another control panel is present at $p"
@@ -152,7 +160,7 @@ apt-get update -y
 apt-get install -y ca-certificates git curl openssl \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
   mariadb-server nginx bind9 \
-  make gcc pkg-config libssl-dev
+  build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
   echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
@@ -163,7 +171,7 @@ if [[ "$WITH_MAIL" -eq 1 ]]; then
 fi
 
 if ! apt-get install -y hiawatha; then
-  log "warn: hiawatha is not in this apt archive; panel HTTPS will not start until a binary is installed"
+  log "hiawatha is not in this apt archive; will build the pinned 12.4 source later"
 fi
 
 clone_url="$KLOXO_GIT_URL"
@@ -220,7 +228,10 @@ ln -sfn "$ROOT/pscript" /script
 ln -sfn "$ROOT/init/php-cli.sh" /usr/bin/lxphp.exe
 ln -sfn "$ROOT/init/php-cli.sh" /usr/bin/lphp.exe
 ln -sfn "$ROOT/bin/kloxocp" /usr/local/sbin/kloxocp
-chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" "$ROOT/bin/install/generate-tls-keys" || true
+chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" \
+  "$ROOT/bin/install/generate-tls-keys" \
+  "$ROOT/bin/install/init-panel-db" \
+  "$ROOT/bin/install/install-hiawatha" || true
 
 if [[ ! -f "$ROOT/init/backend.key" ]]; then
   php "$ROOT/bin/install/generate-tls-keys" --root="$ROOT" --hostname="$(hostname -f 2>/dev/null || hostname)"
@@ -228,48 +239,50 @@ fi
 if [[ -f "$ROOT/file/ssl/default.pem" && ! -f "$ROOT/etc/program.pem" ]]; then
   install -m 0600 "$ROOT/file/ssl/default.pem" "$ROOT/etc/program.pem"
 fi
+if [[ -f "$ROOT/etc/program.pem" ]]; then
+  chown lxlabs:lxlabs "$ROOT/etc/program.pem" || true
+  chmod 0600 "$ROOT/etc/program.pem"
+fi
 
 install -d -m 0755 "$ROOT/init" "$ROOT/log"
-if [[ -f /usr/sbin/php-fpm8.3 ]]; then
+php_fpm=""
+for p in /usr/sbin/php-fpm8.5 /usr/sbin/php-fpm8.4 /usr/sbin/php-fpm8.3 /usr/sbin/php-fpm; do
+  if [[ -x "$p" ]]; then
+    php_fpm="$p"
+    break
+  fi
+done
+chmod +x "$ROOT/init/kloxo-php-fpm.sh" || true
+if [[ -n "$php_fpm" ]]; then
   cp -a "$ROOT/init/kloxo-php.service" /etc/systemd/system/kloxo-php.service
   systemctl daemon-reload
-  systemctl enable --now kloxo-php || log "warn: kloxo-php unit failed to start"
+  systemctl enable --now kloxo-php || log "warn: kloxo-php unit failed to start ($php_fpm)"
 else
-  log "warn: /usr/sbin/php-fpm8.3 missing; not enabling kloxo-php"
-fi
-
-hiawatha_bin=""
-if [[ -x /usr/sbin/hiawatha ]]; then
-  hiawatha_bin=/usr/sbin/hiawatha
-elif command -v hiawatha >/dev/null 2>&1; then
-  hiawatha_bin="$(command -v hiawatha)"
-fi
-if [[ -n "$hiawatha_bin" ]]; then
-  install -m 0755 "$hiawatha_bin" "$ROOT/init/kloxo-hiawatha"
-  sed -e 's/__nonssl_port__/7778/g' -e 's/__ssl_port__/7777/g' \
-      -e 's/__fpmdisabled__//g' -e 's/__php__/php/g' \
-      "$ROOT/init/hiawatha.conf.base" > "$ROOT/init/hiawatha.conf"
-  cat >/etc/systemd/system/kloxo-web.service <<'UNIT'
-[Unit]
-Description=Kloxo CP panel web server (Hiawatha)
-After=network.target kloxo-php.service
-[Service]
-Type=forking
-PIDFile=/opt/kloxo/init/kloxo-hiawatha.pid
-ExecStart=/opt/kloxo/init/kloxo-hiawatha -c /opt/kloxo/init
-ExecReload=/bin/kill -s HUP $MAINPID
-ExecStop=/bin/kill -s QUIT $MAINPID
-PrivateTmp=true
-[Install]
-WantedBy=multi-user.target
-UNIT
-  systemctl daemon-reload
-  systemctl enable --now kloxo-web || log "warn: kloxo-web unit failed to start"
-else
-  log "warn: no hiawatha binary; skip kloxo-web (panel UI will not listen on 7777)"
+  log "warn: no php-fpm binary (tried php-fpm8.5/8.4/8.3); not enabling kloxo-php"
 fi
 
 systemctl enable --now nginx mariadb named 2>/dev/null || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
+
+admin_env="${KLOXO_ADMIN_PASSWORD:-}"
+if [[ -z "$admin_env" ]]; then
+  admin_env="$(openssl rand -base64 18 | tr -d '\n')"
+fi
+if [[ ${#admin_env} -lt 8 ]]; then
+  die "admin password must be at least 8 characters"
+fi
+install -d -m 0700 /root
+printf '%s\n' "$admin_env" > /root/kloxo-admin-password
+chmod 600 /root/kloxo-admin-password
+if ! KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
+    --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root; then
+  log "warn: init-panel-db failed; panel login will not work until it succeeds"
+else
+  log "panel schema ready; admin password in /root/kloxo-admin-password (mode 0600)"
+fi
+
+if ! bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"; then
+  log "warn: install-hiawatha failed; panel UI will not listen on 7777"
+fi
 
 export KLOXO_ROOT="$ROOT"
 export KLOXO_PHP="${KLOXO_PHP:-/usr/bin/php}"
@@ -293,9 +306,11 @@ Kloxo CP ${KCP_VERSION} bootstrap finished.
 Panel URL (only if kloxo-web/Hiawatha started):
   https://${host}:7777/   (self-signed certificate)
 
+Admin UI password (also in /root/kloxo-admin-password, mode 0600):
+  written by init-panel-db when the schema step succeeded
+
 NOT done by this installer:
-  - panel MariaDB schema / admin user (kloxo/bin/install/create.php is CentOS-only)
-  - browser login (UNVERIFIED)
+  - browser login (UNVERIFIED on a real desktop browser)
   - Let's Encrypt
   - mail apply (kloxo-mail); packages installed only with --profile=full
 

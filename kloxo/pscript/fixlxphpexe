@@ -11,7 +11,7 @@ fi
 
 INIT_DIR="/opt/kloxo/init"
 
-# Ubuntu 24.04 / distro PHP 8: do not install the old /opt/php56s tree.
+# Ubuntu 24.04 / 26.x distro PHP 8: do not install the old /opt/php56s tree.
 if [ "$1" = "" ] && command -v php >/dev/null 2>&1 ; then
 	if php -r 'exit(PHP_MAJOR_VERSION >= 8 ? 0 : 1);' ; then
 		if [ -x "${INIT_DIR}/php-cli.sh" ] ; then

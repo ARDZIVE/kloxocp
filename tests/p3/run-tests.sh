@@ -72,6 +72,7 @@ check "install.sh --dry-run" bash "$ROOT/install.sh" --dry-run
 helpout="$(bash "$ROOT/install.sh" --help)"
 echo "$helpout" | grep -q 'github.com/ARDZIVE/kloxocp.git' && ok "help names git URL" || bad "help names git URL"
 echo "$helpout" | grep -q 'Ubuntu 24.04' && ok "help names Ubuntu 24.04" || bad "help names Ubuntu 24.04"
+echo "$helpout" | grep -q '26' && ok "help names Ubuntu 26" || bad "help names Ubuntu 26"
 fails "install.sh refuses non-root" bash "$ROOT/install.sh"
 
 echo

@@ -3336,41 +3336,87 @@ function change_db_pass()
 	}
 }
 
+function kloxo_split_sql_statements($sql)
+{
+	$sql = preg_replace('/^\s*--.*$/m', '', $sql);
+	$out = array();
+
+	foreach (explode(';', (string)$sql) as $chunk) {
+		$stmt = trim($chunk);
+		if ($stmt === '') {
+			continue;
+		}
+		if (preg_match('/^(CREATE\s+DATABASE|USE\s+|SET\s+|\/\*!)/i', $stmt)) {
+			continue;
+		}
+		$out[] = $stmt;
+	}
+
+	return $out;
+}
+
+function kloxo_import_sql_file($path)
+{
+	global $gbl, $sgbl, $login, $ghtml;
+
+	if (!is_file($path)) {
+		print("SQL file missing: {$path}\n");
+		return false;
+	}
+
+	$user = $sgbl->__var_admin_user;
+	$db = $sgbl->__var_dbf;
+	$pass = getAdminDbPass();
+	$mysqli = new mysqli('localhost', $user, $pass, $db);
+
+	if ($mysqli->connect_error) {
+		print("Could not connect as {$user} to {$db}: {$mysqli->connect_error}\n");
+		return false;
+	}
+
+	$sql = file_get_contents($path);
+	$ok = true;
+
+	foreach (kloxo_split_sql_statements($sql) as $stmt) {
+		if (!$mysqli->query($stmt)) {
+			print("SQL warning ({$path}): {$mysqli->error}\n");
+			$ok = false;
+		}
+	}
+
+	return $ok;
+}
+
 function create_database()
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	// MR -- create kloxo database like horde or roundcube model
-	// no override when database exist --> possible reinstall kloxo without lossing kloxo setting
-
-	$pass = slave_get_db_pass();
-
-	$pstring = '';
-
-	if ($pass !== '') {
-		$pstring = "-p\"$pass\"";
+	// Synchronous import (the old background mysql import raced create_general
+	// / add_admin and left a half-empty schema on Ubuntu). Prefer the panel
+	// DB user created by create_mysql_db. The slavedb file is empty on a
+	// first install, so do not read a slave DB password here.
+	$base = "{$sgbl->__path_program_root}/file/sql/db-structure-base.sql";
+	if (!is_file($base)) {
+		$base = '../file/sql/db-structure-base.sql';
 	}
 
-	$dbpath = '../file/sql';
-
-	exec("mysql -f -u root $pstring < {$dbpath}/db-structure-base.sql &");
+	return kloxo_import_sql_file($base);
 }
 
 function update_database()
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$pass = slave_get_db_pass();
-
-	$pstring = null;
-
-	if ($pass) {
-		$pstring = "-p\"$pass\"";
+	$upd = "{$sgbl->__path_program_root}/file/sql/db-structure-update.sql";
+	if (!is_file($upd)) {
+		$upd = '../file/sql/db-structure-update.sql';
 	}
 
-	$dbpath = '../file/sql';
+	if (!is_file($upd)) {
+		return true;
+	}
 
-	exec("mysql -f -u root $pstring < {$dbpath}/db-structure-update.sql &");
+	return kloxo_import_sql_file($upd);
 }
 
 function get_default_fields()

@@ -234,7 +234,7 @@ function os_kill_process_user($username)
 
 function os_create_default_slave_driver_db()
 {
-	$a['web'] = "apache";
+	$a['web'] = "nginx";
 	$a['webcache'] = "none";
 	$a['dns'] = "bind";
 	$a['pop3'] = "courier";
@@ -305,13 +305,24 @@ function os_create_program_service()
 	global $gbl, $sgbl, $login, $ghtml;
 
 	$pgm = $sgbl->__var_program_name;
-
-	$a = array('web', 'php', 'wrap');
+	// wrap is the legacy backend wrapper; do not enable it on Ubuntu.
+	$a = array('web', 'php');
+	$unitdir = '/etc/systemd/system';
 
 	if (getServiceType() === 'systemd') {
 		foreach ($a as $k => $v) {
-			lxfile_cp("{$sgbl->__path_program_root}/init/{$pgm}-{$v}.service", "/usr/lib/systemd/system/{$pgm}-{$v}.service");
-			lxfile_unix_chmod("/usr/lib/systemd/system/{$pgm}-{$v}.service", "0644");
+			$src = "{$sgbl->__path_program_root}/init/{$pgm}-{$v}.service";
+			$dst = "{$unitdir}/{$pgm}-{$v}.service";
+			if (!is_file($src)) {
+				print(">>> skip missing unit {$src} <<<\n");
+				continue;
+			}
+			if (is_file($dst)) {
+				print(">>> keep existing {$dst} <<<\n");
+				continue;
+			}
+			lxfile_cp($src, $dst);
+			lxfile_unix_chmod($dst, "0644");
 			exec("systemctl enable {$pgm}-{$v} >/dev/null 2>&1");
 		}
 
@@ -319,7 +330,11 @@ function os_create_program_service()
 
 	} else {
 		foreach ($a as $k => $v) {
-			lxfile_cp("{$sgbl->__path_program_root}/init/{$pgm}-{$v}.init", "/etc/rc.d/init.d/{$pgm}-{$v}");
+			$src = "{$sgbl->__path_program_root}/init/{$pgm}-{$v}.init";
+			if (!is_file($src)) {
+				continue;
+			}
+			lxfile_cp($src, "/etc/rc.d/init.d/{$pgm}-{$v}");
 			lxfile_unix_chmod("/etc/rc.d/init.d/{$pgm}-{$v}", "0755");
 			exec("chkconfig {$pgm}-{$v} on  >/dev/null 2>&1");
 		}

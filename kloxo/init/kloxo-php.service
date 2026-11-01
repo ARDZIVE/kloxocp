@@ -6,7 +6,7 @@ After=network.target remote-fs.target nss-lookup.target
 [Service]
 Type=simple
 PIDFile=/opt/kloxo/init/kloxo-phpcgi.pid
-ExecStart=/usr/sbin/php-fpm8.3 --nodaemonize --fpm-config /opt/kloxo/init/kloxo-php-fpm.conf
+ExecStart=/opt/kloxo/init/kloxo-php-fpm.sh
 ExecReload=/bin/kill -s HUP $MAINPID
 ExecStop=/bin/kill -s QUIT $MAINPID
 PrivateTmp=true

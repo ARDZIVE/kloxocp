@@ -3,7 +3,8 @@
 **Read `docs/HANDOFF_BRIEFING.md` first**; it is the source of truth for decisions, state and the work plan.
 
 ## What this is
-Kloxo CP: a hosting control panel forked from Kloxo-MR (AGPLv3), being modernised for Ubuntu 24.04,
+Kloxo CP: a hosting control panel forked from Kloxo-MR (AGPLv3), being modernised for Ubuntu 24.04
+and Ubuntu 26.x,
 Nginx + PHP-FPM only for sites, Hiawatha for the panel itself, no billing for now, existing UI kept,
 mail via Postfix + Dovecot + Rspamd + MariaDB (done and tested), easy install/update with automatic
 rollback (designed, not built).
@@ -14,10 +15,10 @@ rollback (designed, not built).
 HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerDNS; qmail still
 present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
-`install.sh` bootstraps Ubuntu 24.04 from https://github.com/ARDZIVE/kloxocp.git
-(`update` and signed apt packaging are not). Browser login against MariaDB is not
-verified. Next: remaining P2 runtime, Debian packaging, or P4 postfix UI. See
-briefing section 7.
+`install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
+(Hiawatha 12.4 source build + `init-panel-db`; `update` and signed apt packaging
+are not). Browser login against MariaDB is not verified. Next: remaining P2
+runtime, Debian packaging, or P4 postfix UI. See briefing section 7.
 
 ## Commands
 ```
@@ -29,6 +30,9 @@ bash tests/security/run-tests.sh      # P0.4/P0.5 source invariants (php-cli onl
 bash tests/p1/run-tests.sh            # P1 stack-shrink source invariants (php-cli only)
 bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload (php-cli only)
 bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
+bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)
+php kloxo/bin/install/init-panel-db --help
+bash kloxo/bin/install/install-hiawatha --help
 bash tests/mail/run-tests.sh          # 73 mail checks (needs MariaDB root socket; disposable machine only)
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Postfix/Dovecot/Rspamd; see tests/mail/README.md)
 php kloxo/bin/mail/kloxo-mail help

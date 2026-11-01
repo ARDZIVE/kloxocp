@@ -26,12 +26,9 @@ RebanDuringBan = yes
 
 ThreadPoolSize = 50
 
-CGIhandler = /usr/bin/perl:pl
-CGIhandler = /usr/bin/perl:cgi
-CGIhandler = /usr/bin/__php__-cgi:php
-CGIhandler = /usr/bin/python:py
-CGIhandler = /usr/bin/ruby:rb
-CGIhandler = /usr/bin/ssi-cgi:shtml
+# CGI handlers omitted: Ubuntu 24.04 / 26.x have no php-cgi by default, and the
+# panel uses FastCGI (php-fpm). Hiawatha 12 refuses to start if a
+# CGIhandler binary is missing.
 #CGIextension = php
 
 #CGIwrapper = /usr/sbin/cgi-wrapper
@@ -39,7 +36,7 @@ CGIhandler = /usr/bin/ssi-cgi:shtml
 ExecuteCGI = yes
 WaitForCGI = yes
 
-MinTLSversion = TLS1.2
+# MinTLSversion was removed in Hiawatha 11. TLS 1.0/1.1 are unsupported.
 
 FastCGIserver {
 	FastCGIid = PHP

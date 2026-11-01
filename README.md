@@ -20,7 +20,8 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 > apt packaging is not built, and a full UI login against MariaDB is not verified.
 > First-party PHP now **parses and loads** on PHP 8 (`include.php` boot smoke).
 > The `kloxocp` CLI (`status`, `doctor`, `snapshot`, `rollback`) is in this tree.
-> Ubuntu 24.04 `install.sh` clones https://github.com/ARDZIVE/kloxocp.git;
+> Ubuntu 24.04 / 26.x `install.sh` clones https://github.com/ARDZIVE/kloxocp.git,
+> builds pinned Hiawatha 12.4, and runs `init-panel-db`.
 > `kloxocp update` and signed apt packages are not built.
 >
 > Read `docs/AUDIT_REPORT.md` (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md`
@@ -31,9 +32,9 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 | Item | Decision |
 |---|---|
-| Install | One command on Ubuntu 24.04 (`install.sh` clones this git tree and bootstraps; apt repo not built) |
+| Install | One command on Ubuntu 24.04 or 26.x (`install.sh` clones this git tree and bootstraps; apt repo not built) |
 | Updates | One command or one button, with backup, health check and rollback (`snapshot`/`rollback` exist; `update` not built) |
-| Target OS | Ubuntu 24.04 LTS first; AlmaLinux/Rocky 9 later |
+| Target OS | Ubuntu 24.04 LTS and Ubuntu 26.x; AlmaLinux/Rocky 9 later |
 | Customer websites | Nginx + PHP-FPM (multiple PHP versions side by side) |
 | Mail | Postfix + Dovecot + Rspamd, mailboxes in MariaDB |
 | Panel's own web server | Hiawatha (panel UI only) |
@@ -43,7 +44,7 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 ## Installation
 
-**Ubuntu 24.04, one line (as root).** This clones
+**Ubuntu 24.04 or 26.x, one line (as root).** This clones
 https://github.com/ARDZIVE/kloxocp.git (public, branch `main`) and runs `install.sh`:
 
 ```
@@ -57,12 +58,13 @@ machine that already has cPanel, Plesk, or ISPConfig. Push this tree to
 older revision.
 
 `install.sh` installs distro packages, links `/opt/kloxo` to the clone,
-generates TLS keys, and starts `kloxo-php` when `php-fpm8.3` is present.
-It does **not** create the panel MariaDB schema (legacy `create.php` is
-CentOS-only), does not run `kloxo-mail apply` unless you pass
-`--profile=full` for mail *packages* only, and does not prove a browser
-login. Hiawatha is used if `apt` provides it; otherwise the UI does not
-listen. Log: `/var/log/kloxo-install.log`.
+generates TLS keys, starts `kloxo-php` when a distro `php-fpm` is present
+(8.3 on 24.04, 8.5 on 26.04),
+builds pinned Hiawatha 12.4, and loads the panel MariaDB schema
+(`init-panel-db`). The admin UI password is written to
+`/root/kloxo-admin-password` (mode 0600). It does not run `kloxo-mail apply`
+unless you pass `--profile=full` for mail *packages* only, and does not
+prove a browser login. Log: `/var/log/kloxo-install.log`.
 
 From an existing clone:
 
@@ -104,7 +106,7 @@ do not run them on Ubuntu.
 
 ### 1. Requirements
 
-- Fresh **Ubuntu 24.04 LTS** (2 GB RAM, 10 GB disk minimum)
+- Fresh **Ubuntu 24.04 LTS or Ubuntu 26.x** (2 GB RAM, 10 GB disk minimum)
 - Root shell
 - A hostname (FQDN preferred)
 - Ports **7777/tcp** (panel HTTPS) and **7778/tcp** (panel HTTP) free
@@ -139,9 +141,8 @@ apt install -y \
   rspamd
 ```
 
-Hiawatha is **not** in Ubuntu 24.04 by default (UNVERIFIED). If `apt install hiawatha`
-fails, you must build a pinned binary before the panel UI can listen. PHP-FPM for the
-panel can still be configured.
+Hiawatha is **not** in Ubuntu 24.04 or 26.x. `install.sh` (or the command in section 8)
+builds pinned 12.4. PHP-FPM for the panel can still be configured first.
 
 ### 3. Place the tree at `/opt/kloxo`
 
@@ -229,44 +230,63 @@ systemctl enable --now kloxo-php
 systemctl status kloxo-php --no-pager
 ```
 
-The unit runs `/usr/sbin/php-fpm8.3 --nodaemonize --fpm-config /opt/kloxo/init/kloxo-php-fpm.conf`.
+The unit runs `/opt/kloxo/init/kloxo-php-fpm.sh`, which execs the distro
+`php-fpm` (`/usr/sbin/php-fpm8.3` on 24.04, `/usr/sbin/php-fpm8.5` on 26.04).
 The pool still listens as root with mode `0666` (legacy). Do not consider that a security
 default for production.
 
-### 8. Panel Hiawatha (only if the binary exists)
+### 8. Panel Hiawatha (pinned 12.4 source build)
+
+Ubuntu 24.04 and 26.x have no `hiawatha` package. Build the pinned release, render the
+config, and enable `kloxo-web`:
 
 ```
-# if you have a hiawatha binary:
-install -m 0755 "$(command -v hiawatha)" /opt/kloxo/init/kloxo-hiawatha
-# render ports into a live copy of the base config (defaults 7778 / 7777):
-cp /opt/kloxo/init/hiawatha.conf.base /opt/kloxo/init/hiawatha.conf
-sed -i 's/__nonssl_port__/7778/; s/__ssl_port__/7777/; s/__fpmdisabled__//' \
-  /opt/kloxo/init/hiawatha.conf
-cp /opt/kloxo/init/kloxo-web.service /etc/systemd/system/kloxo-web.service
-systemctl daemon-reload
-systemctl enable --now kloxo-web
+sudo bash /opt/kloxo/bin/install/install-hiawatha --root=/opt/kloxo
+systemctl status kloxo-web --no-pager
+ss -lnt | grep -E ':7777|:7778'
 ```
+
+`install-hiawatha` downloads
+`https://hiawatha.leisink.net/files/download/hiawatha-12.4.tar.gz` (sha256
+pinned in the script), copies the binary to `/opt/kloxo/init/kloxo-hiawatha`,
+writes `hiawatha.conf` from `hiawatha.conf.base` (ports 7778 / 7777), checks it
+with `hiawatha -k -c /opt/kloxo/init`, and starts `kloxo-web`. Pass `--force` to
+rebuild. Pass `--dry-run` to print the plan.
+
+If `hiawatha -k` names a bad directive, paste that output before editing
+`hiawatha.conf` by hand. Do not keep `MinTLSversion` (removed in Hiawatha 11).
 
 Open in a browser: `https://YOUR-HOST:7777/` (self-signed cert; expect a warning).
 Unauthenticated requests redirect to `/login/`. **Login against MariaDB is not verified.**
 
-### 9. MariaDB for the panel (schema installer is still legacy)
+### 9. MariaDB for the panel
 
-The panel database name is `kloxo`, DB user `kloxo`. The schema loader is
-`kloxo/bin/install/create.php`, written for CentOS/`lxphp.exe`/yum. On Ubuntu it is
-**UNVERIFIED**. The P3 CLI does not replace it yet.
+The panel database name is `kloxo`, DB user `kloxo`. Use the Ubuntu installer
+(not the backgrounded CentOS `mysql … &` path):
 
-If you experiment anyway, you will need a MariaDB root account and:
+```
+# recover a half-finished install, or create a fresh schema:
+sudo KLOXO_ADMIN_PASSWORD='YOUR_ADMIN_UI_PASS' \
+  php /opt/kloxo/bin/install/init-panel-db \
+  --root=/opt/kloxo --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root
+# Ubuntu MariaDB root is the unix socket; omit --db-rootpassword
+```
+
+`init-panel-db` is idempotent (`CREATE TABLE IF NOT EXISTS`, insert-or-update
+admin). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0600). Admin password must
+be at least 8 characters.
+
+The legacy wrapper still works from `httpdocs` and now calls `init-panel-db`:
 
 ```
 cd /opt/kloxo/httpdocs
 php ../bin/install/create.php --install-type=master \
-  --db-rootuser=root --db-rootpassword=YOUR_ROOT_DB_PASS \
+  --db-rootuser=root --db-rootpassword= \
   --admin-password=YOUR_ADMIN_UI_PASS
 ```
 
-Expect CentOS-specific steps inside that script to fail. Do not treat a partial run as a
-working panel.
+Do not treat a run that only created `general` (0 rows, no `client` table) as a
+working panel; re-run `init-panel-db`. Browser login is still **UNVERIFIED**.
 
 ### 10. Mail stack (independent of the panel UI)
 
@@ -303,7 +323,10 @@ bash tests/security/run-tests.sh
 bash tests/p1/run-tests.sh
 bash tests/p2/run-tests.sh
 bash tests/p3/run-tests.sh
+bash tests/install/run-tests.sh
 php kloxo/bin/install/generate-tls-keys --help
+php kloxo/bin/install/init-panel-db --help
+bash kloxo/bin/install/install-hiawatha --help
 php kloxo/bin/mail/kloxo-mail help
 php kloxo/bin/kloxocp help
 ```
@@ -334,7 +357,7 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/kloxocp            operator CLI (status, doctor, snapshot, rollback)
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)
   bin/install/generate-tls-keys  unique TLS keys per install
-install.sh        Ubuntu 24.04 bootstrap (clone + apt + layout + TLS)
+install.sh        Ubuntu 24.04 / 26.x bootstrap (clone + apt + layout + TLS)
 tests/            mail, tls, remote, security, p1, p2, p3
 docs/             audit, design, mail stack, changelog, legacy notes
 ```

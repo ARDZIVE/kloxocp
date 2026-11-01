@@ -18,7 +18,7 @@ Owner's requirements (non-negotiable unless the owner changes them):
 | Name | **Kloxo CP** (display), `kloxo` for identifiers/paths/services |
 | Base | https://github.com/mustafaramadhan/kloxo, branch `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` (version 7.0.0.c-2019072201) |
 | License | **GNU AGPL v3**, must stay AGPL; keep all upstream copyright/authorship notices |
-| Target OS | **Ubuntu 24.04 LTS first**. AlmaLinux/Rocky 9 later, through an OS abstraction layer |
+| Target OS | **Ubuntu 24.04 LTS and Ubuntu 26.x**. AlmaLinux/Rocky 9 later, through an OS abstraction layer |
 | Customer websites | **Nginx + PHP-FPM only** (multiple PHP versions side by side). Remove Apache/Lighttpd/Varnish/Squid/ATS |
 | The panel's own web server | **Hiawatha is kept** (as in Kloxo-MR), used only for the panel UI |
 | Billing | **None for now.** Owner will add it later; leave a clean extension point, do not integrate |
@@ -46,6 +46,8 @@ kloxo-cp/
     bin/kloxocp                  NEW operator CLI (PHP 8.3: status, doctor, snapshot, rollback)
     bin/mail/kloxo-mail          NEW mail tool (PHP 8.3, standalone)
     bin/install/generate-tls-keys  NEW: unique TLS keys per install (PHP 8.3)
+    bin/install/init-panel-db      NEW: Ubuntu MariaDB panel schema (PHP 8.3)
+    bin/install/install-hiawatha   NEW: pinned Hiawatha 12.4 source build
     cexe/                        C sources: backend daemon (kloxo.c) only; no setuid helpers
     init/                        panel service units, Hiawatha base config, php-fpm templates
     file/                        service config templates (nginx, bind, pdns, qmail, NEW file/mail/; Apache/Lighttpd/cache/unused-DNS trees removed)
@@ -64,7 +66,8 @@ kloxo-cp/
   tests/p1/                      P1 stack-shrink source invariants (php-cli only)
   tests/p2/                      P2 first-party PHP 8 parse + autoload characterization (php-cli only)
   tests/p3/                      P3 kloxocp CLI + snapshot/rollback (php-cli only)
-  install.sh                     Ubuntu 24.04 bootstrap from https://github.com/ARDZIVE/kloxocp.git
+  install.sh                     Ubuntu 24.04 / 26.x bootstrap from https://github.com/ARDZIVE/kloxocp.git
+  tests/install/                 init-panel-db + install-hiawatha source invariants (php-cli)
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
 
@@ -115,15 +118,23 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
 13. **P2 boot slice:** `include.php` loads on PHP 8 without throwing (`tests/p2/test_boot.php`).
     Program root is derived from the tree / `KLOXO_ROOT` (not a missing `/opt/kloxo`).
     PHP binary is distro `php` (`kloxo_php_binary()`, `init/php-cli.sh`). Login page files
-    are shipped under `httpdocs/login/`. Hiawatha min TLS is 1.2; PHP-FPM unit uses
-    `php-fpm8.3`. Browser login against MariaDB is **UNVERIFIED**.
+    are shipped under `httpdocs/login/`. Hiawatha 12 drops TLS 1.0/1.1 (no
+    `MinTLSversion` directive). PHP-FPM unit runs `init/kloxo-php-fpm.sh`
+    (php-fpm8.3 on 24.04, php-fpm8.5 on 26.04). Browser login
+    against MariaDB is **UNVERIFIED**.
 14. **P3 CLI skeleton:** `kloxo/bin/kloxocp` (`help`, `version`, `status`, `doctor`,
     `snapshot`, `rollback`, `component list`). `update` / `component upgrade` /
     `install` after a clean doctor still exits **2**. `install.sh` bootstraps
     Ubuntu 24.04 from `https://github.com/ARDZIVE/kloxocp.git` (public; apt packages,
-    `/opt/kloxo` symlink, TLS keys, `kloxo-php` unit). Apt repo, Debian packages,
-    package-level update/rollback, and `create.php` Ubuntu replacement are **not
-    built**. Tests: `tests/p3/` (php-cli; does not run the Ubuntu installer).
+    `/opt/kloxo` symlink, TLS keys, `kloxo-php` unit, pinned Hiawatha 12.4 build,
+    `init-panel-db`). Apt repo, Debian packages, and package-level update/rollback
+    are **not built**. Tests: `tests/p3/` and `tests/install/` (php-cli; do not run
+    the Ubuntu installer or a Hiawatha compile).
+15. **Ubuntu panel schema + Hiawatha:** `kloxo/bin/install/init-panel-db` loads
+    `file/sql/db-structure-base.sql` synchronously (MariaDB 10.11 `CREATE USER` +
+    `GRANT`; no background `mysql … &`). `kloxo/bin/install/install-hiawatha` pins
+    Hiawatha 12.4. `create.php` calls `init-panel-db` and skips CentOS
+    `tmpupdatecleanup`. Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -207,29 +218,36 @@ Work in this order. Keep every change small, tested and committed separately. Do
 ### P1: shrink the tree (phase 1b)
 1. **DONE for web/DNS.** Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`. Webcache: `none`. DNS: `none`, `bind`, `pdns`. Panel Hiawatha kept in `init/`. Default web driver is nginx. Tests: `tests/p1/`.
 2. **NOT DONE.** qmail/courier/ezmlm/bogofilter/spamassassin drivers stay until P4 postfix UI drivers exist.
-3. Confirm Hiawatha availability on Ubuntu 24.04 (**UNVERIFIED**); if no package, build a pinned binary in the installer. `lib.php` still contains dead Apache install/chown branches (legacy installer; P3 CLI does not replace it yet).
+3. **PARTIAL.** No Ubuntu package; `install-hiawatha` builds pinned 12.4
+   (sha256 in the script). Config check is `hiawatha -k -c <init>`. **UNVERIFIED**
+   on a real 24.04 VM. `lib.php` still contains dead Apache install/chown
+   branches (legacy installer; P3 CLI does not replace it yet).
 
 ### P2: PHP 8.3 port (phase 1c)
 1. **DONE: first-party parse.** First-party `.php`/`.inc` files `php -l` clean. `__autoload` → `kloxo_autoload` + `spl_autoload_register`. `includecore.php` no longer calls `ereg*`. `char_search_beg` accepts the extra `csb()` argument. Tests: `tests/p2/`.
-2. **DONE: library boot.** `include.php` constructs `Sgbl` on PHP 8 (`test_boot.php`). Paths follow the tree / `KLOXO_ROOT`. Distro PHP via `kloxo_php_binary` and `init/php-cli.sh`. `#[AllowDynamicProperties]` on `Lxclass`, `Sgbl`, `HtmlLib`. Login files shipped. systemd PHP-FPM unit uses `php-fpm8.3`; Hiawatha min TLS 1.2.
-3. **NOT DONE.** Browser login + MariaDB schema on Ubuntu (`create.php` is still CentOS). Hiawatha Ubuntu package. Remaining compile failures are third-party (`webdisk/PEAR*`, formmail, urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
+2. **DONE: library boot.** `include.php` constructs `Sgbl` on PHP 8 (`test_boot.php`). Paths follow the tree / `KLOXO_ROOT`. Distro PHP via `kloxo_php_binary` and `init/php-cli.sh` (php 8.3 / 8.4 / 8.5). `#[AllowDynamicProperties]` on `Lxclass`, `Sgbl`, `HtmlLib`. Login files shipped. systemd PHP-FPM unit uses `kloxo-php-fpm.sh`.
+3. **PARTIAL.** `init-panel-db` and `install-hiawatha` exist (php-cli tests in
+   `tests/install/`). Browser login against MariaDB on a real Ubuntu VM is
+   **UNVERIFIED**. Remaining compile failures are third-party (`webdisk/PEAR*`,
+   formmail, urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
 
 ### P3: installer, packaging, updater (phase 1d)
 1. **DONE: CLI skeleton.** `kloxo/bin/kloxocp` implements `help`, `version`, `status`,
-   `doctor` (optional `--install` host checks: root, Ubuntu 24.04, no cPanel/Plesk/ISPConfig),
+   `doctor` (optional `--install` host checks: root, Ubuntu 24.04 or 26.x, no cPanel/Plesk/ISPConfig),
    `snapshot` / `rollback` of allow-listed paths (`bin/kloxoversion`, `init`, `etc`,
    `file/ssl`, `httpdocs/login`) under `--root` / `--snap-dir`. `component list` works;
    `update` and `component upgrade` exit 2. PHP 8.3, `declare(strict_types=1)`,
    argument-array `proc_open`, no shell strings. Tests: `tests/p3/` (20 checks, php-cli only).
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
-   packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`.
+   or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`.
    One-liner is in `README.md`. **UNVERIFIED on a real Ubuntu VM.** Does not add
    a signed apt repo.
 3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →
    snapshot → apt → migrate → validate → health-check → auto-rollback), LVM/ZFS snapshots,
-   panel-DB dump in the snapshot, `create.php` Ubuntu replacement. Reuse `kloxo-mail apply`
-   for service config once packages exist.
+   panel-DB dump in the snapshot. `init-panel-db` / `install-hiawatha` exist
+   (not verified on a real VM). Reuse `kloxo-mail apply` for service config once
+   packages exist.
 
 ### P4: connect mail to the panel (phase 1e)
 Add thin `*__postfix` drivers (`Mmail__Postfix`, `Mailaccount__Postfix`, `Mailforward__Postfix`, `Servermail__Postfix`...) in `httpdocs/driver/mmail/` that call `kloxo-mail` (via the agent). Keep the existing UI screens. Then add Roundcube, Sieve vacation autoresponder, queue view, per-domain TLS, qmail import. Requires P2.

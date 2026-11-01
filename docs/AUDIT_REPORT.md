@@ -99,7 +99,8 @@ is a no-op; `download_file()` refuses `http://`; version and wordlist HTTP fetch
   created with MD5-crypt (`crypt($pass, '$1$…')`) in `lib/html/initlib.php`. Only 4
   `password_hash` uses. *Fix:* argon2id/bcrypt via `password_hash`, with rehash on login.
 * **H5: Transport security.** 12 places disable certificate verification (`CURLOPT_SSL_VERIFY*`),
-  28 `wget/curl http://` calls, `MinTLSversion = TLS1.0` in `init/hiawatha.conf.base`.
+  28 `wget/curl http://` calls. Panel Hiawatha 12 no longer has `MinTLSversion`
+  (removed in 11.0; TLS 1.0/1.1 unsupported).
 * **H6: Sudoers rule CLOSED.** `pscript/set-kloxo-php` no longer writes
   `lxlabs ALL=(ALL:ALL) NOPASSWD:/opt/kloxo` to `/etc/sudoers.d/mount`. Existing installs
   that already have that file must delete it by hand.
@@ -167,9 +168,9 @@ characterization-test harness is the first port step.
 * **Panel web server (Hiawatha), kept as requested:** configured through
   `init/hiawatha.conf.base`, `init/kloxo-web.init` (site templates under `file/hiawatha` were
   removed). It talks to PHP over a FastCGI Unix socket (`/opt/kloxo/init/kloxo-phpcgi.sock`).
-  Hiawatha availability as a packaged binary on Ubuntu 24.04 is **not confirmed**. Plan for a
-  pinned build from source in the installer if the package is missing. The CGI/PHP5 specifics
-  in `hiawatha.conf.base` (`CGIhandler`, `PHP5` FastCGI id, TLS 1.0) must be rewritten.
+  Hiawatha is not in Ubuntu 24.04 apt; `bin/install/install-hiawatha` builds pinned 12.4.
+  `hiawatha.conf.base` has no `MinTLSversion` (removed in 11) and no `CGIhandler` (php-cgi
+  is not on Ubuntu 24.04; FastCGI id is `PHP`). Live start on a 24.04 VM is **UNVERIFIED**.
 * **Mail:** the legacy qmail-toaster stack (+ courier, vpopmail, SpamAssassin, bogofilter, ezmlm) is replaced by Postfix + Dovecot + Rspamd; the new stack is implemented and tested, see `docs/MAIL_DESIGN.md`. Connecting it to the legacy UI drivers (`driver/mmail`) is still open.
 * **DNS drivers (P1 done):** selectable `none`, `bind`, `pdns`. djbdns/nsd/mydns/yadifa/maradns drivers and templates removed.
 * **Billing:** no billing module is bundled. The only traces were `pscript/setup-tht` (a TheHostingTool installer, **removed**) and a "fix for WHMCS needing pserver" workaround in the command-line API (`lib/html/commandlinelib.php`), which is left in place as part of the generic API. A clean billing extension point can be added later.
