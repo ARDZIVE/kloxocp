@@ -172,6 +172,21 @@ if grep -q 'function kcount' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
 else
   bad "kcount is safe for a null list"
 fi
+if grep -q 'isset($this->used) && is_object($this->used)' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php"; then
+  ok "getUSlashP does not read used on null"
+else
+  bad "getUSlashP does not read used on null"
+fi
+if grep -F -q '!is_object($this->driver[$master][$syncserver])' "$ROOT/kloxo/httpdocs/lib/php/gbllib.php"; then
+  ok "getSyncClass does not read a missing driver row"
+else
+  bad "getSyncClass does not read a missing driver row"
+fi
+if grep -q 'is_object($parent)' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" && grep -q "array('property' => array())" "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
+  ok "home show does not call getParentO on admin"
+else
+  bad "home show does not call getParentO on admin"
+fi
 if grep -q 'function kloxo_strftime' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" && grep -q 'function kloxo_html' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
   ok "kloxo_strftime and kloxo_html exist for PHP 8.5"
 else

@@ -183,17 +183,28 @@ function __ac_desc_show($object)
 
 	$object->getAnyErrorMessage();
 
+	$prlist = array('property' => array());
 	$object->createShowPropertyList($prlist);
 
-	if (!$prlist['property']) {
-		$object->getParentO()->createShowPropertyList($prlist);
+	if (!isset($prlist['property']) || !is_array($prlist['property'])) {
+		$prlist['property'] = array();
+	}
 
-		foreach ($prlist['property'] as $k => $v) {
-			$prlist['property'][$k] = "goback=1&$v";
+	if (!$prlist['property']) {
+		$parent = $object->getParentO();
+		if (is_object($parent)) {
+			$parent->createShowPropertyList($prlist);
+			if (isset($prlist['property']) && is_array($prlist['property'])) {
+				foreach ($prlist['property'] as $k => $v) {
+					$prlist['property'][$k] = "goback=1&$v";
+				}
+			}
 		}
 	}
 
-	$ghtml->print_tab_block($prlist['property']);
+	if (!empty($prlist['property'])) {
+		$ghtml->print_tab_block($prlist['property']);
+	}
 
 	$ghtml->print_content_begin();
 
@@ -238,8 +249,16 @@ function __ac_desc_show($object)
 		$class = $object->get__table();
 		$var = "{$class}_show_list";
 		$interf = null;
+		$showalist = array();
+		$advanced = array();
 		$object->createShowAlist($showalist);
 		$object->createShowAlistConfig($advanced);
+		if (!is_array($showalist)) {
+			$showalist = array();
+		}
+		if (!is_array($advanced)) {
+			$advanced = array();
+		}
 
 		if (isset($showalist['__v_message'])) {
 ?>
@@ -1010,17 +1029,28 @@ function __ac_desc_UpdateForm($object)
 	$ghtml->print_tab_block($nalist);
 */
 	// MR -- use logic from show
+	$prlist = array('property' => array());
 	$object->createShowPropertyList($prlist);
 
-	if (!$prlist['property']) {
-		$object->getParentO()->createShowPropertyList($prlist);
+	if (!isset($prlist['property']) || !is_array($prlist['property'])) {
+		$prlist['property'] = array();
+	}
 
-		foreach ($prlist['property'] as $k => $v) {
-			$prlist['property'][$k] = "goback=1&$v";
+	if (!$prlist['property']) {
+		$parent = $object->getParentO();
+		if (is_object($parent)) {
+			$parent->createShowPropertyList($prlist);
+			if (isset($prlist['property']) && is_array($prlist['property'])) {
+				foreach ($prlist['property'] as $k => $v) {
+					$prlist['property'][$k] = "goback=1&$v";
+				}
+			}
 		}
 	}
 
-	$ghtml->print_tab_block($prlist['property']);
+	if (!empty($prlist['property'])) {
+		$ghtml->print_tab_block($prlist['property']);
+	}
 
 	$ghtml->print_content_begin();
 
@@ -1055,7 +1085,7 @@ function do_updateform($object, $subaction)
 
 	$class = lget_class($object);
 	$parent = $object->getParentO();
-	$qparent = $parent;
+	$qparent = is_object($parent) ? $parent : $object;
 	$_tsubaction = null;
 
 	if ($subaction) {

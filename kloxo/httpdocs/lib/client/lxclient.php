@@ -167,10 +167,12 @@ abstract class Lxclient extends Lxdb
 
 	function getTicketMessageUrl(&$alist)
 	{
-		$gob = $this->getObject('general')->generalmisc_b;
+		$gen = $this->getObject('general');
+		$gob = (is_object($gen) && isset($gen->generalmisc_b) && is_object($gen->generalmisc_b))
+			? $gen->generalmisc_b : null;
 	//	$this->getListActions($alist, 'ticket'); 
 
-		if (isset($gob->ticket_url) && $gob->ticket_url) {
+		if (is_object($gob) && isset($gob->ticket_url) && $gob->ticket_url) {
 			$url = $gob->ticket_url;
 			$url = add_http_if_not_exist($url);
 			$alist[] = create_simpleObject(array('url' => $url, 'purl' => 'a=list&c=ticket', 'target' => 'target=_blank'));
@@ -1093,16 +1095,24 @@ abstract class Lxclient extends Lxdb
 			$this->priv->__parent_o = $this;
 		}
 
+		if (!isset($this->used) || lget_class($this->used) !== 'used') {
+			$this->used = new Used(null, null, $this->nname);
+			$this->used->__parent_o = $this;
+		}
+
 		$list = $this->getQuotaVariableList();
 		foreach ((array)$list as $k => $unused) {
 			$cur = isset($this->priv->$k) ? $this->priv->$k : '';
-			if ($cur !== null && $cur !== '') {
-				continue;
+			if ($cur === null || $cur === '') {
+				if (cse($k, '_flag')) {
+					$this->priv->$k = 'on';
+				} else {
+					$this->priv->$k = 'Unlimited';
+				}
 			}
-			if (cse($k, '_flag')) {
-				$this->priv->$k = 'on';
-			} else {
-				$this->priv->$k = 'Unlimited';
+			$used = isset($this->used->$k) ? $this->used->$k : '';
+			if ($used === null || $used === '') {
+				$this->used->$k = cse($k, '_flag') ? '-' : '0';
 			}
 		}
 	}

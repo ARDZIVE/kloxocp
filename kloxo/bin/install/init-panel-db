@@ -279,6 +279,7 @@ TXT;
         $this->seedAdminPriv($pdo);
         $this->seedGeneral($pdo);
         $this->seedPserver($pdo);
+        $this->seedDriver($pdo);
         $this->seedPhpini($pdo);
         $this->seedServerweb($pdo);
         $this->seedSpecialplay($pdo);
@@ -798,13 +799,151 @@ TXT;
         return base64_encode($obj);
     }
 
+    /** @return array<string,string> */
+    public static function generalmiscDefaults(): array
+    {
+        return [
+            'disableeasyinstaller' => 'on',
+            'htmltitle' => 'Kloxo CP',
+            'ticket_url' => '',
+            'message_url' => '',
+            'autoupdate' => 'off',
+        ];
+    }
+
+    public static function generalmiscBlob(): string
+    {
+        return self::serializeObjectBlob('generalmisc_b', self::generalmiscDefaults());
+    }
+
+    /** Ubuntu Switch Program defaults: first value of each file/driver list. */
+    public static function driverDefaults(): array
+    {
+        return [
+            'pg_client' => 'sync',
+            'pg_phpini' => 'sync',
+            'pg_mysqldb' => 'mysql',
+            'pg_mysqldbuser' => 'mysql',
+            'pg_dbadmin' => 'sync',
+            'pg_sshauthorizedkey' => 'sync',
+            'pg_easyinstallersnapshot' => 'sync',
+            'pg_sslcert' => 'sync',
+            'pg_sslipaddress' => 'sync',
+            'pg_anonftpipaddress' => '__v_ftpuser',
+            'pg_ftpsession' => '__v_ftpuser',
+            'pg_mailcontent' => '__v_mmail',
+            'pg_reversedns' => '__v_dns',
+            'pg_servermail' => '__v_mmail',
+            'pg_serverftp' => '__v_ftpuser',
+            'pg_serverweb' => '__v_web',
+            'pg_webhandler' => '__v_web',
+            'pg_webmimetype' => '__v_web',
+            'pg_mailqueue' => '__v_mmail',
+            'pg_process' => '__v_pserver',
+            'pg_diskusage' => '__v_pserver',
+            'pg_mailaccount' => '__v_mmail',
+            'pg_listsubscribe' => '__v_mailinglist',
+            'pg_autoresponder' => '__v_mmail',
+            'pg_mailforward' => '__v_mmail',
+            'pg_dirprotect' => '__v_web',
+            'pg_watchdog' => 'sync',
+            'pg_lxguard' => 'sync',
+            'pg_lxguardwhitelist' => 'sync',
+            'pg_hostdeny' => 'linux',
+            'pg_dns' => 'none',
+            'pg_pop3' => 'none',
+            'pg_smtp' => 'none',
+            'pg_spam' => 'none',
+            'pg_mailinglist' => 'ezmlm',
+            'pg_ffile' => 'linux',
+            'pg_easyinstaller' => 'linux',
+            'pg_all_easyinstaller' => 'linux',
+            'pg_pserver' => 'linux',
+            'pg_rubyrails' => 'linux',
+            'pg_uuser' => 'linux',
+            'pg_ftpuser' => 'pureftp',
+            'pg_web' => 'none',
+            'pg_webcache' => 'none',
+            'pg_mmail' => 'qmail',
+            'pg_cron' => 'linux',
+            'pg_llog' => 'linux',
+            'pg_davuser' => 'none',
+            'pg_sshconfig' => 'linux',
+            'pg_phpmodule' => 'linux',
+            'pg_ipaddress' => 'debian',
+            'pg_service' => 'debian',
+            'pg_component' => 'deb',
+            'pg_package' => 'apt-get',
+        ];
+    }
+
+    public static function driverBlob(): string
+    {
+        return self::serializeObjectBlob('driver_b', self::driverDefaults());
+    }
+
+    /** @param array<string,string> $props */
+    public static function serializeObjectBlob(string $class, array $props): string
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $class) !== 1) {
+            throw new IpdbException('Invalid serialized class name');
+        }
+        $body = '';
+        foreach ($props as $k => $v) {
+            if (preg_match('/^[A-Za-z0-9_]+$/', $k) !== 1) {
+                throw new IpdbException('Invalid serialized property name');
+            }
+            if (str_contains($v, "\0")) {
+                throw new IpdbException('Invalid serialized property value');
+            }
+            $body .= 's:' . strlen($k) . ':"' . $k . '";s:' . strlen($v) . ':"' . $v . '";';
+        }
+
+        return base64_encode('O:' . strlen($class) . ':"' . $class . '":' . count($props) . ':{' . $body . '}');
+    }
+
     private function seedGeneral(PDO $pdo): void
     {
+        $blob = self::generalmiscBlob();
         $n = (int)$pdo->query("SELECT COUNT(*) FROM general WHERE nname = 'admin'")->fetchColumn();
-        if ($n > 0) {
+        if ($n === 0) {
+            $stmt = $pdo->prepare(
+                "INSERT INTO general (nname, parent_clname, parent_cmlist, ser_generalmisc_b)
+                 VALUES ('admin', '', '', ?)"
+            );
+            $stmt->execute([$blob]);
             return;
         }
-        $pdo->exec("INSERT INTO general (nname, parent_clname, parent_cmlist) VALUES ('admin', '', '')");
+        $cur = $pdo->query("SELECT ser_generalmisc_b FROM general WHERE nname = 'admin'")->fetchColumn();
+        $raw = is_string($cur) ? (string)base64_decode($cur, true) : '';
+        if ($cur === null || $cur === '' || !str_contains($raw, 'disableeasyinstaller')) {
+            $stmt = $pdo->prepare(
+                "UPDATE general SET ser_generalmisc_b = ? WHERE nname = 'admin'"
+            );
+            $stmt->execute([$blob]);
+        }
+    }
+
+    private function seedDriver(PDO $pdo): void
+    {
+        $blob = self::driverBlob();
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM driver WHERE nname = 'localhost'")->fetchColumn();
+        if ($n === 0) {
+            $stmt = $pdo->prepare(
+                "INSERT INTO driver (nname, parent_clname, parent_cmlist, ser_driver_b)
+                 VALUES ('localhost', 'pserver-localhost', '', ?)"
+            );
+            $stmt->execute([$blob]);
+            return;
+        }
+        $cur = $pdo->query("SELECT ser_driver_b FROM driver WHERE nname = 'localhost'")->fetchColumn();
+        $raw = is_string($cur) ? (string)base64_decode($cur, true) : '';
+        if ($cur === null || $cur === '' || !str_contains($raw, 'pg_pserver')) {
+            $stmt = $pdo->prepare(
+                "UPDATE driver SET ser_driver_b = ? WHERE nname = 'localhost'"
+            );
+            $stmt->execute([$blob]);
+        }
     }
 
     private function md5Crypt(string $pass): string

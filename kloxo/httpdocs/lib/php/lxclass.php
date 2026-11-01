@@ -450,7 +450,19 @@ abstract class Lxclass
 		$this->$var = $val;
 	}
 
-	function getUSlashP($v) { return "{$this->used->$v}/{$this->priv->$v}"; }
+	function getUSlashP($v)
+	{
+		$u = (isset($this->used) && is_object($this->used)) ? $this->used->$v : '0';
+		$p = (isset($this->priv) && is_object($this->priv)) ? $this->priv->$v : 'Unlimited';
+		if ($u === null || $u === '') {
+			$u = '0';
+		}
+		if ($p === null || $p === '') {
+			$p = 'Unlimited';
+		}
+
+		return "{$u}/{$p}";
+	}
 
 	function moreNotification()
 	{

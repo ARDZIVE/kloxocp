@@ -312,6 +312,16 @@ if grep -q 'function seedSpecialplay' "$ROOT/kloxo/bin/install/init-panel-db" &&
 else
   bad "init-panel-db seeds admin specialplay simplicity skin"
 fi
+if grep -q 'function seedDriver' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q "'pg_pserver'" "$ROOT/kloxo/bin/install/init-panel-db" && grep -q "'pg_web'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds localhost driver row"
+else
+  bad "init-panel-db seeds localhost driver row"
+fi
+if grep -q 'function generalmiscBlob' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'ser_generalmisc_b' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds generalmisc_b"
+else
+  bad "init-panel-db seeds generalmisc_b"
+fi
 if grep -q 'max_execution_time_flag' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function phpiniFlagDefaults' "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds full phpini defaults"
 else

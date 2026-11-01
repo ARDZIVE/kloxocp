@@ -292,9 +292,12 @@ Work in this order. Keep every change small, tested and committed separately. Do
 3. **PARTIAL.** `init-panel-db` and `install-hiawatha` exist (php-cli tests in
    `tests/install/`). Admin `syncserver` is `localhost`; Ubuntu IPs come from
    `ip -4 addr` (`kloxo_ipaddr.php`); `php-type` SQL is `php_type`. Admin
-   Servers list seeds `localhost` (`ensureLocalhostServer`). Browser
-   login against MariaDB on a real Ubuntu VM is **UNVERIFIED**. Remaining
-   compile failures are third-party (`webdisk/PEAR*`, formmail, urlrewrite
+   Servers list seeds `localhost` (`ensureLocalhostServer`). Install also
+   seeds a `driver` row for `localhost` (`dns`/`web` = `none`) and
+   `generalmisc_b`. Home show no longer fatals on a null `used` object,
+   missing driver row, or admin `getParentO()`. Browser login against
+   MariaDB on a real Ubuntu VM is **UNVERIFIED**. Remaining compile
+   failures are third-party (`webdisk/PEAR*`, formmail, urlrewrite
    examples). Runtime `split`/`ereg*`/`each` in those trees.
 
 ### P3: installer, packaging, updater (phase 1d)

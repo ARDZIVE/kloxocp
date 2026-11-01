@@ -65,11 +65,11 @@ class Gbllib  extends Lxclass
 			$__t_ob[$nname] = $obj;
 		}
 		
-		if (!isset($this->driver)) {
+		if (!isset($this->driver) || !is_array($this->driver)) {
 			$this->driver = array();
 		}
 
-		$this->driver[$master] = $__t_ob;
+		$this->driver[$master] = is_array($__t_ob) ? $__t_ob : array();
 	}
 
 	function getSyncClass($master, $syncserver, $class)
@@ -93,17 +93,22 @@ class Gbllib  extends Lxclass
 		}
 
 		//Dynamically load the syncserver info....
-		if (!isset($this->driver) || !isset($this->driver[$master])) {
+		if (!isset($this->driver) || !is_array($this->driver)
+			|| !isset($this->driver[$master]) || !is_array($this->driver[$master])
+		) {
 			$this->loaddriverappInfo($master);
 		}
-		
-		if (!isset($this->driver[$master][$syncserver])) {
-			$this->loaddriverappInfo($master);
+
+		if (!isset($this->driver[$master][$syncserver]) || !is_object($this->driver[$master][$syncserver])) {
+			return null;
 		}
 
 		$class_var = strtolower("pg_" . $class);
 
 		$pgm = $this->driver[$master][$syncserver]->driver_b;
+		if (!is_object($pgm)) {
+			return null;
+		}
 
 		if (isset($pgm->$class_var)) {
 			$str = $pgm->$class_var;

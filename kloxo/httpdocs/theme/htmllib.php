@@ -346,7 +346,8 @@ class HtmlLib
 
 		$buttonpath = get_image_path();
 
-		foreach ($alist as $key => $url) {
+		$ret = array();
+		foreach ((array) $alist as $key => $url) {
 			$check = $this->compare_urls("display.php?{$this->get_get_from_current_post(null)}", $url);
 			$ret[$key] = $check;
 		}
@@ -424,12 +425,13 @@ class HtmlLib
 		global $gbl, $sgbl, $login, $ghtml;
 
 		if (!$alist) {
-			return null;
+			return array();
 		}
 
 		$title = "main";
 		$i = 0;
 		$n = 0;
+		$ret = array();
 
 		foreach ($alist as $k => $a) {
 			if (csb($k, "__title")) {
@@ -460,7 +462,7 @@ class HtmlLib
 			$nret = $ret;
 		}
 
-		return $nret;
+		return isset($nret) ? $nret : $ret;
 	}
 
 	function print_style_desktop()
@@ -1597,7 +1599,11 @@ class HtmlLib
 
 		$ret = $this->create_action_block($class, $alist);
 
-		$retcount = count($ret);
+		$retcount = kcount($ret);
+
+		if ($retcount === 0) {
+			return;
+		}
 
 		//	$col = $login->getSkinColor();
 		$col = 'ddd';
@@ -8736,6 +8742,8 @@ function uploadAbort(e) { // upload abort
 				$this->print_on_status_bar("$message $pmess...");
 			}
 		}
+
+		return '';
 	}
 
 

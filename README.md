@@ -21,7 +21,8 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 > in a browser from this tree. First-party PHP **parses and loads** on PHP 8.
 > Ubuntu 24.04 / 26.x `install.sh` clones https://github.com/ARDZIVE/kloxocp.git,
 > builds pinned Hiawatha 12.4, starts panel FastCGI on `127.0.0.1:39000` as
-> `lxlabs`, and runs `init-panel-db`. Default login is **admin / admin**;
+> `lxlabs`, and runs `init-panel-db` (admin, `localhost` server and driver,
+> appearance, `generalmisc_b`). Default login is **admin / admin**;
 > change it on first login. `kloxocp update` and signed apt packages are not built.
 >
 > Read `docs/AUDIT_REPORT.md` (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md`
@@ -60,14 +61,16 @@ already has cPanel, Plesk, or ISPConfig. It installs whatever is on GitHub
 
 When it finishes, the installer prints a box with the panel URL
 (`https://<ip>:7777/`), username `admin`, and password `admin`. Accept the
-self-signed certificate and change the password on first login. If the page
+self-signed certificate. The first screen after login is the password-change
+form; the home dashboard appears after that password is changed. If the page
 does not load, allow TCP 7777 (and 7778) in the host firewall.
 
 `install.sh` installs distro packages, links `/opt/kloxo` to the clone,
 generates TLS keys, starts `kloxo-php` (distro `php-fpm` 8.3 on 24.04,
 8.5 on 26.x) as **`lxlabs`** on `127.0.0.1:39000`, builds pinned
-Hiawatha 12.4, loads the panel MariaDB schema (`init-panel-db`, including
-the `localhost` server row), writes `/opt/kloxo/etc/conf/kloxo.pass`
+Hiawatha 12.4, loads the panel MariaDB schema (`init-panel-db`: admin,
+`localhost` pserver, `localhost` driver with `dns`/`web` = `none`,
+simplicity appearance, `generalmisc_b`), writes `/opt/kloxo/etc/conf/kloxo.pass`
 (`0640`, `lxlabs`), and installs phpMyAdmin under
 `httpdocs/thirdparty/phpMyAdmin`. Default login is **admin / admin**;
 the panel blocks the rest of the UI until that password is changed.
@@ -123,10 +126,10 @@ run Hiawatha, the systemd units, or the live mail tests.
 
 **Does:** unpack the tree under `/opt/kloxo`, generate unique TLS keys, point `lxphp.exe`
 at distro PHP 8, create runtime directories, install OS packages, build pinned
-Hiawatha 12.4, load the panel MariaDB schema (`init-panel-db`, including the
-`localhost` server), install phpMyAdmin, start `kloxo-php` / `kloxo-web`,
-optionally apt-install mail packages (`--profile=full`), and confirm
-`include.php` loads.
+Hiawatha 12.4, load the panel MariaDB schema (`init-panel-db`: admin,
+`localhost` server and driver, appearance, `generalmisc_b`), install phpMyAdmin,
+start `kloxo-php` / `kloxo-web`, optionally apt-install mail packages
+(`--profile=full`), and confirm `include.php` loads.
 
 **Does not (yet):** a signed apt package, Let's Encrypt for the panel hostname, or
 a verified admin login through the browser. The legacy `kloxo/install/` scripts
@@ -289,8 +292,12 @@ If `hiawatha -k` names a bad directive, paste that output before editing
 
 Open in a browser: `https://YOUR-HOST:7777/` (self-signed cert; expect a warning).
 Unauthenticated requests redirect to `/login/`. Log in as **admin / admin**
-and change the password when the panel asks. A fresh admin has no
-allowed-IP / blocked-IP rows; that empty list must not crash login.
+and change the password when the panel asks. After that change the home
+dashboard should show (admin has no parent; the schema must include the
+`localhost` driver row). A blank page there usually means an older tree
+without those seeds: update the files, re-run `init-panel-db`, and
+`systemctl restart kloxo-php`. A fresh admin has no allowed-IP / blocked-IP
+rows; that empty list must not crash login.
 **A full browser session after password change is not verified from this tree.**
 The IP list is read from `ip -4 addr` on Ubuntu (Refresh is safe). Do not use
 Add / Update / Delete on that page: those still write CentOS-style network
@@ -316,8 +323,10 @@ sudo KLOXO_ADMIN_PASSWORD='YOUR_ADMIN_UI_PASS' \
 
 `init-panel-db` is idempotent (`CREATE TABLE IF NOT EXISTS`, insert-or-update
 admin). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0640, `lxlabs`). With no override
-it seeds **admin / admin** (the UI then requires a change). A custom
-`--admin-password` must be at least 8 characters.
+it seeds **admin / admin** (the UI then requires a change), the `localhost`
+pserver and driver rows, simplicity appearance, and `generalmisc_b`. A custom
+`--admin-password` must be at least 8 characters. Re-running it on an existing
+database fills those rows if they are missing.
 
 The legacy wrapper still works from `httpdocs` and now calls `init-panel-db`:
 

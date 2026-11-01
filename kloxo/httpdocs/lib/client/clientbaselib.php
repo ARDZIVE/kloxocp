@@ -1223,9 +1223,14 @@ class ClientBase extends ClientCore
 
 	function getAlistFromChild($rd, &$alist)
 	{
+		if (!is_object($rd)) {
+			return;
+		}
+
+		$slist = array();
 		$dalist = $rd->createShowAlist($slist);
 
-		foreach ($dalist as $k => $a) {
+		foreach ((array) $dalist as $k => $a) {
 			if (is_string($a) && csa($a, "ffile")) {
 				continue;
 			}

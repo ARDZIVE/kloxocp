@@ -791,7 +791,9 @@ class pservercore extends Lxclient
 			$alist = $this->getListActions($alist, $cn);
 		}
 
-		$this->driverApp->createShowAlist($alist);
+		if (isset($this->driverApp) && is_object($this->driverApp) && method_exists($this->driverApp, 'createShowAlist')) {
+			$this->driverApp->createShowAlist($alist);
+		}
 
 	//	$alist[] = "a=updateform&sa=phpsmtp";
 		$alist[] = "a=show&l[class]=ffile&l[nname]=";

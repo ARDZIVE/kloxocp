@@ -175,7 +175,7 @@ class Client extends ClientBase
 
 			$alist['property'][] = "a=list&c=domain";
 		
-			if ($this->priv->subdomain_num) {
+			if (isset($this->priv) && is_object($this->priv) && $this->priv->subdomain_num) {
 				$alist['property'][] = "a=list&c=subdomain";
 			}
 		
@@ -228,7 +228,7 @@ class Client extends ClientBase
 			}
 		}
 
-		if ($this->priv->isOn('webhosting_flag')) {
+		if (isset($this->priv) && is_object($this->priv) && $this->priv->isOn('webhosting_flag')) {
 			$url = "a=show&l[class]=ffile&l[nname]=/";
 		//	$ilist['Home'] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
 			$ilist[$login->getKeywordUc('info_home')] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
@@ -435,7 +435,7 @@ class Client extends ClientBase
 
 		$this->getTicketMessageUrl($alist);
 
-		if ($login->priv->isOn('can_change_password_flag')) {
+		if (isset($login->priv) && is_object($login->priv) && $login->priv->isOn('can_change_password_flag')) {
 			if ($this->isLogin() && $login->isAuxiliary()) {
 				$alist['__v_dialog_pass'] = "o=auxiliary&a=updateform&sa=password";
 			} else {
@@ -593,8 +593,13 @@ class Client extends ClientBase
 				$this->getDomainAlist($alist);
 			} else {
 				pserver::ensureLocalhostServer();
-				$so = $this->getFromList('pserver', 'localhost');
-				$this->getAlistFromChild($so, $alist);
+				try {
+					$so = $this->getFromList('pserver', 'localhost');
+					if (is_object($so)) {
+						$this->getAlistFromChild($so, $alist);
+					}
+				} catch (Exception $e) {
+				}
 			}
 	/*
 		} else {

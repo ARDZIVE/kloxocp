@@ -38,8 +38,11 @@ function print_tab_block_start($alist)
 	// know if the next tab is the selected one.
 
 	$list = $ghtml->whichTabSelect($alist);
+	if (!is_array($list)) {
+		$list = array();
+	}
 	$list[-1] = false;
-	$list[count($list) - 1] = false;
+	$list[kcount($list) - 1] = false;
 
 	foreach ($alist as $k => $a) {
 		print_tab_button($k, $a, $list);

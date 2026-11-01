@@ -86,5 +86,39 @@ if (function_exists('get_namelist_from_objectlist') && get_namelist_from_objectl
 	bad('get_namelist_from_objectlist accepts null');
 }
 
+$quota = new Client(null, 'localhost', 'admin');
+$quota->used = null;
+$quota->priv = null;
+$slash = $quota->getUSlashP('pserver_num');
+if ($slash === '0/Unlimited') {
+	ok('getUSlashP works when used and priv are missing');
+} else {
+	bad('getUSlashP works when used and priv are missing', $slash);
+}
+
+$child = array('__title_keep' => 'keep');
+$quota->getAlistFromChild(null, $child);
+if (isset($child['__title_keep']) && $child['__title_keep'] === 'keep') {
+	ok('getAlistFromChild accepts a missing child');
+} else {
+	bad('getAlistFromChild accepts a missing child');
+}
+
+$g = new Gbllib();
+$g->driver = array('localhost' => array());
+$prevLogin = isset($login) ? $login : null;
+$login = $quota;
+try {
+	$sync = $g->getSyncClass('localhost', 'localhost', 'web');
+	if ($sync === null) {
+		ok('getSyncClass returns null when the driver row is missing');
+	} else {
+		bad('getSyncClass returns null when the driver row is missing', var_export($sync, true));
+	}
+} catch (Throwable $e) {
+	bad('getSyncClass returns null when the driver row is missing', $e->getMessage());
+}
+$login = $prevLogin;
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);
