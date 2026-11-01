@@ -16,7 +16,7 @@ MaxUrlLength = 65536
 
 PIDfile = /opt/kloxo/init/kloxo-hiawatha.pid
 
-ChallengeClient = 300, httpheader, 60
+# ChallengeClient can block the first panel login; leave it off.
 
 BanOnGarbage = 300
 BanOnMaxPerIP = 60
@@ -40,8 +40,7 @@ WaitForCGI = yes
 
 FastCGIserver {
 	FastCGIid = PHP
-	#ConnectTo = 127.0.0.1:39000
-	ConnectTo = /opt/kloxo/init/kloxo-phpcgi.sock
+	ConnectTo = 127.0.0.1:39000
 	Extension = php
 	SessionTimeout = 3600
 }

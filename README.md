@@ -238,7 +238,7 @@ That proves the library bootstrap. It does **not** prove a browser login.
 install -d -m 0755 /opt/kloxo/init /opt/kloxo/log
 cp -a /opt/kloxo/init/kloxo-php.service /etc/systemd/system/kloxo-php.service
 # pool file: /opt/kloxo/init/kloxo-php-fpm.conf
-# socket:    /opt/kloxo/init/kloxo-phpcgi.sock
+# FastCGI:   127.0.0.1:39000
 systemctl daemon-reload
 systemctl enable --now kloxo-php
 systemctl status kloxo-php --no-pager

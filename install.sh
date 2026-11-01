@@ -72,6 +72,16 @@ wait_unit() {
   return 1
 }
 
+force_fcgi_tcp() {
+  if [[ -f "$ROOT/init/kloxo-php-fpm.conf" ]]; then
+    sed -i -E 's|^listen[[:space:]]*=.*|listen = 127.0.0.1:39000|' "$ROOT/init/kloxo-php-fpm.conf"
+  fi
+  if [[ -f "$ROOT/init/hiawatha.conf" ]]; then
+    sed -i -E 's|^[[:space:]]*ConnectTo[[:space:]]*=.*|	ConnectTo = 127.0.0.1:39000|' "$ROOT/init/hiawatha.conf"
+    sed -i 's/__fpmdisabled__//g' "$ROOT/init/hiawatha.conf"
+  fi
+}
+
 print_access_box() {
   local url="$1" alt="$2" user="$3" pass="$4"
   local w=70 bar
@@ -201,7 +211,7 @@ log "host=$(hostname -f 2>/dev/null || hostname) os=${os_pretty} profile=${PROFI
 apt-get update -y
 apt-get install -y ca-certificates git curl openssl \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
-  mariadb-server nginx bind9 \
+  mariadb-server nginx bind9 iproute2 \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
@@ -297,7 +307,8 @@ chmod +x "$ROOT/init/kloxo-php-fpm.sh" || true
 if [[ -z "$php_fpm" ]]; then
   die "no php-fpm binary (install php-fpm)"
 fi
-if ! "$php_fpm" --fpm-config "$ROOT/init/kloxo-php-fpm.conf" -t; then
+force_fcgi_tcp
+if ! "$php_fpm" -y "$ROOT/init/kloxo-php-fpm.conf" --fpm-config "$ROOT/init/kloxo-php-fpm.conf" -t; then
   die "php-fpm rejected $ROOT/init/kloxo-php-fpm.conf ($php_fpm -t)"
 fi
 rm -f "$ROOT/init/kloxo-phpcgi.pid" "$ROOT/init/kloxo-phpcgi.sock"
@@ -345,6 +356,7 @@ KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
 log "panel schema ready"
 
 bash "$ROOT/bin/install/install-phpmyadmin" --root="$ROOT"
+force_fcgi_tcp
 systemctl reset-failed kloxo-php 2>/dev/null || true
 rm -f "$ROOT/init/kloxo-phpcgi.pid" "$ROOT/init/kloxo-phpcgi.sock"
 systemctl restart kloxo-php || true
@@ -359,16 +371,39 @@ if ! wait_unit kloxo-php; then
   "$php_fpm" --fpm-config "$ROOT/init/kloxo-php-fpm.conf" -t || true
   die "kloxo-php is not active"
 fi
+fpm_ready=0
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if ss -lnt 2>/dev/null | grep -q ':39000' || netstat -lnt 2>/dev/null | grep -q ':39000'; then
+    fpm_ready=1
+    break
+  fi
+  sleep 1
+done
+if [[ "$fpm_ready" -ne 1 ]]; then
+  journalctl -u kloxo-php -n 40 --no-pager || true
+  die "kloxo-php is active but not listening on 127.0.0.1:39000"
+fi
 mkdir -p "$ROOT/var/hiawatha/upload" /usr/local/var/lib/hiawatha/upload
 if id -u lxlabs >/dev/null 2>&1; then
   chown lxlabs:lxlabs "$ROOT/var/hiawatha" "$ROOT/var/hiawatha/upload" \
     /usr/local/var/lib/hiawatha /usr/local/var/lib/hiawatha/upload || true
 fi
+# Hiawatha caches a dead FastCGI backend; always bounce it after FPM is listening.
 systemctl reset-failed kloxo-web 2>/dev/null || true
-systemctl start kloxo-web 2>/dev/null || true
+systemctl restart kloxo-web || systemctl start kloxo-web || true
 if ! wait_unit kloxo-web; then
   journalctl -u kloxo-web -n 40 --no-pager || true
   die "kloxo-web is not active"
+fi
+ping=""
+if command -v curl >/dev/null 2>&1; then
+  ping="$(curl -sS --max-time 8 http://127.0.0.1:7778/fcgi-ping.php 2>/dev/null || true)"
+fi
+if [[ "$ping" != *ok* ]]; then
+  log "warn: FastCGI ping did not return ok (kloxo-php/kloxo-web logs follow)"
+  journalctl -u kloxo-php -n 20 --no-pager || true
+  journalctl -u kloxo-web -n 20 --no-pager || true
+  ss -lnt 2>/dev/null | grep 39000 || true
 fi
 
 export KLOXO_ROOT="$ROOT"

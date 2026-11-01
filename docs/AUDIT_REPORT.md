@@ -171,7 +171,7 @@ characterization-test harness is the first port step.
   branches used by the legacy installer (P3).
 * **Panel web server (Hiawatha), kept as requested:** configured through
   `init/hiawatha.conf.base`, `init/kloxo-web.init` (site templates under `file/hiawatha` were
-  removed). It talks to PHP over a FastCGI Unix socket (`/opt/kloxo/init/kloxo-phpcgi.sock`).
+  removed). It talks to PHP over FastCGI at `127.0.0.1:39000`.
   Hiawatha is not in Ubuntu 24.04 apt; `bin/install/install-hiawatha` builds pinned 12.4.
   `hiawatha.conf.base` has no `MinTLSversion` (removed in 11) and no `CGIhandler` (php-cgi
   is not on Ubuntu 24.04; FastCGI id is `PHP`). Live start on a 24.04 VM is **UNVERIFIED**.

@@ -4,11 +4,12 @@ Documentation=https://kloxocp.invalid/
 After=network.target remote-fs.target nss-lookup.target
 
 [Service]
-Type=notify
+Type=simple
 PIDFile=/opt/kloxo/init/kloxo-phpcgi.pid
 ExecStart=/opt/kloxo/init/kloxo-php-fpm.sh
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
+Restart=on-failure
 PrivateTmp=true
 
 [Install]

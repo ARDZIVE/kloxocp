@@ -196,15 +196,22 @@ if grep -qE 'magic_quotes_gpc|allow_url_include|mysql\.allow_persistent|enable_d
 else
   ok "kloxo-php-fpm.conf has no removed PHP 8 INI flags"
 fi
-if grep -q 'Type=notify' "$ROOT/kloxo/init/kloxo-php.service"; then
-  ok "kloxo-php.service is Type=notify"
+if grep -q 'Type=simple' "$ROOT/kloxo/init/kloxo-php.service"; then
+  ok "kloxo-php.service is Type=simple"
 else
-  bad "kloxo-php.service is Type=notify"
+  bad "kloxo-php.service is Type=simple"
 fi
 if grep -q 'kloxo-php-fpm.conf" -t' "$ROOT/install.sh" && grep -q '"$ROOT/session"' "$ROOT/install.sh"; then
   ok "install.sh tests the FPM pool and creates session dir"
 else
   bad "install.sh tests the FPM pool and creates session dir"
+fi
+if grep -q 'listen = 127.0.0.1:39000' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && grep -q 'ConnectTo = 127.0.0.1:39000' "$ROOT/kloxo/init/hiawatha.conf.base" \
+  && grep -q 'systemctl restart kloxo-web' "$ROOT/install.sh"; then
+  ok "Hiawatha FastCGI uses 127.0.0.1:39000 and restarts after FPM"
+else
+  bad "Hiawatha FastCGI uses 127.0.0.1:39000 and restarts after FPM"
 fi
 if grep -q '/usr/bin/php8.5' "$ROOT/kloxo/init/php-cli.sh" && grep -q '/usr/bin/php8.3' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
   ok "php-cli and sgbl look for php8.5 and php8.3"
