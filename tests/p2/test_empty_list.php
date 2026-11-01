@@ -80,6 +80,39 @@ if (function_exists('kloxo_strftime') && kloxo_strftime('%m', 0) === '01' && klo
 	bad('kloxo_strftime works without strftime()', function_exists('kloxo_strftime') ? kloxo_strftime('%m', 0) : 'missing');
 }
 
+if (function_exists('kloxo_hostname') && kloxo_hostname() !== '') {
+	ok('kloxo_hostname returns a host name');
+} else {
+	bad('kloxo_hostname returns a host name');
+}
+
+if (function_exists('kloxo_machine') && kloxo_machine() !== '') {
+	ok('kloxo_machine returns a machine type');
+} else {
+	bad('kloxo_machine returns a machine type');
+}
+
+$errT = sys_get_temp_dir() . '/kloxo-lfile-put-' . getmypid() . '.txt';
+@unlink($errT);
+$wrote = lfile_put_contents($errT, 'x');
+$okWrite = ($wrote === true || $wrote === 1) && is_file($errT) && file_get_contents($errT) === 'x';
+@unlink($errT);
+if ($okWrite) {
+	ok('lfile_put_contents writes without a flags argument');
+} else {
+	bad('lfile_put_contents writes without a flags argument');
+}
+
+$blocked = $doc . '/.php.err';
+@unlink($blocked);
+lfile_put_contents($blocked, 'should-not-land-here');
+if (!is_file($blocked)) {
+	ok('lfile_put_contents does not write httpdocs/.php.err');
+} else {
+	@unlink($blocked);
+	bad('lfile_put_contents does not write httpdocs/.php.err');
+}
+
 if (function_exists('get_namelist_from_objectlist') && get_namelist_from_objectlist(null) === array()) {
 	ok('get_namelist_from_objectlist accepts null');
 } else {

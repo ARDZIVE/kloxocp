@@ -60,7 +60,7 @@
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 	$x=curl_exec($ch);
 	$info=curl_getinfo($ch);
-	curl_close($ch);
+	kloxo_curl_close($ch);
 
 	//for debugging the console program: 
 	echo $x; print_r($info);

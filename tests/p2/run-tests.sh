@@ -197,6 +197,47 @@ if grep -q 'function kloxo_strftime' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" &&
 else
   bad "kloxo_strftime and kloxo_html exist for PHP 8.5"
 fi
+if grep -q 'function kloxo_hostname' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" && ! grep -nE 'trim\(`hostname`\)|trim\(`arch`\)' "$ROOT/kloxo/httpdocs/lib/html/lib.php" "$ROOT/kloxo/httpdocs/lib/html/linuxlib.php"; then
+  ok "hostname and arch do not use deprecated backticks"
+else
+  bad "hostname and arch do not use deprecated backticks"
+fi
+if grep -q 'function kloxo_curl_close' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && ! grep -nE '^\s*curl_close\(' "$ROOT/kloxo/httpdocs/lib/html/lib.php" "$ROOT/kloxo/httpdocs/lib/php/tldextract.php" "$ROOT/kloxo/httpdocs/lib/parsemail/PostNewMail.php"; then
+  ok "first-party curl_close is PHP 8.5-safe"
+else
+  bad "first-party curl_close is PHP 8.5-safe"
+fi
+if ! grep -nE '=\s*`\$cmd`|=\s*`yum |=\s*`up2date' "$ROOT/kloxo/httpdocs/driver/pserver/package__yumlib.php" "$ROOT/kloxo/httpdocs/driver/pserver/package__up2datelib.php"; then
+  ok "package drivers do not use deprecated backticks"
+else
+  bad "package drivers do not use deprecated backticks"
+fi
+if grep -F -q 'php_admin_flag[register_argc_argv] = off' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
+  ok "panel FPM does not register argc/argv from the query string"
+else
+  bad "panel FPM does not register argc/argv from the query string"
+fi
+if grep -q 'function lfile_put_contents($file, $data, $flag = 0)' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
+  ok "lfile_put_contents default flags is 0"
+else
+  bad "lfile_put_contents default flags is 0"
+fi
+if grep -q 'function kloxo_php_error_log_path' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" && grep -q '__path_program_root/log/php.err' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
+  ok "PHP error file is under log/ not httpdocs"
+else
+  bad "PHP error file is under log/ not httpdocs"
+fi
+if ! grep -q 'lfile_put_contents($sgbl->__var_error_file' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
+  ok "init does not wipe httpdocs/.php.err on every request"
+else
+  bad "init does not wipe httpdocs/.php.err on every request"
+fi
+if grep -F -q 'php_admin_flag[display_errors] = off' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
+  ok "panel FPM does not display errors in the browser"
+else
+  bad "panel FPM does not display errors in the browser"
+fi
 if ! grep -qE '[^_]strftime\(' "$ROOT/kloxo/httpdocs/lib/html/traffichistorylib.php" "$ROOT/kloxo/bin/gettraffic.php" "$ROOT/kloxo/httpdocs/lib/html/lib.php"; then
   ok "first-party traffic/lib no longer call strftime()"
 else

@@ -16,7 +16,7 @@ static function getPackages($nocache = false)
 	$file = "__path_program_root/cache/$file";
 
 	if ($nocache) {
-		$val = `$cmd`;
+		$val = lxshell_output('up2date', '--nosig', '--list', '--show-channels');
 	} else {
 		$val = get_with_cache($file, $cmd);
 	}

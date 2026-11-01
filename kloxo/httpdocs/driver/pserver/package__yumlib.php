@@ -16,7 +16,7 @@ static function getPackages($nocache = false)
 	$file = "__path_program_root/cache/$file";
 
 	if ($nocache) {
-		$val = `$cmd`;
+		$val = lxshell_output('yum', 'check-update');
 	} else {
 		$val = get_with_cache($cmd, $file);
 	}

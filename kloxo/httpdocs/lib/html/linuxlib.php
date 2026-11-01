@@ -355,7 +355,7 @@ function os_create_program_service()
 function os_is_arch_sixfour()
 {
     if (!lxfile_exists("/proc/xen")) {
-		$arch = trim(`arch`);
+		$arch = kloxo_machine();
 	
 		return $arch === 'x86_64';
     } else {

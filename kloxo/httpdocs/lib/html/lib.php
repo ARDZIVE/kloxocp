@@ -236,7 +236,7 @@ function monitor_load()
 
 	dprint("load $val is greater than $threshold\n");
 
-	$myname = trim(`hostname`);
+	$myname = kloxo_hostname();
 
 	$time = date("Y-m-d H:m");
 	$mess = "Load on $myname is $val at $time which is greater than $threshold\n";
@@ -652,7 +652,7 @@ FTC;
 
 function send_system_monitor_message_to_admin($prog)
 {
-	$hst = trim(`hostname`);
+	$hst = kloxo_hostname();
 	$dt = @ date('M-d h:i');
 	$mess = "Host: $hst\nDate: $dt\n$prog\n\n\n";
 	$rmt = new Remote();
@@ -2794,7 +2794,7 @@ function curl_get_file_contents($file)
 	}
 
 	dprint(curl_error($ch));
-	curl_close($ch);
+	kloxo_curl_close($ch);
 	$retrievedhtml = ob_get_contents();
 
 	ob_end_clean();
@@ -2838,7 +2838,7 @@ function curl_general_get($url)
 	}
 
 	dprint(curl_error($ch));
-	curl_close($ch);
+	kloxo_curl_close($ch);
 	$retrievedhtml = ob_get_contents();
 
 	ob_end_clean();
@@ -3023,7 +3023,7 @@ function download_file($url, $localfile = null)
 
 	dprint("Curl Message: " . curl_error($ch) . "\n");
 
-	curl_close($ch);
+	kloxo_curl_close($ch);
 
 	if ($fp) {
 		fclose($fp);
@@ -3148,7 +3148,7 @@ function download_and_print_file($server, $file)
 	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 	curl_exec($ch);
-	curl_close($ch);
+	kloxo_curl_close($ch);
 }
 
 function get_title()

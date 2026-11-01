@@ -516,51 +516,55 @@ function new_process_cmd($user, $dir, $cmd)
 	return $retval;
 }
 
-function lfile_put_contents($file, $data, $flag = null)
+function kloxo_php_error_log_path(): string
 {
+	global $sgbl;
+
+	$root = (isset($sgbl) && !empty($sgbl->__path_program_root))
+		? $sgbl->__path_program_root
+		: dirname(__DIR__, 3);
+
+	return rtrim((string) $root, '/') . '/log/php.err';
+}
+
+function lfile_put_contents($file, $data, $flag = 0)
+{
+	$flags = is_int($flag) ? $flag : 0;
 	$file = expand_real_root($file);
+	$norm = str_replace('\\', '/', (string) $file);
+	if (preg_match('#(?:^|/)httpdocs/\.php\.err$#', $norm) || basename($norm) === '.php.err') {
+		$file = kloxo_php_error_log_path();
+	}
 
 	if (is_soft_or_hardlink($file)) {
 		log_log("link_error", "$file is hard or symlink. Not writing\n");
 
-		return;
+		return false;
 	}
 
 	if (char_search_a($data, "__path_")) {
 		dprint("Warning : Trying to write __path into a file $file: $data <br> \n", 3);
 	}
 
-	lxfile_mkdir(dirname($file));
+	$dir = dirname($file);
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0755, true);
+	}
 
 	if (file_exists($file)) {
-		if (is_readable($file)){
-			if(is_writable($file)) {
-				return file_put_contents($file, $data, $flag);
-			} else{
-				$error_msg = 'Could not write the file \''.$file.'\' with permissions: '.substr(sprintf('%o', fileperms($file)), -4);
-				dprint($error_msg);
-				log_log('filesys', $error_msg);
-
-				return false;
-			}
-		} else{
-			$error_msg = 'Could not read the file \''.$file.'\' with permissions: '.substr(sprintf('%o', fileperms($file)), -4);
-			dprint($error_msg);
-			log_log('filesys', $error_msg);
-
+		if (!is_writable($file)) {
 			return false;
 		}
-	} else {
-		if (file_put_contents($file, $data, $flag) === false){
-			$error_msg = 'File \''.$file.'\' could not be created.';
-			dprint($error_msg);
-			log_log('filesys', $error_msg);
+	} elseif (!is_dir($dir) || !is_writable($dir)) {
+		return false;
+	}
 
-			return false;
-		}
+	$ok = @file_put_contents($file, $data, $flags);
+	if ($ok === false) {
+		return false;
+	}
 
-		return true;
- 	}
+	return $ok;
 }
 
 /**
@@ -2119,7 +2123,7 @@ function lx_error_handler($errno, $errstr, $file, $line)
 	static $error = "";
 	$pos = "$file:$line: $errstr";
 	$error .= $pos . "\n";
-	lfile_put_contents($sgbl->__var_error_file, $error);
+	lfile_put_contents(kloxo_php_error_log_path(), $error);
 
 	dprint("\n### PHP Error detected\n");
 	dprint("### Notice: $errstr\n");
@@ -2191,7 +2195,7 @@ function lx_exception_handler($e)
 		$trace .= $a["function"] . "(";
 		$trace .= ")\n";
 	}
-	lfile_put_contents($sgbl->__var_error_file, $trace);
+	lfile_put_contents(kloxo_php_error_log_path(), $trace);
 }
 
 function check_raw_password($class, $client, $pass)
@@ -2326,7 +2330,6 @@ function initProgramlib($ctype = null)
 	$var++;
 
 	$progname = $sgbl->__var_program_name;
-	lfile_put_contents($sgbl->__var_error_file, "");
 	// MR -- disable because trouble in php7
 	set_exception_handler("lx_exception_handler");
 //	xdebug_disable();
@@ -2633,6 +2636,30 @@ function lget_class($object)
 function kcount($value): int
 {
 	return is_countable($value) ? count($value) : 0;
+}
+
+function kloxo_hostname(): string
+{
+	$h = function_exists('gethostname') ? gethostname() : php_uname('n');
+
+	return (is_string($h) && $h !== '') ? $h : 'localhost';
+}
+
+function kloxo_machine(): string
+{
+	$m = php_uname('m');
+
+	return is_string($m) ? $m : '';
+}
+
+function kloxo_curl_close($ch): void
+{
+	if ($ch === null) {
+		return;
+	}
+	if (PHP_VERSION_ID < 80500 && function_exists('curl_close')) {
+		curl_close($ch);
+	}
 }
 
 function kloxo_html($value): string

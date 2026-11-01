@@ -196,8 +196,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `sp_specialplay` row used skin `default`, which has no CSS).
     `db_get_value()` returns empty on a missing row; `strftime()` is
     wrapped (`kloxo_strftime`) for PHP 8.5; dashboard HTML uses
-    `kloxo_html()` so `htmlspecialchars(null)` does not spray warnings
-    (`display_errors` is on). Live browser login is still **UNVERIFIED**.
+    `kloxo_html()` so `htmlspecialchars(null)` does not spray warnings.
+    Panel FPM `display_errors` is off; PHP errors go to `log/php.err`
+    (writable by `lxlabs`). Hostname/arch use `kloxo_hostname()` /
+    `kloxo_machine()` (PHP 8.5 deprecated backticks). First-party
+    `curl_close()` is wrapped (`kloxo_curl_close`); yum/up2date
+    package drivers no longer use backticks; panel FPM keeps
+    `register_argc_argv` off so PHP 8.5 does not derive argv from
+    the query string. Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

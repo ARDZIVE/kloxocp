@@ -175,7 +175,7 @@ class TLDExtract {
 				CURLOPT_FAILONERROR => true,
 			));
 			$content = curl_exec($handle);
-			curl_close($handle);
+			kloxo_curl_close($handle);
 			return $content;
 		}
 		return '';

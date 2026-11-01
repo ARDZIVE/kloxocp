@@ -228,7 +228,7 @@ class Sgbl
 
 		$this->__var_dblist = array("mysql");
 
-		$this->__var_error_file = "__path_program_root/httpdocs/.php.err";
+		$this->__var_error_file = "__path_program_root/log/php.err";
 
 		$this->__var_ticket_subcategory = null;
 	}
