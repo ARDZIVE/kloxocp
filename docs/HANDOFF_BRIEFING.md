@@ -178,7 +178,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     before enable. A successful install prints a boxed login message
     (URL, admin/admin, change password, firewall 7777). The README
     one-liner clones only if `/usr/local/src/kloxo-cp` is missing.
-    Live browser login is still **UNVERIFIED**.
+    Hiawatha 12.4 needs a writable work dir (`/opt/kloxo/var/hiawatha`
+    for new builds; also `/usr/local/var/lib/hiawatha/upload` for the
+    current binary) or `kloxo-web` exits 1. Live browser login is still
+    **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

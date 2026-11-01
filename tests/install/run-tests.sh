@@ -128,6 +128,16 @@ if grep -q 'USE_STATIC_MBEDTLS_LIBRARY=on' "$ROOT/kloxo/bin/install/install-hiaw
 else
   bad "Hiawatha links bundled mbed TLS statically"
 fi
+if grep -q 'WORK_DIR=' "$ROOT/kloxo/bin/install/install-hiawatha" && grep -q '/usr/local/var/lib/hiawatha/upload' "$ROOT/kloxo/bin/install/install-hiawatha"; then
+  ok "Hiawatha upload work directory is created"
+else
+  bad "Hiawatha upload work directory is created"
+fi
+if grep -q 'Type=simple' "$ROOT/kloxo/init/kloxo-web.service" && grep -q 'kloxo-hiawatha -d' "$ROOT/kloxo/init/kloxo-web.service"; then
+  ok "kloxo-web runs Hiawatha in the foreground"
+else
+  bad "kloxo-web runs Hiawatha in the foreground"
+fi
 PMA="$ROOT/kloxo/bin/install/install-phpmyadmin"
 check "install-phpmyadmin --help" bash "$PMA" --help
 check "install-phpmyadmin --dry-run" bash "$PMA" --dry-run --root="$ROOT/kloxo"

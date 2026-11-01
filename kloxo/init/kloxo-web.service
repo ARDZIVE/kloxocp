@@ -5,11 +5,10 @@ After=network.target kloxo-php.service
 Wants=kloxo-php.service
 
 [Service]
-Type=forking
-PIDFile=/opt/kloxo/init/kloxo-hiawatha.pid
-ExecStart=/opt/kloxo/init/kloxo-hiawatha -c /opt/kloxo/init
+Type=simple
+ExecStart=/opt/kloxo/init/kloxo-hiawatha -d -c /opt/kloxo/init
 ExecReload=/bin/kill -s HUP $MAINPID
-ExecStop=/bin/kill -s QUIT $MAINPID
+KillMode=mixed
 PrivateTmp=true
 
 [Install]

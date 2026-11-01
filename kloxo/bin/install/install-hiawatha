@@ -139,7 +139,10 @@ else
         -DENABLE_XSLT=off \
         -DENABLE_TOMAHAWK=off \
         -DUSE_STATIC_MBEDTLS_LIBRARY=on \
-        -DUSE_SHARED_MBEDTLS_LIBRARY=off
+        -DUSE_SHARED_MBEDTLS_LIBRARY=off \
+        -DWORK_DIR="$ROOT/var/hiawatha" \
+        -DLOG_DIR="$ROOT/log" \
+        -DPID_DIR="$ROOT/init"
       if ! make -j"$(nproc)"; then
         log "parallel make failed; retrying single-threaded"
         make
@@ -167,11 +170,15 @@ if [[ -f "$ROOT/etc/program.pem" ]]; then
   chmod 0600 "$ROOT/etc/program.pem"
 fi
 
-mkdir -p "$ROOT/log"
+mkdir -p "$ROOT/log" "$ROOT/var/hiawatha/upload" \
+  /usr/local/var/lib/hiawatha/upload /var/run/acme/acme-challenge
 if id -u lxlabs >/dev/null 2>&1; then
-  chown lxlabs:lxlabs "$ROOT/log" || true
+  chown lxlabs:lxlabs "$ROOT/log" "$ROOT/var/hiawatha" "$ROOT/var/hiawatha/upload" \
+    /usr/local/var/lib/hiawatha /usr/local/var/lib/hiawatha/upload || true
 fi
 chmod 0750 "$ROOT/log"
+chmod 0755 "$ROOT/var/hiawatha" "$ROOT/var/hiawatha/upload" \
+  /usr/local/var/lib/hiawatha /usr/local/var/lib/hiawatha/upload
 
 sed -e "s/__nonssl_port__/${NONSSL}/g" -e "s/__ssl_port__/${SSL}/g" \
     -e 's/__fpmdisabled__//g' -e 's/__php__/php/g' \

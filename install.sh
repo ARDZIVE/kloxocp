@@ -359,6 +359,12 @@ if ! wait_unit kloxo-php; then
   "$php_fpm" --fpm-config "$ROOT/init/kloxo-php-fpm.conf" -t || true
   die "kloxo-php is not active"
 fi
+mkdir -p "$ROOT/var/hiawatha/upload" /usr/local/var/lib/hiawatha/upload
+if id -u lxlabs >/dev/null 2>&1; then
+  chown lxlabs:lxlabs "$ROOT/var/hiawatha" "$ROOT/var/hiawatha/upload" \
+    /usr/local/var/lib/hiawatha /usr/local/var/lib/hiawatha/upload || true
+fi
+systemctl reset-failed kloxo-web 2>/dev/null || true
 systemctl start kloxo-web 2>/dev/null || true
 if ! wait_unit kloxo-web; then
   journalctl -u kloxo-web -n 40 --no-pager || true
