@@ -135,7 +135,7 @@ class ndskshortcut extends lxdb
 			}
 
 			if (isset($this->$var) && $this->$var) {
-				return htmlspecialchars($this->$var);
+				return kloxo_html($this->$var);
 			}
 
 			$url = base64_decode($this->url);

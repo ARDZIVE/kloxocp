@@ -206,8 +206,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     the query string. First-login password form no longer `exit`s
     before the home action buttons; `createShowAlist` /
     `createShowRlist` use `checkButton()` so a missing `priv` object
-    does not blank the dashboard. Live browser login is still
-    **UNVERIFIED**.
+    does not blank the dashboard. First-party `ereg*` / `dl()` /
+    `htmlspecialchars(null)` leftovers and PHPMailer
+    `(boolean)`/`(integer)`, `openssl_pkey_free()`, and
+    `get_magic_quotes_runtime()` are PHP 8.5-safe. Live browser
+    login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

@@ -21,9 +21,9 @@ function getOs()
 if(!isset($_SERVER['DOCUMENT_ROOT']))
 {
 	$n = $_SERVER['SCRIPT_NAME'];
-	$f = ereg_replace('\\\\', '/',$_SERVER['SCRIPT_FILENAME']);
+	$f = str_replace('\\', '/',$_SERVER['SCRIPT_FILENAME']);
 	$f = str_replace('//','/',$f);
-	$_SERVER['DOCUMENT_ROOT'] = eregi_replace($n, "", $f);
+	$_SERVER['DOCUMENT_ROOT'] = str_ireplace($n, "", $f);
 }
 
 if (!$_SERVER['DOCUMENT_ROOT']) {

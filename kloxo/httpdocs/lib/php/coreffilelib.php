@@ -106,7 +106,7 @@ class coreFfile
 	{
 		if (!extension_loaded("gd")) {
 			dprint("Warning No gd <br> ");
-			dl("gd." . PHP_SHLIB_SUFFIX);
+			return false;
 		}
 	}
 

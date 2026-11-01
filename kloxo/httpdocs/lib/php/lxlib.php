@@ -1890,7 +1890,7 @@ function DBG_GetBacktrace($traceArr)
 							$args[] = $v ? 'true' : 'false';
 						} else {
 							$v = (string) @$v;
-							$str = htmlspecialchars(substr($v, 0, $MAXSTRLEN));
+							$str = kloxo_html(substr($v, 0, $MAXSTRLEN));
 							if (strlen($v) > $MAXSTRLEN) $str .= '...';
 							$args[] = "\"" . $str . "\"";
 						}

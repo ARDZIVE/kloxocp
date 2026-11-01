@@ -77,7 +77,7 @@ function __ajax_desc_tree()
 	$icondir = get_image_path();
 
 	$rclist = $object->getResourceChildList();
-	$cid = htmlspecialchars($ghtml->node);
+	$cid = kloxo_html($ghtml->node);
 	$cid = str_replace('&amp;', '&', $cid);
 	
 	if ($object->hasFileResource()) {

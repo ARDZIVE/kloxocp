@@ -229,6 +229,36 @@ if grep -F -q 'php_admin_flag[register_argc_argv] = off' "$ROOT/kloxo/init/kloxo
 else
   bad "panel FPM does not register argc/argv from the query string"
 fi
+if ! grep -nE 'ereg_replace|eregi_replace' "$ROOT/kloxo/httpdocs/lib/php/include.inc" "$ROOT/kloxo/httpdocs/lib/html/includecore.php"; then
+  ok "boot include files do not call ereg*"
+else
+  bad "boot include files do not call ereg*"
+fi
+if ! grep -nE '^\s*dl\(' "$ROOT/kloxo/httpdocs/lib/php/coreffilelib.php" "$ROOT/kloxo/httpdocs/driver/pserver/ddatabaselib.php"; then
+  ok "first-party file/db helpers do not call dl()"
+else
+  bad "first-party file/db helpers do not call dl()"
+fi
+if ! grep -nE '^\s*(return |\$[a-zA-Z_].*= *)htmlspecialchars\(' "$ROOT/kloxo/httpdocs/lib/client/dskfavorite.php" "$ROOT/kloxo/httpdocs/lib/html/ajaxcore.php"; then
+  ok "favorites and ajax escape with kloxo_html"
+else
+  bad "favorites and ajax escape with kloxo_html"
+fi
+if ! grep -nE '\(boolean\)|\(integer\)' "$ROOT/kloxo/httpdocs/lib/extra/class.phpmailer.php" "$ROOT/kloxo/httpdocs/lib/extra/class.smtp.php" "$ROOT/kloxo/httpdocs/lib/extra/class.pop3.php" "$ROOT/kloxo/httpdocs/lib/extra/class.phpmaileroauth.php"; then
+  ok "PHPMailer does not use deprecated boolean/integer casts"
+else
+  bad "PHPMailer does not use deprecated boolean/integer casts"
+fi
+if [ "$(grep -c "PHP_VERSION_ID < 80000 && function_exists('openssl_pkey_free')" "$ROOT/kloxo/httpdocs/lib/extra/class.phpmailer.php")" -ge 3 ]; then
+  ok "PHPMailer openssl_pkey_free is PHP 8-safe"
+else
+  bad "PHPMailer openssl_pkey_free is PHP 8-safe"
+fi
+if grep -q 'function_exists('\''get_magic_quotes_runtime'\'')' "$ROOT/kloxo/httpdocs/lib/extra/class.phpmailer.php"; then
+  ok "PHPMailer does not call removed get_magic_quotes_runtime"
+else
+  bad "PHPMailer does not call removed get_magic_quotes_runtime"
+fi
 if grep -q 'function lfile_put_contents($file, $data, $flag = 0)' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
   ok "lfile_put_contents default flags is 0"
 else
