@@ -449,8 +449,8 @@ class Client extends ClientBase
 
 		$alist['__v_dialog_info'] = "a=updateform&sa=information";
 
-		if ($this->priv->isOn('webhosting_flag')) {
-			if ($this->priv->isOn('cron_manage_flag') && $this->isCustomer()) {
+		if ($this->checkButton('webhosting_flag')) {
+			if ($this->checkButton('cron_manage_flag') && $this->isCustomer()) {
 				if (file_exists("../etc/flag/enablecronforall.flg")) {
 					$alist[] = "a=list&c=cron";
 				}
@@ -493,7 +493,7 @@ class Client extends ClientBase
 			$alist[] = "a=update&sa=dologin";
 		}
 
-		if ($this->priv->isOn('webhosting_flag')) {
+		if ($this->checkButton('webhosting_flag')) {
 			$alist['__title_resource'] = $login->getKeywordUc('resource');
 		}
 
@@ -516,7 +516,7 @@ class Client extends ClientBase
 		}
 
 		if ($this->isAdmin()) {
-			if ($this->priv->isOn("dns_manage_flag")) {
+			if ($this->checkButton("dns_manage_flag")) {
 				$alist[] = "c=dnstemplate&a=list";
 			}
 		}
@@ -527,7 +527,7 @@ class Client extends ClientBase
 			}
 		}
 
-		if ($this->priv->isOn('webhosting_flag')) {
+		if ($this->checkButton('webhosting_flag')) {
 
 			if (lxfile_exists("/var/installatron")) {
 				if (!$this->isAdmin()) {
@@ -539,7 +539,7 @@ class Client extends ClientBase
 				}
 			}
 
-			if ($login->priv->isOn('backup_flag')) {
+			if (is_object($login) && $login->checkButton('backup_flag')) {
 				$alist[] = "a=show&o=lxbackup";
 			}
 
@@ -560,7 +560,7 @@ class Client extends ClientBase
 			//	$this->getMysqlDbAdmin($alist);
 			}
 			
-			if ($login->priv->isOn('domain_add_flag')) {
+			if (is_object($login) && $login->checkButton('domain_add_flag')) {
 			//	$alist[] = "a=addform&c=domain";
 			}
 		}
@@ -598,7 +598,7 @@ class Client extends ClientBase
 					if (is_object($so)) {
 						$this->getAlistFromChild($so, $alist);
 					}
-				} catch (Exception $e) {
+				} catch (Throwable $e) {
 				}
 			}
 	/*
@@ -641,7 +641,7 @@ class Client extends ClientBase
 		
 		// temporary, only for admin - on 6.1.7
 		if ($this->isAdmin()) {
-			if ($login->priv->isOn('logo_manage_flag') && $this->isLogin()) {
+			if (is_object($login) && $login->checkButton('logo_manage_flag') && $this->isLogin()) {
 				$alist['__v_dialog_uplo'] = "o=sp_specialplay&a=updateform&sa=upload_logo";
 			}
 
@@ -660,7 +660,7 @@ class Client extends ClientBase
 
 		// temporary, only for admin - on 6.1.7
 		if ($this->isAdmin()) {
-			if ($login->priv->isOn('can_set_disabled_flag')) {
+			if (is_object($login) && $login->checkButton('can_set_disabled_flag')) {
 				$alist[] = 'a=updateform&sa=disable_skeleton';
 			}
 		}
@@ -674,7 +674,7 @@ class Client extends ClientBase
 
 		// temporary, only for admin
 		if ($this->isAdmin()) {
-			if ($login->priv->isOn('logo_manage_flag') && $this->isLogin()) {
+			if (is_object($login) && $login->checkButton('logo_manage_flag') && $this->isLogin()) {
 				$alist['__v_dialog_uplo'] = "o=sp_specialplay&a=updateform&sa=upload_logo";
 			}
 		}

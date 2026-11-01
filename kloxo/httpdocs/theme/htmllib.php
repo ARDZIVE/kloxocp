@@ -1592,6 +1592,9 @@ class HtmlLib
 		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
 		$show_direction = $login->getSpecialObject('sp_specialplay')->show_direction;
 		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
+		if ($show_direction === null || $show_direction === '') {
+			$show_direction = 'vertical';
+		}
 
 		$lclass = $login->get__table();
 		$skindir = $login->getSkinDir();
@@ -1846,7 +1849,7 @@ class HtmlLib
 
 			global_action_box = new Array();
 <?php
-		foreach ($div_id_list as $k => $v) {
+		foreach ((array) $div_id_list as $k => $v) {
 ?>
 
 			global_action_box[<?=$count?>] = new Array();
@@ -6242,9 +6245,14 @@ class HtmlLib
 			if (!$desc) {
 
 				$desc = get_classvar_description($laclass);
-				$descr = $desc[2];
-				$descri = get_plural($desc[2]);
-				$help = "{$login->getKeywordUc('list')} $descri";
+				if (!is_array($desc) || !isset($desc[2])) {
+					$descri = $laclass ? (string) $laclass : 'List';
+					$help = $descri;
+				} else {
+					$descr = $desc[2];
+					$descri = get_plural($desc[2]);
+					$help = "{$login->getKeywordUc('list')} $descri";
+				}
 			} else {
 				$descri = $desc[2];
 				$help = $desc[2];
@@ -6341,7 +6349,8 @@ class HtmlLib
 				$descr = $login->getKeywordUc('update') . " $sub";
 			}
 
-			return array("", '', $descr, 'desc' => $descr, 'help' => $desc['help']);
+			$help = (is_array($desc) && isset($desc['help'])) ? $desc['help'] : $descr;
+			return array("", '', $descr, 'desc' => $descr, 'help' => $help);
 		}
 
 		if ($var === "show" || $var === 'graph') {
@@ -6359,8 +6368,13 @@ class HtmlLib
 
 			if (!$desc) {
 				$desc = get_classvar_description($suclass);
+			}
 
-				if (csa($desc[0], "N")) {
+			if (!is_array($desc) || !isset($desc[2])) {
+				$descr = $suclass ? (string) $suclass : 'Show';
+				$help = $descr;
+			} else {
+				if (isset($desc[0]) && csa($desc[0], "N")) {
 					$ooo = (isset($post['frm_o_o']) && is_array($post['frm_o_o'])) ? $post['frm_o_o'] : array();
 					if ($ooo) {
 						$count = kcount($ooo) - 1;
@@ -6368,18 +6382,13 @@ class HtmlLib
 					}
 				}
 
-			//	$descr = "{$desc[2]} {$login->getKeywordUc('home')} ";
 				$descr = $desc[2];
-			//	$help = "{$login->getKeywordUc('show')} {$desc[2]} details";
 				$help = "{$login->getKeywordUc('show')} {$desc[2]}";
-			} else {
-				$descr = $desc[2];
-				$help = $desc[2];
 			}
 
 			$desc = get_classvar_description($suclass);
 
-			if (csa($desc[0], "N")) {
+			if (is_array($desc) && isset($desc[0]) && csa($desc[0], "N")) {
 				$ooo = (isset($post['frm_o_o']) && is_array($post['frm_o_o'])) ? $post['frm_o_o'] : array();
 				$count = $ooo ? kcount($ooo) - 1 : -1;
 			}
@@ -6429,6 +6438,7 @@ class HtmlLib
 		global $gbl, $sgbl, $login;
 
 		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
+		$cssclass = 'div_icons_text';
 
 		$skincolor = $login->getSkinColor();
 		$shevron = "{$login->getSkinDir()}/images/shevron_line.gif";

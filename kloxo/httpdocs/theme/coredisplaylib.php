@@ -223,6 +223,9 @@ function __ac_desc_show($object)
 	}
 
 	$printed_message = false;
+	$nnalist = array();
+	$aalist = array();
+	$acalist = array();
 
 	$clist = $object->createShowClist($subaction);
 
@@ -239,9 +242,24 @@ function __ac_desc_show($object)
 
 	$ghtml->print_information('pre', 'show', $cname, $extra, "");
 
-	$ilist = $object->createShowInfolist($subaction);
-	$rlist = $object->createShowRlist($subaction);
-	$plist = $object->createShowPlist($subaction);
+	try {
+		$ilist = $object->createShowInfolist($subaction);
+	} catch (Throwable $e) {
+		log_log("error", "createShowInfolist: " . $e->getMessage());
+		$ilist = array();
+	}
+	try {
+		$rlist = $object->createShowRlist($subaction);
+	} catch (Throwable $e) {
+		log_log("error", "createShowRlist: " . $e->getMessage());
+		$rlist = array();
+	}
+	try {
+		$plist = $object->createShowPlist($subaction);
+	} catch (Throwable $e) {
+		log_log("error", "createShowPlist: " . $e->getMessage());
+		$plist = array();
+	}
 
 	$progname = $sgbl->__var_program_name;
 
@@ -251,8 +269,16 @@ function __ac_desc_show($object)
 		$interf = null;
 		$showalist = array();
 		$advanced = array();
-		$object->createShowAlist($showalist);
-		$object->createShowAlistConfig($advanced);
+		try {
+			$object->createShowAlist($showalist);
+		} catch (Throwable $e) {
+			log_log("error", "createShowAlist: " . $e->getMessage());
+		}
+		try {
+			$object->createShowAlistConfig($advanced);
+		} catch (Throwable $e) {
+			log_log("error", "createShowAlistConfig: " . $e->getMessage());
+		}
 		if (!is_array($showalist)) {
 			$showalist = array();
 		}
@@ -2131,11 +2157,8 @@ function password_contact_check()
 		</div>
 		<br/>
 <?php
-		exit;
-
-		// MR -- change to redirect to 'password' page
-		// disable because trouble if slave using admin as password
-	//	$ghtml->print_redirect($ghtml->getFullUrl("a=updateform&sa=password"), $gbl->__this_window_url);
+		// Keep the home action buttons visible under the password form.
+		// Exiting here left a blank dashboard until the password was saved.
 	}
 }
 

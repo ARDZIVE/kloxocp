@@ -165,5 +165,41 @@ try {
 	bad('getFullUrl works when frm_o_o is missing', $e->getMessage());
 }
 
+$home = new Client(null, 'localhost', 'admin');
+$home->cttype = 'admin';
+$home->priv = null;
+$home->used = null;
+if ($home->checkButton('webhosting_flag') === true) {
+	ok('checkButton is true when priv is missing');
+} else {
+	bad('checkButton is true when priv is missing');
+}
+
+try {
+	$rlist = $home->createShowRlist(null);
+	ok('createShowRlist does not fatal when priv is missing');
+} catch (Throwable $e) {
+	bad('createShowRlist does not fatal when priv is missing', $e->getMessage());
+}
+
+$login = $home;
+$langf = $doc . '/lang/en-us/langfunctionlib.php';
+if (is_file($langf)) {
+	include_once $langf;
+}
+try {
+	$path = '';
+	$post = array('frm_action' => 'list', 'frm_o_cname' => 'pserver');
+	$class = $name = $identity = null;
+	$descr = $html->getActionDescr($path, $post, $class, $name, $identity);
+	if (is_array($descr) && isset($descr[2]) && (string)$descr[2] !== '') {
+		ok('getActionDescr labels a pserver list button');
+	} else {
+		bad('getActionDescr labels a pserver list button', var_export($descr, true));
+	}
+} catch (Throwable $e) {
+	bad('getActionDescr labels a pserver list button', $e->getMessage());
+}
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

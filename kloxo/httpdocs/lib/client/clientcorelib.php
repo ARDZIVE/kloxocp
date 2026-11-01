@@ -718,7 +718,7 @@ abstract class ClientCore extends Resourcecore
 			}
 		}
 	*/
-		if ($sgbl->isKloxo() && !$this->priv->isOn('webhosting_flag')) {
+		if ($sgbl->isKloxo() && !$this->checkButton('webhosting_flag')) {
 			return null;
 		}
 

@@ -203,7 +203,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `curl_close()` is wrapped (`kloxo_curl_close`); yum/up2date
     package drivers no longer use backticks; panel FPM keeps
     `register_argc_argv` off so PHP 8.5 does not derive argv from
-    the query string. Live browser login is still **UNVERIFIED**.
+    the query string. First-login password form no longer `exit`s
+    before the home action buttons; `createShowAlist` /
+    `createShowRlist` use `checkButton()` so a missing `priv` object
+    does not blank the dashboard. Live browser login is still
+    **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

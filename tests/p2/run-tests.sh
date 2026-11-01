@@ -192,6 +192,17 @@ if grep -q 'is_object($parent)' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" 
 else
   bad "home show does not call getParentO on admin"
 fi
+if ! awk '/function password_contact_check/,/^function /' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -qE '^\s*exit;'; then
+  ok "first-login password form does not hide the dashboard"
+else
+  bad "first-login password form does not hide the dashboard"
+fi
+if grep -q 'checkButton('\''webhosting_flag'\'')' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php" \
+  && grep -q 'checkButton('\''webhosting_flag'\'')' "$ROOT/kloxo/httpdocs/lib/client/clientcorelib.php"; then
+  ok "home button list does not call priv on null"
+else
+  bad "home button list does not call priv on null"
+fi
 if grep -q 'function kloxo_strftime' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" && grep -q 'function kloxo_html' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
   ok "kloxo_strftime and kloxo_html exist for PHP 8.5"
 else

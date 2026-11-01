@@ -389,7 +389,7 @@ class pserver extends pservercore {
 		$alist[] = 'a=list&c=clientmail';
 		$alist[] = "a=list&c=ftpsession";
 
-		if ($ghtml->frm_o_o['0']['class'] === 'pserver') {
+		if (isset($ghtml->frm_o_o[0]['class']) && $ghtml->frm_o_o[0]['class'] === 'pserver') {
 			$alist[] = "a=show&o=phpini";
 			$alist[] = "a=updateform&sa=extraedit&o=phpini";
 		}
