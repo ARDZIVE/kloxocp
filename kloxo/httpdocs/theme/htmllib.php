@@ -3485,10 +3485,14 @@ class HtmlLib
 			$p = $this->frm_o_o;
 		}
 
+		if (!is_array($p)) {
+			$p = array();
+		}
+
 		$url = "display.php?" . $url;
 		$this->get_post_from_get($url, $path, $post);
 
-		$k = count($p);
+		$k = kcount($p);
 
 		if (isset($post['goback'])) {
 			for ($i = 0; $i < $post['goback']; $i++) {
@@ -6042,6 +6046,9 @@ class HtmlLib
 		}
 
 		$cgi_o_o = $this->frm_o_o;
+		if (!is_array($cgi_o_o)) {
+			$cgi_o_o = array();
+		}
 
 		$filteropacitystringspan = null;
 		$filteropacitystringspanend = null;
@@ -6053,7 +6060,7 @@ class HtmlLib
 			$filteropacitystring = "style='background:black;color:#999;FILTER:progid;-moz-opacity:0.5'";
 		}
 
-		$num = count($cgi_o_o) - 1;
+		$num = kcount($cgi_o_o) - 1;
 
 		while ($num >= 0) {
 			$class = $cgi_o_o[$num]['class'];
@@ -6192,13 +6199,13 @@ class HtmlLib
 			$laclass = $post['frm_o_cname'];
 		}
 
-		if (isset($post['frm_o_o']) && $post['frm_o_o']) {
+		if (isset($post['frm_o_o']) && is_array($post['frm_o_o']) && $post['frm_o_o']) {
 			$p = $post['frm_o_o'];
-			$suclass = $p[count($p) - 1]['class'];
+			$suclass = $p[kcount($p) - 1]['class'];
 
 			$p = $post['frm_o_o'];
 
-			for ($i = count($p) - 1; $i >= 0; $i--) {
+			for ($i = kcount($p) - 1; $i >= 0; $i--) {
 				if (isset($p[$i]['nname'])) {
 					$nname = exec_class_method($suclass, 'getClassId', $p[$i]['nname']);
 
@@ -6354,8 +6361,11 @@ class HtmlLib
 				$desc = get_classvar_description($suclass);
 
 				if (csa($desc[0], "N")) {
-					$count = count($post['frm_o_o']) - 1;
-					$var .= "_nn_" . fix_nname_to_be_variable($post['frm_o_o'][$count]['nname']);
+					$ooo = (isset($post['frm_o_o']) && is_array($post['frm_o_o'])) ? $post['frm_o_o'] : array();
+					if ($ooo) {
+						$count = kcount($ooo) - 1;
+						$var .= "_nn_" . fix_nname_to_be_variable($ooo[$count]['nname'] ?? '');
+					}
 				}
 
 			//	$descr = "{$desc[2]} {$login->getKeywordUc('home')} ";
@@ -6370,7 +6380,8 @@ class HtmlLib
 			$desc = get_classvar_description($suclass);
 
 			if (csa($desc[0], "N")) {
-				$count = count($post['frm_o_o']) - 1;
+				$ooo = (isset($post['frm_o_o']) && is_array($post['frm_o_o'])) ? $post['frm_o_o'] : array();
+				$count = $ooo ? kcount($ooo) - 1 : -1;
 			}
 
 			return array("", '', $descr, 'desc' => $descr, 'help' => $help);
@@ -9003,6 +9014,10 @@ function uploadAbort(e) { // upload abort
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		if (!is_array($cgi_o_o)) {
+			$cgi_o_o = array();
+		}
+
 		// MR -- TODO - also font-type
 
 		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
@@ -9027,12 +9042,12 @@ function uploadAbort(e) { // upload abort
 		if ($level != -1) {
 			if ($childobjectflag) {
 				$url = $this->getFullUrl("a=show&o=$class", $cgi_o_o);
-				$num = count($cgi_o_o);
+				$num = kcount($cgi_o_o);
 				$cgi_o_o[$num]['class'] = $class;
 			} else {
 				$urlname = $object->nname;
 				$url = $this->getFullUrl("a=show&l[class]=$class&l[nname]=$urlname", $cgi_o_o);
-				$num = count($cgi_o_o);
+				$num = kcount($cgi_o_o);
 				$cgi_o_o[$num]['class'] = $class;
 				$cgi_o_o[$num]['nname'] = $object->nname;
 			}

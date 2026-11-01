@@ -258,7 +258,7 @@ function lscandir_without_dot($arg, $dotflag = false)
 	$list = lscandir($arg);
 
 	if (!$list) {
-		return $list;
+		return array();
 	}
 
 	foreach ($list as $k => $v) {
@@ -277,7 +277,7 @@ function lscandir_without_dot_or_underscore($arg, $dotflag = false)
 	$list = lscandir($arg);
 
 	if (!$list) {
-		return $list;
+		return array();
 	}
 
 	foreach ($list as $k => $v) {
@@ -2174,7 +2174,9 @@ function lx_exception_handler($e)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	print("Error message: {$e->getMessage()} {$e->variable} {$e->value}\n");
+	$var = (is_object($e) && isset($e->variable)) ? $e->variable : '';
+	$val = (is_object($e) && isset($e->value)) ? $e->value : '';
+	print("Error message: {$e->getMessage()} {$var} {$val}\n");
 
 	if ($sgbl->dbg <= 0) {
 		return;

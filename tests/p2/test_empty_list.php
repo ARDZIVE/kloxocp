@@ -120,5 +120,17 @@ try {
 }
 $login = $prevLogin;
 
+$html = new HtmlLib();
+try {
+	$url = $html->getFullUrl('a=show');
+	if (is_string($url) && str_contains($url, 'frm_action=show')) {
+		ok('getFullUrl works when frm_o_o is missing');
+	} else {
+		bad('getFullUrl works when frm_o_o is missing', var_export($url, true));
+	}
+} catch (Throwable $e) {
+	bad('getFullUrl works when frm_o_o is missing', $e->getMessage());
+}
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

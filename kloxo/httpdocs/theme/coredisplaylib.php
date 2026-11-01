@@ -610,7 +610,10 @@ function do_select_list($object, $sclist)
 
 	foreach ($sclist as $k => $s) {
 		$cg = $ghtml->frm_o_o;
-		$n = count($cg);
+		if (!is_array($cg)) {
+			$cg = array();
+		}
+		$n = kcount($cg);
 		$cg[$n]['frm_o_o']['class'] = $k;
 		$string[] = $ghtml->object_variable_startblock($object, $class, "{$desc[2]}");
 		$string[] = $ghtml->object_inherit_classpath();
@@ -2026,7 +2029,7 @@ function print_warning()
 
 	$sesss = $login->getList('ssession');
 
-	if (count($sesss) > 1) {
+	if (kcount($sesss) > 1) {
 		$ghtml->__http_vars['frm_emessage'] = "more_than_one_user";
 	}
 

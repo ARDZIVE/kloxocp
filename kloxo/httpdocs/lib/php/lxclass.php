@@ -1343,7 +1343,7 @@ abstract class Lxclass
 			$this->$list = array();
 		}
 
-		$this->$totalvar = count($this->$list);
+		$this->$totalvar = kcount($this->$list);
 	}
 
 	final function getUrlIdentity()

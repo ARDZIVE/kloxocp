@@ -173,7 +173,7 @@ class SsessionList extends Ssession
 		$result = null;
 		$list = lscandir_without_dot("__path_program_root/session");
 
-		foreach($list as $l) {
+		foreach ((array) $list as $l) {
 			$pp = lfile_get_json_unserialize("__path_program_root/session/$l");
 
 			if (!$pp) { lunlink("__path_program_root/session/$l"); continue; }

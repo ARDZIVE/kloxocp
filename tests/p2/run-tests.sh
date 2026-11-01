@@ -177,6 +177,11 @@ if grep -q 'isset($this->used) && is_object($this->used)' "$ROOT/kloxo/httpdocs/
 else
   bad "getUSlashP does not read used on null"
 fi
+if grep -F -q 'if (!is_array($p))' "$ROOT/kloxo/httpdocs/theme/htmllib.php" && grep -F -q '$k = kcount($p);' "$ROOT/kloxo/httpdocs/theme/htmllib.php"; then
+  ok "getFullUrl does not count a missing frm_o_o"
+else
+  bad "getFullUrl does not count a missing frm_o_o"
+fi
 if grep -F -q '!is_object($this->driver[$master][$syncserver])' "$ROOT/kloxo/httpdocs/lib/php/gbllib.php"; then
   ok "getSyncClass does not read a missing driver row"
 else
