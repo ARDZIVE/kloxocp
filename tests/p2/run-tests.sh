@@ -39,6 +39,11 @@ if grep -q 'spl_autoload_register' "$ROOT/kloxo/httpdocs/lib/php/common.inc"; th
 else
   bad "common.inc registers spl_autoload_register"
 fi
+if sed -n '/^function kloxo_autoload(/,/^}/p' "$ROOT/kloxo/httpdocs/lib/php/common.inc" | grep -q "_none"; then
+  bad "autoload does not skip *_none drivers"
+else
+  ok "autoload does not skip *_none drivers"
+fi
 
 echo "== boot-path helpers"
 if grep -q 'function char_search_beg($haystack, $needle, $insensitive' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
@@ -91,6 +96,66 @@ if grep -q '/usr/bin/lxphp.exe"' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
   bad "sgbl no longer hard-codes lxphp.exe"
 else
   ok "sgbl no longer hard-codes lxphp.exe"
+fi
+if sed -n '/^function toArray(/,/^}/p' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'is_object'; then
+  ok "toArray does not call get_class on null"
+else
+  bad "toArray does not call get_class on null"
+fi
+if sed -n '/^function lget_class(/,/^}/p' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -q 'is_object'; then
+  ok "lget_class does not call get_class on null"
+else
+  bad "lget_class does not call get_class on null"
+fi
+if sed -n '/^function lxguard_main(/,/^function lxguard_save_hitlist(/p' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'toArray(lfile_get_unserialize'; then
+  bad "lxguard_main does not toArray a missing hitlist"
+else
+  ok "lxguard_main does not toArray a missing hitlist"
+fi
+if sed -n '/^function getLatestVersion(/,/^function getInstalledVersion(/p' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -qE 'exec\(|yum check-update|yum list'; then
+  bad "getLatestVersion does not call yum"
+else
+  ok "getLatestVersion does not call yum"
+fi
+if sed -n '/^function getInstalledVersion(/,/^function getDownloadServer(/p' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -qE 'exec\(|yum list'; then
+  bad "getInstalledVersion does not call yum"
+else
+  ok "getInstalledVersion does not call yum"
+fi
+if grep -q 'is_callable(array($class, $func))' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
+  ok "exec_class_method rejects missing methods"
+else
+  bad "exec_class_method rejects missing methods"
+fi
+if grep -q 'function initThisObject' "$ROOT/kloxo/httpdocs/driver/pserver/lxupdatelib.php"; then
+  ok "Lxupdate defines initThisObject"
+else
+  bad "Lxupdate defines initThisObject"
+fi
+if grep -q 'initialValuesBasic()' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" && grep -q 'function initPhpIni' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php"; then
+  ok "phpini forms apply initialValuesBasic"
+else
+  bad "phpini forms apply initialValuesBasic"
+fi
+if grep -q 'function ensureAdminResourcePriv' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" && grep -q "easyinstaller" "$ROOT/kloxo/httpdocs/lib/php/lxclass.php"; then
+  ok "admin resource plan defaults unlimited; easyinstaller off"
+else
+  bad "admin resource plan defaults unlimited; easyinstaller off"
+fi
+if grep -q 'function kloxo_is_stream' "$ROOT/kloxo/httpdocs/lib/html/lib.php" && grep -q 'kloxo_is_stream($fp)' "$ROOT/kloxo/httpdocs/lib/html/lib.php"; then
+  ok "log scanners guard feof on a failed fopen"
+else
+  bad "log scanners guard feof on a failed fopen"
+fi
+if grep -q "/var/log/mail.log" "$ROOT/kloxo/httpdocs/lib/domain/clientmail.php"; then
+  ok "clientmail reads Ubuntu mail.log"
+else
+  bad "clientmail reads Ubuntu mail.log"
+fi
+if grep -qE 'exec\(|yum update|yum clean' "$ROOT/kloxo/bin/update.php"; then
+  bad "legacy update.php does not call yum"
+else
+  ok "legacy update.php does not call yum"
 fi
 
 echo

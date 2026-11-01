@@ -1067,8 +1067,37 @@ abstract class Lxclient extends Lxdb
 			$this->cttype = $this->get__table();
 		}
 
+		if ($this->isAdmin()) {
+			$this->ensureAdminResourcePriv();
+		}
+
 	//	$this->initListIfUndef('ssession');
 
 		return 1;
+	}
+
+	function ensureAdminResourcePriv()
+	{
+		if (!$this->isAdmin()) {
+			return;
+		}
+
+		if (!isset($this->priv) || lget_class($this->priv) !== 'priv') {
+			$this->priv = new Priv(null, null, $this->nname);
+			$this->priv->__parent_o = $this;
+		}
+
+		$list = $this->getQuotaVariableList();
+		foreach ((array)$list as $k => $unused) {
+			$cur = isset($this->priv->$k) ? $this->priv->$k : '';
+			if ($cur !== null && $cur !== '') {
+				continue;
+			}
+			if (cse($k, '_flag')) {
+				$this->priv->$k = 'on';
+			} else {
+				$this->priv->$k = 'Unlimited';
+			}
+		}
 	}
 }

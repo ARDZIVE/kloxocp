@@ -184,7 +184,18 @@ function getIPs_from_ipaddr($withV6 = true)
 function getIPs_from_ifcfg()
 {
 	$p = '/etc/sysconfig/network-scripts/';
+	if (!is_dir($p)) {
+		include_once __DIR__ . '/../php/kloxo_ipaddr.php';
+		$r = [];
+		foreach (KloxoIpaddr::currentIpv4() as $row) {
+			$r[] = $row['ipaddr'];
+		}
+		return $r;
+	}
 	$l = lscandir($p);
+	if (!$l) {
+		return [];
+	}
 
 	foreach($l as $t => $f) {
 		if (stristr($f, "ifcfg-")) {

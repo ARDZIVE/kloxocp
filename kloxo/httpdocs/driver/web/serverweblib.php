@@ -200,7 +200,11 @@ class serverweb extends lxdb
 			case "php_branch":
 				$this->php_branch = null;
 
-				$a = getListOnList('php');
+				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+				$a = KloxoPhpver::installedIds();
+				if ($a === []) {
+					$a = getListOnList('php');
+				}
 				$vlist['php_branch'] = array('s', $a);
 
 				$this->setDefaultValue('php_branch', getRpmBranchInstalledOnList('php'));

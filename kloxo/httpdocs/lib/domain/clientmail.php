@@ -30,15 +30,36 @@ class clientmail extends lxclass {
 	{
 		$res = rl_exec_get(null, $parent->syncserver,  array("clientmail", "readtotallog"), array());
 
-		return $res;
+		return is_array($res) ? $res : array();
+	}
+
+	static function mailLogPath()
+	{
+		foreach (array('/var/log/mail.log', '/var/log/maillog') as $p) {
+			if (is_readable($p)) {
+				return $p;
+			}
+		}
+
+		return '';
 	}
 
 	static function readtotallog()
 	{
 		$list = self::readsmtpLog();
 		$nlist = self::readMaillog();
+		if (!is_array($list)) {
+			$list = array();
+		}
+		if (!is_array($nlist)) {
+			$nlist = array();
+		}
 		$total = lx_merge_good($list, $nlist);
+		if (!is_array($total)) {
+			return array();
+		}
 
+		$res = array();
 		foreach($total as $k => $v) {
 			$re['clientname'] = $k;
 			$re['nname'] = $k;
@@ -56,62 +77,94 @@ class clientmail extends lxclass {
 		return $alist;
 	}
 
+	static function openMailLog()
+	{
+		$path = self::mailLogPath();
+		if ($path === '') {
+			return false;
+		}
+		$fp = @fopen($path, 'r');
+
+		return is_resource($fp) ? $fp : false;
+	}
+
 	static function readsmtpLog()
 	{
+		$total = array();
+		$fp = self::openMailLog();
+		if ($fp === false) {
+			return $total;
+		}
 
 		$date = time() - 24 * 3600 * 2;
-
-	//	$logfile = "/var/log/smtp.log";
-		$logfile = "/var/log/maillog";
-
-		$fp = fopen($logfile, "r");
-		$fsize = lxfile_size($logfile);
-
+		$fsize = lxfile_size(self::mailLogPath());
 		$pos = lxlabsFindRightPosition($fp, $fsize, $date, time());
 
 		if ($pos === -1) {
-			return;
+			rewind($fp);
 		}
 
-		$s = fgets($fp);
-		dprint("The correct pos here: $s\n");
-
-		while(!feof($fp)) {
+		while (!feof($fp)) {
 			$s = fgets($fp);
+			if (!is_string($s)) {
+				break;
+			}
 			$s = trim($s);
 
-			if (!csa($s, "client allowed to relay")) {
+			if (csa($s, "client allowed to relay")) {
+				$v = strfrom($s, "rcpt: from <");
+				$v = strtilfirst($v, ">");
+				$s = explode(":", $v);
+				$id = isset($s[1]) ? $s[1] : '';
+				if ($id === '') {
+					continue;
+				}
+				if (!isset($total[$id])) {
+					$total[$id] = 1;
+				} else {
+					$total[$id]++;
+				}
 				continue;
 			}
 
-			$v = strfrom($s, "rcpt: from <");
-			$v = strtilfirst($v, ">");
-			$s = explode(":", $v);
-			$id = $s[1];
-
-			if (!isset($total[$id])) {
-				$total[$id] = 1;
-			} else {
-				$total[$id]++;
+			if (preg_match('/postfix\/(?:qmgr|cleanup).*from=<([^>]+)>/', $s, $m) === 1) {
+				$id = $m[1];
+				if ($id === '' || $id === '<>') {
+					continue;
+				}
+				if (!isset($total[$id])) {
+					$total[$id] = 1;
+				} else {
+					$total[$id]++;
+				}
 			}
 		}
+
+		fclose($fp);
 
 		return $total;
 	}
 
 	static function readMaillog()
 	{
+		$total = array();
+		$fp = self::openMailLog();
+		if ($fp === false) {
+			return $total;
+		}
+
 		$date = time() - 24 * 3600 * 2;
+		FindRightPosition($fp, $fsize = lxfile_size(self::mailLogPath()), $date, time(), array("mailtraffic", "getTimeFromOriginalQmailString"));
 
-		$logfile = "/var/log/maillog";
+		if (!is_resource($fp)) {
+			return $total;
+		}
 
-		$fp = fopen($logfile, "r");
-		$fsize = lxfile_size($logfile);
-
-		FindRightPosition($fp, $fsize, $date, time(), array("mailtraffic", "getTimeFromOriginalQmailString"));
-
-		while(!feof($fp)) {
+		while (!feof($fp)) {
 			$s = fgets($fp);
+			if (!is_string($s)) {
+				break;
+			}
 			$s = trim($s);
 
 			if (!csa($s, "lx-sending")) {
@@ -127,6 +180,8 @@ class clientmail extends lxclass {
 				$total[$id]++;
 			}
 		}
+
+		fclose($fp);
 
 		return $total;
 	}

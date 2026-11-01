@@ -1,0 +1,148 @@
+#!/bin/bash
+# Install phpMyAdmin under the panel WebsiteRoot so Hiawatha can serve it.
+#
+# Hiawatha returns 405 for a directory with no index file. The panel links to
+# /thirdparty/phpMyAdmin/ but the app was a CentOS RPM, not in this tree.
+#
+# Prefers the Ubuntu phpmyadmin package. Falls back to a pinned 5.2.3 english
+# tarball whose sha256 is fetched from files.phpmyadmin.net next to the file.
+#
+# Copyright (C) 2026 Kloxo CP contributors
+# GNU Affero General Public License v3. See LICENSE.txt.
+set -euo pipefail
+
+PMA_VERSION="5.2.3"
+PMA_TARBALL="phpMyAdmin-${PMA_VERSION}-english.tar.xz"
+PMA_URL="https://files.phpmyadmin.net/phpMyAdmin/${PMA_VERSION}/${PMA_TARBALL}"
+PMA_SHA_URL="${PMA_URL}.sha256"
+
+ROOT="${KLOXO_ROOT:-/opt/kloxo}"
+FORCE=0
+DRY=0
+
+usage() {
+  cat <<EOF
+install-phpmyadmin: put phpMyAdmin at <root>/httpdocs/thirdparty/phpMyAdmin
+
+  sudo bash install-phpmyadmin [--root=DIR] [--force] [--dry-run]
+
+  --root=DIR    program root (default: ${ROOT})
+  --force       replace an existing copy
+  --dry-run     print the plan and exit
+  --help
+
+Hiawatha 405 on /thirdparty/phpMyAdmin/ means that directory has no index.php.
+This script installs the app and writes config.inc.php (cookie auth, generated
+blowfish secret). Do not commit the extracted tree.
+EOF
+}
+
+log() { printf '%s\n' "$*"; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+digest() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    die "need sha256sum or shasum"
+  fi
+}
+
+for a in "$@"; do
+  case "$a" in
+    --help|-h) usage; exit 0 ;;
+    --force) FORCE=1 ;;
+    --dry-run) DRY=1 ;;
+    --root=*) ROOT="${a#--root=}" ;;
+    *) die "unknown option: $a (try --help)" ;;
+  esac
+done
+
+if [[ "$ROOT" == *..* || "$ROOT" == *$'\n'* ]]; then
+  die "invalid --root"
+fi
+
+DEST="$ROOT/httpdocs/thirdparty/phpMyAdmin"
+CONF_TMPL="$ROOT/file/phpmyadmin/config.inc.php"
+
+if [[ "$DRY" -eq 1 ]]; then
+  cat <<EOF
+plan: install phpMyAdmin ${PMA_VERSION}
+  dest     $DEST
+  apt      phpmyadmin (preferred)
+  fallback $PMA_URL
+  force    $FORCE
+EOF
+  exit 0
+fi
+
+[[ "$(id -u)" -eq 0 ]] || die "run as root (sudo bash install-phpmyadmin)"
+[[ -d "$ROOT/httpdocs" && -f "$CONF_TMPL" ]] || die "$ROOT is not a Kloxo program root"
+
+write_config() {
+  local dest="$1"
+  local secret tmpdir conf
+  secret="$(openssl rand -base64 48 | tr -d '\n+/=' )"
+  secret="${secret:0:48}"
+  [[ ${#secret} -ge 32 ]] || die "could not generate blowfish secret"
+  tmpdir="$dest/tmp"
+  mkdir -p "$tmpdir"
+  chmod 0700 "$tmpdir"
+  conf="$dest/config.inc.php"
+  sed -e "s/KLOXO_BLOWFISH_SECRET/${secret}/g" \
+      -e "s|KLOXO_PMA_TEMP|${tmpdir}|g" \
+      "$CONF_TMPL" > "$conf"
+  chmod 0640 "$conf"
+  if id -u lxlabs >/dev/null 2>&1; then
+    chown -R lxlabs:lxlabs "$dest"
+  fi
+}
+
+if [[ -f "$DEST/index.php" && "$FORCE" -eq 0 ]]; then
+  log "phpMyAdmin already present at $DEST; writing config (pass --force to replace)"
+  write_config "$DEST"
+  log "phpMyAdmin ready: /thirdparty/phpMyAdmin/"
+  exit 0
+fi
+
+apt-get install -y --no-install-recommends php-mysql php-mbstring php-xml php-curl php-zip || true
+echo 'phpmyadmin phpmyadmin/reconfigure-webserver multiselect' | debconf-set-selections
+echo 'phpmyadmin phpmyadmin/dbconfig-install boolean false' | debconf-set-selections
+if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends phpmyadmin; then
+  log "apt phpmyadmin not available; will try the pinned tarball"
+fi
+
+SRC=""
+if [[ -f /usr/share/phpmyadmin/index.php ]]; then
+  SRC=/usr/share/phpmyadmin
+else
+  mkdir -p /usr/local/src
+  tarball="/usr/local/src/$PMA_TARBALL"
+  log "downloading $PMA_URL"
+  curl -fsSL --retry 3 -o "$tarball" "$PMA_URL" || die "download failed"
+  curl -fsSL --retry 3 -o "$tarball.sha256" "$PMA_SHA_URL" || die "checksum download failed"
+  expect="$(awk '{print $1}' "$tarball.sha256")"
+  [[ "$expect" =~ ^[a-fA-F0-9]{64}$ ]] || die "checksum file is not a sha256"
+  got="$(digest "$tarball")"
+  [[ "$got" == "$expect" ]] || die "sha256 mismatch ($got != $expect)"
+  extract="/usr/local/src/phpMyAdmin-${PMA_VERSION}-english"
+  rm -rf "$extract"
+  mkdir -p "$extract"
+  tar -xJf "$tarball" -C /usr/local/src
+  [[ -f "$extract/index.php" ]] || die "tarball did not contain index.php"
+  SRC="$extract"
+fi
+
+rm -rf "$DEST"
+mkdir -p "$(dirname "$DEST")"
+cp -a "$SRC" "$DEST"
+rm -rf "$DEST/setup"
+write_config "$DEST"
+mkdir -p "$ROOT/session"
+if id -u lxlabs >/dev/null 2>&1; then
+  chown lxlabs:lxlabs "$ROOT/session" || true
+fi
+log "phpMyAdmin ready: /thirdparty/phpMyAdmin/"
+exit 0

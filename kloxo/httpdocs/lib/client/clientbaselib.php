@@ -226,7 +226,7 @@ class ClientBase extends ClientCore
 		if ($login->sp_specialplay_o->specialplay_b->skin_name === 'simplicity') {
 		//	if ($this->isAdmin()) {
 			if ($login->nname === 'admin') {
-				$server = $this->syncserver;
+				$server = $this->syncserver ?: 'localhost';
 				$server_phpini = unserialize(base64_decode(db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b")));
 
 				// MR -- pserver must set/update php.ini

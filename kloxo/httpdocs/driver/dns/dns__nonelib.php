@@ -1,6 +1,6 @@
 <?php
 
-include_once("dns__lib.php");
+include_once __DIR__ . '/dns__lib.php';
 
 class dns__none extends dns__
 {

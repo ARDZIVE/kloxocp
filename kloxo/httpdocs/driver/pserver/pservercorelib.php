@@ -275,14 +275,14 @@ class pservercore extends Lxclient
 		}
 
 
-		if (!db_get_value("serverweb", "pserver-" . $this->syncserver, "php_type")) {
+		$server = $this->syncserver ?: 'localhost';
+		if (!db_get_value("serverweb", "pserver-" . $server, "php_type")) {
 			if (isWebProxyOrApache()) {
 				$ghtml->__http_vars['frm_emessage'] = "phptype_not_set";
 			}
 		}
 
 		if ($login->sp_specialplay_o->specialplay_b->skin_name === 'simplicity') {
-			$server = $this->syncserver;
 			$server_phpini = unserialize(base64_decode(db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b")));
 
 			// MR -- pserver must set/update php.ini
@@ -1372,6 +1372,12 @@ STRIN;
 				$res = $sq->getRowsWhere("cttype = 'wholesale'", null, array('nname'));
 				$clientlist = get_namelist_from_arraylist($res);
 
+				$this->setDefaultValue("description", $this->nname ?: "localhost");
+				$hn = @gethostname();
+				if (!is_string($hn) || $hn === '' || $hn === '(none)') {
+					$hn = $this->nname ?: 'localhost';
+				}
+				$this->setDefaultValue("realhostname", $hn);
 				$vlist['description'] = null;
 				$vlist['realhostname'] = null;
 
@@ -1517,9 +1523,78 @@ STRIN;
 	//	$this->fixDatabaseServers();
 	}
 
+	static function ensureLocalhostServer()
+	{
+		static $done = false;
+
+		if ($done) {
+			return;
+		}
+
+		$done = true;
+
+		try {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+			$os = class_exists('KloxoIpaddr', false)
+				? KloxoIpaddr::osSeed()
+				: array('ostype' => 'debian', 'osversion' => 'linux');
+			$ostype = ($os['ostype'] === 'rhel') ? 'rhel' : 'debian';
+			$ver = preg_replace('/[^A-Za-z0-9 ._()+\/-]/', '', (string)$os['osversion']);
+			if ($ver === '') {
+				$ver = 'linux';
+			}
+
+			$sq = new Sqlite(null, 'pserver');
+			$sq->rawQuery("DELETE FROM pserver WHERE nname = '' OR nname IS NULL");
+			$res = $sq->getRowsWhere("nname = 'localhost'", array('nname', 'ostype', 'osversion', 'description', 'realhostname', 'syncserver', 'parent_clname', 'coma_psrole_a', 'username'));
+
+			if (!$res) {
+				$now = (string)time();
+				$sq->rawQuery(
+					"INSERT INTO pserver (nname, parent_clname, parent_cmlist, syncserver, ostype, osversion, username, hostname, description, realhostname, coma_psrole_a, ddate, cpstatus) " .
+					"VALUES ('localhost', 'client-admin', '', 'localhost', '$ostype', '$ver', 'root', 'localhost', 'localhost', 'localhost', ',web,mmail,dns,mysqldb,', '$now', 'on')"
+				);
+				return;
+			}
+
+			$row = $res[0];
+			$set = array();
+			if (($row['syncserver'] ?? '') === '') {
+				$set[] = "syncserver = 'localhost'";
+			}
+			if (($row['ostype'] ?? '') === '') {
+				$set[] = "ostype = '$ostype'";
+			}
+			if (($row['osversion'] ?? '') === '') {
+				$set[] = "osversion = '$ver'";
+			}
+			if (($row['description'] ?? '') === '') {
+				$set[] = "description = 'localhost'";
+			}
+			if (($row['realhostname'] ?? '') === '') {
+				$set[] = "realhostname = 'localhost'";
+			}
+			if (($row['parent_clname'] ?? '') === '') {
+				$set[] = "parent_clname = 'client-admin'";
+			}
+			if (($row['coma_psrole_a'] ?? '') === '') {
+				$set[] = "coma_psrole_a = ',web,mmail,dns,mysqldb,'";
+			}
+			if (($row['username'] ?? '') === '') {
+				$set[] = "username = 'root'";
+			}
+			if ($set) {
+				$sq->rawQuery("UPDATE pserver SET " . implode(', ', $set) . " WHERE nname = 'localhost'");
+			}
+		} catch (Exception $e) {
+			return;
+		}
+	}
+
 	static function initThisListRule($parent, $class)
 	{
 		if ($parent->isAdmin()) {
+			self::ensureLocalhostServer();
 			$res = "__v_table";
 		} else {
 		//	if ($parent->is__table('datacenter')) {

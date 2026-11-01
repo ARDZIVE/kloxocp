@@ -424,6 +424,10 @@ class resourceplan extends resourcecore
 
 	static function addform($parent, $class, $typetd = null)
 	{
+		if (is_object($parent) && method_exists($parent, 'ensureAdminResourcePriv')) {
+			$parent->ensureAdminResourcePriv();
+		}
+
 		$vlist['realname'] = "";
 		$vlist['description'] = null;
 	//	$vlist['share_status'] = null;

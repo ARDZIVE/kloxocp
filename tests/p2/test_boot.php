@@ -67,5 +67,44 @@ if (is_file($doc . '/login/index.php') && is_file($doc . '/login/inc.php')) {
 	bad('login page files are present');
 }
 
+$inst = function_exists('getInstalledVersion') ? (string)getInstalledVersion() : '';
+$lat = function_exists('getLatestVersion') ? (string)getLatestVersion() : '';
+if ($inst !== '' && $inst === $lat && strpos($inst, '7.0.0') === 0) {
+	ok('update versions are local kloxoversion (no yum)');
+} else {
+	bad('update versions are local kloxoversion (no yum)', "installed=$inst latest=$lat");
+}
+
+$cb = array('Lxupdate', 'initThisObject');
+if (is_callable($cb)) {
+	ok('Lxupdate has initThisObject');
+} else {
+	bad('Lxupdate has initThisObject');
+}
+
+if (class_exists('dns__none') && is_callable(array('dns__none', 'installMe'))) {
+	ok('dns__none loads for switchprogram');
+} else {
+	bad('dns__none loads for switchprogram');
+}
+if (class_exists('web__none') && class_exists('web__nginx')) {
+	ok('web none/nginx drivers load');
+} else {
+	bad('web none/nginx drivers load');
+}
+
+if (function_exists('kloxo_is_stream') && kloxo_is_stream(false) === false) {
+	ok('kloxo_is_stream rejects false');
+} else {
+	bad('kloxo_is_stream rejects false');
+}
+
+$cm = class_exists('clientmail') ? clientmail::readtotallog() : null;
+if (is_array($cm)) {
+	ok('clientmail log scan returns an array');
+} else {
+	bad('clientmail log scan returns an array');
+}
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

@@ -163,7 +163,15 @@ class lxguardhitdisplay extends lxclass
 
 	static function getDataFromServer($syncserver)
 	{
-		$list = rl_exec_get(null, $syncserver, "lxguard_main", array(true));
+		if (!$syncserver) {
+			$syncserver = 'localhost';
+		}
+
+		try {
+			$list = rl_exec_get(null, $syncserver, "lxguard_main", array(true));
+		} catch (Throwable $e) {
+			return;
+		}
 
 		if (!$list) { return; }
 
@@ -192,8 +200,10 @@ class lxguardhitdisplay extends lxclass
 
 	static function initThisList($parent, $class)
 	{
-		self::getDataFromServer($parent->syncserver);
-		$ret = self::createHitList($parent->syncserver);
+		$server = (isset($parent->syncserver) && $parent->syncserver !== '')
+			? $parent->syncserver : 'localhost';
+		self::getDataFromServer($server);
+		$ret = self::createHitList($server);
 
 		return $ret;
 	}

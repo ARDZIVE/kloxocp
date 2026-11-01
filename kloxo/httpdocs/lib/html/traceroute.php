@@ -34,44 +34,37 @@ class traceroute extends lxclass
 
 	static function initThisList($parent, $class)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
 
-		$_sysname = "linux";
+		$host = class_exists('KloxoTraceroute', false)
+			? KloxoTraceroute::clientHost()
+			: '127.0.0.1';
 
-		$host = $_SERVER['REMOTE_ADDR'];
+		$_result = rl_exec_get(null, "localhost", array("traceroute", "exec_traceroute"), array($host));
 
-		if (!$host || $sgbl->isDebug()) {
-			$host = "google.com";
+		if (!is_array($_result) || count($_result) === 0) {
+			return array();
 		}
 
-		if($parent->isClass('client')) {
-			$server = $parent->websyncserver;
-		} else {
-			$server = $parent->syncserver;
+		try {
+			$object = new Traceroute(null, null, '__name__');
+			$hops = $object->Net_Traceroute_Result($_result, "linux");
+		} catch (Throwable $e) {
+			return array();
 		}
 
-		$cmd = "traceroute -q 1 -n $host ";
-
-		$_result = rl_exec_get(null, "localhost", array("traceroute", "exec_traceroute"), array($cmd));
-
-		if (!is_array($_result)) {
-			throw new lxException($login->getThrow("traceroute_failed"), '', $host);
-		}
-
-		if (count($_result) == 0) {
-			throw new lxException($login->getThrow("traceroute_failed"), '', $host);
-		}
-
-		$object = new Traceroute(null, null, '__name__');
-
-		return $object->Net_Traceroute_Result($_result, $_sysname);
+		return is_array($hops) ? $hops : array();
 	}
 
-	static function exec_traceroute($cmd)
+	static function exec_traceroute($host)
 	{
-		exec($cmd, $result);
+		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
 
-		return $result;
+		if (!class_exists('KloxoTraceroute', false)) {
+			return array();
+		}
+
+		return KloxoTraceroute::run(is_string($host) ? $host : '');
 	}
 
 	function Net_Traceroute_Result($result, $sysname)

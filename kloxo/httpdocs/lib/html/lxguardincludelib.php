@@ -43,7 +43,7 @@ function get_total($list, &$total)
 	$lxgpath = "__path_home_root/lxguard";
 	$rmt = lfile_get_unserialize("$lxgpath/hitlist.info");
 
-	if ($rmt) { $total = $rmt->hl; }
+	if (is_object($rmt) && isset($rmt->hl) && is_array($rmt->hl)) { $total = $rmt->hl; }
 
 	if ($list) {
 		foreach($list as $k => $v) {

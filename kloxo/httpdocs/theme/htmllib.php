@@ -3359,6 +3359,10 @@ class HtmlLib
 
 	function fix_variable_overload(&$descr, $classdesc)
 	{
+		if (!is_array($descr)) {
+			return;
+		}
+
 		foreach ($descr as &$d) {
 			if (strstr($d, "[%v]") !== false) {
 				$d = str_replace("[%v]", $classdesc, $d);
@@ -3789,13 +3793,15 @@ class HtmlLib
 		$image = 0;
 
 		if (csa($descr[$name][0], "e")) {
-			$pname = strtolower($pname);
+			$pname = strtolower((string)$pname);
 			$property = "{$name}_v_$pname";
 
-			$prop_descr = get_classvar_description($rclass, $property);
+			$prop_descr = ($pname !== '') ? get_classvar_description($rclass, $property) : null;
 
 			if (!$prop_descr) {
 				dprint("Property Description for $rclass $property not Found <br /> \n");
+				$label = $pname !== '' ? $pname : $name;
+				$prop_descr = array('', '', $label, 'help' => $label);
 			}
 
 			$this->fix_variable_overload($prop_descr, $classdesc[2]);
@@ -4873,9 +4879,9 @@ class HtmlLib
 				continue;
 			}
 
-			// Admin object should not be listed ever.
-		//	if ($obj->isAdmin() && $obj->isClient()) {
-			if ($obj->isAdmin()) {
+			// Admin *client* must not appear in client lists. pserver is not a
+			// client; skipping isAdmin() here hid localhost when cttype leaked.
+			if ($obj->isClient() && $obj->isAdmin()) {
 				continue;
 			}
 

@@ -6,6 +6,11 @@ class Ipaddress__Redhat extends LxDriverclass
 	{
 		global $gbl, $sgbl, $login;
 
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		if (KloxoIpaddr::refuseNetworkWrite()) {
+			throw new lxException($login->getThrow("modifying_eth_not_permitted"), '', 'ubuntu');
+		}
+
 		if ($this->main->devname === 'NAT') { return; }
 
 		$this->checkForEthBase();
@@ -122,6 +127,11 @@ class Ipaddress__Redhat extends LxDriverclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		if (KloxoIpaddr::refuseNetworkWrite()) {
+			throw new lxException($login->getThrow("modifying_eth_not_permitted"), '', 'ubuntu');
+		}
+
 		$this->checkForEthBase();
 		$dev = explode("-", $this->main->devname);
 
@@ -143,14 +153,25 @@ class Ipaddress__Redhat extends LxDriverclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
 		$path = $sgbl->__path_real_etc_root . "sysconfig/network-scripts";
+		if (!is_dir($path)) {
+			return KloxoIpaddr::currentIpv4();
+		}
 
 		$flist = lscandir($path);
+		if (!$flist) {
+			return KloxoIpaddr::currentIpv4();
+		}
 
+		$result1 = [];
 		foreach ($flist as $file) {
 			if (char_search_a($file, "ifcfg-")) {
 				$result1[] = self::get_network_data(str_replace("{$path}/ifcfg-", "", "{$path}/{$file}"));
 			}
+		}
+		if ($result1 === []) {
+			return KloxoIpaddr::currentIpv4();
 		}
 
 		$result = array(); // Initialize as array (expected return result)

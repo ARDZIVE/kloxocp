@@ -18,8 +18,12 @@ P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; `update` and signed apt packaging
 are not). Default panel login is admin/admin; the UI requires a password
-change after first login. Browser login against MariaDB is not verified. Next:
-remaining P2 runtime, Debian packaging, or P4 postfix UI. See briefing section 7.
+change after first login. Admin Servers list seeds `localhost`. The Update
+screen shows the local `kloxoversion` (`kloxocp update` still exits 2).
+Switch Program loads `dns__none` / `web__none`. PHP Module Status
+reads Ubuntu `mods-available`. Browser login against
+MariaDB is not verified. Next: remaining P2 runtime,
+Debian packaging, or P4 postfix UI. See briefing section 7.
 
 ## Commands
 ```

@@ -392,7 +392,7 @@ class Client extends ClientBase
 			$user = $dbad->nname;
 			$pass = $dbad->dbpassword;
 			
-			$alist[] = create_simpleObject(array('url' => "{$dbadminUrl}?pma_username={$user}&pma_password={$pass}", 
+			$alist[] = create_simpleObject(array('url' => $dbadminUrl,
 				'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
 		} catch (Exception $e) {}
 	}
@@ -590,6 +590,7 @@ class Client extends ClientBase
 			if ($this->isDomainOwnerMode()) {
 				$this->getDomainAlist($alist);
 			} else {
+				pserver::ensureLocalhostServer();
 				$so = $this->getFromList('pserver', 'localhost');
 				$this->getAlistFromChild($so, $alist);
 			}

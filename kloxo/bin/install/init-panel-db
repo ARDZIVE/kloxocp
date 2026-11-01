@@ -224,7 +224,11 @@ TXT;
 
         $this->writePass($passFile, $dbPass);
         $this->seedAdmin($pdo, $adminPass);
+        $this->seedAdminPriv($pdo);
         $this->seedGeneral($pdo);
+        $this->seedPserver($pdo);
+        $this->seedPhpini($pdo);
+        $this->seedServerweb($pdo);
 
         $client = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
         $general = (int)$pdo->query("SELECT COUNT(*) FROM general")->fetchColumn();
@@ -422,6 +426,13 @@ TXT;
             fwrite(STDERR, "admin password policy failed\n");
             return 1;
         }
+        $blob = self::phpiniFlagBlob('/var/lib/php/sessions');
+        $raw = base64_decode($blob, true);
+        if (!is_string($raw) || !str_contains($raw, 'session_save_path_flag') || !str_contains($raw, '/var/lib/php/sessions')
+            || !str_contains($raw, 'max_execution_time_flag') || !str_contains($raw, 'allow_url_fopen_flag')) {
+            fwrite(STDERR, "phpini blob failed\n");
+            return 1;
+        }
         echo "self-test ok\n";
         return 0;
     }
@@ -444,16 +455,187 @@ TXT;
         $hash = $this->md5Crypt($adminPass);
         if ($n > 0) {
             $stmt = $pdo->prepare(
-                "UPDATE client SET password = ?, realpass = ?, cttype = 'admin', cpstatus = 'on', status = 'on' WHERE nname = 'admin'"
+                "UPDATE client SET password = ?, realpass = ?, cttype = 'admin', cpstatus = 'on', status = 'on',
+                 syncserver = IF(syncserver IS NULL OR syncserver = '', 'localhost', syncserver)
+                 WHERE nname = 'admin'"
             );
             $stmt->execute([$hash, $adminPass]);
             return;
         }
         $stmt = $pdo->prepare(
-            "INSERT INTO client (nname, password, realpass, cttype, cpstatus, status, ddate, parent_clname, parent_cmlist)
-             VALUES ('admin', ?, ?, 'admin', 'on', 'on', ?, '', '')"
+            "INSERT INTO client (nname, password, realpass, cttype, cpstatus, status, ddate, parent_clname, parent_cmlist, syncserver)
+             VALUES ('admin', ?, ?, 'admin', 'on', 'on', ?, '', '', 'localhost')"
         );
         $stmt->execute([$hash, $adminPass, (string)time()]);
+    }
+
+    private function seedAdminPriv(PDO $pdo): void
+    {
+        $cols = $pdo->query("SHOW COLUMNS FROM client LIKE 'priv_q_%'")->fetchAll(PDO::FETCH_COLUMN);
+        $sets = [];
+        foreach ($cols as $col) {
+            if (!is_string($col) || preg_match('/^priv_q_[A-Za-z0-9_]+$/', $col) !== 1) {
+                continue;
+            }
+            $val = str_ends_with($col, '_flag') ? 'on' : 'Unlimited';
+            $sets[] = $col . ' = IF(' . $col . ' IS NULL OR ' . $col . " = '', " . $pdo->quote($val) . ', ' . $col . ')';
+        }
+        if ($sets === []) {
+            return;
+        }
+        $pdo->exec('UPDATE client SET ' . implode(', ', $sets) . " WHERE nname = 'admin'");
+    }
+
+    /** @return array{ostype:string,osversion:string} */
+    private function osSeed(): array
+    {
+        $ip = dirname(__DIR__, 2) . '/httpdocs/lib/php/kloxo_ipaddr.php';
+        if (is_file($ip)) {
+            require_once $ip;
+            if (class_exists(KloxoIpaddr::class, false)) {
+                return KloxoIpaddr::osSeed();
+            }
+        }
+
+        return ['ostype' => 'debian', 'osversion' => 'linux'];
+    }
+
+    private function seedPserver(PDO $pdo): void
+    {
+        $pdo->exec("DELETE FROM pserver WHERE nname = '' OR nname IS NULL");
+        $os = $this->osSeed();
+        $ostype = $os['ostype'] === 'rhel' ? 'rhel' : 'debian';
+        $ver = $os['osversion'] !== '' ? $os['osversion'] : 'linux';
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM pserver WHERE nname = 'localhost'")->fetchColumn();
+        if ($n > 0) {
+            $stmt = $pdo->prepare(
+                "UPDATE pserver SET
+                    syncserver = IF(syncserver IS NULL OR syncserver = '', 'localhost', syncserver),
+                    ostype = IF(ostype IS NULL OR ostype = '', ?, ostype),
+                    osversion = IF(osversion IS NULL OR osversion = '', ?, osversion),
+                    username = IF(username IS NULL OR username = '', 'root', username),
+                    hostname = IF(hostname IS NULL OR hostname = '', 'localhost', hostname),
+                    description = IF(description IS NULL OR description = '', 'localhost', description),
+                    realhostname = IF(realhostname IS NULL OR realhostname = '', 'localhost', realhostname),
+                    parent_clname = IF(parent_clname IS NULL OR parent_clname = '', 'client-admin', parent_clname),
+                    coma_psrole_a = IF(coma_psrole_a IS NULL OR coma_psrole_a = '', ',web,mmail,dns,mysqldb,', coma_psrole_a),
+                    cpstatus = IF(cpstatus IS NULL OR cpstatus = '', 'on', cpstatus)
+                 WHERE nname = 'localhost'"
+            );
+            $stmt->execute([$ostype, $ver]);
+            return;
+        }
+        $stmt = $pdo->prepare(
+            "INSERT INTO pserver (nname, parent_clname, parent_cmlist, syncserver, ostype, osversion, username, hostname, description, realhostname, coma_psrole_a, ddate, cpstatus)
+             VALUES ('localhost', 'client-admin', '', 'localhost', ?, ?, 'root', 'localhost', 'localhost', 'localhost', ',web,mmail,dns,mysqldb,', ?, 'on')"
+        );
+        $stmt->execute([$ostype, $ver, (string)time()]);
+    }
+
+    private function seedPhpini(PDO $pdo): void
+    {
+        $blob = $this->phpiniFlagBlob('/var/lib/php/sessions');
+        $pdo->exec("DELETE FROM phpini WHERE nname = 'pserver-'");
+        foreach (['pserver-localhost', 'client-admin'] as $name) {
+            $n = (int)$pdo->query('SELECT COUNT(*) FROM phpini WHERE nname = ' . $pdo->quote($name))->fetchColumn();
+            if ($n === 0) {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO phpini (nname, parent_clname, parent_cmlist, syncserver, ser_phpini_flag_b)
+                     VALUES (?, ?, '', 'localhost', ?)"
+                );
+                $stmt->execute([$name, $name, $blob]);
+                continue;
+            }
+            $cur = $pdo->query('SELECT ser_phpini_flag_b FROM phpini WHERE nname = ' . $pdo->quote($name))->fetchColumn();
+            $raw = is_string($cur) ? (string)base64_decode($cur, true) : '';
+            if ($cur === null || $cur === '' || !str_contains($raw, 'max_execution_time_flag')) {
+                $stmt = $pdo->prepare(
+                    "UPDATE phpini SET ser_phpini_flag_b = ?, syncserver = IF(syncserver IS NULL OR syncserver = '', 'localhost', syncserver) WHERE nname = ?"
+                );
+                $stmt->execute([$blob, $name]);
+            }
+        }
+    }
+
+    private function seedServerweb(PDO $pdo): void
+    {
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM serverweb WHERE nname = 'pserver-localhost'")->fetchColumn();
+        if ($n === 0) {
+            $pdo->exec(
+                "INSERT INTO serverweb (nname, parent_clname, parent_cmlist, php_type)
+                 VALUES ('pserver-localhost', 'pserver-localhost', '', 'php-fpm_event')"
+            );
+            return;
+        }
+        $pdo->exec(
+            "UPDATE serverweb SET php_type = IF(php_type IS NULL OR php_type = '', 'php-fpm_event', php_type)
+             WHERE nname = 'pserver-localhost'"
+        );
+    }
+
+    /** @return array<string,string> */
+    public static function phpiniFlagDefaults(string $sessionPath): array
+    {
+        if (str_contains($sessionPath, "\0") || !str_starts_with($sessionPath, '/')) {
+            throw new IpdbException('Invalid session save path');
+        }
+        if (preg_match('/[^A-Za-z0-9._\/+-]/', $sessionPath) === 1) {
+            throw new IpdbException('Invalid session save path');
+        }
+
+        return [
+            'session_save_path_flag' => $sessionPath,
+            'output_compression_flag' => 'off',
+            'upload_max_filesize' => '16M',
+            'register_global_flag' => 'off',
+            'disable_functions' => 'exec,passthru,shell_exec,system,proc_open,popen,show_source',
+            'max_execution_time_flag' => '120',
+            'max_input_time_flag' => '120',
+            'memory_limit_flag' => '128M',
+            'allow_url_fopen_flag' => 'on',
+            'allow_url_include_flag' => 'off',
+            'display_error_flag' => 'off',
+            'log_errors_flag' => 'off',
+            'session_autostart_flag' => 'off',
+            'file_uploads_flag' => 'on',
+            'output_buffering_flag' => 'off',
+            'register_argc_argv_flag' => 'on',
+            'register_long_arrays_flag' => 'on',
+            'magic_quotes_gpc_flag' => 'off',
+            'gpc_order_flag' => 'GPC',
+            'variables_order_flag' => 'EGPCS',
+            'post_max_size_flag' => '32M',
+            'magic_quotes_runtime_flag' => 'off',
+            'magic_quotes_sybase_flag' => 'off',
+            'enable_dl_flag' => 'on',
+            'cgi_force_redirect_flag' => 'on',
+            'extension_dir_flag' => '/usr/lib/php/modules',
+            'upload_tmp_dir_flag' => '/tmp',
+            'safe_mode_flag' => 'off',
+            'sendmail_from' => '',
+            'max_input_vars_flag' => '3000',
+            'date_timezone_flag' => 'Europe/London',
+            'phpfpm_type_flag' => 'ondemand',
+            'phpfpm_limit_extensions' => '.php .php5 .php7',
+        ];
+    }
+
+    public static function phpiniFlagBlob(string $sessionPath): string
+    {
+        $defaults = self::phpiniFlagDefaults($sessionPath);
+        $body = '';
+        foreach ($defaults as $k => $v) {
+            if (preg_match('/^[A-Za-z0-9_]+$/', $k) !== 1) {
+                throw new IpdbException('Invalid phpini flag name');
+            }
+            if (str_contains($v, "\0")) {
+                throw new IpdbException('Invalid phpini flag value');
+            }
+            $body .= 's:' . strlen($k) . ':"' . $k . '";s:' . strlen($v) . ':"' . $v . '";';
+        }
+        $obj = 'O:13:"phpini_flag_b":' . count($defaults) . ':{' . $body . '}';
+
+        return base64_encode($obj);
     }
 
     private function seedGeneral(PDO $pdo): void

@@ -214,7 +214,12 @@ function dosyncToSystem()
 static function getCurrentIps()
 {
 
-	global $gbl, $sgbl, $login, $ghtml; 
+	global $gbl, $sgbl, $login, $ghtml;
+
+	include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+	if (!is_file("/etc/network/interfaces") || KloxoIpaddr::isUbuntu()) {
+		return KloxoIpaddr::currentIpv4();
+	}
 
 	$contents = lfile_get_contents("/etc/network/interfaces");
 
@@ -224,12 +229,17 @@ static function getCurrentIps()
 
 	foreach($array as $a12) {
 		$a[]   =  self::getArrayFromString($a12); 
-	}	
+	}
+	$ret = [];
 	foreach($a as $single ) {
 
 		if(count($single) >= 3) {
 			$ret[] = $single;
 		}
+	}
+
+	if ($ret === []) {
+		return KloxoIpaddr::currentIpv4();
 	}
 
 	return $ret;

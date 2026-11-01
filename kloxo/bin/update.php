@@ -1,16 +1,14 @@
-<?php 
+<?php
 
-// include_once "lib/html/include.php";
-// include_once "lib/html/updatelib.php";
+/**
+ * Legacy package updater. Do not run.
+ *
+ * The panel Update screen used to background this file (CentOS package
+ * refresh). kloxocp update is not built; exit 2 like the CLI.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3 or later. See LICENSE.txt.
+ */
 
-// exit_if_not_system_user();
-// exit_if_another_instance_running();
-
-// update_main();
-
-// MR -- just enough running cleanup!
-// have a problem if restart kloxo service and then bypass it.
-exec("yum clean all; yum update kloxo7 -y; sh /script/cleanup-nokloxorestart");
-
-createRestartFile('restart');
-
+fwrite(STDERR, "kloxocp update is not built\n");
+exit(2);

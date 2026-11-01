@@ -138,7 +138,35 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `GRANT`; no background `mysql … &`). `kloxo/bin/install/install-hiawatha` pins
     Hiawatha 12.4. `create.php` calls `init-panel-db` and skips CentOS
     `tmpupdatecleanup`. Default admin UI password is `admin` (override with
-    `KLOXO_ADMIN_PASSWORD`, min 8). Live browser login is still **UNVERIFIED**.
+    `KLOXO_ADMIN_PASSWORD`, min 8). Admin `syncserver` is seeded as `localhost`
+    (empty value made PHP-settings alerts look up `pserver-`). IP list on
+    Ubuntu is read from `ip -4 addr` (`lib/php/kloxo_ipaddr.php`); the panel
+    does not write ifcfg or `/etc/network/interfaces`. `phpini` sync queries
+    `php_type` (not `php-type`). PHP Used / PHP Branch lists apt php-fpm
+    (`kloxo_phpver.php`; the old scanner only saw `/opt/*m`). phpMyAdmin is not in the tree; `install-phpmyadmin`
+    installs it under `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).
+    The admin Servers list always has a `localhost` pserver (`init-panel-db`
+    seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
+    the hostname cell.     The Update screen (`lxupdate`) reads the local
+    `kloxoversion` (no `yum`); `exec_class_method` no longer TypeErrors on a
+    missing `initThisObject`. The Update Now path does not run
+    `bin/update.php` (`kloxocp update` is still not built). Autoload loads
+    `*_none` drivers (`dns__none`, `web__none`); Switch Program no longer
+    TypeErrors on those classes. Client mail counts read
+    `/var/log/mail.log` (Ubuntu) or `/var/log/maillog` and do not call
+    `feof(false)` when the file is missing. PHP config forms apply the
+    usual defaults (120s / 128M / 32M / disable_functions) when the
+    stored `phpini` blob only has a session path. Admin Resource Plan
+    add form uses unlimited quotas and flags on (Easy Installer stays
+    off). PHP Module Status lists Ubuntu
+    `/etc/php/<ver>/mods-available` (plus leftover `/opt/*m` and
+    `/etc/php.d`); enable/disable uses `phpenmod`/`phpdismod` on those
+    paths, not `.nonini` renames. Traceroute no longer throws
+    `traceroute_failed` when the Ubuntu binary is missing; it uses
+    `traceroute`/`tracepath` with a validated host and an empty list on
+    failure. Server Information prefills description and FQDN
+    (`localhost` / hostname). Live browser login is still
+    **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -231,9 +259,12 @@ Work in this order. Keep every change small, tested and committed separately. Do
 1. **DONE: first-party parse.** First-party `.php`/`.inc` files `php -l` clean. `__autoload` → `kloxo_autoload` + `spl_autoload_register`. `includecore.php` no longer calls `ereg*`. `char_search_beg` accepts the extra `csb()` argument. Tests: `tests/p2/`.
 2. **DONE: library boot.** `include.php` constructs `Sgbl` on PHP 8 (`test_boot.php`). Paths follow the tree / `KLOXO_ROOT`. Distro PHP via `kloxo_php_binary` and `init/php-cli.sh` (php 8.3 / 8.4 / 8.5). `#[AllowDynamicProperties]` on `Lxclass`, `Sgbl`, `HtmlLib`. Login files shipped. systemd PHP-FPM unit uses `kloxo-php-fpm.sh`.
 3. **PARTIAL.** `init-panel-db` and `install-hiawatha` exist (php-cli tests in
-   `tests/install/`). Browser login against MariaDB on a real Ubuntu VM is
-   **UNVERIFIED**. Remaining compile failures are third-party (`webdisk/PEAR*`,
-   formmail, urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
+   `tests/install/`). Admin `syncserver` is `localhost`; Ubuntu IPs come from
+   `ip -4 addr` (`kloxo_ipaddr.php`); `php-type` SQL is `php_type`. Admin
+   Servers list seeds `localhost` (`ensureLocalhostServer`). Browser
+   login against MariaDB on a real Ubuntu VM is **UNVERIFIED**. Remaining
+   compile failures are third-party (`webdisk/PEAR*`, formmail, urlrewrite
+   examples). Runtime `split`/`ereg*`/`each` in those trees.
 
 ### P3: installer, packaging, updater (phase 1d)
 1. **DONE: CLI skeleton.** `kloxo/bin/kloxocp` implements `help`, `version`, `status`,

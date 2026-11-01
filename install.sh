@@ -9,7 +9,7 @@
 #
 # Does: pre-flight, clone (if needed), apt packages, /opt/kloxo layout, TLS keys,
 # lxphp.exe wrappers, kloxo-php systemd unit, pinned Hiawatha 12.4 build,
-# panel MariaDB schema via init-panel-db.
+# panel MariaDB schema via init-panel-db, phpMyAdmin under httpdocs/thirdparty.
 # Does not: Let's Encrypt, apt repo, kloxo-mail apply, verified browser login.
 set -euo pipefail
 LOG="/dev/null"
@@ -234,7 +234,8 @@ ln -sfn "$ROOT/bin/kloxocp" /usr/local/sbin/kloxocp
 chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" \
   "$ROOT/bin/install/generate-tls-keys" \
   "$ROOT/bin/install/init-panel-db" \
-  "$ROOT/bin/install/install-hiawatha" || true
+  "$ROOT/bin/install/install-hiawatha" \
+  "$ROOT/bin/install/install-phpmyadmin" || true
 
 if [[ ! -f "$ROOT/init/backend.key" ]]; then
   php "$ROOT/bin/install/generate-tls-keys" --root="$ROOT" --hostname="$(hostname -f 2>/dev/null || hostname)"
@@ -294,6 +295,7 @@ KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
 log "panel schema ready"
 
 bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"
+bash "$ROOT/bin/install/install-phpmyadmin" --root="$ROOT"
 systemctl is-active --quiet kloxo-php || die "kloxo-php is not active"
 systemctl is-active --quiet kloxo-web || die "kloxo-web is not active"
 

@@ -99,34 +99,31 @@ class Lxupdate extends lxClass
 	{
 		global $login;
 
-		if (isUpdating()) {
-			throw new lxException($login->getThrow("program_is_already_updating"));
-		} else {
-			rl_exec_get($this->__masterserver, 'localhost', array('lxupdate', 'execUpdate'), null);
-
-			throw new lxException($login->getThrow("update_scheduled"));
-		}
+		throw new lxException($login->getThrow("update_not_available"), '', 'kloxocp update');
 	}
 
 	static function execUpdate()
 	{
-		lxshell_background("__path_php_path", "../bin/update.php");
+		return;
 	}
 
 	static function initThisObjectRule($parent, $class, $name = null)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-		
-	/*
-		if (!$parent->isLocalhost('nname')) {
-			throw new lxException($login->getThrow("slave_is_automatically_updated"), '', $parent->nname);
-		}
-	*/
-		
-		$thisversion = $sgbl->__ver_major_minor_release;
 		$upversion = getLatestVersion();
-		
-		return $upversion;
+		if ($upversion === null || $upversion === '') {
+			$upversion = getInstalledVersion();
+		}
+
+		return ($upversion !== '') ? $upversion : '0.1.0-dev';
+	}
+
+	static function initThisObject($parent, $class, $name = null)
+	{
+		$n = ($name !== null && $name !== '') ? $name : self::initThisObjectRule($parent, $class, $name);
+		$obj = new Lxupdate($parent->__masterserver, $parent->__readserver, $n);
+		$obj->get();
+
+		return $obj;
 	}
 }
 

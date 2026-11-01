@@ -2621,6 +2621,10 @@ function isModifyAction()
 
 function lget_class($object)
 {
+	if (!is_object($object)) {
+		return '';
+	}
+
 	return strtolower(get_class($object));
 }
 
@@ -2924,6 +2928,21 @@ function exec_class_method($class, $func)
 	//   http://bugs.php.net/bug.php?id=51329
 	class_exists($class);
 	// ---
+	// PHP 8: call_user_func_array TypeErrors if the class or method is missing
+	// (dns__none was skipped by autoload; Lxupdate had no initThisObject).
+	if (!class_exists($class, false)) {
+		global $gl_class_array;
+		if (isset($gl_class_array[$class])) {
+			$path = function_exists('getreal') ? getreal($gl_class_array[$class]) : $gl_class_array[$class];
+			if (is_string($path) && $path !== '' && file_exists($path)) {
+				include_once $path;
+			}
+		}
+	}
+	if (!is_callable(array($class, $func))) {
+		return null;
+	}
+
 	return call_user_func_array(array($class, $func), $arglist);
 }
 

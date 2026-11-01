@@ -1,6 +1,6 @@
 <?php
 
-include_once("webcache__lib.php");
+include_once __DIR__ . '/webcache__lib.php';
 
 class webcache__none extends webcache__
 {

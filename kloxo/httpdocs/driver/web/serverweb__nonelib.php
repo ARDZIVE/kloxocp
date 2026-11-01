@@ -1,6 +1,6 @@
 <?php
 
-include_once("serverweb__lib.php");
+include_once __DIR__ . '/serverweb__lib.php';
 
 class serverweb__none extends serverweb__
 {

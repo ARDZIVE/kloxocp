@@ -95,10 +95,45 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'"
+if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
+  ok "README and install.sh share the same one-liner"
+else
+  bad "README and install.sh share the same one-liner"
+fi
 if grep -q 'install-hiawatha' "$ROOT/install.sh"; then
   ok "install.sh calls install-hiawatha"
 else
   bad "install.sh calls install-hiawatha"
+fi
+PMA="$ROOT/kloxo/bin/install/install-phpmyadmin"
+check "install-phpmyadmin --help" bash "$PMA" --help
+check "install-phpmyadmin --dry-run" bash "$PMA" --dry-run --root="$ROOT/kloxo"
+fails "install-phpmyadmin root with .. rejected" bash "$PMA" --root="$ROOT/kloxo/../kloxo"
+if grep -q 'install-phpmyadmin' "$ROOT/install.sh"; then
+  ok "install.sh calls install-phpmyadmin"
+else
+  bad "install.sh calls install-phpmyadmin"
+fi
+if [[ -f "$ROOT/kloxo/httpdocs/thirdparty/phpMyAdmin/index.php" ]]; then
+  bad "phpMyAdmin is not vendored in the tree"
+else
+  ok "phpMyAdmin is not vendored in the tree"
+fi
+if grep -q 'KLOXO_BLOWFISH_SECRET' "$ROOT/kloxo/file/phpmyadmin/config.inc.php"; then
+  ok "phpMyAdmin config template has no committed blowfish secret"
+else
+  bad "phpMyAdmin config template has no committed blowfish secret"
+fi
+if grep -q 'pma_password' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php"; then
+  bad "phpMyAdmin link does not put the DB password in the URL"
+else
+  ok "phpMyAdmin link does not put the DB password in the URL"
+fi
+if sed -n '/^function setInitialPhpMyAdmin(/,/^}/p' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'lxfile_cp.*phpMyAdmin/config'; then
+  bad "setInitialPhpMyAdmin does not create an empty phpMyAdmin dir"
+else
+  ok "setInitialPhpMyAdmin does not create an empty phpMyAdmin dir"
 fi
 dry="$(bash "$HIA" --dry-run --root="$ROOT/kloxo")"
 echo "$dry" | grep -q '12.4' && ok "dry-run names 12.4" || bad "dry-run names 12.4" "$dry"
@@ -187,6 +222,89 @@ if grep -q 'cannot_use_default_password' "$ROOT/kloxo/httpdocs/lib/client/lxclie
 else
   bad "updatePassword rejects reuse of admin"
 fi
+if grep -q "syncserver = IF" "$ROOT/kloxo/bin/install/init-panel-db" && grep -q "'localhost')" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds admin syncserver=localhost"
+else
+  bad "init-panel-db seeds admin syncserver=localhost"
+fi
+if grep -q 'function seedPserver' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function seedPhpini' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'php-fpm_event' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds pserver phpini serverweb"
+else
+  bad "init-panel-db seeds pserver phpini serverweb"
+fi
+if grep -q 'function seedAdminPriv' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q "WHERE nname = 'admin'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds admin unlimited priv"
+else
+  bad "init-panel-db seeds admin unlimited priv"
+fi
+if grep -q 'max_execution_time_flag' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function phpiniFlagDefaults' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds full phpini defaults"
+else
+  bad "init-panel-db seeds full phpini defaults"
+fi
+if grep -q "nname = 'localhost'" "$ROOT/kloxo/bin/install/init-panel-db" && grep -q "coma_psrole_a" "$ROOT/kloxo/bin/install/init-panel-db" && grep -q "osversion" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds localhost pserver display fields"
+else
+  bad "init-panel-db seeds localhost pserver display fields"
+fi
+if grep -q 'function ensureLocalhostServer' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php"; then
+  ok "pserver list ensures localhost"
+else
+  bad "pserver list ensures localhost"
+fi
+if grep -q 'isClient() && $obj->isAdmin()' "$ROOT/kloxo/httpdocs/theme/htmllib.php"; then
+  ok "list skip is admin-client only"
+else
+  bad "list skip is admin-client only"
+fi
+if grep -n 'db_get_value("serverweb"' -A0 "$ROOT/kloxo/httpdocs/driver/pserver/phpini__synclib.php" | grep -q 'php-type'; then
+  bad "phpini sync uses php_type column (not php-type)"
+else
+  ok "phpini sync uses php_type column (not php-type)"
+fi
+if grep -q 'KloxoIpaddr::currentIpv4' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__redhatlib.php" && grep -q 'KloxoIpaddr::refuseNetworkWrite' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__redhatlib.php"; then
+  ok "redhat ip driver reads ip(8) and refuses Ubuntu writes"
+else
+  bad "redhat ip driver reads ip(8) and refuses Ubuntu writes"
+fi
+if grep -q 'KloxoIpaddr::currentIpv4' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__debianlib.php"; then
+  ok "debian ip driver falls back to ip(8)"
+else
+  bad "debian ip driver falls back to ip(8)"
+fi
+if grep -q "syncserver ?: 'localhost'" "$ROOT/kloxo/httpdocs/lib/client/clientbaselib.php"; then
+  ok "phpini alert uses localhost when syncserver is empty"
+else
+  bad "phpini alert uses localhost when syncserver is empty"
+fi
+check "php -l kloxo_ipaddr.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_ipaddr.php"
+check "KloxoIpaddr parse fixture" php "$HERE/test_ipaddr.php"
+if grep -q 'KloxoPhpver::installedIds' "$ROOT/kloxo/httpdocs/lib/html/lib.php" && grep -q 'KloxoPhpver::installedIds' "$ROOT/kloxo/httpdocs/driver/web/serverweblib.php"; then
+  ok "PHP lists use distro php-fpm discovery"
+else
+  bad "PHP lists use distro php-fpm discovery"
+fi
+check "php -l kloxo_phpver.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_phpver.php"
+check "KloxoPhpver ids" php "$HERE/test_phpver.php"
+if grep -q 'KloxoPhpver::distroModuleRows' "$ROOT/kloxo/httpdocs/driver/pserver/phpmodule__linuxlib.php"; then
+  ok "PHP Module Status scans Ubuntu mods-available"
+else
+  bad "PHP Module Status scans Ubuntu mods-available"
+fi
+check "php -l phpmodule__linuxlib.php" php -l "$ROOT/kloxo/httpdocs/driver/pserver/phpmodule__linuxlib.php"
+check "phpmodule list rows" php "$HERE/test_phpmodule.php"
+if grep -q 'KloxoTraceroute::run' "$ROOT/kloxo/httpdocs/lib/html/traceroute.php" && ! grep -q 'throw new lxException' "$ROOT/kloxo/httpdocs/lib/html/traceroute.php"; then
+  ok "traceroute list does not throw traceroute_failed"
+else
+  bad "traceroute list does not throw traceroute_failed"
+fi
+if grep -q 'setDefaultValue("realhostname"' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" && grep -q 'realhostname = ' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php"; then
+  ok "server information prefills description and FQDN"
+else
+  bad "server information prefills description and FQDN"
+fi
+check "php -l kloxo_traceroute.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_traceroute.php"
+check "traceroute host validation" php "$HERE/test_traceroute.php"
 check "init-panel-db --self-test" "${INITDB[@]}" --self-test
 
 echo

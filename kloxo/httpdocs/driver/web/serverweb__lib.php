@@ -448,6 +448,13 @@ class serverweb__ extends lxDriverClass
 
 	function set_php_branch($branch = null)
 	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		$sel = $branch ? $branch : $this->main->php_branch;
+		$sel = preg_replace('/(.*)\_\(as\_(.*)\)/', '$1', (string)$sel);
+		if (KloxoPhpver::isDistroId($sel)) {
+			return;
+		}
+
 		$ehcdpath = '/etc/httpd/conf.d';
 		$haecdpath = '/opt/configs/apache/etc/conf.d';
 	/*
@@ -494,6 +501,11 @@ class serverweb__ extends lxDriverClass
 
 		$v = $this->main->php_used;
 
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		if (KloxoPhpver::isDistroId((string)$v)) {
+			return;
+		}
+
 		if (isWebProxyOrApache()) {
 			$p = $this->main->php_type;
 
@@ -520,6 +532,12 @@ class serverweb__ extends lxDriverClass
 	function set_multiple_php_install()
 	{
 		global $login;
+
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		if (KloxoIpaddr::isUbuntu()) {
+			throw new lxException($login->getThrow("php_switch_not_supported_on_ubuntu"), '', 'apt');
+		}
 
 		$i = $this->main->multiple_php_install;
 

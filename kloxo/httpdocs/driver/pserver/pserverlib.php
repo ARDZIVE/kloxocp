@@ -34,6 +34,16 @@ class pserver extends pservercore {
 			return $this->createUsed();
 		}
 
+		if ($var === 'ostype') {
+			$v = parent::display($var);
+			return ($v === null || $v === '') ? 'debian' : $v;
+		}
+
+		if ($var === 'nname') {
+			$v = parent::display($var);
+			return ($v === null || $v === '') ? 'localhost' : $v;
+		}
+
 		return parent::display($var);
 	}
 
@@ -68,9 +78,15 @@ class pserver extends pservercore {
 		}
 
 		// MR -- get httpd24u info
-		exec("cat '../etc/list/httpd.lst'|grep httpd24", $out);
+		$out = array();
+		if (is_file('../etc/list/httpd.lst')) {
+			$lst = (string)@file_get_contents('../etc/list/httpd.lst');
+			if (str_contains($lst, 'httpd24')) {
+				$out[] = 'httpd24';
+			}
+		}
 
-		if ($out[0] !== null) {
+		if ($out !== []) {
 			$next_useapache24 = $param['use_apache24'];
 
 			if ($next_useapache24 === 'on') {

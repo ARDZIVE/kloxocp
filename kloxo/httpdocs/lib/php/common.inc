@@ -9,8 +9,6 @@ function kloxo_autoload($class)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	if (strpos($class, '_none') !== false) { return; }
-
 	global $gl_class_array;
 
 	$class = strtolower($class);

@@ -4,6 +4,9 @@
 # Operator CLI snapshots (may contain copies of TLS keys)
 /kloxo/var/backups/
 
+# phpMyAdmin is installed at runtime (CentOS RPM is gone; do not vendor it)
+/kloxo/httpdocs/thirdparty/phpMyAdmin/
+
 # TLS material generated per install (never commit private keys)
 /kloxo/init/backend.key
 /kloxo/init/backend.crt

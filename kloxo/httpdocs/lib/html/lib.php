@@ -2878,25 +2878,20 @@ function checkIfLatest()
 
 function getLatestVersion()
 {
-	exec("yum check-update kloxo7|grep kloxo7|awk '{print $2}'", $out, $ret);
-
-	if ($ret === 0) {
-		$ver = getInstalledVersion();
-	} else {
-		$ver = str_replace(".mr", "", $out[0]);
-	}
-
-	return $ver;
-
+	// No yum / remote version file. kloxocp update is not built; latest is
+	// the version this tree already has.
+	return getInstalledVersion();
 }
 
 function getInstalledVersion()
 {
-	exec("cd /; yum list installed kloxo7|grep kloxo7|awk '{print $2}'", $out, $ret);
+	global $sgbl;
 
-	$ver = str_replace(".mr", "", $out[0]);
+	if (is_object($sgbl) && isset($sgbl->__ver_full) && $sgbl->__ver_full !== '') {
+		return (string)$sgbl->__ver_full;
+	}
 
-	return $ver;
+	return '0.1.0-dev';
 }
 
 function getDownloadServer()
@@ -3618,8 +3613,17 @@ function is_star_password($pass)
 	return ($pass === "****");
 }
 
+function kloxo_is_stream($fp)
+{
+	return is_resource($fp);
+}
+
 function FindRightPosition($fp, $fsize, $oldtime, $newtime, $func)
 {
+	if (!kloxo_is_stream($fp)) {
+		return -1;
+	}
+
 	$cur = $fsize / 2;
 	$beg = 0;
 	$end = $fsize;
@@ -3716,6 +3720,10 @@ function lxlabs_marker_fgets($fp)
 {
 	global $sgbl;
 
+	if (!kloxo_is_stream($fp)) {
+		return null;
+	}
+
 	while (!feof($fp)) {
 		$s = fgets($fp);
 
@@ -3741,6 +3749,10 @@ function lxlabs_marker_firstofline($fp)
 {
 	global $sgbl;
 
+	if (!kloxo_is_stream($fp)) {
+		return;
+	}
+
 	while (!feof($fp)) {
 		if (ftell($fp) <= 2) {
 			return;
@@ -3760,6 +3772,10 @@ function lxlabs_marker_firstofline($fp)
 
 function lxlabsFindRightPosition($fp, $fsize, $oldtime, $newtime)
 {
+	if (!kloxo_is_stream($fp) || $fsize <= 0) {
+		return -1;
+	}
+
 	$cur = $fsize / 2;
 	$beg = 0;
 	$end = $fsize;
@@ -4778,28 +4794,31 @@ function lxguard_main($clearflag = false, $since = false)
 		}
 	}
 
-	// MR -- array_map to object may error
-//	$rmt =  array_map('trim', lfile_get_unserialize("{$lxgpath}/hitlist.info"));
-
-	$t = toArray(lfile_get_unserialize("{$lxgpath}/hitlist.info"));
-	$r = new Remote();
-	$rmt = toObject(array_map($t), $r);
-
-	if ($rmt) {
+	// hitlist.info is a Remote object (hl + ddate). Missing on a fresh install.
+	$rmt = lfile_get_unserialize("{$lxgpath}/hitlist.info");
+	if (is_object($rmt) && isset($rmt->ddate)) {
 		$oldtime = max((int)$oldtime, (int)$rmt->ddate);
 	}
 
-//	$list = array_map('trim', lfile_get_unserialize("{$lxgpath}/access.info"));
-
-	$t2 = toArray(lfile_get_unserialize("{$lxgpath}/access.info"));
-	$r2 = new Remote();
-	$list = toObject(array_map($t2), $r2);
+	$list = lfile_get_unserialize("{$lxgpath}/access.info");
+	if (!is_array($list)) {
+		$list = array();
+	}
 
 	$type = array('sshd' => '/var/log/secure', 'pure-ftpd' => '/var/log/messages', 'vpopmail' => '/var/log/maillog');
+	if (is_file('/var/log/auth.log')) {
+		$type['sshd'] = '/var/log/auth.log';
+	}
+	if (is_file('/var/log/mail.log')) {
+		$type['vpopmail'] = '/var/log/mail.log';
+	}
 
 	foreach ($type as $key => $file) {
 		if (file_exists($file)) {
 			$fp = fopen($file, "r");
+			if (!is_resource($fp)) {
+				continue;
+			}
 			$fsize = filesize($file);
 
 			$ret = FindRightPosition($fp, $fsize, $oldtime, $newtime, "getTimeFromSysLogString");
@@ -4818,14 +4837,26 @@ function lxguard_main($clearflag = false, $since = false)
 		}
 	}
 
+	$total = array();
 	get_total($list, $total);
+	if (!is_array($total)) {
+		$total = array();
+	}
 
 //	dprintr($list['192.168.1.11']);
 
 	dprint_r("Debug: Total: " . count($total) . "\n");
 
 	$deny = get_deny_list($total);
-	$hdn = array_map('trim', lfile_get_unserialize("{$lxgpath}/hostdeny.info"));
+	if (!is_array($deny)) {
+		$deny = array();
+	}
+	$hdn = lfile_get_unserialize("{$lxgpath}/hostdeny.info");
+	if (!is_array($hdn)) {
+		$hdn = array();
+	} else {
+		$hdn = array_map('trim', $hdn);
+	}
 	$deny = lx_array_merge(array($deny, $hdn));
 
 	$str_host = null;
@@ -4834,19 +4865,25 @@ function lxguard_main($clearflag = false, $since = false)
 
 //	$note = "## blocked IP enough to use 'null routing'\n";
 
-	// MR -- remove blackhole blocked
-	exec("sh /script/remove-blackhole-block");
+	// MR -- remove blackhole blocked (CentOS helper; absent on Ubuntu)
+	if (is_file('/script/remove-blackhole-block')) {
+		exec("sh /script/remove-blackhole-block");
+	}
 
 //	exec("cat /etc/tcprules.d/tcp.smtp|grep -v ':deny'|grep -v '# MR'|grep -E ':allow,|:deny,'", $out);
-	exec("cat /etc/tcprules.d/tcp.smtp|grep -E ':allow,|:deny,' > /etc/tcprules.d/tcp.smtp2; mv -f /etc/tcprules.d/tcp.smtp2 /etc/tcprules.d/tcp.smtp");
+	if (is_file('/etc/tcprules.d/tcp.smtp')) {
+		exec("cat /etc/tcprules.d/tcp.smtp|grep -E ':allow,|:deny,' > /etc/tcprules.d/tcp.smtp2; mv -f /etc/tcprules.d/tcp.smtp2 /etc/tcprules.d/tcp.smtp");
+	}
 
 	foreach ($deny as $k => $v) {
 		if (csb($k, "127")) {
 			continue;
 		}
 
-		// MR -- add blackhole blocked
-		exec("sh /script/add-blackhole-block {$k}");
+		// MR -- add blackhole blocked (CentOS helper; absent on Ubuntu)
+		if (is_file('/script/add-blackhole-block')) {
+			exec("sh /script/add-blackhole-block {$k}");
+		}
 
 		// MR -- make sure no LF
 		$k = str_replace("\n", "", $k);
@@ -4864,22 +4901,25 @@ function lxguard_main($clearflag = false, $since = false)
 	$end_host[] = "###End Program HostDeny config Area";
 	$end_str_host = $end_host[0];
 
-	// MR -- no need this action where enough 'route host'
-	file_put_between_comments("root", $start_host, $end_host, $start_str_host, $end_str_host, "/etc/hosts.deny", $str_host);
-//	file_put_between_comments("root", $start_host, $end_host, $start_str_host, $end_str_host, "/etc/hosts.deny", $note);
+	if (is_file('/etc/hosts.deny')) {
+		file_put_between_comments("root", $start_host, $end_host, $start_str_host, $end_str_host, "/etc/hosts.deny", $str_host);
+	}
 
-	// MR -- no need this action where enough 'route host'
 	$start_tcprules[] = "###Start Program tcp.smtp config Area";
 	$start_str_tcprules = $start_tcprules[0];
 	$end_tcprules[] = "###End Program tcp.smtp config Area";
 	$end_str_tcprules = $end_tcprules[0];
 
-	file_put_between_comments("root", $start_tcprules, $end_tcprules, $start_str_tcprules, $end_str_tcprules, "/etc/tcprules.d/tcp.smtp", $str_tcprules);
-//	file_put_between_comments("root", $start_tcprules, $end_tcprules, $start_str_tcprules, $end_str_tcprules, "/etc/tcprules.d/tcp.smtp", $note);
-	exec("/usr/bin/qmailctl cdb");
+	if (is_file('/etc/tcprules.d/tcp.smtp')) {
+		file_put_between_comments("root", $start_tcprules, $end_tcprules, $start_str_tcprules, $end_str_tcprules, "/etc/tcprules.d/tcp.smtp", $str_tcprules);
+	}
+	if (is_file('/usr/bin/qmailctl')) {
+		exec("/usr/bin/qmailctl cdb");
+	}
 
-	// MR -- no need this action where enough 'route host'
-	file_put_contents('/var/qmail/spamdyke/blacklist_ip', $str_spamdyke);
+	if (is_dir('/var/qmail/spamdyke')) {
+		file_put_contents('/var/qmail/spamdyke/blacklist_ip', $str_spamdyke);
+	}
 //	file_put_contents('/var/qmail/spamdyke/blacklist_ip', '');
 
 	if ($clearflag) {
@@ -5462,6 +5502,14 @@ function getRpmBranchInstalled($rpm)
 
 function getRpmBranchInstalledOnList($rpm)
 {
+	if ($rpm === 'php') {
+		include_once dirname(__DIR__) . '/php/kloxo_phpver.php';
+		$ids = KloxoPhpver::installedIds();
+		if ($ids !== []) {
+			return $ids[0];
+		}
+	}
+
 	$a = getListOnList($rpm);
 
 	foreach ($a as $k => $e) {
@@ -5865,17 +5913,23 @@ function getInitialPhpFpmConfig($nolog = null)
 
 	$a = glob("../etc/flag/use_php*.flg");
 
+	include_once dirname(__DIR__) . '/php/kloxo_phpver.php';
+
 	if (count($a) > 0) {
 		$b1 = basename($a[0]);
 		$b2 = str_replace('.flg', '', $b1);
 		$b3 = str_replace('use_', '', $b2);
 
-		exec("sh /script/set-php-fpm {$b3}");
+		if (!KloxoPhpver::isDistroId($b3)) {
+			exec("sh /script/set-php-fpm {$b3}");
+		}
 
 		return $b3;
 	} else {
 		foreach ($d as $k => $v) {
-			exec("sh /script/set-php-fpm {$v}");
+			if (!KloxoPhpver::isDistroId($v)) {
+				exec("sh /script/set-php-fpm {$v}");
+			}
 
 			return $v;
 		}
@@ -6362,28 +6416,11 @@ function setInitialPureftpConfig($nolog = null)
 
 function setInitialPhpMyAdmin($nolog = null)
 {
-	// MR -- kloxo.pass does not exist in slave
-	if (!lxfile_exists("../etc/conf/kloxo.pass")) {
+	// install-phpmyadmin writes config.inc.php. Copying the template into an
+	// empty thirdparty/phpMyAdmin makes Hiawatha return 405 (directory, no index).
+	if (!lxfile_exists("thirdparty/phpMyAdmin/index.php")) {
 		return;
 	}
-
-	log_cleanup("Initialize phpMyAdmin configfile", $nolog);
-	lxfile_cp("../file/phpmyadmin/config.inc.php", "thirdparty/phpMyAdmin/config.inc.php");
-
-	log_cleanup("- phpMyAdmin: Set db password in configfile", $nolog);
-	$DbPass = file_get_contents("../etc/conf/kloxo.pass");
-	$phpMyAdminCfg = "../httpdocs/thirdparty/phpMyAdmin/config.inc.php";
-	$content = file_get_contents($phpMyAdminCfg);
-	$content = str_replace("# Kloxo CP-Marker",
-		"# Kloxo CP-Marker\n\$cfg['Servers'][\$i]['controlpass'] = '" .
-		$DbPass . "';", $content);
-
-	lfile_put_contents($phpMyAdminCfg, $content);
-/*
-	 // TODO: Need another way to do this (use root pass)
-	 log_cleanup("- phpMyAdmin: Import PMA Database and create tables if they do not exist", $nolog);
-	 exec("../sbin/kloxodb < ../httpdocs/sql/phpMyAdmin/phpMyAdmin.sql");
-*/
 }
 
 function setRemoveOldDirs($nolog = null)
@@ -8265,21 +8302,9 @@ function ipv6_expand($ip)
 
 function getMultiplePhpList()
 {
-	$d = glob("/opt/*m/usr/bin/php");
+	include_once dirname(__DIR__) . '/php/kloxo_phpver.php';
 
-	if (empty($d)) {
-		return array();
-	}
-
-	$f = array();
-
-	foreach ($d as $k => $v) {
-		$e = str_replace('/opt/', '', $v);
-		$e = str_replace('/usr/bin/php', '', $e);
-		$f[] = $e;
-	}
-
-	return $f;
+	return KloxoPhpver::installedIds();
 }
 
 function getCleanRpmBranchListOnList($branchtype)
@@ -8467,6 +8492,23 @@ function callWithSudo($res, $username = null)
 function setAllWebServerInstall($nolog = null)
 {
 	log_cleanup("Install All Web servers", $nolog);
+
+	$os = is_file('/etc/os-release') ? (string)@file_get_contents('/etc/os-release') : '';
+	if (preg_match('/^ID=ubuntu/m', $os) === 1) {
+		$list = getAllRealWebDriverList();
+		foreach ($list as $v) {
+			if ($v !== 'nginx') {
+				log_cleanup("- Skip '{$v}' (Ubuntu sites are nginx only)", $nolog);
+				continue;
+			}
+			if (is_executable('/usr/sbin/nginx') || is_executable('/usr/bin/nginx')) {
+				log_cleanup("- No process for 'nginx'", $nolog);
+			} else {
+				log_cleanup("- nginx is not installed (use the Ubuntu package, not yum)", $nolog);
+			}
+		}
+		return;
+	}
 
 	$list = getAllRealWebDriverList();
 
@@ -8839,6 +8881,10 @@ function safefilerewrite($fileName, $dataToSave)
 // MR -- https://likegeeks.com/convert-array-to-object-using-php/
 function toObject(array $array, $object)
 {
+	if (!is_object($object)) {
+		return $object;
+	}
+
 	$class = get_class($object);
 	$methods = get_class_methods($class);
 
@@ -8860,6 +8906,10 @@ function toObject(array $array, $object)
 // MR -- https://likegeeks.com/convert-array-to-object-using-php/
 function toArray($object)
 {
+	if (!is_object($object)) {
+		return is_array($object) ? $object : array();
+	}
+
 	$array = array();
 	$class = get_class($object);
 	$methods = get_class_methods($class);

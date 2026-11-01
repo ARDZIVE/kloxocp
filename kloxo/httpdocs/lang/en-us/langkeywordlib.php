@@ -420,6 +420,7 @@ $__throw["only_work_for_php-type_for_php-fpm_or_proxy_fcgi"] = "Only work for PH
 $__throw["other_install_process_still_running"] = "Other install process still running";
 $__throw["install_process_running_in_background"] = "Install process running in background";
 $__throw["php_already_in_used"] = "Already use by *PHP Used*";
+$__throw["php_switch_not_supported_on_ubuntu"] = "Multiple PHP install from this page is not supported on Ubuntu; install extra php-fpm packages with apt";
 
 $__throw["no_options_selected"] = "No options selected";
 

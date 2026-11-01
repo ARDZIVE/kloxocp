@@ -483,7 +483,7 @@ abstract class Lxclass
 
 	static function getDefaultValue($var)
 	{
-		if ($var === 'phpfcgi_flag') {
+		if ($var === 'phpfcgi_flag' || strpos($var, 'easyinstaller') !== false) {
 			return "Off";
 		}
 
@@ -3675,6 +3675,16 @@ abstract class Lxclass
 	}
 
 	static function initThisList($parent, $class)
+	{
+		return null;
+	}
+
+	static function initThisObjectRule($parent, $class, $name = null)
+	{
+		return null;
+	}
+
+	static function initThisObject($parent, $class, $name = null)
 	{
 		return null;
 	}

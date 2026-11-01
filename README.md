@@ -44,7 +44,7 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 ## Installation
 
-**Ubuntu 24.04 or 26.x, one line (as root).** This clones
+**Ubuntu 24.04 or 26.x, one line (as root, clean machine).** This clones
 https://github.com/ARDZIVE/kloxocp.git (public, branch `main`) and runs `install.sh`:
 
 ```
@@ -53,27 +53,32 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get i
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
 The clone-then-run line above is the supported form. Do not run this on a
-machine that already has cPanel, Plesk, or ISPConfig. Push this tree to
-`kloxocp` before running the one-liner on a server, or it will install an
-older revision.
+machine that already has cPanel, Plesk, or ISPConfig. The one-liner installs
+whatever is on GitHub `main`; it fails if `/usr/local/src/kloxo-cp` already
+exists. To install this working tree instead, copy it to the server and run
+`sudo bash install.sh` from that directory.
 
 `install.sh` installs distro packages, links `/opt/kloxo` to the clone,
 generates TLS keys, starts `kloxo-php` when a distro `php-fpm` is present
 (8.3 on 24.04, 8.5 on 26.04),
-builds pinned Hiawatha 12.4, and loads the panel MariaDB schema
-(`init-panel-db`). Default login is **admin / admin**; the panel blocks the
-rest of the UI until that password is changed. The password is also written
-to `/root/kloxo-admin-password` (mode 0600). Override with
-`KLOXO_ADMIN_PASSWORD` (min 8 characters). It does not run `kloxo-mail apply`
-unless you pass `--profile=full` for mail *packages* only, and does not
-prove a browser login. Log: `/var/log/kloxo-install.log`.
+builds pinned Hiawatha 12.4, loads the panel MariaDB schema
+(`init-panel-db`, including the `localhost` server row), and installs
+phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`. Default login is
+**admin / admin**; the panel blocks the rest of the UI until that password
+is changed. The password is also written to `/root/kloxo-admin-password`
+(mode 0600). Override with `KLOXO_ADMIN_PASSWORD` (min 8 characters).
+Machines under ~2 GB RAM or 10 GB free disk need `--force`. It does not
+run `kloxo-mail apply` unless you pass `--profile=full` for mail *packages*
+only, and does not prove a browser login. Log: `/var/log/kloxo-install.log`.
 
-From an existing clone:
+From an existing clone (re-run or recover; do not `git clone` again):
 
 ```
-sudo bash install.sh
-sudo bash install.sh --profile=full    # also apt-install postfix/dovecot/rspamd
-sudo bash install.sh --help
+sudo bash /usr/local/src/kloxo-cp/install.sh
+sudo bash /usr/local/src/kloxo-cp/install.sh --update    # git fetch main, then re-run
+sudo bash /usr/local/src/kloxo-cp/install.sh --force     # below 2 GB RAM / 10 GB disk
+sudo bash /usr/local/src/kloxo-cp/install.sh --profile=full    # also apt-install postfix/dovecot/rspamd
+sudo bash /usr/local/src/kloxo-cp/install.sh --help
 ```
 
 Signed apt packages (`docs/INSTALL_AND_UPDATE_DESIGN.md`) are not built.
@@ -98,13 +103,15 @@ run Hiawatha, the systemd units, or the live mail tests.
 ### 0. What this procedure does and does not do
 
 **Does:** unpack the tree under `/opt/kloxo`, generate unique TLS keys, point `lxphp.exe`
-at distro PHP 8, create runtime directories, install OS packages, optionally configure
-the mail stack, and confirm `include.php` loads.
+at distro PHP 8, create runtime directories, install OS packages, build pinned
+Hiawatha 12.4, load the panel MariaDB schema (`init-panel-db`, including the
+`localhost` server), install phpMyAdmin, start `kloxo-php` / `kloxo-web`,
+optionally apt-install mail packages (`--profile=full`), and confirm
+`include.php` loads.
 
-**Does not (yet):** a signed apt package, Let's Encrypt for the panel hostname, a
-verified Hiawatha Ubuntu package, panel DB schema, or a verified admin login
-through the browser. The legacy `kloxo/install/` scripts are CentOS/RPM-only —
-do not run them on Ubuntu.
+**Does not (yet):** a signed apt package, Let's Encrypt for the panel hostname, or
+a verified admin login through the browser. The legacy `kloxo/install/` scripts
+are CentOS/RPM-only — do not run them on Ubuntu.
 
 ### 1. Requirements
 
@@ -261,6 +268,14 @@ If `hiawatha -k` names a bad directive, paste that output before editing
 Open in a browser: `https://YOUR-HOST:7777/` (self-signed cert; expect a warning).
 Unauthenticated requests redirect to `/login/`. Log in as **admin / admin**
 and change the password when the panel asks. **Login against MariaDB is not verified.**
+The IP list is read from `ip -4 addr` on Ubuntu (Refresh is safe). Do not use
+Add / Update / Delete on that page: those still write CentOS-style network
+files and can take the host off the network.
+
+phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
+`kloxo/bin/install/install-phpmyadmin` (not shipped in git). A 405 from
+Hiawatha on that URL means the directory has no `index.php`; run the
+installer as root.
 
 ### 9. MariaDB for the panel
 

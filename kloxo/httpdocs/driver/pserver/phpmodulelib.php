@@ -122,6 +122,9 @@ class PhpModule extends lxclass
 		switch ($subaction) {
 			case "enable":
 				if ($this->status === 'off') {
+					if (self::toggleDistroMod($this->fullfile, true)) {
+						break;
+					}
 					$s = $this->fullfile;
 
 					if (strrpos($s, '_unused.nonini') !== false) {
@@ -130,13 +133,18 @@ class PhpModule extends lxclass
 						$t = str_replace(".nonini", "_used.ini", $s);
 					}
 
-					exec("'mv' -f {$s} {$t}");
+					if (is_file($s) && !str_contains($s, '..')) {
+						@rename($s, $t);
+					}
 				}
 
 			//	throw new lxException($login->getThrow('enable'), '', $subaction);
 				break;
 			case "disable":
 				if ($this->status === 'on') {
+					if (self::toggleDistroMod($this->fullfile, false)) {
+						break;
+					}
 					$s = $this->fullfile;
 
 					if (strrpos($s, '_used.ini') !== false) {
@@ -145,7 +153,9 @@ class PhpModule extends lxclass
 						$t = str_replace(".ini", "_unused.nonini", $s);
 					}
 
-					exec("'mv' -f {$s} {$t}");
+					if (is_file($s) && !str_contains($s, '..')) {
+						@rename($s, $t);
+					}
 				}
 
 			//	throw new lxException($login->getThrow('disable'), '', $subaction);
@@ -157,6 +167,29 @@ class PhpModule extends lxclass
 		}
 
 		return $param;
+	}
+
+	static function toggleDistroMod($fullfile, $enable)
+	{
+		if (!is_string($fullfile) || $fullfile === '') {
+			return false;
+		}
+		if (preg_match('#^/etc/php/(\d+\.\d+)/mods-available/([A-Za-z0-9._-]+)\.ini$#', $fullfile, $m) !== 1) {
+			return false;
+		}
+		$bin = $enable ? 'phpenmod' : 'phpdismod';
+		$path = '/usr/sbin/' . $bin;
+		if (!is_executable($path)) {
+			$path = $bin;
+		}
+		$p = @proc_open([$path, '-v', $m[1], '-s', 'ALL', $m[2]], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+		if (is_resource($p)) {
+			fclose($pipes[1]);
+			fclose($pipes[2]);
+			proc_close($p);
+		}
+
+		return true;
 	}
 
 }

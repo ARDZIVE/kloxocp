@@ -1,94 +1,78 @@
 <?php
 
+include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+
 class PhpModule__linux extends lxDriverClass
 {
 	static function getListDetail($syncserver)
 	{
-		global $sgbl;
-
-		$files = glob("/opt/php*m/etc/php.d/*ini", GLOB_MARK);
-
-		foreach ($files as $fk => $fv) {
-			$b = basename($fv);
-
-			$p = preg_replace("(\/opt\/|\/etc\/php\.d\/{$b})", "", $fv);
-
-			$target = $p;
-
-			$n = preg_replace("(\_used|\_unused|\.ini|\.nonini)", "", $b);
-
-			$nname = "{$p}-{$n}___{$syncserver}";
-
-			$modulename = $n;
-
-			if (strpos($b, '.ini') !== false) {
-				$status = "on";
-			} else {
-				$status = "off";
-			}
-
-			$t[] = array('nname' => $nname, 'modulename' => $modulename, 
-				'target' => $target, 'type' => 'multiple-php', 'status' => $status,
-				'fullfile' => $fv);
-
+		$t = array();
+		if (class_exists('KloxoPhpver', false)) {
+			$t = array_merge($t, KloxoPhpver::distroModuleRows((string)$syncserver));
 		}
 
-		$kloxophp = trim(file_get_contents("../init/kloxo_php_active"));
-
-		$files = glob("/opt/{$kloxophp}/etc/php.d/*ini", GLOB_MARK);
-
-		foreach ($files as $fk => $fv) {
-			$b = basename($fv);
-
-			$p = preg_replace("(\/opt\/|\/etc\/php\.d\/{$b})", "", $fv);
-
-			$target = $p;
-
-			$n = preg_replace("(\_used|\_unused|\.ini|\.nonini)", "", $b);
-
-			$nname = "{$p}-{$n}___{$syncserver}";
-
-			$modulename = $n;
-
-			if (strpos($b, '.ini') !== false) {
-				$status = "on";
-			} else {
-				$status = "off";
+		$files = glob("/opt/php*m/etc/php.d/*ini", GLOB_MARK);
+		foreach ((array)$files as $fv) {
+			if (!is_string($fv) || $fv === '') {
+				continue;
 			}
+			$row = self::legacyIniRow($fv, (string)$syncserver, 'multiple-php');
+			if ($row) {
+				$t[] = $row;
+			}
+		}
 
-			$t[] = array('nname' => $nname, 'modulename' => $modulename, 
-				'target' => $target, 'type' => 'kloxo-php', 'status' => $status,
-				'fullfile' => $fv);
-
+		$active = '../init/kloxo_php_active';
+		if (is_file($active)) {
+			$kloxophp = trim((string)file_get_contents($active));
+			if ($kloxophp !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $kloxophp)) {
+				$files = glob("/opt/{$kloxophp}/etc/php.d/*ini", GLOB_MARK);
+				foreach ((array)$files as $fv) {
+					if (!is_string($fv) || $fv === '') {
+						continue;
+					}
+					$row = self::legacyIniRow($fv, (string)$syncserver, 'kloxo-php');
+					if ($row) {
+						$t[] = $row;
+					}
+				}
+			}
 		}
 
 		$files = glob("/etc/php.d/*ini", GLOB_MARK);
-
-		foreach ($files as $fk => $fv) {
-			$b = basename($fv);
-
-			$p = 'php';
-
-			$target = $p;
-
-			$n = preg_replace("(\_used|\_unused|\.ini|\.nonini)", "", $b);
-
-			$nname = "{$p}-{$n}___{$syncserver}";
-
-			$modulename = $n;
-
-			if (strpos($b, '.ini') !== false) {
-				$status = "on";
-			} else {
-				$status = "off";
+		foreach ((array)$files as $fv) {
+			if (!is_string($fv) || $fv === '') {
+				continue;
 			}
-
-			$t[] = array('nname' => $nname, 'modulename' => $modulename, 
-				'target' => $target, 'type' => 'php-branch', 'status' => $status,
-				'fullfile' => $fv);
-
+			$row = self::legacyIniRow($fv, (string)$syncserver, 'php-branch', 'php');
+			if ($row) {
+				$t[] = $row;
+			}
 		}
 
 		return $t;
+	}
+
+	static function legacyIniRow($fv, $syncserver, $type, $target = null)
+	{
+		$b = basename($fv);
+		$n = preg_replace('/(_used|_unused|\.ini|\.nonini)$/', '', $b);
+		if ($n === '' || $n === null) {
+			return null;
+		}
+		if ($target === null) {
+			$p = preg_replace('#/opt/|/etc/php\.d/' . preg_quote($b, '#') . '#', '', $fv);
+			$target = $p;
+		}
+		$status = (strpos($b, '.ini') !== false && strpos($b, '.nonini') === false) ? 'on' : 'off';
+
+		return array(
+			'nname' => "{$target}-{$n}___{$syncserver}",
+			'modulename' => $n,
+			'target' => $target,
+			'type' => $type,
+			'status' => $status,
+			'fullfile' => $fv,
+		);
 	}
 }

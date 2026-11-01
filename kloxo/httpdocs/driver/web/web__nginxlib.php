@@ -1,6 +1,6 @@
 <?php
 
-include_once("web__lib.php");
+include_once __DIR__ . '/web__lib.php';
 
 class web__nginx extends web__
 {
