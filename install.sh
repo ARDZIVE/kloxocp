@@ -356,6 +356,13 @@ printf '%s\n' "$admin_env" > /root/kloxo-admin-password
 chmod 600 /root/kloxo-admin-password
 KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
     --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root
+if id -u lxlabs >/dev/null 2>&1; then
+  chown -R lxlabs:lxlabs "$ROOT/etc/conf" || true
+  chmod 0750 "$ROOT/etc/conf" || true
+  if [[ -f "$ROOT/etc/conf/kloxo.pass" ]]; then
+    chmod 0640 "$ROOT/etc/conf/kloxo.pass"
+  fi
+fi
 log "panel schema ready"
 
 bash "$ROOT/bin/install/install-phpmyadmin" --root="$ROOT"

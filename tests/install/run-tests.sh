@@ -201,6 +201,17 @@ if grep -q '^user = lxlabs' "$ROOT/kloxo/init/kloxo-php-fpm.conf" && ! grep -q '
 else
   bad "FPM pool runs as lxlabs (PHP 8.5 refuses root)"
 fi
+if grep -q "chown(\$passFile, 'lxlabs')" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'chmod(\$passFile, 0640)' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db writes kloxo.pass readable by lxlabs"
+else
+  bad "init-panel-db writes kloxo.pass readable by lxlabs"
+fi
+if grep -q 'etc/conf/kloxo.pass' "$ROOT/install.sh" && grep -q 'chmod 0640' "$ROOT/install.sh"; then
+  ok "install.sh chowns kloxo.pass to lxlabs after schema"
+else
+  bad "install.sh chowns kloxo.pass to lxlabs after schema"
+fi
 if grep -q 'Type=simple' "$ROOT/kloxo/init/kloxo-php.service"; then
   ok "kloxo-php.service is Type=simple"
 else

@@ -296,7 +296,7 @@ sudo KLOXO_ADMIN_PASSWORD='YOUR_ADMIN_UI_PASS' \
 ```
 
 `init-panel-db` is idempotent (`CREATE TABLE IF NOT EXISTS`, insert-or-update
-admin). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0600). With no override
+admin). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0640, `lxlabs`). With no override
 it seeds **admin / admin** (the UI then requires a change). A custom
 `--admin-password` must be at least 8 characters.
 

@@ -184,8 +184,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `127.0.0.1:39000` (a unix socket plus restarting FPM without
     bouncing Hiawatha produced HTTP 503). `kloxo-php` is Type=simple
     (notify + the wrapper left FPM dead). The FPM pool user is
-    `lxlabs` (PHP 8.5 exits 78 if the pool is `root`). Live browser
-    login is still **UNVERIFIED**.
+    `lxlabs` (PHP 8.5 exits 78 if the pool is `root`). `kloxo.pass` is
+    `0640` `lxlabs` so FPM can read the DB password (0600 root produced
+    `Access denied for user 'kloxo'@'localhost' (using password: NO)`).
+    Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

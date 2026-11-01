@@ -3305,8 +3305,13 @@ function copy_script($nolog = null)
 function getAdminDbPass()
 {
 	$pass = lfile_get_contents("__path_admin_pass");
+	$pass = is_string($pass) ? trim($pass) : '';
 
-	return trim($pass);
+	if ($pass === '') {
+		die("Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).");
+	}
+
+	return $pass;
 }
 
 function change_underscore($var)

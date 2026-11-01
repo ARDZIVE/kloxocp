@@ -203,7 +203,7 @@ init-panel-db 0.1.0: create the Kloxo CP panel MariaDB schema
 Loads kloxo/file/sql/db-structure-base.sql (and -update.sql) synchronously.
 Creates the kloxo database user with MariaDB 10.11 syntax (CREATE USER +
 GRANT; never GRANT ... IDENTIFIED BY). Writes <root>/etc/conf/kloxo.pass
-(0600). Inserts admin / general rows if they are missing.
+(0640, owned by lxlabs). Inserts admin / general rows if they are missing.
 
 Admin UI password: omitted flags seed the well-known default admin/admin
 (must be changed after first login). Override with --admin-password-env=VAR
@@ -522,13 +522,22 @@ TXT;
     private function writePass(string $passFile, string $dbPass): void
     {
         $dir = dirname($passFile);
-        if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
+        if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
             throw new IpdbException("Cannot create $dir");
         }
         if (file_put_contents($passFile, $dbPass . "\n") === false) {
             throw new IpdbException("Cannot write $passFile");
         }
-        chmod($passFile, 0600);
+        chmod($dir, 0750);
+        chmod($passFile, 0640);
+        // PHP-FPM runs as lxlabs (PHP 8.5 refuses pool user=root). 0600 root
+        // made getAdminDbPass() return empty → "using password: NO".
+        if (function_exists('posix_getpwnam') && posix_getpwnam('lxlabs') !== false) {
+            @chown($dir, 'lxlabs');
+            @chgrp($dir, 'lxlabs');
+            @chown($passFile, 'lxlabs');
+            @chgrp($passFile, 'lxlabs');
+        }
     }
 
     private function seedAdmin(PDO $pdo, string $adminPass): void
