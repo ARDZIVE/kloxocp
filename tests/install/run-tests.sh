@@ -196,6 +196,11 @@ if grep -qE 'magic_quotes_gpc|allow_url_include|mysql\.allow_persistent|enable_d
 else
   ok "kloxo-php-fpm.conf has no removed PHP 8 INI flags"
 fi
+if grep -q '^user = lxlabs' "$ROOT/kloxo/init/kloxo-php-fpm.conf" && ! grep -q '^user = root' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
+  ok "FPM pool runs as lxlabs (PHP 8.5 refuses root)"
+else
+  bad "FPM pool runs as lxlabs (PHP 8.5 refuses root)"
+fi
 if grep -q 'Type=simple' "$ROOT/kloxo/init/kloxo-php.service"; then
   ok "kloxo-php.service is Type=simple"
 else

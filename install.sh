@@ -296,6 +296,9 @@ if [[ -f "$ROOT/etc/program.pem" ]]; then
 fi
 
 install -d -m 0755 "$ROOT/init" "$ROOT/log" "$ROOT/session" "$ROOT/pid"
+if id -u lxlabs >/dev/null 2>&1; then
+  chown lxlabs:lxlabs "$ROOT/log" "$ROOT/session" "$ROOT/pid" || true
+fi
 php_fpm=""
 for p in /usr/sbin/php-fpm8.5 /usr/sbin/php-fpm8.4 /usr/sbin/php-fpm8.3 /usr/sbin/php-fpm; do
   if [[ -x "$p" ]]; then
