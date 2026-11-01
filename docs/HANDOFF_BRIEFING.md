@@ -187,7 +187,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `lxlabs` (PHP 8.5 exits 78 if the pool is `root`). `kloxo.pass` is
     `0640` `lxlabs` so FPM can read the DB password (0600 root produced
     `Access denied for user 'kloxo'@'localhost' (using password: NO)`).
-    Live browser login is still **UNVERIFIED**.
+    Empty `allowedip`/`blockedip` lists are arrays (PHP 8 `count(null)`
+    after login). Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

@@ -21,9 +21,10 @@ P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 change after first login. Admin Servers list seeds `localhost`. The Update
 screen shows the local `kloxoversion` (`kloxocp update` still exits 2).
 Switch Program loads `dns__none` / `web__none`. PHP Module Status
-reads Ubuntu `mods-available`. Browser login against
-MariaDB is not verified. Next: remaining P2 runtime,
-Debian packaging, or P4 postfix UI. See briefing section 7.
+reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
+`count(null)` after login. Browser login against MariaDB is not verified.
+Next: remaining P2 runtime, Debian packaging, or P4 postfix UI. See briefing
+section 7.
 
 ## Commands
 ```

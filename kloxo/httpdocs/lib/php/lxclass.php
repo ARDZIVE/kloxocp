@@ -1327,11 +1327,11 @@ abstract class Lxclass
 
 		$this->$typevar = 'fullist';
 
-		$this->$totalvar = count($this->$list);
-
-		if (!isset($this->$list)) {
-			$this->$list = NULL;
+		if (!is_array($this->$list)) {
+			$this->$list = array();
 		}
+
+		$this->$totalvar = count($this->$list);
 	}
 
 	final function getUrlIdentity()
@@ -1676,7 +1676,7 @@ abstract class Lxclass
 
 		} else {
 			$res = exec_class_method($rclass, 'initThisList', $this, $class);
-			$countres = count($res);
+			$countres = is_countable($res) ? count($res) : 0;
 		}
 
 	//	$this->ApplyFilter($res);
@@ -1740,8 +1740,8 @@ abstract class Lxclass
 		$rclass = $class;
 		$list = "{$class}_l";
 
-		if (!isset($this->$list)) {
-			$this->$list = NULL;
+		if (!is_array($this->$list)) {
+			$this->$list = array();
 		}
 
 		if (!$result) {
@@ -2362,10 +2362,14 @@ abstract class Lxclass
 
 		$this->initListIfUndef($class);
 
+		if (!is_array($this->$list)) {
+			$this->$list = array();
+		}
+
 		// Setting the parent Forcibly.... Php screws up recursion.. 
 		// This should have only been done in the initlistifundef and only the first time, 
 		// but there u fucking have it.. Stupid php..
-		foreach ((array)$this->$list as $o) {
+		foreach ($this->$list as $o) {
 			$o->__parent_o = $this;
 		}
 
@@ -4134,7 +4138,7 @@ abstract class Lxclass
 		// For customer, it is best you get the full list. It is going to be small.
 		if ($parent->isCustomer()) {
 			$list = $parent->getList($class);
-			$count = count($list);
+			$count = is_countable($list) ? count($list) : 0;
 		} else {
 			$list = $parent->getVirtualList($class, $count);
 		}
@@ -4732,7 +4736,7 @@ abstract class Lxclass
 
 				if (array_search_bool($listvar, $totalchildlist)) {
 					$childlist = $this->$cvar;
-					$num = count($childlist);
+					$num = is_countable($childlist) ? count($childlist) : 0;
 					$fv[$var] = $num;
 				}
 			} else if (cse($var, "_num")) {

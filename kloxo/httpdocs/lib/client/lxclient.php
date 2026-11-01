@@ -624,7 +624,7 @@ abstract class Lxclient extends Lxdb
 	{
 		$list = $this->getList('blockedip');
 
-		if (!$list) {
+		if (!is_array($list) || $list === array()) {
 			return false;
 		}
 
@@ -668,7 +668,7 @@ abstract class Lxclient extends Lxdb
 	{
 		$list = $this->getList('allowedip');
 
-		if (!$list) {
+		if (!is_array($list) || $list === array()) {
 			return true;
 		}
 

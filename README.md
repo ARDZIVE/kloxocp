@@ -17,12 +17,12 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 > **Status: 0.1.0-dev, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. The legacy PHP is still PHP 5-era in behaviour,
-> apt packaging is not built, and a full UI login against MariaDB is not verified.
-> First-party PHP now **parses and loads** on PHP 8 (`include.php` boot smoke).
-> The `kloxocp` CLI (`status`, `doctor`, `snapshot`, `rollback`) is in this tree.
+> apt packaging is not built, and a full UI login against MariaDB is not verified
+> in a browser from this tree. First-party PHP **parses and loads** on PHP 8.
 > Ubuntu 24.04 / 26.x `install.sh` clones https://github.com/ARDZIVE/kloxocp.git,
-> builds pinned Hiawatha 12.4, and runs `init-panel-db`.
-> `kloxocp update` and signed apt packages are not built.
+> builds pinned Hiawatha 12.4, starts panel FastCGI on `127.0.0.1:39000` as
+> `lxlabs`, and runs `init-panel-db`. Default login is **admin / admin**;
+> change it on first login. `kloxocp update` and signed apt packages are not built.
 >
 > Read `docs/AUDIT_REPORT.md` (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md`
 > (the intended production installer), and `docs/MAIL_DESIGN.md` (mail stack, which is
@@ -64,17 +64,31 @@ self-signed certificate and change the password on first login. If the page
 does not load, allow TCP 7777 (and 7778) in the host firewall.
 
 `install.sh` installs distro packages, links `/opt/kloxo` to the clone,
-generates TLS keys, starts `kloxo-php` when a distro `php-fpm` is present
-(8.3 on 24.04, 8.5 on 26.04),
-builds pinned Hiawatha 12.4, loads the panel MariaDB schema
-(`init-panel-db`, including the `localhost` server row), and installs
-phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`. Default login is
-**admin / admin**; the panel blocks the rest of the UI until that password
-is changed. The password is also written to `/root/kloxo-admin-password`
-(mode 0600). Override with `KLOXO_ADMIN_PASSWORD` (min 8 characters).
-Machines under ~2 GB RAM or 10 GB free disk need `--force`. It does not
-run `kloxo-mail apply` unless you pass `--profile=full` for mail *packages*
+generates TLS keys, starts `kloxo-php` (distro `php-fpm` 8.3 on 24.04,
+8.5 on 26.x) as **`lxlabs`** on `127.0.0.1:39000`, builds pinned
+Hiawatha 12.4, loads the panel MariaDB schema (`init-panel-db`, including
+the `localhost` server row), writes `/opt/kloxo/etc/conf/kloxo.pass`
+(`0640`, `lxlabs`), and installs phpMyAdmin under
+`httpdocs/thirdparty/phpMyAdmin`. Default login is **admin / admin**;
+the panel blocks the rest of the UI until that password is changed.
+The password is also written to `/root/kloxo-admin-password` (mode 0600).
+Override with `KLOXO_ADMIN_PASSWORD` (min 8 characters). Machines under
+~2 GB RAM or 10 GB free disk need `--force`. It does not run
+`kloxo-mail apply` unless you pass `--profile=full` for mail *packages*
 only, and does not prove a browser login. Log: `/var/log/kloxo-install.log`.
+
+The one-liner above **does not re-clone** if `/usr/local/src/kloxo-cp`
+already exists. For a true fresh tree from GitHub `main`:
+
+```
+sudo rm -rf /usr/local/src/kloxo-cp
+```
+
+then run the one-liner again. To keep the directory and pull `main`:
+
+```
+sudo bash /usr/local/src/kloxo-cp/install.sh --update
+```
 
 From an existing clone (re-run or recover; do not `git clone` again):
 
@@ -232,22 +246,25 @@ KLOXO_ROOT=/opt/kloxo php /usr/local/src/kloxo-cp/tests/p2/test_boot.php
 
 That proves the library bootstrap. It does **not** prove a browser login.
 
-### 7. Panel PHP-FPM (Hiawatha talks to this socket)
+### 7. Panel PHP-FPM (Hiawatha talks to this port)
 
 ```
-install -d -m 0755 /opt/kloxo/init /opt/kloxo/log
+install -d -m 0755 /opt/kloxo/init /opt/kloxo/log /opt/kloxo/session /opt/kloxo/pid
+chown lxlabs:lxlabs /opt/kloxo/log /opt/kloxo/session /opt/kloxo/pid
 cp -a /opt/kloxo/init/kloxo-php.service /etc/systemd/system/kloxo-php.service
 # pool file: /opt/kloxo/init/kloxo-php-fpm.conf
-# FastCGI:   127.0.0.1:39000
+# FastCGI:   127.0.0.1:39000  (user/group lxlabs — PHP 8.5 refuses root)
 systemctl daemon-reload
 systemctl enable --now kloxo-php
 systemctl status kloxo-php --no-pager
+ss -lnt | grep 39000
 ```
 
 The unit runs `/opt/kloxo/init/kloxo-php-fpm.sh`, which execs the distro
-`php-fpm` (`/usr/sbin/php-fpm8.3` on 24.04, `/usr/sbin/php-fpm8.5` on 26.04).
-The pool still listens as root with mode `0666` (legacy). Do not consider that a security
-default for production.
+`php-fpm` (`/usr/sbin/php-fpm8.3` on 24.04, `/usr/sbin/php-fpm8.5` on 26.x).
+`kloxo.pass` must be readable by `lxlabs` (`0640`). A 503 from Hiawatha
+means this port is down. Do not consider the current layout a production
+security default.
 
 ### 8. Panel Hiawatha (pinned 12.4 source build)
 
@@ -272,7 +289,9 @@ If `hiawatha -k` names a bad directive, paste that output before editing
 
 Open in a browser: `https://YOUR-HOST:7777/` (self-signed cert; expect a warning).
 Unauthenticated requests redirect to `/login/`. Log in as **admin / admin**
-and change the password when the panel asks. **Login against MariaDB is not verified.**
+and change the password when the panel asks. A fresh admin has no
+allowed-IP / blocked-IP rows; that empty list must not crash login.
+**A full browser session after password change is not verified from this tree.**
 The IP list is read from `ip -4 addr` on Ubuntu (Refresh is safe). Do not use
 Add / Update / Delete on that page: those still write CentOS-style network
 files and can take the host off the network.

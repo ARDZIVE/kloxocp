@@ -82,6 +82,16 @@ if php "$HERE/test_boot.php"; then
 else
   bad "test_boot.php"
 fi
+if php "$HERE/test_empty_list.php"; then
+  ok "test_empty_list.php"
+else
+  bad "test_empty_list.php"
+fi
+if sed -n '/final protected function initListIfUndef(/,/^	final function getUrlIdentity(/p' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php" | grep -q 'is_array($this->$list)'; then
+  ok "initListIfUndef does not count() a null child list"
+else
+  bad "initListIfUndef does not count() a null child list"
+fi
 if [ -f "$ROOT/kloxo/httpdocs/login/index.php" ]; then
   ok "login/index.php shipped"
 else
