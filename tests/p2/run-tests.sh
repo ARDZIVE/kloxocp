@@ -203,6 +203,18 @@ if grep -q 'checkButton('\''webhosting_flag'\'')' "$ROOT/kloxo/httpdocs/lib/clie
 else
   bad "home button list does not call priv on null"
 fi
+if grep -F -q 'overflow: visible' "$ROOT/kloxo/httpdocs/theme/css/common.css" \
+  && grep -F -q 'min-height: 240px' "$ROOT/kloxo/httpdocs/theme/css/common.css"; then
+  ok "main content column is not clipped by overflow:hidden"
+else
+  bad "main content column is not clipped by overflow:hidden"
+fi
+if grep -q 'print_navigation(isset($gbl->__navig)' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -A 8 'function print_content_end' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q '</div>'; then
+  ok "content wrapper is closed after the main column"
+else
+  bad "content wrapper is closed after the main column"
+fi
 if grep -q 'function kloxo_strftime' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" && grep -q 'function kloxo_html' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
   ok "kloxo_strftime and kloxo_html exist for PHP 8.5"
 else

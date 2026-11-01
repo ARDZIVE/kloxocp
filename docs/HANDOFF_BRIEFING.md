@@ -209,8 +209,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     does not blank the dashboard. First-party `ereg*` / `dl()` /
     `htmlspecialchars(null)` leftovers and PHPMailer
     `(boolean)`/`(integer)`, `openssl_pkey_free()`, and
-    `get_magic_quotes_runtime()` are PHP 8.5-safe. Live browser
-    login is still **UNVERIFIED**.
+    `get_magic_quotes_runtime()` are PHP 8.5-safe. The simplicity
+    main column (`.div_content` / `#mmm`) no longer uses
+    `overflow:hidden` plus `height:100%`, which clipped the middle
+    of every page. Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

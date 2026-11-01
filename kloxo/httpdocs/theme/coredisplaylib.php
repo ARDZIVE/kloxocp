@@ -1774,7 +1774,7 @@ function print_navigation($navig)
 	$imgleftpoint = "$img_path/images/left_point.gif";
 	$imgrightpoint = "$img_path/images/right_point.gif";
 	$xpos = 0;
-	$navigmenu = $gbl->__navigmenu;
+	$navigmenu = isset($gbl->__navigmenu) && is_array($gbl->__navigmenu) ? $gbl->__navigmenu : array();
 
 	$icondir = get_image_path();
 
@@ -1802,7 +1802,19 @@ function print_navigation($navig)
 	$url = $ghtml->get_get_from_current_post(null);
 
 	$url = '/display.php?' . $url;
-	$description = $ghtml->getActionDetails($url, null, $buttonpath, $path, $post, $file, $name, $image, $__t_identity);
+	$description = array(2 => '', 'desc' => '', 'help' => '');
+	$path = $post = $file = $name = $image = $__t_identity = null;
+	try {
+		$description = $ghtml->getActionDetails($url, null, $buttonpath, $path, $post, $file, $name, $image, $__t_identity);
+		if (!is_array($description)) {
+			$description = array(2 => '', 'desc' => '', 'help' => '');
+		}
+		if (!isset($description['desc'])) {
+			$description['desc'] = isset($description[2]) ? $description[2] : '';
+		}
+	} catch (Throwable $e) {
+		log_log("error", "print_navigation details: " . $e->getMessage());
+	}
 
 	$ghtml->save_non_existant_image($image);
 	$demoimg = null;
@@ -1888,7 +1900,7 @@ function print_navigation($navig)
 
 			$bracketedname = null;
 
-			if ($navigmenu[$k][0] != 'list') {
+			if (!isset($navigmenu[$k][0]) || $navigmenu[$k][0] != 'list') {
 			//	$bracketedname = "&nbsp;($nname)";
 				$bracketedname = '';
 				$desc['desc'] = "$nname";
@@ -1924,7 +1936,8 @@ function print_navigation($navig)
 			}
 		}
 
-		if ($sgbl->isKloxo() && $gbl->c_session->ssl_param['backbase']) {
+		if ($sgbl->isKloxo() && isset($gbl->c_session) && is_object($gbl->c_session)
+			&& isset($gbl->c_session->ssl_param['backbase']) && $gbl->c_session->ssl_param['backbase']) {
 			$s = $gbl->c_session->ssl_param;
 			$v = $s['backbase'];
 			$pcl = $s['parent_clname'];

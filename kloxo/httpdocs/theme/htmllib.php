@@ -215,7 +215,9 @@ class HtmlLib
 
 	function isSelectShow()
 	{
-		return (strtolower($this->frm_action) === 'selectshow');
+		$action = isset($this->frm_action) ? (string) $this->frm_action : '';
+
+		return (strtolower($action) === 'selectshow');
 	}
 
 	function get_htmlvar_details($key, &$class, &$variable, &$extra, &$value)
@@ -5635,9 +5637,9 @@ class HtmlLib
 
 		$ext_all_path = str_replace(getcwd(), "", getLinkCustomfile("/theme/css", "ext-all.css"));
 
-		$this->print_css_source($common_path);
 		$this->print_css_source($style_path);
 		$this->print_css_source($ext_all_path);
+		$this->print_css_source($common_path);
 
 		$l = @ getdate();
 		$hours = $l['hours'];
@@ -10010,7 +10012,15 @@ function uploadAbort(e) { // upload abort
 <?php
 		if ($login->getSpecialObject('sp_specialplay')->skin_name === 'simplicity') {
 ?>
-		<div class="verb4"><?= print_navigation($gbl->__navig); ?></div>
+		<div class="verb4">
+<?php
+			try {
+				print_navigation(isset($gbl->__navig) ? $gbl->__navig : array());
+			} catch (Throwable $e) {
+				log_log("error", "print_navigation: " . $e->getMessage());
+			}
+?>
+		</div>
 <?php
 		}
 ?>
@@ -10026,6 +10036,7 @@ function uploadAbort(e) { // upload abort
 				</td>
 			</tr>
 		</table>
+	</div>
 <?php
 
 	}
