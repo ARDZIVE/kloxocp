@@ -950,6 +950,10 @@ abstract class Lxclient extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		if ($this->nname === 'admin' && isset($param['password']) && (string)$param['password'] === 'admin') {
+			throw new lxException($login->getThrow("cannot_use_default_password"), 'password');
+		}
+
 	//	if ($this->isLogin() || ($this->is__table('auxiliary') && $this->getParentO()->isAuxiliary())) {
 		if ($this->isLogin() || ($this->getClass() === 'auxiliary' && $this->getParentO()->isAuxiliary())) {
 			if (!check_password($param['old_password_f'], $this->password)) {

@@ -61,8 +61,10 @@ older revision.
 generates TLS keys, starts `kloxo-php` when a distro `php-fpm` is present
 (8.3 on 24.04, 8.5 on 26.04),
 builds pinned Hiawatha 12.4, and loads the panel MariaDB schema
-(`init-panel-db`). The admin UI password is written to
-`/root/kloxo-admin-password` (mode 0600). It does not run `kloxo-mail apply`
+(`init-panel-db`). Default login is **admin / admin**; the panel blocks the
+rest of the UI until that password is changed. The password is also written
+to `/root/kloxo-admin-password` (mode 0600). Override with
+`KLOXO_ADMIN_PASSWORD` (min 8 characters). It does not run `kloxo-mail apply`
 unless you pass `--profile=full` for mail *packages* only, and does not
 prove a browser login. Log: `/var/log/kloxo-install.log`.
 
@@ -257,7 +259,8 @@ If `hiawatha -k` names a bad directive, paste that output before editing
 `hiawatha.conf` by hand. Do not keep `MinTLSversion` (removed in Hiawatha 11).
 
 Open in a browser: `https://YOUR-HOST:7777/` (self-signed cert; expect a warning).
-Unauthenticated requests redirect to `/login/`. **Login against MariaDB is not verified.**
+Unauthenticated requests redirect to `/login/`. Log in as **admin / admin**
+and change the password when the panel asks. **Login against MariaDB is not verified.**
 
 ### 9. MariaDB for the panel
 
@@ -273,8 +276,9 @@ sudo KLOXO_ADMIN_PASSWORD='YOUR_ADMIN_UI_PASS' \
 ```
 
 `init-panel-db` is idempotent (`CREATE TABLE IF NOT EXISTS`, insert-or-update
-admin). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0600). Admin password must
-be at least 8 characters.
+admin). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0600). With no override
+it seeds **admin / admin** (the UI then requires a change). A custom
+`--admin-password` must be at least 8 characters.
 
 The legacy wrapper still works from `httpdocs` and now calls `init-panel-db`:
 

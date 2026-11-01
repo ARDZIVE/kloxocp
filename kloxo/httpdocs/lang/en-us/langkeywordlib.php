@@ -301,6 +301,7 @@ $__throw["can_not_set_own_limit"] = "Can not set own limit";
 $__throw["can_not_change_plan"] = "Can not change plan";
 $__throw["can_not_find_the_resource_plan"] = "Can not find the resource plan";
 $__throw["wrong_password"] = "Wrong password";
+$__throw["cannot_use_default_password"] = "Cannot reuse the default password; choose a different password";
 
 $__throw["no_root_dir_specified"] = "No root dir specified";
 

@@ -76,16 +76,13 @@ function create_main()
 
 	if (isset($opt['admin-password']) && $opt['admin-password'] !== '') {
 		$admin_pass = $opt['admin-password'];
-		if (strlen($admin_pass) < 8) {
-			print("Admin password must be at least 8 characters\n");
+		if ($admin_pass !== 'admin' && strlen($admin_pass) < 8) {
+			print("Admin password must be at least 8 characters (or the default admin)\n");
 			exit(1);
 		}
 	} else {
-		$admin_pass = bin2hex(random_bytes(9));
-		$uiPassFile = $sgbl->__path_program_etc . "/conf/admin.ui.pass";
-		lfile_put_contents($uiPassFile, $admin_pass . "\n");
-		@chmod($uiPassFile, 0600);
-		print(">>> no --admin-password given; wrote {$uiPassFile} (0600) <<<\n");
+		$admin_pass = 'admin';
+		print(">>> default admin UI password is admin (must change after first login) <<<\n");
 	}
 
 	if ($opt['install-type'] == 'master') {

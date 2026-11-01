@@ -32,7 +32,7 @@ $__emessage['contact_set_but_not_correct'] = "Your Contact Information doesn't a
 $__emessage['contact_not_set'] = "Your Contact Information is not set properly. Click <url:a=updateform&sa=information>[here]</url> to fix it.";
 $__emessage['you_have_unread_message'] = "You have [%s] Unread Message(s). click <url:a=list&c=smessage>[here]</url> to read it.";
 $__emessage['you_have_unread_ticket'] = "You have [%s] Unread Ticket(s). click <url:a=list&c=ticket>[here]</url> to read it.";
-$__emessage['security_warning'] = "Your password is now set as a generic password which constitutes a grave security threat. Please change it immediately by click <url:a=updateform&sa=password>[here]</url>.";
+$__emessage['security_warning'] = "The default admin/admin password must be changed before you can use the panel. Choose a new password now.";
 $__emessage['ssh_port_not_configured'] = "The ssh port for this server is not set. It is a good idea to change it to something other than the default 22. Please click <url:a=show&o=sshconfig>[here]</url> to change. If you want to keep the ssh port to 22 and still avoid this message, go to the page, and set it forcibly to 22, and the warning will not be displayed again.";
 $__emessage['system_is_updating_itself'] = "The system at this point is upgrading itself, and thus you won't be able to make any changes for a few minutes. All read actions work normally though.";
 $__emessage['system_is_locked'] = "Someone has initiated system-modification-action on this particular object which is still going on. You wont be able to make any changes till it is finished. All read actions work normally though.";

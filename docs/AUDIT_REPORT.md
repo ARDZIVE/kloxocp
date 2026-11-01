@@ -97,7 +97,11 @@ is a no-op; `download_file()` refuses `http://`; version and wordlist HTTP fetch
   is a 403 stub that does not unserialize. The SSH-client iframe no longer loads it.
 * **H4: Weak credential handling.** 35 `md5()` and 35 `crypt()` uses; the admin password is
   created with MD5-crypt (`crypt($pass, '$1$…')`) in `lib/html/initlib.php`. Only 4
-  `password_hash` uses. *Fix:* argon2id/bcrypt via `password_hash`, with rehash on login.
+  `password_hash` uses. Install seeds the well-known default **admin / admin**;
+  `password_contact_check()` in `theme/coredisplaylib.php` blocks the rest of
+  the UI while `check_raw_password('client', 'admin', 'admin')` is true, and
+  `updatePassword()` refuses to keep `admin`. *Fix:* argon2id/bcrypt via
+  `password_hash`, with rehash on login.
 * **H5: Transport security.** 12 places disable certificate verification (`CURLOPT_SSL_VERIFY*`),
   28 `wget/curl http://` calls. Panel Hiawatha 12 no longer has `MinTLSversion`
   (removed in 11.0; TLS 1.0/1.1 unsupported).

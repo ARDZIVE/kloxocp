@@ -27,6 +27,37 @@ final class IpdbException extends RuntimeException
 {
 }
 
+final class Proc
+{
+    /** @param list<string> $cmd */
+    public static function run(array $cmd, ?string $stdin = null): array
+    {
+        $p = @proc_open($cmd, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($p)) {
+            return [127, '', 'cannot execute ' . ($cmd[0] ?? '')];
+        }
+        if ($stdin !== null) {
+            fwrite($pipes[0], $stdin);
+        }
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]);
+        $err = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        return [proc_close($p), (string)$out, (string)$err];
+    }
+
+    public static function exists(string $bin): bool
+    {
+        foreach (explode(':', (string)getenv('PATH') . ':/usr/sbin:/usr/bin:/bin') as $d) {
+            if ($d !== '' && is_executable($d . '/' . $bin)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 final class SqlFile
 {
     /** @return list<string> */
@@ -61,6 +92,9 @@ final class SqlFile
 
 final class App
 {
+    public const DEFAULT_ADMIN_USER = 'admin';
+    public const DEFAULT_ADMIN_PASS = 'admin';
+
     /** @var array<string,string|true> */
     private array $opt = [];
     private string $root;
@@ -83,6 +117,10 @@ final class App
                 $this->opt['print-schema-stats'] = true;
                 continue;
             }
+            if ($a === '--self-test') {
+                $this->opt['self-test'] = true;
+                continue;
+            }
             if (str_starts_with($a, '--') && str_contains($a, '=')) {
                 [$k, $v] = explode('=', substr($a, 2), 2);
                 $this->opt[$k] = $v;
@@ -95,6 +133,9 @@ final class App
             throw new IpdbException("Unknown argument: $a");
         }
 
+        if (isset($this->opt['self-test'])) {
+            return $this->selfTest();
+        }
         $this->root = $this->optRoot();
         if (isset($this->opt['print-schema-stats'])) {
             return $this->printStats();
@@ -110,6 +151,7 @@ init-panel-db 0.1.0: create the Kloxo CP panel MariaDB schema
   init-panel-db --root=DIR [--admin-password-env=VAR] [--db-socket=PATH]
                 [--db-rootuser=root] [--db-name=kloxo] [--db-user=kloxo]
   init-panel-db --print-schema-stats --root=DIR
+  init-panel-db --self-test
   init-panel-db --help
 
 Loads kloxo/file/sql/db-structure-base.sql (and -update.sql) synchronously.
@@ -117,11 +159,13 @@ Creates the kloxo database user with MariaDB 10.11 syntax (CREATE USER +
 GRANT; never GRANT ... IDENTIFIED BY). Writes <root>/etc/conf/kloxo.pass
 (0600). Inserts admin / general rows if they are missing.
 
-Admin UI password: --admin-password-env=VAR (preferred) or
---admin-password= (visible in ps). Default is rejected; you must set one
-of at least 8 characters.
+Admin UI password: omitted flags seed the well-known default admin/admin
+(must be changed after first login). Override with --admin-password-env=VAR
+(preferred) or --admin-password= (visible in ps). Custom passwords must be
+at least 8 characters.
 
-Ubuntu 24.04 / 26.x root auth is the unix socket (empty password). Re-run is safe
+Ubuntu 24.04 / 26.x: creates the kloxo DB user via the mariadb CLI (unix
+socket, no root password prompt) then loads the schema as that user. Re-run is safe
 on a half-finished install (CREATE TABLE IF NOT EXISTS, INSERT IGNORE).
 
 TXT;
@@ -162,8 +206,9 @@ TXT;
             throw new IpdbException('Invalid --db-rootuser');
         }
 
-        $pdo = $this->connectRoot($rootUser);
-        $pdo->exec('CREATE DATABASE IF NOT EXISTS `' . $this->dbName . '` CHARACTER SET latin1');
+        $passFile = $this->root . '/etc/conf/kloxo.pass';
+        $dbPass = $this->dbPassword($passFile);
+        $pdo = $this->openAdmin($rootUser, $dbPass);
         $pdo->exec('USE `' . $this->dbName . '`');
 
         $base = (string)file_get_contents($this->sqlPath('db-structure-base.sql'));
@@ -177,9 +222,6 @@ TXT;
             }
         }
 
-        $passFile = $this->root . '/etc/conf/kloxo.pass';
-        $dbPass = $this->dbPassword($passFile);
-        $this->ensureUser($pdo, $dbPass);
         $this->writePass($passFile, $dbPass);
         $this->seedAdmin($pdo, $adminPass);
         $this->seedGeneral($pdo);
@@ -192,9 +234,22 @@ TXT;
         return ($client === 1 && $general >= 1 && $tables >= 40) ? 0 : 1;
     }
 
-    private function connectRoot(string $user): PDO
+    /**
+     * Unix sockets are not regular files: PHP is_file() is false for them.
+     * file_exists() is true. Using is_file() made us skip the socket and fall
+     * back to TCP, which Ubuntu rejects for root (SQLSTATE 1698).
+     */
+    public static function socketExists(string $path): bool
     {
-        $pass = (string)($this->opt['db-rootpassword'] ?? '');
+        if ($path === '' || str_contains($path, "\0") || str_contains($path, '..')) {
+            return false;
+        }
+        return file_exists($path);
+    }
+
+    /** @return list<string> */
+    private function socketCandidates(): array
+    {
         $hosts = [];
         if (isset($this->opt['db-socket']) && $this->opt['db-socket'] !== true) {
             $hosts[] = (string)$this->opt['db-socket'];
@@ -204,12 +259,37 @@ TXT;
         $hosts[] = '/run/mariadb/mysqld.sock';
         $hosts[] = '/var/run/mysqld/mysqld.sock';
         $hosts[] = '/var/lib/mysql/mysql.sock';
-        $last = null;
-        foreach ($hosts as $sock) {
-            if ($sock === '' || str_contains($sock, "\0") || !is_string($sock)) {
-                continue;
+        return $hosts;
+    }
+
+    private function openAdmin(string $rootUser, string $dbPass): PDO
+    {
+        $rootPass = (string)($this->opt['db-rootpassword'] ?? '');
+        // Ubuntu root is unix_socket. Use the mariadb CLI first so PHP PDO never
+        // tries TCP as root (that prints SQLSTATE 1698). No warning on success.
+        if ($rootPass === '') {
+            try {
+                $this->cliBootstrap($rootUser, $dbPass);
+                return $this->connectApp($dbPass);
+            } catch (IpdbException $e) {
+                $pdo = $this->connectRoot($rootUser);
+                $pdo->exec('CREATE DATABASE IF NOT EXISTS `' . $this->dbName . '` CHARACTER SET latin1');
+                $this->ensureUser($pdo, $dbPass);
+                return $pdo;
             }
-            if (!is_file($sock) && !is_link($sock)) {
+        }
+        $pdo = $this->connectRoot($rootUser);
+        $pdo->exec('CREATE DATABASE IF NOT EXISTS `' . $this->dbName . '` CHARACTER SET latin1');
+        $this->ensureUser($pdo, $dbPass);
+        return $pdo;
+    }
+
+    private function connectRoot(string $user): PDO
+    {
+        $pass = (string)($this->opt['db-rootpassword'] ?? '');
+        $last = null;
+        foreach ($this->socketCandidates() as $sock) {
+            if (!self::socketExists($sock)) {
                 continue;
             }
             try {
@@ -225,16 +305,72 @@ TXT;
                 $last = $e;
             }
         }
-        try {
-            return new PDO(
-                'mysql:host=127.0.0.1;charset=utf8mb4',
-                $user,
-                $pass,
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-            );
-        } catch (PDOException $e) {
-            $msg = $last !== null ? $last->getMessage() . '; ' : '';
-            throw new IpdbException('Cannot connect to MariaDB as ' . $user . ': ' . $msg . $e->getMessage());
+        if ($pass !== '') {
+            try {
+                return new PDO(
+                    'mysql:host=127.0.0.1;charset=utf8mb4',
+                    $user,
+                    $pass,
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
+            } catch (PDOException $e) {
+                $last = $e;
+            }
+        }
+        $msg = $last !== null ? $last->getMessage() : 'no MariaDB socket found';
+        throw new IpdbException('Cannot connect to MariaDB as ' . $user . ': ' . $msg);
+    }
+
+    private function connectApp(string $dbPass): PDO
+    {
+        $dsn = $this->socket !== ''
+            ? 'mysql:unix_socket=' . $this->socket . ';dbname=' . $this->dbName . ';charset=utf8mb4'
+            : 'mysql:unix_socket=/run/mysqld/mysqld.sock;dbname=' . $this->dbName . ';charset=utf8mb4';
+        foreach ($this->socketCandidates() as $sock) {
+            if (!self::socketExists($sock)) {
+                continue;
+            }
+            try {
+                $pdo = new PDO(
+                    'mysql:unix_socket=' . $sock . ';dbname=' . $this->dbName . ';charset=utf8mb4',
+                    $this->dbUser,
+                    $dbPass,
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
+                $this->socket = $sock;
+                return $pdo;
+            } catch (PDOException $e) {
+                $dsn = $e->getMessage();
+            }
+        }
+        throw new IpdbException('Cannot connect as ' . $this->dbUser . ': ' . $dsn);
+    }
+
+    private function cliBootstrap(string $rootUser, string $dbPass): void
+    {
+        $bin = Proc::exists('mariadb') ? 'mariadb' : (Proc::exists('mysql') ? 'mysql' : '');
+        if ($bin === '') {
+            throw new IpdbException('MariaDB client (mariadb or mysql) not in PATH; cannot use unix_socket fallback');
+        }
+        $u = $this->dbUser;
+        $db = $this->dbName;
+        $q = $this->sqlQuote($dbPass);
+        $sql = "CREATE DATABASE IF NOT EXISTS `{$db}` CHARACTER SET latin1;\n"
+            . "CREATE USER IF NOT EXISTS '{$u}'@'localhost' IDENTIFIED BY {$q};\n"
+            . "ALTER USER '{$u}'@'localhost' IDENTIFIED BY {$q};\n"
+            . "GRANT ALL PRIVILEGES ON `{$db}`.* TO '{$u}'@'localhost';\n"
+            . "FLUSH PRIVILEGES;\n";
+        $cmd = [$bin, '--protocol=socket', '-u', $rootUser];
+        foreach ($this->socketCandidates() as $sock) {
+            if (self::socketExists($sock)) {
+                $cmd[] = '--socket=' . $sock;
+                $this->socket = $sock;
+                break;
+            }
+        }
+        [$rc, $out, $err] = Proc::run($cmd, $sql);
+        if ($rc !== 0) {
+            throw new IpdbException("{$bin} unix_socket bootstrap failed: " . trim($err . ' ' . $out));
         }
     }
 
@@ -261,6 +397,35 @@ TXT;
         return bin2hex(random_bytes(16));
     }
 
+    private function sqlQuote(string $s): string
+    {
+        if (str_contains($s, "\0")) {
+            throw new IpdbException('Password contains NUL');
+        }
+        return "'" . str_replace("'", "''", $s) . "'";
+    }
+
+    private function selfTest(): int
+    {
+        $bad = ['', "/tmp/../etc/passwd", "/no/such/kloxo-mysqld.sock", "foo\0bar"];
+        foreach ($bad as $p) {
+            if (self::socketExists($p)) {
+                fwrite(STDERR, "socketExists should reject [$p]\n");
+                return 1;
+            }
+        }
+        if (!self::isAllowedAdminPass(self::DEFAULT_ADMIN_PASS)
+            || self::isAllowedAdminPass('short')
+            || self::isAllowedAdminPass('')
+            || self::isAllowedAdminPass("foo\0bar")
+            || !self::isAllowedAdminPass('longenough')) {
+            fwrite(STDERR, "admin password policy failed\n");
+            return 1;
+        }
+        echo "self-test ok\n";
+        return 0;
+    }
+
     private function writePass(string $passFile, string $dbPass): void
     {
         $dir = dirname($passFile);
@@ -278,15 +443,17 @@ TXT;
         $n = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
         $hash = $this->md5Crypt($adminPass);
         if ($n > 0) {
-            $stmt = $pdo->prepare("UPDATE client SET password = ?, cttype = 'admin', cpstatus = 'on', status = 'on' WHERE nname = 'admin'");
-            $stmt->execute([$hash]);
+            $stmt = $pdo->prepare(
+                "UPDATE client SET password = ?, realpass = ?, cttype = 'admin', cpstatus = 'on', status = 'on' WHERE nname = 'admin'"
+            );
+            $stmt->execute([$hash, $adminPass]);
             return;
         }
         $stmt = $pdo->prepare(
-            "INSERT INTO client (nname, password, cttype, cpstatus, status, ddate, parent_clname, parent_cmlist)
-             VALUES ('admin', ?, 'admin', 'on', 'on', ?, '', '')"
+            "INSERT INTO client (nname, password, realpass, cttype, cpstatus, status, ddate, parent_clname, parent_cmlist)
+             VALUES ('admin', ?, ?, 'admin', 'on', 'on', ?, '', '')"
         );
-        $stmt->execute([$hash, (string)time()]);
+        $stmt->execute([$hash, $adminPass, (string)time()]);
     }
 
     private function seedGeneral(PDO $pdo): void
@@ -330,16 +497,27 @@ TXT;
             $this->assertAdminPass($v);
             return $v;
         }
-        throw new IpdbException('Need --admin-password-env=VAR or --admin-password= (min 8 characters)');
+        return self::DEFAULT_ADMIN_PASS;
+    }
+
+    public static function isAllowedAdminPass(string $v): bool
+    {
+        if ($v === '' || str_contains($v, "\0")) {
+            return false;
+        }
+        if ($v === self::DEFAULT_ADMIN_PASS) {
+            return true;
+        }
+        return strlen($v) >= 8;
     }
 
     private function assertAdminPass(string $v): void
     {
-        if (strlen($v) < 8) {
-            throw new IpdbException('Admin password must be at least 8 characters');
-        }
         if (str_contains($v, "\0")) {
             throw new IpdbException('Admin password contains NUL');
+        }
+        if (!self::isAllowedAdminPass($v)) {
+            throw new IpdbException('Admin password must be at least 8 characters (or the default admin)');
         }
     }
 

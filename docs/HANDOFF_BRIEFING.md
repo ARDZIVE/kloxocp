@@ -127,14 +127,18 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `install` after a clean doctor still exits **2**. `install.sh` bootstraps
     Ubuntu 24.04 from `https://github.com/ARDZIVE/kloxocp.git` (public; apt packages,
     `/opt/kloxo` symlink, TLS keys, `kloxo-php` unit, pinned Hiawatha 12.4 build,
-    `init-panel-db`). Apt repo, Debian packages, and package-level update/rollback
-    are **not built**. Tests: `tests/p3/` and `tests/install/` (php-cli; do not run
-    the Ubuntu installer or a Hiawatha compile).
+    `init-panel-db`). Default panel login is **admin / admin**;
+    `password_contact_check()` blocks the UI until that password is changed
+    (`check_raw_password('client', 'admin', 'admin')`). Apt repo, Debian
+    packages, and package-level update/rollback are **not built**. Tests:
+    `tests/p3/` and `tests/install/` (php-cli; do not run the Ubuntu installer
+    or a Hiawatha compile).
 15. **Ubuntu panel schema + Hiawatha:** `kloxo/bin/install/init-panel-db` loads
     `file/sql/db-structure-base.sql` synchronously (MariaDB 10.11 `CREATE USER` +
     `GRANT`; no background `mysql … &`). `kloxo/bin/install/install-hiawatha` pins
     Hiawatha 12.4. `create.php` calls `init-panel-db` and skips CentOS
-    `tmpupdatecleanup`. Live browser login is still **UNVERIFIED**.
+    `tmpupdatecleanup`. Default admin UI password is `admin` (override with
+    `KLOXO_ADMIN_PASSWORD`, min 8). Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -241,8 +245,9 @@ Work in this order. Keep every change small, tested and committed separately. Do
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`.
-   One-liner is in `README.md`. **UNVERIFIED on a real Ubuntu VM.** Does not add
-   a signed apt repo.
+   Default login is admin/admin with a forced password change after first
+   login. One-liner is in `README.md`. **UNVERIFIED on a real Ubuntu VM.** Does
+   not add a signed apt repo.
 3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →
    snapshot → apt → migrate → validate → health-check → auto-rollback), LVM/ZFS snapshots,
    panel-DB dump in the snapshot. `init-panel-db` / `install-hiawatha` exist

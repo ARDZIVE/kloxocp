@@ -17,8 +17,9 @@ present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`te
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; `update` and signed apt packaging
-are not). Browser login against MariaDB is not verified. Next: remaining P2
-runtime, Debian packaging, or P4 postfix UI. See briefing section 7.
+are not). Default panel login is admin/admin; the UI requires a password
+change after first login. Browser login against MariaDB is not verified. Next:
+remaining P2 runtime, Debian packaging, or P4 postfix UI. See briefing section 7.
 
 ## Commands
 ```

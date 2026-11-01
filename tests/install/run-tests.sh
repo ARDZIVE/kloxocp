@@ -23,7 +23,6 @@ check "init-panel-db --version" "${INITDB[@]}" --version
 check "install-hiawatha --help" bash "$HIA" --help
 check "install-hiawatha --dry-run" bash "$HIA" --dry-run --root="$ROOT/kloxo"
 fails "init-panel-db root with .. rejected" "${INITDB[@]}" --root="$ROOT/kloxo/../kloxo" --print-schema-stats
-fails "init-panel-db refuses missing admin password" "${INITDB[@]}" --root="$ROOT/kloxo"
 fails "init-panel-db short admin password" "${INITDB[@]}" --root="$ROOT/kloxo" --admin-password=short
 
 echo "== schema stats (no MariaDB)"
@@ -140,6 +139,55 @@ if grep -q '/run/mariadb/mysqld.sock' "$ROOT/kloxo/bin/install/init-panel-db"; t
 else
   bad "init-panel-db tries MariaDB 11 socket paths"
 fi
+if grep -n 'function connectRoot' -A 40 "$ROOT/kloxo/bin/install/init-panel-db" | grep -q 'is_file(\$sock)'; then
+  bad "connectRoot does not use is_file on sockets"
+else
+  ok "connectRoot does not use is_file on sockets"
+fi
+if grep -q 'function socketExists' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'file_exists' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "socketExists uses file_exists"
+else
+  bad "socketExists uses file_exists"
+fi
+if grep -q 'cliBootstrap' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'connectApp' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "schema uses mariadb CLI unix_socket then kloxo user"
+else
+  bad "schema uses mariadb CLI unix_socket then kloxo user"
+fi
+if grep -q 'PDO as' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  bad "init-panel-db does not print PDO-as-root warnings"
+else
+  ok "init-panel-db does not print PDO-as-root warnings"
+fi
+if grep -q 'wait_mariadb' "$ROOT/install.sh"; then
+  ok "install.sh waits for MariaDB"
+else
+  bad "install.sh waits for MariaDB"
+fi
+helpdb="$("${INITDB[@]}" --help)"
+echo "$helpdb" | grep -q 'admin/admin' && ok "init-panel-db help names admin/admin" || bad "init-panel-db help names admin/admin"
+echo "$helpout" | grep -q 'admin/admin' && ok "install.sh help names admin/admin" || bad "install.sh help names admin/admin"
+if grep -q 'admin_env="${KLOXO_ADMIN_PASSWORD:-admin}"' "$ROOT/install.sh"; then
+  ok "install.sh defaults UI password to admin"
+else
+  bad "install.sh defaults UI password to admin"
+fi
+if grep -q 'must change after first login' "$ROOT/kloxo/bin/install/create.php"; then
+  ok "create.php defaults UI password to admin"
+else
+  bad "create.php defaults UI password to admin"
+fi
+if grep -q "check_raw_password('client', 'admin', 'admin')" "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
+  ok "password_contact_check forces change while password is admin"
+else
+  bad "password_contact_check forces change while password is admin"
+fi
+if grep -q 'cannot_use_default_password' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php"; then
+  ok "updatePassword rejects reuse of admin"
+else
+  bad "updatePassword rejects reuse of admin"
+fi
+check "init-panel-db --self-test" "${INITDB[@]}" --self-test
 
 echo
 echo "$PASS passed, $FAIL failed"

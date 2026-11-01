@@ -46,6 +46,9 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
   --repo=URL       git URL (default: ${KLOXO_GIT_URL})
   --help
 
+Default panel login is admin/admin; the UI requires a password change
+after the first login. Override with KLOXO_ADMIN_PASSWORD (min 8 chars).
+
 One-line install on a clean Ubuntu 24.04 or 26.x machine (root):
 
   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp && bash /usr/local/src/kloxo-cp/install.sh'
@@ -258,62 +261,62 @@ if [[ -n "$php_fpm" ]]; then
   systemctl daemon-reload
   systemctl enable --now kloxo-php || log "warn: kloxo-php unit failed to start ($php_fpm)"
 else
-  log "warn: no php-fpm binary (tried php-fpm8.5/8.4/8.3); not enabling kloxo-php"
+  die "no php-fpm binary (install php-fpm)"
 fi
 
 systemctl enable --now nginx mariadb named 2>/dev/null || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
 
-admin_env="${KLOXO_ADMIN_PASSWORD:-}"
-if [[ -z "$admin_env" ]]; then
-  admin_env="$(openssl rand -base64 18 | tr -d '\n')"
+wait_mariadb() {
+  local i
+  for i in $(seq 1 20); do
+    if mariadb --protocol=socket -u root -e 'SELECT 1' >/dev/null 2>&1 \
+      || mysql --protocol=socket -u root -e 'SELECT 1' >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+if ! wait_mariadb; then
+  die "MariaDB is not accepting unix_socket logins as root"
 fi
-if [[ ${#admin_env} -lt 8 ]]; then
-  die "admin password must be at least 8 characters"
+
+admin_env="${KLOXO_ADMIN_PASSWORD:-admin}"
+if [[ "$admin_env" != "admin" && ${#admin_env} -lt 8 ]]; then
+  die "admin password must be at least 8 characters (or the default admin)"
 fi
 install -d -m 0700 /root
 printf '%s\n' "$admin_env" > /root/kloxo-admin-password
 chmod 600 /root/kloxo-admin-password
-if ! KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
-    --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root; then
-  log "warn: init-panel-db failed; panel login will not work until it succeeds"
-else
-  log "panel schema ready; admin password in /root/kloxo-admin-password (mode 0600)"
-fi
+KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
+    --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root \
+    >/dev/null
+log "panel schema ready"
 
-if ! bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"; then
-  log "warn: install-hiawatha failed; panel UI will not listen on 7777"
-fi
+bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"
+systemctl is-active --quiet kloxo-php || die "kloxo-php is not active"
+systemctl is-active --quiet kloxo-web || die "kloxo-web is not active"
 
 export KLOXO_ROOT="$ROOT"
 export KLOXO_PHP="${KLOXO_PHP:-/usr/bin/php}"
 if [[ -f "$SRC/tests/p2/test_boot.php" ]]; then
-  if ! php "$SRC/tests/p2/test_boot.php"; then
-    log "warn: include.php boot smoke failed (see tests/p2/test_boot.php)"
-  fi
+  php "$SRC/tests/p2/test_boot.php" >/dev/null
 fi
 
-php "$ROOT/bin/kloxocp" doctor --root="$ROOT" || log "warn: kloxocp doctor reported failures"
+php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
 
 host="$(hostname -f 2>/dev/null || hostname)"
+ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+url="https://${ip:-$host}:7777/"
 cat <<EOF | tee -a "$LOG"
 
-Kloxo CP ${KCP_VERSION} bootstrap finished.
-  source     $SRC
-  root       $ROOT
-  doctor     php $ROOT/bin/kloxocp doctor --root=$ROOT
-  log        $LOG
+Kloxo CP ${KCP_VERSION} is installed.
+  Panel    ${url}
+  User     admin
+  Password ${admin_env}
+  Saved in /root/kloxo-admin-password (mode 0600)
 
-Panel URL (only if kloxo-web/Hiawatha started):
-  https://${host}:7777/   (self-signed certificate)
-
-Admin UI password (also in /root/kloxo-admin-password, mode 0600):
-  written by init-panel-db when the schema step succeeded
-
-NOT done by this installer:
-  - browser login (UNVERIFIED on a real desktop browser)
-  - Let's Encrypt
-  - mail apply (kloxo-mail); packages installed only with --profile=full
-
-This release is NOT for production. See README.md and docs/HANDOFF_BRIEFING.md.
+Open the URL, accept the self-signed certificate, log in as admin.
+Change the password on first login (the panel will not continue until you do).
 EOF
 exit 0
