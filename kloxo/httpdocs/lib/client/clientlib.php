@@ -213,6 +213,8 @@ class Client extends ClientBase
 		if ($subaction) {
 			return;
 		}
+
+		$ilist = array();
 		
 		$resource = db_get_value('resourceplan', $this->resourceplan_used, 'realname');
 		

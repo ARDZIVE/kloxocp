@@ -5364,6 +5364,32 @@ abstract class Lxclass
 		$obj->get();
 
 		$this->$objectname = $obj;
+		if (!isset($obj->$bname) || !is_object($obj->$bname)) {
+			$obj->$bname = new $bname(null, null, $this->getClName());
+		}
+		if ($bname === 'specialplay_b') {
+			if (empty($obj->$bname->skin_name)) {
+				$obj->$bname->skin_name = 'simplicity';
+			}
+			if (empty($obj->$bname->skin_color)) {
+				$obj->$bname->skin_color = 'default';
+			}
+			if (empty($obj->$bname->icon_name)) {
+				$obj->$bname->icon_name = 'collage';
+			}
+			if (empty($obj->$bname->button_type)) {
+				$obj->$bname->button_type = 'font';
+			}
+			if (empty($obj->$bname->show_direction)) {
+				$obj->$bname->show_direction = 'vertical';
+			}
+			if (empty($obj->$bname->language)) {
+				$obj->$bname->language = 'en-us';
+			}
+			if (empty($obj->$bname->ssession_timeout)) {
+				$obj->$bname->ssession_timeout = 18000;
+			}
+		}
 		$obj->$bname->__parent_o = $this;
 
 		return $obj->$bname;
@@ -6379,7 +6405,7 @@ class lxDriverClass extends Lxclass
 	{
 		$bc = $this->do_backup();
 
-		if (!count($bc[1])) {
+		if (!kcount($bc[1] ?? null)) {
 			$bc[1][] = 'blank_file';
 			lxfile_touch("{$bc[0]}/blank_file");
 		}

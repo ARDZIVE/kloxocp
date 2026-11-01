@@ -477,7 +477,13 @@ abstract class Lxclient extends Lxdb
 			return $dir;
 		}
 		
-		$dir = "/theme/skin/{$this->getSpecialObject('sp_specialplay')->skin_name}/{$this->getSpecialObject('sp_specialplay')->skin_color}/";
+		$sp = $this->getSpecialObject('sp_specialplay');
+		$name = (is_object($sp) && !empty($sp->skin_name)) ? (string) $sp->skin_name : 'simplicity';
+		$color = (is_object($sp) && !empty($sp->skin_color)) ? (string) $sp->skin_color : 'default';
+		$dir = "/theme/skin/{$name}/{$color}/";
+		if (!lxfile_exists("__path_program_htmlbase{$dir}")) {
+			$dir = "/theme/skin/simplicity/default/";
+		}
 
 		return $dir;
 	}
@@ -560,7 +566,7 @@ abstract class Lxclient extends Lxdb
 		$sql = new Sqlite($this->__masterserver, 'ticket');
 		$res = $sql->getRowsWhere("sent_to = '{$this->getClName()}' AND unread_flag = 'on'");
 		
-		return count($res);
+		return kcount($res);
 	}
 
 	function checkMessageUnread()
@@ -568,7 +574,7 @@ abstract class Lxclient extends Lxdb
 		$sql = new Sqlite($this->__masterserver, 'smessage');
 		$res = $sql->getRowsWhere("text_sent_to_cmlist LIKE '%,{$this->getClName()},%' AND text_readby_cmlist NOT LIKE '%,{$this->getClName()},%'");
 
-		return count($res);
+		return kcount($res);
 	}
 
 	function updateSwitchHelp($param)

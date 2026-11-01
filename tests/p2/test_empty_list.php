@@ -62,5 +62,29 @@ if ($client->isBlocked() === false) {
 	bad('isBlocked is false when blockedip is empty');
 }
 
+if (function_exists('kcount') && kcount(null) === 0 && kcount(array('a')) === 1) {
+	ok('kcount accepts null');
+} else {
+	bad('kcount accepts null');
+}
+
+if (function_exists('kloxo_html') && kloxo_html(null) === '' && str_contains(kloxo_html('<x>'), '&lt;')) {
+	ok('kloxo_html accepts null');
+} else {
+	bad('kloxo_html accepts null');
+}
+
+if (function_exists('kloxo_strftime') && kloxo_strftime('%m', 0) === '01' && kloxo_strftime('%Y', 0) === '1970') {
+	ok('kloxo_strftime works without strftime()');
+} else {
+	bad('kloxo_strftime works without strftime()', function_exists('kloxo_strftime') ? kloxo_strftime('%m', 0) : 'missing');
+}
+
+if (function_exists('get_namelist_from_objectlist') && get_namelist_from_objectlist(null) === array()) {
+	ok('get_namelist_from_objectlist accepts null');
+} else {
+	bad('get_namelist_from_objectlist accepts null');
+}
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

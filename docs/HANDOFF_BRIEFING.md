@@ -188,7 +188,16 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `0640` `lxlabs` so FPM can read the DB password (0600 root produced
     `Access denied for user 'kloxo'@'localhost' (using password: NO)`).
     Empty `allowedip`/`blockedip` lists are arrays (PHP 8 `count(null)`
-    after login). Live browser login is still **UNVERIFIED**.
+    after login). `createQueryStringAdd()` closes the column list
+    (` ) values(`) so login `utmp` inserts parse on MariaDB 11; mysqli
+    syntax errors are caught instead of a white-screen
+    `mysqli_sql_exception`. Empty SQL results are arrays (`kcount()`);
+    admin appearance is seeded as `simplicity/default` (a missing
+    `sp_specialplay` row used skin `default`, which has no CSS).
+    `db_get_value()` returns empty on a missing row; `strftime()` is
+    wrapped (`kloxo_strftime`) for PHP 8.5; dashboard HTML uses
+    `kloxo_html()` so `htmlspecialchars(null)` does not spray warnings
+    (`display_errors` is on). Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

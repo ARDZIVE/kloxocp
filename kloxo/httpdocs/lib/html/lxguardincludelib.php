@@ -92,6 +92,10 @@ function parse_ssh_log($fp, &$list)
 	$count = 0;
 	$string = '';
 
+	if (!kloxo_is_stream($fp)) {
+		return;
+	}
+
 	while(!feof($fp)) {
 		$count++;
 
@@ -156,6 +160,10 @@ function parse_ftp_log($fp, &$list)
 	$count = 0;
 	$string = '';
 
+	if (!kloxo_is_stream($fp)) {
+		return;
+	}
+
 	while(!feof($fp)) {
 		$count++;
 
@@ -207,6 +215,10 @@ function parse_smtp_log($fp, &$list)
 {
 	$count = 0;
 	$string = '';
+
+	if (!kloxo_is_stream($fp)) {
+		return;
+	}
 
 	while(!feof($fp)) {
 		$count++;

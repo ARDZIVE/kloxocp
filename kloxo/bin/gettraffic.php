@@ -126,8 +126,8 @@ function filltraffictable()
 
 			if ($newtime - $oldtime < 4 * 60 * 60) { continue; }
 
-			$o = @ strftime("%c", $oldtime);
-			$n = @ strftime("%c", $newtime);
+			$o = kloxo_strftime("%c", $oldtime);
+			$n = kloxo_strftime("%c", $newtime);
 			print("\n\n$o to $n\n\n"); 
 			findtraffic($weblist, $mmaillist, $globaldomlist, $oldtime, $newtime);
 			$laccess->timestamp = $newtime;
@@ -228,8 +228,8 @@ function findtraffic($weblist, $mmaillist, $globaldomlist, $oldtime, $newtime)
 		$res['nname'] = "$d->nname:$oldtime:$newtime";
 		$domt = new Domaintraffic(null, null, $res['nname']);
 		$res['ddate'] = time();
-		$res['timestamp'] =    strftime("%c", $newtime);
-		$res['oldtimestamp'] = strftime("%c", $oldtime);
+		$res['timestamp'] = kloxo_strftime("%c", $newtime);
+		$res['oldtimestamp'] = kloxo_strftime("%c", $oldtime);
 		$res['comment'] = null;
 		$res['parent_list'] = null;
 		$res['parent_clname'] = $d->getClName();

@@ -114,11 +114,20 @@ class Sqlite
 		$error_message = 'unknown';
 	
 		if (self::$__database == 'mysql') {
-			// the old behavior was to reconnect. Not needed anymore.
-			$result = $res->query($string);
+			// PHP 8.1+ mysqli throws on syntax errors (PHP 5 returned false).
+			try {
+				$result = $res->query($string);
+			} catch (mysqli_sql_exception $e) {
+				$error_message = $e->getMessage();
+				dprint("Query error: {$error_message}\n");
+				log_database("Query failed: {$string}");
+				return false;
+			}
 
 			if (!$result) {
-				$error_message = $res->connect_errno;
+				$error_message = $res->error ?: (string) $res->connect_errno;
+				dprint("Query error: {$error_message}\n");
+				log_database("Query failed: {$string}");
 			}
 
 			return $result;
@@ -172,14 +181,14 @@ class Sqlite
 		$query = $this->database_query($gbl->$fdbvar, $string);
 
 		if (!$query) {
-			return 0;
+			return array();
 		}
 
 		if (!(is_resource($query) || is_object($query))) {
-			return 0;
+			return array();
 		}
 
-		$fulresult = null;
+		$fulresult = array();
 
 		while ($result = $this->database_fetch_array($query)) {
 			if (isset($result['nname']) && $result['nname'] === '__dummy__dummy__') {
@@ -282,10 +291,10 @@ class Sqlite
 			$result = $this->database_query($gbl->$fdbvar, $query);
 
 			if (!$result) {
-				return null;
+				return array();
 			}
 
-			$res = NULL;
+			$res = array();
 		
 			if ($sgbl->__var_database_type === 'mysql') {
 				while ($row = $result->fetch_assoc()) {
@@ -295,7 +304,7 @@ class Sqlite
 				$row = $result->fetch(PDO::FETCH_ASSOC);
 
 				if (!$row) {
-					return null;
+					return array();
 				}
 
 				foreach ($row as $k => $v) {
@@ -328,11 +337,11 @@ class Sqlite
 		}
 
 		$string = preg_replace("/,$/i", "", $string);
-		$string .= " values(";
+		$string .= " ) values(";
 
 		foreach ($result as $key => $val) {
 			if ($key === 'realpass') {
-				$rp = $array[$key];
+				$rp = $array[$key] ?? '';
 				$rp = base64_encode($rp);
 				$rp = "__lxen:{$rp}";
 				$string .= " '{$rp}',";
@@ -340,7 +349,7 @@ class Sqlite
 				continue;
 			}
 
-			$string .= " '" . $this->escapeBack($key, $array[$key]). "',";
+			$string .= " '" . $this->escapeBack($key, $array[$key] ?? '') . "',";
 
 		}
 

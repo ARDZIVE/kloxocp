@@ -2118,7 +2118,7 @@ class HtmlLib
 		}
 
 		if (!is_array($value)) {
-			$value = htmlspecialchars($value);
+			$value = kloxo_html($value);
 		}
 	}
 
@@ -5710,12 +5710,12 @@ class HtmlLib
 			$message = $message[0];
 		}
 
-		$message = str_replace(' ', '+', htmlspecialchars($message));
+		$message = str_replace(' ', '+', kloxo_html($message));
 
 		$vstring = null;
 
 		if ($value) {
-			$value = str_replace(' ', '+', htmlspecialchars($value));
+			$value = str_replace(' ', '+', kloxo_html($value));
 			$vstring = "&frm_m_emessage_data=$value";
 		}
 
@@ -5757,7 +5757,7 @@ class HtmlLib
 		$vstring = null;
 
 		if ($value) {
-			$value = htmlspecialchars($value);
+			$value = kloxo_html($value);
 			$vstring = "&frm_m_smessage_data=$value";
 		}
 
@@ -10072,7 +10072,7 @@ function uploadAbort(e) { // upload abort
 					$str .= "..";
 				}
 
-				$str = htmlspecialchars($str);
+				$str = kloxo_html($str);
 				$target = "mainframe";
 
 				if (is_object($h) && $h->isOn('external')) {

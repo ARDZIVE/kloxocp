@@ -1601,8 +1601,8 @@ function is_assoc_array($var)
 
 function get_namelist_from_objectlist($ol, $key = null, $val = null)
 {
-	if (!$ol) {
-		return;
+	if (!is_array($ol) && !($ol instanceof Traversable)) {
+		return array();
 	}
 
 	$name = array();
@@ -1616,7 +1616,7 @@ function get_namelist_from_objectlist($ol, $key = null, $val = null)
 
 	foreach ($ol as $o) {
 		if (!is_object($o)) {
-			debugBacktrace();
+			continue;
 		}
 		$name[$o->$key] = $o->display($val);
 	}
@@ -2626,6 +2626,56 @@ function lget_class($object)
 	}
 
 	return strtolower(get_class($object));
+}
+
+function kcount($value): int
+{
+	return is_countable($value) ? count($value) : 0;
+}
+
+function kloxo_html($value): string
+{
+	if (is_array($value) || is_object($value)) {
+		$value = '';
+	}
+
+	return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function kloxo_strftime(string $format, $timestamp = null): string
+{
+	$ts = is_numeric($timestamp) ? (int) $timestamp : time();
+	if (function_exists('strftime')) {
+		$out = @strftime($format, $ts);
+
+		return is_string($out) ? $out : '';
+	}
+
+	$map = array(
+		'%c' => 'D M j H:i:s Y',
+		'%m' => 'm',
+		'%d' => 'd',
+		'%Y' => 'Y',
+		'%H' => 'H',
+		'%M' => 'i',
+		'%S' => 's',
+		'%Y-%m-%d %H:%M:%S' => 'Y-m-d H:i:s',
+	);
+	if (isset($map[$format])) {
+		return date($map[$format], $ts);
+	}
+
+	$php = strtr($format, array(
+		'%Y' => 'Y',
+		'%m' => 'm',
+		'%d' => 'd',
+		'%H' => 'H',
+		'%M' => 'i',
+		'%S' => 's',
+		'%c' => 'D M j H:i:s Y',
+	));
+
+	return date($php, $ts);
 }
 
 function exit_programlib()

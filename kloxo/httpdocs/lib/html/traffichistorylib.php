@@ -83,8 +83,8 @@ class TrafficHistory extends Lxclass
 		list(, $start, ) = explode( ':', $list[0]);
 		$count = count($list);
 		list( , , $end ) = explode(':', $list[$count-1]);
-		$smonth = @ strftime("%m", $start);
-		$emonth = @ strftime("%m", $end);
+		$smonth = kloxo_strftime("%m", $start);
+		$emonth = kloxo_strftime("%m", $end);
 		$name = $object->nname;
 
 		$month = @ date("n");
@@ -113,7 +113,7 @@ class TrafficHistory extends Lxclass
 		$nname = '1110';
 		foreach((array) $list as $t ) {
 			list($domname, $oldtime, $newtime) = explode( ":", $t->nname);
-			$cmonth = @ strftime("%m" , $oldtime);
+			$cmonth = kloxo_strftime("%m", $oldtime);
 			$yy = @ date("Y", $oldtime);
 			if ($yy != $year) {
 				continue;

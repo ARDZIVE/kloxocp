@@ -281,6 +281,7 @@ TXT;
         $this->seedPserver($pdo);
         $this->seedPhpini($pdo);
         $this->seedServerweb($pdo);
+        $this->seedSpecialplay($pdo);
 
         $client = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
         $general = (int)$pdo->query("SELECT COUNT(*) FROM general")->fetchColumn();
@@ -485,6 +486,11 @@ TXT;
             fwrite(STDERR, "phpini blob failed\n");
             return 1;
         }
+        $sp = base64_decode(self::specialplayBlob(), true);
+        if (!is_string($sp) || !str_contains($sp, 'SpecialPlay_b') || !str_contains($sp, 'simplicity')) {
+            fwrite(STDERR, "specialplay blob failed\n");
+            return 1;
+        }
         $sample = "CREATE TABLE IF NOT EXISTS `client` (\n"
             . "  `nname` varchar(255) NOT NULL,\n"
             . "  `parent_clname` varchar(255) DEFAULT NULL,\n"
@@ -644,6 +650,69 @@ TXT;
                     "UPDATE phpini SET ser_phpini_flag_b = ?, syncserver = IF(syncserver IS NULL OR syncserver = '', 'localhost', syncserver) WHERE nname = ?"
                 );
                 $stmt->execute([$blob, $name]);
+            }
+        }
+    }
+
+    /**
+     * Admin appearance. Missing row + initThisDef sets skin_name=default,
+     * but only simplicity/ and feather/ exist, so the dashboard CSS 404s.
+     */
+    public static function specialplayDefaults(): array
+    {
+        return [
+            'skin_name' => 'simplicity',
+            'skin_color' => 'default',
+            'icon_name' => 'collage',
+            'show_direction' => 'vertical',
+            'button_type' => 'font',
+            'skin_background' => 'nature_004.jpg',
+            'show_lpanel' => 'on',
+            'show_help' => 'off',
+            'language' => 'en-us',
+            'ssession_timeout' => '18000',
+            'login_page' => 'show-home',
+        ];
+    }
+
+    public static function specialplayBlob(): string
+    {
+        $defaults = self::specialplayDefaults();
+        $body = '';
+        foreach ($defaults as $k => $v) {
+            if (preg_match('/^[A-Za-z0-9_]+$/', $k) !== 1) {
+                throw new IpdbException('Invalid specialplay flag name');
+            }
+            if (str_contains($v, "\0")) {
+                throw new IpdbException('Invalid specialplay flag value');
+            }
+            $body .= 's:' . strlen($k) . ':"' . $k . '";s:' . strlen($v) . ':"' . $v . '";';
+        }
+        $obj = 'O:13:"SpecialPlay_b":' . count($defaults) . ':{' . $body . '}';
+
+        return base64_encode($obj);
+    }
+
+    private function seedSpecialplay(PDO $pdo): void
+    {
+        $blob = self::specialplayBlob();
+        foreach (['sp_specialplay', 'sp_childspecialplay'] as $table) {
+            $n = (int)$pdo->query("SELECT COUNT(*) FROM `{$table}` WHERE nname = 'client-admin'")->fetchColumn();
+            if ($n === 0) {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO `{$table}` (nname, parent_clname, parent_cmlist, ser_specialplay_b)
+                     VALUES ('client-admin', 'client-admin', '', ?)"
+                );
+                $stmt->execute([$blob]);
+                continue;
+            }
+            $cur = $pdo->query("SELECT ser_specialplay_b FROM `{$table}` WHERE nname = 'client-admin'")->fetchColumn();
+            $raw = is_string($cur) ? (string)base64_decode($cur, true) : '';
+            if ($cur === null || $cur === '' || !str_contains($raw, 'simplicity')) {
+                $stmt = $pdo->prepare(
+                    "UPDATE `{$table}` SET ser_specialplay_b = ? WHERE nname = 'client-admin'"
+                );
+                $stmt->execute([$blob]);
             }
         }
     }

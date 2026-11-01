@@ -307,6 +307,11 @@ if grep -q 'function seedAdminPriv' "$ROOT/kloxo/bin/install/init-panel-db" && g
 else
   bad "init-panel-db seeds admin unlimited priv"
 fi
+if grep -q 'function seedSpecialplay' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q "'simplicity'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds admin specialplay simplicity skin"
+else
+  bad "init-panel-db seeds admin specialplay simplicity skin"
+fi
 if grep -q 'max_execution_time_flag' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function phpiniFlagDefaults' "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds full phpini defaults"
 else

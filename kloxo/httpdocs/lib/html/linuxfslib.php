@@ -906,11 +906,12 @@ function do_exec_system($username, $dir, $cmd, &$out, &$err, &$ret, $input)
 
 		fclose($pipes[0]);
 
-		while (!feof($pipes[1])) {
-			$out .= fgets($pipes[1], 1024);
+		if (isset($pipes[1]) && is_resource($pipes[1])) {
+			while (!feof($pipes[1])) {
+				$out .= fgets($pipes[1], 1024);
+			}
+			fclose($pipes[1]);
 		}
-
-		fclose($pipes[1]);
 
 		// It is important that you close any pipes before calling
 		// proc_close in order to avoid a deadlock

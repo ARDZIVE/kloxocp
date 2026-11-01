@@ -28,9 +28,10 @@ static function generateGraph($oldtime, $newtime)
 static function convertfile($oldtime, $newtime)
 {
 	global $gbl, $sgbl, $login, $ghtml; 
-	$file =  '/var/log/maillog';
+	$file = is_file('/var/log/mail.log') ? '/var/log/mail.log' : '/var/log/maillog';
 	if (!lxfile_real($file)) { return null; }
 	$fp = fopen($file, "r");
+	if (!kloxo_is_stream($fp)) { return null; }
 
 	$fsize = filesize($file);
 	$ret = FindRightPosition($fp, $fsize, $oldtime, $newtime, array("mailtraffic", "getTimeFromOriginalQmailString"));

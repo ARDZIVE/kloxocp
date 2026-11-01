@@ -61,6 +61,16 @@ if grep -q 'new mysqli' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php"; then
 else
   bad "Sqlite DB layer uses mysqli"
 fi
+if sed -n '/function createQueryStringAdd(/,/function createQueryStringUpdate(/p' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php" | grep -q ') values('; then
+  ok "createQueryStringAdd closes the column list before values"
+else
+  bad "createQueryStringAdd closes the column list before values"
+fi
+if grep -q 'catch (mysqli_sql_exception' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php"; then
+  ok "database_query catches mysqli_sql_exception"
+else
+  bad "database_query catches mysqli_sql_exception"
+fi
 
 echo "== autoload characterization"
 if php "$HERE/test_autoload.php"; then
@@ -156,6 +166,36 @@ if grep -q 'function kloxo_is_stream' "$ROOT/kloxo/httpdocs/lib/html/lib.php" &&
   ok "log scanners guard feof on a failed fopen"
 else
   bad "log scanners guard feof on a failed fopen"
+fi
+if grep -q 'function kcount' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
+  ok "kcount is safe for a null list"
+else
+  bad "kcount is safe for a null list"
+fi
+if grep -q 'function kloxo_strftime' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" && grep -q 'function kloxo_html' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
+  ok "kloxo_strftime and kloxo_html exist for PHP 8.5"
+else
+  bad "kloxo_strftime and kloxo_html exist for PHP 8.5"
+fi
+if ! grep -qE '[^_]strftime\(' "$ROOT/kloxo/httpdocs/lib/html/traffichistorylib.php" "$ROOT/kloxo/bin/gettraffic.php" "$ROOT/kloxo/httpdocs/lib/html/lib.php"; then
+  ok "first-party traffic/lib no longer call strftime()"
+else
+  bad "first-party traffic/lib no longer call strftime()"
+fi
+if sed -n '/^function db_get_value(/,/^function db_get_count(/p' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'array_key_exists'; then
+  ok "db_get_value does not index a missing row"
+else
+  bad "db_get_value does not index a missing row"
+fi
+if grep -q 'return array();' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php" && ! grep -q 'return 0;' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php"; then
+  ok "rl_query returns an array when there are no rows"
+else
+  bad "rl_query returns an array when there are no rows"
+fi
+if grep -q "skin_name = 'simplicity'" "$ROOT/kloxo/httpdocs/lib/php/lxclass.php" && grep -q 'simplicity/default' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php"; then
+  ok "admin appearance falls back to simplicity/default"
+else
+  bad "admin appearance falls back to simplicity/default"
 fi
 if grep -q "/var/log/mail.log" "$ROOT/kloxo/httpdocs/lib/domain/clientmail.php"; then
   ok "clientmail reads Ubuntu mail.log"

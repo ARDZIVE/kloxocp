@@ -188,12 +188,15 @@ function db_get_value($table, $nname, $var)
 	if (is_array($var)) {
 		$row = $sql->getRowsWhere("nname = '$nname'", $var);
 
-		return $row[0];
-	} else {
-		$row = $sql->getRowsWhere("nname = '$nname'", array($var));
-
-		return $row[0][$var];
+		return (isset($row[0]) && is_array($row[0])) ? $row[0] : array();
 	}
+
+	$row = $sql->getRowsWhere("nname = '$nname'", array($var));
+	if (!isset($row[0]) || !is_array($row[0]) || !array_key_exists($var, $row[0])) {
+		return '';
+	}
+
+	return $row[0][$var];
 }
 
 function db_get_count($table, $query)
@@ -2184,6 +2187,9 @@ function rrd_graph_server($type, $list, $time)
 function slow_print($file)
 {
 	$fp = lfopen($file, "rb");
+	if (!kloxo_is_stream($fp)) {
+		return;
+	}
 
 	while (!feof($fp)) {
 		print(fread($fp, 8092));
@@ -4577,7 +4583,7 @@ function trafficGetIndividualObjectTotal($list, $firstofmonth, $today, $name)
 		list($nname, $oldtime, $newtime) = explode(":", $t->nname);
 
 		if ($oldtime >= $firstofmonth && $oldtime < $today) {
-			dprint(@ strftime("%c", "$oldtime") . ": ");
+			dprint(kloxo_strftime("%c", $oldtime) . ": ");
 			dprint($t->traffic_usage);
 			dprint("\n");
 
