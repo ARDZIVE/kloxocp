@@ -65,20 +65,68 @@ self-signed certificate. The first screen after login is the password-change
 form; the home dashboard appears after that password is changed. If the page
 does not load, allow TCP 7777 (and 7778) in the host firewall.
 
-`install.sh` installs distro packages, links `/opt/kloxo` to the clone,
-generates TLS keys, starts `kloxo-php` (distro `php-fpm` 8.3 on 24.04,
-8.5 on 26.x) as **`lxlabs`** on `127.0.0.1:39000`, builds pinned
-Hiawatha 12.4, loads the panel MariaDB schema (`init-panel-db`: admin,
-`localhost` pserver, `localhost` driver with `dns`/`web` = `none`,
-simplicity appearance, `generalmisc_b`), writes `/opt/kloxo/etc/conf/kloxo.pass`
-(`0640`, `lxlabs`), and installs phpMyAdmin under
-`httpdocs/thirdparty/phpMyAdmin`. Default login is **admin / admin**;
-the panel blocks the rest of the UI until that password is changed.
-The password is also written to `/root/kloxo-admin-password` (mode 0600).
-Override with `KLOXO_ADMIN_PASSWORD` (min 8 characters). Machines under
-~2 GB RAM or 10 GB free disk need `--force`. It does not run
-`kloxo-mail apply` unless you pass `--profile=full` for mail *packages*
-only, and does not prove a browser login. Log: `/var/log/kloxo-install.log`.
+### What `install.sh` does
+
+On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
+
+1. Refuses another control panel, and refuses less than ~2 GB RAM / 10 GB disk
+   unless you pass `--force`.
+2. Installs the **core** apt set: `php-cli` `php-fpm` `php-mysql` `php-xml`
+   `php-mbstring` `php-curl`, MariaDB, Nginx, BIND 9, `iproute2`, and the
+   compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`).
+3. Clones the git tree to `/usr/local/src/kloxo-cp` only if that tree is missing;
+   otherwise uses the tree that is already there (or the directory you ran
+   `install.sh` from).
+4. Symlinks `/opt/kloxo` → `<clone>/kloxo`, creates `lxlabs`, and points
+   `lxphp.exe` / `lphp.exe` / `/usr/local/sbin/kloxocp` at this tree.
+5. Generates unique TLS keys (`generate-tls-keys`) and copies
+   `/opt/kloxo/etc/program.pem`.
+6. Starts panel PHP-FPM (`kloxo-php`) as **`lxlabs`** on `127.0.0.1:39000`.
+7. Builds pinned **Hiawatha 12.4** (`install-hiawatha`) **before** the database
+   schema, then starts `kloxo-web` on 7777/7778.
+8. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
+   `localhost` driver with `dns`/`web` = `none`, simplicity appearance,
+   `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
+9. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
+10. Restarts FPM, waits until port 39000 is listening, creates the Hiawatha
+    work directories, bounces `kloxo-web`, and pings `/fcgi-ping.php`.
+
+Default login is **admin / admin**; the panel blocks the rest of the UI until
+that password is changed. The password is also written to
+`/root/kloxo-admin-password` (mode 0600). Override with `KLOXO_ADMIN_PASSWORD`
+(min 8 characters, or the literal default `admin`). Log:
+`/var/log/kloxo-install.log`.
+
+It does **not** run `kloxo-mail apply`, Let's Encrypt, or a signed apt
+install. `--profile=full` only apt-installs mail packages (Postfix, Dovecot,
+Rspamd, Redis); it does not configure mail. Browser login is not proven by
+the installer.
+
+### Flags and environment
+
+```
+sudo bash install.sh
+sudo bash install.sh --update              # git fetch the existing clone, then re-run
+sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
+sudo bash install.sh --profile=full        # also apt-install postfix, dovecot, rspamd, redis
+sudo bash install.sh --with-mail           # same as --profile=full
+sudo bash install.sh --profile=core        # default: php, nginx, mariadb, bind9
+sudo bash install.sh --dry-run             # print repo/src/root/profile and exit
+sudo bash install.sh --src=/path           # clone location (default /usr/local/src/kloxo-cp)
+sudo bash install.sh --root=/opt/kloxo     # program root
+sudo bash install.sh --branch=main         # git branch
+sudo bash install.sh --repo=URL            # git URL
+sudo bash install.sh --help
+```
+
+| Variable | Meaning |
+|---|---|
+| `KLOXO_ADMIN_PASSWORD` | Panel admin password (default `admin`; otherwise min 8 chars) |
+| `KLOXO_GIT_URL` | Git remote (default `https://github.com/ARDZIVE/kloxocp.git`) |
+| `KLOXO_GIT_BRANCH` | Git branch (default `main`) |
+| `KLOXO_GIT_TOKEN` | Optional GitHub token for a private fork |
+| `KLOXO_ROOT` | Program root override used by tools and tests |
+| `KLOXO_PHP` | PHP binary override (default `/usr/bin/php`) |
 
 The one-liner above **does not re-clone** if `/usr/local/src/kloxo-cp`
 already exists. For a true fresh tree from GitHub `main`:
@@ -93,18 +141,9 @@ then run the one-liner again. To keep the directory and pull `main`:
 sudo bash /usr/local/src/kloxo-cp/install.sh --update
 ```
 
-From an existing clone (re-run or recover; do not `git clone` again):
-
-```
-sudo bash /usr/local/src/kloxo-cp/install.sh
-sudo bash /usr/local/src/kloxo-cp/install.sh --update    # git fetch main, then re-run
-sudo bash /usr/local/src/kloxo-cp/install.sh --force     # below 2 GB RAM / 10 GB disk
-sudo bash /usr/local/src/kloxo-cp/install.sh --profile=full    # also apt-install postfix/dovecot/rspamd
-sudo bash /usr/local/src/kloxo-cp/install.sh --help
-```
-
 Signed apt packages (`docs/INSTALL_AND_UPDATE_DESIGN.md`) are not built.
-The rest of this section is the same path, spelled out by hand.
+The rest of this section is the same path, spelled out by hand, for
+recovery or a laptop that will only run php-cli tests.
 
 On any host with `php-cli` (including a laptop):
 
@@ -122,7 +161,7 @@ php kloxo/bin/kloxocp install   # doctor --install only; Ubuntu bootstrap is ins
 A Mac or other non-Ubuntu host can run the php-cli tests and generate TLS keys. It cannot
 run Hiawatha, the systemd units, or the live mail tests.
 
-### 0. What this procedure does and does not do
+### 0. What the manual path does and does not do
 
 **Does:** unpack the tree under `/opt/kloxo`, generate unique TLS keys, point `lxphp.exe`
 at distro PHP 8, create runtime directories, install OS packages, build pinned
@@ -131,9 +170,9 @@ Hiawatha 12.4, load the panel MariaDB schema (`init-panel-db`: admin,
 start `kloxo-php` / `kloxo-web`, optionally apt-install mail packages
 (`--profile=full`), and confirm `include.php` loads.
 
-**Does not (yet):** a signed apt package, Let's Encrypt for the panel hostname, or
-a verified admin login through the browser. The legacy `kloxo/install/` scripts
-are CentOS/RPM-only — do not run them on Ubuntu.
+**Does not (yet):** a signed apt package, Let's Encrypt for the panel hostname,
+`kloxo-mail apply`, or a verified admin login through the browser. The legacy
+`kloxo/install/` scripts are CentOS/RPM-only — do not run them on Ubuntu.
 
 ### 1. Requirements
 
@@ -151,6 +190,8 @@ ss -lnt | grep -E ':7777|:7778|:80|:443' || true
 
 ### 2. Packages
 
+Core (matches `install.sh --profile=core`):
+
 ```
 apt update
 apt install -y \
@@ -158,22 +199,24 @@ apt install -y \
   mariadb-server \
   nginx \
   bind9 \
-  openssl git make gcc pkg-config libssl-dev \
-  redis-server
+  iproute2 \
+  ca-certificates git curl openssl \
+  build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 ```
 
-Optional (mail stack, only if you will run `kloxo-mail`):
+Mail packages (only with `--profile=full` / `--with-mail`; does **not**
+configure Postfix):
 
 ```
 apt install -y \
   postfix postfix-mysql postfix-lmdb \
   dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
   dovecot-mysql dovecot-sieve dovecot-managesieved \
-  rspamd
+  rspamd redis-server
 ```
 
 Hiawatha is **not** in Ubuntu 24.04 or 26.x. `install.sh` (or the command in section 8)
-builds pinned 12.4. PHP-FPM for the panel can still be configured first.
+builds pinned 12.4. Redis is a mail-stack dependency, not a core panel package.
 
 ### 3. Place the tree at `/opt/kloxo`
 
@@ -190,6 +233,7 @@ ln -sfn /usr/local/src/kloxo-cp/kloxo /opt/kloxo
 mkdir -p /opt/kloxo/etc/conf /opt/kloxo/pid /opt/kloxo/log \
   /home/kloxo/httpd /home/kloxo/client /home/kloxomail/mail
 ln -sfn /opt/kloxo/pscript /script
+ln -sfn /opt/kloxo/bin/kloxocp /usr/local/sbin/kloxocp
 ```
 
 Override the program root in tests or a non-standard layout:
@@ -214,6 +258,7 @@ the installer writes that file, copy the generated PEM:
 
 ```
 install -m 0600 /opt/kloxo/file/ssl/default.pem /opt/kloxo/etc/program.pem
+chown lxlabs:lxlabs /opt/kloxo/etc/program.pem
 ```
 
 ### 5. Point `lxphp.exe` at distro PHP 8
@@ -222,7 +267,7 @@ install -m 0600 /opt/kloxo/file/ssl/default.pem /opt/kloxo/etc/program.pem
 ln -sfn /opt/kloxo/init/php-cli.sh /usr/bin/lxphp.exe
 ln -sfn /opt/kloxo/init/php-cli.sh /usr/bin/lphp.exe
 lxphp.exe -v
-# expected: PHP 8.3.x (or 8.x)
+# expected: PHP 8.3.x on Ubuntu 24.04, PHP 8.5.x on Ubuntu 26.x
 
 # same thing via the legacy helper, which now prefers distro PHP 8:
 sh /opt/kloxo/pscript/fixlxphpexe
@@ -251,12 +296,17 @@ That proves the library bootstrap. It does **not** prove a browser login.
 
 ### 7. Panel PHP-FPM (Hiawatha talks to this port)
 
+The FPM pool user is **`lxlabs`** (PHP 8.5 exits 78 if the pool is `root`).
+Listen address is TCP `127.0.0.1:39000` (a unix socket plus restarting FPM
+without bouncing Hiawatha produced HTTP 503).
+
 ```
 install -d -m 0755 /opt/kloxo/init /opt/kloxo/log /opt/kloxo/session /opt/kloxo/pid
 chown lxlabs:lxlabs /opt/kloxo/log /opt/kloxo/session /opt/kloxo/pid
 cp -a /opt/kloxo/init/kloxo-php.service /etc/systemd/system/kloxo-php.service
 # pool file: /opt/kloxo/init/kloxo-php-fpm.conf
-# FastCGI:   127.0.0.1:39000  (user/group lxlabs — PHP 8.5 refuses root)
+# FastCGI:   127.0.0.1:39000
+php-fpm8.3 -y /opt/kloxo/init/kloxo-php-fpm.conf --fpm-config /opt/kloxo/init/kloxo-php-fpm.conf -t
 systemctl daemon-reload
 systemctl enable --now kloxo-php
 systemctl status kloxo-php --no-pager
@@ -265,19 +315,25 @@ ss -lnt | grep 39000
 
 The unit runs `/opt/kloxo/init/kloxo-php-fpm.sh`, which execs the distro
 `php-fpm` (`/usr/sbin/php-fpm8.3` on 24.04, `/usr/sbin/php-fpm8.5` on 26.x).
-`kloxo.pass` must be readable by `lxlabs` (`0640`). A 503 from Hiawatha
-means this port is down. Do not consider the current layout a production
-security default.
+If `Type=notify` leaves FPM dead, the installer retries the unit as
+`Type=simple`. `kloxo.pass` must be readable by `lxlabs` (`0640`). A 503
+from Hiawatha means this port is down.
 
 ### 8. Panel Hiawatha (pinned 12.4 source build)
 
-Ubuntu 24.04 and 26.x have no `hiawatha` package. Build the pinned release, render the
-config, and enable `kloxo-web`:
+Ubuntu 24.04 and 26.x have no `hiawatha` package. Build the pinned release
+**before** loading the MariaDB schema, render the config, and enable `kloxo-web`:
 
 ```
 sudo bash /opt/kloxo/bin/install/install-hiawatha --root=/opt/kloxo
+mkdir -p /opt/kloxo/var/hiawatha/upload /usr/local/var/lib/hiawatha/upload
+chown lxlabs:lxlabs /opt/kloxo/var/hiawatha /opt/kloxo/var/hiawatha/upload \
+  /usr/local/var/lib/hiawatha /usr/local/var/lib/hiawatha/upload
+systemctl restart kloxo-web
 systemctl status kloxo-web --no-pager
 ss -lnt | grep -E ':7777|:7778'
+curl -sS --max-time 8 http://127.0.0.1:7778/fcgi-ping.php
+# expected: a body containing "ok"
 ```
 
 `install-hiawatha` downloads
@@ -289,6 +345,7 @@ rebuild. Pass `--dry-run` to print the plan.
 
 If `hiawatha -k` names a bad directive, paste that output before editing
 `hiawatha.conf` by hand. Do not keep `MinTLSversion` (removed in Hiawatha 11).
+Hiawatha 12.4 needs a writable work dir or `kloxo-web` exits 1.
 
 Open in a browser: `https://YOUR-HOST:7777/` (self-signed cert; expect a warning).
 Unauthenticated requests redirect to `/login/`. Log in as **admin / admin**
@@ -311,7 +368,8 @@ installer as root.
 ### 9. MariaDB for the panel
 
 The panel database name is `kloxo`, DB user `kloxo`. Use the Ubuntu installer
-(not the backgrounded CentOS `mysql … &` path):
+(not the backgrounded CentOS `mysql … &` path). `install.sh` builds Hiawatha
+first, then waits for a MariaDB unix-socket root login, then runs this:
 
 ```
 # recover a half-finished install, or create a fresh schema:
@@ -326,7 +384,8 @@ admin). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0640, `lxlabs`). With no ove
 it seeds **admin / admin** (the UI then requires a change), the `localhost`
 pserver and driver rows, simplicity appearance, and `generalmisc_b`. A custom
 `--admin-password` must be at least 8 characters. Re-running it on an existing
-database fills those rows if they are missing.
+database fills those rows if they are missing. On MariaDB 10.6+/11.8 it rewrites
+the 2014 dump so `client`/`domain`/`web` do not hit error 1118 (row size).
 
 The legacy wrapper still works from `httpdocs` and now calls `init-panel-db`:
 
@@ -409,8 +468,11 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/kloxocp            operator CLI (status, doctor, snapshot, rollback)
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)
   bin/install/generate-tls-keys  unique TLS keys per install
+  bin/install/init-panel-db      Ubuntu MariaDB panel schema
+  bin/install/install-hiawatha   pinned Hiawatha 12.4 source build
+  bin/install/install-phpmyadmin phpMyAdmin under httpdocs/thirdparty
 install.sh        Ubuntu 24.04 / 26.x bootstrap (clone + apt + layout + TLS)
-tests/            mail, tls, remote, security, p1, p2, p3
+tests/            mail, tls, remote, security, p1, p2, p3, install
 docs/             audit, design, mail stack, changelog, legacy notes
 ```
 
