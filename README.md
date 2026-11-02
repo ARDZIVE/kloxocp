@@ -47,10 +47,12 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 **Ubuntu 24.04 or 26.x, one line (as root).** Clones
 https://github.com/ARDZIVE/kloxocp.git (public, branch `main`) if needed,
-then runs `install.sh`. Safe to repeat after a failed or partial install:
+or fetches `origin/main` when that clone already exists, then runs
+`install.sh`. Safe to repeat after a failed install or to pick up GitHub
+`main`:
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { test -f /usr/local/src/kloxo-cp/install.sh || git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; } && bash /usr/local/src/kloxo-cp/install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -B main FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'
 ```
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
@@ -74,9 +76,11 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 2. Installs the **core** apt set: `php-cli` `php-fpm` `php-mysql` `php-xml`
    `php-mbstring` `php-curl`, MariaDB, Nginx, BIND 9, `iproute2`, and the
    compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`).
-3. Clones the git tree to `/usr/local/src/kloxo-cp` only if that tree is missing;
-   otherwise uses the tree that is already there (or the directory you ran
-   `install.sh` from).
+3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
+   If it is already a git clone, fetches `origin/main` first. If `/opt/kloxo`
+   is a real directory (not a symlink to the clone), copies `httpdocs` /
+   `bin` / `init` from the clone. Running `install.sh` from a copied tree
+   uses that directory.
 4. Symlinks `/opt/kloxo` → `<clone>/kloxo`, creates `lxlabs`, and points
    `lxphp.exe` / `lphp.exe` / `/usr/local/sbin/kloxocp` at this tree.
 5. Generates unique TLS keys (`generate-tls-keys`) and copies
@@ -106,7 +110,7 @@ the installer.
 
 ```
 sudo bash install.sh
-sudo bash install.sh --update              # git fetch the existing clone, then re-run
+sudo bash install.sh --update              # accepted; every run already git-fetches the clone
 sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
 sudo bash install.sh --profile=full        # also apt-install postfix, dovecot, rspamd, redis
 sudo bash install.sh --with-mail           # same as --profile=full
@@ -128,18 +132,16 @@ sudo bash install.sh --help
 | `KLOXO_ROOT` | Program root override used by tools and tests |
 | `KLOXO_PHP` | PHP binary override (default `/usr/bin/php`) |
 
-The one-liner above **does not re-clone** if `/usr/local/src/kloxo-cp`
-already exists. For a true fresh tree from GitHub `main`:
+The one-liner above **fetches `origin/main`** when `/usr/local/src/kloxo-cp`
+is already a git clone, then runs that updated `install.sh`. You do not
+need `--update` or `rm -rf` for a normal refresh. Remove the directory
+only if it is corrupt or is not a git clone:
 
 ```
 sudo rm -rf /usr/local/src/kloxo-cp
 ```
 
-then run the one-liner again. To keep the directory and pull `main`:
-
-```
-sudo bash /usr/local/src/kloxo-cp/install.sh --update
-```
+then run the one-liner again.
 
 Signed apt packages (`docs/INSTALL_AND_UPDATE_DESIGN.md`) are not built.
 The rest of this section is the same path, spelled out by hand, for

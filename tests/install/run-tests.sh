@@ -95,16 +95,17 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { test -f /usr/local/src/kloxo-cp/install.sh || git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; } && bash /usr/local/src/kloxo-cp/install.sh'"
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -B main FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'"
 if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
   ok "README and install.sh share the same one-liner"
 else
   bad "README and install.sh share the same one-liner"
 fi
-if echo "$ONELINER" | grep -q 'test -f /usr/local/src/kloxo-cp/install.sh || git clone'; then
-  ok "one-liner re-runs when the clone already exists"
+if echo "$ONELINER" | grep -q 'git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main' \
+  && echo "$ONELINER" | grep -q 'git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp'; then
+  ok "one-liner fetches an existing clone then runs install.sh"
 else
-  bad "one-liner re-runs when the clone already exists"
+  bad "one-liner fetches an existing clone then runs install.sh"
 fi
 if grep -q 'print_access_box' "$ROOT/install.sh" && grep -q 'Username' "$ROOT/install.sh" && grep -q 'first login' "$ROOT/install.sh"; then
   ok "installer prints a login access box"

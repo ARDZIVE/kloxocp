@@ -1,8 +1,8 @@
 #!/bin/bash
 # Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
-# One line (clones if needed; re-run safe if the tree already exists):
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { test -f /usr/local/src/kloxo-cp/install.sh || git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; } && bash /usr/local/src/kloxo-cp/install.sh'
+# One line (clones if needed; fetches origin/main and re-runs if the clone exists):
+#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -B main FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'
 #
 # Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
 # (apt would steal stdin); wget/curl to a file, then bash it.
@@ -38,7 +38,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
   --profile=full   core plus postfix, dovecot, rspamd, redis
   --yes            non-interactive (assumed when stdin is not a TTY)
   --force          continue below 2 GB RAM / 10 GB disk
-  --update         git fetch the existing clone
+  --update         accepted; every run already git-fetches the clone
   --dry-run        print the plan and exit
   --src=DIR        clone location (default: ${KLOXO_SRC_DEFAULT})
   --root=DIR       program root (default: ${KLOXO_ROOT_DEFAULT})
@@ -49,9 +49,9 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 Default panel login is admin/admin; the UI requires a password change
 after the first login. Override with KLOXO_ADMIN_PASSWORD (min 8 chars).
 
-One-line install on Ubuntu 24.04 or 26.x (root). Clones if needed; re-runs if the tree exists:
+One-line install on Ubuntu 24.04 or 26.x (root). Clones if needed; fetches origin/main and re-runs if the clone exists:
 
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { test -f /usr/local/src/kloxo-cp/install.sh || git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; } && bash /usr/local/src/kloxo-cp/install.sh'
+  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -B main FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'
 
 Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
 This tree is NOT production-safe.
