@@ -117,7 +117,7 @@ abstract class Lxclient extends Lxdb
 
 	function getKeywordUc($var)
 	{
-		return ucfirst($this->getKeyword($var));
+		return ucfirst((string) $this->getKeyword($var));
 	}
 
 	function getDescription($var)

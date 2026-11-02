@@ -228,18 +228,24 @@ class Client extends ClientBase
 			}
 		}
 
-		if (isset($this->priv) && is_object($this->priv) && $this->priv->isOn('webhosting_flag')) {
+		if ($this->checkButton('webhosting_flag')) {
 			$url = "a=show&l[class]=ffile&l[nname]=/";
 		//	$ilist['Home'] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
 			$ilist[$login->getKeywordUc('info_home')] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
 		//	$ilist['Username'] = "_lxspan:{$this->username}:{$this->username}:";
-			$ilist[$login->getKeywordUc('info_username')] = "_lxspan:{$this->username}:{$this->username}:";
+			$uname = isset($this->username) ? $this->username : $this->nname;
+			$ilist[$login->getKeywordUc('info_username')] = "_lxspan:{$uname}:{$uname}:";
 			$url = "&a=updateform&sa=default_domain";
+			$defdom = isset($this->default_domain) ? $this->default_domain : '';
 		//	$ilist['Default Domain'] = "_lxinurl:{$url}:{$this->default_domain}:";
-			$ilist[$login->getKeywordUc('info_defaultdomain')] = "_lxinurl:{$url}:{$this->default_domain}:";
+			$ilist[$login->getKeywordUc('info_defaultdomain')] = "_lxinurl:{$url}:{$defdom}:";
 		}
-		
-		$this->getLastLogin($ilist);
+
+		try {
+			$this->getLastLogin($ilist);
+		} catch (Throwable $e) {
+			log_log("error", "getLastLogin: " . $e->getMessage());
+		}
 
 		$skin = $this->getSpecialObject('sp_specialplay')->skin_name;
 		$skin = ucfirst($skin);
@@ -573,7 +579,7 @@ class Client extends ClientBase
 			$alist[] = "a=show&l[class]=ffile&l[nname]=/";
 			$alist['__v_dialog_defd'] = "a=updateform&sa=default_domain";
 
-			if (file_exists("../etc/flag/enablecronforall.flg")) {
+			if ($this->isAdmin() || file_exists("../etc/flag/enablecronforall.flg")) {
 				$alist[] = "a=list&c=cron";
 			}
 

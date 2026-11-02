@@ -1125,15 +1125,16 @@ function check_disable_admin($cgi_clientname)
 
 function check_if_many_server()
 {
-	$sql = new Sqlite(null, "pserver");
-	$res = $sql->getTable(array('nname'));
-	$rs = get_namelist_from_arraylist($res);
+	try {
+		$sql = new Sqlite(null, "pserver");
+		$res = $sql->getTable(array('nname'));
+		$rs = get_namelist_from_arraylist($res);
 
-	if (count($rs) > 1) {
-		return true;
+		return kcount($rs) > 1;
+	} catch (Throwable $e) {
+		log_log("error", "check_if_many_server: " . $e->getMessage());
+		return false;
 	}
-
-	return false;
 }
 
 function get_all_client()

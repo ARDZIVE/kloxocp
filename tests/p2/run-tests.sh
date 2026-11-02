@@ -209,6 +209,70 @@ if grep -F -q 'overflow: visible' "$ROOT/kloxo/httpdocs/theme/css/common.css" \
 else
   bad "main content column is not clipped by overflow:hidden"
 fi
+if grep -A 20 'div.section, div#createNew' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'overflow: visible' \
+  && grep -A 20 'div.section, div#createNew' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'height: auto'; then
+  ok "dashboard sections are not clipped by overflow:hidden"
+else
+  bad "dashboard sections are not clipped by overflow:hidden"
+fi
+if grep -F -q 'div_menu_right' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && awk 'found && /getKeywordUc\(.logout.\)/{print; exit} /div_menu_right/{found=1}' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" | grep -q logout; then
+  ok "simplicity Help/Logout print before the rest of the top menu"
+else
+  bad "simplicity Help/Logout print before the rest of the top menu"
+fi
+if grep -F -q 'flex-wrap: wrap' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" \
+  && grep -F -q '.div_menu_right' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css"; then
+  ok "simplicity top menu keeps Help/Logout visible when items wrap"
+else
+  bad "simplicity top menu keeps Help/Logout visible when items wrap"
+fi
+if grep -A 40 'function getTitleOnly' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'catch (Throwable' \
+  && grep -A 40 'function getActionDetails' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'catch (Throwable'; then
+  ok "menu titles and dashboard buttons survive a missing action description"
+else
+  bad "menu titles and dashboard buttons survive a missing action description"
+fi
+if grep -A 20 '^function check_if_many_server' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'catch (Throwable'; then
+  ok "check_if_many_server does not abort the Server menu"
+else
+  bad "check_if_many_server does not abort the Server menu"
+fi
+if grep -A 40 '^function get_classvar_description' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -q 'if (!is_array($ret))'; then
+  ok "get_classvar_description does not index a non-array description"
+else
+  bad "get_classvar_description does not index a non-array description"
+fi
+if grep -q 'id="div_status"' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php" \
+  && grep -q 'id="div_showhide"' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php" \
+  && grep -q 'id="clock_div"' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php" \
+  && grep -q "getKeywordUc('status')" "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php" \
+  && grep -q "getKeywordUc('showhide')" "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php" \
+  && grep -q "date('H:i:s')" "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php"; then
+  ok "simplicity top-right bar prints Status, Show/Hide, and the time"
+else
+  bad "simplicity top-right bar prints Status, Show/Hide, and the time"
+fi
+if grep -A 12 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'display: flex' \
+  && grep -A 8 '.div_header_message_inactive' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" | grep -q 'color: #fff'; then
+  ok "simplicity Status/Show-Hide/time stay visible on the top right"
+else
+  bad "simplicity Status/Show-Hide/time stay visible on the top right"
+fi
+if grep -q 'div_home_page' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
+  && grep -q 'div_home_left' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
+  && grep -q 'div_home_right' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
+  && grep -q 'print_object_action_block' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
+  ok "home page keeps Find/Information/Resource beside the dashboard tiles"
+else
+  bad "home page keeps Find/Information/Resource beside the dashboard tiles"
+fi
+if grep -q 'is_array($raw)' "$ROOT/kloxo/httpdocs/lib/php/resourcelib.php" \
+  && grep -q 'if (!$privobj)' "$ROOT/kloxo/httpdocs/lib/php/resourcelib.php"; then
+  ok "information and resource tables do not fatal on a missing priv object"
+else
+  bad "information and resource tables do not fatal on a missing priv object"
+fi
 if ! awk '/function do_display_init/,/^function /' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -qE 'ob_start\(|flush\(\)'; then
   ok "display init does not flush then buffer the main column"
 else

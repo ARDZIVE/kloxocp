@@ -729,8 +729,45 @@ html>body #quotausagebar span.last {
 
 	.div_container {
 		visibility: visible;
+		display: inline-block;
 		float: left;
 		margin: 3px;
+		overflow: visible;
+	}
+
+	.div_home_page {
+		width: 900px;
+		max-width: 100%;
+		margin: 10px auto;
+		display: flex;
+		align-items: flex-start;
+		gap: 15px;
+		overflow: visible;
+		background-color: #fff;
+	}
+
+	.div_home_left {
+		width: 240px;
+		flex: 0 0 240px;
+		overflow: visible;
+	}
+
+	.div_home_right {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: visible;
+	}
+
+	.div_home_right > div {
+		float: none !important;
+		margin: 0 !important;
+		width: 100% !important;
+	}
+
+	.div_home_right div.section {
+		float: none !important;
+		width: 100% !important;
+		margin: 0 0 10px 0 !important;
 	}
 
 	.div_content {
@@ -796,15 +833,26 @@ html>body #quotausagebar span.last {
 	}
 
 	.div_fixed_left {
-		position: fixed;
-		top: 2px;
-		left: 2px;
+		position: relative;
+		top: auto;
+		left: auto;
+		flex: 0 0 auto;
+		z-index: 1001;
+		display: flex;
+		align-items: center;
+		white-space: nowrap;
 	}
 
 	.div_fixed_right {
-		position: fixed;
-		top: 2px;
-		right: 2px;
+		position: relative;
+		top: auto;
+		right: auto;
+		flex: 0 0 auto;
+		z-index: 1001;
+		display: flex;
+		align-items: center;
+		white-space: nowrap;
+		margin-left: 8px;
 	}
 
 	.div_fixed_logo_left {
@@ -839,17 +887,24 @@ html>body #quotausagebar span.last {
 		position: fixed;
 		width: 100%;
 		top: 0;
-		height: 30px;
+		height: auto;
+		min-height: 36px;
 		margin: 0;
-		padding: 0;
+		padding: 0 4px;
 		background-color: #e43;
+		overflow: visible;
+		z-index: 1000;
+		display: flex;
+		flex-wrap: nowrap;
+		align-items: center;
+		box-sizing: border-box;
 	}
 
 	.div_mmm_simplicity {
 		width: 960px;
 		padding: 0;
 		border: 0;
-		margin: 60px auto 10px auto;
+		margin: 70px auto 10px auto;
 		background-color: #fff;
 		overflow: visible;
 		position: relative;

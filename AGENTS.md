@@ -26,7 +26,13 @@ reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `generalmisc_b` so the home page does not fatal on a missing driver or
 null `used`. Panel FPM hides PHP errors (`log/php.err`). The middle column
 is no longer dropped by splash `flush()`/`ob_start()` or an
-uncaught PHP 8 `Error` after the header. First-party `ereg*`/`split`
+uncaught PHP 8 `Error` after the header. Dashboard tiles and the
+simplicity top-bar items after Server (Security, Basic, Task,
+Help, Logout) no longer vanish on a missing action description.
+Status, Show/Hide and the clock stay on the top right. Home keeps
+Find / Information / Resource on the left and the dashboard tiles
+on the right.
+First-party `ereg*`/`split`
 and live theme `escape`/`document.all` are gone. Browser login
 against MariaDB is not verified.
 Next: remaining P2 runtime, Debian packaging, or P4 postfix UI. See briefing

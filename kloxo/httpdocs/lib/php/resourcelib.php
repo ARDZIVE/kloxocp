@@ -21,11 +21,20 @@ class information extends LxaClass
 
 	static function initThisList($parent, $class)
 	{
-		$list = $parent->createShowInfoList("");
+		$list = array();
+		try {
+			$raw = $parent->createShowInfoList("");
+			if (is_array($raw)) {
+				$list = $raw;
+			}
+		} catch (Throwable $e) {
+			log_log("error", "createShowInfoList: " . $e->getMessage());
+		}
 
 		$i = 0;
+		$res = array();
 
-		foreach($list as $k => $l) {
+		foreach ($list as $k => $l) {
 			$r['nname'] = $i;
 			$r['variable'] = $k;
 			$r['value'] = $l;
@@ -128,6 +137,12 @@ class PermissionOrResource extends LxaClass
 				if ($k === 'priv') {
 					$vlist = $parent->getQuotaVariableList();
 					$vlist = lx_array_merge(array($vlist, $parent->getDeadQuotaVariableList()));
+					$privobj = (isset($parent->priv) && is_object($parent->priv)) ? $parent->priv : null;
+					$usedobj = (isset($parent->used) && is_object($parent->used)) ? $parent->used : null;
+					if (!$privobj) {
+						continue;
+					}
+
 					foreach($vlist as $nk => $nv) {
 						// Why am I skipping hardquota?. OK it screws up vps graph
 						if ($parent->isHardQuota($nk)) {
@@ -138,7 +153,7 @@ class PermissionOrResource extends LxaClass
 								continue;
 							}
 							if ($login->getSpecialObject('sp_specialplay')->isOn('dont_show_disabled_permission')) {
-								if (!$parent->priv->isOn($nk)) {
+								if (!$privobj->isOn($nk)) {
 									continue;
 								}
 							}
@@ -151,38 +166,41 @@ class PermissionOrResource extends LxaClass
 						}
 
 						$desc = get_classvar_description($class, $nk);
+						if (!is_array($desc) || !isset($desc[2])) {
+							$desc = array(2 => $nk);
+						}
 
-						if (is_array($parent->priv->$nk)) {
-							foreach($parent->priv->$nk as $nnk => $nnv) {
+						if (is_array($privobj->$nk)) {
+							foreach($privobj->$nk as $nnk => $nnv) {
 								$resourceout[$j]['vv'] = $nk;
 								$resourceout[$j]['nname'] = $j;
 								$resourceout[$j]['shortdescr'] = getNthToken($desc[2], 0);
 								$sh = getNthToken($desc[2], 0);
 								$ln = getNthToken($desc[2], 1);
 								$resourceout[$j]['descr'] = "_lxspan:$sh:$ln:";
-								$resourceout[$j]['resourceused'] = $parent->used->{$nk}[$nnk];
-								$resourceout[$j]['resourcepriv'] = $parent->priv->{$nk}[$nnk];
+								$resourceout[$j]['resourceused'] = ($usedobj && isset($usedobj->{$nk}[$nnk])) ? $usedobj->{$nk}[$nnk] : '-';
+								$resourceout[$j]['resourcepriv'] = $privobj->{$nk}[$nnk];
 								$j++;
 							}
 
 							continue;
 						}
 
-						if (isset($parent->used)) {
-							$vresourceused = $parent->used->$nk;
+						if ($usedobj) {
+							$vresourceused = $usedobj->$nk;
 						} else {
 							$vresourceused = '-';
 						}
 
 						if (cse($nk, "_flag")) {
-							$vresourcepriv = $parent->priv->$nk;
+							$vresourcepriv = $privobj->$nk;
 						} else {
-							if ($parent->priv->$nk === "0") {
+							if ($privobj->$nk === "0") {
 								continue;
 							}
 
 							if ($parent->showPrivInResource()) {
-								$vresourcepriv = $parent->priv->$nk;
+								$vresourcepriv = $privobj->$nk;
 							} else {
 								$vresourcepriv = '-';
 							}

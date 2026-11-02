@@ -80,14 +80,22 @@ if (($clientquery !== '') || ($syncserver !== 'localhost')) {
 ?>
 
 <div id="menu_div" class="div_menu shadow_all">
+<div class="div_menu_right">
+	<ul class="menuTemplate2 decor2_1">
+		<li><a title="<?=$login->getKeywordUc('click_here_for');?> <?=$login->getKeywordUc('help');?>" href="javascript://" onClick="toggleVisibilityById('infomsg');"><?=$login->getKeywordUc('help');?></a></li>
+		<li class="separator"></li>
+		<li><a title="<?=$login->getKeywordUc('click_here_for');?> <?=$login->getKeywordUc('logout');?>"  href="javascript:if (confirm('<?=$login->getKeywordUc('is_want_logout');?>')) { location = '/lib/php/logout.php'; }"><?=$login->getKeywordUc('logout');?></a></li>
+	</ul>
+</div>
 <?php
+try {
 // MR -- prevent for mailaccount login
 if (strpos($loginas, "@") !== false) {
 	// no action
 } else {
 ?>
 
-<div style="float:left">
+<div class="div_menu_left">
 	<ul class="menuTemplate2 decor2_1">
 		<li><a href="/display.php?<?=$consumedlogin;?>frm_action=show"><?=$login->getKeywordUc('home');?></a>
 <?php
@@ -1145,14 +1153,10 @@ if (strpos($loginas, "@") !== false) {
 </div>
 <?php
 }
+} catch (Throwable $e) {
+	log_log("error", "simplicity menu left: " . $e->getMessage());
+}
 ?>
-<div style="float:right">
-	<ul class="menuTemplate2 decor2_1">
-		<li><a title="<?=$login->getKeywordUc('click_here_for');?> <?=$login->getKeywordUc('help');?>" href="javascript://" onClick="toggleVisibilityById('infomsg');"><?=$login->getKeywordUc('help');?></a></li>
-		<li class="separator"></li>
-		<li><a title="<?=$login->getKeywordUc('click_here_for');?> <?=$login->getKeywordUc('logout');?>"  href="javascript:if (confirm('<?=$login->getKeywordUc('is_want_logout');?>')) { location = '/lib/php/logout.php'; }"><?=$login->getKeywordUc('logout');?></a></li>
-	</ul>
-</div>
 </div>
 <!-- 'END - Simplicity menu' -->
 

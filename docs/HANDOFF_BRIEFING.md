@@ -219,10 +219,21 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `document.write`. The simplicity
     main column (`.div_content` / `#mmm`) no longer uses
     `overflow:hidden` plus `height:100%`, which clipped the middle
-    of every page. The leftover splash `flush()` + `ob_start()`
+    of every page.     The leftover splash `flush()` + `ob_start()`
     that dropped the body on FastCGI is gone; `display_exec`
     catches PHP 8 `Error` so a later TypeError cannot blank the
-    middle column. Live browser login is still **UNVERIFIED**.
+    middle column. Dashboard tile sections use `overflow:visible`
+    and stay open unless explicitly collapsed. `getActionDetails`
+    / `getTitleOnly` / `get_classvar_description` no longer
+    TypeError on a missing `$desc[2]`, which cut the simplicity
+    top bar after Server (Security, Basic, Task, Help, Logout)
+    and left the home tiles empty.     Help/Logout print first in
+    `menu.php`. Status, Show/Hide and the clock sit on the
+    top-right of the simplicity bar (flex, white-on-blue; the
+    clock has a PHP time fallback). Home show is a two-column page
+    (Find / Information / Resource on the left, action tiles on the
+    right) matching the Kloxo-MR dashboard; a missing `priv` object
+    no longer aborts the Resource table before the tiles. Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

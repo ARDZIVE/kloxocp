@@ -1503,7 +1503,12 @@ class HtmlLib
 			}
 		}
 
-		$complete = $this->resolve_int_ext($url, $psuedourl, $target);
+		try {
+			$complete = $this->resolve_int_ext($url, $psuedourl, $target);
+		} catch (Throwable $e) {
+			log_log("error", "print_div_button resolve: " . $e->getMessage());
+			$complete = null;
+		}
 
 		if ($complete) {
 			$this->get_post_from_get($url, $path, $post);
@@ -1525,9 +1530,22 @@ class HtmlLib
 
 			$__t_identity = $identity;
 		} else {
-			$url = str_replace("[%s]", $obj->nname, $url);
-
+			$objname = (is_object($obj) && isset($obj->nname)) ? $obj->nname : '';
+			$url = str_replace("[%s]", $objname, $url);
+			$path = $post = $file = $name = $image = $__t_identity = null;
 			$descr = $this->getActionDetails($url, $psuedourl, $buttonpath, $path, $post, $file, $name, $image, $__t_identity);
+		}
+		if (!is_array($descr)) {
+			$descr = array(2 => '', 'desc' => '', 'help' => '');
+		}
+		if (!isset($descr[2])) {
+			$descr[2] = isset($descr['desc']) ? $descr['desc'] : '';
+		}
+		if (!isset($descr['desc'])) {
+			$descr['desc'] = $descr[2];
+		}
+		if (!isset($descr['help'])) {
+			$descr['help'] = $descr[2];
 		}
 
 		$this->save_non_existant_image($image);
@@ -1696,13 +1714,19 @@ class HtmlLib
 				background-color: #fff;
 				/* margin: 9px 5px; */
 				margin: <?=$sectionmargin?>;
-				padding: 0;
+				padding: 0 0 8px 0;
 				/* width: 520px; */
 				width: <?=$sectionwidth?>px;
 				resize: both;
-				overflow: hidden;
+				overflow: visible;
 				float: left;
-				height: <?=$sectionheight?>;
+				height: auto;
+				min-height: 120px;
+			}
+			div.section::after, div#createNew::after {
+				content: "";
+				display: block;
+				clear: both;
 			}
 
 			div#createNew input {
@@ -1776,14 +1800,15 @@ class HtmlLib
 			$count++;
 
 			if (!isset($a[$title])) {
-				continue;
+				$a[$title] = strfrom((string) $title, "__title_");
 			}
 
-			$dispstring = "display:none";
-
-			if ($a['open']) {
-				$dispstring = "";
+			$section_open = true;
+			if (isset($a['open']) && ($a['open'] === false || $a['open'] === 0 || $a['open'] === '0')) {
+				$section_open = false;
 			}
+
+			$dispstring = $section_open ? "" : "display:none";
 
 			unset($a['open']);
 			$nametitle = strfrom($title, "__title_");
@@ -1821,7 +1846,15 @@ class HtmlLib
 			foreach ($a as $k => $u) {
 				$n++;
 
-				$ret = $this->print_div_button($completedivlist, "block", true, $k, $u);
+				try {
+					$ret = $this->print_div_button($completedivlist, "block", true, $k, $u);
+				} catch (Throwable $e) {
+					log_log("error", "print_div_button loop: " . $e->getMessage());
+					continue;
+				}
+				if ($ret === null || $ret === false || $ret === '') {
+					continue;
+				}
 				$completedivlist[$ret] = $ret;
 				$div_id_list[$nametitle][$ret] = $ret;
 			}
@@ -6281,30 +6314,37 @@ class HtmlLib
 			if (isset($post['frm_filter']['show'])) {
 				$dvar = 'filter_show_' . $post['frm_filter']['show'];
 				$desc = get_classvar_description($laclass, $dvar);
-				$descri = $desc[2];
+				if (is_array($desc) && isset($desc[2])) {
+					$descri = $desc[2];
+				}
 				$var = "list_" . '_filter_show_' . $post['frm_filter']['show'];
 			}
 
 			if (isset($post['frm_filter']['view'])) {
 				$dvar = 'filter_view_' . $post['frm_filter']['view'];
 				$desc = get_classvar_description($laclass, $dvar);
-				$descri = $desc[2];
+				if (is_array($desc) && isset($desc[2])) {
+					$descri = $desc[2];
+				}
 				$var = "list_" . '_filter_view_' . $post['frm_filter']['view'];
 			}
 
-			return array("", "", $descri, 'desc' => $descri, $help, 'help' => $desc['help']);
+			$help_text = (is_array($desc) && isset($desc['help'])) ? $desc['help'] : $help;
+			return array("", "", $descri, 'desc' => $descri, $help, 'help' => $help_text);
 		}
 
 		if ($var === "searchform") {
 			$class = $laclass;
 			$desc = get_classvar_description($laclass);
-			$descr = $desc[2];
-			$descri = get_plural($desc[2]);
+			$descr = (is_array($desc) && isset($desc[2])) ? $desc[2] : (string) $laclass;
+			$descri = get_plural($descr);
 
 			if (isset($post['frm_hpfilter'])) {
 				$dvar = 'filter_show_' . $post['frm_hpfilter']['show'];
 				$desc = get_classvar_description($laclass, $dvar);
-				$descri = $desc[2];
+				if (is_array($desc) && isset($desc[2])) {
+					$descri = $desc[2];
+				}
 				$var = "list_" . '_filter_show_' . $post['frm_hpfilter']['show'];
 			}
 
@@ -6331,7 +6371,7 @@ class HtmlLib
 				$var = $sub . "_" . $var;
 			}
 
-			$descr = $desc[2];
+			$descr = (is_array($desc) && isset($desc[2])) ? $desc[2] : (string) $laclass;
 
 			$add = $login->getKeywordUc('add');
 
@@ -6427,35 +6467,73 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		if (!$psuedourl) {
-			$psuedourl = $url;
+		try {
+			if (!$psuedourl) {
+				$psuedourl = $url;
+			}
+
+			$this->get_post_from_get($psuedourl, $path, $post);
+
+			$descr = $this->getActionDescr($path, $post, $class, $name, $identity);
+			if (!is_array($descr)) {
+				$descr = array();
+			}
+			if (!isset($descr[2]) || $descr[2] === null) {
+				$descr[2] = isset($descr['desc']) ? $descr['desc'] : '';
+			}
+			$descr['desc'] = $descr[2];
+			if (!isset($descr['help'])) {
+				$descr['help'] = $descr[2];
+			}
+			$image = $this->get_image($buttonpath, $class, $name, ".gif");
+
+			$this->get_post_from_get($url, $path, $post);
+
+			return $descr;
+		} catch (Throwable $e) {
+			log_log("error", "getActionDetails: " . $e->getMessage());
+			$path = $post = $class = $name = $image = $identity = null;
+			return array(0 => '', 1 => '', 2 => '', 'desc' => '', 'help' => '');
 		}
-
-		$this->get_post_from_get($psuedourl, $path, $post);
-
-		$descr = $this->getActionDescr($path, $post, $class, $name, $identity);
-		$descr['desc'] = $descr[2];
-		$image = $this->get_image($buttonpath, $class, $name, ".gif");
-
-		$this->get_post_from_get($url, $path, $post);
-
-		return $descr;
 	}
 
 	function getTitleOnly($url)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$url = $ghtml->getFullUrl($url);
+		try {
+			$url = $ghtml->getFullUrl($url);
+			$path = $post = $class = $name = $image = $identity = null;
+			$ret = $this->getActionDetails($url, '', '', $path, $post, $class, $name, $image, $identity);
+			if (is_array($ret) && isset($ret[2]) && $ret[2] !== null && $ret[2] !== '') {
+				return $ret[2];
+			}
+			if (is_array($ret) && isset($ret['desc']) && $ret['desc'] !== null && $ret['desc'] !== '') {
+				return $ret['desc'];
+			}
+		} catch (Throwable $e) {
+			log_log("error", "getTitleOnly: " . $e->getMessage());
+		}
 
-		$ret = $this->getActionDetails($url, '', '', $path, $post, $class, $name, $image, $identity);
-
-		return $ret[2];
+		return is_string($url) ? $url : '';
 	}
 
 	function print_div_for_divbutton($key, $imgflag, $linkflag, $formname, $name, $imagesrc, $descr)
 	{
 		global $gbl, $sgbl, $login;
+
+		if (!is_array($descr)) {
+			$descr = array();
+		}
+		if (!isset($descr[2])) {
+			$descr[2] = isset($descr['desc']) ? $descr['desc'] : '';
+		}
+		if (!isset($descr['desc'])) {
+			$descr['desc'] = $descr[2];
+		}
+		if (!isset($descr['help'])) {
+			$descr['help'] = $descr[2];
+		}
 
 		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
 		$cssclass = 'div_icons_text';
@@ -6529,7 +6607,10 @@ class HtmlLib
 			} else {
 				$b = $this->get_metro_color();
 
-				$a = explode("_", $formname);
+				$a = array_values(explode("_", (string) $formname));
+				if (!isset($a[0])) { $a[0] = ''; }
+				if (!isset($a[1])) { $a[1] = ''; }
+				if (!isset($a[2])) { $a[2] = ''; }
 
 				if (strpos($a[0], 'client') !== false) {
 					if ($a[2] === 'all') {
@@ -9609,9 +9690,36 @@ function uploadAbort(e) { // upload abort
 			$simplicity_topbar_right =getLinkCustomfile(getcwd() . $skin_dir, "topbar_right.php");
 ?>
 			<div class="div_fixed_top shadow_all">
-<?php include_once "{$simplicity_topbar_left}"; ?>
-<?php include_once "{$simplicity_menu}"; ?>
-<?php include_once "{$simplicity_topbar_right}"; ?>
+<?php
+			try {
+				include_once "{$simplicity_topbar_left}";
+			} catch (Throwable $e) {
+				log_log("error", "simplicity topbar_left: " . $e->getMessage());
+			}
+			try {
+				include_once "{$simplicity_menu}";
+			} catch (Throwable $e) {
+				log_log("error", "simplicity menu: " . $e->getMessage());
+?>
+			<div class="div_menu">
+				<a href="/display.php?frm_action=show" style="color:#fff;padding:0 8px">Home</a>
+				<a href="javascript:if (confirm('Do You Really Want To Logout?')) { location = '/lib/php/logout.php'; }" style="color:#fff;padding:0 8px">Logout</a>
+			</div>
+<?php
+			}
+			try {
+				include_once "{$simplicity_topbar_right}";
+			} catch (Throwable $e) {
+				log_log("error", "simplicity topbar_right: " . $e->getMessage());
+?>
+				<div class="div_fixed_right">
+					<div id="div_status" class="div_header_message">&nbsp;Status&nbsp;</div>
+					<a href="#" onClick="toggleVisibilityById('mmm'); return false;"><div id="div_showhide" class="div_header_message">&nbsp;Show/Hide&nbsp;</div></a>
+					<div id="clock_div" class="div_header_message">&nbsp;<?= date('H:i:s') ?>&nbsp;</div>
+				</div>
+<?php
+			}
+?>
 			</div>
 
 			<div class="div_fixed_logo_right"><a href="https://kloxocp.invalid"><img src="/login/images/kloxo.png" height="40"/></a></div>

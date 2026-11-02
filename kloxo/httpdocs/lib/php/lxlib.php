@@ -2870,11 +2870,14 @@ function get_classvar_description($class, $var = null)
 	$rvar = strfrom($dvar, "__desc_");
 	$rvar = strfrom($rvar, "__acdesc_");
 
-	$class = strtolower($class);
+	$class = strtolower((string) $class);
 	$ret = get_real_class_variable($class, $dvar);
 
-	if (!$ret) {
+	if (!is_array($ret)) {
 		return null;
+	}
+	if (!isset($ret[2]) || $ret[2] === null || $ret[2] === '') {
+		$ret[2] = $class !== '' ? $class : $rvar;
 	}
 	$ret['help'] = $ret[2];
 	if (cse($dvar, "_o") || cse($dvar, "_l")) {

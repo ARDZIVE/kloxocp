@@ -413,42 +413,71 @@ function __ac_desc_show($object)
 		}
 	}
 
-	if (($rlist || $plist || $ilist) && !$printed_message) {
+	if (!$printed_message) {
 ?>
 
-	<div>
-		<div style="background-color: #fff; margin: 10px auto; height: 100%; width: 900px">
-			<div style="float:left; height: 100%">
+	<div class="div_home_page">
+		<div class="div_home_left">
 <?php
-			$ghtml->print_find($object);
+			try {
+				$ghtml->print_find($object);
+			} catch (Throwable $e) {
+				log_log("error", "print_find: " . $e->getMessage());
+			}
 
 			if ($ilist) {
-				$ghtml->printObjectTable(null, $object, 'information');
+				try {
+					$ghtml->printObjectTable(null, $object, 'information');
+				} catch (Throwable $e) {
+					log_log("error", "information table: " . $e->getMessage());
+				}
 			}
 
 			if ($object->createShowNote()) {
-				$ghtml->print_note($object);
+				try {
+					$ghtml->print_note($object);
+				} catch (Throwable $e) {
+					log_log("error", "print_note: " . $e->getMessage());
+				}
 			}
 
 			if ($rlist) {
-				$ghtml->printObjectTable(null, $object, 'resource');
+				try {
+					$ghtml->printObjectTable(null, $object, 'resource');
+				} catch (Throwable $e) {
+					log_log("error", "resource table: " . $e->getMessage());
+				}
 			}
 
 			if ($plist) {
-				$ghtml->printObjectTable(null, $object, 'permission');
+				try {
+					$ghtml->printObjectTable(null, $object, 'permission');
+				} catch (Throwable $e) {
+					log_log("error", "permission table: " . $e->getMessage());
+				}
 			}
 ?>
-
 		</div>
-
+		<div class="div_home_right">
 <?php
-		if (isset($nalist)) {
-			$ghtml->print_object_action_block($object, $nalist, 8);
-		}
-
+			if (isset($nalist) && $nalist) {
+				try {
+					$ghtml->print_object_action_block($object, $nalist, 8);
+				} catch (Throwable $e) {
+					log_log("error", "action block: " . $e->getMessage());
+				}
+			}
+?>
+		</div>
+	</div>
+<?php
 	} else {
-		if (isset($nalist)) {
-			$ghtml->print_object_action_block($object, $nalist, 8);
+		if (isset($nalist) && $nalist) {
+			try {
+				$ghtml->print_object_action_block($object, $nalist, 8);
+			} catch (Throwable $e) {
+				log_log("error", "action block: " . $e->getMessage());
+			}
 ?>
 
 			<br/>
@@ -475,15 +504,6 @@ function __ac_desc_show($object)
 	}
 
 	$ghtml->print_information('post', 'show', $cname, $subaction, "");
-
-	if (($rlist || $plist || $ilist) && !$printed_message) {
-?>
-	
-			</div>
-		</div>
-	</div>
-<?php
-	}
 
 	$ghtml->print_content_end();
 }

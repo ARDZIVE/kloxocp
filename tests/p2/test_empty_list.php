@@ -169,6 +169,7 @@ $home = new Client(null, 'localhost', 'admin');
 $home->cttype = 'admin';
 $home->priv = null;
 $home->used = null;
+$login = $home;
 if ($home->checkButton('webhosting_flag') === true) {
 	ok('checkButton is true when priv is missing');
 } else {
@@ -182,7 +183,24 @@ try {
 	bad('createShowRlist does not fatal when priv is missing', $e->getMessage());
 }
 
-$login = $home;
+try {
+	$ilist = $home->createShowInfoList(null);
+	if (is_array($ilist)) {
+		ok('createShowInfoList does not fatal when priv is missing');
+	} else {
+		bad('createShowInfoList does not fatal when priv is missing', 'not an array');
+	}
+} catch (Throwable $e) {
+	bad('createShowInfoList does not fatal when priv is missing', $e->getMessage());
+}
+
+try {
+	Resource::baseinitThisList($home, 'resource', 'resource');
+	ok('resource table does not fatal when priv is missing');
+} catch (Throwable $e) {
+	bad('resource table does not fatal when priv is missing', $e->getMessage());
+}
+
 $langf = $doc . '/lang/en-us/langfunctionlib.php';
 if (is_file($langf)) {
 	include_once $langf;
