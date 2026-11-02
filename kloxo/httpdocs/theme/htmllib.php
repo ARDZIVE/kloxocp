@@ -1520,7 +1520,15 @@ class HtmlLib
 			$complete = null;
 		}
 
-		$resolvedHref = is_string($url) ? $url : '';
+		$resolvedHref = '';
+		if (is_string($url)) {
+			$resolvedHref = $url;
+		} elseif (is_object($url) && isset($url->url) && is_string($url->url)) {
+			$resolvedHref = $url->url;
+			if (($target === null || $target === '') && isset($url->target) && is_string($url->target)) {
+				$target = $url->target;
+			}
+		}
 		$isExternal = $resolvedHref !== ''
 			&& (str_starts_with($resolvedHref, '/thirdparty/')
 				|| str_starts_with($resolvedHref, 'http://')
@@ -1606,7 +1614,8 @@ class HtmlLib
 <?php
 		if ($isExternal) {
 			$escHref = htmlspecialchars($resolvedHref, ENT_QUOTES);
-			$tgt = is_string($target) ? $target : "target='_blank'";
+			$tgt = function_exists('kloxo_pma_link_attrs')
+				? kloxo_pma_link_attrs() : 'target="_blank" rel="noopener noreferrer"';
 ?>
 			<a <?= $tgt ?> href="<?= $escHref ?>">
 				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
@@ -7496,15 +7505,18 @@ class HtmlLib
 		$m_value = $this->$_t_name;
 		$ts_name1 = "ts_{$variable->name}1";
 		$ts_name2 = "ts_{$variable->name}2";
-		$size = $variable->count;
 		$variable1 = $variable->variable1;
 		$variable2 = $variable->variable2;
 
+		$v2 = array();
 		$prevvar = $gbl->getSessionV('__tmp_redirect_var');
-
-		if (isset($prevvar[$variable->name])) {
-			$v2 = $prevvar[$variable->name];
-			$v2 = explode(",", $v2);
+		if (is_array($prevvar) && isset($prevvar[$variable->name])) {
+			$raw = $prevvar[$variable->name];
+			if (is_array($raw)) {
+				$v2 = $raw;
+			} elseif (is_string($raw) && $raw !== '') {
+				$v2 = explode(',', $raw);
+			}
 		}
 ?>
 

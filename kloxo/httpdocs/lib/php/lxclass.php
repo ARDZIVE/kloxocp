@@ -3291,26 +3291,44 @@ abstract class Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$list[] = $login->getList($class);
-		$list[] = $this->getList($class);
-		$clist = lx_array_merge($list);
-	//	$clist = $this->clearGreaterTemplate($clist);
+		$list = array();
+		try {
+			if (is_object($login) && method_exists($login, 'getList')) {
+				$got = $login->getList($class);
+				if (is_array($got)) {
+					$list[] = $got;
+				}
+			}
+		} catch (Throwable $e) {
+		}
+		try {
+			$got = $this->getList($class);
+			if (is_array($got)) {
+				$list[] = $got;
+			}
+		} catch (Throwable $e) {
+		}
+		$clist = $list === array() ? array() : lx_array_merge($list);
 
 		$nclist = get_namelist_from_objectlist($clist, 'nname', 'description');
+		if (!is_array($nclist)) {
+			$nclist = array();
+		}
 
-		foreach ((array)$nclist as $k => $v) {
+		foreach ($nclist as $k => $v) {
 			$rn = $k;
 
 			if (csa($k, "___")) {
 				$rn = strtilfirst($k, "___");
 			}
 
-			$nclist[$k] = "{$rn} ({$v})";
+			$nclist[$k] = "{$rn} (" . (string)$v . ")";
 		}
 
 		if ($withoutplan) {
-			$withoutplanlist["continue_without_plan"] = $login->getKeywordUc('continue_without_plan');
-			$nclist = lx_array_merge(array($nclist, $withoutplanlist));
+			$label = (is_object($login) && method_exists($login, 'getKeywordUc'))
+				? $login->getKeywordUc('continue_without_plan') : 'continue_without_plan';
+			$nclist = lx_array_merge(array($nclist, array("continue_without_plan" => $label)));
 		}
 
 		return $nclist;

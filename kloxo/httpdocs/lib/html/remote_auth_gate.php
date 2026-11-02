@@ -119,15 +119,18 @@ function kloxo_remote_verify_network_pass($user, $pass)
 	}
 
 	if (function_exists('getAdminDbPass')) {
-		$admin = getAdminDbPass();
-		if (is_string($admin) && $admin !== '') {
-			$admin = trim($admin);
-			if (kloxo_remote_hash_equals($admin, $pass)) {
-				return true;
+		try {
+			$admin = getAdminDbPass();
+			if (is_string($admin) && $admin !== '') {
+				$admin = trim($admin);
+				if (kloxo_remote_hash_equals($admin, $pass)) {
+					return true;
+				}
+				if (function_exists('check_password') && check_password($pass, $admin)) {
+					return true;
+				}
 			}
-			if (function_exists('check_password') && check_password($pass, $admin)) {
-				return true;
-			}
+		} catch (Throwable $e) {
 		}
 	}
 

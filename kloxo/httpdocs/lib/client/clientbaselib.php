@@ -624,15 +624,13 @@ class ClientBase extends ClientCore
 	//	$parent = $parent->getClientParentO();
 
 		if ($this->isOn('use_resourceplan_f')) {
-			//$ct = $parent->getFromList("clienttemplate", $this->resourceplan_f);
-
 			$ct = getFromAny(array($login, $parent), 'resourceplan', $this->resourceplan_f);
 
 			if (!$ct) {
 				throw new lxException($login->getThrow("no_resourceplan"), '', $this->resourceplan_f);
 			}
 
-			if (!$parent->isAdmin()) {
+			if (is_object($parent) && !$parent->isAdmin() && method_exists($parent, 'checkTemplateGreaterThan')) {
 				$v = $parent->checkTemplateGreaterThan($ct);
 
 				if ($v) {
@@ -641,29 +639,48 @@ class ClientBase extends ClientCore
 			}
 
 			$this->resourceplan_used = $this->resourceplan_f;
-			$pv = clone($ct->priv);
-			$this->priv = $pv;
+			if (isset($ct->priv) && is_object($ct->priv)) {
+				$this->priv = clone($ct->priv);
+			} else {
+				$this->priv = new Priv(null, null, $this->nname);
+			}
+			$this->priv->__parent_o = $this;
 			$this->fixPrivUnset();
-			$this->listpriv = clone($ct->listpriv);
-			$this->disable_per = $ct->disable_per;
-			$this->dnstemplate_list = $ct->dnstemplate_list;
+			if (isset($ct->listpriv) && is_object($ct->listpriv)) {
+				$this->listpriv = clone($ct->listpriv);
+			} else {
+				$this->listpriv = new ListPriv(null, null, $this->nname);
+			}
+			$this->listpriv->__parent_o = $this;
+			$this->disable_per = $ct->disable_per ?? null;
+			$this->dnstemplate_list = kloxo_list_from($ct->dnstemplate_list ?? '');
+		}
+
+		if (!isset($this->priv) || !is_object($this->priv)) {
+			$this->priv = new Priv(null, null, $this->nname);
+			$this->priv->__parent_o = $this;
+		}
+		if (!isset($this->listpriv) || !is_object($this->listpriv)) {
+			$this->listpriv = new ListPriv(null, null, $this->nname);
+			$this->listpriv->__parent_o = $this;
 		}
 
 		$this->setClientSyncServer();
 
-		$this->disable_url = $parent->disable_url;
+		$this->disable_url = is_object($parent) ? ($parent->disable_url ?? null) : null;
 
 		$this->lxclientpostAdd();
 
-		$this->contactemail = trim($this->contactemail);
+		$this->contactemail = trim((string)($this->contactemail ?? ''));
 
-		if ($this->easyinstaller_app && $this->easyinstaller_app !== '--leave--') {
+		if (!empty($this->easyinstaller_app) && $this->easyinstaller_app !== '--leave--') {
 			if (!validate_email($this->contactemail)) {
 				throw new lxException($login->getThrow("easyinstaller_needs_valid_contactemail"), '', $this->contactemail);
 			}
 		}
 
-		if ($this->priv->mysqldb_num > 0) {
+		$mysqlNum = isset($this->priv->mysqldb_num) ? $this->priv->mysqldb_num : 0;
+		if (!is_unlimited($mysqlNum) && (int)$mysqlNum > 0) {
 			$this->createDefaultDatabase();
 		}
 
@@ -671,11 +688,11 @@ class ClientBase extends ClientCore
 		// So after that, nothing will happen.
 	//	$this->domain_name = trim($this->domain_name);
 
-		if ($sgbl->isKloxo() && $this->domain_name) {
+		if ($sgbl->isKloxo() && !empty($this->domain_name)) {
 			$this->default_domain = $this->domain_name;
-			$this->createDefaultDomain($this->domain_name, $this->dnstemplate_name);
-		
-			if ($this->easyinstaller_app && $this->easyinstaller_app !== '--leave--') {
+			$this->createDefaultDomain($this->domain_name, $this->dnstemplate_name ?? '');
+
+			if (!empty($this->easyinstaller_app) && $this->easyinstaller_app !== '--leave--') {
 				$this->createDefaultApplication($this->domain_name, $this->easyinstaller_app);
 			}
 		}
@@ -960,18 +977,21 @@ class ClientBase extends ClientCore
 
 		if_customer_complain_and_exit();
 
-		if ($parent->isGt('wholesale') && $parent->isGte($param['cttype'])) {
-		//	throw new lxException($login->getThrow("type_of_adding_more_than_parent"));
+		if (!is_array($param)) {
+			$param = array();
+		}
+		if (!isset($param['cttype']) || $param['cttype'] === '') {
+			$param['cttype'] = 'customer';
+		}
+
+		if (is_object($parent) && $parent->isGt('wholesale') && $parent->isGte($param['cttype'])) {
 			throw new lxException($login->getThrow("client_type_more_than_parent"));
 		}
 
 		$param['cpstatus'] = 'on';
 
-		if (isset($param['resourceplan_f'])) {
-			// blank
-		} else {
+		if (!isset($param['resourceplan_f'])) {
 			ClientBase::fixpserver_list($param);
-		//	$param['dnstemplate_list'] = domain::getDnsTemplateList($parent);
 		}
 
 		if (isset($param['dnssyncserver_list'])) {
@@ -979,8 +999,11 @@ class ClientBase extends ClientCore
 		}
 		$param['used_s_client_num'] = '-';
 
-		$param['realpass'] = $param['password'];
-		$param['password'] = crypt($param['password'], '$1$'.randomString(8).'$');
+		$pass = (string)($param['password'] ?? '');
+		$param['realpass'] = $pass;
+		$salt = '$1$' . substr(preg_replace('/[^A-Za-z0-9]/', 'x', randomString(8)), 0, 8) . '$';
+		$hash = crypt($pass, $salt);
+		$param['password'] = is_string($hash) && $hash !== '' ? $hash : $pass;
 
 		return $param;
 	}
@@ -1018,8 +1041,14 @@ class ClientBase extends ClientCore
 
 		$vlist = null;
 
-		$param['nname'] = trim($param['nname']);
-		$param['password'] = trim($param['password']);
+		if (!is_array($param)) {
+			$param = array();
+		}
+		$param['nname'] = trim((string)($param['nname'] ?? ''));
+		$param['password'] = trim((string)($param['password'] ?? ''));
+		if (!isset($param['cttype']) || $param['cttype'] === '') {
+			$param['cttype'] = 'customer';
+		}
 
 		validate_client_name($param['nname']);
 		validate_password($param['password']);
@@ -1050,8 +1079,8 @@ class ClientBase extends ClientCore
 		$param['nname'] = trim($param['nname']);
 
 		if ($continueaction === 'server') {
-			if (isOn($param['send_welcome_f'])) {
-				if (!$param['contactemail']) {
+			if (isOn($param['send_welcome_f'] ?? '')) {
+				if (empty($param['contactemail'])) {
 					throw new lxException($login->getThrow("sending_welcome_needs_contactemail"));
 				}
 
@@ -1070,41 +1099,73 @@ class ClientBase extends ClientCore
 
 		//	dprintr($param);
 
-			if ($param['resourceplan_f'] !== 'continue_without_plan') {
+			$plan = (string)($param['resourceplan_f'] ?? 'continue_without_plan');
+			if ($plan !== 'continue_without_plan' && $plan !== '') {
 				$param['use_resourceplan_f'] = 'On';
 				$ret['param'] = $param;
 				$ret['action'] = 'addnow';
 				return $ret;
 			}
 
+			if (is_object($parent) && method_exists($parent, 'ensureAdminResourcePriv')) {
+				$parent->ensureAdminResourcePriv();
+			}
+			if (!is_object($parent) || !isset($parent->listpriv) || !is_object($parent->listpriv)) {
+				if (is_object($parent)) {
+					$parent->listpriv = new ListPriv(null, null, $parent->nname);
+					$parent->listpriv->__parent_o = $parent;
+				}
+			}
+
 			$array = client::getPserverListPriv();
 
 			foreach ((array)$array as $a) {
 				$v = "{$a}_list";
-
-				if (!$parent->listpriv->$v) {
-				//	throw new lxException($login->getThrow("no_server_pool"), '', $v);
+				$val = array('localhost');
+				if (is_object($parent) && isset($parent->listpriv) && is_object($parent->listpriv)) {
+					$raw = get_object_vars($parent->listpriv);
+					$got = (is_array($raw) && array_key_exists($v, $raw)) ? $raw[$v] : null;
+					if ($got !== null && $got !== '' && $got !== array()) {
+						$val = $got;
+					}
 				}
-
-				$param["listpriv_s_{$a}_list"] = $parent->listpriv->$v;
+				$param["listpriv_s_{$a}_list"] = $val;
 			}
 
-			// This is a hack... This should now only happen in kloxo and not in hypervm.
 			if (isset($param['listpriv_s_webpserver_list'])) {
 				$weblist = kloxo_list_from($param['listpriv_s_webpserver_list']);
-				$param['listpriv_s_ipaddress_list'] = $parent->getIpaddress($weblist);
-
-				$nlist = domain::getDnsTemplateList($parent);
-				$param['dnstemplate_list'] = $nlist;
+				if ($weblist === array()) {
+					$weblist = array('localhost');
+				}
+				$ips = array();
+				if (is_object($parent) && method_exists($parent, 'getIpaddress')) {
+					try {
+						$got = $parent->getIpaddress($weblist);
+						if (is_array($got)) {
+							$ips = $got;
+						}
+					} catch (Throwable $e) {
+						$ips = array();
+					}
+				}
+				$param['listpriv_s_ipaddress_list'] = $ips;
+				try {
+					$param['dnstemplate_list'] = domain::getDnsTemplateList($parent);
+				} catch (Throwable $e) {
+					$param['dnstemplate_list'] = array();
+				}
 			}
 
 			$qvlist = getQuotaListForClass('client', $param);
 			$vlist = lx_merge_good($vlist, $qvlist);
 
 			$ret['action'] = "add";
-		//	$ret['continueaction'] = 'server';
 			$ret['variable'] = $vlist;
 			$ret['param'] = $param;
+		}
+
+		if (!isset($ret) || !is_array($ret)) {
+			$ret = array('action' => 'add', 'variable' => array(), 'param' => $param);
 		}
 
 		return $ret;
@@ -1192,25 +1253,33 @@ class ClientBase extends ClientCore
 
 		$vlist['password'] = "";
 
-		$nclist = $parent->getResourcePlanList('resourceplan');
+		$nclist = array();
+		if (is_object($parent) && method_exists($parent, 'getResourcePlanList')) {
+			try {
+				$got = $parent->getResourcePlanList('resourceplan');
+				if (is_array($got)) {
+					$nclist = $got;
+				}
+			} catch (Throwable $e) {
+				$nclist = array();
+			}
+		}
+		if ($nclist === array()) {
+			$nclist['continue_without_plan'] = is_object($login) ? $login->getKeywordUc('continue_without_plan') : 'continue_without_plan';
+		}
 
 		$vlist['__c_subtitle_plan'] = "Welcome Message";
 		$vlist['contactemail'] = "";
 		$vlist['send_welcome_f'] = "";
-		$vlist['__v_button'] = $login->getKeywordUc('add');
+		$vlist['__v_button'] = is_object($login) ? $login->getKeywordUc('add') : 'Add';
 		$vlist['__c_subtitle_temp'] = "Choose Plan";
 		$vlist['resourceplan_f'] = array('A', $nclist);
 
-		if ($sgbl->isKloxo()) {
-
-			if ($typetd['val'] === 'customer') {
-
-
-				if (check_if_many_server()) {
-					$vlist['__c_subtitle_server'] = "Servers";
-					self::getDomainServerVlist($parent, null, $vlist);
-				}
-
+		$typetdVal = (is_array($typetd) && isset($typetd['val'])) ? (string)$typetd['val'] : '';
+		if ($sgbl->isKloxo() && $typetdVal === 'customer') {
+			if (check_if_many_server()) {
+				$vlist['__c_subtitle_server'] = "Servers";
+				self::getDomainServerVlist($parent, null, $vlist);
 			}
 		}
 

@@ -180,15 +180,33 @@ function check_priv($parent, $class, $pvar, $v)
 {
 	global $login;
 
+	if (!is_array($v)) {
+		return;
+	}
+
 	if (cse($class, "template") || $class === 'resourceplan') {
-		foreach((array)$v as $pk => $pv) {
+		foreach($v as $pk => $pv) {
 			$pvar->$pk = $pv;
 		}
 
 		return;
 	}
 
-	$parent = $parent->getClientParentO();
+	if (is_object($parent) && method_exists($parent, 'getClientParentO')) {
+		$got = $parent->getClientParentO();
+		if (is_object($got)) {
+			$parent = $got;
+		}
+	}
+	if (!is_object($parent)) {
+		return;
+	}
+	if (method_exists($parent, 'ensureAdminResourcePriv')) {
+		$parent->ensureAdminResourcePriv();
+	}
+	if (!isset($parent->priv) || !is_object($parent->priv)) {
+		return;
+	}
 
 	foreach($v as $pk => $pv) {
 		if (cse($pk, "_time")) {
@@ -550,12 +568,23 @@ function do_desc_add($object, $class, $param)
 	$quotaclass = exec_class_method($class, "getquotaclass", $class);
 	$numvar = "{$quotaclass}_num";
 
-	$qobject = $object->getClientParentO();
+	$qobject = is_object($object) && method_exists($object, 'getClientParentO')
+		? $object->getClientParentO() : $object;
+	if (!is_object($qobject)) {
+		$qobject = $object;
+	}
+	if (is_object($qobject) && method_exists($qobject, 'ensureAdminResourcePriv')) {
+		$qobject->ensureAdminResourcePriv();
+	}
 
-	dprint($qobject->getClname());
+	if (is_object($qobject)) {
+		dprint($qobject->getClname());
+	}
 
-	if ($qobject->isQuotaVariable($numvar)) {
-		if (isQuotaGreaterThanOrEq($qobject->used->$numvar, $qobject->priv->$numvar)) {
+	if (is_object($qobject) && $qobject->isQuotaVariable($numvar)
+		&& isset($qobject->used) && is_object($qobject->used)
+		&& isset($qobject->priv) && is_object($qobject->priv)) {
+		if (isQuotaGreaterThanOrEq($qobject->used->$numvar ?? 0, $qobject->priv->$numvar ?? 'Unlimited')) {
 			throw new lxException($login->getThrow("quota_exceeded"), '', $numvar);
 		}
 	}
@@ -570,6 +599,12 @@ function do_desc_add($object, $class, $param)
 	}
 
 	$param = exec_class_method($class, 'Add', $object, $class, $param);
+	if (!is_array($param)) {
+		$param = array();
+	}
+
+	$nparam = array();
+	$olist = array();
 
 	// First loop to create a unique nname if applicable.... FOr the 'unique-nname-creation' to work in the second loop,
 	// the variables must be resolved before that... So this extra looping...

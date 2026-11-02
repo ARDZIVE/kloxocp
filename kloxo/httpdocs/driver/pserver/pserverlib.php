@@ -316,7 +316,9 @@ class pserver extends pservercore {
 		$dbadminUrl = kloxo_pma_href($local, $server);
 
 		$alist[] = create_simpleObject(array('url' => $dbadminUrl,
-			'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
+			'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin",
+			'target' => function_exists('kloxo_pma_link_attrs')
+				? kloxo_pma_link_attrs() : 'target="_blank" rel="noopener noreferrer"'));
 	}
 
 

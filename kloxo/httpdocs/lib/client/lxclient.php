@@ -1028,33 +1028,51 @@ abstract class Lxclient extends Lxdb
 
 		// We need to inherit from a parent who is also an lxclient. The direct parent may not be an lxclient.
 		$parent = $this->getParentO();
-		$parent = $parent->getRealClientParentO();
-		
-		if (!$parent) {
+		if (!is_object($parent)) {
+			$this->ddate = time();
 			return;
 		}
-		// We need to convert childspeciaplay to special play.
-		$tsc = clone $parent->getObject('sp_childspecialplay');
-		$specialdisplay = new sp_specialplay(null, null, $tsc->nname);
-		
-		foreach ($tsc as $k => $v) {
-			$specialdisplay->$k = $v;
+		if (method_exists($parent, 'getRealClientParentO')) {
+			$got = $parent->getRealClientParentO();
+			if (is_object($got)) {
+				$parent = $got;
+			}
 		}
-		
+
+		if (!$parent) {
+			$this->ddate = time();
+			return;
+		}
 		$this->ddate = time();
-	//	$specialdisplay->__table = 'sp_specialplay';
-		$specialdisplay->nname = $this->getClName();
-		$specialdisplay->dbaction = 'add';
-		$this->addObject('sp_specialplay', $specialdisplay);
-		$tsc->nname = $this->getClName();
-		$tsc->dbaction = 'add';
-		$this->addObject('sp_childspecialplay', $tsc);
-		$notf = $parent->getObject('notification');
-		$notification = clone $notf;
-		$notification->dbaction = 'add';
-		$notification->nname = $this->getClName();
-		$notification->parent_clname = $this->getClName();
-		$this->addObject('notification', $notification);
+
+		try {
+			$childplay = $parent->getObject('sp_childspecialplay');
+			if (is_object($childplay)) {
+				$tsc = clone $childplay;
+				$specialdisplay = new sp_specialplay(null, null, $tsc->nname);
+
+				foreach ($tsc as $k => $v) {
+					$specialdisplay->$k = $v;
+				}
+
+				$specialdisplay->nname = $this->getClName();
+				$specialdisplay->dbaction = 'add';
+				$this->addObject('sp_specialplay', $specialdisplay);
+				$tsc->nname = $this->getClName();
+				$tsc->dbaction = 'add';
+				$this->addObject('sp_childspecialplay', $tsc);
+			}
+
+			$notf = $parent->getObject('notification');
+			if (is_object($notf)) {
+				$notification = clone $notf;
+				$notification->dbaction = 'add';
+				$notification->nname = $this->getClName();
+				$notification->parent_clname = $this->getClName();
+				$this->addObject('notification', $notification);
+			}
+		} catch (Throwable $e) {
+		}
 	}
 
 	// This also should ideally be final, just like the lxdb:write, but I need it in superadmin.

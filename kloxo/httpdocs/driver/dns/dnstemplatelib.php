@@ -30,7 +30,6 @@ class Dnstemplate extends DnsBase
 	static function createListAlist($parent, $class)
 	{
 		$alist[] = "a=list&c=$class";
-		$alist[] = "a=addform&c=$class";
 
 		return $alist;
 	}
@@ -88,31 +87,32 @@ class Dnstemplate extends DnsBase
 	{
 		global $login;
 
-		// issue #755 - creation of secondary mx entry at the dns template gives error
-		// only alphanumeric, dot and minus accepted --> like domain name
-
-		if (!preg_match("/^[^\W][0-9a-zA-Z-.]+[^\W]$/", $param['nname'])) {
-			throw new lxException($login->getThrow('invalid_char_in_template_name'), '', $param['nname']);
+		if (!is_array($param)) {
+			$param = array();
 		}
 
-		if (strlen($param['nname']) > 60) {
-			throw new lxException($login->getThrow('template_name_over_char_limit'), '', $param['nname']);
+		$name = strtolower(trim((string)($param['nname'] ?? '')));
+		if (substr($name, -5) === '.dnst') {
+			$name = substr($name, 0, -5);
 		}
 
-		$param['nname'] = "{$param['nname']}.dnst";
+		if ($name === '' || !preg_match('/^[a-z0-9]([a-z0-9.-]{0,58}[a-z0-9])?$/', $name)) {
+			throw new lxException($login->getThrow('invalid_char_in_template_name'), '', $name);
+		}
+
+		if (strlen($name) > 60) {
+			throw new lxException($login->getThrow('template_name_over_char_limit'), '', $name);
+		}
+
+		$param['nname'] = "{$name}.dnst";
 		$param['shared'] = 'on';
-		
+
 		return $param;
 	}
 
 	static function AddListForm($parent, $class)
 	{
 		try {
-			$ips = Dnsbase::getIpaddressList($parent);
-			if (!is_array($ips) || count($ips) === 0) {
-				return null;
-			}
-
 			return self::addform($parent, $class);
 		} catch (Throwable $e) {
 			log_log('error', 'dnstemplate AddListForm: ' . $e->getMessage());
@@ -125,15 +125,14 @@ class Dnstemplate extends DnsBase
 	{
 		global $login;
 
-		$res = Dnsbase::getIpaddressList($parent);
-
-		if (!$res) {
-			lxshell_return("__path_php_path", "../bin/fixIpAddress.php");
-			$res = Dnsbase::getIpaddressList($parent);
-		}
-
-		if (!$res) {
-			throw new lxException($login->getThrow('no_ip_address'));
+		$res = array();
+		try {
+			$got = Dnsbase::getIpaddressList($parent);
+			if (is_array($got)) {
+				$res = $got;
+			}
+		} catch (Throwable $e) {
+			$res = array();
 		}
 
 		$vlist['nname'] = null;
@@ -141,9 +140,12 @@ class Dnstemplate extends DnsBase
 		$vlist['mmailipaddress'] = array('s', $res);
 		$vlist['nameserver_f'] = null;
 		$vlist['secnameserver_f'] = null;
+		if ($res === array()) {
+			$vlist['__m_message_pre'] = 'no_ip_address';
+		}
 		$ret['action'] = 'add';
 		$ret['variable'] = $vlist;
-		
+
 		return $ret;
 	}
 

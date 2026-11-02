@@ -176,7 +176,7 @@ class serverweb__ extends lxDriverClass
 			return 127;
 		}
 		$p = @proc_open($cmd, array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
-		if (!is_resource($p) && !is_object($p)) {
+		if (!$this->procStarted($p)) {
 			return 127;
 		}
 		stream_get_contents($pipes[1]);
@@ -185,6 +185,11 @@ class serverweb__ extends lxDriverClass
 		fclose($pipes[2]);
 
 		return proc_close($p);
+	}
+
+	function procStarted($p)
+	{
+		return is_resource($p) || is_object($p);
 	}
 
 	function set_fix_chownchmod()
@@ -655,74 +660,109 @@ class serverweb__ extends lxDriverClass
 
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
-		$ids = kloxo_list_from($this->main->multiple_php_install ?? '');
+		$ids = KloxoPhpver::parseRequestedIds($this->main->multiple_php_install ?? '');
+		$allow = array_fill_keys(KloxoPhpver::installableSeries(), true);
 		$vers = array();
 		foreach ($ids as $id) {
 			$s = KloxoPhpver::idToSeries((string)$id);
-			if ($s !== '' && in_array($s, array('5.6', '7.4', '8.3', '8.4', '8.5', '8.6'), true)) {
+			if ($s !== '' && isset($allow[$s])) {
 				$vers[] = $s;
 			}
 		}
+		$vers = array_values(array_unique($vers));
+		if ($vers === array()) {
+			throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
+		}
 		if (KloxoIpaddr::isUbuntu()) {
-			if ($vers === array()) {
-				throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
-			}
-			$root = dirname(__DIR__, 3);
-			$script = $root . '/bin/install/install-site-php';
-			if (!is_file($script)) {
-				throw new lxException($login->getThrow('file_not_found'), '', $script);
-			}
-			$p = @proc_open(
-				array('bash', $script, '--root=' . $root, '--versions=' . implode(',', $vers)),
-				array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
-				$pipes
-			);
-			if (!is_resource($p)) {
-				throw new lxException($login->getThrow('could_not_execute'), '', 'install-site-php');
-			}
-			$out = stream_get_contents($pipes[1]);
-			$err = stream_get_contents($pipes[2]);
-			fclose($pipes[1]);
-			fclose($pipes[2]);
-			$code = proc_close($p);
-			if ($code !== 0) {
-				log_log('error', 'install-site-php: ' . (is_string($err) ? $err : '') . (is_string($out) ? $out : ''));
-				throw new lxException($login->getThrow('install_process_running_in_background'), '', 'install-site-php');
-			}
-			createRestartFile("restart-php-fpm");
-			createRestartFile("restart-web");
+			$this->startSitePhpInstall($vers);
 			return;
 		}
 
-		$i = $this->main->multiple_php_install;
+		$c = '/tmp/phpm-install-process.sh';
 
-		if ($i !== '') {
-			$c = '/tmp/phpm-install-process.sh';
-
-			if (file_exists($c)) {
-				throw new lxException($login->getThrow('other_install_process_still_running'), '', $this->main->syncserver);
-				return;
-			}
-
-			$list = explode(',', $i);
-
-			$b = '';
-
-			foreach ($list as $k => $v) {
-				$b .= "sh /script/phpm-installer {$v} -y\n";
-			}
-
-			$b .= "sh /script/fixphp\n";
-			$b .= "'rm' -f {$c}\n";
-
-			file_put_contents($c, $b);
-
-			lxshell_background("sh", $c);
-
-			if (file_exists($c)) {
-				throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
-			}
+		if (file_exists($c)) {
+			throw new lxException($login->getThrow('other_install_process_still_running'), '', $this->main->syncserver);
 		}
+
+		$b = '';
+		foreach ($ids as $v) {
+			if (preg_match('/^[A-Za-z0-9._-]+$/', (string)$v) !== 1) {
+				continue;
+			}
+			$b .= "sh /script/phpm-installer {$v} -y\n";
+		}
+
+		$b .= "sh /script/fixphp\n";
+		$b .= "'rm' -f {$c}\n";
+
+		file_put_contents($c, $b);
+
+		lxshell_background("sh", $c);
+
+		throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
+	}
+
+	function startSitePhpInstall($vers)
+	{
+		global $login;
+
+		$root = dirname(__DIR__, 3);
+		$script = $root . '/bin/install/install-site-php';
+		if (!is_file($script)) {
+			throw new lxException($login->getThrow('file_not_found'), '', $script);
+		}
+		$versArg = implode(',', $vers);
+		if (preg_match('/^[0-9.]+(,[0-9.]+)*$/', $versArg) !== 1) {
+			throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
+		}
+		if (strpos($root, '..') !== false || strpos($root, "\n") !== false) {
+			throw new lxException($login->getThrow('file_not_found'), '', $root);
+		}
+
+		$lock = '/tmp/kloxo-site-php-install.lock';
+		if (is_file($lock)) {
+			$age = time() - (int)@filemtime($lock);
+			if ($age >= 0 && $age < 1800) {
+				throw new lxException($login->getThrow('other_install_process_still_running'), '', $this->main->syncserver);
+			}
+			@unlink($lock);
+		}
+
+		$logDir = $root . '/log';
+		if (!is_dir($logDir)) {
+			$logDir = '/tmp';
+		}
+		$log = $logDir . '/install-site-php.log';
+		$wrap = "#!/bin/bash\nset -euo pipefail\n"
+			. "trap 'rm -f " . $lock . "' EXIT\n"
+			. "/bin/bash " . escapeshellarg($script)
+			. " --root=" . escapeshellarg($root)
+			. " --versions=" . escapeshellarg($versArg)
+			. " >>" . escapeshellarg($log) . " 2>&1\n";
+		if (@file_put_contents($lock, $wrap) === false) {
+			throw new lxException($login->getThrow('could_not_execute'), '', $lock);
+		}
+		@chmod($lock, 0700);
+
+		$systemd = '/usr/bin/systemd-run';
+		if (is_executable($systemd)) {
+			$code = $this->runArgv(array(
+				$systemd,
+				'--no-block',
+				'--collect',
+				'--unit=kloxo-site-php-install-' . (string)getmypid(),
+				'/bin/bash',
+				$lock,
+			));
+			if ($code !== 0) {
+				@unlink($lock);
+				throw new lxException($login->getThrow('could_not_execute'), '', 'install-site-php');
+			}
+			throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
+		}
+
+		lxshell_background('bash', $lock);
+		throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
 	}
 
 	function set_multiple_php_remove()
@@ -732,7 +772,7 @@ class serverweb__ extends lxDriverClass
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
 
-		$list = kloxo_list_from($this->main->multiple_php_remove ?? '');
+		$list = KloxoPhpver::parseRequestedIds($this->main->multiple_php_remove ?? '');
 		if ($list === array()) {
 			throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
 		}
@@ -750,18 +790,7 @@ class serverweb__ extends lxDriverClass
 				if ($ver === '' || preg_match('/^\d+\.\d+$/', $ver) !== 1) {
 					continue;
 				}
-				$p = @proc_open(
-					array('apt-get', 'remove', '-y', 'php' . $ver . '-fpm'),
-					array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
-					$pipes
-				);
-				if (is_resource($p)) {
-					stream_get_contents($pipes[1]);
-					stream_get_contents($pipes[2]);
-					fclose($pipes[1]);
-					fclose($pipes[2]);
-					proc_close($p);
-				}
+				$this->runArgv(array('apt-get', 'remove', '-y', 'php' . $ver . '-fpm'));
 			}
 			createRestartFile("restart-php-fpm");
 			createRestartFile("restart-web");

@@ -2,8 +2,9 @@
 declare(strict_types=1);
 
 /**
- * phpMyAdmin SignonURL. Copied into thirdparty/phpMyAdmin by install-phpmyadmin.
- * Verifies the Kloxo admin panel session, then starts the PMA sign-on session.
+ * phpMyAdmin SignonURL / MySQL logon. Copied into thirdparty/phpMyAdmin
+ * by install-phpmyadmin. SQL Manager opens this first; Go redirects into
+ * phpMyAdmin (Kloxo-MR cookie-logon order).
  */
 
 $root = dirname(__DIR__, 3);
@@ -13,4 +14,4 @@ if (!is_readable($helper)) {
 	exit;
 }
 require $helper;
-kloxo_pma_signon_redirect($root);
+kloxo_pma_signon_page($root);

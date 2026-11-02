@@ -157,14 +157,19 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     does not write ifcfg or `/etc/network/interfaces`. `phpini` sync queries
     `php_type` (not `php-type`). PHP Used lists apt php-fpm (`kloxo_phpver.php`,
     including 5.6 / 7.4 / latest; default is newest). `install-site-php` adds
-    those versions via distro apt then `ppa:ondrej/php`. The old scanner only
+    those versions via distro apt then `ppa:ondrej/php`. Webserver Configure
+    Multiple PHP Install submits selected `phpX.Y` ids (dual-listbox
+    Available and/or Selected) and queues `install-site-php --versions=`;
+    Multiple PHP Remove lists installed `phpX.Y-fpm`. The old scanner only
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL
-    Manager uses panel sign-on as MariaDB `root`@`127.0.0.1` (`pma.pass`,
-    WITH GRANT OPTION, no password in the URL; `AllowRoot` is on).
-    The SQL Manager tile href is always `/thirdparty/phpMyAdmin/`
-    (`kloxo_pma_href`; never mywebsql). OS `root`@`localhost` stays unix_socket. Admin Home shows SQL Manager only in Basic
+    Manager opens the MySQL logon (`kloxo-signon.php`) in a new tab
+    (`kloxo_pma_href`; never mywebsql), then Go redirects into phpMyAdmin
+    as MariaDB `root`@`127.0.0.1` (`pma.pass` if the password is left blank,
+    WITH GRANT OPTION, no password in the URL; `AllowRoot` is on). There is
+    no SignonScript; PMA uses SignonURL like Kloxo-MR cookie logon order.
+    OS `root`@`localhost` stays unix_socket. Admin Home shows SQL Manager only in Basic
     (`webmailanddb`), not as a second Domain tile. Live phpMyAdmin login
     after this change is unverified; re-run `install.sh` after pull.
     Component Info uses Ubuntu package names (`kloxo_component.php`) instead
@@ -332,7 +337,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     sudoers. Live SSH Terminal
     after deploy is **UNVERIFIED**. Adding a client no longer TypeErrors
     on `implode()` with a string (`contactemail`, `coma_*_list`,
-    `kloxo_implode` / `kloxo_list_from`). Live client-create after
+    `kloxo_implode` / `kloxo_list_from`), on a missing plan `priv`/`listpriv`,
+    on a null parent quota `used`/`priv`, or on `clone(null)` in
+    `lxclientpostAdd`. Continue-without-plan fills `localhost` server
+    lists when admin `listpriv` is empty. Ubuntu `createUser` chowns
+    `/home/<client>` to `www-data` (not `apache`). Live client-create after
     deploy is **UNVERIFIED**. Adding a Resource Plan does not throw
     `no_dns_template`, creates `listpriv` when missing, sanitizes the
     display name before `validate_plan_name`, and does not consume
@@ -374,7 +383,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Live Mails Per Client after deploy is **UNVERIFIED**.
     DNS Template menu and dashboard tiles list `dnstemplate` (not
     `lxbackup`); opening the list no longer throws `no_ip_address`
-    when the IP table is empty.
+    when the IP table is empty. The list tab keeps the add form;
+    there is no separate Add this template tab. Adding a template uses live Ubuntu
+    IPs, does not run `fixIpAddress.php`, strips a duplicate `.dnst`
+    suffix, validates primary and secondary NS separately, and writes
+    default NS/A/MX records to `dns_record_a`. Live template-create
+    after deploy is **UNVERIFIED**.
     FTP Configure (`serverftp`) is seeded as `pserver-localhost` and
     does not sync through the C daemon on first show.
     Re-check the live dashboard after pushing this tree and
@@ -480,9 +494,10 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `generalmisc_b`. Home show no longer fatals on a null `used` object,
    missing driver row, or admin `getParentO()`. Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
-   sign-on is MariaDB `root`@`127.0.0.1` (`auth_type=signon`,
-   `AllowRoot`, `pma.pass`; unix_socket `root`@`localhost` unchanged).
-   live phpMyAdmin login after re-install is **UNVERIFIED**. Remaining
+   opens the MySQL logon then phpMyAdmin as MariaDB `root`@`127.0.0.1`
+   (`auth_type=signon`, SignonURL `kloxo-signon.php`, `AllowRoot`,
+   `pma.pass`; unix_socket `root`@`localhost` unchanged). Live phpMyAdmin
+   login after re-install is **UNVERIFIED**. Remaining
    compile failures are third-party (`webdisk/PEAR*`, formmail,
    urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
 
@@ -540,7 +555,11 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    Webserver Configure keeps the Kloxo-MR section layout (PHP Used, PHP
    Branch, Multiple PHP already-installed/enable/install/remove, PHP Type
    for Apache, Apache optimize, MySQL convert, fix ownership, Pagespeed)
-   with Ubuntu `phpX.Y` ids, not `php52m`. Each section form loads without
+   with Ubuntu `phpX.Y` ids, not `php52m`. Multiple PHP Install submits
+   the dual-listbox selection (Available highlights and/or Selected) as
+   `phpX.Y` ids and queues `install-site-php --versions=`; Multiple PHP
+   Remove lists actually installed `phpX.Y-fpm` (binaries or
+   `/etc/php/X.Y/fpm`). Each section form loads without
    a DB password. Apache optimize writes
    `/etc/apache2/conf-available/kloxo-optimize.conf` (validate `apache2ctl
    -t`, roll back on failure). PHP Type on Ubuntu enables mpm_event or

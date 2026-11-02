@@ -168,7 +168,7 @@ class serverweb extends lxdb
 			case "multiple_php_install":
 				$this->multiple_php_install = null;
 				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
-				$avail = KloxoPhpver::availableToInstall();
+				$avail = KloxoPhpver::asSelectList(KloxoPhpver::availableToInstall());
 				if ($avail === array()) {
 					$vlist['multiple_php_install'] = array('M', '(all catalog versions are already installed)');
 				} else {
@@ -180,7 +180,12 @@ class serverweb extends lxdb
 			case "multiple_php_remove":
 				$this->multiple_php_remove = null;
 				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
-				$vlist['multiple_php_remove'] = array('U', KloxoPhpver::phpUsedChoices());
+				$have = KloxoPhpver::asSelectList(KloxoPhpver::removableIds());
+				if ($have === array()) {
+					$vlist['multiple_php_remove'] = array('M', '(no extra phpX.Y-fpm is installed yet)');
+				} else {
+					$vlist['multiple_php_remove'] = array('U', $have);
+				}
 
 				break;
 
@@ -235,6 +240,25 @@ class serverweb extends lxdb
 		}
 
 		return $vlist;
+	}
+
+	function update($subaction, $param)
+	{
+		global $login;
+
+		if (!is_array($param)) {
+			$param = array();
+		}
+		if ($subaction === 'multiple_php_install' || $subaction === 'multiple_php_remove') {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+			$ids = KloxoPhpver::parseRequestedIds($param[$subaction] ?? '');
+			if ($ids === array()) {
+				throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
+			}
+			$param[$subaction] = implode(',', $ids);
+		}
+
+		return parent::update($subaction, $param);
 	}
 
 	static function initThisObjectRule($parent, $class, $name = null)

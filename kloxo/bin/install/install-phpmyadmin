@@ -114,6 +114,9 @@ write_config() {
   if [[ -f "$ROOT/file/phpmyadmin/kloxo-signon.php" ]]; then
     install -m 0644 "$ROOT/file/phpmyadmin/kloxo-signon.php" "$dest/kloxo-signon.php"
   fi
+  if [[ -f "$ROOT/file/phpmyadmin/kloxo-signon-script.php" ]]; then
+    install -m 0644 "$ROOT/file/phpmyadmin/kloxo-signon-script.php" "$dest/kloxo-signon-script.php"
+  fi
   if id -u lxlabs >/dev/null 2>&1; then
     chown -R lxlabs:lxlabs "$dest"
   fi

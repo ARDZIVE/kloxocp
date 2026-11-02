@@ -40,7 +40,8 @@ final class KloxoPhpver
         foreach (self::DISTRO_SERIES as $ver) {
             $cli = '/usr/bin/php' . $ver;
             $fpm = '/usr/sbin/php-fpm' . $ver;
-            if (!self::isExec($cli) && !self::isExec($fpm)) {
+            $fpmDir = '/etc/php/' . $ver . '/fpm';
+            if (!self::isExec($cli) && !self::isExec($fpm) && !is_dir($fpmDir)) {
                 continue;
             }
             $id = 'php' . $ver;
@@ -96,6 +97,12 @@ final class KloxoPhpver
         return $out;
     }
 
+    /** @return list<string> X.Y series install-site-php accepts */
+    public static function installableSeries(): array
+    {
+        return self::INSTALLABLE_SERIES;
+    }
+
     /** @return list<string> catalog ids not yet installed */
     public static function availableToInstall(): array
     {
@@ -108,6 +115,82 @@ final class KloxoPhpver
         }
 
         return $out;
+    }
+
+    /**
+     * Dual-listbox / select options: id is both key and label (not 0,1,2).
+     *
+     * @param list<string> $ids
+     * @return array<string,string>
+     */
+    public static function asSelectList(array $ids): array
+    {
+        $out = [];
+        foreach ($ids as $id) {
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+            $out[$id] = $id;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Installed phpX.Y ids the Multiple PHP Remove list can offer.
+     *
+     * @return list<string>
+     */
+    public static function removableIds(): array
+    {
+        $ids = [];
+        foreach (self::installedIds() as $id) {
+            if (self::isDistroId($id) && $id !== 'php') {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Catalog phpX.Y ids from a dual-listbox POST (comma string or array).
+     *
+     * @param mixed $v
+     * @return list<string>
+     */
+    public static function parseRequestedIds($v): array
+    {
+        $raw = [];
+        if (is_array($v)) {
+            foreach ($v as $p) {
+                if (is_string($p) || is_numeric($p)) {
+                    $raw[] = trim((string)$p);
+                }
+            }
+        } elseif (is_string($v) && trim($v) !== '') {
+            foreach (explode(',', str_replace(' ', '', $v)) as $p) {
+                $raw[] = trim($p);
+            }
+        }
+        $out = [];
+        foreach ($raw as $p) {
+            if ($p === '') {
+                continue;
+            }
+            $id = '';
+            if (preg_match('/^php(\d+\.\d+)$/', $p, $m) === 1) {
+                $id = 'php' . $m[1];
+            } elseif (preg_match('/^(\d+\.\d+)$/', $p, $m) === 1) {
+                $id = 'php' . $m[1];
+            }
+            if ($id === '' || !self::isDistroId($id)) {
+                continue;
+            }
+            $out[$id] = $id;
+        }
+
+        return array_values($out);
     }
 
     /** PHP Used dropdown: installed distro ids, never "--PHP Branch--". */

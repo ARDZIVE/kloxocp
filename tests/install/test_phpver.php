@@ -76,6 +76,46 @@ if (KloxoPhpver::iniBaseName('20-imap.ini') === 'imap' && KloxoPhpver::iniBaseNa
     $bad('iniBaseName strips conf.d prefix');
 }
 
+$sel = KloxoPhpver::asSelectList(['php8.5', 'php7.4']);
+if (($sel['php8.5'] ?? '') === 'php8.5' && ($sel['php7.4'] ?? '') === 'php7.4' && !isset($sel[0])) {
+    $ok('asSelectList uses phpX.Y keys not 0,1,2');
+} else {
+    $bad('asSelectList uses phpX.Y keys not 0,1,2');
+}
+
+$parsed = KloxoPhpver::parseRequestedIds('php8.5, 8.4,php7.4,0,php52m,nope');
+if ($parsed === ['php8.5', 'php8.4', 'php7.4']) {
+    $ok('parseRequestedIds keeps catalog phpX.Y and drops junk');
+} else {
+    $bad('parseRequestedIds keeps catalog phpX.Y and drops junk');
+}
+$parsedArr = KloxoPhpver::parseRequestedIds(['php5.6', '', 'php8.3']);
+if ($parsedArr === ['php5.6', 'php8.3']) {
+    $ok('parseRequestedIds accepts an array of ids');
+} else {
+    $bad('parseRequestedIds accepts an array of ids');
+}
+if (KloxoPhpver::parseRequestedIds('') === [] && KloxoPhpver::parseRequestedIds(null) === []) {
+    $ok('parseRequestedIds empty is none selected');
+} else {
+    $bad('parseRequestedIds empty is none selected');
+}
+
+$rem = KloxoPhpver::removableIds();
+if (is_array($rem) && !in_array('php52m', $rem, true) && !in_array('--PHP Branch--', $rem, true)) {
+    $ok('removableIds is installed phpX.Y not php52m');
+} else {
+    $bad('removableIds is installed phpX.Y not php52m');
+}
+
+$series = KloxoPhpver::installableSeries();
+if (in_array('5.6', $series, true) && in_array('7.4', $series, true) && in_array('8.3', $series, true)
+    && !in_array('5.2', $series, true)) {
+    $ok('installableSeries matches install-site-php');
+} else {
+    $bad('installableSeries matches install-site-php');
+}
+
 $rows = KloxoPhpver::parseModListing(
     'php8.3',
     '/etc/php/8.3/mods-available',

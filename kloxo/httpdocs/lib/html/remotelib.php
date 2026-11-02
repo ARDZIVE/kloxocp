@@ -116,7 +116,12 @@ function check_for_remote($rmt)
 	if (!$rmt->authenticated) {
 		$local = true;
 
-		if (!($rmt->password === getAdminDbPass())) {
+		try {
+			$ok = ($rmt->password === getAdminDbPass());
+		} catch (Throwable $e) {
+			$ok = false;
+		}
+		if (!$ok) {
 			log_message("Failed Local access to $rmt->remote_login from localhost");
 			$res->exception = new lxException("login_failed", $rmt->machine);
 

@@ -3472,7 +3472,7 @@ function getFromAny($list, $class, $name)
 		try {
 			$v = $ob->getFromList($class, $name);
 			return $v;
-		} catch (exception $e) {
+		} catch (Throwable $e) {
 		}
 	}
 	return $v;
@@ -3751,12 +3751,23 @@ function getQuotaListForClass($stuff, $res = null)
 		$class = $stuff;
 		$name = '__dummy__dummy__';
 		$ob = new $class(null, null, $name);
-		if ($res) {
-			$ob->create($res);
+		if (is_array($res)) {
+			if (isset($res['cttype']) && $res['cttype'] !== '') {
+				$ob->cttype = $res['cttype'];
+			}
+			if (isset($res['nname']) && $res['nname'] !== '') {
+				$ob->nname = $res['nname'];
+			}
 		}
 		$ob->priv = new Priv(null, null, $name);
+		$ob->priv->__parent_o = $ob;
 	}
-	return $ob->getQuotaVariableList();
+	try {
+		$list = $ob->getQuotaVariableList();
+	} catch (Throwable $e) {
+		$list = array();
+	}
+	return is_array($list) ? $list : array();
 }
 
 function lx_xdebug_break()

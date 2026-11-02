@@ -220,7 +220,9 @@ class databasecore extends Lxdb
 			$dbadminUrl = $this->getDbAdminUrl();
 			if ($dbadminUrl) {
 				$alist['property'][] = create_simpleObject(array('url' => $dbadminUrl,
-					'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
+					'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin",
+					'target' => function_exists('kloxo_pma_link_attrs')
+						? kloxo_pma_link_attrs() : 'target="_blank" rel="noopener noreferrer"'));
 			}
 		} catch (Exception $e) {}
 

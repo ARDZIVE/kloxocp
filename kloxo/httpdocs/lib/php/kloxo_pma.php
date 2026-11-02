@@ -32,7 +32,18 @@ function kloxo_pma_kloxo_pass_file(?string $root = null): string
 
 function kloxo_pma_url(): string
 {
-	return '/thirdparty/phpMyAdmin/';
+	return '/thirdparty/phpMyAdmin/kloxo-signon.php';
+}
+
+function kloxo_pma_index_url(): string
+{
+	return '/thirdparty/phpMyAdmin/index.php';
+}
+
+/** HTML attributes so SQL Manager opens the MySQL logon in a new tab. */
+function kloxo_pma_link_attrs(): string
+{
+	return 'target="_blank" rel="noopener noreferrer"';
 }
 
 /**
@@ -126,11 +137,68 @@ function kloxo_pma_panel_is_admin(?string $root = null): bool
 	}
 	$ip = (string)($row['ip_address'] ?? '');
 	$remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
-	if ($ip !== '' && $remote !== '' && $ip !== $remote) {
+	if ($ip !== '' && $remote !== '' && !kloxo_pma_same_ip($ip, $remote)) {
 		return false;
 	}
 
 	return true;
+}
+
+function kloxo_pma_same_ip(string $a, string $b): bool
+{
+	if ($a === $b) {
+		return true;
+	}
+	$na = @inet_pton($a);
+	$nb = @inet_pton($b);
+	if ($na === false || $nb === false) {
+		return false;
+	}
+	if ($na === $nb) {
+		return true;
+	}
+	if (strlen($na) === 4 && strlen($nb) === 16) {
+		return $nb === ("\0\0\0\0\0\0\0\0\0\0\xff\xff" . $na);
+	}
+	if (strlen($nb) === 4 && strlen($na) === 16) {
+		return $na === ("\0\0\0\0\0\0\0\0\0\0\xff\xff" . $nb);
+	}
+
+	return false;
+}
+
+/**
+ * phpMyAdmin SignonScript: [MariaDB user, password] for a live panel admin.
+ *
+ * @return array{0:string,1:string}
+ */
+function kloxo_pma_signon_credentials(?string $root = null): array
+{
+	if (!kloxo_pma_panel_is_admin($root)) {
+		return array('', '');
+	}
+	$cred = kloxo_pma_login($root);
+	if ($cred['pass'] === '') {
+		return array('', '');
+	}
+
+	return array($cred['user'], $cred['pass']);
+}
+
+/** @return array{lifetime:int,path:string,domain:string,secure:bool,httponly:bool,samesite:string} */
+function kloxo_pma_signon_cookie_params(): array
+{
+	$secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+		|| ((string)($_SERVER['SERVER_PORT'] ?? '') === '7777');
+
+	return array(
+		'lifetime' => 0,
+		'path' => '/thirdparty/phpMyAdmin/',
+		'domain' => '',
+		'secure' => $secure,
+		'httponly' => true,
+		'samesite' => 'Lax',
+	);
 }
 
 function kloxo_pma_panel_pdo(?string $root = null): ?PDO
@@ -167,33 +235,139 @@ function kloxo_pma_panel_pdo(?string $root = null): ?PDO
 	return null;
 }
 
+function kloxo_pma_signon_start(): void
+{
+	if (session_status() === PHP_SESSION_ACTIVE) {
+		return;
+	}
+	session_name('KloxoPmaSignon');
+	session_set_cookie_params(kloxo_pma_signon_cookie_params());
+	session_start();
+}
+
+/**
+ * MySQL logon (Kloxo-MR style): form first, then redirect into phpMyAdmin.
+ */
+function kloxo_pma_signon_page(?string $root = null): void
+{
+	$error = '';
+	$user = 'root';
+	if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+		$posted = kloxo_pma_signon_posted_user();
+		if ($posted !== '') {
+			$user = $posted;
+		}
+		$error = kloxo_pma_signon_submit($root);
+		if ($error === '') {
+			return;
+		}
+	}
+	if (!headers_sent()) {
+		header('Content-Type: text/html; charset=UTF-8');
+		header('X-Frame-Options: SAMEORIGIN');
+		header('Referrer-Policy: same-origin');
+	}
+	echo kloxo_pma_signon_form_html($root, $error, $user);
+	exit;
+}
+
+function kloxo_pma_signon_posted_user(): string
+{
+	$raw = $_POST['pma_user'] ?? '';
+	$user = is_string($raw) ? trim($raw) : '';
+	if ($user === '' || strlen($user) > 32 || preg_match('/^[A-Za-z0-9_]+$/', $user) !== 1) {
+		return '';
+	}
+
+	return $user;
+}
+
+/** @return string empty on success (redirect sent); otherwise an error for the form */
+function kloxo_pma_signon_submit(?string $root = null): string
+{
+	kloxo_pma_signon_start();
+	$token = (string)($_SESSION['kloxo_pma_csrf'] ?? '');
+	$posted = (string)($_POST['kloxo_pma_csrf'] ?? '');
+	if ($token === '' || $posted === '' || !hash_equals($token, $posted)) {
+		return 'Please try again.';
+	}
+	$user = kloxo_pma_signon_posted_user();
+	if ($user === '') {
+		return 'Enter a MySQL user name.';
+	}
+	$pass = $_POST['pma_pass'] ?? '';
+	$pass = is_string($pass) ? $pass : '';
+	if ($pass === '' && $user === 'root' && kloxo_pma_panel_is_admin($root)) {
+		$cred = kloxo_pma_login($root);
+		$pass = $cred['pass'];
+	}
+	if ($pass === '') {
+		return 'Enter the MySQL password.';
+	}
+	$_SESSION['PMA_single_signon_user'] = $user;
+	$_SESSION['PMA_single_signon_password'] = $pass;
+	$_SESSION['PMA_single_signon_host'] = '127.0.0.1';
+	unset($_SESSION['kloxo_pma_csrf']);
+	session_write_close();
+	header('Location: ' . kloxo_pma_index_url(), true, 302);
+	exit;
+}
+
+function kloxo_pma_signon_form_html(?string $root = null, string $error = '', string $user = 'root'): string
+{
+	if (PHP_SAPI !== 'cli') {
+		kloxo_pma_signon_start();
+	}
+	if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['kloxo_pma_csrf'])) {
+		$_SESSION['kloxo_pma_csrf'] = bin2hex(random_bytes(16));
+	}
+	$token = (session_status() === PHP_SESSION_ACTIVE)
+		? (string)($_SESSION['kloxo_pma_csrf'] ?? '') : '';
+	$esc = static function (string $s): string {
+		return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	};
+	$err = $error !== '' ? '<p class="err">' . $esc($error) . '</p>' : '';
+	$u = $esc($user !== '' ? $user : 'root');
+	$t = $esc($token);
+	$action = $esc(kloxo_pma_url());
+
+	return <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MySQL logon</title>
+<style>
+body{margin:0;background:#e5e5e5;font:14px/1.4 sans-serif;color:#222}
+.box{width:360px;margin:12vh auto;background:#fff;border:1px solid #bdbdbd;padding:24px 28px}
+h1{margin:0 0 16px;font-size:18px}
+label{display:block;margin:10px 0 4px}
+input[type=text],input[type=password]{width:100%;box-sizing:border-box;padding:6px 8px}
+.row{margin-top:16px;text-align:right}
+button{padding:6px 18px;cursor:pointer}
+.err{color:#a40000;margin:0 0 12px}
+.hint{color:#666;font-size:12px;margin-top:14px}
+</style>
+</head>
+<body>
+<form class="box" method="post" action="{$action}" autocomplete="off">
+<h1>MySQL logon</h1>
+{$err}
+<input type="hidden" name="kloxo_pma_csrf" value="{$t}">
+<label for="pma_user">Username</label>
+<input id="pma_user" name="pma_user" type="text" value="{$u}" maxlength="32" required>
+<label for="pma_pass">Password</label>
+<input id="pma_pass" name="pma_pass" type="password" value="">
+<div class="row"><button type="submit">Go</button></div>
+<p class="hint">Logs in to phpMyAdmin on 127.0.0.1. Panel admin may leave the password blank to use the install root password.</p>
+</form>
+</body>
+</html>
+HTML;
+}
+
 function kloxo_pma_signon_redirect(?string $root = null): void
 {
-	$login = '/login/';
-	if (!kloxo_pma_panel_is_admin($root)) {
-		header('Location: ' . $login, true, 302);
-		exit;
-	}
-	$cred = kloxo_pma_login($root);
-	if ($cred['pass'] === '') {
-		header('Location: ' . $login, true, 302);
-		exit;
-	}
-	$secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-		|| ((string)($_SERVER['SERVER_PORT'] ?? '') === '7777');
-	session_name('KloxoPmaSignon');
-	session_set_cookie_params(array(
-		'lifetime' => 0,
-		'path' => '/thirdparty/phpMyAdmin/',
-		'secure' => $secure,
-		'httponly' => true,
-		'samesite' => 'Lax',
-	));
-	session_start();
-	$_SESSION['PMA_single_signon_user'] = $cred['user'];
-	$_SESSION['PMA_single_signon_password'] = $cred['pass'];
-	$_SESSION['PMA_single_signon_host'] = $cred['host'];
-	session_write_close();
-	header('Location: index.php', true, 302);
-	exit;
+	kloxo_pma_signon_page($root);
 }

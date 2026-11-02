@@ -204,14 +204,17 @@ else
 fi
 if grep -q "auth_type'] = 'signon'" "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
   && grep -q 'kloxo-signon.php' "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
+  && ! grep -q 'SignonScript' "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
   && grep -q '127.0.0.1' "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
   && grep -q "AllowRoot'] = true" "$ROOT/kloxo/file/phpmyadmin/config.inc.php"; then
-  ok "phpMyAdmin config uses panel sign-on as root (no cookie login form)"
+  ok "phpMyAdmin config uses MySQL logon then sign-on as root"
 else
-  bad "phpMyAdmin config uses panel sign-on as root (no cookie login form)"
+  bad "phpMyAdmin config uses MySQL logon then sign-on as root"
 fi
 if grep -q 'kloxo-signon.php' "$ROOT/kloxo/bin/install/install-phpmyadmin" \
-  && [ -f "$ROOT/kloxo/file/phpmyadmin/kloxo-signon.php" ]; then
+  && grep -q 'kloxo-signon-script.php' "$ROOT/kloxo/bin/install/install-phpmyadmin" \
+  && [ -f "$ROOT/kloxo/file/phpmyadmin/kloxo-signon.php" ] \
+  && [ -f "$ROOT/kloxo/file/phpmyadmin/kloxo-signon-script.php" ]; then
   ok "install-phpmyadmin copies kloxo-signon.php"
 else
   bad "install-phpmyadmin copies kloxo-signon.php"
@@ -225,6 +228,7 @@ else
 fi
 check "php -l kloxo_pma.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_pma.php"
 check "php -l kloxo-signon.php" php -l "$ROOT/kloxo/file/phpmyadmin/kloxo-signon.php"
+check "php -l kloxo-signon-script.php" php -l "$ROOT/kloxo/file/phpmyadmin/kloxo-signon-script.php"
 if grep -q 'getPrimaryDb' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php"; then
   if sed -n '/function getMysqlDbAdmin/,/^	}/p' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php" | grep -q 'getPrimaryDb'; then
     bad "admin SQL Manager does not require a primary customer DB"

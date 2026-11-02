@@ -232,6 +232,7 @@ if ($dom !== '' && str_contains($dom, 'if (!$this->isAdmin())')
 }
 
 $pmaUrl = '';
+$pmaTarget = '';
 $pmaErr = '';
 try {
 	$psPma = new pserver(null, 'localhost', 'localhost');
@@ -240,6 +241,8 @@ try {
 	$psPma->getMysqlDbAdmin($pmaAlist);
 	$pmaUrl = (isset($pmaAlist[0]) && is_object($pmaAlist[0]) && isset($pmaAlist[0]->url))
 		? (string) $pmaAlist[0]->url : '';
+	$pmaTarget = (isset($pmaAlist[0]) && is_object($pmaAlist[0]) && isset($pmaAlist[0]->target))
+		? (string) $pmaAlist[0]->target : '';
 } catch (Throwable $e) {
 	$pmaErr = $e->getMessage();
 }
@@ -265,15 +268,21 @@ try {
 }
 $btnSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
 $pmaWant = function_exists('kloxo_pma_url') ? kloxo_pma_url() : '/thirdparty/phpMyAdmin/';
+$pmaCfg = (string) file_get_contents(dirname($doc) . '/file/phpmyadmin/config.inc.php');
 if ($pmaUrl === $pmaWant && $cliPmaUrl === $pmaWant && $dbPmaUrl === $pmaWant
+	&& str_contains($pmaTarget, '_blank')
 	&& str_contains($pssrc, 'kloxo_pma_href')
 	&& !str_contains($pssrc, 'mywebsql')
 	&& !str_contains($clsrc, 'mywebsql')
-	&& str_contains($btnSrc, "str_starts_with(\$resolvedHref, '/thirdparty/')")) {
-	ok('SQL Manager tile points at phpMyAdmin');
+	&& str_contains($btnSrc, "str_starts_with(\$resolvedHref, '/thirdparty/')")
+	&& str_contains($btnSrc, 'kloxo_pma_link_attrs')
+	&& str_contains($pmaCfg, 'kloxo-signon.php')
+	&& !str_contains($pmaCfg, 'SignonScript')
+	&& str_contains($pmaCfg, "AllowRoot'] = true")) {
+	ok('SQL Manager tile points at the MySQL logon');
 } else {
-	bad('SQL Manager tile points at phpMyAdmin',
-		$pmaErr !== '' ? $pmaErr : ('ps=' . $pmaUrl . ' client=' . $cliPmaUrl . ' db=' . $dbPmaUrl));
+	bad('SQL Manager tile points at the MySQL logon',
+		$pmaErr !== '' ? $pmaErr : ('ps=' . $pmaUrl . ' client=' . $cliPmaUrl . ' db=' . $dbPmaUrl . ' tgt=' . $pmaTarget));
 }
 
 if (function_exists('kloxo_driver_class')
@@ -507,6 +516,103 @@ if (class_exists('Dnstemplate') && is_callable(array('Dnstemplate', 'AddListForm
 	}
 } else {
 	bad('Dnstemplate list add form does not throw no_ip_address', 'class missing');
+}
+
+if (class_exists('Dnstemplate') && is_callable(array('Dnstemplate', 'createListAlist'))) {
+	$admin = new Client(null, null, 'admin');
+	$admin->nname = 'admin';
+	$tabs = Dnstemplate::createListAlist($admin, 'dnstemplate');
+	$joined = is_array($tabs) ? implode("\n", $tabs) : '';
+	if (is_array($tabs) && str_contains($joined, 'a=list&c=dnstemplate')
+		&& !str_contains($joined, 'a=addform')) {
+		ok('DNS Template tabs do not include Add this template');
+	} else {
+		bad('DNS Template tabs do not include Add this template', $joined);
+	}
+} else {
+	bad('DNS Template tabs do not include Add this template', 'class missing');
+}
+
+$tplsrc = (string)file_get_contents($doc . '/driver/dns/dnstemplatelib.php');
+$basesrc = (string)file_get_contents($doc . '/driver/dns/dnsbaselib.php');
+if (str_contains($tplsrc, "\$vlist['nname']")
+	&& str_contains($tplsrc, "\$vlist['webipaddress']")
+	&& str_contains($tplsrc, "\$vlist['nameserver_f']")
+	&& !str_contains($tplsrc, 'fixIpAddress.php')
+	&& str_contains($tplsrc, "\$param['nname'] = \"{\$name}.dnst\"")) {
+	ok('DNS template addform does not call fixIpAddress.php');
+} else {
+	bad('DNS template addform does not call fixIpAddress.php');
+}
+if (str_contains($basesrc, 'function assertNsName')
+	&& str_contains($basesrc, 'self::assertNsName($secnamserver)')
+	&& str_contains($basesrc, "static \$__desc_dns_record_a")) {
+	ok('DNS template create validates the secondary NS and stores dns_record_a');
+} else {
+	bad('DNS template create validates the secondary NS and stores dns_record_a');
+}
+
+try {
+	global $login;
+	$prevDnsLogin = $login;
+	$admin = new Client(null, 'localhost', 'admin');
+	$admin->nname = 'admin';
+	$admin->cttype = 'admin';
+	$login = $admin;
+	$form = Dnstemplate::addform($admin, 'dnstemplate');
+	$vars = is_array($form) ? ($form['variable'] ?? array()) : array();
+	if (is_array($form)
+		&& ($form['action'] ?? '') === 'add'
+		&& array_key_exists('nname', $vars)
+		&& array_key_exists('webipaddress', $vars)
+		&& array_key_exists('mmailipaddress', $vars)
+		&& array_key_exists('nameserver_f', $vars)
+		&& array_key_exists('secnameserver_f', $vars)) {
+		ok('DNS template addform returns name, IPs and nameserver fields');
+	} else {
+		bad('DNS template addform returns name, IPs and nameserver fields');
+	}
+
+	$added = Dnstemplate::add($admin, 'dnstemplate', array('nname' => 'Default.dnst'));
+	if (is_array($added) && ($added['nname'] ?? '') === 'default.dnst' && ($added['shared'] ?? '') === 'on') {
+		ok('DNS template add sanitizes the name and appends .dnst once');
+	} else {
+		bad('DNS template add sanitizes the name and appends .dnst once', (string)($added['nname'] ?? ''));
+	}
+
+	$tpl = new Dnstemplate(null, null, 'default.dnst');
+	$tpl->nname = 'default.dnst';
+	$tpl->createDefaultTemplate('203.0.113.10', '203.0.113.11', 'ns1.example.com.', 'ns2.example.com.');
+	$recs = is_array($tpl->dns_record_a) ? $tpl->dns_record_a : array();
+	$types = array();
+	foreach ($recs as $r) {
+		if (is_object($r) && isset($r->ttype, $r->hostname)) {
+			$types[$r->ttype . ':' . $r->hostname] = $r->param ?? '';
+		}
+	}
+	if (isset($recs['ns_ns1.example.com'], $recs['ns_ns2.example.com'], $recs['a___base__'], $recs['a_mail'], $recs['mx_10'])
+		&& ($tpl->soanameserver ?? '') === 'ns1.example.com'
+		&& ($types['a:__base__'] ?? '') === '203.0.113.10'
+		&& ($types['a:mail'] ?? '') === '203.0.113.11') {
+		ok('DNS template createDefaultTemplate builds NS, A and MX records');
+	} else {
+		bad('DNS template createDefaultTemplate builds NS, A and MX records', implode(',', array_keys($recs)));
+	}
+
+	$emptyErr = '';
+	try {
+		$tpl->createDefaultTemplate('203.0.113.10', '203.0.113.10', '', '');
+	} catch (Throwable $e) {
+		$emptyErr = $e->getMessage();
+	}
+	if ($emptyErr !== '' && !str_contains(strtolower($emptyErr), 'typeerror')) {
+		ok('DNS template create rejects a blank nameserver without TypeError');
+	} else {
+		bad('DNS template create rejects a blank nameserver without TypeError', $emptyErr);
+	}
+	$login = $prevDnsLogin;
+} catch (Throwable $e) {
+	bad('DNS template addform/add/createDefaultTemplate complete without TypeError', $e->getMessage());
 }
 
 $ghtml = class_exists('HtmlLib') ? new HtmlLib() : null;
@@ -937,6 +1043,111 @@ if (str_contains($addsrc, 'kloxo_list_from($param[\'contactemail\'])')
 } else {
 	bad('client add does not implode() a contactemail string');
 }
+if (str_contains($addsrc, 'isset($ct->priv) && is_object($ct->priv)')
+	&& str_contains($addsrc, 'new Priv(null, null, $this->nname)')
+	&& str_contains($addsrc, 'new ListPriv(null, null, $this->nname)')) {
+	ok('client postAdd clones a plan priv only when the plan has one');
+} else {
+	bad('client postAdd clones a plan priv only when the plan has one');
+}
+
+$syncsrc = (string)file_get_contents($doc . '/lib/client/client__synclib.php');
+if (str_contains($syncsrc, "KloxoIpaddr::isUbuntu()")
+	&& str_contains($syncsrc, "'www-data'")
+	&& str_contains($syncsrc, "lxfile_unix_chown(\$spath, \"{\$username}:{\$wgroup}\")")) {
+	ok('client createUser chowns the home to the Ubuntu web group');
+} else {
+	bad('client createUser chowns the home to the Ubuntu web group');
+}
+
+$anySrc = (string)file_get_contents($doc . '/lib/php/lxlib.php');
+if (str_contains($anySrc, 'function getFromAny')
+	&& preg_match('/function getFromAny\(\$.*?catch \(Throwable \$e\)/s', $anySrc)) {
+	ok('getFromAny catches Throwable when a plan is missing');
+} else {
+	bad('getFromAny catches Throwable when a plan is missing');
+}
+
+try {
+	global $login, $sgbl;
+	$prevLogin = $login;
+	$admin = new Client(null, 'localhost', 'admin');
+	$admin->nname = 'admin';
+	$admin->cttype = 'admin';
+	$admin->__listtype_resourceplan = 'fullist';
+	$admin->resourceplan_l = array();
+	$admin->__listtype_ipaddress = 'fullist';
+	$admin->ipaddress_l = array();
+	$login = $admin;
+	$form = Client::addform($admin, 'client', array('var' => 'cttype', 'val' => 'customer'));
+	$vars = is_array($form) ? ($form['variable'] ?? array()) : array();
+	if (is_array($form)
+		&& ($form['action'] ?? '') === 'continue'
+		&& array_key_exists('nname', $vars)
+		&& array_key_exists('password', $vars)
+		&& array_key_exists('contactemail', $vars)
+		&& isset($vars['resourceplan_f'][1]['continue_without_plan'])) {
+		ok('client addform returns nname, password, contactemail and a plan list');
+	} else {
+		bad('client addform returns nname, password, contactemail and a plan list');
+	}
+
+	$now = Client::continueForm($admin, 'client', array(
+		'nname' => 'kloxocptestcli',
+		'password' => 'Secret12',
+		'contactemail' => 'acme@example.com',
+		'resourceplan_f' => 'default',
+		'cttype' => 'customer',
+		'send_welcome_f' => 'off',
+	), 'server');
+	if (is_array($now)
+		&& ($now['action'] ?? '') === 'addnow'
+		&& ($now['param']['use_resourceplan_f'] ?? '') === 'On'
+		&& ($now['param']['nname'] ?? '') === 'kloxocptestcli') {
+		ok('client continueForm with a plan adds immediately');
+	} else {
+		bad('client continueForm with a plan adds immediately', (string)($now['action'] ?? ''));
+	}
+
+	$step = Client::continueForm($admin, 'client', array(
+		'nname' => 'kloxocptestcli',
+		'password' => 'Secret12',
+		'contactemail' => 'acme@example.com',
+		'resourceplan_f' => 'continue_without_plan',
+		'cttype' => 'customer',
+		'send_welcome_f' => 'off',
+	), 'server');
+	if (is_array($step)
+		&& ($step['action'] ?? '') === 'add'
+		&& isset($step['param']['listpriv_s_webpserver_list'])) {
+		ok('client continueForm without a plan fills server lists');
+	} else {
+		bad('client continueForm without a plan fills server lists', (string)($step['action'] ?? ''));
+	}
+
+	$added = Client::add($admin, 'client', array(
+		'nname' => 'kloxocptestcli',
+		'password' => 'Secret12',
+		'cttype' => 'customer',
+		'resourceplan_f' => 'default',
+	));
+	if (is_array($added)
+		&& ($added['cttype'] ?? '') === 'customer'
+		&& ($added['realpass'] ?? '') === 'Secret12'
+		&& is_string($added['password'] ?? null)
+		&& ($added['password'] ?? '') !== 'Secret12'
+		&& str_starts_with((string)$added['password'], '$1$')) {
+		ok('client add hashes the password and keeps customer cttype');
+	} else {
+		bad('client add hashes the password and keeps customer cttype');
+	}
+} catch (Throwable $e) {
+	bad('client addform/continueForm/add complete without TypeError', $e->getMessage());
+} finally {
+	if (isset($prevLogin)) {
+		$login = $prevLogin;
+	}
+}
 
 $plansrc = (string)file_get_contents($doc . '/lib/html/resourceplanlib.php');
 $postadd = $plansrc;
@@ -1059,13 +1270,22 @@ try {
 	}
 	$phpUsed = $sw->updateform('php_used', array());
 	$inst = $sw->updateform('multiple_php_install', array());
+	$rmform = $sw->updateform('multiple_php_remove', array());
 	$usedList = $phpUsed['php_used'][1] ?? array();
+	$availType = $inst['multiple_php_install'][0] ?? '';
 	$avail = $inst['multiple_php_install'][1] ?? array();
+	$rmType = $rmform['multiple_php_remove'][0] ?? '';
+	$rmlist = $rmform['multiple_php_remove'][1] ?? array();
+	$availOk = ($availType === 'M' && is_string($avail))
+		|| ($availType === 'U' && is_array($avail) && $avail !== [] && !isset($avail[0]) && !in_array('php52m', $avail, true));
+	$rmOk = ($rmType === 'M' && is_string($rmlist))
+		|| ($rmType === 'U' && is_array($rmlist) && $rmlist !== [] && !isset($rmlist[0]) && !in_array('php52m', $rmlist, true));
 	if ($allForms && is_array($usedList) && $usedList !== [] && !in_array('--PHP Branch--', $usedList, true)
-		&& !in_array('php52m', is_array($avail) ? $avail : array(), true)) {
+		&& $availOk && $rmOk) {
 		ok('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m');
 	} else {
-		bad('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m', $allWhy);
+		bad('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m',
+			$allWhy !== '' ? $allWhy : ('avail=' . $availType . ' remove=' . $rmType));
 	}
 	if ($allForms) {
 		ok('Webserver Configure every section form loads');
@@ -1100,12 +1320,54 @@ $webSync = (string)file_get_contents($doc . '/driver/web/serverweb__lib.php');
 if (!str_contains($webSrc, 'getCleanRpmBranchListOnList')
 	&& !str_contains($webSrc, "exec(\"cat /etc/httpd")
 	&& str_contains($webSrc, 'KloxoPhpver::phpUsedChoices')
+	&& str_contains($webSrc, 'KloxoPhpver::asSelectList')
+	&& str_contains($webSrc, 'KloxoPhpver::removableIds')
+	&& str_contains($webSrc, 'KloxoPhpver::parseRequestedIds')
 	&& str_contains($webSync, '"--select=chown"')
 	&& str_contains($webSync, 'function writeUbuntuApacheOptimize')
-	&& str_contains($webSync, 'function set_php_type_ubuntu')) {
+	&& str_contains($webSync, 'function set_php_type_ubuntu')
+	&& str_contains($webSync, 'function startSitePhpInstall')
+	&& str_contains($webSync, 'KloxoPhpver::parseRequestedIds')
+	&& str_contains($webSync, 'install-site-php')) {
 	ok('Webserver Configure does not parse CentOS php.lst or cat httpd');
 } else {
 	bad('Webserver Configure does not parse CentOS php.lst or cat httpd');
+}
+
+$htmlSrc = (string)file_get_contents($doc . '/theme/htmllib.php');
+$jsSrc = (string)file_get_contents($doc . '/theme/js/lxa.js');
+if (str_contains($htmlSrc, '$v2 = array();')
+	&& str_contains($htmlSrc, "function print_multiselect")
+	&& str_contains($jsSrc, 'function multiSelectCommitForm')
+	&& str_contains($jsSrc, "data.join(',')")
+	&& str_contains($jsSrc, 'multiSelectCommitForm(frmname)')) {
+	ok('Multiple PHP dual-listbox submits selected phpX.Y ids');
+} else {
+	bad('Multiple PHP dual-listbox submits selected phpX.Y ids');
+}
+
+try {
+	global $login;
+	$prevUpd = $login;
+	$login = new Client(null, 'localhost', 'admin');
+	$login->nname = 'admin';
+	$swUpd = new serverweb(null, 'localhost', 'pserver-localhost');
+	$swUpd->nname = 'pserver-localhost';
+	$got = $swUpd->update('multiple_php_install', array('multiple_php_install' => 'php8.5, 8.4,0,php52m'));
+	$emptyErr = '';
+	try {
+		$swUpd->update('multiple_php_install', array('multiple_php_install' => ''));
+	} catch (Throwable $e) {
+		$emptyErr = $e->getMessage();
+	}
+	$login = $prevUpd;
+	if (is_array($got) && ($got['multiple_php_install'] ?? '') === 'php8.5,php8.4' && $emptyErr !== '') {
+		ok('Multiple PHP install POST keeps phpX.Y ids and rejects a blank selection');
+	} else {
+		bad('Multiple PHP install POST keeps phpX.Y ids and rejects a blank selection', $emptyErr);
+	}
+} catch (Throwable $e) {
+	bad('Multiple PHP install POST keeps phpX.Y ids and rejects a blank selection', $e->getMessage());
 }
 
 global $ghtml, $login;

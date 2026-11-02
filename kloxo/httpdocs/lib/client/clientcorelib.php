@@ -775,6 +775,17 @@ abstract class ClientCore extends Resourcecore
 		}
 
 		if ($this->isAdmin()) {
+			$passOk = false;
+			try {
+				if (function_exists('lfile_exists') && lfile_exists('__path_admin_pass')) {
+					$passOk = trim((string) lfile_get_contents('__path_admin_pass')) !== '';
+				}
+			} catch (Throwable $e) {
+				$passOk = false;
+			}
+			if (!$passOk) {
+				return is_array($this->ipaddress_l ?? null) ? $this->ipaddress_l : array();
+			}
 			$iplist = $this->getList('ipaddress');
 
 		//	dprintoa($iplist);
@@ -802,7 +813,7 @@ abstract class ClientCore extends Resourcecore
 
 		$sql = new Sqlite($this->__masterserver, "ipaddress");
 
-		if ($this->listpriv->ipaddress_list)  {
+		if (isset($this->listpriv) && is_object($this->listpriv) && !empty($this->listpriv->ipaddress_list))  {
 			foreach($this->listpriv->ipaddress_list as $ip) {
 				$res = $sql->getRowsWhere("ipaddr = '$ip'", array('syncserver'));
 

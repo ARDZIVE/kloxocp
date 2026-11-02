@@ -27,10 +27,10 @@ prepared (`install-pdns`) but the `pdns` unit stays disabled until selected
 (apt postinst is blocked from starting it).
 Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
 (`install-apache`, PHP-FPM via proxy_fcgi, no mod_php) but `apache2` stays
-disabled until selected. Admin SQL Manager opens phpMyAdmin via panel
-sign-on as MariaDB `root`@`127.0.0.1` (all databases; no password in the URL)
-from the Basic home tile (`kloxo_pma_href` → `/thirdparty/phpMyAdmin/`, not
-mywebsql), not a second Domain tile. Component Info
+disabled until selected. Admin SQL Manager opens the MySQL logon
+(`/thirdparty/phpMyAdmin/kloxo-signon.php`, `target="_blank"`) first;
+Go then redirects into phpMyAdmin as MariaDB `root`@`127.0.0.1` (panel
+admin may leave the password blank). Not mywebsql, not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
 postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim`
@@ -54,7 +54,9 @@ are installed beside it (`install-site-php`, ppa:ondrej/php) and can be
 chosen on Webserver Configure (PHP Used / PHP Branch list php8.3, php7.4,
 php5.6 — not php52m). Webserver Configure section forms (PHP Used/Branch,
 Multiple PHP, PHP Type, Apache optimize, MySQL convert, fix ownership,
-Pagespeed) load without the panel DB; Apache optimize writes
+Pagespeed) load without the panel DB; Multiple PHP Install queues
+`install-site-php` for the selected `phpX.Y` ids so they appear on
+Multiple PHP Remove; Apache optimize writes
 `kloxo-optimize.conf`; PHP Type on Ubuntu is proxy_fcgi + mpm_event/worker;
 fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share the PHP Configure /
 Advanced PHP Configure tabs (`phpini::phpiniPropertyTabs`; extraedit does
@@ -78,12 +80,19 @@ uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.
 Cron Tasks Mail To does not need the C daemon on TCP 7776.
 DNS Template links list `dnstemplate`, not Backup/Restore.
+The DNS Templates list has the add form on that tab; there is no separate
+Add this template tab. Adding a DNS template does not throw `no_ip_address` on an empty IP table
+(live `ip -4 addr` is used), does not run `fixIpAddress.php`, does not
+TypeError on a blank nameserver, and writes default NS/A/MX records into
+`dns_record_a`. Secondary NS is validated separately from primary.
 FTP Configure is `serverftp` under localhost, not Backup FTP Configuration.
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
 Mails Per Client lists under the selected pserver and shows Switch To Another.
 Admin Servers can add a remote host (hostname or IPv4 plus the slave password)
 on the list page; there is no separate Add Server tab. Adding a client does
-not implode() a string (contact email / coma_* lists). Adding a Resource Plan
+not implode() a string (contact email / coma_* lists), does not TypeError
+on a missing plan priv/listpriv or parent quota, and chowns the home to
+www-data on Ubuntu. Adding a Resource Plan
 does not need a DNS template, does not TypeError on a missing listpriv, and
 accepts a display name with spaces (sanitized to a plan id).
 `install.sh --slave` writes `slave-db.db` and starts `kloxo-backend` on TLS 7779

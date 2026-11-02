@@ -229,6 +229,7 @@ function createTextAreaWithLines(id)
 function check_for_needed_variables(frmname)
 {
 	var frm = document.getElementById(frmname);
+	multiSelectCommitForm(frmname);
 
 	for (var i=0; i < frm.elements.length; i++) {
 		var ele = frm.elements[i];
@@ -576,21 +577,79 @@ function multiSelectPopulate(form, variable, box1, box2) {
 
 function createFormVariable(form, variable, box)
 {
+	var field;
+	var i;
+	var data = [];
+	var hid;
 
 	if (typeof box == 'string') {
 		field = document.getElementById(box);
 	} else {
 		field = box;
 	}
-
-	frm=document.forms[form];
-	var data = Array();
-	for(i =0; i< field.length; i++) {
-		data[i] = field.options[i].value;
+	if (!field || !field.options) {
+		return;
 	}
 
-//	eval("frm." + variable + ".value = data;");
-	document.getElementById(variable).value = data;
+	for (i = 0; i < field.options.length; i++) {
+		data[i] = field.options[i].value || field.options[i].text;
+	}
+
+	hid = document.getElementById(variable);
+	if (hid) {
+		hid.value = data.join(',');
+	}
+}
+
+function multiSelectCommitForm(frmname)
+{
+	var frm = document.getElementById(frmname);
+	var i;
+	var n;
+	var hid;
+	var box1;
+	var box2;
+	var opt;
+	var val;
+	var seen;
+	var data;
+	if (!frm || !frm.elements) {
+		return;
+	}
+	for (i = 0; i < frm.elements.length; i++) {
+		hid = frm.elements[i];
+		if (!hid || hid.type !== 'hidden' || !hid.id) {
+			continue;
+		}
+		box2 = document.getElementById('ts_' + hid.id + '2');
+		if (!box2 || !box2.options) {
+			continue;
+		}
+		box1 = document.getElementById('ts_' + hid.id + '1');
+		seen = {};
+		data = [];
+		if (box1 && box1.options) {
+			for (n = 0; n < box1.options.length; n++) {
+				opt = box1.options[n];
+				if (opt.selected) {
+					val = opt.value || opt.text;
+					if (val && !seen[val]) {
+						seen[val] = true;
+						data[data.length] = val;
+					}
+				}
+			}
+		}
+		for (n = 0; n < box2.options.length; n++) {
+			opt = box2.options[n];
+			val = opt.value || opt.text;
+			if (val && !seen[val]) {
+				seen[val] = true;
+				data[data.length] = val;
+			}
+		}
+		hid.value = data.join(',');
+	}
 }
 
 function multiSelectisPresentIn(text, field)

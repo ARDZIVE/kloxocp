@@ -1134,6 +1134,13 @@ function check_disable_admin($cgi_clientname)
 function check_if_many_server()
 {
 	try {
+		$pass = '';
+		if (function_exists('lfile_exists') && lfile_exists('__path_admin_pass')) {
+			$pass = trim((string) lfile_get_contents('__path_admin_pass'));
+		}
+		if ($pass === '') {
+			return false;
+		}
 		$sql = new Sqlite(null, "pserver");
 		$res = $sql->getTable(array('nname'));
 		$rs = get_namelist_from_arraylist($res);
@@ -1550,8 +1557,12 @@ function getFQDNforServer($v)
 
 function getOneIPForServer($v)
 {
-	$sql = new Sqlite(null, "pserver");
-	$ipaddr = $sql->rawQuery("select * from ipaddress where syncserver = '$v'");
+	try {
+		$sql = new Sqlite(null, "ipaddress");
+		$ipaddr = $sql->rawQuery("select * from ipaddress where syncserver = '$v'");
+	} catch (Throwable $e) {
+		$ipaddr = array();
+	}
 	if (!is_array($ipaddr)) {
 		return null;
 	}
@@ -3343,7 +3354,7 @@ function getAdminDbPass()
 	$pass = is_string($pass) ? trim($pass) : '';
 
 	if ($pass === '') {
-		die("Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).");
+		throw new Exception("Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).");
 	}
 
 	return $pass;

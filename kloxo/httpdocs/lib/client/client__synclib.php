@@ -57,16 +57,23 @@ class client__sync extends lxDriverClass {
 		$cmd = "useradd";
 		$shell = fix_disabled("--Disabled--", $sgbl->__var_noaccess_shell);
 		$username = $this->main->getPathFromName();
+		if (!is_string($username) || $username === '') {
+			$username = (string)$this->main->nname;
+		}
 
-		if (is_numeric($username[0])) {
+		if ($username !== '' && is_numeric($username[0])) {
 			$username = "a$username";
 		}
 
 		$username = os_create_system_user($username, $password, $this->main->nname, $shell, "{$spath}/");
 
-//		exec("ln -sf {$tpath}/__backup /home/{$this->main->nname}/__backup");
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		$wgroup = (class_exists('KloxoIpaddr') && KloxoIpaddr::isUbuntu()) ? 'www-data' : 'apache';
+		if (function_exists('posix_getgrnam') && !@posix_getgrnam($wgroup)) {
+			$wgroup = @posix_getgrnam('www-data') ? 'www-data' : (@posix_getgrnam('apache') ? 'apache' : $wgroup);
+		}
 
-		lxfile_unix_chown($spath, "{$username}:apache");
+		lxfile_unix_chown($spath, "{$username}:{$wgroup}");
 		lxfile_unix_chmod($spath, "751");
 
 		lxfile_unix_chmod($tpath, "777");

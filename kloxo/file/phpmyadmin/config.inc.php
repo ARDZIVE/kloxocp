@@ -28,3 +28,13 @@ $cfg['Servers'][$i]['host'] = '127.0.0.1';
 $cfg['Servers'][$i]['compress'] = false;
 $cfg['Servers'][$i]['AllowNoPassword'] = false;
 $cfg['Servers'][$i]['AllowRoot'] = true;
+$pmaSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+	|| ((string)($_SERVER['SERVER_PORT'] ?? '') === '7777');
+$cfg['Servers'][$i]['SignonCookieParams'] = array(
+	'lifetime' => 0,
+	'path' => '/thirdparty/phpMyAdmin/',
+	'domain' => '',
+	'secure' => $pmaSecure,
+	'httponly' => true,
+	'samesite' => 'Lax',
+);

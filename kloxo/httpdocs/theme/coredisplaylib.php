@@ -1367,8 +1367,13 @@ function __ac_desc_continue($object)
 
 	$numvar = $cname . "_num";
 
-	if ($object->isQuotaVariable($numvar)) {
-		if (isQuotaGreaterThan($object->used->$numvar, $object->priv->$numvar)) {
+	if (is_object($object) && method_exists($object, 'ensureAdminResourcePriv')) {
+		$object->ensureAdminResourcePriv();
+	}
+	if (is_object($object) && $object->isQuotaVariable($numvar)
+		&& isset($object->used) && is_object($object->used)
+		&& isset($object->priv) && is_object($object->priv)) {
+		if (isQuotaGreaterThan($object->used->$numvar ?? 0, $object->priv->$numvar ?? 'Unlimited')) {
 			throw new lxException($login->getThrow("quota_exceeded"), '', "{$cname} - {$numvar}");
 		}
 	}
@@ -1377,8 +1382,11 @@ function __ac_desc_continue($object)
 
 	$continueaction = $ghtml->frm_continueaction;
 	$ret = exec_class_method($cname, 'continueForm', $object, $cname, $param, $continueaction);
+	if (!is_array($ret)) {
+		$ret = array('action' => 'add', 'variable' => array(), 'param' => is_array($param) ? $param : array());
+	}
 
-	if ($ret['action'] === 'addnow') {
+	if (($ret['action'] ?? '') === 'addnow') {
 		__ac_desc_add($object, $ret['param']);
 
 		return;
@@ -1480,7 +1488,9 @@ function do_addform($object, $class, $dttype = null, $notitleflag = false)
 	$gbl->setSessionV("lx_add_return_url", "/display.php?" . $ghtml->get_get_from_current_post(null));
 
 	$cdesc = get_description($class);
-	$cdesc = ($dttype) ? $dttype['val'] : $cdesc;
+	if (is_array($dttype) && isset($dttype['val']) && $dttype['val'] !== '') {
+		$cdesc = $dttype['val'];
+	}
 
 	if ($notitleflag) {
 		$title = null;
@@ -1495,8 +1505,8 @@ function do_addform($object, $class, $dttype = null, $notitleflag = false)
 
 	$ret = exec_class_method($class, 'addform', $object, $class, $dttype);
 
-	if ($dttype) {
-		$ret['variable'][$dttype['var']] = array('h', $dttype['val']);
+	if (is_array($dttype) && isset($dttype['var'])) {
+		$ret['variable'][$dttype['var']] = array('h', $dttype['val'] ?? '');
 	}
 
 	$string[] = create_xml($object, $class, $ret);
@@ -1512,9 +1522,10 @@ function do_addform($object, $class, $dttype = null, $notitleflag = false)
 		$post = $vlist['__m_message_post'];
 	}
 
-	$ghtml->print_information('pre', 'addform', $class, $dttype['val'], $pre);
+	$dtval = (is_array($dttype) && isset($dttype['val'])) ? $dttype['val'] : '';
+	$ghtml->print_information('pre', 'addform', $class, $dtval, $pre);
 	$ghtml->xml_print_page($string);
-	$ghtml->print_information('post', 'addform', $class, $dttype['val'], $post);
+	$ghtml->print_information('post', 'addform', $class, $dtval, $post);
 }
 
 function create_xml($object, $stuff, $ret)
