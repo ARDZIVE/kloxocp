@@ -209,7 +209,7 @@ log "Kloxo CP ${KCP_VERSION} install starting $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 log "host=$(hostname -f 2>/dev/null || hostname) os=${os_pretty} profile=${PROFILE}"
 
 apt-get update -y
-apt-get install -y ca-certificates git curl openssl \
+apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
   mariadb-server nginx bind9 iproute2 \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
@@ -235,8 +235,9 @@ fi
 
 if [[ ! -f "$SRC/kloxo/bin/kloxocp" ]]; then
   if [[ -d "$SRC/.git" ]]; then
+    log "updating clone in $SRC"
     git -C "$SRC" fetch --depth 1 origin "$KLOXO_GIT_BRANCH"
-    git -C "$SRC" checkout "$KLOXO_GIT_BRANCH"
+    git -C "$SRC" checkout -B "$KLOXO_GIT_BRANCH" FETCH_HEAD
   else
     mkdir -p "$(dirname "$SRC")"
     if [[ -d "$SRC" && -n "$(ls -A "$SRC" 2>/dev/null)" ]]; then
@@ -247,11 +248,10 @@ if [[ ! -f "$SRC/kloxo/bin/kloxocp" ]]; then
       die "git clone failed from $KLOXO_GIT_URL (check network, or set KLOXO_GIT_TOKEN)"
     fi
   fi
-elif [[ "$UPDATE" -eq 1 && -d "$SRC/.git" ]]; then
+elif [[ -d "$SRC/.git" ]]; then
   log "updating clone in $SRC"
   git -C "$SRC" fetch --depth 1 origin "$KLOXO_GIT_BRANCH"
-  git -C "$SRC" checkout "$KLOXO_GIT_BRANCH"
-  git -C "$SRC" pull --ff-only origin "$KLOXO_GIT_BRANCH" || true
+  git -C "$SRC" checkout -B "$KLOXO_GIT_BRANCH" FETCH_HEAD
 fi
 
 if [[ -d "$SRC/.git" ]]; then
@@ -265,6 +265,19 @@ if [[ -L "$ROOT" || ! -e "$ROOT" ]]; then
   ln -sfn "$SRC/kloxo" "$ROOT"
 elif [[ -d "$ROOT/httpdocs" && -d "$ROOT/bin" ]]; then
   log "using existing program root $ROOT"
+  src_kloxo="$(cd "$SRC/kloxo" && pwd)"
+  root_real="$(cd "$ROOT" && pwd)"
+  if [[ "$root_real" != "$src_kloxo" ]]; then
+    log "syncing program files from $SRC/kloxo to $ROOT"
+    rsync -a --delete \
+      --exclude 'thirdparty/phpMyAdmin/' \
+      --exclude 'login/images/user-logo.png' \
+      "$SRC/kloxo/httpdocs/" "$ROOT/httpdocs/"
+    rsync -a "$SRC/kloxo/bin/" "$ROOT/bin/"
+    rsync -a --exclude 'kloxo-phpcgi.pid' --exclude 'kloxo-phpcgi.sock' \
+      --exclude 'hiawatha.conf' \
+      "$SRC/kloxo/init/" "$ROOT/init/"
+  fi
 else
   die "$ROOT exists and is not a Kloxo program root"
 fi

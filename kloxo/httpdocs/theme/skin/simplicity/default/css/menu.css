@@ -207,6 +207,7 @@
 	width: auto;
 	max-width: none;
 	min-width: 0;
+	order: 2;
 	flex: 1 1 auto;
 	background-color: #16a085;
 	border: 0;

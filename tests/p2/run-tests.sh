@@ -97,6 +97,11 @@ if php "$HERE/test_empty_list.php"; then
 else
   bad "test_empty_list.php"
 fi
+if php "$HERE/test_menu_title.php"; then
+  ok "test_menu_title.php"
+else
+  bad "test_menu_title.php"
+fi
 if sed -n '/final protected function initListIfUndef(/,/^	final function getUrlIdentity(/p' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php" | grep -q 'is_array($this->$list)'; then
   ok "initListIfUndef does not count() a null child list"
 else
@@ -232,6 +237,30 @@ if grep -A 40 'function getTitleOnly' "$ROOT/kloxo/httpdocs/theme/htmllib.php" |
   ok "menu titles and dashboard buttons survive a missing action description"
 else
   bad "menu titles and dashboard buttons survive a missing action description"
+fi
+if grep -q 'initThisObjectRule($parent, $class, $name = null)' "$ROOT/kloxo/httpdocs/driver/pserver/sshclientlib.php" \
+  && grep -q 'initThisObjectRule($parent, $class, $name = null)' "$ROOT/kloxo/httpdocs/driver/pserver/vncviewerlib.php"; then
+  ok "sshclient and vncviewer initThisObjectRule match Lxclass"
+else
+  bad "sshclient and vncviewer initThisObjectRule match Lxclass"
+fi
+if grep -q 'function kloxo_menu_title' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && ! grep -q '$ghtml->getTitleOnly(' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && grep -q 'kloxo_menu_title(' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then
+  ok "simplicity menu titles go through kloxo_menu_title"
+else
+  bad "simplicity menu titles go through kloxo_menu_title"
+fi
+if grep -A 12 'function char_search_beg' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -q '=== null' \
+  && grep -A 20 'function get_real_class_variable' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -q 'ReflectionClass'; then
+  ok "class descriptions do not strpos(null) or eval property names"
+else
+  bad "class descriptions do not strpos(null) or eval property names"
+fi
+if awk '/include_once "\{\$simplicity_topbar_right\}"/ {r=NR} /include_once "\{\$simplicity_menu\}"/ {m=NR} END {exit !(r && m && r<m)}' "$ROOT/kloxo/httpdocs/theme/htmllib.php"; then
+  ok "simplicity Status/Show-Hide/time print before the left menu"
+else
+  bad "simplicity Status/Show-Hide/time print before the left menu"
 fi
 if grep -A 20 '^function check_if_many_server' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'catch (Throwable'; then
   ok "check_if_many_server does not abort the Server menu"

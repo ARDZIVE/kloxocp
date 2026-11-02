@@ -33,8 +33,11 @@ Status, Show/Hide and the clock stay on the top right. Home keeps
 Find / Information / Resource on the left and the dashboard tiles
 on the right.
 First-party `ereg*`/`split`
-and live theme `escape`/`document.all` are gone. Browser login
-against MariaDB is not verified.
+and live theme `escape`/`document.all` are gone. Browser login as
+admin/admin against the live panel succeeded; every page still died
+in the Server menu at the SSH Client title until `kloxo_menu_title`
+and `install.sh` git-pull/rsync. Re-run install after pulling this
+tree, then re-check Home.
 Next: remaining P2 runtime, Debian packaging, or P4 postfix UI. See briefing
 section 7.
 

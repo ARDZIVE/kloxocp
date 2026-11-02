@@ -36,7 +36,7 @@ function showRawPrint($subaction = null)
 	print($v);
 }
 
-static function initThisObjectRule($parent, $class) { return "sshclient"; }
+static function initThisObjectRule($parent, $class, $name = null) { return "sshclient"; }
 
 static function initThisObject($parent, $class, $name = null) { return "sshclient"; }
 

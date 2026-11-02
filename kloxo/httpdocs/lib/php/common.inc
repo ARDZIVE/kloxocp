@@ -21,7 +21,13 @@ function kloxo_autoload($class)
 	}
 
 	if (file_exists(getreal($gl_class_array[$class]))) {
-		include_once $gl_class_array[$class];
+		try {
+			include_once $gl_class_array[$class];
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', "autoload $class: " . $e->getMessage());
+			}
+		}
 		return;
 	}
 

@@ -222,6 +222,19 @@ if grep -q 'kloxo-php-fpm.conf" -t' "$ROOT/install.sh" && grep -q '"$ROOT/sessio
 else
   bad "install.sh tests the FPM pool and creates session dir"
 fi
+if grep -q 'syncing program files' "$ROOT/install.sh" \
+  && grep -q 'rsync -a --delete' "$ROOT/install.sh" \
+  && grep -q 'updating clone in $SRC' "$ROOT/install.sh"; then
+  ok "install.sh pulls git and syncs httpdocs on re-run"
+else
+  bad "install.sh pulls git and syncs httpdocs on re-run"
+fi
+if grep -q 'opcache.validate_timestamps' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && grep -q 'opcache.revalidate_freq' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
+  ok "panel FPM re-reads updated PHP files"
+else
+  bad "panel FPM re-reads updated PHP files"
+fi
 if grep -q 'listen = 127.0.0.1:39000' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
   && grep -q 'ConnectTo = 127.0.0.1:39000' "$ROOT/kloxo/init/hiawatha.conf.base" \
   && grep -q 'systemctl restart kloxo-web' "$ROOT/install.sh"; then

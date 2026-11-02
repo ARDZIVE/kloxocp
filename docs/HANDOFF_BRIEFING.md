@@ -233,7 +233,15 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     clock has a PHP time fallback). Home show is a two-column page
     (Find / Information / Resource on the left, action tiles on the
     right) matching the Kloxo-MR dashboard; a missing `priv` object
-    no longer aborts the Resource table before the tiles. Live browser login is still **UNVERIFIED**.
+    no longer aborts the Resource table before the tiles.
+    Live HTTPS login as admin/admin on 37.59.173.71:7777 succeeded.
+    Every page died in the Server menu at SSH Client because
+    `sshclient::initThisObjectRule` was not compatible with
+    `Lxclass` (PHP 8 fatal on autoload). Menu titles now go through
+    `kloxo_menu_title`; Status/Show-Hide/time print before the left
+    menu; `install.sh` fetches origin and rsyncs a non-symlink
+    `/opt/kloxo`. Re-check the live dashboard after pushing this tree
+    and re-running install.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

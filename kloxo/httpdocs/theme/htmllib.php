@@ -1976,8 +1976,8 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login;
 
-		$variable = strtolower($variable);
-		$class = strtolower($class);
+		$variable = strtolower((string) $variable);
+		$class = strtolower((string) $class);
 
 		$realv = $variable;
 
@@ -3559,7 +3559,7 @@ class HtmlLib
 		if (isset($post['j'])) {
 			$desc = get_classvar_description($post['j']['class']);
 
-			if (csa($desc[0], "N")) {
+			if (is_array($desc) && isset($desc[0]) && csa($desc[0], "N")) {
 				if ($p[$k - 1]['class'] === $post['j']['class']) {
 					$k--;
 				}
@@ -3589,7 +3589,7 @@ class HtmlLib
 		if (isset($post['k'])) {
 			$desc = get_classvar_description($post['k']['class']);
 
-			if (csa($desc[0], "N")) {
+			if (is_array($desc) && isset($desc[0]) && csa($desc[0], "N")) {
 				if ($p[$k - 1]['class'] === $post['k']['class']) {
 					$k--;
 				}
@@ -3618,7 +3618,7 @@ class HtmlLib
 		if (isset($post['l'])) {
 			$desc = get_classvar_description($post['l']['class']);
 
-			if (csa($desc[0], "N")) {
+			if (is_array($desc) && isset($desc[0]) && csa($desc[0], "N")) {
 				if ($p[$k - 1]['class'] === $post['l']['class']) {
 					$k--;
 				}
@@ -9697,17 +9697,6 @@ function uploadAbort(e) { // upload abort
 				log_log("error", "simplicity topbar_left: " . $e->getMessage());
 			}
 			try {
-				include_once "{$simplicity_menu}";
-			} catch (Throwable $e) {
-				log_log("error", "simplicity menu: " . $e->getMessage());
-?>
-			<div class="div_menu">
-				<a href="/display.php?frm_action=show" style="color:#fff;padding:0 8px">Home</a>
-				<a href="javascript:if (confirm('Do You Really Want To Logout?')) { location = '/lib/php/logout.php'; }" style="color:#fff;padding:0 8px">Logout</a>
-			</div>
-<?php
-			}
-			try {
 				include_once "{$simplicity_topbar_right}";
 			} catch (Throwable $e) {
 				log_log("error", "simplicity topbar_right: " . $e->getMessage());
@@ -9717,6 +9706,17 @@ function uploadAbort(e) { // upload abort
 					<a href="#" onClick="toggleVisibilityById('mmm'); return false;"><div id="div_showhide" class="div_header_message">&nbsp;Show/Hide&nbsp;</div></a>
 					<div id="clock_div" class="div_header_message">&nbsp;<?= date('H:i:s') ?>&nbsp;</div>
 				</div>
+<?php
+			}
+			try {
+				include_once "{$simplicity_menu}";
+			} catch (Throwable $e) {
+				log_log("error", "simplicity menu: " . $e->getMessage());
+?>
+			<div class="div_menu">
+				<a href="/display.php?frm_action=show" style="color:#fff;padding:0 8px">Home</a>
+				<a href="javascript:if (confirm('Do You Really Want To Logout?')) { location = '/lib/php/logout.php'; }" style="color:#fff;padding:0 8px">Logout</a>
+			</div>
 <?php
 			}
 ?>

@@ -1243,7 +1243,13 @@ function char_search_a($haystack, $needle, $insensitive = 1)
 	if (is_object($haystack)) {
 		$v = debugBacktrace(true);
 		log_log("error", $v);
+		return false;
 	}
+	if (is_array($haystack)) {
+		return false;
+	}
+	$haystack = (string) $haystack;
+	$needle = (string) $needle;
 	if ($insensitive) {
 		return (false !== stristr($haystack, $needle)) ? true : false;
 	} else {
@@ -1309,8 +1315,13 @@ function csb($haystack, $needle, $insensitive = 1)
 
 function char_search_beg($haystack, $needle, $insensitive = 1)
 {
-	if (is_array($haystack)) {
-		//debugBacktrace();
+	if (is_array($haystack) || is_object($haystack) || $haystack === null) {
+		return false;
+	}
+	$haystack = (string) $haystack;
+	$needle = (string) $needle;
+	if ($needle === '') {
+		return true;
 	}
 	if (strpos($haystack, $needle) === 0) {
 		return true;
@@ -1325,6 +1336,14 @@ function cse($haystack, $needle, $insensitive = 1)
 
 function char_search_end($haystack, $needle, $insensitive = 1)
 {
+	if (is_array($haystack) || is_object($haystack) || $haystack === null) {
+		return false;
+	}
+	$haystack = (string) $haystack;
+	$needle = (string) $needle;
+	if ($needle === '') {
+		return true;
+	}
 	if (strpos($haystack, $needle) === false) {
 		return false;
 	}
@@ -2857,14 +2876,12 @@ function get_classvar_description($class, $var = null)
 	global $g_language_mes;
 
 	//$var = fix_nname_to_be_variable($var);
-	if (csb($var, "__")) {
+	if (!is_string($var) || $var === '') {
+		$dvar = "__desc";
+	} elseif (csb($var, "__")) {
 		$dvar = $var;
 	} else {
-		if ($var) {
-			$dvar = "__desc_$var";
-		} else {
-			$dvar = "__desc";
-		}
+		$dvar = "__desc_$var";
 	}
 
 	$rvar = strfrom($dvar, "__desc_");
@@ -2921,16 +2938,50 @@ function get_real_class_variable($class, $var)
 {
 	//$var = fix_nname_to_be_variable($var);
 	//list($iclass, $mclass, $rclass) = get_composite($class);
-	$rclass = $class;
-	$rclass = ucfirst($rclass);
-
-	if (!class_exists($rclass)) {
-		dprint("$rclass doesn't exist\n");
+	$rclass = is_string($class) ? strtolower($class) : '';
+	if ($rclass === '' || !is_string($var) || $var === '') {
+		return null;
+	}
+	if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $rclass)
+		|| !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $var)) {
 		return null;
 	}
 
-	$variable = "$rclass::\$" . $var;
-	return eval(" if (isset($variable)) { return $variable ; }  ");
+	try {
+		if (!class_exists($rclass)) {
+			dprint("$rclass doesn't exist\n");
+			return null;
+		}
+		$ref = new ReflectionClass($rclass);
+		if (!$ref->hasProperty($var)) {
+			return null;
+		}
+		$prop = $ref->getProperty($var);
+		if (!$prop->isStatic()) {
+			return null;
+		}
+		return $prop->getValue();
+	} catch (Throwable $e) {
+		return null;
+	}
+}
+
+function kloxo_menu_title($url)
+{
+	global $ghtml;
+
+	$fallback = is_string($url) ? $url : 'Item';
+	try {
+		if (isset($ghtml) && is_object($ghtml) && method_exists($ghtml, 'getTitleOnly')) {
+			$t = $ghtml->getTitleOnly($url);
+			if (is_string($t) && $t !== '') {
+				return $t;
+			}
+		}
+	} catch (Throwable $e) {
+		log_log('error', 'menu title: ' . $e->getMessage());
+	}
+	return $fallback;
 }
 
 function get_class_variable($class, $var)
