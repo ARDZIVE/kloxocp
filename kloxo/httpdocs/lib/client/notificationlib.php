@@ -34,6 +34,14 @@ class Notification  extends LxspecialClass
 
 	static $__acdesc_update_update =  array("", "", "configure_notification");
 
+	static function defaultWelcomeMessage()
+	{
+		return "Thank you for choosing our service to meet your web hosting needs.\n\n"
+			. "Your account has been created with the following details:\n\n"
+			. "Username: %name%\n"
+			. "Password: %password%\n";
+	}
+
 	function postUpdate()
 	{
 		// We need to write because reads everything from the database.
@@ -73,6 +81,10 @@ class Notification  extends LxspecialClass
 
 		$vlist['fromaddress'] = null;
 		$vlist['text_newsubject'] = null;
+		$cur = isset($this->text_newaccountmessage) ? (string) $this->text_newaccountmessage : '';
+		if (trim($cur) === '') {
+			$this->text_newaccountmessage = self::defaultWelcomeMessage();
+		}
 		$vlist['text_newaccountmessage'] = null;
 
 		return $vlist;

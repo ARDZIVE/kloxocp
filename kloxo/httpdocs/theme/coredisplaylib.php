@@ -694,6 +694,13 @@ function kloxo_print_object_property_tabs($object)
 			: array('a=show', 'a=updateform&sa=extraedit');
 	}
 
+	$sa = (is_object($ghtml) && is_string($ghtml->frm_subaction)) ? $ghtml->frm_subaction : '';
+	if ($class === 'pserver' && ($sa === 'reboot' || $sa === 'poweroff')
+		&& $prlist['property'] === array()
+		&& class_exists('pserver') && is_callable(array('pserver', 'rebootPropertyTabs'))) {
+		$prlist['property'] = pserver::rebootPropertyTabs();
+	}
+
 	if (!$prlist['property'] && $class !== 'phpini') {
 		$parent = (is_object($object) && method_exists($object, 'getParentO'))
 			? $object->getParentO() : null;
@@ -2398,18 +2405,18 @@ function do_display_init()
 
 		print_warning();
 		password_contact_check();
-	} catch (Exception $e) {
+	} catch (Throwable $e) {
 		log_log("redirect_error", "exception");
 		$gbl->setSessionV('__tmp_redirect_var', $ghtml->__http_vars);
 		$gbl->c_session->write();
 
-		if (is_array($e->variable)) {
-			$evlist = implode(",", $e->variable);
-		} else {
-			$evlist = $e->variable;
+		$evlist = '';
+		if (is_object($e) && isset($e->variable)) {
+			$evlist = is_array($e->variable) ? implode(",", $e->variable) : $e->variable;
 		}
+		$eval = (is_object($e) && isset($e->value)) ? $e->value : null;
 
-		$ghtml->print_redirect_back($e->getMessage(), $evlist, $e->value);
+		$ghtml->print_redirect_back($e->getMessage(), $evlist, $eval);
 
 		exit;
 	}
@@ -2545,18 +2552,18 @@ function lx_frm_inc()
 		}
 
 		$gbl->unsetSessionV('__tmp_redirect_var');
-	} catch (Exception $e) {
+	} catch (Throwable $e) {
 		log_log("redirect_error", "exception");
 		$gbl->setSessionV('__tmp_redirect_var', $ghtml->__http_vars);
 		$gbl->c_session->write();
 
-		if (is_array($e->variable)) {
-			$evlist = implode(",", $e->variable);
-		} else {
-			$evlist = $e->variable;
+		$evlist = '';
+		if (is_object($e) && isset($e->variable)) {
+			$evlist = is_array($e->variable) ? implode(",", $e->variable) : $e->variable;
 		}
+		$eval = (is_object($e) && isset($e->value)) ? $e->value : null;
 
-		$ghtml->print_redirect_back($e->getMessage(), $evlist, $e->value);
+		$ghtml->print_redirect_back($e->getMessage(), $evlist, $eval);
 
 		exit;
 	}

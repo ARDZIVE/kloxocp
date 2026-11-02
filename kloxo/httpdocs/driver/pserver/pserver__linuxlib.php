@@ -2,14 +2,85 @@
 
 class pserver__Linux extends lxDriverClass
 {
+	static function powerCommandArgs($action)
+	{
+		$act = ($action === 'poweroff') ? 'poweroff' : 'reboot';
+		$cmds = array(
+			array('/bin/systemctl', '--no-block', $act),
+			array('/usr/bin/systemctl', '--no-block', $act),
+			array('/sbin/' . $act),
+			array('/usr/sbin/' . $act),
+		);
+		foreach ($cmds as $args) {
+			if (is_string($args[0]) && is_executable($args[0])) {
+				return $args;
+			}
+		}
+
+		return null;
+	}
+
+	function runPowerCommand($action)
+	{
+		global $login;
+
+		$act = ($action === 'poweroff') ? 'poweroff' : 'reboot';
+		$args = self::powerCommandArgs($act);
+		if (!is_array($args) || !isset($args[0])) {
+			$msg = (is_object($login) && method_exists($login, 'getThrow'))
+				? $login->getThrow('could_not_execute_reboot')
+				: 'Could not execute reboot/poweroff (systemctl not found)';
+			throw new lxException($msg, '', $act);
+		}
+
+		if (function_exists('os_set_path')) {
+			os_set_path();
+		}
+
+		try {
+			$p = @proc_open($args, array(
+				0 => array('file', '/dev/null', 'r'),
+				1 => array('pipe', 'w'),
+				2 => array('pipe', 'w'),
+			), $pipes);
+		} catch (Throwable $e) {
+			log_log('error', "power {$act}: " . $e->getMessage());
+			$msg = (is_object($login) && method_exists($login, 'getThrow'))
+				? $login->getThrow('could_not_execute_reboot')
+				: $e->getMessage();
+			throw new lxException($msg, '', $act);
+		}
+
+		if ($p === false) {
+			$msg = (is_object($login) && method_exists($login, 'getThrow'))
+				? $login->getThrow('could_not_execute_reboot')
+				: 'Could not execute reboot/poweroff';
+			throw new lxException($msg, '', $act);
+		}
+
+		if (isset($pipes[1])) {
+			stream_get_contents($pipes[1]);
+			fclose($pipes[1]);
+		}
+		$err = '';
+		if (isset($pipes[2])) {
+			$err = stream_get_contents($pipes[2]);
+			fclose($pipes[2]);
+		}
+		$code = proc_close($p);
+		if ($code !== 0 && is_string($err) && $err !== '') {
+			log_log('error', "power {$act}: {$err}");
+		}
+	}
+
 	function poweroff()
 	{
-		system("poweroff");
+		$this->runPowerCommand('poweroff');
 	}
 
 	function reboot()
 	{
-		system("reboot");
+		$this->runPowerCommand('reboot');
 	}
 
 	static function mysqlPasswordReset($pass)

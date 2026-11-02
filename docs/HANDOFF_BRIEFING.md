@@ -127,7 +127,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     urlrewrite examples still fail). `__autoload` replaced by `spl_autoload_register`
     (`kloxo_autoload`). Boot-path `ereg*` in `includecore.php` replaced. `csb()` no longer
     throws `ArgumentCountError`. Core `Sqlite` class already used mysqli/PDO (upstream).
-    Tests: `tests/p2/`.
+    Tests: `tests/p2/`. `getAdminDbPass` throws `lxException`; callers wrap a
+    missing `kloxo.pass`.
 13. **P2 boot slice:** `include.php` loads on PHP 8 without throwing (`tests/p2/test_boot.php`).
     Program root is derived from the tree / `KLOXO_ROOT` (not a missing `/opt/kloxo`).
     PHP binary is distro `php` (`kloxo_php_binary()`, `init/php-cli.sh`). Login page files
@@ -179,8 +180,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) reads the local
-    `kloxoversion` (no `yum`); `exec_class_method` no longer TypeErrors on a
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026110201**
+    (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
+    it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
     `bin/update.php` (`kloxocp update` is still not built). Autoload loads
     `*_none` drivers (`dns__none`, `web__none`); Switch Program no longer
@@ -233,7 +235,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `Type=notify` (falls back to `Type=simple`), and `php-fpm -t`
     before enable. A successful install prints a boxed login message
     (URL, admin/admin, change password, firewall 7777). The README
-    one-liner clones if `/usr/local/src/kloxo-cp` is missing, or
+    one-liner downloads `install.sh` from GitHub `main` to `/tmp`, then
+    that script clones if `/usr/local/src/kloxo-cp` is missing, or
     fetches `origin/main` and `reset --hard` when that clone already exists.
     Hiawatha 12.4 needs a writable work dir (`/opt/kloxo/var/hiawatha`
     for new builds; also `/usr/local/var/lib/hiawatha/upload` for the
@@ -376,7 +379,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `count()` a missing `dirindexlist_a`.     Cron Tasks Mail To no
     longer throws `No socket connect to server [localhost]`.
     Home dashboard tiles match Kloxo-MR (90×90 cell, 32px icon
-    in a 40px slot, 50px 8pt caption, 3px tile margin).
+    in a 40px slot, 50px 9pt caption, 3px tile margin).
     The LxGuard-not-configured alert [here] link is converted
     before URL-encoding and opens `pserver` / localhost / `lxguard`.
     Admin Domains (`a=list&c=domain`) shows the Kloxo-MR add form
@@ -409,7 +412,6 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
 
 * Internal `lx*` identifiers (`lxclass`, `lxlib`, `lxshell_*`, DB tables `lxguard*`, column `ser_lxadminconfig_b`, program name `lxlabsclient`). The DB stores PHP-serialized data; renames need tests first.
 * The service account **`lxlabs`** (system user/group) and DB replication user `lxlabsslave`. Some code uses the literal as a user name; a blind rename broke things in an early attempt. Plan: introduce one constant for the service account, then rename.
-* `kloxo/bin/kloxoversion` (`7.0.0.c-2019072201`): version parsers expect that format.
 * Legacy installer and RPM/yum logic in `install/` and parts of `pscript/`.
 * Copyright/authorship lines (AGPL requirement).
 
@@ -441,7 +443,7 @@ Full detail: `docs/MAIL_DESIGN.md`. Essentials:
 * **Data:** dedicated DB (default `kloxo_mail`): `domains`, `mailboxes` (Argon2id `{ARGON2ID}` hashes), `aliases` + `alias_targets` (forwarders, catch-all `@domain`). Schema: `kloxo/file/mail/schema.sql`.
 * **Tool:** `kloxo/bin/mail/kloxo-mail` (commands: `init`, `domain:*`, `mailbox:*`, `alias:*`, `dkim:*`, `dns:records`, `render`, `apply`, `check`). Config in `/etc/kloxo/mail.ini` (0600; override with `KLOXO_MAIL_CONF`). Templates located via `KLOXO_MAIL_TEMPLATES` or `kloxo/file/mail`.
 * **Templates:** `kloxo/file/mail/{exim,dovecot,rspamd,sieve,fail2ban}`. Placeholders `@@NAME@@`. Generated files must not be edited by hand; user customisations go in `/etc/kloxo/mail.d/{exim4.conf,dovecot.conf}` (Exim snippet is inserted into the main section).
-* **`apply`:** render to temp, back up (`/var/backups/kloxo-mail/<stamp>`), install, validate with `exim -C /etc/exim4/exim4.conf -bV`, `doveconf -n`, `rspamadm configtest`, `sievec`, and a mail-database probe, reload via `systemctl reload-or-restart`, **roll back** on any failure. `--root=DIR` installs below a fake root (tests); `--no-reload` for containers.
+* **`apply`:** render to temp, back up (`/var/backups/kloxo-mail/<stamp>`), install, validate with `exim -C /etc/exim4/exim4.conf -bV`, `doveconf -n`, `rspamadm configtest`, `sievec`, and a mail-database probe, reload via `systemctl reload-or-restart`, **roll back** on any failure. A missing Exim/Dovecot/Rspamd binary fails validation (no silent skip). `--root=DIR` installs below a fake root (tests); `--no-reload` for containers.
 * **Design rules that must not regress:** TLS required for logins; Argon2id; submission requires SASL and sender must match the authenticated login; unknown recipients rejected at SMTP time; quota check (`quota-status`) placed **before** the local-network permit; catch-all router runs after mailbox so it cannot swallow a real account; Rspamd failure tempfails (no `defer_ok`); DKIM driven by generated maps (`/etc/rspamd/kloxo/dkim_{selectors,paths}.map`, this Rspamd version signs nothing without them); Dovecot auth cache flushed by the tool on every password/quota/enable change; `listen = *` when the kernel has no IPv6.
 
 ### Verified (in a scratch container, localhost only, no systemd, no IPv6, no internet)
@@ -508,6 +510,17 @@ Work in this order. Keep every change small, tested and committed separately. Do
    login after re-install is **UNVERIFIED**. Remaining
    compile failures are third-party (`webdisk/PEAR*`, formmail,
    urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
+   `getAdminDbPass` throws `lxException` (not generic `Exception`);
+   `Sqlite::connect`, `do_remote_exec`, `kloxo_import_sql_file`, and
+   `changeSuperAdminPass` wrap a missing `kloxo.pass`. Live panel with a
+   missing pass file is **UNVERIFIED**.    Admin reboot/poweroff uses
+   `systemctl --no-block` (full path) instead of `system("reboot")`.
+   Reboot/Poweroff content tabs use capitalized labels (`pserver::rebootPropertyTabs`).
+   Switch Program content tab is labelled **Switch Program**.
+   Live reboot from the UI is **UNVERIFIED**. Notification Welcome Message
+   For New Accounts defaults to the %name%/%password% hosting welcome text
+   (`Notification::defaultWelcomeMessage`, `file/welcome.txt`). Live
+   notification page after re-install is **UNVERIFIED**.
 
 ### P3: installer, packaging, updater (phase 1d)
 1. **DONE: CLI skeleton.** `kloxo/bin/kloxocp` implements `help`, `version`, `status`,
@@ -521,7 +534,8 @@ Work in this order. Keep every change small, tested and committed separately. Do
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
    and `kloxo-backend`. `--slave` writes `etc/conf/slave-db.db` (`init-slave`)
    and skips the panel UI. Default login is admin/admin with a forced password
-   change after first login. One-liner is in `README.md`. **UNVERIFIED on a
+   change after first login. One-liner in `README.md` downloads `install.sh`
+   from GitHub `main` then runs it. **UNVERIFIED on a
    real Ubuntu VM.** Does not add a signed apt repo. Live two-host add is
    **UNVERIFIED**.
 3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →

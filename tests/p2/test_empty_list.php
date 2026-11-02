@@ -219,5 +219,40 @@ try {
 	bad('getActionDescr labels a pserver list button', $e->getMessage());
 }
 
+$oldPassPath = (isset($sgbl) && is_object($sgbl) && isset($sgbl->__path_admin_pass))
+	? $sgbl->__path_admin_pass : '';
+$sgbl->__path_admin_pass = sys_get_temp_dir() . '/kloxo-missing-' . uniqid('', true) . '.pass';
+try {
+	getAdminDbPass();
+	bad('getAdminDbPass throws lxException when kloxo.pass is missing', 'no throw');
+} catch (lxException $e) {
+	$msg = $e->getMessage();
+	if (is_string($msg) && strpos($msg, 'kloxo.pass') !== false) {
+		ok('getAdminDbPass throws lxException when kloxo.pass is missing');
+	} else {
+		bad('getAdminDbPass throws lxException when kloxo.pass is missing', $msg);
+	}
+} catch (Throwable $e) {
+	bad('getAdminDbPass throws lxException when kloxo.pass is missing', get_class($e) . ': ' . $e->getMessage());
+}
+
+$tmpSql = tempnam(sys_get_temp_dir(), 'kloxo-sql-');
+file_put_contents($tmpSql, "SELECT 1;\n");
+try {
+	ob_start();
+	$imported = kloxo_import_sql_file($tmpSql);
+	ob_end_clean();
+	if ($imported === false) {
+		ok('kloxo_import_sql_file returns false when kloxo.pass is missing');
+	} else {
+		bad('kloxo_import_sql_file returns false when kloxo.pass is missing', var_export($imported, true));
+	}
+} catch (Throwable $e) {
+	ob_end_clean();
+	bad('kloxo_import_sql_file returns false when kloxo.pass is missing', get_class($e) . ': ' . $e->getMessage());
+}
+@unlink($tmpSql);
+$sgbl->__path_admin_pass = $oldPassPath;
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

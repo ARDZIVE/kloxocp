@@ -945,6 +945,8 @@ $__description["cron_mail"] = array("Cron Mail");
 $__description["db_admin"] = array("DB Admin");
 $__description["reboot"] = array("Reboot");
 $__description["poweroff"] = array("Poweroff");
+$__description["Reboot"] = array("Reboot");
+$__description["Poweroff"] = array("Poweroff");
 $__description["re_read_ipaddress"] = array("Re Read IPaddress");
 $__description["re_load_driver_info"] = array("Re Load Driver Info");
 $__description["mysql_password_reset"] = array("MySQL Password Reset");
@@ -960,6 +962,7 @@ $__description["pop3_driver"] = array("Pop3/Imap4");
 $__description["smtp_driver"] = array("Smtp/Submission");
 
 $__description["switch_program"] = array("Switch Program");
+$__description["Switch Program"] = array("Switch Program");
 
 $__description["delete"] = array("Delete");
 $__description["flush"] = array("Flush");

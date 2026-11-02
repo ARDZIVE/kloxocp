@@ -10,16 +10,14 @@ Public git remote: https://github.com/ARDZIVE/kloxocp.git (`main`).
 
 | What | Value |
 |---|---|
-| **Kloxo CP** (this fork) | **0.1.0-dev** |
-| Legacy `kloxo/bin/kloxoversion` | **7.0.0.c-2019072201** |
+| **Kloxo CP** (this fork) | **10.1-2026110201** |
+| `kloxo/bin/kloxoversion` | **10.1-2026110201** |
 | Upstream base | Kloxo-MR `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` |
 
-`php kloxo/bin/kloxocp version` prints the fork version (`0.1.0-dev`). The panel UI
-and legacy parsers still read `kloxo/bin/kloxoversion` (`7.0.0.c-2019072201`); that
-file is **not** rewritten, because existing version parsers expect that format. A
-single Kloxo CP version scheme comes with packaging (not built yet).
+`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110201**.
+The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
-> **Status: 0.1.0-dev, NOT FOR PRODUCTION.**
+> **Status: 10.1-2026110201, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. Phase-1a security items (C1–C5) are
 > closed, first-party PHP parses and loads on PHP 8, and `install.sh` can
 > bootstrap a panel, but the legacy PHP is still PHP 5-era in behaviour.
@@ -65,22 +63,30 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 ## Installation
 
-**Ubuntu 24.04 or 26.x, one line (as root).** Clones
-https://github.com/ARDZIVE/kloxocp.git (public, branch `main`) if needed,
-or fetches `origin/main` and hard-resets the clone when it already exists,
-then runs `install.sh`. Safe to repeat after a failed install or to pick
-up GitHub `main` (local edits in `/usr/local/src/kloxo-cp` are discarded):
+**Ubuntu 24.04 or 26.x, one line (as root).** Downloads the current
+`install.sh` from GitHub `main` (https://github.com/ARDZIVE/kloxocp) and
+runs it. That script clones the tree if needed, or fetches `origin/main`
+and hard-resets when `/usr/local/src/kloxo-cp` is already a git clone.
+Safe to repeat after a failed install or to pick up GitHub `main`
+(local edits in that clone are discarded):
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -f -B main FETCH_HEAD && git -C /usr/local/src/kloxo-cp reset --hard FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+```
+
+A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
+or disk floor, add `--force` at the end:
+
+```
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
-The line above is the supported form. Do not run this on a machine that
-already has cPanel, Plesk, or ISPConfig. It installs whatever is on GitHub
-`main`. To install this working tree instead, copy it to the server
-**without** `.git` and run `sudo bash install.sh` from that directory
-(a git clone is reset to GitHub `main`).
+The lines above write the script to `/tmp` first. Do not run this on a
+machine that already has cPanel, Plesk, or ISPConfig. It installs
+whatever is on GitHub `main`. To install this working tree instead, copy
+it to the server **without** `.git` and run `sudo bash install.sh` from
+that directory (a git clone is reset to GitHub `main`).
 
 When it finishes, the installer prints a box with the panel URL
 (`https://<ip>:7777/`), username `admin`, and password `admin`. Accept the
@@ -166,10 +172,11 @@ sudo bash install.sh --slave --slave-password=SECRET   # second machine; no pane
 | `KLOXO_ROOT` | Program root override used by tools and tests |
 | `KLOXO_PHP` | PHP binary override (default `/usr/bin/php`) |
 
-The one-liner above **fetches `origin/main` and `reset --hard`** when
-`/usr/local/src/kloxo-cp` is already a git clone, then runs that updated
-`install.sh`. You do not need `--update` or `rm -rf` for a normal refresh.
-Remove the directory only if it is corrupt or is not a git clone:
+The one-liner above always downloads a fresh `install.sh` from GitHub
+`main`. That script then **fetches `origin/main` and `reset --hard`** when
+`/usr/local/src/kloxo-cp` is already a git clone. You do not need
+`--update` or `rm -rf` for a normal refresh. Remove the directory only if
+it is corrupt or is not a git clone:
 
 ```
 sudo rm -rf /usr/local/src/kloxo-cp
@@ -527,10 +534,10 @@ sha256sum -c install.sh.sha256
 sudo bash install.sh
 ```
 
-`install.sh` bootstraps from git (see the one-liner above). The signed apt repo,
-Debian packages, and `kloxocp update` are specified in
-`docs/INSTALL_AND_UPDATE_DESIGN.md` and are not built. `kloxocp.invalid` is a
-placeholder, not a download host.
+`install.sh` bootstraps from git (see the one-liner above). There is no
+published checksum yet. The signed apt repo, Debian packages, and
+`kloxocp update` are specified in `docs/INSTALL_AND_UPDATE_DESIGN.md` and
+are not built. `kloxocp.invalid` is a placeholder, not a download host.
 
 ## Layout
 

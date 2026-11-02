@@ -122,6 +122,88 @@ if (Service::canGetSingle()
 		$svcObjErr !== '' ? $svcObjErr : (is_string($svcListErr) ? $svcListErr : ''));
 }
 
+$psSrc = (string) file_get_contents($doc . '/driver/pserver/pserver__linuxlib.php');
+$rebootArgs = pserver__Linux::powerCommandArgs('reboot');
+$powerArgs = pserver__Linux::powerCommandArgs('poweroff');
+$rebootOk = !str_contains($psSrc, 'system("reboot")')
+	&& !str_contains($psSrc, 'system("poweroff")')
+	&& str_contains($psSrc, "'/usr/bin/systemctl'")
+	&& str_contains($psSrc, "'--no-block'")
+	&& ($rebootArgs === null || (is_array($rebootArgs) && isset($rebootArgs[0]) && str_starts_with((string) $rebootArgs[0], '/')))
+	&& ($powerArgs === null || (is_array($powerArgs) && isset($powerArgs[0]) && str_starts_with((string) $powerArgs[0], '/')));
+if ($rebootOk) {
+	ok('Reboot/poweroff use systemctl or /sbin binaries');
+} else {
+	bad('Reboot/poweroff use systemctl or /sbin binaries',
+		'reboot=' . var_export($rebootArgs, true) . ' poweroff=' . var_export($powerArgs, true));
+}
+
+global $ghtml;
+$prevHtml = $ghtml;
+$ghtml = new HtmlLib();
+$ghtml->frm_subaction = 'reboot';
+$ghtml->frm_o_o = array(array('class' => 'pserver', 'nname' => 'localhost'));
+$psTabs = new pserver(null, 'localhost', 'localhost');
+$psTabs->nname = 'localhost';
+$rebootTabs = array('property' => array());
+$psTabs->createShowPropertyList($rebootTabs);
+$ghtml->frm_subaction = 'poweroff';
+$powerTabs = array('property' => array());
+$psTabs->createShowPropertyList($powerTabs);
+$sharedReboot = pserver::rebootPropertyTabs();
+$rebootTitle = get_classvar_description('pserver', '__acdesc_update_reboot');
+$powerTitle = get_classvar_description('pserver', '__acdesc_update_poweroff');
+$rebootOnly = $ghtml->getTitleOnly('a=updateform&sa=reboot');
+$powerOnly = $ghtml->getTitleOnly('a=updateform&sa=poweroff');
+$ghtml = $prevHtml;
+$tabSrc = (string) file_get_contents($doc . '/theme/tab_simplicity.php');
+$psLibSrc = (string) file_get_contents($doc . '/driver/pserver/pserverlib.php');
+$coreSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$rebootTabsOk = is_array($sharedReboot)
+	&& $sharedReboot === array('a=updateform&sa=reboot', 'a=updateform&sa=poweroff')
+	&& ($rebootTabs['property'] ?? null) === $sharedReboot
+	&& ($powerTabs['property'] ?? null) === $sharedReboot
+	&& is_array($rebootTitle) && ($rebootTitle[2] ?? '') === 'Reboot'
+	&& is_array($powerTitle) && ($powerTitle[2] ?? '') === 'Poweroff'
+	&& $rebootOnly === 'Reboot'
+	&& $powerOnly === 'Poweroff'
+	&& str_contains($psLibSrc, 'function rebootPropertyTabs')
+	&& str_contains($coreSrc, 'rebootPropertyTabs')
+	&& str_contains($tabSrc, "\$str = 'Reboot'")
+	&& str_contains($tabSrc, "\$str = 'Poweroff'");
+if ($rebootTabsOk) {
+	ok('Reboot page tabs are labelled Reboot and Poweroff');
+} else {
+	bad('Reboot page tabs are labelled Reboot and Poweroff',
+		'tabs=' . implode(',', (array) ($rebootTabs['property'] ?? array()))
+			. ' rebootTitle=' . (is_array($rebootTitle) ? (string) ($rebootTitle[2] ?? '') : 'none')
+			. ' powerTitle=' . (is_array($powerTitle) ? (string) ($powerTitle[2] ?? '') : 'none')
+			. ' rebootOnly=' . (string) $rebootOnly
+			. ' powerOnly=' . (string) $powerOnly);
+}
+
+global $ghtml;
+$prevHtml2 = $ghtml;
+$ghtml = new HtmlLib();
+$ghtml->frm_subaction = 'switchprogram';
+$ghtml->frm_o_o = array(array('class' => 'pserver', 'nname' => 'localhost'));
+$swTabs = array('property' => array());
+$psTabs->createShowPropertyList($swTabs);
+$swTitle = get_classvar_description('pserver', '__acdesc_update_switchprogram');
+$swOnly = $ghtml->getTitleOnly('a=updateform&sa=switchprogram');
+$ghtml = $prevHtml2;
+if (($swTabs['property'] ?? null) === array('a=updateform&sa=switchprogram')
+	&& is_array($swTitle) && ($swTitle[2] ?? '') === 'Switch Program'
+	&& $swOnly === 'Switch Program'
+	&& str_contains($tabSrc, "\$str = 'Switch Program'")) {
+	ok('Switch Program page tab is labelled Switch Program');
+} else {
+	bad('Switch Program page tab is labelled Switch Program',
+		'tabs=' . implode(',', (array) ($swTabs['property'] ?? array()))
+			. ' title=' . (is_array($swTitle) ? (string) ($swTitle[2] ?? '') : 'none')
+			. ' only=' . (string) $swOnly);
+}
+
 if (class_exists('Component__deb')) {
 	ok('Component__deb class loads');
 } else {
@@ -272,6 +354,45 @@ if (function_exists('kloxo_skip_find_class')
 	ok('LxGuard, HelpDesk ticket and Notification pages skip the Find input');
 } else {
 	bad('LxGuard, HelpDesk ticket and Notification pages skip the Find input');
+}
+
+$welcomeDefault = Notification::defaultWelcomeMessage();
+$welcomeFile = (string) file_get_contents($root . '/file/welcome.txt');
+$prevLoginN = isset($login) ? $login : null;
+$login = new Client(null, 'localhost', 'admin');
+$login->nname = 'admin';
+$login->cttype = 'admin';
+$note = new Notification(null, 'localhost', 'client-admin');
+$note->nname = 'client-admin';
+$note->text_newaccountmessage = '';
+$note->__parent_o = $login;
+$noteForm = null;
+$noteFormErr = '';
+try {
+	$noteForm = $note->updateform('update', array());
+} catch (Throwable $e) {
+	$noteFormErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
+$login = $prevLoginN;
+$lxSrc = (string) file_get_contents($doc . '/lib/client/lxclient.php');
+$welcomeOk = is_string($welcomeDefault)
+	&& str_contains($welcomeDefault, 'Username: %name%')
+	&& str_contains($welcomeDefault, 'Password: %password%')
+	&& str_contains($welcomeDefault, 'Thank you for choosing our service')
+	&& trim($welcomeFile) === trim($welcomeDefault)
+	&& is_array($noteForm)
+	&& array_key_exists('text_newaccountmessage', $noteForm)
+	&& ($note->text_newaccountmessage ?? '') === $welcomeDefault
+	&& $noteFormErr === ''
+	&& str_contains($lxSrc, "str_replace(")
+	&& str_contains($lxSrc, "'%name%'");
+if ($welcomeOk) {
+	ok('Notification Welcome Message For New Accounts defaults to %name%/%password% text');
+} else {
+	bad('Notification Welcome Message For New Accounts defaults to %name%/%password% text',
+		$noteFormErr !== '' ? $noteFormErr
+			: ('form=' . implode(',', is_array($noteForm) ? array_keys($noteForm) : array())
+				. ' msg=' . substr((string) ($note->text_newaccountmessage ?? ''), 0, 80)));
 }
 
 $clsrc = (string)file_get_contents($doc . '/lib/client/clientlib.php');

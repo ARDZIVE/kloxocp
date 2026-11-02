@@ -117,6 +117,11 @@ class lxException extends Exception
 		if (is_array($message)) {
 			$message = $message[0];
 		}
+		if (!is_string($message)) {
+			$message = $message === null ? '' : (string)$message;
+		}
+
+		parent::__construct($message);
 
 		$this->message = $message;
 		$this->variable = $variable;
@@ -3611,7 +3616,12 @@ function kloxo_import_sql_file($path)
 
 	$user = $sgbl->__var_admin_user;
 	$db = $sgbl->__var_dbf;
-	$pass = getAdminDbPass();
+	try {
+		$pass = getAdminDbPass();
+	} catch (Throwable $e) {
+		print($e->getMessage() . "\n");
+		return false;
+	}
 	$mysqli = new mysqli('localhost', $user, $pass, $db);
 
 	if ($mysqli->connect_error) {

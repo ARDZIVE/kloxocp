@@ -95,18 +95,19 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -f -B main FETCH_HEAD && git -C /usr/local/src/kloxo-cp reset --hard FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'"
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'"
 if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
   ok "README and install.sh share the same one-liner"
 else
   bad "README and install.sh share the same one-liner"
 fi
-if echo "$ONELINER" | grep -q 'git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main' \
-  && echo "$ONELINER" | grep -q 'reset --hard FETCH_HEAD' \
-  && echo "$ONELINER" | grep -q 'git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp'; then
-  ok "one-liner fetches an existing clone then runs install.sh"
+if echo "$ONELINER" | grep -q 'curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh' \
+  && echo "$ONELINER" | grep -q '/tmp/kloxocp-install.sh' \
+  && echo "$ONELINER" | grep -q 'bash /tmp/kloxocp-install.sh' \
+  && ! echo "$ONELINER" | grep -q 'curl | bash'; then
+  ok "one-liner downloads install.sh then runs the file"
 else
-  bad "one-liner fetches an existing clone then runs install.sh"
+  bad "one-liner downloads install.sh then runs the file"
 fi
 if grep -q 'print_access_box' "$ROOT/install.sh" && grep -q 'Username' "$ROOT/install.sh" && grep -q 'first login' "$ROOT/install.sh"; then
   ok "installer prints a login access box"
@@ -430,6 +431,15 @@ if grep -q 'function seedHelpdesk' "$ROOT/kloxo/bin/install/init-panel-db" \
   ok "init-panel-db seeds Welcome HelpDesk ticket and category"
 else
   bad "init-panel-db seeds Welcome HelpDesk ticket and category"
+fi
+if grep -q 'function seedNotification' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "Username: %name%" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "Password: %password%" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "Username: %name%" "$ROOT/kloxo/file/welcome.txt" \
+  && grep -q "Password: %password%" "$ROOT/kloxo/file/welcome.txt"; then
+  ok "init-panel-db seeds Notification welcome message with %name%/%password%"
+else
+  bad "init-panel-db seeds Notification welcome message with %name%/%password%"
 fi
 if grep -q 'function seedWatchdog' "$ROOT/kloxo/bin/install/init-panel-db" \
   && grep -q 'function watchdogDefaults' "$ROOT/kloxo/bin/install/init-panel-db" \

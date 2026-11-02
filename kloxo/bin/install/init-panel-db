@@ -284,6 +284,7 @@ TXT;
         $this->seedAdminPriv($pdo);
         $this->seedGeneral($pdo);
         $this->seedHelpdesk($pdo);
+        $this->seedNotification($pdo);
         $this->seedPserver($pdo);
         $this->seedDriver($pdo);
         $this->seedPhpini($pdo);
@@ -1026,6 +1027,45 @@ TXT;
              VALUES ('1___0', 'ticket-1', '', 'pserver-Kloxo', '', 'open', 'Welcome to Kloxo', ?)"
         );
         $stmt->execute([$now]);
+    }
+
+    public static function defaultWelcomeMessage(): string
+    {
+        return "Thank you for choosing our service to meet your web hosting needs.\n\n"
+            . "Your account has been created with the following details:\n\n"
+            . "Username: %name%\n"
+            . "Password: %password%\n";
+    }
+
+    private function seedNotification(PDO $pdo): void
+    {
+        $msg = self::defaultWelcomeMessage();
+        $path = $this->root . '/file/welcome.txt';
+        if (is_file($path)) {
+            $fromFile = (string)file_get_contents($path);
+            if (trim($fromFile) !== '') {
+                $msg = $fromFile;
+            }
+        }
+
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM notification WHERE nname = 'client-admin'")->fetchColumn();
+        if ($n === 0) {
+            $stmt = $pdo->prepare(
+                "INSERT INTO notification (nname, parent_clname, parent_cmlist, text_newsubject, text_newaccountmessage, fromaddress)
+                 VALUES ('client-admin', 'client-admin', '', '', ?, '')"
+            );
+            $stmt->execute([$msg]);
+            return;
+        }
+
+        $cur = $pdo->query("SELECT text_newaccountmessage FROM notification WHERE nname = 'client-admin'")->fetchColumn();
+        if ($cur === null || $cur === '') {
+            $stmt = $pdo->prepare(
+                "UPDATE notification SET text_newaccountmessage = ?
+                 WHERE nname = 'client-admin' AND (text_newaccountmessage IS NULL OR text_newaccountmessage = '')"
+            );
+            $stmt->execute([$msg]);
+        }
     }
 
     /** Ubuntu Switch Program defaults: first value of each file/driver list. */

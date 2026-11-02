@@ -11,7 +11,7 @@ class pserver extends pservercore {
 //	static $__desc_imap4_driver = array('', '', 'pop3_driver', '');
 	static $__desc_smtp_driver = array('', '', 'smtp_driver', '');
 	static $__desc_spam_driver = array('', '', 'spam_driver', '');
-	static $__acdesc_update_switchprogram = array('', '', 'switch_program', '');
+	static $__acdesc_update_switchprogram = array('', '', 'Switch Program', '');
 	static $__acdesc_update_mailqueuedelete = array('', '', 'delete', '');
 	static $__acdesc_update_mailqueueflush = array('', '', 'flush', '');
 
@@ -322,30 +322,40 @@ class pserver extends pservercore {
 	}
 
 
+	static function rebootPropertyTabs()
+	{
+		return array(
+			'a=updateform&sa=reboot',
+			'a=updateform&sa=poweroff',
+		);
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		global $ghtml;
 
-		if ($ghtml->frm_subaction === 'commandcenter') {
+		$sa = '';
+		if (is_object($ghtml)) {
+			$raw = $ghtml->frm_subaction;
+			$sa = is_string($raw) ? $raw : '';
+		}
+
+		if ($sa === 'commandcenter') {
 			$alist['property'][] = "a=updateform&sa=commandcenter";
-		} elseif ($ghtml->frm_subaction === 'extraedit') {
+		} elseif ($sa === 'extraedit') {
 			$alist['property'] = array(
 				"a=show&o=phpini",
 				"a=updateform&sa=extraedit&o=phpini",
 			);
-		} elseif ($ghtml->frm_subaction === 'timezone') {
+		} elseif ($sa === 'timezone') {
 			$alist['property'][] = "a=updateform&sa=timezone";
-	//	} elseif ($ghtml->frm_subaction === 'update') {
+	//	} elseif ($sa === 'update') {
 	//		$alist['property'][] = "a=updateform&sa=update&n=driver";
-		} elseif ($ghtml->frm_subaction === 'reboot') {
-			$alist['property'][] = "a=updateform&sa=reboot";
-			$alist['property'][] = "a=updateform&sa=poweroff";
-		} elseif ($ghtml->frm_subaction === 'poweroff') {
-			$alist['property'][] = "a=updateform&sa=reboot";
-			$alist['property'][] = "a=updateform&sa=poweroff";
-		} elseif ($ghtml->frm_subaction === 'mysqlpasswordreset') {
+		} elseif ($sa === 'reboot' || $sa === 'poweroff') {
+			$alist['property'] = self::rebootPropertyTabs();
+		} elseif ($sa === 'mysqlpasswordreset') {
 			$alist['property'][] = "a=updateform&sa=mysqlpasswordreset";
-		} elseif ($ghtml->frm_subaction === 'switchprogram') {
+		} elseif ($sa === 'switchprogram') {
 			$alist['property'][] = "a=updateform&sa=switchprogram";
 		}  else {
 			$alist['property'][] = 'a=show';

@@ -236,56 +236,60 @@ class Client extends ClientBase
 		}
 
 		$ilist = array();
-		
-		$resource = db_get_value('resourceplan', $this->resourceplan_used, 'realname');
-		
-		if (!$this->isAdmin()) {
-			if ($this->isLogin()) {
-			//	$ilist['Resource Plan'] = $resource;
-				$ilist[$login->getKeywordUc('info_resourceplan')] = $resource;
-			} else {
-			//	$ilist['Resource Plan'] = "_lxinurl:a=updateform&sa=change_plan:$resource:";
-				$ilist[$login->getKeywordUc('info_resourceplan')] = "_lxinurl:a=updateform&sa=change_plan:$resource:";
-			}
-		}
-
-		if ($this->checkButton('webhosting_flag')) {
-			$url = "a=show&l[class]=ffile&l[nname]=/";
-		//	$ilist['Home'] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
-			$ilist[$login->getKeywordUc('info_home')] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
-		//	$ilist['Username'] = "_lxspan:{$this->username}:{$this->username}:";
-			$uname = isset($this->username) ? $this->username : $this->nname;
-			$ilist[$login->getKeywordUc('info_username')] = "_lxspan:{$uname}:{$uname}:";
-			$url = "&a=updateform&sa=default_domain";
-			$defdom = isset($this->default_domain) ? $this->default_domain : '';
-		//	$ilist['Default Domain'] = "_lxinurl:{$url}:{$this->default_domain}:";
-			$ilist[$login->getKeywordUc('info_defaultdomain')] = "_lxinurl:{$url}:{$defdom}:";
-		}
 
 		try {
-			$this->getLastLogin($ilist);
-		} catch (Throwable $e) {
-			log_log("error", "getLastLogin: " . $e->getMessage());
-		}
+			$resource = db_get_value('resourceplan', $this->resourceplan_used, 'realname');
 
-		$skin = $this->getSpecialObject('sp_specialplay')->skin_name;
-		$skin = ucfirst($skin);
-		$url = "o=sp_specialplay&a=updateform&sa=skin";
-	//	$ilist['Skin'] = "_lxinurl:$url:$skin:";
-		$ilist[$login->getKeywordUc('info_skin')] = "_lxinurl:$url:$skin:";
-
-		if ($this->isNotCustomer()) {
-			return $ilist;
-		}
-
-		if (check_if_many_server() && !$this->isLogin()) {
-			$ilist['Web Server'] = $this->websyncserver;
-			$ilist['Mail Server'] = $this->mmailsyncserver;
-			$ilist['Mysql Server'] = $this->mysqldbsyncserver;
-			
-			if ($this->dnstemplate_list) {
-				$ilist['Dns Servers'] = kloxo_implode(",", $this->dnssyncserver_list);
+			if (!$this->isAdmin()) {
+				if ($this->isLogin()) {
+				//	$ilist['Resource Plan'] = $resource;
+					$ilist[$login->getKeywordUc('info_resourceplan')] = $resource;
+				} else {
+				//	$ilist['Resource Plan'] = "_lxinurl:a=updateform&sa=change_plan:$resource:";
+					$ilist[$login->getKeywordUc('info_resourceplan')] = "_lxinurl:a=updateform&sa=change_plan:$resource:";
+				}
 			}
+
+			if ($this->checkButton('webhosting_flag')) {
+				$url = "a=show&l[class]=ffile&l[nname]=/";
+			//	$ilist['Home'] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
+				$ilist[$login->getKeywordUc('info_home')] = "_lxinurl:{$url}:/home/{$this->getPathFromName()}/:";
+			//	$ilist['Username'] = "_lxspan:{$this->username}:{$this->username}:";
+				$uname = isset($this->username) ? $this->username : $this->nname;
+				$ilist[$login->getKeywordUc('info_username')] = "_lxspan:{$uname}:{$uname}:";
+				$url = "&a=updateform&sa=default_domain";
+				$defdom = isset($this->default_domain) ? $this->default_domain : '';
+			//	$ilist['Default Domain'] = "_lxinurl:{$url}:{$this->default_domain}:";
+				$ilist[$login->getKeywordUc('info_defaultdomain')] = "_lxinurl:{$url}:{$defdom}:";
+			}
+
+			try {
+				$this->getLastLogin($ilist);
+			} catch (Throwable $e) {
+				log_log("error", "getLastLogin: " . $e->getMessage());
+			}
+
+			$skin = $this->getSpecialObject('sp_specialplay')->skin_name;
+			$skin = ucfirst($skin);
+			$url = "o=sp_specialplay&a=updateform&sa=skin";
+		//	$ilist['Skin'] = "_lxinurl:$url:$skin:";
+			$ilist[$login->getKeywordUc('info_skin')] = "_lxinurl:$url:$skin:";
+
+			if ($this->isNotCustomer()) {
+				return $ilist;
+			}
+
+			if (check_if_many_server() && !$this->isLogin()) {
+				$ilist['Web Server'] = $this->websyncserver;
+				$ilist['Mail Server'] = $this->mmailsyncserver;
+				$ilist['Mysql Server'] = $this->mysqldbsyncserver;
+
+				if ($this->dnstemplate_list) {
+					$ilist['Dns Servers'] = kloxo_implode(",", $this->dnssyncserver_list);
+				}
+			}
+		} catch (Throwable $e) {
+			log_log("error", "createShowInfoList: " . $e->getMessage());
 		}
 
 		return $ilist;

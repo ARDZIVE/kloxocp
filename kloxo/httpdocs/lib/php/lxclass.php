@@ -920,7 +920,7 @@ abstract class Lxclass
 
 		try {
 			$this->doWas();
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			$this->dbaction = "screwed";
 			throw $e;
 		}

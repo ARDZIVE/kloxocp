@@ -49,10 +49,11 @@ if (isset($sgbl) && strpos((string)$sgbl->__path_php_path, 'php') !== false) {
 	bad('php path names a php binary', isset($sgbl) ? (string)$sgbl->__path_php_path : '');
 }
 
-if (isset($sgbl) && strpos((string)$sgbl->__ver_full, '7.0.0') === 0) {
+if (isset($sgbl) && (string)$sgbl->__ver_full === '10.1-2026110201'
+	&& (string)$sgbl->__ver_note === 'Kloxo fork by Hampik TALATINIAN') {
 	ok('kloxoversion loaded');
 } else {
-	bad('kloxoversion loaded', isset($sgbl) ? (string)$sgbl->__ver_full : '');
+	bad('kloxoversion loaded', isset($sgbl) ? ((string)$sgbl->__ver_full . ' note=' . (string)$sgbl->__ver_note) : '');
 }
 
 if (isset($sgbl->__var_language['en-us'])) {
@@ -69,7 +70,7 @@ if (is_file($doc . '/login/index.php') && is_file($doc . '/login/inc.php')) {
 
 $inst = function_exists('getInstalledVersion') ? (string)getInstalledVersion() : '';
 $lat = function_exists('getLatestVersion') ? (string)getLatestVersion() : '';
-if ($inst !== '' && $inst === $lat && strpos($inst, '7.0.0') === 0) {
+if ($inst !== '' && $inst === $lat && $inst === '10.1-2026110201') {
 	ok('update versions are local kloxoversion (no yum)');
 } else {
 	bad('update versions are local kloxoversion (no yum)', "installed=$inst latest=$lat");
@@ -80,6 +81,25 @@ if (is_callable($cb)) {
 	ok('Lxupdate has initThisObject');
 } else {
 	bad('Lxupdate has initThisObject');
+}
+
+$upForm = null;
+$upFormErr = '';
+try {
+	$up = new Lxupdate(null, 'localhost', '10.1-2026110201');
+	$upForm = $up->updateform('lxupdateinfo', array());
+} catch (Throwable $e) {
+	$upFormErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
+if (is_array($upForm)
+	&& ($upForm['note_f'][1] ?? '') === 'Kloxo fork by Hampik TALATINIAN'
+	&& ($upForm['detected_version_f'][1] ?? '') === '10.1-2026110201'
+	&& ($upForm['installed_rpm_version_f'][1] ?? '') === '10.1-2026110201'
+	&& ($upForm['latest_rpm_version_f'][1] ?? '') === '10.1-2026110201') {
+	ok('Update page shows 10.1-2026110201 and Hampik TALATINIAN note');
+} else {
+	bad('Update page shows 10.1-2026110201 and Hampik TALATINIAN note',
+		$upFormErr !== '' ? $upFormErr : var_export($upForm, true));
 }
 
 if (class_exists('dns__none') && is_callable(array('dns__none', 'installMe'))) {

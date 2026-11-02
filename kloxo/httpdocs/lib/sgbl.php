@@ -69,29 +69,37 @@ class Sgbl
 
 		$verfile = $root . '/bin/kloxoversion';
 		$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
-		$a = ($t !== '') ? explode('.', $t) : array();
+		if ($t === '') {
+			$t = '10.1-2026110201';
+		}
 
 		$this->__ver_name = 'Kloxo CP';
-		$this->__ver_note = 'Kloxo fork by Mustafa Ramadhan';
+		$this->__ver_note = 'Kloxo fork by Hampik TALATINIAN';
 
-		$this->__ver_major = isset($a[0]) ? $a[0] : '[unknown]';
-		$this->__ver_minor = isset($a[1]) ? $a[1] : '[unknown]';
-		$this->__ver_release = isset($a[2]) ? $a[2] : '[unknown]';
+		$major = '[unknown]';
+		$minor = '[unknown]';
+		$release = '[unknown]';
+		$extra = '[unknown]';
+		$stamp = '[unknown]';
+		if (preg_match('/^(\d+)\.(\d+)(?:\.(\d+))?(?:\.([^-]+))?(?:-([A-Za-z0-9]+))?$/', $t, $m) === 1) {
+			$major = $m[1];
+			$minor = $m[2];
+			$release = (isset($m[3]) && $m[3] !== '') ? $m[3] : '0';
+			$extra = (isset($m[4]) && $m[4] !== '') ? $m[4] : '';
+			$stamp = (isset($m[5]) && $m[5] !== '') ? $m[5] : '';
+		}
 
-		$s = isset($a[3]) ? $a[3] : '[unknown]';
-		$b = explode('-', $s);
-
-		$this->__ver_extra = isset($b[0]) ? $b[0] : '[unknown]';
-
-		$this->__ver_step = $this->__ver_extra;
-
-		$this->__ver_stamp = isset($b[1]) ? $b[1] : '[unknown]';
+		$this->__ver_major = $major;
+		$this->__ver_minor = $minor;
+		$this->__ver_release = $release;
+		$this->__ver_extra = $extra;
+		$this->__ver_step = $extra;
+		$this->__ver_stamp = $stamp;
 
 		$this->__ver_enterprise = "Single Server Edition";
 		$this->__ver_type = "production";
-	//	$this->__ver_extra = "Beta";
 		$this->__ver_major_minor = $this->__ver_major . "." . $this->__ver_minor;
-		$this->__ver_major_minor_release = $this->__ver_major_minor . "." . $this->__ver_release;
+		$this->__ver_major_minor_release = $t;
 		$this->__ver_full = $t;
 		$this->__var_nname_impstr = "___";
 

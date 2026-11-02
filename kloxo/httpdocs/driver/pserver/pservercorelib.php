@@ -154,8 +154,8 @@ class pservercore extends Lxclient
 
 	static $__acdesc_update_cron_mailto = array("", "", "cron_mail");
 	static $__acdesc_update_dbpassword = array("", "", "db_admin");
-	static $__acdesc_update_reboot = array("", "", "reboot");
-	static $__acdesc_update_poweroff = array("", "", "poweroff");
+	static $__acdesc_update_reboot = array("", "", "Reboot");
+	static $__acdesc_update_poweroff = array("", "", "Poweroff");
 	static $__acdesc_update_readipaddress = array("", "", "re_read_ipaddress");
 	static $__acdesc_update_loaddriverinfo = array("", "", "re_load_driver_info");
 	static $__acdesc_update_mysqlpasswordreset = array("", "", "mysql_password_reset");

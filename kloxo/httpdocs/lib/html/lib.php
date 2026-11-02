@@ -2937,7 +2937,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '0.1.0-dev';
+	return '10.1-2026110201';
 }
 
 function getDownloadServer()
@@ -3348,13 +3348,30 @@ function copy_script($nolog = null)
 	exec("'rm' -rf /script; ln -sf /opt/kloxo/pscript /script");
 }
 
+function kloxo_admin_db_pass_exception($previous = null)
+{
+	if ($previous instanceof lxException) {
+		return $previous;
+	}
+
+	$msg = "Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).";
+	if ($previous instanceof Throwable) {
+		$got = $previous->getMessage();
+		if (is_string($got) && $got !== '') {
+			$msg = $got;
+		}
+	}
+
+	return new lxException($msg, '', 'kloxo.pass');
+}
+
 function getAdminDbPass()
 {
 	$pass = lfile_get_contents("__path_admin_pass");
 	$pass = is_string($pass) ? trim($pass) : '';
 
 	if ($pass === '') {
-		throw new Exception("Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).");
+		throw kloxo_admin_db_pass_exception();
 	}
 
 	return $pass;

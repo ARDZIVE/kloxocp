@@ -91,7 +91,11 @@ class SuperClient extends ClientBase
 		global $login;
 
 		if ($this->nname === 'superadmin') {
-			$oldpass = getAdminDbPass();
+			try {
+				$oldpass = getAdminDbPass();
+			} catch (Throwable $e) {
+				throw new lxException($login->getThrow("could_not_change_superadmin_pass"));
+			}
 
 			$newp = client::createDbPass($this->realpass);
 

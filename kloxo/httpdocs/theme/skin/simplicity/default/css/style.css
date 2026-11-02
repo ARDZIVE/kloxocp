@@ -378,6 +378,7 @@
 		padding: 6px 10px 5px 10px;
 		position: relative;
 		bottom: -1px;
+		font-size: 9pt;
 	}
 
 	.verb:hover {
@@ -397,6 +398,7 @@
 		padding: 6px 10px 5px 10px;
 		position: relative;
 		bottom: -1px;
+		font-size: 9pt;
 	}
 
 	.verb2:hover {
@@ -417,6 +419,7 @@
 		position: relative;
 		bottom: -1px;
 		z-index: 3;
+		font-size: 9pt;
 	}
 
 	.verb4 {
@@ -430,6 +433,12 @@
 
 	.verb_all {
 		float: none;
+	}
+
+	.verb a,
+	.verb2 a,
+	.verb3 a {
+		font-size: 9pt;
 	}
 
 	.verb3:hover {

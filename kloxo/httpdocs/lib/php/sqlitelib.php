@@ -48,7 +48,11 @@ class Sqlite
 
 		$user = $sgbl->__var_admin_user;
 		$db = $sgbl->__var_dbf;
-		$pass = getAdminDbPass();
+		try {
+			$pass = getAdminDbPass();
+		} catch (Throwable $e) {
+			throw kloxo_admin_db_pass_exception($e);
+		}
 
 		if ($sgbl->__var_database_type === 'mysql') {
 			$mysqlsrv = $this->__readserver;

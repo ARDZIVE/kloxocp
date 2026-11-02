@@ -1045,13 +1045,16 @@ TXT;
             throw new KmException("sieve script invalid: $err");
         }
         $exim = $this->eximBin();
-        foreach (array_filter([
-            $exim !== null ? [$exim, '-C', '/etc/exim4/exim4.conf', '-bV'] : null,
+        if ($exim === null) {
+            throw new KmException('exim binary not found (looked for exim4 and exim); cannot validate mail configuration');
+        }
+        foreach ([
+            [$exim, '-C', '/etc/exim4/exim4.conf', '-bV'],
             ['doveconf', '-n'],
             ['rspamadm', 'configtest'],
-        ]) as $cmd) {
+        ] as $cmd) {
             if (!Proc::exists($cmd[0])) {
-                continue;
+                throw new KmException($cmd[0] . ' not found; cannot validate mail configuration');
             }
             [$rc, $out, $err] = Proc::run($cmd);
             if ($rc !== 0) {

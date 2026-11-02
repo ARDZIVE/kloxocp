@@ -30,6 +30,23 @@ qlogin(){ sql "SELECT login FROM (
 PW='correct horse battery'
 EXIMBIN="$(command -v exim4 2>/dev/null || command -v exim 2>/dev/null || true)"
 
+echo "== source invariants"
+if grep -A40 'function validateLive' "$ROOT/kloxo/bin/mail/kloxo-mail" | grep -q 'exim binary not found'; then
+  ok "validateLive fails closed when exim is missing"
+else
+  bad "validateLive fails closed when exim is missing"
+fi
+if grep -A40 'function validateLive' "$ROOT/kloxo/bin/mail/kloxo-mail" | grep -q 'array_filter'; then
+  bad "validateLive does not drop a missing exim checker via array_filter"
+else
+  ok "validateLive does not drop a missing exim checker via array_filter"
+fi
+if grep -A50 'function validateLive' "$ROOT/kloxo/bin/mail/kloxo-mail" | grep -q 'not found; cannot validate mail configuration'; then
+  ok "validateLive fails closed when doveconf or rspamadm is missing"
+else
+  bad "validateLive fails closed when doveconf or rspamadm is missing"
+fi
+
 echo "== setup"
 mysql -e "DROP DATABASE IF EXISTS kloxo_mail_test; DROP USER IF EXISTS 'kloxo_mail_test_rw'@'localhost'; DROP USER IF EXISTS 'kloxo_mail_test_ro'@'localhost';"
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$T/tls.key" -out "$T/tls.pem" -subj "/CN=mail.example.com" -days 2 >/dev/null 2>&1

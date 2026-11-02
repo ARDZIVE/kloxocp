@@ -285,6 +285,7 @@ $__throw["no_template"] = "No template";
 $__throw["only_reseller_and_admin"] = "Only reseller and admin";
 $__throw["template_not_owner"] = "Template not owner";
 $__throw["could_not_change_admin_pass"] = "Could not change admin pass";
+$__throw["could_not_read_admin_db_pass"] = "Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user)";
 
 $__throw["backup_server_is_not_configured"] = "Backup server is not configured";
 $__throw["backup_server_is_not_there"] = "Backup server is not there";
@@ -322,6 +323,7 @@ $__throw["no_ip_address_matching_webserver"] = "No IPAddress matching Webserver"
 $__throw["no_parent_object"] = "No parent object";
 $__throw["not_owner_of_parent_object"] = "Not owner of parent object";
 $__throw["could_not_change_superadmin_pass"] = "Could not change superadmin pass";
+$__throw["could_not_execute_reboot"] = "Could not reboot or power off the server (systemctl/reboot not found)";
 $__throw["no_object_under_current_user"] = "No object under current user";
 
 $__throw["could_not_unzip_file"] = "Could not unzip file";

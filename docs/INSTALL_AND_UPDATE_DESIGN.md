@@ -2,9 +2,9 @@
 
 Status: design for the work that follows the audit. The `kloxocp` CLI skeleton
 (`status`, `doctor`, `snapshot`, `rollback`, `component list`) is in
-`kloxo/bin/kloxocp` with tests in `tests/p3/`. `install.sh` bootstraps Ubuntu 24.04
-from `https://github.com/ARDZIVE/kloxocp.git` (git clone + distro apt + layout +
-TLS). Signed Kloxo CP apt repo, Debian packages, and `kloxocp update` are **not
+`kloxo/bin/kloxocp` with tests in `tests/p3/`. `install.sh` bootstraps Ubuntu 24.04 or 26.x
+from `https://github.com/ARDZIVE/kloxocp.git` (curl the script from GitHub
+`main`, then git clone or fetch + distro apt + layout + TLS). Signed Kloxo CP apt repo, Debian packages, and `kloxocp update` are **not
 built**. Unique TLS key generation (`kloxo/bin/install/generate-tls-keys`) is
 called on first `install.sh` run.
 

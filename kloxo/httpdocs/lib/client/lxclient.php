@@ -430,11 +430,13 @@ abstract class Lxclient extends Lxdb
 
 		$string = null;
 
-		foreach ($this->priv as $k => $v) {
-			if ($this->isQuotaVariable($k)) {
-				$var = get_v_descr($this, $k);
-				$var = get_form_variable_name($var);
-				$string .= "{$var}: {$v}\n";
+		if (is_object($this->priv)) {
+			foreach ($this->priv as $k => $v) {
+				if ($this->isQuotaVariable($k)) {
+					$var = get_v_descr($this, $k);
+					$var = get_form_variable_name($var);
+					$string .= "{$var}: {$v}\n";
+				}
 			}
 		}
 
@@ -449,8 +451,32 @@ abstract class Lxclient extends Lxdb
 		$input['nonsslport'] = isset($b) ? $b : $sgbl->__var_prog_port;
 
 		$tplparse = getParseInlinePhp($text, $input);
+		if (!is_string($tplparse) || $tplparse === '') {
+			$tplparse = is_string($text) ? $text : '';
+		}
 
-		return $tplparse;
+		$name = (is_object($object) && isset($object->nname)) ? (string) $object->nname : '';
+		$pass = (is_object($object) && isset($object->realpass)) ? (string) $object->realpass : '';
+		$parentName = '';
+		if (is_object($object) && method_exists($object, 'getParentName')) {
+			try {
+				$parentName = (string) $object->getParentName();
+			} catch (Throwable $e) {
+				$parentName = '';
+			}
+		}
+
+		return str_replace(
+			array('%name%', '%password%', '%clientname%', '%ipaddress%', '%quota%'),
+			array(
+				$name,
+				$pass,
+				$parentName,
+				isset($input['ipaddress']) ? (string) $input['ipaddress'] : '',
+				isset($input['quota']) ? (string) $input['quota'] : '',
+			),
+			$tplparse
+		);
 	}
 
 	function isSlave()

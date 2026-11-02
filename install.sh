@@ -1,8 +1,8 @@
 #!/bin/bash
 # Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
-# One line (clones if needed; fetches origin/main, hard-resets, and re-runs if the clone exists):
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -f -B main FETCH_HEAD && git -C /usr/local/src/kloxo-cp reset --hard FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'
+# One line (downloads this script from GitHub main, then clones or fetches origin/main):
+#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 #
 # Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
 # (apt would steal stdin); wget/curl to a file, then bash it.
@@ -23,7 +23,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="0.1.0-dev"
+KCP_VERSION="10.1-2026110201"
 
 PROFILE="core"
 FORCE=0
@@ -61,9 +61,9 @@ Default panel login is admin/admin; the UI requires a password change
 after the first login. Override with KLOXO_ADMIN_PASSWORD (min 8 chars).
 Slave password: --slave-password= or KLOXO_SLAVE_PASSWORD (min 8 chars).
 
-One-line install on Ubuntu 24.04 or 26.x (root). Clones if needed; fetches origin/main, hard-resets, and re-runs if the clone exists:
+One-line install on Ubuntu 24.04 or 26.x (root). Downloads this script from GitHub main, then clones or fetches origin/main:
 
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -f -B main FETCH_HEAD && git -C /usr/local/src/kloxo-cp reset --hard FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'
+  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 
 Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
 This tree is NOT production-safe.

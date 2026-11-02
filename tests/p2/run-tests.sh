@@ -71,6 +71,42 @@ if grep -q 'catch (mysqli_sql_exception' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib
 else
   bad "database_query catches mysqli_sql_exception"
 fi
+if grep -q 'function kloxo_admin_db_pass_exception' "$ROOT/kloxo/httpdocs/lib/html/lib.php" \
+  && grep -A20 'function getAdminDbPass' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'kloxo_admin_db_pass_exception'; then
+  ok "getAdminDbPass throws lxException via kloxo_admin_db_pass_exception"
+else
+  bad "getAdminDbPass throws lxException via kloxo_admin_db_pass_exception"
+fi
+if grep -A20 'function getAdminDbPass' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'throw new Exception'; then
+  bad "getAdminDbPass does not throw generic Exception"
+else
+  ok "getAdminDbPass does not throw generic Exception"
+fi
+if grep -A25 'function connect' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php" | grep -q 'kloxo_admin_db_pass_exception'; then
+  ok "Sqlite::connect wraps getAdminDbPass"
+else
+  bad "Sqlite::connect wraps getAdminDbPass"
+fi
+if grep -A50 'function do_remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'kloxo_admin_db_pass_exception'; then
+  ok "do_remote_exec wraps getAdminDbPass"
+else
+  bad "do_remote_exec wraps getAdminDbPass"
+fi
+if grep -A20 'function kloxo_import_sql_file' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -B2 -A5 'getAdminDbPass' | grep -q 'return false'; then
+  ok "kloxo_import_sql_file fails closed when getAdminDbPass throws"
+else
+  bad "kloxo_import_sql_file fails closed when getAdminDbPass throws"
+fi
+if grep -A12 'function changeSuperAdminPass' "$ROOT/kloxo/httpdocs/lib/client/superclientlib.php" | grep -q 'could_not_change_superadmin_pass'; then
+  ok "changeSuperAdminPass wraps getAdminDbPass"
+else
+  bad "changeSuperAdminPass wraps getAdminDbPass"
+fi
+if awk '/function __construct/,/function getlMessage/' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -q 'parent::__construct'; then
+  ok "lxException populates Exception::getMessage"
+else
+  bad "lxException populates Exception::getMessage"
+fi
 
 echo "== autoload characterization"
 if php "$HERE/test_autoload.php"; then
@@ -261,12 +297,12 @@ fi
 if grep -A 8 '\.div_container {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'margin: 3px' \
   && grep -A 8 '\.div_container_icons {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'width: 90px' \
   && grep -A 8 '\.div_container_icons {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'height: 90px' \
-  && grep -A 12 '\.div_icons_text {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'font-size: 8pt' \
+  && grep -A 12 '\.div_icons_text {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'font-size: 9pt' \
   && grep -A 12 '\.div_icons_text {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'height: 50px' \
   && grep -A 6 '\.div_icons_image {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'height: 40px'; then
-  ok "dashboard tiles match Kloxo-MR 90x90 cells, 32px icons, and 8pt labels"
+  ok "dashboard tiles match Kloxo-MR 90x90 cells, 32px icons, and 9pt labels"
 else
-  bad "dashboard tiles match Kloxo-MR 90x90 cells, 32px icons, and 8pt labels"
+  bad "dashboard tiles match Kloxo-MR 90x90 cells, 32px icons, and 9pt labels"
 fi
 if awk '/class="div_menu_left"/{l=NR} /class="div_menu_right"/{r=NR} END {exit !(l && r && l<r)}' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
   && grep -q "getKeywordUc('help')" "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then
@@ -666,6 +702,15 @@ if grep -q 'function getServiceDetails' "$ROOT/kloxo/httpdocs/driver/pserver/ser
   ok "Ubuntu services, component info, and Exim mail queue drivers are registered"
 else
   bad "Ubuntu services, component info, and Exim mail queue drivers are registered"
+fi
+if grep -q "function powerCommandArgs" "$ROOT/kloxo/httpdocs/driver/pserver/pserver__linuxlib.php" \
+  && grep -q "'/usr/bin/systemctl'" "$ROOT/kloxo/httpdocs/driver/pserver/pserver__linuxlib.php" \
+  && grep -q "'--no-block'" "$ROOT/kloxo/httpdocs/driver/pserver/pserver__linuxlib.php" \
+  && ! grep -q 'system("reboot")' "$ROOT/kloxo/httpdocs/driver/pserver/pserver__linuxlib.php" \
+  && ! grep -q 'system("poweroff")' "$ROOT/kloxo/httpdocs/driver/pserver/pserver__linuxlib.php"; then
+  ok "pserver reboot/poweroff uses systemctl --no-block"
+else
+  bad "pserver reboot/poweroff uses systemctl --no-block"
 fi
 if grep -q "exim/exim4.conf" "$ROOT/kloxo/bin/mail/kloxo-mail" \
   && test -f "$ROOT/kloxo/file/mail/exim/exim4.conf" \

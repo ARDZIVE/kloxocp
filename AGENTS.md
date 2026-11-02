@@ -10,18 +10,19 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (designed, not built).
 
 ## Status
-0.1.0-dev. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026110201. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerDNS; qmail still
 present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
-the README one-liner fetches `origin/main` and hard-resets when the clone already exists;
+the README one-liner downloads `install.sh` from GitHub `main`, then that script
+fetches `origin/main` and hard-resets when the clone already exists;
 `kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
 change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it). Admin Servers list seeds `localhost`. The Update
-screen shows the local `kloxoversion` (`kloxocp update` still exits 2).
+screen shows **10.1-2026110201** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).
 Switch Program DNS default is BIND (`pg_dns=bind`); PowerDNS is packaged and
 prepared (`install-pdns`) but the `pdns` unit stays disabled until selected
 (apt postinst is blocked from starting it).
@@ -36,7 +37,9 @@ exim4, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim` (hosted mail is Exim via `kloxo-mail`;
 qmail-toaster is no longer the selectable MTA). PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
-`count(null)` after login. Install seeds a `localhost` driver row and
+`count(null)` after login. Admin reboot/poweroff uses `systemctl --no-block`
+(or `/sbin/reboot`) instead of `system("reboot")`. `getAdminDbPass` throws `lxException` (not generic
+`Exception`); Sqlite/do_remote_exec/import/superadmin wrap a missing `kloxo.pass`. Install seeds a `localhost` driver row and
 `generalmisc_b` so the home page does not fatal on a missing driver or
 null `used`. Panel FPM hides PHP errors (`log/php.err`). The middle column
 is no longer dropped by splash `flush()`/`ob_start()` or an

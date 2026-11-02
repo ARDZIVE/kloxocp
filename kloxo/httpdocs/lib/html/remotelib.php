@@ -206,7 +206,11 @@ function do_remote_exec($machine, $rmt, $cmdtype, $nname, $dbaction)
 			}
 		}
 	} else {
-		$password = getAdminDbPass();
+		try {
+			$password = getAdminDbPass();
+		} catch (Throwable $e) {
+			throw kloxo_admin_db_pass_exception($e);
+		}
 		$machine = 'localhost';
 	}
 

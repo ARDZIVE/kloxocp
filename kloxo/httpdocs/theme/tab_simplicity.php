@@ -95,6 +95,32 @@ function print_tab_button($key, $url, $list)
 
 	$help = isset($descr['help']) ? $descr['help'] : '';
 	$str = isset($descr[2]) ? $descr[2] : (isset($descr['desc']) ? $descr['desc'] : '');
+	if (!is_string($str) || $str === '') {
+		$path = $post = null;
+		if (is_object($ghtml) && method_exists($ghtml, 'get_post_from_get')) {
+			$ghtml->get_post_from_get(is_string($url) ? $url : '', $path, $post);
+		}
+		$sa = (is_array($post) && isset($post['frm_subaction']) && is_string($post['frm_subaction']))
+			? $post['frm_subaction'] : '';
+		if ($sa === 'reboot') {
+			$str = 'Reboot';
+		} elseif ($sa === 'poweroff') {
+			$str = 'Poweroff';
+		} elseif ($sa === 'switchprogram') {
+			$str = 'Switch Program';
+		} elseif ($sa !== '') {
+			$str = ucfirst($sa);
+		}
+	} elseif ($str === 'reboot') {
+		$str = 'Reboot';
+	} elseif ($str === 'poweroff') {
+		$str = 'Poweroff';
+	} elseif ($str === 'switch_program' || $str === 'switchprogram' || $str === 'Switchprogram') {
+		$str = 'Switch Program';
+	}
+	if ($help === '' && is_string($str)) {
+		$help = $str;
+	}
 	$descstring = "<span title='{$help}'>{$str}</span>";
 
 	if ($sgbl->isBlackBackground()) {

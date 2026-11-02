@@ -740,13 +740,13 @@ html>body #quotausagebar span.last {
 		height: 50px;
 		text-align: center;
 		line-height: 1.2;
-		font-size: 8pt;
+		font-size: 9pt;
 		padding: 0 2px;
 	}
 
 	.div_icons_text .icontextlink,
 	.div_icons_text_reverse .icontextlink {
-		font-size: 8pt;
+		font-size: 9pt;
 		line-height: 1.2;
 	}
 
@@ -756,7 +756,7 @@ html>body #quotausagebar span.last {
 		display: table-cell;
 		vertical-align: bottom;
 		padding-bottom: 3px;
-		font-size: 8pt;
+		font-size: 9pt;
 	}
 
 	.div_container {

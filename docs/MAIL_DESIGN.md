@@ -93,7 +93,8 @@ Safety properties (all covered by tests):
 * `apply` renders to a temporary directory, backs up the current files, installs, runs the
   services' **own validators** (`exim -C /etc/exim4/exim4.conf -bV`, `doveconf -n`,
   `rspamadm configtest`, `sievec`, and a mail-database probe), and **restores the previous
-  files if anything fails**;
+  files if anything fails**. A missing Exim/Dovecot/Rspamd checker binary is a
+  validation failure (no silent skip);
 * your customisations live in `/etc/kloxo/mail.d/` (`exim4.conf` is inserted into the generated
   main section; `dovecot.conf` is appended) so updates never overwrite them;
 * purge operations refuse to delete anything outside the mail store.
