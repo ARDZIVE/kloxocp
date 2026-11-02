@@ -361,18 +361,36 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		if (!is_array($alist) || $alist === array()) {
+			return;
+		}
+
 		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
 
 		// MR -- because 'default' skin removed
-		if ($skin_name === 'default') {
-			$skin_name = 'feather';
+		if ($skin_name === 'default' || $skin_name === '' || $skin_name === null) {
+			$skin_name = 'simplicity';
 		}
 
 		$path = getLinkCustomfile("theme", "tab_{$skin_name}.php");
+		if (!is_file($path)) {
+			$path = getLinkCustomfile("theme", "tab_simplicity.php");
+		}
+		if (!is_file($path)) {
+			return;
+		}
 
 		include_once $path;
 
-		print_tab_block_start($alist);
+		if (!function_exists('print_tab_block_start')) {
+			return;
+		}
+
+		try {
+			print_tab_block_start($alist);
+		} catch (Throwable $e) {
+			log_log("error", "print_tab_block: " . $e->getMessage());
+		}
 	}
 
 	function compare_urls($a, $b)

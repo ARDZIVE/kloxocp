@@ -212,7 +212,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `get_magic_quotes_runtime()` are PHP 8.5-safe. The simplicity
     main column (`.div_content` / `#mmm`) no longer uses
     `overflow:hidden` plus `height:100%`, which clipped the middle
-    of every page. Live browser login is still **UNVERIFIED**.
+    of every page. The leftover splash `flush()` + `ob_start()`
+    that dropped the body on FastCGI is gone; `display_exec`
+    catches PHP 8 `Error` so a later TypeError cannot blank the
+    middle column. Live browser login is still **UNVERIFIED**.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

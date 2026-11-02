@@ -209,6 +209,21 @@ if grep -F -q 'overflow: visible' "$ROOT/kloxo/httpdocs/theme/css/common.css" \
 else
   bad "main content column is not clipped by overflow:hidden"
 fi
+if ! awk '/function do_display_init/,/^function /' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -qE 'ob_start\(|flush\(\)'; then
+  ok "display init does not flush then buffer the main column"
+else
+  bad "display init does not flush then buffer the main column"
+fi
+if grep -A 20 '^function display_exec' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'catch (Throwable'; then
+  ok "display_exec catches PHP 8 Error so the middle column can render"
+else
+  bad "display_exec catches PHP 8 Error so the middle column can render"
+fi
+if grep -q 'catch (Throwable $e)' "$ROOT/kloxo/httpdocs/theme/htmllib.php" && grep -q 'print_tab_block_start' "$ROOT/kloxo/httpdocs/theme/htmllib.php"; then
+  ok "tab block failure does not abort the page body"
+else
+  bad "tab block failure does not abort the page body"
+fi
 if grep -q 'print_navigation(isset($gbl->__navig)' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
   && grep -A 8 'function print_content_end' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q '</div>'; then
   ok "content wrapper is closed after the main column"

@@ -24,7 +24,9 @@ Switch Program loads `dns__none` / `web__none`. PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `count(null)` after login. Install seeds a `localhost` driver row and
 `generalmisc_b` so the home page does not fatal on a missing driver or
-null `used`. Panel FPM hides PHP errors (`log/php.err`). Browser login
+null `used`. Panel FPM hides PHP errors (`log/php.err`). The middle column
+is no longer dropped by splash `flush()`/`ob_start()` or an
+uncaught PHP 8 `Error` after the header. Browser login
 against MariaDB is not verified.
 Next: remaining P2 runtime, Debian packaging, or P4 postfix UI. See briefing
 section 7.

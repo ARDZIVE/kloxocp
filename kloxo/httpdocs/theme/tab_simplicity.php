@@ -76,16 +76,25 @@ function print_tab_button($key, $url, $list)
 
 	$ghtml->resolve_int_ext($url, $psuedourl, $target);
 
-	$descr = $ghtml->getActionDetails($url, $psuedourl, $buttonpath, $path, $post, $file, $name, $image, $__t_identity);
+	$path = $post = $file = $name = $image = $__t_identity = null;
+	try {
+		$descr = $ghtml->getActionDetails($url, $psuedourl, $buttonpath, $path, $post, $file, $name, $image, $__t_identity);
+	} catch (Throwable $e) {
+		log_log("error", "print_tab_button: " . $e->getMessage());
+		$descr = array();
+	}
+	if (!is_array($descr)) {
+		$descr = array();
+	}
 
 	$targetstring = $target;
 
-	$form_name = $ghtml->createEncForm_name($file . "_" . $name);
+	$form_name = $ghtml->createEncForm_name((string) $file . "_" . (string) $name);
 
-	$check = $ghtml->compare_urls("display.php?{$ghtml->get_get_from_current_post(null)}", $url);
+	$check = $ghtml->compare_urls("display.php?{$ghtml->get_get_from_current_post(null)}", is_string($url) ? $url : '');
 
-	$help = $descr['help'];
-	$str = $descr[2];
+	$help = isset($descr['help']) ? $descr['help'] : '';
+	$str = isset($descr[2]) ? $descr[2] : (isset($descr['desc']) ? $descr['desc'] : '');
 	$descstring = "<span title='{$help}'>{$str}</span>";
 
 	if ($sgbl->isBlackBackground()) {

@@ -169,6 +169,9 @@ function __ac_desc_show($object)
 	print_time("show_select");
 
 	if (!$object) {
+		$ghtml->print_content_begin();
+		print("<div class=\"div_content\" style=\"padding:16px\">The requested object could not be loaded.</div>");
+		$ghtml->print_content_end();
 		return;
 	}
 
@@ -2185,10 +2188,6 @@ function do_display_init()
 
 	$buttontype = $login->getSpecialObject('sp_specialplay')->button_type;
 
-	if (!ifSplashScreen()) {
-		ob_start();
-	}
-
 	if ($gbl->getSessionV('__refresh_lpanel') == 'true') {
 		print("<script> top.leftframe.window.location.reload() ; </script>");
 		print("<script> top.topframe.window.location.reload() ; </script>");
@@ -2268,11 +2267,6 @@ function do_display_init()
 	}
 
 	$ghtml->print_splash();
-
-	if (ifSplashScreen()) {
-		flush();
-		ob_start();
-	}
 
 	$ghtml->print_start();
 
@@ -2517,11 +2511,13 @@ function display_exec()
 
 	try {
 		lx_frm_inc();
-	} catch (Exception $e) {
+	} catch (Throwable $e) {
 		log_redirect("Caught except");
+		log_log("error", "display_exec: " . $e->getMessage());
 ?>
-		The resource you requested could not be retrieved... <?= $e->getMessage() ?>
-
+		<div class="div_content" style="padding: 16px">
+			The resource you requested could not be retrieved... <?= kloxo_html($e->getMessage()) ?>
+		</div>
 <?php
 	}
 }
