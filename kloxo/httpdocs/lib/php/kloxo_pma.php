@@ -2,9 +2,11 @@
 declare(strict_types=1);
 
 /**
- * phpMyAdmin sign-on: panel admin opens SQL Manager already connected
- * as MariaDB root@127.0.0.1 (full privileges). Credentials stay in
+ * phpMyAdmin sign-on: SQL Manager (target=_blank) opens kloxo-signon.php.
+ * A live panel-admin session is signed in as MariaDB root@127.0.0.1 and
+ * redirected into phpMyAdmin in that new tab. Credentials stay in
  * etc/conf/pma.pass (never in the URL). OS root@localhost stays unix_socket.
+ * Other users still get the MySQL logon form.
  */
 
 function kloxo_pma_root(?string $root = null): string
@@ -40,7 +42,7 @@ function kloxo_pma_index_url(): string
 	return '/thirdparty/phpMyAdmin/index.php';
 }
 
-/** HTML attributes so SQL Manager opens the MySQL logon in a new tab. */
+/** HTML attributes so SQL Manager opens phpMyAdmin in a new browser tab. */
 function kloxo_pma_link_attrs(): string
 {
 	return 'target="_blank" rel="noopener noreferrer"';
@@ -221,6 +223,39 @@ function kloxo_pma_request_is_https(): bool
 	return strtolower((string)($_SERVER['REQUEST_SCHEME'] ?? '')) === 'https';
 }
 
+/** False on a cross-site GET so SQL Manager SSO is not CSRF'd. */
+function kloxo_pma_same_origin_nav(): bool
+{
+	$site = strtolower((string)($_SERVER['HTTP_SEC_FETCH_SITE'] ?? ''));
+	if ($site === 'cross-site') {
+		return false;
+	}
+	$ref = (string)($_SERVER['HTTP_REFERER'] ?? '');
+	if ($ref === '') {
+		return true;
+	}
+	$p = parse_url($ref);
+	if (!is_array($p) || empty($p['host'])) {
+		return false;
+	}
+	$https = kloxo_pma_request_is_https();
+	$reqHost = strtolower((string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
+	if ($reqHost === '') {
+		return false;
+	}
+	$reqName = explode(':', $reqHost, 2)[0];
+	$reqPort = (int)($_SERVER['SERVER_PORT'] ?? 0);
+	if ($reqPort === 0) {
+		$hostPort = explode(':', $reqHost, 2);
+		$reqPort = isset($hostPort[1]) ? (int)$hostPort[1] : ($https ? 443 : 80);
+	}
+	$refName = strtolower((string)$p['host']);
+	$refHttps = ($p['scheme'] ?? '') === 'https';
+	$refPort = isset($p['port']) ? (int)$p['port'] : ($refHttps ? 443 : 80);
+
+	return $reqName === $refName && $reqPort === $refPort && $https === $refHttps;
+}
+
 function kloxo_pma_csrf_secret(?string $root = null): string
 {
 	$pma = '';
@@ -322,8 +357,43 @@ function kloxo_pma_signon_start(): void
 	session_start();
 }
 
+function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string $host = '127.0.0.1'): void
+{
+	kloxo_pma_signon_start();
+	$_SESSION['PMA_single_signon_user'] = $user;
+	$_SESSION['PMA_single_signon_password'] = $pass;
+	$_SESSION['PMA_single_signon_host'] = $host !== '' ? $host : '127.0.0.1';
+	$_SESSION['PMA_single_signon_port'] = '3306';
+	$sid = session_id();
+	session_write_close();
+	kloxo_pma_emit_signon_cookie((string)$sid);
+	if (!headers_sent()) {
+		header('Cache-Control: no-store');
+		header('Location: ' . kloxo_pma_index_url(), true, 302);
+	}
+	exit;
+}
+
 /**
- * MySQL logon (Kloxo-MR style): form first, then redirect into phpMyAdmin.
+ * Panel admin: one click from SQL Manager (new tab) into phpMyAdmin.
+ * Returns false when there is no live admin session or no pma.pass.
+ */
+function kloxo_pma_try_admin_sso(?string $root = null): bool
+{
+	if (!kloxo_pma_same_origin_nav() || !kloxo_pma_panel_is_admin($root)) {
+		return false;
+	}
+	$cred = kloxo_pma_login($root);
+	if ($cred['user'] === '' || $cred['pass'] === '') {
+		return false;
+	}
+	kloxo_pma_write_signon_and_redirect($cred['user'], $cred['pass'], $cred['host']);
+
+	return true;
+}
+
+/**
+ * Panel admin GET: SSO into phpMyAdmin. Otherwise MySQL logon, then redirect.
  */
 function kloxo_pma_signon_page(?string $root = null): void
 {
@@ -338,6 +408,8 @@ function kloxo_pma_signon_page(?string $root = null): void
 		if ($error === '') {
 			return;
 		}
+	} else {
+		kloxo_pma_try_admin_sso($root);
 	}
 	if (!headers_sent()) {
 		header('Content-Type: text/html; charset=UTF-8');
@@ -380,19 +452,9 @@ function kloxo_pma_signon_submit(?string $root = null): string
 	if ($pass === '') {
 		return 'Enter the MySQL password.';
 	}
-	kloxo_pma_signon_start();
-	$_SESSION['PMA_single_signon_user'] = $user;
-	$_SESSION['PMA_single_signon_password'] = $pass;
-	$_SESSION['PMA_single_signon_host'] = '127.0.0.1';
-	$_SESSION['PMA_single_signon_port'] = '3306';
-	$sid = session_id();
-	session_write_close();
-	kloxo_pma_emit_signon_cookie((string)$sid);
-	if (!headers_sent()) {
-		header('Cache-Control: no-store');
-		header('Location: ' . kloxo_pma_index_url(), true, 302);
-	}
-	exit;
+	kloxo_pma_write_signon_and_redirect($user, $pass, '127.0.0.1');
+
+	return '';
 }
 
 function kloxo_pma_signon_form_html(?string $root = null, string $error = '', string $user = 'root'): string
@@ -434,7 +496,7 @@ button{padding:6px 18px;cursor:pointer}
 <label for="pma_pass">Password</label>
 <input id="pma_pass" name="pma_pass" type="password" value="">
 <div class="row"><button type="submit">Go</button></div>
-<p class="hint">Logs in to phpMyAdmin on 127.0.0.1. Panel admin may leave the password blank to use the install root password.</p>
+<p class="hint">Panel admin is signed in automatically from SQL Manager. This form is for a MySQL user on 127.0.0.1; admin may leave the password blank to use the install root password.</p>
 </form>
 </body>
 </html>

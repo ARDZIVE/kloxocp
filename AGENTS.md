@@ -28,10 +28,11 @@ prepared (`install-pdns`) but the `pdns` unit stays disabled until selected
 (apt postinst is blocked from starting it).
 Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
 (`install-apache`, PHP-FPM via proxy_fcgi, no mod_php) but `apache2` stays
-disabled until selected. Admin SQL Manager opens the MySQL logon
-(`/thirdparty/phpMyAdmin/kloxo-signon.php`, `target="_blank"`) first;
-Go then redirects into phpMyAdmin as MariaDB `root`@`127.0.0.1` (panel
-admin may leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, not a second Domain tile. Component Info
+disabled until selected. Admin SQL Manager opens phpMyAdmin in a new tab
+(`/thirdparty/phpMyAdmin/kloxo-signon.php`, `target="_blank"`): a live
+panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and
+redirected; otherwise the MySQL logon form is shown (panel admin may
+leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
 exim4, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim` (hosted mail is Exim via `kloxo-mail`;

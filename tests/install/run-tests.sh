@@ -208,9 +208,9 @@ if grep -q "auth_type'] = 'signon'" "$ROOT/kloxo/file/phpmyadmin/config.inc.php"
   && ! grep -q 'SignonScript' "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
   && grep -q '127.0.0.1' "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
   && grep -q "AllowRoot'] = true" "$ROOT/kloxo/file/phpmyadmin/config.inc.php"; then
-  ok "phpMyAdmin config uses MySQL logon then sign-on as root"
+  ok "phpMyAdmin config uses sign-on as root"
 else
-  bad "phpMyAdmin config uses MySQL logon then sign-on as root"
+  bad "phpMyAdmin config uses sign-on as root"
 fi
 if grep -q 'kloxo-signon.php' "$ROOT/kloxo/bin/install/install-phpmyadmin" \
   && grep -q 'kloxo-signon-script.php' "$ROOT/kloxo/bin/install/install-phpmyadmin" \

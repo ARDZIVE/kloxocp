@@ -21,7 +21,7 @@ $check = static function (bool $ok, string $msg) use (&$fail): void {
 	}
 };
 
-$check(kloxo_pma_url() === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'SQL Manager URL is the MySQL logon');
+$check(kloxo_pma_url() === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'SQL Manager URL is phpMyAdmin sign-on');
 $check(kloxo_pma_index_url() === '/thirdparty/phpMyAdmin/index.php', 'phpMyAdmin index is after logon');
 $html = kloxo_pma_signon_form_html('/tmp/kloxo-pma-missing');
 $check(str_contains($html, 'MySQL logon') && str_contains($html, 'name="pma_user"')
@@ -39,8 +39,27 @@ $check(kloxo_pma_is_loopback('127.0.0.1') && kloxo_pma_is_loopback('::1')
 	'loopback FastCGI REMOTE_ADDR is recognized');
 $check(str_contains(kloxo_pma_link_attrs(), 'target="_blank"')
 	&& str_contains(kloxo_pma_link_attrs(), 'noopener'), 'SQL Manager link opens a new tab');
-$check(kloxo_pma_href(true, 'localhost') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'localhost SQL Manager href is MySQL logon');
-$check(kloxo_pma_href(false, '') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'empty remote server stays MySQL logon');
+$check(kloxo_pma_href(true, 'localhost') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'localhost SQL Manager href is phpMyAdmin sign-on');
+$check(kloxo_pma_href(false, '') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'empty remote server stays phpMyAdmin sign-on');
+$check(kloxo_pma_try_admin_sso('/tmp/kloxo-pma-missing') === false, 'SSO without a panel session does not redirect');
+$check(kloxo_pma_same_origin_nav() === true, 'missing Referer is not treated as cross-site');
+$_SERVER['HTTP_SEC_FETCH_SITE'] = 'cross-site';
+$check(kloxo_pma_same_origin_nav() === false, 'cross-site GET does not auto-SSO');
+unset($_SERVER['HTTP_SEC_FETCH_SITE']);
+$_SERVER['HTTPS'] = 'on';
+$_SERVER['HTTP_HOST'] = '37.59.173.71:7777';
+$_SERVER['SERVER_NAME'] = '37.59.173.71';
+$_SERVER['SERVER_PORT'] = '7777';
+$_SERVER['HTTP_REFERER'] = 'https://37.59.173.71:7777/display.php';
+$check(kloxo_pma_same_origin_nav() === true, 'panel Referer is same-origin');
+$_SERVER['HTTP_REFERER'] = 'https://evil.example/';
+$check(kloxo_pma_same_origin_nav() === false, 'foreign Referer does not auto-SSO');
+unset($_SERVER['HTTPS'], $_SERVER['HTTP_HOST'], $_SERVER['SERVER_NAME'], $_SERVER['SERVER_PORT'], $_SERVER['HTTP_REFERER']);
+$src = (string)file_get_contents($helper);
+$check(str_contains($src, 'kloxo_pma_try_admin_sso')
+	&& str_contains($src, 'kloxo_pma_write_signon_and_redirect')
+	&& str_contains($src, 'kloxo_pma_same_origin_nav'),
+	'sign-on GET uses panel-admin SSO then phpMyAdmin');
 $remote = kloxo_pma_href(false, 'bad host');
 $check(str_contains($remote, 'kloxo-signon.php') && !str_contains($remote, ' '), 'unsafe remote host does not invent a URL');
 $login = kloxo_pma_login('/tmp/kloxo-pma-missing');

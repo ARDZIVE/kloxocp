@@ -701,6 +701,12 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = pserver::rebootPropertyTabs();
 	}
 
+	if ($class === 'pserver' && $sa === 'switchprogram'
+		&& $prlist['property'] === array()
+		&& class_exists('pserver') && is_callable(array('pserver', 'switchProgramPropertyTabs'))) {
+		$prlist['property'] = pserver::switchProgramPropertyTabs();
+	}
+
 	if (!$prlist['property'] && $class !== 'phpini') {
 		$parent = (is_object($object) && method_exists($object, 'getParentO'))
 			? $object->getParentO() : null;

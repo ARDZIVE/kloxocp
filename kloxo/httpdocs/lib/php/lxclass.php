@@ -779,7 +779,7 @@ abstract class Lxclass
 			if ($this->metadbaction !== "writeonly") {
 				try {
 					$res = $this->syncToSystem();
-				} catch (Exception $e) {
+				} catch (Throwable $e) {
 					throw $e;
 				}
 

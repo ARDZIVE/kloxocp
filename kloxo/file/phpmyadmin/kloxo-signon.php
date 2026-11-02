@@ -2,9 +2,10 @@
 declare(strict_types=1);
 
 /**
- * phpMyAdmin SignonURL / MySQL logon. Copied into thirdparty/phpMyAdmin
- * by install-phpmyadmin. SQL Manager opens this first; Go redirects into
- * phpMyAdmin (Kloxo-MR cookie-logon order).
+ * phpMyAdmin SignonURL. Copied into thirdparty/phpMyAdmin by
+ * install-phpmyadmin. SQL Manager opens this in a new tab: a live panel
+ * admin session is signed in and redirected into phpMyAdmin; otherwise
+ * the MySQL logon form is shown.
  */
 
 $root = dirname(__DIR__, 3);

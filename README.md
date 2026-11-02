@@ -42,7 +42,7 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
 | Switch Program SMTP | `none` or `exim` (enables `exim4`; hosted mail is this stack) |
 | Database | MariaDB (panel DB `kloxo`; mail DB is separate) |
-| SQL Manager | MySQL logon, then phpMyAdmin (`/thirdparty/phpMyAdmin/kloxo-signon.php`) |
+| SQL Manager | phpMyAdmin in a new tab (`kloxo-signon.php` SSO as panel admin) |
 | Billing | None |
 | License | GNU AGPL v3 |
 
@@ -432,11 +432,12 @@ network files and can take the host off the network.
 
 phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
 `kloxo/bin/install/install-phpmyadmin` (not shipped in git). Admin **SQL Manager**
-opens the MySQL logon (`/thirdparty/phpMyAdmin/kloxo-signon.php`) in a new tab;
-Go then redirects into phpMyAdmin as MariaDB `root`@`127.0.0.1` (all databases,
-WITH GRANT OPTION). The MariaDB password is never put in the URL. Panel admin
-may leave the logon password blank to use `pma.pass`. OS `root`@`localhost`
-stays unix_socket.
+opens `/thirdparty/phpMyAdmin/kloxo-signon.php` in a new tab (`target="_blank"`).
+A live panel-admin session is signed in as MariaDB `root`@`127.0.0.1` (all
+databases, WITH GRANT OPTION) and redirected into phpMyAdmin in that tab.
+The MariaDB password is never put in the URL. Other users still see the MySQL
+logon form; panel admin may leave the password blank to use `pma.pass`. OS
+`root`@`localhost` stays unix_socket.
 A 405 from Hiawatha on that URL means the directory has no `index.php`.
 Re-run `install.sh` (or `install-phpmyadmin` plus `init-panel-db`) after
 pulling this tree so sign-on and `root`@`127.0.0.1` exist.

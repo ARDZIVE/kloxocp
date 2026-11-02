@@ -54,9 +54,9 @@ class phpini extends lxdb
 	static $__desc_register_global_flag = array("f", "", "register_globals");
 	static $__desc_display_error_flag = array("f", "", "display_errors");
 	static $__desc_php_manage_flag = array("", "", "manage_php_configuration");
-	static $__acdesc_update_edit = array("", "", "PHP_config");
-	static $__acdesc_update_extraedit = array("", "", "advanced_PHP_config");
-	static $__acdesc_show = array("", "", "PHP_config");
+	static $__acdesc_update_edit = array("", "", "PHP Configure");
+	static $__acdesc_update_extraedit = array("", "", "Advanced PHP Configure");
+	static $__acdesc_show = array("", "", "PHP Configure");
 
 	static function initThisObjectRule($parent, $class, $name = null)
 	{

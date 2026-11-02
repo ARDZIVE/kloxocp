@@ -330,6 +330,13 @@ class pserver extends pservercore {
 		);
 	}
 
+	static function switchProgramPropertyTabs()
+	{
+		return array(
+			'a=updateform&sa=switchprogram',
+		);
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		global $ghtml;
@@ -356,7 +363,7 @@ class pserver extends pservercore {
 		} elseif ($sa === 'mysqlpasswordreset') {
 			$alist['property'][] = "a=updateform&sa=mysqlpasswordreset";
 		} elseif ($sa === 'switchprogram') {
-			$alist['property'][] = "a=updateform&sa=switchprogram";
+			$alist['property'] = self::switchProgramPropertyTabs();
 		}  else {
 			$alist['property'][] = 'a=show';
 

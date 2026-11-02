@@ -697,7 +697,11 @@ class ClientBase extends ClientCore
 			}
 		}
 
-		$this->notifyObjects('add');
+		try {
+			$this->notifyObjects('add');
+		} catch (Throwable $e) {
+			log_log("error", "client notifyObjects: " . $e->getMessage());
+		}
 	}
 
 	function getPrimaryDb()

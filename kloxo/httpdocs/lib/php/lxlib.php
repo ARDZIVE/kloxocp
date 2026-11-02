@@ -3063,6 +3063,70 @@ function get_real_class_variable($class, $var)
 	}
 }
 
+function kloxo_url_subaction($url)
+{
+	if (!is_string($url) || $url === '') {
+		return '';
+	}
+	$q = $url;
+	$qpos = strpos($q, '?');
+	if ($qpos !== false) {
+		$q = substr($q, $qpos + 1);
+	}
+	$p = array();
+	parse_str($q, $p);
+	if (isset($p['frm_subaction']) && is_string($p['frm_subaction']) && $p['frm_subaction'] !== '') {
+		return $p['frm_subaction'];
+	}
+	if (isset($p['sa']) && is_string($p['sa']) && $p['sa'] !== '') {
+		return $p['sa'];
+	}
+
+	return '';
+}
+
+function kloxo_content_tab_label($str, $url = '')
+{
+	$sa = kloxo_url_subaction(is_string($url) ? $url : '');
+	if ($sa === 'switchprogram') {
+		return 'Switch Program';
+	}
+	if ($sa === 'reboot') {
+		return 'Reboot';
+	}
+	if ($sa === 'poweroff') {
+		return 'Poweroff';
+	}
+	if ($sa === 'extraedit') {
+		return 'Advanced PHP Configure';
+	}
+	if (!is_string($str) || $str === '') {
+		if ($sa === 'edit') {
+			return 'PHP Configure';
+		}
+
+		return $sa !== '' ? ucfirst($sa) : '';
+	}
+	if ($str === 'reboot') {
+		return 'Reboot';
+	}
+	if ($str === 'poweroff') {
+		return 'Poweroff';
+	}
+	if ($str === 'switch_program' || $str === 'switchprogram' || $str === 'Switchprogram'
+		|| $str === 'Update _switchprogram' || strcasecmp($str, 'switch program') === 0) {
+		return 'Switch Program';
+	}
+	if ($str === 'PHP_config' || $str === 'php_configuration' || $str === 'php_config') {
+		return 'PHP Configure';
+	}
+	if ($str === 'advanced_PHP_config' || $str === 'Extraedit' || $str === 'extraedit') {
+		return 'Advanced PHP Configure';
+	}
+
+	return $str;
+}
+
 function kloxo_menu_title($url)
 {
 	global $ghtml;

@@ -165,13 +165,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL
-    Manager opens the MySQL logon (`kloxo-signon.php`) in a new tab
-    (`kloxo_pma_href`; never mywebsql), then Go redirects into phpMyAdmin
-    as MariaDB `root`@`127.0.0.1` (`pma.pass` if the password is left blank,
-    WITH GRANT OPTION, no password in the URL; `AllowRoot` is on). Go uses a
-    signed CSRF token (no PHP session on GET) and a `KloxoPmaSignon` cookie
-    on `/` so phpMyAdmin index can read it. There is no SignonScript; PMA
-    uses SignonURL like Kloxo-MR cookie logon order.
+    Manager opens `kloxo-signon.php` in a new tab (`kloxo_pma_href`,
+    `target="_blank"`; never mywebsql). A live panel-admin session is
+    signed in as MariaDB `root`@`127.0.0.1` (`pma.pass`, WITH GRANT OPTION,
+    no password in the URL; `AllowRoot` is on) and redirected into
+    phpMyAdmin in that tab. Cross-site GET does not auto-SSO. Other users
+    still get the MySQL logon form (signed CSRF; admin may leave the
+    password blank). `KloxoPmaSignon` cookie path `/` so phpMyAdmin index
+    can read it. There is no SignonScript; PMA uses SignonURL.
     OS `root`@`localhost` stays unix_socket. Admin Home shows SQL Manager only in Basic
     (`webmailanddb`), not as a second Domain tile. Live phpMyAdmin login
     after this change is unverified; re-run `install.sh` after pull.
@@ -188,9 +189,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `*_none` drivers (`dns__none`, `web__none`); Switch Program no longer
     TypeErrors on those classes. Client mail counts read
     `/var/log/mail.log` (Ubuntu) or `/var/log/maillog` and do not call
-    `feof(false)` when the file is missing.     PHP Configure (`phpini` show)
+    `feof(false)` when the file is missing. PHP Configure (`phpini` show)
     and Advanced PHP Configure (`sa=extraedit`) always share the two
-    beige-header tabs (`a=show` / `a=updateform&sa=extraedit`); phpini
+    beige-header tabs labelled **PHP Configure** and **Advanced PHP Configure**
+    (`a=show` / `a=updateform&sa=extraedit`); phpini
     never falls back to client/pserver tabs. extraedit no longer dies in
     `getSelfList` or a missing panel DB password, nested `phpini_flag_b-*`
     field descriptions no longer TypeError, and a client session path is
@@ -346,7 +348,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     on a null parent quota `used`/`priv`, or on `clone(null)` in
     `lxclientpostAdd`. Continue-without-plan fills `localhost` server
     lists when admin `listpriv` is empty. Ubuntu `createUser` chowns
-    `/home/<client>` to `www-data` (not `apache`). Live client-create after
+    `/home/<client>` to `www-data` (not `apache`). Adding a client no longer
+    TypeErrors in `notifyObjects` when admin notification has no `notflag_b`
+    (install seed omits `ser_notflag_b`). Live client-create after
     deploy is **UNVERIFIED**. Adding a Resource Plan does not throw
     `no_dns_template`, creates `listpriv` when missing, sanitizes the
     display name before `validate_plan_name`, and does not consume
@@ -504,10 +508,10 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `generalmisc_b`. Home show no longer fatals on a null `used` object,
    missing driver row, or admin `getParentO()`. Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
-   opens the MySQL logon then phpMyAdmin as MariaDB `root`@`127.0.0.1`
-   (`auth_type=signon`, SignonURL `kloxo-signon.php`, `AllowRoot`,
-   `pma.pass`; unix_socket `root`@`localhost` unchanged). Live phpMyAdmin
-   login after re-install is **UNVERIFIED**. Remaining
+   opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
+   `root`@`127.0.0.1` via `kloxo-signon.php` (`auth_type=signon`,
+   `AllowRoot`, `pma.pass`; unix_socket `root`@`localhost` unchanged).
+   Live phpMyAdmin login after re-install is **UNVERIFIED**. Remaining
    compile failures are third-party (`webdisk/PEAR*`, formmail,
    urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
    `getAdminDbPass` throws `lxException` (not generic `Exception`);

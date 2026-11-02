@@ -201,43 +201,62 @@ abstract class Lxclient extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$name = ucfirst($sgbl->__var_program_name);
-		$parent = $this->getParentO();
-		
-		// This actually returns itself most of the times. It is confusing and should be removed. 
-		// The parent is actully the first the pervious one itself in most of the cases.
-		$parent = $parent->getClientParentO();
-
-		$noto = $parent->getObject('notification');
-		$message = null;
-		
-		if ($type == 'add' && $this->isOn('send_welcome_f')) {
-			$message = $noto->text_newaccountmessage;
-			$message = $this->replace_keywords($message, $this);
-			$subject = "Your account has been Setup by {$parent->nname}";
-
-			if ($noto->text_newsubject) {
-				$subject = $noto->text_newsubject;
+		try {
+			$name = ucfirst((string)($sgbl->__var_program_name ?? 'Kloxo'));
+			$parent = $this->getParentO();
+			if (!is_object($parent)) {
+				return;
+			}
+			if (method_exists($parent, 'getClientParentO')) {
+				$got = $parent->getClientParentO();
+				if (is_object($got)) {
+					$parent = $got;
+				}
 			}
 
-			$this->sendNotification($noto, $this, $subject, $message, $parent);
-
-		}
-
-		if ($noto->notflag_b->isOn("{$type}stuff_flag")) {
-			$class = $this->get__table();
-			
-			if ($type === 'delete') {
-				$txt = "$class {$this->nname} has been deleted from your account $parent->nname";
-			} else {
-				$txt = "$class {$this->nname} has been added to your account $parent->nname";
+			$noto = null;
+			try {
+				$noto = $parent->getObject('notification');
+			} catch (Throwable $e) {
+				return;
 			}
-			
-			$txt .= "\n\n\n----- Welcome Message Sent to the User $this->contactemail -----\n";
-			$txt .= $message;
-			
-			log_message("Sending Notification $name Notice: Account $type $parent->nname $parent->contactemail");
-			$this->sendNotification($noto, $parent, "$name Notice: Account $type", $txt);
+			if (!is_object($noto)) {
+				return;
+			}
+
+			$message = null;
+			$flags = (isset($noto->notflag_b) && is_object($noto->notflag_b)
+				&& method_exists($noto->notflag_b, 'isOn'))
+				? $noto->notflag_b : null;
+
+			if ($type == 'add' && $this->isOn('send_welcome_f')) {
+				$message = $this->replace_keywords((string)($noto->text_newaccountmessage ?? ''), $this);
+				$subject = "Your account has been Setup by {$parent->nname}";
+
+				if (!empty($noto->text_newsubject)) {
+					$subject = $noto->text_newsubject;
+				}
+
+				$this->sendNotification($noto, $this, $subject, $message, $parent);
+			}
+
+			if ($flags && $flags->isOn("{$type}stuff_flag")) {
+				$class = $this->get__table();
+
+				if ($type === 'delete') {
+					$txt = "$class {$this->nname} has been deleted from your account $parent->nname";
+				} else {
+					$txt = "$class {$this->nname} has been added to your account $parent->nname";
+				}
+
+				$txt .= "\n\n\n----- Welcome Message Sent to the User $this->contactemail -----\n";
+				$txt .= $message;
+
+				log_message("Sending Notification $name Notice: Account $type $parent->nname $parent->contactemail");
+				$this->sendNotification($noto, $parent, "$name Notice: Account $type", $txt);
+			}
+		} catch (Throwable $e) {
+			log_log("error", "notifyObjects: " . $e->getMessage());
 		}
 	}
 
@@ -418,12 +437,20 @@ abstract class Lxclient extends Lxdb
 
 		$input = array();
 
-		$input['name'] = $object->nname;
-		$input['clientname'] = $object->getParentName();
-		$input['password'] = $object->realpass;
+		$input['name'] = is_object($object) && isset($object->nname) ? $object->nname : '';
+		$input['clientname'] = '';
+		if (is_object($object) && method_exists($object, 'getParentName')) {
+			try {
+				$input['clientname'] = (string)$object->getParentName();
+			} catch (Throwable $e) {
+				$input['clientname'] = '';
+			}
+		}
+		$input['password'] = is_object($object) && isset($object->realpass) ? $object->realpass : '';
 
 		if ($sgbl->isKloxo()) {
-			$input['default_domain'] = $object->default_domain;
+			$input['default_domain'] = is_object($object) && isset($object->default_domain)
+				? $object->default_domain : '';
 		}
 
 		$input['ipaddress'] = $input['masterserver'] = getFQDNforServer('localhost');
@@ -442,10 +469,18 @@ abstract class Lxclient extends Lxdb
 
 		$input['quota'] = $string;
 
-		$gen = $login->getObject('general');
-
-		$a = $gen->portconfig_b->sslport;
-		$b = $gen->portconfig_b->nonsslport;
+		$gen = null;
+		try {
+			if (is_object($login) && method_exists($login, 'getObject')) {
+				$gen = $login->getObject('general');
+			}
+		} catch (Throwable $e) {
+			$gen = null;
+		}
+		$port = (is_object($gen) && isset($gen->portconfig_b) && is_object($gen->portconfig_b))
+			? $gen->portconfig_b : null;
+		$a = ($port && isset($port->sslport)) ? $port->sslport : null;
+		$b = ($port && isset($port->nonsslport)) ? $port->nonsslport : null;
 
 		$input['sslport'] = isset($a) ? $a : $sgbl->__var_prog_ssl_port;
 		$input['nonsslport'] = isset($b) ? $b : $sgbl->__var_prog_port;

@@ -6621,14 +6621,30 @@ class HtmlLib
 			$url = $ghtml->getFullUrl($url);
 			$path = $post = $class = $name = $image = $identity = null;
 			$ret = $this->getActionDetails($url, '', '', $path, $post, $class, $name, $image, $identity);
+			$t = '';
 			if (is_array($ret) && isset($ret[2]) && $ret[2] !== null && $ret[2] !== '') {
-				return $ret[2];
+				$t = $ret[2];
+			} elseif (is_array($ret) && isset($ret['desc']) && $ret['desc'] !== null && $ret['desc'] !== '') {
+				$t = $ret['desc'];
 			}
-			if (is_array($ret) && isset($ret['desc']) && $ret['desc'] !== null && $ret['desc'] !== '') {
-				return $ret['desc'];
+			if (function_exists('kloxo_content_tab_label')) {
+				$mapped = kloxo_content_tab_label(is_string($t) ? $t : '', is_string($url) ? $url : '');
+				if ($mapped !== '') {
+					return $mapped;
+				}
+			}
+			if (is_string($t) && $t !== '') {
+				return $t;
 			}
 		} catch (Throwable $e) {
 			log_log("error", "getTitleOnly: " . $e->getMessage());
+		}
+
+		if (function_exists('kloxo_content_tab_label')) {
+			$mapped = kloxo_content_tab_label('', is_string($url) ? $url : '');
+			if ($mapped !== '') {
+				return $mapped;
+			}
 		}
 
 		return is_string($url) ? $url : '';

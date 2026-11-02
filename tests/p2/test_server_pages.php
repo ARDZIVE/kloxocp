@@ -159,6 +159,7 @@ $ghtml = $prevHtml;
 $tabSrc = (string) file_get_contents($doc . '/theme/tab_simplicity.php');
 $psLibSrc = (string) file_get_contents($doc . '/driver/pserver/pserverlib.php');
 $coreSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$lxlibSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 $rebootTabsOk = is_array($sharedReboot)
 	&& $sharedReboot === array('a=updateform&sa=reboot', 'a=updateform&sa=poweroff')
 	&& ($rebootTabs['property'] ?? null) === $sharedReboot
@@ -169,8 +170,9 @@ $rebootTabsOk = is_array($sharedReboot)
 	&& $powerOnly === 'Poweroff'
 	&& str_contains($psLibSrc, 'function rebootPropertyTabs')
 	&& str_contains($coreSrc, 'rebootPropertyTabs')
-	&& str_contains($tabSrc, "\$str = 'Reboot'")
-	&& str_contains($tabSrc, "\$str = 'Poweroff'");
+	&& str_contains($tabSrc, 'kloxo_content_tab_label')
+	&& str_contains($lxlibSrc, "return 'Reboot'")
+	&& str_contains($lxlibSrc, "return 'Poweroff'");
 if ($rebootTabsOk) {
 	ok('Reboot page tabs are labelled Reboot and Poweroff');
 } else {
@@ -192,16 +194,57 @@ $psTabs->createShowPropertyList($swTabs);
 $swTitle = get_classvar_description('pserver', '__acdesc_update_switchprogram');
 $swOnly = $ghtml->getTitleOnly('a=updateform&sa=switchprogram');
 $ghtml = $prevHtml2;
+$swForced = function_exists('kloxo_content_tab_label')
+	? kloxo_content_tab_label('Update _switchprogram', 'display.php?frm_action=updateform&frm_subaction=switchprogram')
+	: '';
+$swShort = function_exists('kloxo_content_tab_label')
+	? kloxo_content_tab_label('switch_program', 'a=updateform&sa=switchprogram')
+	: '';
 if (($swTabs['property'] ?? null) === array('a=updateform&sa=switchprogram')
 	&& is_array($swTitle) && ($swTitle[2] ?? '') === 'Switch Program'
 	&& $swOnly === 'Switch Program'
-	&& str_contains($tabSrc, "\$str = 'Switch Program'")) {
+	&& $swForced === 'Switch Program'
+	&& $swShort === 'Switch Program'
+	&& str_contains($tabSrc, 'kloxo_content_tab_label')
+	&& str_contains($psLibSrc, 'function switchProgramPropertyTabs')) {
 	ok('Switch Program page tab is labelled Switch Program');
 } else {
 	bad('Switch Program page tab is labelled Switch Program',
 		'tabs=' . implode(',', (array) ($swTabs['property'] ?? array()))
 			. ' title=' . (is_array($swTitle) ? (string) ($swTitle[2] ?? '') : 'none')
-			. ' only=' . (string) $swOnly);
+			. ' only=' . (string) $swOnly
+			. ' forced=' . (string) $swForced
+			. ' short=' . (string) $swShort);
+}
+
+global $ghtml;
+$prevHtmlPhp = $ghtml;
+$ghtml = new HtmlLib();
+$ghtml->frm_o_o = array(array('class' => 'phpini', 'nname' => 'client-admin'));
+$ghtml->frm_subaction = '';
+$phpShowTitle = get_classvar_description('phpini', '__acdesc_show');
+$phpEditTitle = get_classvar_description('phpini', '__acdesc_update_edit');
+$phpExtraTitle = get_classvar_description('phpini', '__acdesc_update_extraedit');
+$ghtml->frm_subaction = 'extraedit';
+$phpExtraOnly = $ghtml->getTitleOnly('a=updateform&sa=extraedit');
+$ghtml = $prevHtmlPhp;
+$phpTabSrc = (string) file_get_contents($doc . '/theme/tab_simplicity.php');
+$phpDescSrc = (string) file_get_contents($doc . '/lang/en-us/desclib.php');
+if (is_array($phpShowTitle) && ($phpShowTitle[2] ?? '') === 'PHP Configure'
+	&& is_array($phpEditTitle) && ($phpEditTitle[2] ?? '') === 'PHP Configure'
+	&& is_array($phpExtraTitle) && ($phpExtraTitle[2] ?? '') === 'Advanced PHP Configure'
+	&& $phpExtraOnly === 'Advanced PHP Configure'
+	&& str_contains($phpTabSrc, 'kloxo_content_tab_label')
+	&& str_contains($lxlibSrc, "return 'PHP Configure'")
+	&& str_contains($lxlibSrc, "return 'Advanced PHP Configure'")
+	&& str_contains($phpDescSrc, '$__description["PHP Configure"]')
+	&& str_contains($phpDescSrc, '$__description["Advanced PHP Configure"]')) {
+	ok('PHP Configure page tabs are labelled PHP Configure and Advanced PHP Configure');
+} else {
+	bad('PHP Configure page tabs are labelled PHP Configure and Advanced PHP Configure',
+		'showTitle=' . (is_array($phpShowTitle) ? (string) ($phpShowTitle[2] ?? '') : 'none')
+			. ' extraTitle=' . (is_array($phpExtraTitle) ? (string) ($phpExtraTitle[2] ?? '') : 'none')
+			. ' extraOnly=' . (string) $phpExtraOnly);
 }
 
 if (class_exists('Component__deb')) {
@@ -447,6 +490,7 @@ try {
 	$pmaErr = $pmaErr !== '' ? $pmaErr : $e->getMessage();
 }
 $btnSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
+$pmaHelperSrc = (string) file_get_contents($doc . '/lib/php/kloxo_pma.php');
 $pmaWant = function_exists('kloxo_pma_url') ? kloxo_pma_url() : '/thirdparty/phpMyAdmin/';
 $pmaCfg = (string) file_get_contents(dirname($doc) . '/file/phpmyadmin/config.inc.php');
 if ($pmaUrl === $pmaWant && $cliPmaUrl === $pmaWant && $dbPmaUrl === $pmaWant
@@ -456,12 +500,13 @@ if ($pmaUrl === $pmaWant && $cliPmaUrl === $pmaWant && $dbPmaUrl === $pmaWant
 	&& !str_contains($clsrc, 'mywebsql')
 	&& str_contains($btnSrc, "str_starts_with(\$resolvedHref, '/thirdparty/')")
 	&& str_contains($btnSrc, 'kloxo_pma_link_attrs')
+	&& str_contains($pmaHelperSrc, 'kloxo_pma_try_admin_sso')
 	&& str_contains($pmaCfg, 'kloxo-signon.php')
 	&& !str_contains($pmaCfg, 'SignonScript')
 	&& str_contains($pmaCfg, "AllowRoot'] = true")) {
-	ok('SQL Manager tile points at the MySQL logon');
+	ok('SQL Manager tile opens phpMyAdmin sign-on in a new tab');
 } else {
-	bad('SQL Manager tile points at the MySQL logon',
+	bad('SQL Manager tile opens phpMyAdmin sign-on in a new tab',
 		$pmaErr !== '' ? $pmaErr : ('ps=' . $pmaUrl . ' client=' . $cliPmaUrl . ' db=' . $dbPmaUrl . ' tgt=' . $pmaTarget));
 }
 
@@ -1296,6 +1341,14 @@ if (str_contains($addsrc, 'isset($ct->priv) && is_object($ct->priv)')
 	bad('client postAdd clones a plan priv only when the plan has one');
 }
 
+$notesrc = (string)file_get_contents($doc . '/lib/client/lxclient.php');
+if (str_contains($notesrc, 'isset($noto->notflag_b) && is_object($noto->notflag_b)')
+	&& str_contains($notesrc, 'log_log("error", "notifyObjects:')) {
+	ok('client notifyObjects does not require notflag_b');
+} else {
+	bad('client notifyObjects does not require notflag_b');
+}
+
 $syncsrc = (string)file_get_contents($doc . '/lib/client/client__synclib.php');
 if (str_contains($syncsrc, "KloxoIpaddr::isUbuntu()")
 	&& str_contains($syncsrc, "'www-data'")
@@ -1386,6 +1439,36 @@ try {
 	} else {
 		bad('client add hashes the password and keeps customer cttype');
 	}
+
+	$note = new Notification(null, null, 'client-admin');
+	$note->nname = 'client-admin';
+	$note->text_newaccountmessage = Notification::defaultWelcomeMessage();
+	$note->dbaction = 'clean';
+	$admin->notification_o = $note;
+	$admin->__object_list = array_values(array_unique(array_merge(
+		is_array($admin->__object_list ?? null) ? $admin->__object_list : array(),
+		array('notification')
+	)));
+	$cli = new Client(null, 'localhost', 'kloxocptestcli');
+	$cli->nname = 'kloxocptestcli';
+	$cli->cttype = 'customer';
+	$cli->password = $added['password'];
+	$cli->realpass = 'Secret12';
+	$cli->contactemail = 'acme@example.com';
+	$cli->send_welcome_f = 'off';
+	$cli->__parent_o = $admin;
+	$cli->dbaction = 'add';
+	$cli->postAdd();
+	if (($cli->syncserver ?? '') === 'localhost'
+		&& is_object($cli->priv)
+		&& is_object($cli->listpriv)) {
+		ok('client postAdd completes when notification has no notflag_b');
+	} else {
+		bad('client postAdd completes when notification has no notflag_b');
+	}
+	$cli->send_welcome_f = 'on';
+	$cli->notifyObjects('add');
+	ok('client notifyObjects does not TypeError without notflag_b');
 } catch (Throwable $e) {
 	bad('client addform/continueForm/add complete without TypeError', $e->getMessage());
 } finally {
