@@ -5525,8 +5525,13 @@ class HtmlLib
 
 	function print_jscript_source($jsource)
 	{
+		$src = $jsource;
+		$file = getcwd() . '/' . ltrim((string) $jsource, '/');
+		if (is_file($file)) {
+			$src .= (strpos($src, '?') === false ? '?' : '&') . 'v=' . (string) filemtime($file);
+		}
 ?>
-		<script src="<?= $jsource ?>"></script>
+		<script src="<?= $src ?>"></script>
 <?php
 	}
 
@@ -5596,6 +5601,9 @@ class HtmlLib
 					} else {
 						var ids = ['showimage', 'kloxo-error-box', 'esmessage', 'infomsg'];
 						for (var i = 0; i < ids.length; i++) {
+							if (ids[i] === 'kloxo-password-force') {
+								continue;
+							}
 							var b = document.getElementById(ids[i]);
 							if (b) {
 								b.style.visibility = 'hidden';

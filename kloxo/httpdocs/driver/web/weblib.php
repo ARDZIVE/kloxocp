@@ -1637,23 +1637,15 @@ class Web extends Lxdb
 
 	static function getPhpSelectedList()
 	{
-		$t = "--PHP Used--";
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		$active = KloxoPhpver::activeId();
+		$t = "--PHP Used-- (use '{$active}')";
 
-		$g = glob("../etc/flag/use_php*m.flg");
-
-		if (!empty($g)) {
-			$f = str_replace('.flg', '', str_replace('use_', '', basename($g[0])));
-			$u = $t . " (use '{$f}')";
-		} else {
-			$v = getPhpVersion();
-			$u = $t . " (use 'PHP Branch' version '{$v}')";
-		}
-
-		if (file_exists('../etc/flag/enablemultiplephp.flg')) {
-			$p = getMultiplePhpList();
+		$p = getMultiplePhpList();
+		if (file_exists('../etc/flag/enablemultiplephp.flg') || count($p) > 1) {
 			$l = array_merge(array($t), $p);
 		} else {
-			$l = array($u);
+			$l = array($t);
 		}
 
 		return $l;

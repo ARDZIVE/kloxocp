@@ -19,7 +19,8 @@ P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
 the README one-liner fetches `origin/main` when the clone already exists;
 `kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
-change after first login (inline alert, not a blocking error box). Admin Servers list seeds `localhost`. The Update
+change after first login (required Change Password modal with the form
+inside; Esc/Close cannot skip it). Admin Servers list seeds `localhost`. The Update
 screen shows the local `kloxoversion` (`kloxocp update` still exits 2).
 Switch Program loads `dns__none` / `web__none`. PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
@@ -30,9 +31,15 @@ is no longer dropped by splash `flush()`/`ob_start()` or an
 uncaught PHP 8 `Error` after the header. Dashboard tiles and the
 simplicity top-bar items after Server (Security, Basic, Task,
 Help, Logout) no longer vanish on a missing action description.
-Status, Show/Hide and the clock stay on the top right in one row,
-with Help/Logout immediately to their left. The green menu strip
-shrink-wraps Home…Task. Log/driver/php/backup/webserver show pages
+Status, Show/Hide and the clock stay on the top right in one row.
+The green menu strip fills the middle of the red bar (Home…Task on
+the left of the green, Help/Logout on the right of the green, still
+immediately left of Status). Content tabs sit on the beige header
+like Kloxo-MR; the logo sits on the right of the screen.
+The content white panel fills to the bottom of the page.
+Customer sites default to the newest installed PHP-FPM; 5.6.40 and 7.4.33
+are installed beside it (`install-site-php`, ppa:ondrej/php) and can be
+chosen on Webserver Configure. The panel itself stays on distro PHP. Log/driver/php/backup/webserver show pages
 omit the left Find box. List/driver calls guard a missing
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.

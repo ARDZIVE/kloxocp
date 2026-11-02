@@ -92,9 +92,13 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    `localhost` driver with `dns`/`web` = `none`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
 9. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
-10. Restarts FPM, waits until port 39000 is listening, creates the Hiawatha
+10. Installs customer-site PHP-FPM **5.6** (5.6.40), **7.4** (7.4.33), and
+    the newest `phpX.Y-fpm` apt can see (`install-site-php`; default is that
+    newest). Old versions are only for legacy sites (Webserver Configure →
+    PHP Used). The panel FPM stays `kloxo-php`.
+11. Restarts FPM, waits until port 39000 is listening, creates the Hiawatha
     work directories, bounces `kloxo-web`, and pings `/fcgi-ping.php`.
-11. Starts `kloxo-backend` (PHP lxserver). A master binds TLS 7779 and
+12. Starts `kloxo-backend` (PHP lxserver). A master binds TLS 7779 and
     plaintext 7776 on localhost. A `--slave` run skips the panel UI and
     binds TLS 7779 on all interfaces.
 

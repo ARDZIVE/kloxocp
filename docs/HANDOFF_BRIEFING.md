@@ -143,8 +143,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (empty value made PHP-settings alerts look up `pserver-`). IP list on
     Ubuntu is read from `ip -4 addr` (`lib/php/kloxo_ipaddr.php`); the panel
     does not write ifcfg or `/etc/network/interfaces`. `phpini` sync queries
-    `php_type` (not `php-type`). PHP Used / PHP Branch lists apt php-fpm
-    (`kloxo_phpver.php`; the old scanner only saw `/opt/*m`).     phpMyAdmin is not in the tree; `install-phpmyadmin`
+    `php_type` (not `php-type`). PHP Used lists apt php-fpm (`kloxo_phpver.php`,
+    including 5.6 / 7.4 / latest; default is newest). `install-site-php` adds
+    those versions via distro apt then `ppa:ondrej/php`. The old scanner only
+    saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise; Debian
     vendor JS symlinks 404 and hide the login form).
@@ -251,14 +253,22 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     menu; `install.sh` fetches origin and rsyncs a non-symlink
     `/opt/kloxo`. Home is a two-column `table-layout:fixed` table
     (Find/Information/Resource left, tiles right) even when a
-    `__v_message` banner is present. Help/Logout print after the
-    left menu as a separate group immediately left of Status.
-    Status, Show/Hide and the clock sit in one horizontal row.
-    The green bar is shrink-wrapped to Home…Task (no empty green).
+    `__v_message` banner is present.     Help/Logout print inside the green `#menu_div` (not a second
+    green island) at the right of that strip, immediately left of
+    Status. Status, Show/Hide and the clock sit in one horizontal
+    row on the red bar. The green bar fills the middle of the red
+    top (`flex: 1 1 auto`) so Home…Task and Help/Logout join as one
+    strip. Content tabs use `.div_tab_block` folder tabs on the
+    beige `{Admin Home}` header; `#mmm` is transparent, `.div_content`
+    fills to the bottom of the viewport (`min-height: calc(100vh - 80px)`), and the
+    Kloxo logo sits on the right of the screen (`position: fixed; right: 10px`).
     getLastLogin writes Last Login IP (if a previous session exists),
     then Current Login IP, then Last Login Time. The Kloxo logo is
     inside `#mmm` (not `z-index:-9999`). The first-login password
-    form still sits above the tabs until admin/admin is changed.
+    gate is a required `#kloxo-password-force` modal that contains
+    the warning and the change-password form. Esc and Close do not
+    dismiss it; the form is inside the dialog so an Error Box cannot
+    cover the fields. The dashboard still renders behind a backdrop.
     Alert popups (`kloxo-error-box`) no longer share `id="showimage"`
     with Generate Password, so Esc and Close hide the visible box.
     `convert_message` does not index a missing `frm_o_o[0]`.
@@ -440,7 +450,12 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 1. **Answered:** multi-server (master/slave) is required in v1. Slave TLS 7779 binds all interfaces; plaintext 7776 stays loopback; C1 envelope stays. Live two-machine add-server is **UNVERIFIED** until a second Ubuntu host is available.
 2. Repo/org name, domain, logo, and trademark check for "Kloxo CP".
 3. A **test server**: fresh Ubuntu 24.04 VM with root and a domain with controllable DNS (needed to verify install, updates and mail deliverability).
-4. Which PHP repository to use for additional PHP versions (Ubuntu ships 8.3 only); to be chosen and pinned.
+4. **Answered:** customer-site PHP is 5.6 (5.6.40), 7.4 (7.4.33), and the
+   newest `phpX.Y-fpm` apt can see (default). `install-site-php` uses the
+   distro first, then `ppa:ondrej/php`. The panel FPM stays `kloxo-php`.
+   Webserver Configure **PHP Used** switches the default; a domain can
+   still pick another installed version. 5.6 / 7.4 are EOL and only for
+   legacy sites. **UNVERIFIED** on a real Ubuntu VM.
 5. FTP server choice (Pure-FTPd vs ProFTPd) and DNS choice (BIND only, or also PowerDNS).
 
 ---

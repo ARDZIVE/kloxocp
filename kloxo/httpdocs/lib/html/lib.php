@@ -5961,46 +5961,9 @@ function setInitialPhpIniConfig($nolog = null)
 
 function getInitialPhpFpmConfig($nolog = null)
 {
-	$d = getMultiplePhpList();
-
-	if (isset($d)) {
-		foreach ($d as $k => $v) {
-			if ($v === 'php52m') {
-				unset($d[$k]);
-			}
-		}
-
-		$d = array_merge(array('php'), $d);
-	} else {
-		$d = array('php');
-	}
-
-	$a = glob("../etc/flag/use_php*.flg");
-
 	include_once dirname(__DIR__) . '/php/kloxo_phpver.php';
 
-	if (count($a) > 0) {
-		$b1 = basename($a[0]);
-		$b2 = str_replace('.flg', '', $b1);
-		$b3 = str_replace('use_', '', $b2);
-
-		if (!KloxoPhpver::isDistroId($b3)) {
-			exec("sh /script/set-php-fpm {$b3}");
-		}
-
-		return $b3;
-	} else {
-		foreach ($d as $k => $v) {
-			if (!KloxoPhpver::isDistroId($v)) {
-				exec("sh /script/set-php-fpm {$v}");
-			}
-
-			return $v;
-		}
-
-	}
-
-	return 'php';
+	return KloxoPhpver::activeId();
 }
 
 function setKloxoCexeChownChmod($nolog = null)

@@ -208,8 +208,8 @@
 	max-width: none;
 	min-width: 0;
 	order: 2;
-	flex: 0 0 auto;
-	flex-shrink: 0;
+	flex: 1 1 auto;
+	flex-shrink: 1;
 	background-color: #16a085;
 	border: 0;
 	margin: 0 8px;
@@ -220,7 +220,7 @@
 	overflow: visible;
 	display: flex;
 	flex-wrap: nowrap;
-	justify-content: flex-start;
+	justify-content: space-between;
 	align-items: center;
 	box-sizing: border-box;
 }
@@ -240,9 +240,9 @@
 	order: 3;
 	margin-left: auto;
 	overflow: visible;
-	background-color: #16a085;
+	background-color: transparent;
 	min-height: 30px;
-	padding: 0 8px;
+	padding: 0 0 0 8px;
 	display: flex;
 	align-items: center;
 	white-space: nowrap;

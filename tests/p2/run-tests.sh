@@ -225,13 +225,17 @@ if ! awk '/function password_contact_check/,/^function /' "$ROOT/kloxo/httpdocs/
 else
   bad "first-login password form does not hide the dashboard"
 fi
-if sed -n '/function password_contact_check(/,/^function do_display_init(/p' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'kloxo-inline-alert' \
-  && ! sed -n '/function password_contact_check(/,/^function do_display_init(/p' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'print_message(' \
-  && grep -q 'function print_inline_alert' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
-  && grep -q 'kloxo-inline-alert' "$ROOT/kloxo/httpdocs/theme/css/common.css"; then
-  ok "first-login password warning is inline and does not cover the form"
+if sed -n '/function password_contact_check(/,/^function do_display_init(/p' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'kloxo-password-force' \
+  && sed -n '/function password_contact_check(/,/^function do_display_init(/p' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'kloxo-modal-required' \
+  && sed -n '/function password_contact_check(/,/^function do_display_init(/p' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'do_updateform' \
+  && ! sed -n '/function password_contact_check(/,/^function do_display_init(/p' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'show_error_message' \
+  && grep -A 16 'function kloxoHideAllPopups' "$ROOT/kloxo/httpdocs/theme/js/lxa.js" | grep -q 'kloxo-modal-required' \
+  && grep -A 18 'function kloxoHidePopup' "$ROOT/kloxo/httpdocs/theme/js/lxa.js" | grep -q 'kloxo-password-force' \
+  && grep -q '.kloxo-modal-backdrop' "$ROOT/kloxo/httpdocs/theme/css/common.css" \
+  && grep -q '.kloxo-modal.kloxo-password-force' "$ROOT/kloxo/httpdocs/theme/css/common.css"; then
+  ok "first-login password change is a required modal that keeps the form usable"
 else
-  bad "first-login password warning is inline and does not cover the form"
+  bad "first-login password change is a required modal that keeps the form usable"
 fi
 if grep -q 'checkButton('\''webhosting_flag'\'')' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php" \
   && grep -q 'checkButton('\''webhosting_flag'\'')' "$ROOT/kloxo/httpdocs/lib/client/clientcorelib.php"; then
@@ -321,18 +325,43 @@ if grep -A 16 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | g
 else
   bad "simplicity Status/Show-Hide/time stay visible on the top right"
 fi
-if grep -A 18 '.div_menu {' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" | grep -q 'flex: 0 0 auto' \
+if grep -A 20 '.div_menu {' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" | grep -q 'flex: 1 1 auto' \
   && grep -A 12 '.div_menu_right' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" | grep -q 'order: 3' \
-  && grep -A 16 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'order: 4'; then
-  ok "green menu bar shrinks to the items; Help/Logout sit left of Status"
+  && grep -A 16 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'order: 4' \
+  && python3 -c '
+import re
+from pathlib import Path
+t = Path("'"$ROOT"'/kloxo/httpdocs/theme/skin/simplicity/default/menu.php").read_text()
+ok = bool(re.search(r"id=\"menu_div\"[\s\S]+class=\"div_menu_right\"[\s\S]+?</div>\s*</div>\s*<!-- .END - Simplicity menu", t))
+raise SystemExit(0 if ok else 1)
+'; then
+  ok "green menu fills the middle; Help/Logout stay in the green strip left of Status"
 else
-  bad "green menu bar shrinks to the items; Help/Logout sit left of Status"
+  bad "green menu fills the middle; Help/Logout stay in the green strip left of Status"
+fi
+if grep -A 18 '.div_content {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'calc(100vh - 80px)' \
+  && grep -A 18 '.div_mmm_simplicity {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'calc(100vh - 42px)' \
+  && grep -A 18 '.div_mmm_simplicity {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'flex-direction: column'; then
+  ok "content white background fills to the bottom of the page"
+else
+  bad "content white background fills to the bottom of the page"
+fi
+if grep -A 18 '.div_mmm_simplicity {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'background-color: transparent' \
+  && grep -A 18 '.div_fixed_logo_right {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'position: fixed' \
+  && grep -A 18 '.div_fixed_logo_right {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'right: 10px' \
+  && grep -q 'class="div_tab_block"' "$ROOT/kloxo/httpdocs/theme/tab_simplicity.php" \
+  && grep -A 16 '.div_tab_block {' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/style.css" | grep -q 'display: flex' \
+  && grep -A 18 '.verb3 {' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/style.css" | grep -q 'border-radius: 4px 4px 0 0'; then
+  ok "content tabs sit on the beige header like Kloxo-MR; logo sits on the right of the screen"
+else
+  bad "content tabs sit on the beige header like Kloxo-MR; logo sits on the right of the screen"
 fi
 if grep -A 12 'function print_css_source' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'filemtime' \
+  && grep -A 12 'function print_jscript_source' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'filemtime' \
   && grep -q '?v=' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then
-  ok "theme CSS links bust the browser cache after an update"
+  ok "theme CSS and JS links bust the browser cache after an update"
 else
-  bad "theme CSS links bust the browser cache after an update"
+  bad "theme CSS and JS links bust the browser cache after an update"
 fi
 if grep -q '<table class="div_home_page"' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
   && grep -q 'table-layout:fixed' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
@@ -344,10 +373,12 @@ else
   bad "home page keeps Find/Information/Resource beside the dashboard tiles"
 fi
 if awk '/id="mmm"/{m=NR} /div_fixed_logo_right/{l=NR} END {exit !(m && l && m<l)}' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
-  && grep -A 12 '.div_fixed_logo_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'z-index: 5'; then
-  ok "simplicity logo sits on the white panel instead of behind the background"
+  && grep -A 18 '.div_fixed_logo_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'z-index: 5' \
+  && grep -A 18 '.div_fixed_logo_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'position: fixed' \
+  && grep -A 18 '.div_fixed_logo_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'right: 10px'; then
+  ok "simplicity logo sits on the right of the screen"
 else
-  bad "simplicity logo sits on the white panel instead of behind the background"
+  bad "simplicity logo sits on the right of the screen"
 fi
 if grep -A 25 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | grep -q 'info_currentloginip' \
   && grep -A 25 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | grep -q 'getRemoteIp()' \

@@ -148,6 +148,26 @@ if grep -q 'install-phpmyadmin' "$ROOT/install.sh"; then
 else
   bad "install.sh calls install-phpmyadmin"
 fi
+SITEPHP="$ROOT/kloxo/bin/install/install-site-php"
+check "install-site-php --help" bash "$SITEPHP" --help
+check "install-site-php --dry-run" bash "$SITEPHP" --dry-run --root="$ROOT/kloxo"
+fails "install-site-php root with .. rejected" bash "$SITEPHP" --root="$ROOT/kloxo/../kloxo"
+if grep -q 'install-site-php' "$ROOT/install.sh" \
+  && grep -q 'php5.6-fpm' "$SITEPHP" && grep -q 'php7.4-fpm' "$SITEPHP" \
+  && grep -q 'ppa:ondrej/php' "$SITEPHP" \
+  && grep -q 'kloxo-php is not changed' "$SITEPHP"; then
+  ok "install.sh installs site PHP 5.6, 7.4, and latest via ondrej"
+else
+  bad "install.sh installs site PHP 5.6, 7.4, and latest via ondrej"
+fi
+if grep -q 'function setActiveId' "$ROOT/kloxo/httpdocs/lib/php/kloxo_phpver.php" \
+  && grep -q 'KloxoPhpver::setActiveId' "$ROOT/kloxo/httpdocs/driver/web/serverweb__lib.php" \
+  && grep -q 'KloxoPhpver::activeId' "$ROOT/kloxo/httpdocs/driver/web/serverweblib.php" \
+  && ! grep -q 'php_switch_not_supported_on_ubuntu' "$ROOT/kloxo/httpdocs/driver/web/serverweb__lib.php"; then
+  ok "Webserver Configure php_used selects distro PHP; Ubuntu no longer refuses install"
+else
+  bad "Webserver Configure php_used selects distro PHP; Ubuntu no longer refuses install"
+fi
 if [[ -f "$ROOT/kloxo/httpdocs/thirdparty/phpMyAdmin/index.php" ]]; then
   bad "phpMyAdmin is not vendored in the tree"
 else

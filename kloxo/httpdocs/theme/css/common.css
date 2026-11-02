@@ -776,6 +776,7 @@ html>body #quotausagebar span.last {
 
 	.div_content {
 		min-height: 240px;
+		min-height: calc(100vh - 80px);
 		height: auto !important;
 		width: 100%;
 		overflow: visible;
@@ -785,6 +786,7 @@ html>body #quotausagebar span.last {
 		background-color: #fff;
 		position: relative;
 		z-index: 1;
+		flex: 1 1 auto;
 	}
 
 	.tbl_content_content {
@@ -899,9 +901,11 @@ html>body #quotausagebar span.last {
 	}
 
 	.div_fixed_logo_right {
-		position: absolute;
-		top: 8px;
-		right: 8px;
+		position: fixed;
+		top: 48px;
+		right: 10px;
+		left: auto;
+		margin-left: 0;
 		background-color: #fff;
 		filter: alpha(opacity=80);
 		opacity: 0.8;
@@ -933,12 +937,15 @@ html>body #quotausagebar span.last {
 		width: 960px;
 		padding: 0;
 		border: 0;
-		margin: 70px auto 10px auto;
-		background-color: #fff;
+		margin: 42px auto 0 auto;
+		background-color: transparent;
 		overflow: visible;
 		position: relative;
 		z-index: 1;
 		min-height: 240px;
+		min-height: calc(100vh - 42px);
+		display: flex;
+		flex-direction: column;
 	}
 
 	.div_mmm_simplicity::after {
@@ -1000,6 +1007,16 @@ html>body #quotausagebar span.last {
 		box-sizing: border-box;
 	}
 
+	.kloxo-modal-backdrop {
+		position: fixed;
+		z-index: 10040;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0, 0, 0, 0.45);
+	}
+
 	.kloxo-modal {
 		position: fixed;
 		z-index: 10050;
@@ -1009,6 +1026,30 @@ html>body #quotausagebar span.last {
 		width: 420px;
 		max-width: calc(100vw - 24px);
 		box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+	}
+
+	.kloxo-modal.kloxo-password-force {
+		top: 48px;
+		width: 640px;
+		max-height: calc(100vh - 64px);
+		overflow: auto;
+		background: #fff;
+	}
+
+	.kloxo-password-force .kloxo-modal-bar {
+		cursor: default;
+		background-color: #c66;
+		color: #fff;
+		border-bottom: 1px solid #a44;
+	}
+
+	.kloxo-password-force .kloxo-modal-title {
+		color: #fff;
+	}
+
+	.kloxo-password-force .kloxo-inline-alert {
+		margin: 0 0 10px 0;
+		max-width: none;
 	}
 
 	.kloxo-modal-bar {

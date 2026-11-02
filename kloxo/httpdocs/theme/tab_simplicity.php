@@ -22,7 +22,7 @@ function print_tab_block_start($alist)
 ?>
 
 <!-- "START TAB" -->
-	<div>
+	<div class="div_tab_block">
 <?php
 	if (!$sgbl->isBlackBackground()) {
 ?>

@@ -1,7 +1,14 @@
 
 function kloxoHidePopup(id) {
+	if (id === 'kloxo-password-force') {
+		return;
+	}
 	var el = document.getElementById(id);
 	if (!el) {
+		return;
+	}
+	var cn = ' ' + (el.className || '') + ' ';
+	if (cn.indexOf(' kloxo-modal-required ') !== -1) {
 		return;
 	}
 	el.style.visibility = 'hidden';
@@ -20,7 +27,15 @@ function kloxoShowPopup(id) {
 function kloxoHideAllPopups() {
 	var nodes = document.querySelectorAll('.kloxo-modal, .kloxo-error-box, #showimage, #esmessage, #infomsg');
 	var i;
+	var cn;
 	for (i = 0; i < nodes.length; i++) {
+		if (nodes[i].id === 'kloxo-password-force') {
+			continue;
+		}
+		cn = ' ' + (nodes[i].className || '') + ' ';
+		if (cn.indexOf(' kloxo-modal-required ') !== -1) {
+			continue;
+		}
 		nodes[i].style.visibility = 'hidden';
 		nodes[i].style.display = 'none';
 	}

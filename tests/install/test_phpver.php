@@ -8,7 +8,8 @@ $fail = 0;
 $ok = static function (string $d) { printf("  ok   %s\n", $d); };
 $bad = static function (string $d) use (&$fail) { $fail++; printf("  FAIL %s\n", $d); };
 
-if (KloxoPhpver::isDistroId('php8.3') && KloxoPhpver::isDistroId('php8.5') && KloxoPhpver::isDistroId('php')) {
+if (KloxoPhpver::isDistroId('php8.3') && KloxoPhpver::isDistroId('php8.5') && KloxoPhpver::isDistroId('php')
+    && KloxoPhpver::isDistroId('php5.6') && KloxoPhpver::isDistroId('php7.4')) {
     $ok('distro ids');
 } else {
     $bad('distro ids');
@@ -24,6 +25,18 @@ if (is_array($ids)) {
     $ok('installedIds returns a list');
 } else {
     $bad('installedIds returns a list');
+}
+$def = KloxoPhpver::defaultId();
+if (is_string($def) && $def !== '' && KloxoPhpver::isDistroId($def)) {
+    $ok("defaultId is the newest installed ($def)");
+} else {
+    $bad('defaultId is the newest installed');
+}
+$act = KloxoPhpver::activeId();
+if (is_string($act) && KloxoPhpver::isDistroId($act)) {
+    $ok("activeId is a distro id ($act)");
+} else {
+    $bad('activeId is a distro id');
 }
 
 $php = '/usr/bin/php';

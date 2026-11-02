@@ -1,0 +1,187 @@
+#!/bin/bash
+# Install customer-site PHP-FPM versions on Ubuntu: 5.6 (5.6.40), 7.4 (7.4.33),
+# and the newest phpX.Y-fpm apt can see (the default). The panel FPM (kloxo-php)
+# is not touched. Old 5.6 / 7.4 are EOL; they exist only so a site can be
+# switched from Webserver Configure.
+#
+# Copyright (C) 2026 Kloxo CP contributors
+# GNU Affero General Public License v3. See LICENSE.txt.
+set -euo pipefail
+
+ROOT="${KLOXO_ROOT:-/opt/kloxo}"
+FORCE=0
+DRY=0
+WANTED_OLD=(5.6 7.4)
+# Newest first. 8.6 is listed so a later stable is picked without a code change.
+LATEST_CANDIDATES=(8.6 8.5 8.4 8.3)
+EXTS=(cli fpm mysql xml mbstring curl zip gd intl bcmath opcache soap)
+
+usage() {
+  cat <<EOF
+install-site-php: customer-site PHP-FPM (5.6, 7.4, latest)
+
+  sudo bash install-site-php [--root=DIR] [--force] [--dry-run]
+
+  --root=DIR    program root (default: ${ROOT})
+  --force       reinstall even if php-fpm binaries already exist
+  --dry-run     print the plan and exit
+  --help
+
+Uses Ubuntu distro packages first. If 5.6 / 7.4 are missing, adds
+ppa:ondrej/php (Ondřej Surý). The panel keeps using kloxo-php.
+EOF
+}
+
+log() { printf '%s\n' "$*"; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+have_fpm() {
+  local ver="$1"
+  [[ -x "/usr/sbin/php-fpm${ver}" ]]
+}
+
+apt_has() {
+  local pkg="$1"
+  apt-cache show "$pkg" >/dev/null 2>&1
+}
+
+pick_latest() {
+  local v
+  for v in "${LATEST_CANDIDATES[@]}"; do
+    if apt_has "php${v}-fpm" || have_fpm "$v"; then
+      printf '%s' "$v"
+      return 0
+    fi
+  done
+  return 1
+}
+
+ensure_sury() {
+  if apt_has php5.6-fpm && apt_has php7.4-fpm; then
+    return 0
+  fi
+  log "adding ppa:ondrej/php for PHP 5.6 / 7.4 (EOL; customer sites only)"
+  apt-get install -y software-properties-common ca-certificates gnupg apt-transport-https
+  add-apt-repository -y ppa:ondrej/php
+  apt-get update -y
+}
+
+pkgs_for() {
+  local ver="$1" e p
+  printf 'php%s-fpm' "$ver"
+  for e in "${EXTS[@]}"; do
+    p="php${ver}-${e}"
+    if apt_has "$p"; then
+      printf ' %s' "$p"
+    fi
+  done
+}
+
+wire_include() {
+  local ver="$1"
+  local conf="/etc/php/${ver}/fpm/php-fpm.conf"
+  local pdir="${ROOT}/file/php-fpm"
+  local pooldir="/opt/configs/php-fpm/conf/php${ver}/php-fpm.d"
+  local sockdir="/opt/configs/php-fpm/sock"
+  local line="include=/opt/configs/php-fpm/conf/php${ver}/php-fpm.d/*.conf"
+  mkdir -p "$pooldir" "$sockdir"
+  chmod 0775 "$sockdir" || true
+  if [[ ! -f "${pooldir}/default.conf" ]]; then
+    cat > "${pooldir}/default.conf" <<EOF
+[php${ver}-default]
+listen = /opt/configs/php-fpm/sock/php${ver}-apache.sock
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+user = www-data
+group = www-data
+pm = ondemand
+pm.max_children = 5
+pm.process_idle_timeout = 10s
+EOF
+  fi
+  if [[ -f "$conf" ]] && ! grep -F -q "$line" "$conf"; then
+    printf '\n; Kloxo CP site pools\n%s\n' "$line" >> "$conf"
+  fi
+  if [[ -x "/usr/sbin/php-fpm${ver}" ]]; then
+    "/usr/sbin/php-fpm${ver}" -t >/dev/null
+  fi
+  systemctl enable "php${ver}-fpm" >/dev/null 2>&1 || true
+  systemctl restart "php${ver}-fpm" || systemctl start "php${ver}-fpm" || true
+}
+
+write_default_flag() {
+  local ver="$1"
+  local flagdir="${ROOT}/etc/flag"
+  mkdir -p "$flagdir"
+  rm -f "${flagdir}"/use_php*.flg
+  : > "${flagdir}/use_php${ver}.flg"
+  : > "${flagdir}/enablemultiplephp.flg"
+}
+
+for a in "$@"; do
+  case "$a" in
+    --help|-h) usage; exit 0 ;;
+    --force) FORCE=1 ;;
+    --dry-run) DRY=1 ;;
+    --root=*) ROOT="${a#--root=}" ;;
+    *) die "unknown option: $a (try --help)" ;;
+  esac
+done
+
+if [[ "$ROOT" == *..* || "$ROOT" == *$'\n'* ]]; then
+  die "invalid --root"
+fi
+
+if [[ "$DRY" -eq 1 ]]; then
+  cat <<EOF
+plan: install customer-site PHP-FPM
+  root     $ROOT
+  versions 5.6 (5.6.40), 7.4 (7.4.33), plus newest of: ${LATEST_CANDIDATES[*]}
+  repo     distro apt, then ppa:ondrej/php if 5.6/7.4 are missing
+  default  newest installed phpX.Y-fpm
+  panel    kloxo-php is not changed
+EOF
+  exit 0
+fi
+
+[[ "$(id -u)" -eq 0 ]] || die "run as root"
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update -y
+ensure_sury
+
+latest=""
+if latest="$(pick_latest)"; then
+  log "latest site PHP is ${latest}"
+else
+  die "no phpX.Y-fpm package found (tried ${LATEST_CANDIDATES[*]})"
+fi
+
+install_one() {
+  local ver="$1"
+  if have_fpm "$ver" && [[ "$FORCE" -eq 0 ]]; then
+    log "php${ver}-fpm already present"
+    return 0
+  fi
+  # shellcheck disable=SC2046
+  apt-get install -y $(pkgs_for "$ver")
+}
+
+install_one "$latest"
+for v in "${WANTED_OLD[@]}"; do
+  if apt_has "php${v}-fpm"; then
+    install_one "$v" || log "warn: php${v}-fpm install failed (EOL packages)"
+  else
+    log "warn: php${v}-fpm is not in apt; skip"
+  fi
+done
+
+for v in "$latest" "${WANTED_OLD[@]}"; do
+  if have_fpm "$v"; then
+    wire_include "$v"
+  fi
+done
+
+write_default_flag "$latest"
+log "site PHP default is php${latest} (Webserver Configure can select 5.6 / 7.4)"

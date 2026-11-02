@@ -1161,13 +1161,13 @@ if (strpos($loginas, "@") !== false) {
 	log_log("error", "simplicity menu left: " . $e->getMessage());
 }
 ?>
-</div>
 <div class="div_menu_right">
 	<ul class="menuTemplate2 decor2_1">
 		<li><a title="<?=$login->getKeywordUc('click_here_for');?> <?=$login->getKeywordUc('help');?>" href="javascript://" onClick="toggleVisibilityById('infomsg');"><?=$login->getKeywordUc('help');?></a></li>
 		<li class="separator"></li>
 		<li><a title="<?=$login->getKeywordUc('click_here_for');?> <?=$login->getKeywordUc('logout');?>"  href="javascript:if (confirm('<?=$login->getKeywordUc('is_want_logout');?>')) { location = '/lib/php/logout.php'; }"><?=$login->getKeywordUc('logout');?></a></li>
 	</ul>
+</div>
 </div>
 <!-- 'END - Simplicity menu' -->
 

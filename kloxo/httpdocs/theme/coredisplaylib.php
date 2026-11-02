@@ -2207,22 +2207,33 @@ function password_contact_check()
 		if (isset($g_language_mes->__emessage['security_warning'])) {
 			$warn = $g_language_mes->__emessage['security_warning'];
 		}
+		$title = 'Change Password';
 ?>
 
-		<br/>
-		<div style="width: 640px; background-color: #fff; margin: 0 auto; border: 1px solid #ddd;">
-		<div class="kloxo-inline-alert" role="alert"><span style="color:red"><b>Alert: </b></span><?= htmlspecialchars($warn, ENT_QUOTES) ?></div>
-		<br/>
+		<div id="kloxo-password-force-backdrop" class="kloxo-modal-backdrop" aria-hidden="true"></div>
+		<div id="kloxo-password-force" class="kloxo-modal kloxo-password-force kloxo-modal-required" role="dialog" aria-modal="true" aria-labelledby="kloxo-password-force-title">
+			<div class="kloxo-modal-bar">
+				<div class="kloxo-modal-title" id="kloxo-password-force-title"><?= htmlspecialchars($title, ENT_QUOTES) ?></div>
+			</div>
+			<div class="kloxo-modal-body">
+				<div class="kloxo-inline-alert" role="alert"><span style="color:red"><b>Alert: </b></span><?= htmlspecialchars($warn, ENT_QUOTES) ?></div>
 <?php
+		try {
+			$ghtml->print_message();
+		} catch (Throwable $e) {
+			log_log("error", "password force print_message: " . $e->getMessage());
+		}
+		try {
 			$gbl->frm_ev_list = "old_password_f";
 			do_updateform($login, 'password');
+		} catch (Throwable $e) {
+			log_log("error", "password force form: " . $e->getMessage());
+			echo '<div class="kloxo-inline-alert" role="alert">The password form could not be opened. Use Logout and sign in again.</div>';
+		}
 ?>
+			</div>
 		</div>
-		<br/>
 <?php
-		// Keep the home action buttons visible under the password form.
-		// A modal error box sat on top of the fields and blocked the change, so
-		// the same overlay came back on every page until the password was saved.
 	}
 }
 

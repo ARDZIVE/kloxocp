@@ -11,8 +11,10 @@ declare(strict_types=1);
 
 final class KloxoPhpver
 {
-    /** @var list<string> */
-    private const DISTRO_SERIES = ['8.5', '8.4', '8.3', '8.2', '8.1'];
+    /** @var list<string> newest first; 5.6 and 7.4 are EOL site runtimes */
+    private const DISTRO_SERIES = [
+        '8.6', '8.5', '8.4', '8.3', '8.2', '8.1', '8.0', '7.4', '7.3', '7.2', '7.1', '7.0', '5.6',
+    ];
 
     /** @return list<string> ids such as php8.3, php8.5, php73m */
     public static function installedIds(): array
@@ -78,6 +80,67 @@ final class KloxoPhpver
         }
 
         return $out;
+    }
+
+    /** Newest installed distro id (php8.5, php8.3, …), or php. */
+    public static function defaultId(): string
+    {
+        $ids = self::installedIds();
+
+        return $ids[0] ?? 'php';
+    }
+
+    public static function flagDirectory(): string
+    {
+        $a = dirname(__DIR__, 3) . '/etc/flag';
+        if (is_dir($a)) {
+            return $a;
+        }
+        if (is_dir('../etc/flag')) {
+            return '../etc/flag';
+        }
+
+        return $a;
+    }
+
+    /** Server default from use_php*.flg, else defaultId(). */
+    public static function activeId(): string
+    {
+        $dir = self::flagDirectory();
+        foreach (glob($dir . '/use_php*.flg') ?: [] as $f) {
+            if (!is_string($f)) {
+                continue;
+            }
+            $id = substr(basename($f, '.flg'), 4);
+            if (is_string($id) && self::isDistroId($id)) {
+                return $id;
+            }
+        }
+
+        return self::defaultId();
+    }
+
+    public static function setActiveId(string $id): bool
+    {
+        if ($id === '--PHP Branch--' || $id === '--PHP Used--' || str_contains(strtolower($id), 'php used')) {
+            $id = self::defaultId();
+        }
+        if (!self::isDistroId($id)) {
+            return false;
+        }
+        $dir = self::flagDirectory();
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return false;
+        }
+        foreach (glob($dir . '/use_php*.flg') ?: [] as $f) {
+            if (is_string($f) && is_file($f)) {
+                @unlink($f);
+            }
+        }
+        $ok = @file_put_contents($dir . '/use_' . $id . '.flg', '') !== false;
+        @touch($dir . '/enablemultiplephp.flg');
+
+        return $ok;
     }
 
     public static function isDistroId(string $id): bool

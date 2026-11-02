@@ -191,6 +191,7 @@ plan: Kloxo CP ${KCP_VERSION}
   root    $ROOT
   profile $PROFILE
   type    $INSTALL_TYPE
+  sitephp 5.6, 7.4, latest (install-site-php; default latest)
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
   exit 0
@@ -327,7 +328,8 @@ chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" \
   "$ROOT/bin/install/init-panel-db" \
   "$ROOT/bin/install/init-slave" \
   "$ROOT/bin/install/install-hiawatha" \
-  "$ROOT/bin/install/install-phpmyadmin" || true
+  "$ROOT/bin/install/install-phpmyadmin" \
+  "$ROOT/bin/install/install-site-php" || true
 
 if [[ ! -f "$ROOT/init/backend.key" ]]; then
   php "$ROOT/bin/install/generate-tls-keys" --root="$ROOT" --hostname="$(hostname -f 2>/dev/null || hostname)"
@@ -440,6 +442,10 @@ fi
 log "panel schema ready"
 
 bash "$ROOT/bin/install/install-phpmyadmin" --root="$ROOT"
+log "installing site PHP 5.6, 7.4, and latest (default); panel kloxo-php is unchanged"
+if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
+  log "warn: extra site PHP versions failed; Webserver Configure can retry"
+fi
 force_fcgi_tcp
 systemctl reset-failed kloxo-php 2>/dev/null || true
 rm -f "$ROOT/init/kloxo-phpcgi.pid" "$ROOT/init/kloxo-phpcgi.sock"

@@ -46,6 +46,8 @@
 	} else {
 		if ($phpselected === 'php') {
 			$phpcli = "php";
+		} elseif (preg_match('/^php(\d+\.\d+)$/', $phpselected, $m)) {
+			$phpcli = "/usr/bin/php{$m[1]}";
 		} else {
 			$phpcli = "{$phpselected}-cli";
 		}

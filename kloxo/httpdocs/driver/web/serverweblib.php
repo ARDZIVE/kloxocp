@@ -41,32 +41,40 @@ class serverweb extends lxdb
 
 			$uflist['php_used'] = null;
 
-			$uflist['php_branch'] = null;
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+			$ubuntu = class_exists('KloxoIpaddr') && KloxoIpaddr::isUbuntu();
 
-			$uflist['multiple_php_activate'] = null;
-			$uflist['multiple_php_install'] = null;
-			$uflist['multiple_php_remove'] = null;
+			if ($ubuntu) {
+				$uflist['multiple_php_install'] = null;
+				$uflist['fix_chownchmod'] = null;
+			} else {
+				$uflist['php_branch'] = null;
 
-			$a = getListOnList('php');
+				$uflist['multiple_php_activate'] = null;
+				$uflist['multiple_php_install'] = null;
+				$uflist['multiple_php_remove'] = null;
 
-			foreach ($a as $k => $v) {
-				if (strpos($v, 'php52') !== false) {
-					$uflist['enable_php52m_fpm'] = null;
+				$a = getListOnList('php');
 
-					break;
+				foreach ($a as $k => $v) {
+					if (strpos($v, 'php52') !== false) {
+						$uflist['enable_php52m_fpm'] = null;
+
+						break;
+					}
 				}
+
+				if (isWebProxyOrApache()) {
+					$uflist['php_type'] = null;
+					$uflist['apache_optimize'] = null;
+				}
+
+				$uflist['mysql_convert'] = null;
+
+				$uflist['fix_chownchmod'] = null;
+
+				$uflist['pagespeed_clear_cache'] = null;
 			}
-
-			if (isWebProxyOrApache()) {
-				$uflist['php_type'] = null;
-				$uflist['apache_optimize'] = null;
-			}
-
-			$uflist['mysql_convert'] = null;
-
-			$uflist['fix_chownchmod'] = null;
-
-			$uflist['pagespeed_clear_cache'] = null;
 		} else {
 			$uflist['fix_chownchmod_user'] = null;
 		}
@@ -214,6 +222,18 @@ class serverweb extends lxdb
 				$this->multiple_php_already_installed = null;
 				$this->multiple_php_install = null;
 
+				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+				if (class_exists('KloxoIpaddr') && KloxoIpaddr::isUbuntu()) {
+					$h = implode(' ', KloxoPhpver::installedIds());
+					if ($h === '') {
+						$h = '(none yet)';
+					}
+					$vlist['multiple_php_already_installed'] = array('M', $h);
+					$vlist['__v_button'] = array();
+					break;
+				}
+
 			//	$a = rl_exec_get(null, $this->syncserver, "getCleanRpmBranchListOnList", array('php'));
 				$a = getCleanRpmBranchListOnList('php');
 
@@ -253,27 +273,23 @@ class serverweb extends lxdb
 			case "php_used":
 				$this->php_used = null;
 
-				$d = getMultiplePhpList();
-				$g = getInitialPhpFpmConfig();
-
-				$s = '--PHP Branch--';
-            
-				if (isset($d)) {
-					foreach ($d as $k => $v) {
-						if ($v === 'php52m') {
-							unset($d[$k]);
-						}
-					}
-
-					$d = array_merge(array($s), $d);
-				} else { 
-					$d = array($s);
+				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+				$d = KloxoPhpver::installedIds();
+				if ($d === []) {
+					$d = getMultiplePhpList();
 				}
-
-				if ($g === 'php') {
-					$j = $s;
-				} else {
-					$j = $g;
+				foreach ($d as $k => $v) {
+					if ($v === 'php52m') {
+						unset($d[$k]);
+					}
+				}
+				$d = array_values($d);
+				$j = KloxoPhpver::activeId();
+				if ($d === []) {
+					$d = array($j);
+				}
+				if (!in_array($j, $d, true)) {
+					array_unshift($d, $j);
 				}
 
 				$this->setDefaultValue('php_used', $j);

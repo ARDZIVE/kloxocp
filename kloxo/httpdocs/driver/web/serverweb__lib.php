@@ -502,7 +502,9 @@ class serverweb__ extends lxDriverClass
 		$v = $this->main->php_used;
 
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
-		if (KloxoPhpver::isDistroId((string)$v)) {
+		if (KloxoPhpver::setActiveId((string)$v)) {
+			createRestartFile("restart-php-fpm");
+			createRestartFile("restart-web");
 			return;
 		}
 
@@ -536,7 +538,27 @@ class serverweb__ extends lxDriverClass
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
 		if (KloxoIpaddr::isUbuntu()) {
-			throw new lxException($login->getThrow("php_switch_not_supported_on_ubuntu"), '', 'apt');
+			$root = dirname(__DIR__, 3);
+			$script = $root . '/bin/install/install-site-php';
+			if (!is_file($script)) {
+				throw new lxException($login->getThrow('file_not_found'), '', $script);
+			}
+			$p = @proc_open(['bash', $script, '--root=' . $root], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+			if (!is_resource($p)) {
+				throw new lxException($login->getThrow('could_not_execute'), '', 'install-site-php');
+			}
+			$out = stream_get_contents($pipes[1]);
+			$err = stream_get_contents($pipes[2]);
+			fclose($pipes[1]);
+			fclose($pipes[2]);
+			$code = proc_close($p);
+			if ($code !== 0) {
+				log_log('error', 'install-site-php: ' . (is_string($err) ? $err : '') . (is_string($out) ? $out : ''));
+				throw new lxException($login->getThrow('install_process_running_in_background'), '', 'install-site-php');
+			}
+			createRestartFile("restart-php-fpm");
+			createRestartFile("restart-web");
+			return;
 		}
 
 		$i = $this->main->multiple_php_install;

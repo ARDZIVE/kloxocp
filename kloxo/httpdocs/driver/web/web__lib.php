@@ -857,15 +857,16 @@ class web__ extends lxDriverClass
 
 	function getPhpSelected()
 	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 		if ((!isset($this->main->php_selected)) || (!$this->main->php_selected) || (strtolower($this->main->php_selected) === '--default--')) {
-			$ret = 'php';
+			$ret = KloxoPhpver::activeId();
 		} else {
 			$ret = $this->main->php_selected;
 		}
 	
 		// MR -- convert
 		if (strpos(strtolower($ret), 'php used') !== false) {
-			$ret = 'php';
+			$ret = KloxoPhpver::activeId();
 		}
 
 		return $ret;
