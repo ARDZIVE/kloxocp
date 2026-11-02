@@ -38,6 +38,7 @@ $gl_class_array['mysqldbuser__mysql'] =  "driver/pserver/mysqldbuser__mysqllib.p
 $gl_class_array['reversedns__bind'] =  "driver/pserver/reversedns__bindlib.php";
 
 $gl_class_array["mimetype__nginx"] = "driver/web/mimehandler__nginxlib.php";
+$gl_class_array["mimetype__apache"] = "driver/web/mimehandler__apachelib.php";
 
 $gl_class_array['cron__linux'] = "driver/pserver/cron__linuxlib.php";
 //--// $gl_class_array['cron__windows'] = "driver/pserver/cron__windowslib.php";

@@ -5,7 +5,7 @@
 ## What this is
 Kloxo CP: a hosting control panel forked from Kloxo-MR (AGPLv3), being modernised for Ubuntu 24.04
 and Ubuntu 26.x,
-Nginx + PHP-FPM only for sites, Hiawatha for the panel itself, no billing for now, existing UI kept,
+Nginx + PHP-FPM default for sites (Apache selectable), Hiawatha for the panel itself, no billing for now, existing UI kept,
 mail via Postfix + Dovecot + Rspamd + MariaDB (done and tested), easy install/update with automatic
 rollback (designed, not built).
 
@@ -22,7 +22,16 @@ the README one-liner fetches `origin/main` when the clone already exists;
 change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it). Admin Servers list seeds `localhost`. The Update
 screen shows the local `kloxoversion` (`kloxocp update` still exits 2).
-Switch Program loads `dns__none` / `web__none`. PHP Module Status
+Switch Program DNS default is BIND (`pg_dns=bind`); PowerDNS is packaged and
+prepared (`install-pdns`) but the `pdns` unit stays disabled until selected.
+Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
+(`install-apache`, PHP-FPM via proxy_fcgi, no mod_php) but `apache2` stays
+disabled until selected. Admin SQL Manager opens phpMyAdmin via panel
+sign-on (`kloxo_pma`, all databases; no password in the URL). Component Info
+lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
+postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
+on/off from dpkg. SMTP `none` / `exim`
+(qmail-toaster is no longer the selectable MTA). PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `count(null)` after login. Install seeds a `localhost` driver row and
 `generalmisc_b` so the home page does not fatal on a missing driver or
@@ -39,8 +48,11 @@ like Kloxo-MR; the logo sits on the right of the screen.
 The content white panel fills to the bottom of the page.
 Customer sites default to the newest installed PHP-FPM; 5.6.40 and 7.4.33
 are installed beside it (`install-site-php`, ppa:ondrej/php) and can be
-chosen on Webserver Configure. The panel itself stays on distro PHP. Log/driver/php/backup/webserver show pages
-omit the left Find box. List/driver calls guard a missing
+chosen on Webserver Configure (PHP Used / PHP Branch list php8.3, php7.4,
+php5.6 — not php52m). The panel itself stays on distro PHP. Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager show pages
+omit the left Find box. LxGuard list tabs (connections, raw hits, whitelist)
+also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
+home) and shows a copyable `ssh` command. Install seeds a Welcome HelpDesk ticket (Created By Kloxo). List/driver calls guard a missing
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.
@@ -48,7 +60,11 @@ Cron Tasks Mail To does not need the C daemon on TCP 7776.
 DNS Template links list `dnstemplate`, not Backup/Restore.
 FTP Configure is `serverftp` under localhost, not Backup FTP Configuration.
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
-Admin Servers can add a remote host (hostname or IPv4 plus the slave password).
+Admin Servers can add a remote host (hostname or IPv4 plus the slave password)
+on the list page; there is no separate Add Server tab. Adding a client does
+not implode() a string (contact email / coma_* lists). Adding a Resource Plan
+does not need a DNS template, does not TypeError on a missing listpriv, and
+accepts a display name with spaces (sanitized to a plan id).
 `install.sh --slave` writes `slave-db.db` and starts `kloxo-backend` on TLS 7779
 (all interfaces); plaintext 7776 stays on localhost. Live two-host add is unverified.
 Home keeps
@@ -76,6 +92,8 @@ bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-
 bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)
 php kloxo/bin/install/init-panel-db --help
 php kloxo/bin/install/init-slave --help
+php kloxo/bin/install/install-pdns --help
+php kloxo/bin/install/install-apache --help
 bash kloxo/bin/install/install-hiawatha --help
 bash tests/mail/run-tests.sh          # 73 mail checks (needs MariaDB root socket; disposable machine only)
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Postfix/Dovecot/Rspamd; see tests/mail/README.md)

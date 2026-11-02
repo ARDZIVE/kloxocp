@@ -20,16 +20,24 @@ class pserver__Linux extends lxDriverClass
 
 	function setTimeZone()
 	{
-	//	lxfile_cp("/usr/share/zoneinfo/{$this->main->timezone}", "/etc/localtime");
-
-		$s = "/usr/share/zoneinfo/{$this->main->timezone}";
-		$t = "/etc/localtime";
-
-		if (is_file("/etc/localtime")) {
-			exec("'rm' -rf {$t}; ln -sf {$s} {$t}");
-		} else {
-			exec("ln -sf {$s} {$t}");
+		$tz = isset($this->main->timezone) ? (string)$this->main->timezone : '';
+		$list = timezone_identifiers_list();
+		if ($tz === '' || !is_array($list) || !in_array($tz, $list, true)) {
+			return;
 		}
+
+		$src = '/usr/share/zoneinfo/' . $tz;
+		$real = realpath($src);
+		$base = realpath('/usr/share/zoneinfo');
+		if ($real === false || $base === false || strpos($real, $base . '/') !== 0) {
+			return;
+		}
+
+		$t = '/etc/localtime';
+		if (is_link($t) || is_file($t)) {
+			@unlink($t);
+		}
+		@symlink($real, $t);
 	}
 
 	static function execCommand($iid, $command)

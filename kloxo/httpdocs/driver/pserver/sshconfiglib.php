@@ -29,11 +29,18 @@ class sshconfig extends lxdb
 			case "ssh_port":
 				$vlist['ssh_port'] = null;
 
-				exec("cat /etc/ssh/sshd_config|grep ^'Port'|awk '{print $2}'", $out);
-				if (count($out) > 0) {
-					$port = $out[0];
-				} else {
-					$port = "22";
+				$port = "22";
+				$cfg = '/etc/ssh/sshd_config';
+				if (is_readable($cfg)) {
+					$lines = @file($cfg, FILE_IGNORE_NEW_LINES);
+					if (is_array($lines)) {
+						foreach ($lines as $line) {
+							if (preg_match('/^\s*Port\s+(\d+)\s*$/', $line, $m) === 1) {
+								$port = $m[1];
+								break;
+							}
+						}
+					}
 				}
 
 				$this->setDefaultValue("ssh_port", $port);

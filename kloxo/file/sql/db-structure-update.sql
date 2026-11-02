@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `service` (
 ) DEFAULT CHARSET=latin1;
 
 INSERT IGNORE INTO `service` (`nname`, `parent_clname`, `parent_cmlist`, `servicename`, `description`, `grepstring`, `syncserver`, `oldsyncserver`, `olddeleteflag`) VALUES
-('qmail___localhost', 'pserver-localhost', '', 'qmail', 'Qmail-toaster Mail Server', 'qmail', 'localhost', '', ''),
+('exim___localhost', 'pserver-localhost', '', 'exim4', 'Exim Mail Server', 'exim', 'localhost', '', ''),
 ('named___localhost', 'pserver-localhost', '', 'named', 'Bind Dns Server', 'named', 'localhost', '', ''),
 ('djbdns___localhost', 'pserver-localhost', '', 'djbdns', 'DjbDns Dns Server', 'tinydns', 'localhost', '', ''),
 ('pdns___localhost', 'pserver-localhost', '', 'pdns', 'PowerDNS Dns Server', 'pdns', 'localhost', '', ''),

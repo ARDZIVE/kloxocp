@@ -8,30 +8,18 @@ class dns__ extends lxDriverClass
 
 	static function unInstallMeTrue($drivertype = null)
 	{
-
 		setAllInactivateDnsServer();
 	}
 
 	static function installMeTrue($drivertype = null)
 	{
-		if ($drivertype === 'none') { return; }
-
-		$list = getDnsDriverList($drivertype);
-
-		foreach ($list as $k => $v) {
-			if ($v === 'none') { continue; }
-
-			if ($v === 'bind') {
-				$a = 'named';
-			} elseif ($v === 'yadifa') {
-				$a = 'yadifad';
-			} else {
-				$a = $v;
-			}
-
-			exec("chkconfig {$a} on >/dev/null 2>&1");
+		if ($drivertype === 'none') {
+			return;
 		}
-	
+
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pdns.php';
+		kloxo_dns_switch((string)$drivertype);
+
 		createRestartFile("restart-dns");
 	}
 
@@ -64,6 +52,8 @@ class dns__ extends lxDriverClass
 	//	$input['account'] = $this->parent->getRealClientParentO()->getPathFromName();
 
 		$input['rootpass'] = slave_get_db_pass();
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pdns.php';
+		kloxo_pdns_fill_input($input);
 
 		$dnsdrvlist = getAllDnsDriverList();
 
@@ -107,6 +97,8 @@ class dns__ extends lxDriverClass
 		$input['serverips'] = $this->getServerIps();
 
 		$input['rootpass'] = slave_get_db_pass();
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pdns.php';
+		kloxo_pdns_fill_input($input);
 
 		$dnsdrvlist = getAllDnsDriverList();
 
@@ -150,6 +142,8 @@ class dns__ extends lxDriverClass
 		$input['serverips'] = $this->getServerIps();
 
 		$input['rootpass'] = slave_get_db_pass();
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pdns.php';
+		kloxo_pdns_fill_input($input);
 
 		$dnsdrvlist = getAllDnsDriverList();
 

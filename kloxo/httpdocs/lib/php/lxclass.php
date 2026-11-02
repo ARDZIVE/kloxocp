@@ -681,7 +681,7 @@ abstract class Lxclass
 					$des = $name;
 					$desc = get_classvar_description($class, $des);
 
-					if (csa($desc[0], 'q', 0)) {
+					if (is_array($desc) && isset($desc[0]) && csa($desc[0], 'q', 0)) {
 						if (!isset($this->priv)) {
 							$this->priv = new priv(null, null, $this->nname);
 							$this->priv->__parent_o = $this;
@@ -698,9 +698,10 @@ abstract class Lxclass
 							$this->priv->$name = 'Unlimited';
 							$this->used->$name = 0;
 						}
-					} else if (csa($desc[0], 'Q')) {
-						if (isset($this->listpriv)) {
+					} else if (is_array($desc) && isset($desc[0]) && csa($desc[0], 'Q')) {
+						if (!isset($this->listpriv) || !is_object($this->listpriv)) {
 							$this->listpriv = new ListPriv(null, null, $this->nname);
+							$this->listpriv->__parent_o = $this;
 						}
 					} else {
 						$this->$name = $this->defaultValue($name);
@@ -3321,17 +3322,22 @@ abstract class Lxclass
 	{
 		$parent = $this->getParentO();
 		$plist[] = $parent;
+		$string = array();
 
-		while (!$parent->isAdmin()) {
+		while (is_object($parent) && !$parent->isAdmin()) {
 			$parent = $parent->getParentO();
-			$plist[] = $parent;
+			if (is_object($parent)) {
+				$plist[] = $parent;
+			}
 		}
 
 		foreach ($plist as $p) {
-			$string[] = $p->getClName();
+			if (is_object($p) && method_exists($p, 'getClName')) {
+				$string[] = $p->getClName();
+			}
 		}
 
-		$str = implode(",", $string);
+		$str = kloxo_implode(",", $string);
 		$this->parent_cmlist = ",{$str},";
 	}
 
@@ -3547,6 +3553,10 @@ abstract class Lxclass
 
 	final function setFromArray($array)
 	{
+		if (!is_array($array)) {
+			return;
+		}
+
 		foreach ($array as $key => $value) {
 			if (is_numeric($key)) {
 			//	dprint("The Key is {$key} integer in .  {$this->get__table()}:{$this->nname}\n");
@@ -5284,18 +5294,25 @@ abstract class Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		if (!is_array($param)) {
+			$param = array();
+		}
+
 		$this->ccenter_command = null;
 
-		$this->ccenter_standard = $param['ccenter_standard'];
-		$this->ccenter_restart = $param['ccenter_restart'];
+		$this->ccenter_standard = isset($param['ccenter_standard'])
+			? $param['ccenter_standard'] : '--- Not Selected ---';
+		$this->ccenter_restart = isset($param['ccenter_restart'])
+			? $param['ccenter_restart'] : 'off';
 
-		$this->ccenter_command = $param['ccenter_command'];
+		$this->ccenter_command = isset($param['ccenter_command'])
+			? $param['ccenter_command'] : null;
 
 		if ($this->ccenter_standard !== '--- Not Selected ---') {
 			if ($this->ccenter_standard === 'Fix - DNS') {
 				$this->ccenter_command = 'sh /script/fixdns --server=all;';
 
-				if ($param['ccenter_restart'] === 'on') {
+				if ($this->ccenter_restart === 'on') {
 					$this->ccenter_command .= 'sh /script/restart-dns --server=all --force;';
 				}
 			}
@@ -5303,7 +5320,7 @@ abstract class Lxclass
 			if ($this->ccenter_standard === 'Fix - Web') {
 				$this->ccenter_command = 'sh /script/fixweb --server=all;';
 
-				if ($param['ccenter_restart'] === 'on') {
+				if ($this->ccenter_restart === 'on') {
 					$this->ccenter_command .= 'sh /script/restart-web --server=all --force;';
 				}
 			}
@@ -5311,7 +5328,7 @@ abstract class Lxclass
 			if ($this->ccenter_standard === 'Fix - PHP') {
 				$this->ccenter_command = 'sh /script/fixphp --server=all;';
 
-				if ($param['ccenter_restart'] === 'on') {
+				if ($this->ccenter_restart === 'on') {
 					$this->ccenter_command .= 'sh /script/restart-web --server=all --force;';
 				}
 			}
@@ -5319,7 +5336,7 @@ abstract class Lxclass
 			if ($this->ccenter_standard === 'Fix - Mail') {
 				$this->ccenter_command = 'sh /script/fixmail-all --server=all;';
 
-				if ($param['ccenter_restart'] === 'on') {
+				if ($this->ccenter_restart === 'on') {
 					$this->ccenter_command .= 'sh /script/restart-mail --server=all --force;';
 				}
 			}
@@ -5327,7 +5344,7 @@ abstract class Lxclass
 			if ($this->ccenter_standard === 'Fix - FTP') {
 				$this->ccenter_command = 'sh /script/fixftp-all --server=all;';
 
-				if ($param['ccenter_restart'] === 'on') {
+				if ($this->ccenter_restart === 'on') {
 					$this->ccenter_command .= 'sh /script/restart-ftp --server=all --force;';
 				}
 			}
@@ -5335,7 +5352,7 @@ abstract class Lxclass
 			if ($this->ccenter_standard === 'Fix - ALL') {
 				$this->ccenter_command = 'sh /script/fix-all --server=all;';
 
-				if ($param['ccenter_restart'] === 'on') {
+				if ($this->ccenter_restart === 'on') {
 					$this->ccenter_command .= 'sh /script/restart-all --server=all --force;';
 				}
 			}

@@ -1622,6 +1622,60 @@ function is_assoc_array($var)
 	return array_keys($var) !== range(0, sizeof($var) - 1);
 }
 
+function kloxo_skip_find_class($class)
+{
+	$c = strtolower((string)$class);
+	static $skip = array(
+		'llog', 'driver', 'phpini', 'lxbackup', 'serverweb', 'serverftp',
+		'sshconfig', 'lxguard', 'sshclient', 'ffile',
+		'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist', 'lxguardhit',
+	);
+
+	return in_array($c, $skip, true);
+}
+
+function kloxo_implode($separator, $list)
+{
+	$sep = is_string($separator) ? $separator : ',';
+	if (is_array($list)) {
+		return implode($sep, $list);
+	}
+	if ($list === null || $list === false) {
+		return '';
+	}
+
+	return (string)$list;
+}
+
+function kloxo_list_from($v)
+{
+	if (is_array($v)) {
+		$out = array();
+		foreach ($v as $p) {
+			if (is_string($p) || is_numeric($p)) {
+				$p = trim((string)$p);
+				if ($p !== '') {
+					$out[] = $p;
+				}
+			}
+		}
+
+		return $out;
+	}
+	if (!is_string($v) || trim($v) === '') {
+		return array();
+	}
+	$out = array();
+	foreach (explode(',', str_replace(' ', '', $v)) as $p) {
+		$p = trim($p);
+		if ($p !== '') {
+			$out[] = $p;
+		}
+	}
+
+	return $out;
+}
+
 function get_namelist_from_objectlist($ol, $key = null, $val = null)
 {
 	if (!is_array($ol) && !($ol instanceof Traversable)) {

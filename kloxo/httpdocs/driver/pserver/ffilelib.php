@@ -133,9 +133,14 @@ class Ffile extends Lxclass
 		global $sgbl;
 
 		// MR -- trouble if $root with format '__path_' and then converted!
-		if (strpos($root, '__path_') !== false) {
+		if (is_string($root) && strpos($root, '__path_') !== false) {
 			$a = explode('/', $root);
-			$a[0] = $sgbl->$a[0];
+			$key = $a[0];
+			if (is_object($sgbl) && isset($sgbl->$key) && is_string($sgbl->$key)) {
+				$a[0] = $sgbl->$key;
+			} elseif ($key === '__path_root_base') {
+				$a[0] = '/';
+			}
 			$this->root = implode('/', $a);
 		} else {
 			$this->root = $root;
@@ -1315,7 +1320,8 @@ class Ffile extends Lxclass
 
 		if ($this->is_dir()) {
 		//	if ($this->getParentO()->is__table('web')) {
-			if ($this->getParentO()->getClass() === 'web') {
+			$parent = $this->getParentO();
+			if (is_object($parent) && $parent->getClass() === 'web') {
 				if (strpos(dirname($this->nname), '/') === false || dirname($this->nname) === '/') {
 					if ($this->base != "www") {
 						$this->protect = "na";
@@ -1440,7 +1446,8 @@ class Ffile extends Lxclass
 		if (isset($this->download_f) && $this->download_f) {
 			$numlines = 'download';
 		} else {
-			if ($this->getParentO()->is__table('llog')) {
+			$parent = $this->getParentO();
+			if (is_object($parent) && $parent->is__table('llog')) {
 				$numlines = 20;
 			} else {
 				$numlines = null;
@@ -1454,16 +1461,28 @@ class Ffile extends Lxclass
 		}
 		$st++;
 
-		$this->duflag = $gbl->getSessionV('ffile_duflag');
-		$gbl->setSessionV('ffile_duflag', false);
+		$this->duflag = (is_object($gbl) && method_exists($gbl, 'getSessionV'))
+			? $gbl->getSessionV('ffile_duflag') : false;
+		if (is_object($gbl) && method_exists($gbl, 'setSessionV')) {
+			$gbl->setSessionV('ffile_duflag', false);
+		}
 		$this->numlines = $numlines;
-		$stat = rl_exec_get($this->__masterserver, $this->__readserver, array("coreFfile", "getLxStat"), 
-			array($this->__username_o, $this->root, $this->getFullPath(), $numlines, $this->duflag));
+		try {
+			$stat = rl_exec_get($this->__masterserver, $this->__readserver, array("coreFfile", "getLxStat"),
+				array($this->__username_o, $this->root, $this->getFullPath(), $numlines, $this->duflag));
+		} catch (Throwable $e) {
+			log_log("error", "ffile getLxStat: " . $e->getMessage());
+			$stat = array('name' => $this->getFullPath(), 'size' => 0, 'ttype' => 'directory');
+		}
 
 	//	dprintr($stat);
 
 		if (!isset($this->readonly)) {
 			$this->readonly = 'off';
+		}
+
+		if (!is_array($stat)) {
+			$stat = array('name' => $this->getFullPath(), 'size' => 0, 'ttype' => 'directory');
 		}
 
 		$this->setFromArray($stat);

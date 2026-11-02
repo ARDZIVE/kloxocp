@@ -90,13 +90,21 @@ class Component extends Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'component');
-		if (!$driverapp) {
-			$driverapp = 'deb';
-		}
-		$ar = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'component', $driverapp, 'getDetailedInfo', $parent->nname);
-		$res['full_version'] = $ar;
 		$obj = new Component($parent->__masterserver, $parent->__readserver, $name);
+		$pkg = is_string($name) ? $name : '';
+		$driverapp = 'deb';
+		try {
+			$d = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'component');
+			if (is_string($d) && $d !== '') {
+				$driverapp = $d;
+			}
+		} catch (Throwable $e) {
+		}
+		$ar = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'component', $driverapp, 'getDetailedInfo', $pkg);
+		if ((!is_string($ar) || trim($ar) === '') && class_exists('Component__deb')) {
+			$ar = Component__deb::getDetailedInfo($pkg);
+		}
+		$obj->full_version = is_string($ar) ? $ar : '';
 
 		return $obj;
 	}
@@ -114,14 +122,34 @@ class Component extends Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$list = self::initThisArray($parent, $class, array('componentname'));
-
-		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'component');
-		if (!$driverapp) {
-			$driverapp = 'deb';
+		$sync = 'localhost';
+		if (is_object($parent) && isset($parent->syncserver) && is_string($parent->syncserver) && $parent->syncserver !== '') {
+			$sync = $parent->syncserver;
+		}
+		$list = array();
+		try {
+			$got = self::initThisArray($parent, $class, array('componentname'));
+			if (is_array($got)) {
+				$list = $got;
+			}
+		} catch (Throwable $e) {
+			$list = array();
+		}
+		$driverapp = 'deb';
+		try {
+			$d = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'component');
+			if (is_string($d) && $d !== '') {
+				$driverapp = $d;
+			}
+		} catch (Throwable $e) {
 		}
 
-		$res = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'component', $driverapp, 'getListVersion', array($parent->syncserver, $list));
+		$res = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'component', $driverapp, 'getListVersion', array($sync, $list));
+		if (!is_array($res) || $res === array()) {
+			if (class_exists('Component__deb')) {
+				$res = Component__deb::getListVersion($sync, is_array($list) ? $list : array());
+			}
+		}
 
 		return is_array($res) ? $res : array();
 	}

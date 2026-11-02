@@ -1,13 +1,27 @@
 <?php
 
-	foreach($domains as $k => $v) {
+	if (!function_exists('kloxo_pdns_connect')) {
+		$__pdnsphp = '/opt/kloxo/httpdocs/lib/php/kloxo_pdns.php';
+		if (is_readable($__pdnsphp)) {
+			include_once $__pdnsphp;
+		}
+	}
+	$conn = function_exists('kloxo_pdns_connect') ? kloxo_pdns_connect() : null;
+	if (!$conn) {
+		return;
+	}
+
+	$d1names = array();
+	$d1ips = array();
+	$d2names = array();
+	$d2ids = array();
+
+	foreach ((array)$domains as $k => $v) {
 		$t = explode(':', $v);
 
 		$d1names[] = $t[0];
-		$d1ips[] = $t[1];
+		$d1ips[] = isset($t[1]) ? $t[1] : '';
 	}
-
-	$conn = new mysqli('localhost', 'root', $rootpass, 'powerdns');
 
 	if ($query = $conn->query("SELECT * FROM domains WHERE type='SLAVE';")) {
 		while ($row = $query->fetch_object()) {

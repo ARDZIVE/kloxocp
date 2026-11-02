@@ -78,6 +78,21 @@ if ($inline === null) {
 	bad('AddListForm is null without isAdmin()');
 }
 
+$admin = new class {
+	public function isAdmin(): bool
+	{
+		return true;
+	}
+};
+$tabs = pservercore::createListAlist($admin, 'pserver');
+$joined = is_array($tabs) ? implode("\n", $tabs) : '';
+if (is_array($tabs) && str_contains($joined, 'a=list&c=pserver')
+	&& !str_contains($joined, 'a=addform')) {
+	ok('Servers tabs do not include Add Server');
+} else {
+	bad('Servers tabs do not include Add Server');
+}
+
 if (is_callable('kloxo_ssl_listen_address')) {
 	$addr = kloxo_ssl_listen_address();
 	if ($addr === '127.0.0.1') {

@@ -87,6 +87,12 @@ if (class_exists('dns__none') && is_callable(array('dns__none', 'installMe'))) {
 } else {
 	bad('dns__none loads for switchprogram');
 }
+if (class_exists('smtp__exim') && is_callable(array('smtp__exim', 'installMe'))
+	&& is_callable(array('smtp__exim', 'unitName'))) {
+	ok('smtp__exim loads for switchprogram');
+} else {
+	bad('smtp__exim loads for switchprogram');
+}
 if (class_exists('web__none') && class_exists('web__nginx')) {
 	ok('web none/nginx drivers load');
 } else {

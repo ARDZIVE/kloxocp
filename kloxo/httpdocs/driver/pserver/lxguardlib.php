@@ -57,6 +57,11 @@ class lxguard extends lxdb
 
 	function updateWhiteList($param)
 	{
+		if (!is_array($param) || !isset($param['_accountselect']) || !is_array($param['_accountselect'])) {
+			return $param;
+		}
+
+		$s = null;
 		foreach($param['_accountselect'] as $p) {
 			$nname = "{$p}___$this->syncserver";
 			$s = new lxguardwhitelist(null, null, $nname);
@@ -70,14 +75,20 @@ class lxguard extends lxdb
 		// You need to sync at least one so that the whitelist is properly fixed 
 		// on the actual server.
 
-		$s->dbaction = 'add';
-		$s->was();
+		if (is_object($s)) {
+			$s->dbaction = 'add';
+			$s->was();
+		}
 
 		$this->updateRemove($param);
 	}
 
 	function updateRemove($param)
 	{
+		if (!is_array($param) || !isset($param['_accountselect']) || !is_array($param['_accountselect'])) {
+			return $param;
+		}
+
 		$server = $this->syncserver;
 		$sq = new Sqlite(null, "lxguardhit");
 
@@ -92,9 +103,15 @@ class lxguard extends lxdb
 	static function save_current_hitlist($server)
 	{
 		$list = lxguardhitdisplay::createHitList($server);
+		$hl = array();
 
-		foreach($list as $r) {
-			$hl[$r['ipaddress']] = $r['failcount'];
+		if (is_array($list)) {
+			foreach($list as $r) {
+				if (!is_array($r) || !isset($r['ipaddress'])) {
+					continue;
+				}
+				$hl[$r['ipaddress']] = isset($r['failcount']) ? $r['failcount'] : 0;
+			}
 		}
 
 		rl_exec_get(null, $server, "lxguard_save_hitlist", array($hl));

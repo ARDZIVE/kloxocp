@@ -275,7 +275,7 @@ class Client extends ClientBase
 			$ilist['Mysql Server'] = $this->mysqldbsyncserver;
 			
 			if ($this->dnstemplate_list) {
-				$ilist['Dns Servers'] = implode(",", $this->dnssyncserver_list);
+				$ilist['Dns Servers'] = kloxo_implode(",", $this->dnssyncserver_list);
 			}
 		}
 
@@ -369,19 +369,9 @@ class Client extends ClientBase
 
 	function getMysqlDbAdmin(&$alist)
 	{
-	//	$flagfile = "../etc/flag/user_sql_manager.flg";
-
-	//	if (file_exists($flagfile)) {
-	//		$url = file_get_contents($flagfile);
-	//		$url = trim($url);
-	//		$url = trim($url, "\n");
-
-	//		$dbadminUrl = $url;
-
 		$incfile = "lib/sqlmgr.php";
 
 		if (file_exists($incfile)) {
-			// MR -- logic must be declare $dbadminUrl
 			include $incfile;
 		} else {
 			if ($this->isLocalhost('mysqldbsyncserver')) {
@@ -392,7 +382,6 @@ class Client extends ClientBase
 				if (http_is_self_ssl()) {
 					$port = get_kloxo_port('ssl');
 					$schema = "https://";
-
 				} else {
 					$port = get_kloxo_port('nonssl');
 					$schema = "https://";
@@ -402,19 +391,8 @@ class Client extends ClientBase
 			}
 		}
 
-		try {
-			$dbad = $this->getPrimaryDb();
-			
-			if (!$dbad) {
-				return;
-			}
-			
-			$user = $dbad->nname;
-			$pass = $dbad->dbpassword;
-			
-			$alist[] = create_simpleObject(array('url' => $dbadminUrl,
-				'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
-		} catch (Exception $e) {}
+		$alist[] = create_simpleObject(array('url' => $dbadminUrl,
+			'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
 	}
 
 	function createShowAlist(&$alist, $subaction = null)
@@ -572,7 +550,7 @@ class Client extends ClientBase
 				$alist[] = 'a=list&c=ftpsession';
 			//	$alist[] = "a=show&l[class]=ffile&l[nname]=/";
 			//	$alist['__v_dialog_defd'] = "a=updateform&sa=default_domain";
-				$alist[] = "a=show&o=sshclient";
+			//	SSH Terminal is admin-only (pserver).
 			//	$alist[] = "a=list&c=traceroute";
 			//	$this->getListActions($alist, 'mysqldb');
 			//	$this->getMysqlDbAdmin($alist);
@@ -822,7 +800,7 @@ class Client extends ClientBase
 
 	static function continueFormClientFinish($parent, $class, $param, $continueaction)
 	{
-		$weblist = explode(',', $param['listpriv_s_webpserver_list']);
+		$weblist = kloxo_list_from($param['listpriv_s_webpserver_list'] ?? '');
 		$vlist['ipaddress_list'] = array('Q', $parent->getIpaddress($weblist));
 		
 		if (!isOn($param['priv_s_dns_manage_flag'])) {

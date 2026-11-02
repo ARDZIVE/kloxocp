@@ -425,7 +425,8 @@ class Sqlite
 						$namelist = get_namelist_from_objectlist($value);
 					}
 
-					$ret[$key] = implode(",", $namelist);
+					$joined = function_exists('kloxo_implode') ? kloxo_implode(',', $namelist) : (is_array($namelist) ? implode(',', $namelist) : (string)$namelist);
+					$ret[$key] = $joined;
 					dprint("in Coma {$key} ".$ret[$key]."<br> ");
 
 					$ret[$key] = ",".$ret[$key].",";

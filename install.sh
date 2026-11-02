@@ -11,6 +11,8 @@
 # lxphp.exe wrappers, kloxo-php systemd unit, pinned Hiawatha 12.4 build,
 # panel MariaDB schema via init-panel-db, phpMyAdmin under httpdocs/thirdparty,
 # site PHP-FPM 5.6 / 7.4 / latest (install-site-php; default latest),
+# PowerDNS packaged and prepared (disabled; BIND stays default on 53),
+# Apache packaged and prepared (disabled; Nginx stays default on 80/443),
 # kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
 # and skips the panel UI.
 # Does not: Let's Encrypt, signed kloxocp apt repo, kloxo-mail apply, verified two-host add.
@@ -40,7 +42,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
   sudo bash install.sh [--profile=core|full] [--yes] [--force]
   sudo bash install.sh --slave --slave-password=SECRET
 
-  --profile=core   php, nginx, mariadb, bind9 (default)
+  --profile=core   php, nginx (default), mariadb, bind9; apache2/pdns packaged, disabled
   --profile=full   core plus postfix, dovecot, rspamd, redis
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
@@ -194,6 +196,8 @@ plan: Kloxo CP ${KCP_VERSION}
   profile $PROFILE
   type    $INSTALL_TYPE
   sitephp 5.6, 7.4, latest (install-site-php; default latest)
+  dns     bind9 enabled (default); pdns-server prepared and disabled
+  web     nginx enabled (default); apache2 prepared and disabled
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
   exit 0
@@ -244,7 +248,7 @@ log "host=$(hostname -f 2>/dev/null || hostname) os=${os_pretty} profile=${PROFI
 apt-get update -y
 apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
-  mariadb-server nginx bind9 iproute2 \
+  mariadb-server nginx apache2 bind9 pdns-server pdns-backend-mysql iproute2 \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
@@ -349,6 +353,43 @@ if id -u lxlabs >/dev/null 2>&1; then
   chown lxlabs:lxlabs "$ROOT/log" "$ROOT/session" "$ROOT/pid" || true
 fi
 
+wait_mariadb() {
+  local i
+  for i in $(seq 1 20); do
+    if mariadb --protocol=socket -u root -e 'SELECT 1' >/dev/null 2>&1 \
+      || mysql --protocol=socket -u root -e 'SELECT 1' >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+enable_default_stack() {
+  systemctl enable --now nginx mariadb named 2>/dev/null \
+    || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
+  systemctl disable --now pdns 2>/dev/null || true
+  systemctl disable --now apache2 2>/dev/null || true
+}
+
+prepare_apache() {
+  chmod 0755 "$ROOT/bin/install/install-apache" || true
+  php "$ROOT/bin/install/install-apache" --root="$ROOT" \
+    || log "warn: install-apache failed; Switch Program can retry"
+  systemctl disable --now apache2 2>/dev/null || true
+  systemctl enable --now nginx 2>/dev/null || true
+}
+
+prepare_pdns() {
+  chmod 0755 "$ROOT/bin/install/install-pdns" || true
+  if ! wait_mariadb; then
+    log "warn: MariaDB is not ready; PowerDNS schema skipped"
+    return 0
+  fi
+  php "$ROOT/bin/install/install-pdns" --root="$ROOT" \
+    || log "warn: install-pdns failed; Switch Program can retry"
+}
+
 install_backend() {
   chmod 0755 "$ROOT/init/kloxo-backend.sh" || true
   install -m 0644 "$ROOT/init/kloxo-backend.service" /etc/systemd/system/kloxo-backend.service
@@ -368,8 +409,9 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
   fi
   KLOXO_SLAVE_PASSWORD="$slave_pw" php "$ROOT/bin/install/init-slave" \
     --root="$ROOT" --password-env=KLOXO_SLAVE_PASSWORD
-  systemctl enable --now nginx mariadb named 2>/dev/null \
-    || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
+  enable_default_stack
+  prepare_apache
+  prepare_pdns
   log "installing site PHP 5.6, 7.4, and latest (default) on this slave"
   if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
     log "warn: extra site PHP versions failed; Webserver Configure can retry"
@@ -412,22 +454,13 @@ fi
 log "building Hiawatha 12.4 from source (not in Ubuntu apt)"
 bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"
 
-systemctl enable --now nginx mariadb named 2>/dev/null || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
+enable_default_stack
+prepare_apache
 
-wait_mariadb() {
-  local i
-  for i in $(seq 1 20); do
-    if mariadb --protocol=socket -u root -e 'SELECT 1' >/dev/null 2>&1 \
-      || mysql --protocol=socket -u root -e 'SELECT 1' >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-  return 1
-}
 if ! wait_mariadb; then
   die "MariaDB is not accepting unix_socket logins as root"
 fi
+prepare_pdns
 
 admin_env="${KLOXO_ADMIN_PASSWORD:-admin}"
 if [[ "$admin_env" != "admin" && ${#admin_env} -lt 8 ]]; then
@@ -443,6 +476,12 @@ if id -u lxlabs >/dev/null 2>&1; then
   chmod 0750 "$ROOT/etc/conf" || true
   if [[ -f "$ROOT/etc/conf/kloxo.pass" ]]; then
     chmod 0640 "$ROOT/etc/conf/kloxo.pass"
+  fi
+  if [[ -f "$ROOT/etc/conf/pdns.pass" ]]; then
+    chmod 0640 "$ROOT/etc/conf/pdns.pass"
+  fi
+  if [[ -f "$ROOT/etc/conf/pma.pass" ]]; then
+    chmod 0640 "$ROOT/etc/conf/pma.pass"
   fi
 fi
 log "panel schema ready"

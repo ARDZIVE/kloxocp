@@ -34,6 +34,8 @@ class Cron extends Lxdb
 
 	function display($var)
 	{
+		$x = '-';
+
 		if ($this->ttype === 'simple') {
 			if ($this->simple_cron === 'every-day') {
 				if ($var === 'minute') {
@@ -65,16 +67,22 @@ class Cron extends Lxdb
 				} else {
 					$x = $this->$var;
 				}
-			}
-		} else {
-			if (stripos($this->$var, '--all--') !== false) {
-				$x = '--all--';
 			} else {
 				$x = $this->$var;
 			}
+		} else {
+			$cur = $this->$var;
+			if (is_array($cur)) {
+				$cur = implode(',', $cur);
+			}
+			if (is_string($cur) && stripos($cur, '--all--') !== false) {
+				$x = '--all--';
+			} else {
+				$x = $cur;
+			}
 		}
 
-		if ($x === null) {
+		if ($x === null || $x === '') {
 			$x = '-';
 		}
 
@@ -87,7 +95,7 @@ class Cron extends Lxdb
 
 		if ($parent->getClass() !== 'pserver') {
 			if (!file_exists("../etc/flag/enablecronforall.flg")) {
-				return;
+				return array();
 			}
 		}
 
@@ -263,7 +271,7 @@ class Cron extends Lxdb
 		$parent = $this->getParentO();
 
 		// This is a hack to fix the cron migrated from web to client.
-		if ($this->parent_clname !== $parent->getClName()) {
+		if (is_object($parent) && $this->parent_clname !== $parent->getClName()) {
 			$this->parent_clname = $parent->getClName();
 			$this->setUpdateSubaction();
 			$this->write();
@@ -283,10 +291,12 @@ class Cron extends Lxdb
 
 		$vlist["username"] = array('M', $this->username);
 
-		if ($parent->isClass('pserver') || $parent->getClientParentO()->priv->isOn('cron_minute_flag')) {
+		$canMinute = is_object($parent) && ($parent->isClass('pserver') || self::parentAllowsMinute($parent));
+		if ($canMinute) {
 			$vlist['minute'] = array('U', self::$minutelist);
 		} else {
-			$vlist['minute'] = array('M', $this->minute[0]);
+			$min = is_array($this->minute) && isset($this->minute[0]) ? $this->minute[0] : $this->minute;
+			$vlist['minute'] = array('M', $min);
 		}
 
 		$vlist["hour"] = array('U', self::$hourlist);
@@ -298,21 +308,53 @@ class Cron extends Lxdb
 		return $vlist;
 	}
 
+	static function parentAllowsMinute($parent)
+	{
+		if (!is_object($parent)) {
+			return false;
+		}
+		if ($parent->isClass('pserver')) {
+			return true;
+		}
+		$priv = isset($parent->priv) ? $parent->priv : null;
+		if (!is_object($priv) && method_exists($parent, 'getClientParentO')) {
+			$cp = $parent->getClientParentO();
+			$priv = (is_object($cp) && isset($cp->priv)) ? $cp->priv : null;
+		}
+
+		return is_object($priv) && method_exists($priv, 'isOn') && $priv->isOn('cron_minute_flag');
+	}
+
 	static function addform($parent, $class, $typetd = null)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		$empty = array('variable' => array(), 'action' => 'add');
+
 		// MR --- for security reason, only enable for admin
 		if (!file_exists("../etc/flag/enablecronforall.flg")) {
-			if ($login->nname !== 'admin') { return; }
+			if (!is_object($login) || $login->nname !== 'admin') {
+				return $empty;
+			}
+		}
+
+		if (!is_object($parent)) {
+			return $empty;
+		}
+
+		if (!is_array($typetd) || !isset($typetd['val'])) {
+			$typetd = array('val' => 'simple');
 		}
 		
 		// This is to make sure that the static variables 'monthlist, weekdaylist' etc, are initialized. 
 		// There is no other way to do it.
 		$tmp = new Cron($parent->__masterserver, $parent->__readserver, '__tmp__');
 
+		$canMinute = self::parentAllowsMinute($parent);
+
 		if ($typetd['val'] === 'simple') {
-			if ($parent->isClass('pserver') || $parent->priv->isOn('cron_minute_flag')) {
+			$list = array();
+			if ($canMinute) {
 				$list['every-minute'] = 'Every Minute';
 			}
 
@@ -323,9 +365,9 @@ class Cron extends Lxdb
 			unset($v[0]);
 			$vlist['cron_day_hour'] = array('s', $v);
 		} else {
-			$vlist["username"] = array('M', $parent->username);
+			$vlist["username"] = array('M', isset($parent->username) ? $parent->username : '');
 
-			if ($parent->isClass('pserver') || $parent->priv->isOn('cron_minute_flag')) {
+			if ($canMinute) {
 				$vlist['minute'] = array('U', self::$minutelist);
 			} else {
 				$vlist['minute'] = array('m', 0);
@@ -430,7 +472,11 @@ class Cron extends Lxdb
 
 	static function convertToAllIfExists($part)
 	{
-		if ((isset($part)) && (stripos($part, '--all--') !== false)) {
+		if (is_array($part)) {
+			$part = implode(',', $part);
+		}
+
+		if ((isset($part)) && is_string($part) && (stripos($part, '--all--') !== false)) {
 			$part = '--all--';
 		}
 
@@ -449,13 +495,13 @@ class Cron extends Lxdb
 		$param['weekday'] = self::convertToAllIfExists($param['weekday']);
 		$param['month'] = self::convertToAllIfExists($param['month']);
 
-		if (!($parent->isClass('pserver') || $parent->priv->isOn('cron_minute_flag'))) {
+		if (!self::parentAllowsMinute($parent)) {
 			if (!is_numeric($param['minute'])) {
 				$param['minute'] = 0;
 			}
 		}
 
-		$param['username'] = $parent->username;
+		$param['username'] = is_object($parent) && isset($parent->username) ? $parent->username : '';
 
 		$parambase = implode("_", array($param['username'], $param['command']));
 		$parambase = fix_nname_to_be_variable($parambase);
@@ -501,7 +547,7 @@ class Cron extends Lxdb
 		}
 
 		if ($this->simple_cron === 'every-day') {
-			$this->$ddate = $this->cron_day_hour;
+			$this->ddate = $this->cron_day_hour;
 		}
 
 		if (trim($this->$var) === "") {

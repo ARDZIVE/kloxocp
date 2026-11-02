@@ -252,7 +252,7 @@ function os_create_default_slave_driver_db()
 	$a['dns'] = "bind";
 	$a['pop3'] = "courier";
 //	$a['imap4'] = "courier";
-	$a['smtp'] = "qmail";
+	$a['smtp'] = "exim";
 	$a['spam'] = "bogofilter";
 	slave_save_db("driver", $a);
 }
@@ -450,24 +450,32 @@ function os_get_hostname()
 
 function os_get_user_from_uid($uid)
 {
-	$pwd = posix_getpwuid($uid);
+	if (!is_numeric($uid)) {
+		return (string)$uid;
+	}
 
-	if ($pwd['name']) {
+	$pwd = function_exists('posix_getpwuid') ? @posix_getpwuid((int)$uid) : false;
+
+	if (is_array($pwd) && isset($pwd['name']) && $pwd['name'] !== '') {
 		return $pwd['name'];
 	}
 
-	return $uid;
+	return (string)$uid;
 }
 
 function os_get_group_from_gid($gid)
 {
-	$pwd = posix_getgrgid($gid);
+	if (!is_numeric($gid)) {
+		return (string)$gid;
+	}
 
-	if ($pwd['name']) {
+	$pwd = function_exists('posix_getgrgid') ? @posix_getgrgid((int)$gid) : false;
+
+	if (is_array($pwd) && isset($pwd['name']) && $pwd['name'] !== '') {
 		return $pwd['name'];
 	}
 
-	return $gid;
+	return (string)$gid;
 }
 
 function os_get_uid_from_user($user)

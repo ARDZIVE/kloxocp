@@ -111,6 +111,9 @@ write_config() {
       -e "s|KLOXO_PMA_TEMP|${tmpdir}|g" \
       "$CONF_TMPL" > "$conf"
   chmod 0640 "$conf"
+  if [[ -f "$ROOT/file/phpmyadmin/kloxo-signon.php" ]]; then
+    install -m 0644 "$ROOT/file/phpmyadmin/kloxo-signon.php" "$dest/kloxo-signon.php"
+  fi
   if id -u lxlabs >/dev/null 2>&1; then
     chown -R lxlabs:lxlabs "$dest"
   fi

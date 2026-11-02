@@ -162,7 +162,10 @@ else
 fi
 if grep -q 'function setActiveId' "$ROOT/kloxo/httpdocs/lib/php/kloxo_phpver.php" \
   && grep -q 'KloxoPhpver::setActiveId' "$ROOT/kloxo/httpdocs/driver/web/serverweb__lib.php" \
-  && grep -q 'KloxoPhpver::activeId' "$ROOT/kloxo/httpdocs/driver/web/serverweblib.php" \
+  && grep -q 'KloxoPhpver::phpUsedChoices' "$ROOT/kloxo/httpdocs/driver/web/serverweblib.php" \
+  && grep -q 'KloxoPhpver::availableToInstall' "$ROOT/kloxo/httpdocs/driver/web/serverweblib.php" \
+  && grep -q -- '--versions=' "$ROOT/kloxo/bin/install/install-site-php" \
+  && ! grep -q 'getCleanRpmBranchListOnList' "$ROOT/kloxo/httpdocs/driver/web/serverweblib.php" \
   && ! grep -q 'php_switch_not_supported_on_ubuntu' "$ROOT/kloxo/httpdocs/driver/web/serverweb__lib.php"; then
   ok "Webserver Configure php_used selects distro PHP; Ubuntu no longer refuses install"
 else
@@ -190,10 +193,50 @@ if grep -q 'vendor_js_ok' "$PMA" \
 else
   bad "install-phpmyadmin requires real vendor JS (not Debian symlinks)"
 fi
-if grep -q 'pma_password' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php"; then
+if grep -E -n 'pma_password|pma_username|auth_pwd=' \
+  "$ROOT/kloxo/httpdocs/lib/client/clientlib.php" \
+  "$ROOT/kloxo/httpdocs/driver/pserver/pserverlib.php" \
+  "$ROOT/kloxo/httpdocs/driver/pserver/ddatabaselib.php"; then
   bad "phpMyAdmin link does not put the DB password in the URL"
 else
   ok "phpMyAdmin link does not put the DB password in the URL"
+fi
+if grep -q "auth_type'] = 'signon'" "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
+  && grep -q 'kloxo-signon.php' "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
+  && grep -q '127.0.0.1' "$ROOT/kloxo/file/phpmyadmin/config.inc.php"; then
+  ok "phpMyAdmin config uses panel sign-on (no cookie login form)"
+else
+  bad "phpMyAdmin config uses panel sign-on (no cookie login form)"
+fi
+if grep -q 'kloxo-signon.php' "$ROOT/kloxo/bin/install/install-phpmyadmin" \
+  && [ -f "$ROOT/kloxo/file/phpmyadmin/kloxo-signon.php" ]; then
+  ok "install-phpmyadmin copies kloxo-signon.php"
+else
+  bad "install-phpmyadmin copies kloxo-signon.php"
+fi
+if grep -q 'kloxo_pma' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -F -q "GRANT ALL PRIVILEGES ON *.* TO 'kloxo_pma'" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'pma.pass' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db creates kloxo_pma with ALL PRIVILEGES"
+else
+  bad "init-panel-db creates kloxo_pma with ALL PRIVILEGES"
+fi
+check "php -l kloxo_pma.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_pma.php"
+check "php -l kloxo-signon.php" php -l "$ROOT/kloxo/file/phpmyadmin/kloxo-signon.php"
+if grep -q 'getPrimaryDb' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php"; then
+  if sed -n '/function getMysqlDbAdmin/,/^	}/p' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php" | grep -q 'getPrimaryDb'; then
+    bad "admin SQL Manager does not require a primary customer DB"
+  else
+    ok "admin SQL Manager does not require a primary customer DB"
+  fi
+else
+  ok "admin SQL Manager does not require a primary customer DB"
+fi
+check "php-cli pma sign-on helper" php "$HERE/test-pma-signon.php"
+if grep -q '/kloxo/etc/conf/pma.pass' "$ROOT/.gitignore"; then
+  ok "pma.pass is gitignored"
+else
+  bad "pma.pass is gitignored"
 fi
 if sed -n '/^function setInitialPhpMyAdmin(/,/^}/p' "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -q 'lxfile_cp.*phpMyAdmin/config'; then
   bad "setInitialPhpMyAdmin does not create an empty phpMyAdmin dir"
@@ -244,6 +287,11 @@ if grep -q 'etc/conf/kloxo.pass' "$ROOT/install.sh" && grep -q 'chmod 0640' "$RO
   ok "install.sh chowns kloxo.pass to lxlabs after schema"
 else
   bad "install.sh chowns kloxo.pass to lxlabs after schema"
+fi
+if grep -q 'etc/conf/pma.pass' "$ROOT/install.sh"; then
+  ok "install.sh chmod pma.pass after schema"
+else
+  bad "install.sh chmod pma.pass after schema"
 fi
 if grep -q 'Type=simple' "$ROOT/kloxo/init/kloxo-php.service"; then
   ok "kloxo-php.service is Type=simple"
@@ -368,6 +416,14 @@ if grep -q 'function generalmiscBlob' "$ROOT/kloxo/bin/install/init-panel-db" &&
 else
   bad "init-panel-db seeds generalmisc_b"
 fi
+if grep -q 'function seedHelpdesk' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'Welcome to Kloxo' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'pserver-Kloxo' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'helpdeskcategory_a' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds Welcome HelpDesk ticket and category"
+else
+  bad "init-panel-db seeds Welcome HelpDesk ticket and category"
+fi
 if grep -q 'max_execution_time_flag' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function phpiniFlagDefaults' "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds full phpini defaults"
 else
@@ -473,6 +529,64 @@ if echo "$inst_dry" | grep -q 'type    master'; then
   ok "install.sh dry-run names install type"
 else
   bad "install.sh dry-run names install type"
+fi
+
+echo "== PowerDNS packaged, BIND remains default"
+PDNS="$ROOT/kloxo/bin/install/install-pdns"
+check "php -l install-pdns" php -l "$PDNS"
+check "install-pdns --help" php "$PDNS" --help
+check "install-pdns --dry-run" php "$PDNS" --dry-run --root="$ROOT/kloxo"
+fails "install-pdns root with .. rejected" php "$PDNS" --root="$ROOT/kloxo/../kloxo"
+if grep -q 'pdns-server' "$ROOT/install.sh" && grep -q 'pdns-backend-mysql' "$ROOT/install.sh" \
+  && grep -q 'disable --now pdns' "$ROOT/install.sh" \
+  && grep -q 'install-pdns' "$ROOT/install.sh"; then
+  ok "install.sh packages pdns and leaves it disabled"
+else
+  bad "install.sh packages pdns and leaves it disabled"
+fi
+if grep -E 'enable --now pdns' "$ROOT/install.sh"; then
+  bad "install.sh does not enable pdns at boot"
+else
+  ok "install.sh does not enable pdns at boot"
+fi
+if grep -q "'pg_dns' => 'bind'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds pg_dns=bind"
+else
+  bad "init-panel-db seeds pg_dns=bind"
+fi
+if echo "$inst_dry" | grep -q 'bind9 enabled'; then
+  ok "install.sh dry-run names BIND default and pdns prepared"
+else
+  bad "install.sh dry-run names BIND default and pdns prepared"
+fi
+
+echo "== Apache packaged, Nginx remains default"
+APACHE="$ROOT/kloxo/bin/install/install-apache"
+check "php -l install-apache" php -l "$APACHE"
+check "install-apache --help" php "$APACHE" --help
+check "install-apache --dry-run" php "$APACHE" --dry-run --root="$ROOT/kloxo"
+fails "install-apache root with .. rejected" php "$APACHE" --root="$ROOT/kloxo/../kloxo"
+if grep -q 'apache2' "$ROOT/install.sh" \
+  && grep -q 'disable --now apache2' "$ROOT/install.sh" \
+  && grep -q 'install-apache' "$ROOT/install.sh"; then
+  ok "install.sh packages apache2 and leaves it disabled"
+else
+  bad "install.sh packages apache2 and leaves it disabled"
+fi
+if grep -E 'enable --now apache2' "$ROOT/install.sh"; then
+  bad "install.sh does not enable apache2 at boot"
+else
+  ok "install.sh does not enable apache2 at boot"
+fi
+if grep -q "'pg_web' => 'nginx'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds pg_web=nginx"
+else
+  bad "init-panel-db seeds pg_web=nginx"
+fi
+if echo "$inst_dry" | grep -q 'nginx enabled'; then
+  ok "install.sh dry-run names Nginx default and apache2 prepared"
+else
+  bad "install.sh dry-run names Nginx default and apache2 prepared"
 fi
 
 echo

@@ -72,7 +72,6 @@ class ClientBase extends ClientCore
 	static $__desc_ostemplatelist_o = array("", "", "");
 	static $__desc_lxbackup_o = array("bqd", "", "");
 	static $__desc_license_o = array("", "", "");
-	static $__desc_sshclient_o = array("", "", "ssh_client");
 	static $__desc_interface_template_l = array("", "", "");
 	static $__desc_interface_template_o = array("", "", "");
 
@@ -1033,6 +1032,9 @@ class ClientBase extends ClientCore
 		// also check if /home/<client> exists --> prevent use like 'httpd' as client
 
 		$reserved = getRpmBranchList('reserved');
+		if (!is_array($reserved)) {
+			$reserved = array();
+		}
 
 		foreach ($reserved as $r) {
 			if ($param['nname'] === $r) {
@@ -1053,14 +1055,17 @@ class ClientBase extends ClientCore
 					throw new lxException($login->getThrow("sending_welcome_needs_contactemail"));
 				}
 
-				// accept to more contact mail - https://kloxocp.invalid/index.php?t=msg&goto=89118
-				$contact = implode(",", str_replace(" ", "", $param['contactemail']));
+				$contact = kloxo_list_from($param['contactemail']);
+				if ($contact === array()) {
+					throw new lxException($login->getThrow("sending_welcome_needs_contactemail"));
+				}
 
 				foreach ($contact as $c) {
 					if (!validate_email($c)) {
 						throw new lxException($login->getThrow("contactemail_is_not_valid_email_address"), '', $c);
 					}
 				}
+				$param['contactemail'] = implode(',', $contact);
 			}
 
 		//	dprintr($param);
@@ -1086,7 +1091,7 @@ class ClientBase extends ClientCore
 
 			// This is a hack... This should now only happen in kloxo and not in hypervm.
 			if (isset($param['listpriv_s_webpserver_list'])) {
-				$weblist = $param['listpriv_s_webpserver_list'];
+				$weblist = kloxo_list_from($param['listpriv_s_webpserver_list']);
 				$param['listpriv_s_ipaddress_list'] = $parent->getIpaddress($weblist);
 
 				$nlist = domain::getDnsTemplateList($parent);

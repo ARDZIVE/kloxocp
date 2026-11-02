@@ -40,6 +40,7 @@ class Service__Linux extends Lxlclass
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$nval['httpd'] = 'httpd';
+		$nval['apache2'] = 'apache2';
 		$nval['lighttpd'] = 'lighttpd';
 		$nval['nginx'] = 'nginx';
 		$nval['hiawatha'] = 'hiawatha';
@@ -53,15 +54,18 @@ class Service__Linux extends Lxlclass
 		$nval['php-fpm'] = 'php-fpm';
 
 		$nval['named'] = 'named';
+		$nval['bind9'] = 'bind9';
 		$nval['djbdns'] = "tinydns";
 	//	$nval['maradns'] = "maradns";
 	//	$nval['powerdns'] = "powerdns";
 		$nval['pdns'] = "pdns";
+		$nval['pdns-server'] = "pdns";
 		$nval['nsd'] = "nsd";
 	//	$nval['mydns'] = "mydns";
 		$nval['yadifad'] = "yadifad";
 
-		$nval['qmail'] = 'qmail';
+		$nval['exim4'] = 'exim4';
+		$nval['exim'] = 'exim';
 	//	$nval['courier-imap'] = 'courier';
 	//	$nval['spamassassin'] = 'spamassassin';
 	//	$nval['dovecot'] = 'dovecot';

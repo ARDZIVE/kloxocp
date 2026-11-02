@@ -89,7 +89,7 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 7. Builds pinned **Hiawatha 12.4** (`install-hiawatha`) **before** the database
    schema, then starts `kloxo-web` on 7777/7778.
 8. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
-   `localhost` driver with `dns`/`web` = `none`, simplicity appearance,
+   `localhost` driver with `dns` = `bind` and `web` = `nginx`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
 9. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
 10. Installs customer-site PHP-FPM **5.6** (5.6.40), **7.4** (7.4.33), and
@@ -121,7 +121,7 @@ sudo bash install.sh --update              # accepted; every run already git-fet
 sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
 sudo bash install.sh --profile=full        # also apt-install postfix, dovecot, rspamd, redis
 sudo bash install.sh --with-mail           # same as --profile=full
-sudo bash install.sh --profile=core        # default: php, nginx, mariadb, bind9
+sudo bash install.sh --profile=core        # default: php, nginx, mariadb, bind9; apache2/pdns packaged, disabled
 sudo bash install.sh --dry-run             # print repo/src/root/profile and exit
 sudo bash install.sh --src=/path           # clone location (default /usr/local/src/kloxo-cp)
 sudo bash install.sh --root=/opt/kloxo     # program root
@@ -227,7 +227,9 @@ apt install -y \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
   mariadb-server \
   nginx \
+  apache2 \
   bind9 \
+  pdns-server pdns-backend-mysql \
   iproute2 \
   ca-certificates git curl openssl \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
@@ -246,6 +248,10 @@ apt install -y \
 
 Hiawatha is **not** in Ubuntu 24.04 or 26.x. `install.sh` (or the command in section 8)
 builds pinned 12.4. Redis is a mail-stack dependency, not a core panel package.
+`pdns-server` is installed and left **disabled**; BIND stays on port 53 until
+Switch Program selects PowerDNS. `apache2` is installed and left **disabled**;
+Nginx stays on 80/443 until Switch Program selects Apache (PHP-FPM via
+`proxy_fcgi`, not mod_php).
 
 ### 3. Place the tree at `/opt/kloxo`
 
@@ -390,11 +396,12 @@ Add / Update / Delete on that page: those still write CentOS-style network
 files and can take the host off the network.
 
 phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
-`kloxo/bin/install/install-phpmyadmin` (not shipped in git). A 405 from
-Hiawatha on that URL means the directory has no `index.php`. A page that
-only shows the phpMyAdmin logo (no login form) means Debian vendor JS
-symlinks were copied; re-run the installer as root so jQuery is a real
-file under WebsiteRoot.
+`kloxo/bin/install/install-phpmyadmin` (not shipped in git). Admin **SQL Manager**
+opens it already signed on as `kloxo_pma` (all databases). There is no
+phpMyAdmin login form and the MariaDB password is never put in the URL.
+A 405 from Hiawatha on that URL means the directory has no `index.php`.
+Re-run `install.sh` (or `install-phpmyadmin` plus `init-panel-db`) after
+pulling this tree so sign-on and `kloxo_pma` exist.
 
 ### 9. MariaDB for the panel
 
@@ -468,6 +475,8 @@ bash tests/p3/run-tests.sh
 bash tests/install/run-tests.sh
 php kloxo/bin/install/generate-tls-keys --help
 php kloxo/bin/install/init-panel-db --help
+php kloxo/bin/install/install-pdns --help
+php kloxo/bin/install/install-apache --help
 bash kloxo/bin/install/install-hiawatha --help
 php kloxo/bin/mail/kloxo-mail help
 php kloxo/bin/kloxocp help
@@ -494,13 +503,15 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/ sbin/ pscript/   backend and maintenance scripts
   cexe/           C backend daemon (source only; setuid helpers removed)
   init/           panel systemd units, Hiawatha, PHP-FPM pool, php-cli.sh
-  file/           service config templates (nginx, bind, pdns, qmail, mail)
+  file/           service config templates (nginx, apache, bind, pdns, qmail, mail)
   install/        LEGACY RPM/CentOS installer (do not use on Ubuntu)
   bin/kloxocp            operator CLI (status, doctor, snapshot, rollback)
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)
   bin/install/generate-tls-keys  unique TLS keys per install
   bin/install/init-panel-db      Ubuntu MariaDB panel schema
   bin/install/install-hiawatha   pinned Hiawatha 12.4 source build
+  bin/install/install-pdns       PowerDNS schema + gmysql snippet (unit stays disabled)
+  bin/install/install-apache     Apache 2.4 PHP-FPM vhosts (unit stays disabled)
   bin/install/install-phpmyadmin phpMyAdmin under httpdocs/thirdparty
 install.sh        Ubuntu 24.04 / 26.x bootstrap (clone + apt + layout + TLS)
 tests/            mail, tls, remote, security, p1, p2, p3, install

@@ -114,7 +114,7 @@ abstract class ClientCore extends Resourcecore
 					throw new lxException($login->getThrow("no_server_pool"), '', $v);
 				}
 
-				$param["listpriv_s_{$a}_list"] = implode("", $parent->listpriv->$v);
+				$param["listpriv_s_{$a}_list"] = kloxo_implode("", $parent->listpriv->$v);
 			}
 
 		//	$param['listpriv_s_dbtype_list'] = implode($parent->listpriv->dbtype_list);
@@ -244,7 +244,7 @@ abstract class ClientCore extends Resourcecore
 				$dns->copyObjectWithSave($dnstemplate);
 			}
 
-			$dns->syncserver = implode(",", $param['dnssyncserver_list']);
+			$dns->syncserver = kloxo_implode(",", $param['dnssyncserver_list']);
 			$l->dnspserver = $dns->syncserver;
 			$l->setUpdateSubaction();
 			$l->write();

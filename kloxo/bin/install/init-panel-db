@@ -203,7 +203,9 @@ init-panel-db 0.1.0: create the Kloxo CP panel MariaDB schema
 Loads kloxo/file/sql/db-structure-base.sql (and -update.sql) synchronously.
 Creates the kloxo database user with MariaDB 10.11 syntax (CREATE USER +
 GRANT; never GRANT ... IDENTIFIED BY). Writes <root>/etc/conf/kloxo.pass
-(0640, owned by lxlabs). Inserts admin / general rows if they are missing.
+(0640, owned by lxlabs). Creates kloxo_pma with ALL PRIVILEGES on *.* for
+admin SQL Manager (phpMyAdmin sign-on; <root>/etc/conf/pma.pass).
+Inserts admin / general rows if they are missing.
 
 Admin UI password: omitted flags seed the well-known default admin/admin
 (must be changed after first login). Override with --admin-password-env=VAR
@@ -275,9 +277,11 @@ TXT;
         }
 
         $this->writePass($passFile, $dbPass);
+        $this->ensurePmaUser($rootUser);
         $this->seedAdmin($pdo, $adminPass);
         $this->seedAdminPriv($pdo);
         $this->seedGeneral($pdo);
+        $this->seedHelpdesk($pdo);
         $this->seedPserver($pdo);
         $this->seedDriver($pdo);
         $this->seedPhpini($pdo);
@@ -493,6 +497,11 @@ TXT;
             fwrite(STDERR, "specialplay blob failed\n");
             return 1;
         }
+        $hd = base64_decode(self::helpdeskCategoryBlob(), true);
+        if (!is_string($hd) || !str_contains($hd, 'helpdeskcategory_a') || !str_contains($hd, 'Welcome')) {
+            fwrite(STDERR, "helpdesk category blob failed\n");
+            return 1;
+        }
         $sample = "CREATE TABLE IF NOT EXISTS `client` (\n"
             . "  `nname` varchar(255) NOT NULL,\n"
             . "  `parent_clname` varchar(255) DEFAULT NULL,\n"
@@ -524,6 +533,57 @@ TXT;
         } catch (PDOException $e) {
             $head = preg_replace('/\s+/', ' ', substr($sql, 0, 96)) ?? substr($sql, 0, 96);
             throw new IpdbException('schema failed: ' . $e->getMessage() . ' [' . $head . ']');
+        }
+    }
+
+    private function ensurePmaUser(string $rootUser): void
+    {
+        $passFile = $this->root . '/etc/conf/pma.pass';
+        $pass = $this->dbPassword($passFile);
+        $u = 'kloxo_pma';
+        try {
+            $pdo = $this->connectRoot($rootUser);
+            $stmt = $pdo->prepare("CREATE USER IF NOT EXISTS '{$u}'@'localhost' IDENTIFIED BY ?");
+            $stmt->execute([$pass]);
+            $stmt = $pdo->prepare("CREATE USER IF NOT EXISTS '{$u}'@'127.0.0.1' IDENTIFIED BY ?");
+            $stmt->execute([$pass]);
+            $stmt = $pdo->prepare("ALTER USER '{$u}'@'localhost' IDENTIFIED BY ?");
+            $stmt->execute([$pass]);
+            $stmt = $pdo->prepare("ALTER USER '{$u}'@'127.0.0.1' IDENTIFIED BY ?");
+            $stmt->execute([$pass]);
+            $pdo->exec("GRANT ALL PRIVILEGES ON *.* TO '{$u}'@'localhost'");
+            $pdo->exec("GRANT ALL PRIVILEGES ON *.* TO '{$u}'@'127.0.0.1'");
+            $pdo->exec('FLUSH PRIVILEGES');
+        } catch (Throwable $e) {
+            $this->cliGrantPma($rootUser, $pass);
+        }
+        $this->writePass($passFile, $pass);
+    }
+
+    private function cliGrantPma(string $rootUser, string $pass): void
+    {
+        $bin = Proc::exists('mariadb') ? 'mariadb' : (Proc::exists('mysql') ? 'mysql' : '');
+        if ($bin === '') {
+            throw new IpdbException('MariaDB client not in PATH; cannot create kloxo_pma');
+        }
+        $q = $this->sqlQuote($pass);
+        $sql = "CREATE USER IF NOT EXISTS 'kloxo_pma'@'localhost' IDENTIFIED BY {$q};\n"
+            . "CREATE USER IF NOT EXISTS 'kloxo_pma'@'127.0.0.1' IDENTIFIED BY {$q};\n"
+            . "ALTER USER 'kloxo_pma'@'localhost' IDENTIFIED BY {$q};\n"
+            . "ALTER USER 'kloxo_pma'@'127.0.0.1' IDENTIFIED BY {$q};\n"
+            . "GRANT ALL PRIVILEGES ON *.* TO 'kloxo_pma'@'localhost';\n"
+            . "GRANT ALL PRIVILEGES ON *.* TO 'kloxo_pma'@'127.0.0.1';\n"
+            . "FLUSH PRIVILEGES;\n";
+        $cmd = [$bin, '--protocol=socket', '-u', $rootUser];
+        foreach ($this->socketCandidates() as $sock) {
+            if (self::socketExists($sock)) {
+                $cmd[] = '--socket=' . $sock;
+                break;
+            }
+        }
+        [$rc, $out, $err] = Proc::run($cmd, $sql);
+        if ($rc !== 0) {
+            throw new IpdbException('kloxo_pma user failed: ' . trim($err . ' ' . $out));
         }
     }
 
@@ -829,6 +889,70 @@ TXT;
         return self::serializeObjectBlob('generalmisc_b', self::generalmiscDefaults());
     }
 
+    /** @return list<string> */
+    public static function helpdeskCategoryNames(): array
+    {
+        return ['Welcome', 'Billing', 'Complaint', 'Other'];
+    }
+
+    public static function helpdeskCategoryBlob(): string
+    {
+        $names = self::helpdeskCategoryNames();
+        $body = '';
+        foreach ($names as $n) {
+            if (preg_match('/^[A-Za-z][A-Za-z0-9_ ]*$/', $n) !== 1) {
+                throw new IpdbException('Invalid helpdesk category');
+            }
+            $obj = 'O:18:"helpdeskcategory_a":1:{s:5:"nname";s:' . strlen($n) . ':"' . $n . '";}';
+            $body .= 's:' . strlen($n) . ':"' . $n . '";' . $obj;
+        }
+
+        return base64_encode('a:' . count($names) . ':{' . $body . '}');
+    }
+
+    private function seedHelpdesk(PDO $pdo): void
+    {
+        $blob = self::helpdeskCategoryBlob();
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM general WHERE nname = 'admin'")->fetchColumn();
+        if ($n > 0) {
+            $cur = $pdo->query("SELECT ser_helpdeskcategory_a FROM general WHERE nname = 'admin'")->fetchColumn();
+            $raw = is_string($cur) ? (string)base64_decode($cur, true) : '';
+            if ($cur === null || $cur === '' || !str_contains($raw, 'Welcome')) {
+                $stmt = $pdo->prepare(
+                    "UPDATE general SET ser_helpdeskcategory_a = ? WHERE nname = 'admin'"
+                );
+                $stmt->execute([$blob]);
+            }
+        }
+
+        $tc = (int)$pdo->query("SELECT COUNT(*) FROM ticketconfig WHERE nname = 'ticketconfig'")->fetchColumn();
+        if ($tc === 0) {
+            $pdo->exec(
+                "INSERT INTO ticketconfig (nname, parent_clname, parent_cmlist, ticketid, mail_enable)
+                 VALUES ('ticketconfig', 'client-admin', '', '1', 'off')"
+            );
+        }
+
+        $t = (int)$pdo->query("SELECT COUNT(*) FROM ticket")->fetchColumn();
+        if ($t > 0) {
+            return;
+        }
+
+        $now = (string)time();
+        $stmt = $pdo->prepare(
+            "INSERT INTO ticket (nname, parent_clname, parent_cmlist, made_by, sent_to, subject, category,
+                ddate, date_modified, unread_flag, state, history_num, escalate, status, cpstatus)
+             VALUES ('1', 'client-admin', '', 'pserver-Kloxo', 'client-admin', 'Welcome to Kloxo', 'Welcome',
+                ?, ?, 'on', 'open', '0', 'dull', 'on', 'on')"
+        );
+        $stmt->execute([$now, $now]);
+        $stmt = $pdo->prepare(
+            "INSERT INTO tickethistory (nname, parent_clname, parent_cmlist, made_by, state_from, state, text_reason, ddate)
+             VALUES ('1___0', 'ticket-1', '', 'pserver-Kloxo', '', 'open', 'Welcome to Kloxo', ?)"
+        );
+        $stmt->execute([$now]);
+    }
+
     /** Ubuntu Switch Program defaults: first value of each file/driver list. */
     public static function driverDefaults(): array
     {
@@ -863,7 +987,7 @@ TXT;
             'pg_lxguard' => 'sync',
             'pg_lxguardwhitelist' => 'sync',
             'pg_hostdeny' => 'linux',
-            'pg_dns' => 'none',
+            'pg_dns' => 'bind',
             'pg_pop3' => 'none',
             'pg_smtp' => 'none',
             'pg_spam' => 'none',
@@ -875,7 +999,7 @@ TXT;
             'pg_rubyrails' => 'linux',
             'pg_uuser' => 'linux',
             'pg_ftpuser' => 'pureftp',
-            'pg_web' => 'none',
+            'pg_web' => 'nginx',
             'pg_webcache' => 'none',
             'pg_mmail' => 'qmail',
             'pg_cron' => 'linux',

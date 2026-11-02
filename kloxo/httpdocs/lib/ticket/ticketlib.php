@@ -159,8 +159,15 @@ class Ticket extends Lxclient
 		
 		$nlist['nname'] = null;
 
-		$gen = $login->getObject('general');
-		$cat = get_namelist_from_objectlist($gen->helpdeskcategory_a);
+		$cat = array();
+		try {
+			$gen = $login->getObject('general');
+			if (is_object($gen)) {
+				$cat = get_namelist_from_objectlist($gen->helpdeskcategory_a);
+			}
+		} catch (Throwable $e) {
+			$cat = array();
+		}
 		$cat = lx_merge_good('--any--', $cat);
 
 		$nlist['category'] = array('s', $cat);
@@ -310,26 +317,59 @@ class Ticket extends Lxclient
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$name = ucfirst($sgbl->__var_program_name);
+		try {
+			$sq = new Sqlite(null, 'ticket');
+			$have = $sq->getRowsWhere("subject = 'Welcome to Kloxo'");
+			if (is_array($have) && count($have) > 0) {
+				return;
+			}
+		} catch (Throwable $e) {
+		}
 
-		$parent['parent_clname'] = createParentName('client', 'admin');
-		$param['made_by'] = createParentName('pserver', $name);
+		$param['parent_clname'] = createParentName('client', 'admin');
+		$param['made_by'] = createParentName('pserver', 'Kloxo');
 		$param['sent_to'] = createParentName('client', 'admin');
-		$param['subject'] = "Welcome to $name";
-	//	$param['priority'] = "low";
+		$param['subject'] = "Welcome to Kloxo";
 		$param['category'] = "Welcome";
-		$param['descr_f'] = "Welcome to $name";
+		$param['descr_f'] = "Welcome to Kloxo";
 		$param['ddate'] = time();
 		$param['date_modified'] = time();
-		$ticketconfig = $login->getObject('ticketconfig');
-
-		$param['nname'] = $ticketconfig->getAndIncrementTicket();
-		$ticketconfig->write();
+		$param['nname'] = '1';
 		$param['unread_flag'] = 'on';
 		$param['state'] = 'open';
+		$param['history_num'] = 0;
+		$param['escalate'] = 'dull';
+		$param['status'] = 'on';
+		$param['cpstatus'] = 'on';
+
+		try {
+			if (is_object($login) && method_exists($login, 'getObject')) {
+				$ticketconfig = $login->getObject('ticketconfig');
+				if (is_object($ticketconfig) && method_exists($ticketconfig, 'getAndIncrementTicket')) {
+					$param['nname'] = (string)$ticketconfig->getAndIncrementTicket();
+					$ticketconfig->write();
+				}
+			}
+		} catch (Throwable $e) {
+		}
+
 		$ticket = new Ticket(null, null, $param['nname']);
 		$ticket->create($param);
-		$ticket->postAdd();
+		try {
+			$ticket->postAdd();
+		} catch (Throwable $e) {
+			$hist = new TicketHistory($ticket->__masterserver, $ticket->__readserver, $ticket->nname . "___0");
+			$rhis = array(
+				'text_reason' => $ticket->descr_f,
+				'state_from' => '',
+				'ddate' => time(),
+				'parent_clname' => $ticket->getClName(),
+				'state' => 'open',
+				'made_by' => $ticket->made_by,
+			);
+			$hist->create($rhis);
+			$ticket->addToList("tickethistory", $hist);
+		}
 		$ticket->was();
 	}
 
@@ -342,26 +382,45 @@ class Ticket extends Lxclient
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		if ($parent->get__table() === 'client') {
+		$list = array();
+		if (is_object($parent) && $parent->get__table() === 'client') {
 			$tag['key'] = "--all_children--" ;
 			$tag['val'] = "-----Children";
-			$list = $parent->getAllChildrenAndParents($tag);
+			try {
+				$got = $parent->getAllChildrenAndParents($tag);
+				$list = is_array($got) ? $got : array($tag['key'] => $tag['val']);
+			} catch (Throwable $e) {
+				$list = array($tag['key'] => $tag['val']);
+			}
 		}
 
-		$gen = $login->getObject('general');
+		$cat = array();
+		try {
+			if (is_object($login) && method_exists($login, 'getObject')) {
+				$gen = $login->getObject('general');
+				if (is_object($gen)) {
+					$cat = get_namelist_from_objectlist($gen->helpdeskcategory_a);
+				}
+			}
+		} catch (Throwable $e) {
+			$cat = array();
+		}
 
-		$cat = get_namelist_from_objectlist($gen->helpdeskcategory_a);
+		$vlist['made_by'] = array('M', is_object($parent) ? $parent->nname : '');
 
-		$vlist['made_by'] = array('M', $parent->nname);
-
-		if ($parent->get__table() === 'client') {
+		if (is_object($parent) && $parent->get__table() === 'client') {
 			$vlist['sent_to'] = array('A', $list);
 		} else {
-			$vlist['sent_to'] = array('M', $parent->getParentO()->nname);
+			$sent = '';
+			if (is_object($parent)) {
+				$pp = $parent->getParentO();
+				$sent = is_object($pp) ? $pp->nname : '';
+			}
+			$vlist['sent_to'] = array('M', $sent);
 		}
 
 		if (!$cat) {
-			$cat = array("billing");
+			$cat = array("Welcome", "Billing", "Complaint", "Other");
 		}
 		
 		$vlist['category'] = array('s', $cat);

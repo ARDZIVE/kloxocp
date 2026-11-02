@@ -4673,13 +4673,21 @@ class HtmlLib
 		}
 
 		if (!$sellist && !$this->isResourceClass($class) && !$gbl->__inside_ajax) {
+			$skip_search = kloxo_skip_find_class($class)
+				|| (is_object($parent) && kloxo_skip_find_class($parent->getClass()));
 ?>
 
 		<div class="div_showhide">
 			<table width="100%" cellpadding="0" cellspacing="0" border="0" style="<?= $backgroundstring ?>  border: 1px solid #<?= $col ?>; padding: 10px;">
 				<tr>
 					<td><?= $this->print_list_submit($class, $blist, $unique_name) ?></td>
+<?php
+			if (!$skip_search) {
+?>
 					<td><?= $this->print_search($parent, $class) ?></td>
+<?php
+			}
+?>
 				</tr>
 			</table>
 		</div>
@@ -7331,6 +7339,11 @@ class HtmlLib
 	function print_find($object)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
+
+		if (is_object($object) && (kloxo_skip_find_class($object->getClass())
+			|| kloxo_skip_find_class($object->get__table()))) {
+			return;
+		}
 
 		if ($sgbl->isBlackBackground()) {
 			return;
@@ -10059,6 +10072,11 @@ function uploadAbort(e) { // upload abort
 	function print_search($parent, $class)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
+
+		if (kloxo_skip_find_class($class)
+			|| (is_object($parent) && kloxo_skip_find_class($parent->getClass()))) {
+			return;
+		}
 
 		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
 		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;

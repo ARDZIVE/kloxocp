@@ -735,8 +735,7 @@ $__information['pserver_updateform_timezone_pre'] = "<p>Choose 'timezone' for yo
 
 $__information['pserver_updateform_commandcenter_pre'] = "<p>You can execute ssh command here. Example: 'sh /script/sysinfo'.</p>";
 
-$__information['sshclient_show__pre'] = "<p>SSH access here (using java-based ssh emulator) for your <b>[%_server_%]</b>.</p>".
-	"<p>Need java-enabled in your browser.</p>";
+$__information['sshclient_show__pre'] = "<p>SSH Terminal for <b>[%_server_%]</b> (admin only). Connect from your own terminal with the command below.</p>";
 
 // $__information['traceroute_list__pre'] = "<p>No information...</p>";
 

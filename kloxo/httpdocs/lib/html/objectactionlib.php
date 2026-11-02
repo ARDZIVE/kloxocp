@@ -180,8 +180,8 @@ function check_priv($parent, $class, $pvar, $v)
 {
 	global $login;
 
-	if (cse($class, "template")) {
-		foreach($v as $pk => $pv) {
+	if (cse($class, "template") || $class === 'resourceplan') {
+		foreach((array)$v as $pk => $pv) {
 			$pvar->$pk = $pv;
 		}
 

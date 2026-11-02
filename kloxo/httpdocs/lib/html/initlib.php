@@ -134,7 +134,7 @@ function create_general()
 	$g->loginhistory_time = 2;
 	$g->traffichistory_time = 6;
 
-	$list = array("Billing", "Complaint", "Other");
+	$list = array("Welcome", "Billing", "Complaint", "Other");
 	$h = null;
 
 	foreach($list as $l) {

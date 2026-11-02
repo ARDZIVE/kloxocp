@@ -14,17 +14,20 @@ DRY=0
 WANTED_OLD=(5.6 7.4)
 # Newest first. 8.6 is listed so a later stable is picked without a code change.
 LATEST_CANDIDATES=(8.6 8.5 8.4 8.3)
+ALLOW_VERS=(8.6 8.5 8.4 8.3 7.4 5.6)
+ONLY_VERS=()
 EXTS=(cli fpm mysql xml mbstring curl zip gd intl bcmath opcache soap)
 
 usage() {
   cat <<EOF
 install-site-php: customer-site PHP-FPM (5.6, 7.4, latest)
 
-  sudo bash install-site-php [--root=DIR] [--force] [--dry-run]
+  sudo bash install-site-php [--root=DIR] [--force] [--dry-run] [--versions=X.Y,X.Y]
 
-  --root=DIR    program root (default: ${ROOT})
-  --force       reinstall even if php-fpm binaries already exist
-  --dry-run     print the plan and exit
+  --root=DIR         program root (default: ${ROOT})
+  --versions=X.Y,... only these series (5.6, 7.4, 8.3, 8.4, 8.5, 8.6)
+  --force            reinstall even if php-fpm binaries already exist
+  --dry-run          print the plan and exit
   --help
 
 Uses Ubuntu distro packages first. If 5.6 / 7.4 are missing, adds
@@ -119,12 +122,28 @@ write_default_flag() {
   : > "${flagdir}/enablemultiplephp.flg"
 }
 
+vers_ok() {
+  local v a
+  for v in "$@"; do
+    for a in "${ALLOW_VERS[@]}"; do
+      if [[ "$v" == "$a" ]]; then
+        continue 2
+      fi
+    done
+    die "unsupported PHP series: $v"
+  done
+}
+
 for a in "$@"; do
   case "$a" in
     --help|-h) usage; exit 0 ;;
     --force) FORCE=1 ;;
     --dry-run) DRY=1 ;;
     --root=*) ROOT="${a#--root=}" ;;
+    --versions=*)
+      IFS=',' read -r -a ONLY_VERS <<< "${a#--versions=}"
+      vers_ok "${ONLY_VERS[@]}"
+      ;;
     *) die "unknown option: $a (try --help)" ;;
   esac
 done
@@ -137,7 +156,7 @@ if [[ "$DRY" -eq 1 ]]; then
   cat <<EOF
 plan: install customer-site PHP-FPM
   root     $ROOT
-  versions 5.6 (5.6.40), 7.4 (7.4.33), plus newest of: ${LATEST_CANDIDATES[*]}
+  versions ${ONLY_VERS[*]:-5.6 (5.6.40), 7.4 (7.4.33), plus newest of: ${LATEST_CANDIDATES[*]}}
   repo     distro apt, then ppa:ondrej/php if 5.6/7.4 are missing
   default  newest installed phpX.Y-fpm
   panel    kloxo-php is not changed
@@ -167,6 +186,23 @@ install_one() {
   # shellcheck disable=SC2046
   apt-get install -y $(pkgs_for "$ver")
 }
+
+if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
+  for v in "${ONLY_VERS[@]}"; do
+    if apt_has "php${v}-fpm"; then
+      install_one "$v" || log "warn: php${v}-fpm install failed"
+    else
+      log "warn: php${v}-fpm is not in apt; skip"
+    fi
+  done
+  for v in "${ONLY_VERS[@]}"; do
+    if have_fpm "$v"; then
+      wire_include "$v"
+    fi
+  done
+  log "installed requested site PHP: ${ONLY_VERS[*]}"
+  exit 0
+fi
 
 install_one "$latest"
 for v in "${WANTED_OLD[@]}"; do

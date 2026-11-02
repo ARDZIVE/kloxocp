@@ -265,12 +265,16 @@ class Sgbl
 
 		$this->__var_service_desc['php-fpm'] = "Php Fastcgi Process Manager";
 
-		$this->__var_service_desc['qmail'] = "Qmail-toaster Mail Server";
+		$this->__var_service_desc['exim'] = "Exim Mail Server";
+		$this->__var_service_desc['exim4'] = "Exim Mail Server";
+		$this->__var_service_desc['qmail'] = "Exim Mail Server";
 		$this->__var_service_desc['dovecot'] = "Dovecot Pop3/IMAP Server";
 
 		$this->__var_service_desc['named'] = "Bind Dns Server";
 		$this->__var_service_desc['bind9'] = "Bind Dns Server";
 		$this->__var_service_desc['bind'] = "Bind Dns Server";
+		$this->__var_service_desc['pdns'] = "PowerDNS Server";
+		$this->__var_service_desc['pdns-server'] = "PowerDNS Server";
 
 		$this->__var_service_desc['pure-ftpd'] = "Pureftp Ftp Server";
 

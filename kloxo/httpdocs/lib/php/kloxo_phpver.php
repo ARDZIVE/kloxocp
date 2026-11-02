@@ -16,6 +16,9 @@ final class KloxoPhpver
         '8.6', '8.5', '8.4', '8.3', '8.2', '8.1', '8.0', '7.4', '7.3', '7.2', '7.1', '7.0', '5.6',
     ];
 
+    /** Versions Webserver Configure can install (install-site-php / ondrej). */
+    private const INSTALLABLE_SERIES = ['8.6', '8.5', '8.4', '8.3', '7.4', '5.6'];
+
     /** @return list<string> ids such as php8.3, php8.5, php73m */
     public static function installedIds(): array
     {
@@ -80,6 +83,51 @@ final class KloxoPhpver
         }
 
         return $out;
+    }
+
+    /** @return list<string> php8.3, php7.4, php5.6, … that this page can install */
+    public static function catalogIds(): array
+    {
+        $out = [];
+        foreach (self::INSTALLABLE_SERIES as $ver) {
+            $out[] = 'php' . $ver;
+        }
+
+        return $out;
+    }
+
+    /** @return list<string> catalog ids not yet installed */
+    public static function availableToInstall(): array
+    {
+        $have = array_fill_keys(self::installedIds(), true);
+        $out = [];
+        foreach (self::catalogIds() as $id) {
+            if (!isset($have[$id])) {
+                $out[] = $id;
+            }
+        }
+
+        return $out;
+    }
+
+    /** PHP Used dropdown: installed distro ids, never "--PHP Branch--". */
+    public static function phpUsedChoices(): array
+    {
+        $ids = [];
+        foreach (self::installedIds() as $id) {
+            if (self::isDistroId($id)) {
+                $ids[] = $id;
+            }
+        }
+        $act = self::activeId();
+        if ($ids === []) {
+            return [$act];
+        }
+        if (!in_array($act, $ids, true)) {
+            array_unshift($ids, $act);
+        }
+
+        return $ids;
     }
 
     /** Newest installed distro id (php8.5, php8.3, …), or php. */

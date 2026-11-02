@@ -147,6 +147,7 @@ class pservercore extends Lxclient
 	static $__desc_servermail_o = array('d', '', '', '');
 	static $__desc_serverspam_o = array('', '', '', '');
 	static $__desc_llog_o = array('d', '', '', '');
+	static $__desc_sshclient_o = array('d', '', '', 'ssh_client');
 	static $__desc_sshconfig_o = array('d', '', '', '');
 
 	static $__desc_phpmodule_l = array("v", "", "virtual");
@@ -241,10 +242,6 @@ class pservercore extends Lxclient
 		$alist[] = "a=show";
 
 		$alist[] = "a=list&c=$class";
-
-		if ($parent->isAdmin()) {
-			$alist[] = "a=addform&c=$class";
-		}
 
 		$alist[] = "a=updateform&sa=forcedeletepserver&c=client";
 
@@ -456,13 +453,13 @@ class pservercore extends Lxclient
 
 	static function getTimeZoneList()
 	{
-		global $global_list_path;
+		$list = timezone_identifiers_list();
+		if (!is_array($list) || $list === array()) {
+			return array('UTC');
+		}
+		sort($list);
 
-		$global_list_path = null;
-
-		do_recurse_dir("/usr/share/zoneinfo/", "listFile", null);
-
-		return $global_list_path;
+		return $list;
 	}
 
 	function createShowRlist($subaction)
@@ -1323,7 +1320,16 @@ STRIN;
 				break;
 
 			case "timezone":
-				$vlist['timezone'] = array('s', pserver::getTimeZoneList());
+				$tzlist = pserver::getTimeZoneList();
+				if (!is_array($tzlist) || $tzlist === array()) {
+					$tzlist = array('UTC');
+				}
+				$cur = isset($this->timezone) ? (string)$this->timezone : '';
+				if ($cur === '' || !in_array($cur, $tzlist, true)) {
+					$guess = date_default_timezone_get();
+					$this->timezone = in_array($guess, $tzlist, true) ? $guess : 'UTC';
+				}
+				$vlist['timezone'] = array('s', $tzlist);
 
 				return $vlist;
 
@@ -1339,6 +1345,10 @@ STRIN;
 			case "switchprogram":
 				// MR -- 'nname' = syncserver in here (because pserver class)!
 				// check if slavedb/driver file first and if empty then check driver table
+				$srv = (isset($this->nname) && $this->nname !== '') ? $this->nname : 'localhost';
+				if (!isset($this->syncserver) || $this->syncserver === '') {
+					$this->syncserver = $srv;
+				}
 				try {
 					$this->web_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('web'));
 					$this->webcache_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('webcache'));
@@ -1364,10 +1374,10 @@ STRIN;
 				$a['webcache'] = $this->webcache_driver;
 				$a['dns'] = $this->dns_driver;
 				$a['spam'] = $this->spam_driver;
-				$a['pop3'] = (isset($this->pop3_driver)) ? $this->pop3_driver : 'courier';
+				$a['pop3'] = (isset($this->pop3_driver) && $this->pop3_driver) ? $this->pop3_driver : 'none';
 				// MR -- use pop3 driver because as the same as for imap4
-			//	$a['imap4'] = (isset($this->pop3_driver)) ? $this->pop3_driver : 'courier';
-				$a['smtp'] = (isset($this->smtp_driver)) ? $this->smtp_driver : 'qmail';
+			//	$a['imap4'] = (isset($this->pop3_driver)) ? $this->pop3_driver : 'none';
+				$a['smtp'] = (isset($this->smtp_driver) && $this->smtp_driver) ? $this->smtp_driver : 'none';
 
 				$this->pop3_driver = $a['pop3'];
 			//	$this->imap4_driver = $a['pop3'];
@@ -1394,7 +1404,7 @@ STRIN;
 					$driver = array();
 				}
 				if (!isset($driver['web'])) {
-					$driver['web'] = array('none', 'nginx');
+					$driver['web'] = array('none', 'nginx', 'apache');
 				}
 				if (!isset($driver['webcache'])) {
 					$driver['webcache'] = array('none');
@@ -1409,7 +1419,7 @@ STRIN;
 					$driver['pop3'] = array('none', 'dovecot');
 				}
 				if (!isset($driver['smtp'])) {
-					$driver['smtp'] = array('none', 'qmail');
+					$driver['smtp'] = array('none', 'exim');
 				}
 
 				$vlist['web_driver'] = array('s', $driver['web']);

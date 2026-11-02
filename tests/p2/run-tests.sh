@@ -112,9 +112,10 @@ if php "$HERE/test_multiserver.php"; then
 else
   bad "test_multiserver.php"
 fi
-if grep -F -q 'a=addform&c=$class' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
+if grep -q 'function AddListForm' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
   && grep -q 'nnameIsValid' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
-  && grep -q 'failedlist = array()' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php"; then
+  && grep -q 'failedlist = array()' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
+  && ! grep -F -q 'a=addform&c=$class' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php"; then
   ok "Servers list can add a remote host"
 else
   bad "Servers list can add a remote host"
@@ -278,6 +279,29 @@ if grep -q 'initThisObjectRule($parent, $class, $name = null)' "$ROOT/kloxo/http
   ok "sshclient and vncviewer initThisObjectRule match Lxclass"
 else
   bad "sshclient and vncviewer initThisObjectRule match Lxclass"
+fi
+if grep -q 'only_admin_can_access' "$ROOT/kloxo/httpdocs/driver/pserver/sshclientlib.php" \
+  && grep -q 'sshclient_o' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
+  && ! grep -q 'o=sshclient' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php" \
+  && ! grep -q 'sshclient_o' "$ROOT/kloxo/httpdocs/lib/client/clientbaselib.php"; then
+  ok "SSH Terminal is admin-only and is not on client home"
+else
+  bad "SSH Terminal is admin-only and is not on client home"
+fi
+if grep -q 'function kloxo_implode' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q 'function kloxo_list_from' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q 'kloxo_implode' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php"; then
+  ok "client write path does not implode() a string list"
+else
+  bad "client write path does not implode() a string list"
+fi
+if grep -q "new ListPriv" "$ROOT/kloxo/httpdocs/lib/html/resourceplanlib.php" \
+  && grep -q "getIpaddress(array('localhost'))" "$ROOT/kloxo/httpdocs/lib/html/resourceplanlib.php" \
+  && grep -q "\\\$class === 'resourceplan'" "$ROOT/kloxo/httpdocs/lib/html/objectactionlib.php" \
+  && grep -q '!isset($this->listpriv)' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php"; then
+  ok "resourceplan add does not need a DNS template or parent quota"
+else
+  bad "resourceplan add does not need a DNS template or parent quota"
 fi
 if grep -q 'function kloxo_menu_title' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
   && ! grep -q '$ghtml->getTitleOnly(' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
@@ -608,6 +632,13 @@ if grep -q 'function getServiceDetails' "$ROOT/kloxo/httpdocs/driver/pserver/ser
 else
   bad "Ubuntu services, component info, and postfix mail queue drivers are registered"
 fi
+if grep -q 'KloxoComponent' "$ROOT/kloxo/httpdocs/driver/pserver/component__deblib.php" \
+  && grep -q 'mariadb-server' "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \
+  && ! grep -q 'set\.\*\.lst' "$ROOT/kloxo/httpdocs/driver/pserver/component__deblib.php"; then
+  ok "Component Info uses Ubuntu package names not CentOS RPM lists"
+else
+  bad "Component Info uses Ubuntu package names not CentOS RPM lists"
+fi
 if grep -q 'function kloxo_driver_class' "$ROOT/kloxo/httpdocs/lib/html/lib.php" \
   && grep -q 'function kloxo_rl_driver' "$ROOT/kloxo/httpdocs/lib/html/lib.php" \
   && grep -F -q 'if (!is_array($result)' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php" \
@@ -640,7 +671,7 @@ fi
 if grep -F -q 'frm_o_o[1][class]=serverftp' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
   && grep -A 8 'function isSync' "$ROOT/kloxo/httpdocs/driver/ftp/serverftplib.php" | grep -q "dbaction === 'update'" \
   && grep -q "function seedServerftp" "$ROOT/kloxo/bin/install/init-panel-db" \
-  && grep -q "'serverftp'" "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
+  && grep -q "'serverftp'" "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
   ok "FTP Configure show does not need the C daemon and is not backup ftp_conf"
 else
   bad "FTP Configure show does not need the C daemon and is not backup ftp_conf"

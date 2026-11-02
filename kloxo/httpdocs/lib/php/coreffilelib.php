@@ -197,8 +197,14 @@ class coreFfile
 
 	static function createFfileVariables($stat)
 	{
-		$user = os_get_user_from_uid($stat['uid']);
-		$group = os_get_group_from_gid($stat['gid']);
+		if (!is_array($stat)) {
+			return array();
+		}
+
+		$uid = isset($stat['uid']) ? $stat['uid'] : 0;
+		$gid = isset($stat['gid']) ? $stat['gid'] : 0;
+		$user = os_get_user_from_uid($uid);
+		$group = os_get_group_from_gid($gid);
 
 		$stat['other_username'] = "{$user}:{$group}";
 		
@@ -207,7 +213,11 @@ class coreFfile
 
 	static function removeLeadingSlash($f)
 	{
-		while ($f[0] === '/') {
+		if (!is_string($f) || $f === '') {
+			return '';
+		}
+
+		while (isset($f[0]) && $f[0] === '/') {
 			$f = substr($f, 1);
 		}
 		

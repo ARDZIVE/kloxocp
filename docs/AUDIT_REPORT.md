@@ -22,7 +22,7 @@ test; absence of a finding is not proof of safety.
 * 555 PHP files after P1 deletions (was 597), about 165k lines remaining (the PEAR/WebDAV/ExtJS bundles are about 45k of those lines in `webdisk/` alone).
 * Core (`httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `lang` 3k, `bin` 7k).
 * Entry points: `httpdocs/*.php` (UI), `httpdocs/api`, `httpdocs/web-console`, `bin/*.php`, `sbin/kloxo.php`, C daemon `cexe/kloxo.c`.
-* Legacy stacks: Apache/Lighttpd/Varnish/Squid/ATS/Hiawatha-site and unused DNS template trees **removed** in P1. Remaining `file/<dir>` sizes: nginx 236K, bind 76K, pdns 76K, qmail 152K (kept until postfix UI drivers). Panel Hiawatha config is `init/` only (96K for the whole init dir).
+* Legacy stacks: Lighttpd/Varnish/Squid/ATS/Hiawatha-site and unused DNS template trees **removed** in P1. Apache 2.4 is restored as a selectable PHP-FPM frontend (`file/apache`, unit disabled by default). Remaining `file/<dir>`: nginx, apache, bind, pdns, qmail (kept until postfix UI drivers), mail. Panel Hiawatha config is `init/` only.
 * Bundled third-party code: PEAR + HTTP_WebDAV (about 1.9 MB), PHPMailer **5.2.19**, ExtJS 2.x (about 2.1 MB), `formmail.php` (2001-2004), webalizer/qmail/courier templates.
 
 ## 3. Security findings
@@ -169,10 +169,11 @@ characterization-test harness is the first port step.
 
 * **OS coupling:** `install/`, `pscript/`, `file/driver/linux.inc` are RPM/yum/chkconfig/`service`
   based; init scripts are SysV (`init/*.init`) with systemd units as an afterthought.
-* **Web stack (P1 done):** selectable site drivers are `none` and `nginx`; webcache is `none`.
-  Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey and OpenLiteSpeed
-  drivers and `file/` templates are gone. `lib.php` still has dead Apache install/chown
-  branches used by the legacy installer (P3).
+* **Web stack (P1 done):** selectable site drivers are `none`, `nginx` (default), and `apache`.
+  Apache 2.4 is packaged (`apache2`) and prepared (`install-apache`, PHP-FPM `proxy_fcgi`,
+  no mod_php) with the unit disabled until Switch Program selects it. Lighttpd, Varnish,
+  Squid, ATS, Hiawatha-as-site-server, Monkey and OpenLiteSpeed drivers and `file/` templates
+  are gone. Live apache2 on Ubuntu is **UNVERIFIED**.
 * **Panel web server (Hiawatha), kept as requested:** configured through
   `init/hiawatha.conf.base`, `init/kloxo-web.init` (site templates under `file/hiawatha` were
   removed). It talks to PHP over FastCGI at `127.0.0.1:39000`.
@@ -180,7 +181,11 @@ characterization-test harness is the first port step.
   `hiawatha.conf.base` has no `MinTLSversion` (removed in 11) and no `CGIhandler` (php-cgi
   is not on Ubuntu 24.04; FastCGI id is `PHP`). Live start on a 24.04 VM is **UNVERIFIED**.
 * **Mail:** the legacy qmail-toaster stack (+ courier, vpopmail, SpamAssassin, bogofilter, ezmlm) is replaced by Postfix + Dovecot + Rspamd; the new stack is implemented and tested, see `docs/MAIL_DESIGN.md`. Connecting it to the legacy UI drivers (`driver/mmail`) is still open.
-* **DNS drivers (P1 done):** selectable `none`, `bind`, `pdns`. djbdns/nsd/mydns/yadifa/maradns drivers and templates removed.
+* **DNS drivers (P1 done):** selectable `none`, `bind`, `pdns`. BIND is the default
+  running server. PowerDNS is packaged (`pdns-server`, `pdns-backend-mysql`) and prepared
+  (`install-pdns`) with the unit disabled until Switch Program selects it. Zone writers
+  connect as the `powerdns` MariaDB user (`etc/conf/pdns.pass`), not panel `kloxo.pass` as root.
+  djbdns/nsd/mydns/yadifa/maradns drivers and templates removed. Live pdns on Ubuntu is **UNVERIFIED**.
 * **Billing:** no billing module is bundled. The only traces were `pscript/setup-tht` (a TheHostingTool installer, **removed**) and a "fix for WHMCS needing pserver" workaround in the command-line API (`lib/html/commandlinelib.php`), which is left in place as part of the generic API. A clean billing extension point can be added later.
 * **Distro abstraction:** paths (`/etc/httpd`, `/var/named`, `/etc/init.d`...), package names
   and service names are hard-coded. Needs a per-distro map.
@@ -193,7 +198,7 @@ characterization-test harness is the first port step.
 |---|---|---|
 | 0 (done) | Rebrand, neutralise dead endpoints, remove stale binaries, audit | This ZIP |
 | 1a (done) | C1–C5 / H3 / H6 for phase 1a: keys, setuid helpers, auth-before-unserialize, web-console, easyinstaller HTTP, sudoers, localhost bind, TLS 1.2+, size limits | Remaining: PHP 8.3 port, installer, agent rewrite, qmail removal |
-| 1b (web/DNS done) | Remove Apache/Lighttpd/Varnish/Squid/ATS/Hiawatha-site/unused-DNS drivers and templates; keep Nginx + panel Hiawatha + BIND/PowerDNS | `tests/p1/` 31 checks. qmail still present |
+| 1b (web/DNS done) | Remove Lighttpd/Varnish/Squid/ATS/Hiawatha-site/unused-DNS; keep Nginx (default) + Apache 2.4 (prepared, disabled) + panel Hiawatha + BIND/PowerDNS | `tests/p1/`. qmail still present |
 | 1c (parse slice done) | PHP 8.3 port: first-party `php -l` clean; autoload; boot-path ereg; `Sqlite` already mysqli | `tests/p2/`. Remaining: panel boot, PEAR/PHPMailer, `lxphp.exe` |
 | 1d (CLI skeleton done) | `kloxocp` status/doctor/snapshot/rollback + `install.sh` pre-flight. Remaining: apt repo, Debian packages, `kloxocp update` | `tests/p3/` 20 checks. Fresh VM install still UNVERIFIED |
 | 1e | Mail stack: Postfix + Dovecot + Rspamd driver | Create mailbox, send and receive |

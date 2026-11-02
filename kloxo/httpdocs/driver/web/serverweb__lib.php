@@ -452,6 +452,9 @@ class serverweb__ extends lxDriverClass
 		$sel = $branch ? $branch : $this->main->php_branch;
 		$sel = preg_replace('/(.*)\_\(as\_(.*)\)/', '$1', (string)$sel);
 		if (KloxoPhpver::isDistroId($sel)) {
+			KloxoPhpver::setActiveId($sel);
+			createRestartFile("restart-php-fpm");
+			createRestartFile("restart-web");
 			return;
 		}
 
@@ -537,13 +540,28 @@ class serverweb__ extends lxDriverClass
 
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		$ids = kloxo_list_from($this->main->multiple_php_install ?? '');
+		$vers = array();
+		foreach ($ids as $id) {
+			$s = KloxoPhpver::idToSeries((string)$id);
+			if ($s !== '' && in_array($s, array('5.6', '7.4', '8.3', '8.4', '8.5', '8.6'), true)) {
+				$vers[] = $s;
+			}
+		}
 		if (KloxoIpaddr::isUbuntu()) {
+			if ($vers === array()) {
+				throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
+			}
 			$root = dirname(__DIR__, 3);
 			$script = $root . '/bin/install/install-site-php';
 			if (!is_file($script)) {
 				throw new lxException($login->getThrow('file_not_found'), '', $script);
 			}
-			$p = @proc_open(['bash', $script, '--root=' . $root], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+			$p = @proc_open(
+				array('bash', $script, '--root=' . $root, '--versions=' . implode(',', $vers)),
+				array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
+				$pipes
+			);
 			if (!is_resource($p)) {
 				throw new lxException($login->getThrow('could_not_execute'), '', 'install-site-php');
 			}
@@ -596,27 +614,48 @@ class serverweb__ extends lxDriverClass
 	{
 		global $login;
 
-		$rem = $this->main->multiple_php_remove;
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
 
-		if ($rem === '') {
+		$list = kloxo_list_from($this->main->multiple_php_remove ?? '');
+		if ($list === array()) {
 			throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
 		}
 
-		$list = explode(',', $rem);
-
-		foreach ($list as $k => $v) {
-			if ($v === $this->main->php_used) {
+		$active = KloxoPhpver::activeId();
+		foreach ($list as $v) {
+			if ($v === $active || (isset($this->main->php_used) && $v === $this->main->php_used)) {
 				throw new lxException($login->getThrow('php_already_in_used'), '', $v);
 			}
 		}
 
-		exec("sh /script/stop-php-fpm");
-
-		foreach ($list as $k => $v) {
-			exec("sh /script/phpm-remover {$v}");
+		if (KloxoIpaddr::isUbuntu()) {
+			foreach ($list as $v) {
+				$ver = KloxoPhpver::idToSeries((string)$v);
+				if ($ver === '' || preg_match('/^\d+\.\d+$/', $ver) !== 1) {
+					continue;
+				}
+				$p = @proc_open(
+					array('apt-get', 'remove', '-y', 'php' . $ver . '-fpm'),
+					array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
+					$pipes
+				);
+				if (is_resource($p)) {
+					stream_get_contents($pipes[1]);
+					stream_get_contents($pipes[2]);
+					fclose($pipes[1]);
+					fclose($pipes[2]);
+					proc_close($p);
+				}
+			}
+			createRestartFile("restart-php-fpm");
+			createRestartFile("restart-web");
+			return;
 		}
 
-		exec("sh /script/start-php-fpm");
+		foreach ($list as $v) {
+			lxshell_return('sh', '/script/phpm-remover', $v);
+		}
 	}
 
 	function set_multiple_php_activate()

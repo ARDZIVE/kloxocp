@@ -14,6 +14,25 @@ if (KloxoPhpver::isDistroId('php8.3') && KloxoPhpver::isDistroId('php8.5') && Kl
 } else {
     $bad('distro ids');
 }
+$cat = KloxoPhpver::catalogIds();
+if (in_array('php5.6', $cat, true) && in_array('php7.4', $cat, true) && in_array('php8.3', $cat, true)
+    && !in_array('php52m', $cat, true)) {
+    $ok('catalogIds is Ubuntu phpX.Y not php52m');
+} else {
+    $bad('catalogIds is Ubuntu phpX.Y not php52m');
+}
+$avail = KloxoPhpver::availableToInstall();
+if (is_array($avail) && !in_array('m', $avail, true) && !in_array('php52m', $avail, true)) {
+    $ok('availableToInstall is not a CentOS leftover');
+} else {
+    $bad('availableToInstall is not a CentOS leftover');
+}
+$used = KloxoPhpver::phpUsedChoices();
+if (is_array($used) && $used !== [] && !in_array('--PHP Branch--', $used, true)) {
+    $ok('phpUsedChoices has no --PHP Branch-- placeholder');
+} else {
+    $bad('phpUsedChoices has no --PHP Branch-- placeholder');
+}
 if (!KloxoPhpver::isDistroId('php73m') && !KloxoPhpver::isDistroId('php54u')) {
     $ok('legacy optm ids are not distro');
 } else {

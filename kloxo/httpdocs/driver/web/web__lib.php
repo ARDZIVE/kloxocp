@@ -13,23 +13,18 @@ class web__ extends lxDriverClass
 
 	static function installMeTrue($drivertype = null)
 	{
-		if ($drivertype === 'none') { return; }
-
-		$list = getWebDriverList($drivertype);
-
-		foreach ($list as $k => $v) {
-			if ($v === 'none') { continue; }
-
-			$a = ($v === 'apache') ? 'httpd' : $v;
-
-			self::setBaseWebConfig($v);
-
-			exec("chkconfig {$a} on >/dev/null 2>&1");
+		if ($drivertype === 'none') {
+			return;
 		}
-	
-		self::setInstallPhpfpm();
 
-		@exec("sh /script/fixweb --target=defaults");
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_web.php';
+		self::setBaseWebConfig((string)$drivertype);
+		kloxo_web_switch((string)$drivertype);
+
+		if (!is_file('/etc/debian_version')) {
+			self::setInstallPhpfpm();
+			@exec("sh /script/fixweb --target=defaults");
+		}
 
 		createRestartFile("restart-web");
 	}

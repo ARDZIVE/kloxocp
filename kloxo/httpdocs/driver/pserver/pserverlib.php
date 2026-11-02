@@ -296,23 +296,8 @@ class pserver extends pservercore {
 			}
 		}
 
-		try {
-			$dbad = $this->getFromList('dbadmin', "mysql___{$this->syncserver}");
-			$user = $dbad->dbadmin_name;
-			$pass = $dbad->dbpassword;
-
-			if (if_demo()) {
-				$pass = "demopass";
-			}
-
-			if (file_exists("./thirdparty/mywebsql/")) {
-				$alist[] = create_simpleObject(array('url' => "{$dbadminUrl}?auth_user={$user}&auth_pwd={$pass}",
-					'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
-			} else {
-				$alist[] = create_simpleObject(array('url' => "{$dbadminUrl}?pma_username={$user}&pma_password={$pass}",
-					'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
-			}
-		} catch (Exception $e) {}
+		$alist[] = create_simpleObject(array('url' => $dbadminUrl,
+			'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
 	}
 
 

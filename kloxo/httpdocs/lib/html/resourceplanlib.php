@@ -47,14 +47,36 @@ class resourceplan extends resourcecore
 
 	function postAdd()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-		
-		$parent = $this->getParentO();
-		
-		if ($sgbl->isKloxo()) {
-			$this->dnstemplate_list = domainBase::getDnsTemplateList($parent);
-			$this->listpriv->ipaddress_list = $parent->getIpaddress('localhost');
+		global $sgbl;
+
+		if (!$sgbl->isKloxo()) {
+			return;
 		}
+
+		$parent = $this->getParentO();
+		if (!isset($this->listpriv) || !is_object($this->listpriv)) {
+			$this->listpriv = new ListPriv(null, null, $this->nname);
+			$this->listpriv->__parent_o = $this;
+		}
+
+		$templates = array();
+		if (is_object($parent) && isset($parent->dnstemplate_list) && $parent->dnstemplate_list) {
+			$templates = kloxo_list_from($parent->dnstemplate_list);
+		}
+		if ($templates === array()) {
+			$sq = new Sqlite(null, 'dnstemplate');
+			$templates = get_namelist_from_arraylist($sq->getTable());
+		}
+		$this->dnstemplate_list = is_array($templates) ? $templates : array();
+
+		$iplist = array();
+		if (is_object($parent) && method_exists($parent, 'getIpaddress')) {
+			$got = $parent->getIpaddress(array('localhost'));
+			if (is_array($got)) {
+				$iplist = $got;
+			}
+		}
+		$this->listpriv->ipaddress_list = $iplist;
 	}
 
 	static function createListAlist($parent, $class)
@@ -386,11 +408,10 @@ class resourceplan extends resourcecore
 
 	static function add($parent, $class, $param)
 	{
+		$param['realname'] = fix_nname_to_be_variable($param['realname'] ?? '');
 		validate_plan_name($param['realname']);
-
-		$param['realname'] = fix_nname_to_be_variable_without_lowercase($param['realname']);
 		ClientBase::fixpserver_list($param);
-		
+
 		return $param;
 	}
 

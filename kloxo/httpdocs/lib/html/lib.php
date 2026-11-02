@@ -507,48 +507,35 @@ function PreparePowerdnsDb($nolog = null)
 {
 	log_cleanup("Prepare PowerDNS database", $nolog);
 
-	log_cleanup("- Install MySQL and Geo Backend", $nolog);
-
-	$pass = slave_get_db_pass();
-	$user = "root";
-	$host = "localhost";
-
-	$link = new mysqli($host, $user, $pass);
-
-	if (!$link) {
-		log_cleanup("- Mysql root password incorrect", $nolog);
-
-		exit;
+	include_once dirname(__DIR__) . '/php/kloxo_pdns.php';
+	$root = kloxo_pdns_root();
+	$bin = $root . '/bin/install/install-pdns';
+	if (!is_readable($bin)) {
+		log_cleanup("- install-pdns missing at {$bin}", $nolog);
+		return;
 	}
 
-	$pstring = null;
-
-	if ($pass) {
-		$pstring = "-p\"$pass\"";
+	$php = (defined('PHP_BINARY') && PHP_BINARY !== '') ? PHP_BINARY : 'php';
+	$p = @proc_open(
+		array($php, $bin, '--root=' . $root),
+		array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
+		$pipes
+	);
+	if (!is_resource($p)) {
+		log_cleanup("- cannot run install-pdns", $nolog);
+		return;
 	}
-
-	log_cleanup("- Fix MySQL commands in import files", $nolog);
-
-	$pdnspath = "/opt/configs/pdns";
-
-	exec("mysql -f -u root {$pstring} < {$pdnspath}/tpl/pdns.sql >/dev/null 2>&1");
-
-	$sfile = getLinkCustomfile("{$pdnspath}/etc/conf", "pdns.conf");
-	$tfile = "/etc/pdns/pdns.conf";
-
-	$content = file_get_contents($sfile);
-
-	log_cleanup("- Generate password", $nolog);
-	$pass = randomString(8);
-
-	$link->query("GRANT ALL ON powerdns.* TO powerdns@localhost IDENTIFIED BY '{$pass}'");
-	$link->query("flush privileges");
-
-	$content = str_replace("gmysql-password=powerdns", "gmysql-password={$pass}", $content);
-
-	log_cleanup("- Add Password to configuration file", $nolog);
-
-	file_put_contents($tfile, $content);
+	fclose($pipes[0]);
+	$out = stream_get_contents($pipes[1]);
+	$err = stream_get_contents($pipes[2]);
+	fclose($pipes[1]);
+	fclose($pipes[2]);
+	$rc = proc_close($p);
+	if ($rc !== 0) {
+		log_cleanup("- install-pdns failed: " . trim((string)$err . ' ' . (string)$out), $nolog);
+		return;
+	}
+	log_cleanup("- PowerDNS schema ready (pdns stays disabled until Switch Program)", $nolog);
 }
 
 function PrepareMyDnsDb($nolog = null)
@@ -936,7 +923,7 @@ function validate_plan_name($name)
 {
 	global $login;
 
-	if (!preg_match('/^([a-z]){1,1}([_a-z0-9]){0,29}([a-z0-9]){1,1}$/', $name)) {
+	if (!is_string($name) || !preg_match('/^([a-z]){1,1}([_a-z0-9]){0,29}([a-z0-9]){1,1}$/', $name)) {
 		throw new lxException($login->getThrow('invalid_plan_name'), '', $name);
 	}
 }
@@ -1194,6 +1181,10 @@ function listFile($path)
 {
 	global $global_list_path;
 
+	if (!is_string($path) || $path === '') {
+		return;
+	}
+
 	if (lis_dir($path)) {
 		return;
 	}
@@ -1201,8 +1192,12 @@ function listFile($path)
 	$path = strfrom($path, "/usr/share/zoneinfo/");
 	$path = trim($path, "/");
 
-	if (ctype_lower($path[0])) {
+	if ($path === '' || !isset($path[0]) || ctype_lower($path[0])) {
 		return;
+	}
+
+	if (!is_array($global_list_path)) {
+		$global_list_path = array();
 	}
 
 	$global_list_path[] = $path;
@@ -1519,14 +1514,17 @@ function is_disabled_or_null($var)
 
 function getFQDNforServer($v)
 {
+	if (!is_string($v) || $v === '') {
+		return null;
+	}
+
 	$sql = new Sqlite(null, "pserver");
-
 	$server = $sql->rawQuery("select * from pserver where nname = '$v'");
-
-	$servername = trim($server[0]['realhostname']);
-
-	if ($servername) {
-		return $servername;
+	if (is_array($server) && isset($server[0]) && is_array($server[0])) {
+		$servername = trim((string)($server[0]['realhostname'] ?? ''));
+		if ($servername !== '') {
+			return $servername;
+		}
 	}
 
 	return getOneIPForServer($v);
@@ -1536,8 +1534,14 @@ function getOneIPForServer($v)
 {
 	$sql = new Sqlite(null, "pserver");
 	$ipaddr = $sql->rawQuery("select * from ipaddress where syncserver = '$v'");
+	if (!is_array($ipaddr)) {
+		return null;
+	}
 
 	foreach ($ipaddr as $ip) {
+		if (!is_array($ip) || !isset($ip['ipaddr'])) {
+			continue;
+		}
 		if (!csb($ip['ipaddr'], "127") && !csb($ip['ipaddr'], "172") && !csb($ip['ipaddr'], "192.168")) {
 			return $ip['ipaddr'];
 		}
@@ -1546,6 +1550,9 @@ function getOneIPForServer($v)
 	// Try once more if no non-local ips were found...
 
 	foreach ($ipaddr as $ip) {
+		if (!is_array($ip) || !isset($ip['ipaddr'])) {
+			continue;
+		}
 		if (!csb($ip['ipaddr'], "127")) {
 			return $ip['ipaddr'];
 		}
@@ -7489,6 +7496,10 @@ function setCopyDnsConfFiles($dnsdriver, $nolog = null)
 		log_cleanup("- Copy etc/conf/{$s} to {$pathtarget}/{$aliasdriver}.conf", $nolog);
 		lxfile_cp($t, "{$pathtarget}/{$aliasdriver}.conf");
 
+	} elseif ($aliasdriver === 'pdns') {
+		log_cleanup("- PowerDNS templates at {$pathdrv}; gmysql snippet via install-pdns (not /etc/pdns overwrite)", $nolog);
+		PreparePowerdnsDb($nolog);
+		return;
 	} else {
 		$pathtarget = "{$pathetc}/{$aliasdriver}";
 
@@ -7563,6 +7574,29 @@ function setCopyWebConfFiles($webdriver, $nolog = null)
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
 	exec("'cp' -rf {$pathsrc} /opt/configs");
+
+	if ($webdriver === 'apache') {
+		log_cleanup("- Apache templates at {$pathdrv}; Ubuntu apache2 include via install-apache (not /etc/httpd overwrite)", $nolog);
+		$root = getenv('KLOXO_ROOT') ?: '/opt/kloxo';
+		$bin = rtrim((string)$root, '/') . '/bin/install/install-apache';
+		if (is_readable($bin)) {
+			$php = (defined('PHP_BINARY') && PHP_BINARY !== '') ? PHP_BINARY : 'php';
+			$p = @proc_open(
+				array($php, $bin, '--root=' . $root),
+				array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
+				$pipes
+			);
+			if (is_resource($p)) {
+				fclose($pipes[0]);
+				stream_get_contents($pipes[1]);
+				stream_get_contents($pipes[2]);
+				fclose($pipes[1]);
+				fclose($pipes[2]);
+				proc_close($p);
+			}
+		}
+		return;
+	}
 
 	if ($webdriver !== 'hiawatha') {
 		$dirs = array($pathconf, $pathconfd);
@@ -7736,9 +7770,10 @@ function getWebDriverList($drivertype = null)
 
 function getAllWebDriverList()
 {
-	include "../file/driver/rhel.inc";
+	$driver = array();
+	include "../file/driver/linux.inc";
 
-	return $driver['web'];
+	return isset($driver['web']) ? $driver['web'] : array('none', 'nginx', 'apache');
 }
 
 function getAllRealWebDriverList()
@@ -7795,9 +7830,10 @@ function getDnsDriverList($drivertype = null)
 
 function getAllDnsDriverList()
 {
-	include "../file/driver/rhel.inc";
+	$driver = array();
+	include "../file/driver/linux.inc";
 
-	return $driver['dns'];
+	return isset($driver['dns']) ? $driver['dns'] : array('none', 'bind', 'pdns');
 }
 
 function getAllRealDnsDriverList()
@@ -8176,13 +8212,20 @@ function isCSRFTokenMatch()
 
 function getTimeZoneList()
 {
-	global $global_list_path;
+	if (class_exists('pserver') && is_callable(array('pserver', 'getTimeZoneList'))) {
+		$list = pserver::getTimeZoneList();
+		if (is_array($list) && $list !== array()) {
+			return $list;
+		}
+	}
 
-	$global_list_path = null;
+	$list = timezone_identifiers_list();
+	if (!is_array($list) || $list === array()) {
+		return array('UTC');
+	}
+	sort($list);
 
-	do_recurse_dir("/usr/share/zoneinfo/", "listFile", null);
-
-	return $global_list_path;
+	return $list;
 }
 
 function trimming($data)
@@ -8241,7 +8284,7 @@ function setSyncDrivers($nolog = null)
 //	include "../file/driver/rhel.inc";
 
 	$classlist = array('web' => 'nginx', 'webcache' => 'none', 'dns' => 'bind',
-		'pop3' => 'courier', 'smtp' => 'qmail', 'spam' => 'bogofilter');
+		'pop3' => 'courier', 'smtp' => 'exim', 'spam' => 'bogofilter');
 
 	$nodriver = false;
 
@@ -8628,19 +8671,12 @@ function setAllInactivateWebServer($nolog = null)
 {
 	log_cleanup("Inactivate Web servers", $nolog);
 
+	include_once dirname(__DIR__) . '/php/kloxo_web.php';
 	$list = getAllRealWebDriverList();
 
 	foreach ($list as $k => $v) {
-		if ($v === 'apache') {
-			$a = 'httpd';
-		} else {
-			$a = $v;
-		}
-
 		log_cleanup("- Inactivate '{$v}'", $nolog);
-		exec("chkconfig {$a} off >/dev/null 2>&1");
-
-		exec("chkconfig spawn-fcgi off >/dev/null 2>&1");
+		kloxo_web_systemctl('disable', kloxo_web_unit((string)$v));
 	}
 }
 
@@ -8648,21 +8684,15 @@ function setActivateWebServer($nolog = null)
 {
 	log_cleanup("Activate Web servers", $nolog);
 
+	include_once dirname(__DIR__) . '/php/kloxo_web.php';
 	$list = getWebDriverList();
 
 	foreach ($list as $k => $v) {
-		if ($v === 'apache') {
-			$a = 'httpd';
-		} else {
-			$a = $v;
+		if ($v === 'none') {
+			continue;
 		}
-
 		log_cleanup("- Activate '{$v}' as Web server", $nolog);
-		exec("chkconfig {$a} on >/dev/null 2>&1");
-
-		if ($v === 'nginx') {
-			exec("chkconfig spawn-fcgi on >/dev/null 2>&1");
-		}
+		kloxo_web_switch((string)$v);
 	}
 }
 
@@ -8717,19 +8747,12 @@ function setAllInactivateDnsServer($nolog = null)
 {
 	log_cleanup("Inactivate DNS servers", $nolog);
 
+	include_once dirname(__DIR__) . '/php/kloxo_pdns.php';
 	$list = getAllRealDnsDriverList();
 
 	foreach ($list as $k => $v) {
-		if ($v === 'bind') {
-			$a = 'named';
-		} elseif ($v === 'yadifa') {
-			$a = 'yadifad';
-		} else {
-			$a = $v;
-		}
-
 		log_cleanup("- Inactivate '{$v}'", $nolog);
-		exec("chkconfig {$a} off >/dev/null 2>&1");
+		kloxo_dns_systemctl('disable', kloxo_dns_unit((string)$v));
 	}
 }
 
@@ -8737,19 +8760,15 @@ function setActivateDnsServer($nolog = null)
 {
 	log_cleanup("Activate Dns servers", $nolog);
 
+	include_once dirname(__DIR__) . '/php/kloxo_pdns.php';
 	$list = getDnsDriverList();
 
 	foreach ($list as $k => $v) {
-		if ($v === 'bind') {
-			$a = 'named';
-		} elseif ($v === 'yadifa') {
-			$a = 'yadifad';
-		} else {
-			$a = $v;
+		if ($v === 'none') {
+			continue;
 		}
-
 		log_cleanup("- Activate '{$v}' as Dns server", $nolog);
-		exec("chkconfig {$a} on >/dev/null 2>&1");
+		kloxo_dns_switch((string)$v);
 	}
 }
 

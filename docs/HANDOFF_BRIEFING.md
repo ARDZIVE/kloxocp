@@ -19,7 +19,7 @@ Owner's requirements (non-negotiable unless the owner changes them):
 | Base | https://github.com/mustafaramadhan/kloxo, branch `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` (version 7.0.0.c-2019072201) |
 | License | **GNU AGPL v3**, must stay AGPL; keep all upstream copyright/authorship notices |
 | Target OS | **Ubuntu 24.04 LTS and Ubuntu 26.x**. AlmaLinux/Rocky 9 later, through an OS abstraction layer |
-| Customer websites | **Nginx + PHP-FPM only** (multiple PHP versions side by side). Remove Apache/Lighttpd/Varnish/Squid/ATS |
+| Customer websites | **Nginx + PHP-FPM default** (multiple PHP versions side by side). Apache 2.4 + PHP-FPM is packaged and selectable. Remove Lighttpd/Varnish/Squid/ATS |
 | The panel's own web server | **Hiawatha is kept** (as in Kloxo-MR), used only for the panel UI |
 | Billing | **None for now.** Owner will add it later; leave a clean extension point, do not integrate |
 | UI | **Keep the existing UI** |
@@ -48,9 +48,11 @@ kloxo-cp/
     bin/install/generate-tls-keys  NEW: unique TLS keys per install (PHP 8.3)
     bin/install/init-panel-db      NEW: Ubuntu MariaDB panel schema (PHP 8.3)
     bin/install/install-hiawatha   NEW: pinned Hiawatha 12.4 source build
+    bin/install/install-pdns       NEW: PowerDNS MariaDB + gmysql snippet; unit stays disabled
+    bin/install/install-apache     NEW: Apache 2.4 PHP-FPM vhosts; unit stays disabled
     cexe/                        C sources: backend daemon (kloxo.c) only; no setuid helpers
     init/                        panel service units, Hiawatha base config, php-fpm templates
-    file/                        service config templates (nginx, bind, pdns, qmail, NEW file/mail/; Apache/Lighttpd/cache/unused-DNS trees removed)
+    file/                        service config templates (nginx, apache, bind, pdns, qmail, NEW file/mail/; Lighttpd/cache/unused-DNS trees removed)
     install/                     LEGACY RPM/CentOS installer (reference only, to be replaced)
   docs/
     HANDOFF_BRIEFING.md          this file
@@ -67,7 +69,7 @@ kloxo-cp/
   tests/p2/                      P2 first-party PHP 8 parse + autoload characterization (php-cli only)
   tests/p3/                      P3 kloxocp CLI + snapshot/rollback (php-cli only)
   install.sh                     Ubuntu 24.04 / 26.x bootstrap from https://github.com/ARDZIVE/kloxocp.git
-  tests/install/                 init-panel-db + install-hiawatha source invariants (php-cli)
+  tests/install/                 init-panel-db + install-hiawatha + install-pdns + install-apache source invariants (php-cli)
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
 
@@ -106,11 +108,19 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     listener bind localhost on a master; TLS 1.2+; 1 MiB input cap; missing keys fail closed
     (`generate-tls-keys`). A **slave** TLS listener on 7779 binds all interfaces; plaintext
     7776 stays loopback. C1 envelope still required. Long-term allow-listed agent is not built.
-11. **P1 (web/DNS shrink) closed:** customer web is Nginx or none; webcache is none; DNS is
-    none/BIND/PowerDNS. Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey,
+11. **P1 (web/DNS shrink) closed:** customer web is Nginx (default), Apache, or none; webcache is none; DNS is
+    none/BIND/PowerDNS. BIND is the **default** (`pg_dns=bind`, bind9 enabled). PowerDNS is
+    apt-installed and prepared (`install-pdns`: MariaDB schema, `/etc/powerdns/pdns.d/zz-kloxo-gmysql.conf`)
+    with the `pdns` unit **disabled** until Switch Program selects it (stops bind9, starts pdns;
+    only one listener on port 53). Nginx is the **default** web (`pg_web=nginx`, nginx enabled).
+    Apache 2.4 is apt-installed and prepared (`install-apache`: PHP-FPM via `proxy_fcgi`,
+    `/etc/apache2/conf-available/zz-kloxo.conf`) with the `apache2` unit **disabled** until
+    Switch Program selects it (stops nginx, starts apache2; only one listener on 80/443).
+    Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey,
     OpenLiteSpeed, and unused DNS (djbdns/nsd/mydns/yadifa/maradns) drivers and `file/` templates
-    deleted. Panel Hiawatha stays under `init/hiawatha.conf.base`. Default web driver is nginx.
+    deleted. Panel Hiawatha stays under `init/hiawatha.conf.base`.
     qmail/courier/ezmlm/spamassassin remain until postfix UI drivers exist. Tests: `tests/p1/`.
+    Live pdns/apache2 start on Ubuntu is **UNVERIFIED**.
 12. **P2 first slice:** first-party `php -l` is clean (499 files; PEAR/WebDAV, formmail and
     urlrewrite examples still fail). `__autoload` replaced by `spl_autoload_register`
     (`kloxo_autoload`). Boot-path `ereg*` in `includecore.php` replaced. `csb()` no longer
@@ -148,8 +158,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     those versions via distro apt then `ppa:ondrej/php`. The old scanner only
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
-    `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise; Debian
-    vendor JS symlinks 404 and hide the login form).
+    `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise). Admin SQL
+    Manager uses panel sign-on (`kloxo_pma` ALL ON *.*, `pma.pass`, no
+    password in the URL). Live phpMyAdmin login after this change is
+    unverified; re-run `install.sh` after pull.
+    Component Info uses Ubuntu package names (`kloxo_component.php`) instead
+    of CentOS `set.*.lst` RPM names; Hiawatha is the panel binary. Live
+    Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
     the hostname cell.     The Update screen (`lxupdate`) reads the local
@@ -275,13 +290,31 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Theme CSS links include a filemtime query so a browser
     cannot keep the old simplicity sheet after deploy.
     Log Manager, Driver Configuration, PHP Configuration,
-    Backup/Restore and Webserver Configure no longer show the
-    left-column Find box. SSH authorized keys no longer call
+    Backup/Restore, Webserver Configure, SSH Configure, LxGuard,
+    SSH Terminal and File Manager no longer show the
+    left-column Find box. LxGuard list tabs (connections, raw hits,
+    whitelist) omit the Find/search input too. SSH Terminal is admin-only (pserver
+    child, not client home) and shows a copyable `ssh -p`
+    command (no Java applet). Adding a client no longer TypeErrors
+    on `implode()` with a string (`contactemail`, `coma_*_list`,
+    `kloxo_implode` / `kloxo_list_from`). Live client-create after
+    deploy is **UNVERIFIED**. Adding a Resource Plan does not throw
+    `no_dns_template`, creates `listpriv` when missing, sanitizes the
+    display name before `validate_plan_name`, and does not consume
+    parent quota like a client. Live plan-create after deploy is
+    **UNVERIFIED**. Command Center / Timezone / Switch
+    Program / Cron Tasks / File Manager / HelpDesk forms no longer
+    TypeError on empty lists. `init-panel-db` seeds HelpDesk
+    category Welcome and ticket 1 (Created By Kloxo, Subject
+    Welcome to Kloxo, date = install time). SSH authorized keys no longer call
     `key()` on a missing list. Ubuntu Services uses
     `Service__Debian::getServiceDetails`; Component Info has a
     dpkg driver; Mail Queue reads Postfix `postqueue` when
     present.     Switch Program loads debian.inc on Ubuntu and does
-    not index an empty yum version.     List and show pages share
+    not index an empty yum version. SMTP choices are `none` and
+    `exim` (the old qmail-toaster label is gone). `smtp__exim` is a
+    thin systemd enable/start stub (`exim4` on Ubuntu); it does not
+    replace the Postfix + Dovecot + Rspamd stack in `kloxo-mail`.     List and show pages share
     `kloxo_rl_driver` / `setListFromArray` array guards and
     `initThisList` / `initThisObject` Throwable catches so a
     missing Ubuntu driver no longer TypeErrors the whole page.
@@ -381,7 +414,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
 5. **DONE for defaults; slave TLS 7779 bind is in.** Bind localhost on a master, TLS 1.2+, 1 MiB cap, missing keys fail closed. Slave `install.sh --slave` writes `slave-db.db` and starts `kloxo-backend` with TLS 7779 on all interfaces. Long term: replace with an allow-listed privileged agent (Unix socket, JSON, audit log).
 
 ### P1: shrink the tree (phase 1b)
-1. **DONE for web/DNS.** Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`. Webcache: `none`. DNS: `none`, `bind`, `pdns`. Panel Hiawatha kept in `init/`. Default web driver is nginx. Tests: `tests/p1/`.
+1. **DONE for web/DNS.** Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`, `apache` (Nginx default; Apache 2.4 + PHP-FPM packaged, disabled). Webcache: `none`. DNS: `none`, `bind`, `pdns` (BIND default; PowerDNS packaged, disabled). Panel Hiawatha kept in `init/`. Tests: `tests/p1/`.
 2. **NOT DONE.** qmail/courier/ezmlm/bogofilter/spamassassin drivers stay until P4 postfix UI drivers exist.
 3. **PARTIAL.** No Ubuntu package; `install-hiawatha` builds pinned 12.4
    (sha256 in the script). Config check is `hiawatha -k -c <init>`. **UNVERIFIED**
@@ -395,12 +428,14 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `tests/install/`). Admin `syncserver` is `localhost`; Ubuntu IPs come from
    `ip -4 addr` (`kloxo_ipaddr.php`); `php-type` SQL is `php_type`. Admin
    Servers list seeds `localhost` (`ensureLocalhostServer`). Install also
-   seeds a `driver` row for `localhost` (`dns`/`web` = `none`) and
+   seeds a `driver` row for `localhost` (`dns` = `bind`, `web` = `nginx`) and
    `generalmisc_b`. Home show no longer fatals on a null `used` object,
    missing driver row, or admin `getParentO()`. Browser login against
-   MariaDB on a real Ubuntu VM is **UNVERIFIED**. Remaining compile
-   failures are third-party (`webdisk/PEAR*`, formmail, urlrewrite
-   examples). Runtime `split`/`ereg*`/`each` in those trees.
+   MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
+   sign-on (`kloxo_pma` ALL ON *.*, `auth_type=signon`) is in tree;
+   live phpMyAdmin login after re-install is **UNVERIFIED**. Remaining
+   compile failures are third-party (`webdisk/PEAR*`, formmail,
+   urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
 
 ### P3: installer, packaging, updater (phase 1d)
 1. **DONE: CLI skeleton.** `kloxo/bin/kloxocp` implements `help`, `version`, `status`,
@@ -453,10 +488,16 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 4. **Answered:** customer-site PHP is 5.6 (5.6.40), 7.4 (7.4.33), and the
    newest `phpX.Y-fpm` apt can see (default). `install-site-php` uses the
    distro first, then `ppa:ondrej/php`. The panel FPM stays `kloxo-php`.
-   Webserver Configure **PHP Used** switches the default; a domain can
-   still pick another installed version. 5.6 / 7.4 are EOL and only for
-   legacy sites. **UNVERIFIED** on a real Ubuntu VM.
-5. FTP server choice (Pure-FTPd vs ProFTPd) and DNS choice (BIND only, or also PowerDNS).
+   Webserver Configure keeps the Kloxo-MR section layout (PHP Used, PHP
+   Branch, Multiple PHP already-installed/enable/install/remove, PHP Type
+   for Apache, Apache optimize, MySQL convert, fix ownership, Pagespeed)
+   with Ubuntu `phpX.Y` ids, not `php52m`. **PHP Used** switches the
+   default; a domain can still pick another installed version. 5.6 / 7.4
+   are EOL and only for legacy sites. Live Webserver Configure after
+   deploy is **UNVERIFIED**.
+5. FTP server choice (Pure-FTPd vs ProFTPd). **Answered:** DNS is BIND by default;
+   PowerDNS is packaged and prepared, started only when Switch Program selects `pdns`.
+   Live switch on Ubuntu is **UNVERIFIED**.
 
 ---
 

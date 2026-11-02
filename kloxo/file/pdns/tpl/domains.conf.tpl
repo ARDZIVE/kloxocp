@@ -1,6 +1,15 @@
 <?php
 
-$conn = new mysqli('localhost', 'root', $rootpass, 'powerdns');
+if (!function_exists('kloxo_pdns_connect')) {
+    $__pdnsphp = '/opt/kloxo/httpdocs/lib/php/kloxo_pdns.php';
+    if (is_readable($__pdnsphp)) {
+        include_once $__pdnsphp;
+    }
+}
+$conn = function_exists('kloxo_pdns_connect') ? kloxo_pdns_connect() : null;
+if (!$conn) {
+    return;
+}
 
 if ($query = $conn->query("SELECT * FROM domains WHERE name='{$domainname}' AND type='MASTER';")) {
     if ($query->num_rows !== 0) {

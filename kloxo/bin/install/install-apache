@@ -1,0 +1,238 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * install-apache: prepare Apache 2.4 next to Nginx on Ubuntu 24.04 / 26.x.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3. See LICENSE.txt.
+ *
+ * Nginx stays the default (enabled, listening on 80/443). Apache is installed,
+ * given PHP-FPM (proxy_fcgi) vhost includes, and left disabled until
+ * Switch Program selects apache. Does not enable mod_php.
+ *
+ * Standalone: no legacy panel includes. PHP 8.3, argument-array proc_open,
+ * no shell strings. Does not enable or start apache2.
+ *
+ * Usage:
+ *   install-apache --root=DIR [--dry-run] [--force]
+ */
+
+const IAPACHE_VERSION = '0.1.0';
+
+final class IapacheException extends RuntimeException
+{
+}
+
+final class Proc
+{
+    /** @param list<string> $cmd */
+    public static function run(array $cmd, ?string $stdin = null): array
+    {
+        $p = @proc_open($cmd, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($p)) {
+            return [127, '', 'cannot execute ' . ($cmd[0] ?? '')];
+        }
+        if ($stdin !== null) {
+            fwrite($pipes[0], $stdin);
+        }
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]);
+        $err = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return [proc_close($p), (string)$out, (string)$err];
+    }
+
+    public static function exists(string $bin): bool
+    {
+        foreach (explode(':', (string)getenv('PATH') . ':/usr/sbin:/usr/bin:/bin') as $d) {
+            if ($d !== '' && is_executable($d . '/' . $bin)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+final class App
+{
+    /** @var array<string,string|true> */
+    private array $opt = [];
+    private string $root = '/opt/kloxo';
+
+    public function run(array $argv): int
+    {
+        array_shift($argv);
+        foreach ($argv as $a) {
+            if ($a === '--help' || $a === '-h') {
+                return $this->help();
+            }
+            if ($a === '--version') {
+                echo 'install-apache ' . IAPACHE_VERSION . "\n";
+                return 0;
+            }
+            if ($a === '--dry-run') {
+                $this->opt['dry-run'] = true;
+                continue;
+            }
+            if ($a === '--force') {
+                $this->opt['force'] = true;
+                continue;
+            }
+            if (str_starts_with($a, '--') && str_contains($a, '=')) {
+                [$k, $v] = explode('=', substr($a, 2), 2);
+                $this->opt[$k] = $v;
+                continue;
+            }
+            throw new IapacheException("Unknown argument: $a");
+        }
+        $this->root = $this->optRoot();
+        if (isset($this->opt['dry-run'])) {
+            echo "plan: install-apache {$this->root}\n";
+            echo "  packages apache2 (proxy_fcgi + ssl; not mod_php, not started)\n";
+            echo "  conf     /etc/apache2/conf-available/zz-kloxo.conf\n";
+            echo "  default  nginx stays enabled; apache2 stays disabled\n";
+            return 0;
+        }
+
+        return $this->install();
+    }
+
+    private function help(): int
+    {
+        echo <<<TXT
+install-apache 0.1.0: prepare Apache beside Nginx (Nginx stays default)
+
+  install-apache --root=DIR [--force]
+  install-apache --dry-run --root=DIR
+  install-apache --help
+
+Installs apache2 if missing, enables proxy proxy_fcgi ssl rewrite headers,
+writes /etc/apache2/conf-available/zz-kloxo.conf, and leaves the apache2
+unit disabled. Switch Program can then select apache. PHP stays PHP-FPM.
+
+TXT;
+        return 0;
+    }
+
+    private function optRoot(): string
+    {
+        $root = isset($this->opt['root']) && $this->opt['root'] !== true
+            ? (string)$this->opt['root'] : (string)(getenv('KLOXO_ROOT') ?: '/opt/kloxo');
+        if ($root === '' || str_contains($root, "\0") || str_contains($root, '..')) {
+            throw new IapacheException('Invalid --root');
+        }
+
+        return rtrim($root, '/');
+    }
+
+    private function install(): int
+    {
+        $this->copyTree();
+        $this->enableMods();
+        $this->writeInclude();
+        $this->configCheck();
+        $this->keepApacheDisabled();
+        echo "apache2 ready (disabled); Nginx remains the default web server\n";
+        return 0;
+    }
+
+    private function copyTree(): void
+    {
+        $src = $this->root . '/file/apache';
+        $dst = '/opt/configs/apache';
+        if (!is_dir($src)) {
+            throw new IapacheException("missing $src");
+        }
+        if (!is_dir('/opt/configs') && !mkdir('/opt/configs', 0755, true) && !is_dir('/opt/configs')) {
+            throw new IapacheException('Cannot create /opt/configs');
+        }
+        [$rc, $out, $err] = Proc::run(['rsync', '-a', $src . '/', $dst . '/']);
+        if ($rc !== 0) {
+            throw new IapacheException('rsync apache templates failed: ' . trim($err . ' ' . $out));
+        }
+        foreach (array('conf/defaults', 'conf/domains', 'tpl') as $sub) {
+            $d = $dst . '/' . $sub;
+            if (!is_dir($d)) {
+                mkdir($d, 0755, true);
+            }
+        }
+    }
+
+    private function enableMods(): void
+    {
+        if (!Proc::exists('a2enmod')) {
+            return;
+        }
+        foreach (array('proxy', 'proxy_fcgi', 'ssl', 'rewrite', 'headers', 'setenvif', 'socache_shmcb') as $mod) {
+            if (!preg_match('/^[a-z0-9_]+$/', $mod)) {
+                continue;
+            }
+            Proc::run(['a2enmod', '-q', $mod]);
+        }
+        if (Proc::exists('a2dissite')) {
+            Proc::run(['a2dissite', '-q', '000-default']);
+        }
+        if (Proc::exists('a2dismod')) {
+            foreach (array('php8.3', 'php8.4', 'php8.5', 'php7.4', 'php5.6') as $mod) {
+                Proc::run(['a2dismod', '-q', $mod]);
+            }
+        }
+    }
+
+    private function writeInclude(): void
+    {
+        $dir = '/etc/apache2/conf-available';
+        if (!is_dir($dir)) {
+            return;
+        }
+        $file = $dir . '/zz-kloxo.conf';
+        $body = "# Generated by Kloxo CP install-apache. Do not commit.\n"
+            . "IncludeOptional /opt/configs/apache/conf/defaults/*.conf\n"
+            . "IncludeOptional /opt/configs/apache/conf/domains/*.conf\n";
+        $tmp = $file . '.tmp.' . getmypid();
+        if (file_put_contents($tmp, $body) === false) {
+            throw new IapacheException("Cannot write $tmp");
+        }
+        chmod($tmp, 0644);
+        if (!rename($tmp, $file)) {
+            @unlink($tmp);
+            throw new IapacheException("Cannot install $file");
+        }
+        if (Proc::exists('a2enconf')) {
+            Proc::run(['a2enconf', '-q', 'zz-kloxo']);
+        }
+    }
+
+    private function configCheck(): void
+    {
+        $bin = Proc::exists('apache2ctl') ? 'apache2ctl' : (Proc::exists('apachectl') ? 'apachectl' : '');
+        if ($bin === '') {
+            return;
+        }
+        [$rc, $out, $err] = Proc::run([$bin, '-t']);
+        if ($rc !== 0) {
+            fwrite(STDERR, "warn: $bin -t: " . trim($err . ' ' . $out) . "\n");
+        }
+    }
+
+    private function keepApacheDisabled(): void
+    {
+        if (!Proc::exists('systemctl')) {
+            return;
+        }
+        Proc::run(['systemctl', 'disable', '--now', 'apache2']);
+        Proc::run(['systemctl', 'disable', '--now', 'httpd']);
+    }
+}
+
+try {
+    exit((new App())->run($argv));
+} catch (IapacheException $e) {
+    fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+    exit(1);
+}

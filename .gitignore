@@ -7,6 +7,12 @@
 # phpMyAdmin is installed at runtime (CentOS RPM is gone; do not vendor it)
 /kloxo/httpdocs/thirdparty/phpMyAdmin/
 
+# PowerDNS MariaDB password generated at install
+/kloxo/etc/conf/pdns.pass
+
+# phpMyAdmin MariaDB password generated at install
+/kloxo/etc/conf/pma.pass
+
 # TLS material generated per install (never commit private keys)
 /kloxo/init/backend.key
 /kloxo/init/backend.crt

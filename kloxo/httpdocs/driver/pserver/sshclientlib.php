@@ -14,94 +14,72 @@ class sshclient extends lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		if (!is_object($login) || !method_exists($login, 'isAdmin') || !$login->isAdmin()) {
+			$msg = (is_object($login) && method_exists($login, 'getThrow'))
+				? $login->getThrow("only_admin_can_access")
+				: "only_admin_can_access";
+			throw new lxException($msg);
+		}
+
+		$username = "root";
+		$ip = "localhost";
+		$sshport = "22";
 		$parent = $this->getParentO();
 
-		$v = lfile_get_contents("thirdparty/sshterm-applet/sshterm-applet.htm");
-
-	//	if ($parent->is__table('pserver')) {
-		if ($parent->getClass() === 'pserver') {
-			$username = "root";
-			$ip = getFQDNforServer($parent->nname);
-
-			$sshport = db_get_value("sshconfig", $parent->nname, "ssh_port");
-
-			if (!$sshport) { $sshport = "22"; }
-
-			$connectimmediately = "true";
-	//	} else if ($parent->is__table('client')) {
-		} else if ($parent->getClass() === 'client') {
-			if ($parent->isDisabled('shell') || !$parent->shell) {
-				exit;
-			}
-
-			$username = $parent->username;
-
-			$ip = getFQDNforServer("localhost");
-
-			$sshport = db_get_value("sshconfig", $parent->websyncserver, "ssh_port");
-
-			if (!$sshport) { $sshport = "22"; }
-
-			$connectimmediately = "true";
-		} else {
-			$username = "root";
-
-			$ip = $parent->getOneIP();
-
-			$sshport = db_get_value("sshconfig", $parent->syncserver, "ssh_port");
-
-			if (!$ip) {
-				throw new lxException($login->getThrow("need_to_add_at_least_one_ip_to_vps_for_logging_in"));
-			}
-
-			if (!$sshport) { $sshport = "22"; }
-			
-			$connectimmediately = "true";
-		}
-
-		if ($login->nname === 'admin') {
-?>
-<div style="text-align:center">
-<p>The in-browser web console was removed. Use SSH on the server instead.</p>
-</div>
-<?php
-		} else {
-			if (file_exists("thirdparty/jcterm")) {
-?>
-
-<div style="text-align:center">
-	<applet code="com.jcraft.jcterm.JCTermApplet.class" 
-			archive="jcterm-0.0.10.jar?167,jsch-0.1.46.jar?835,jzlib-1.1.1.jar?742" 
-			codebase="thirdparty/jcterm/" height="600" width="800">   
-		<param name="jcterm.font_size" value="13">
-		<param name="jcterm.fg_bg" value="#000000:#ffffff,#ffffff:#000000,#00ff00:#000000">
-		<!-- <param name="jcterm.config.repository" value="com.jcraft.jcterm.ConfigurationRepositoryFS"> -->
-		<param name="jcterm.destinations" value="<?= $parent->username ?>@<?= $ip ?>:<?= $sshport ?>">
-	</applet>
-</div>
-<?php
-			} else {
-?>
-
-<div style="text-align:center; width: 640px; height: 480px; margin: 0 auto; border: 0; padding: 0">
-	<applet style="width: 640px; height: 480px; border: 1px solid #ddd" 
-		archive="SSHTermApplet-signed.jar,SSHTermApplet-jdkbug-workaround-signed.jar,SSHTermApplet-jdk1.3.1-dependencies-signed.jar"
-		code="com.sshtools.sshterm.SshTermApplet" codebase="thirdparty/sshterm-applet/"
-		mayscript="mayscript">
-
-		<param name=sshapps.connection.host value="<?= $ip ?>">
-		<param name=sshapps.connection.port value="<?= $sshport ?>">
-		<param name=sshapps.connection.userName value="<?= $parent->username ?>">
-		<param name=sshapps.connection.authenticationMethod value=password>
-		<param name=sshapps.connection.connectImmediately value=<?= $connectimmediately ?>">
-	</applet>
-</div>
-<?php
+		if (is_object($parent) && $parent->getClass() === 'pserver') {
+			$ip = self::hostForPserver($parent);
+			$port = db_get_value("sshconfig", $parent->nname, "ssh_port");
+			if (is_string($port) && preg_match('/^[0-9]+$/', $port) && (int)$port > 0 && (int)$port < 65536) {
+				$sshport = $port;
 			}
 		}
+
+		$euser = htmlspecialchars((string)$username, ENT_QUOTES);
+		$eip = htmlspecialchars((string)$ip, ENT_QUOTES);
+		$eport = htmlspecialchars((string)$sshport, ENT_QUOTES);
+		$cmd = 'ssh -p ' . $eport . ' ' . $euser . '@' . $eip;
+?>
+<div style="padding:24px; max-width:640px;">
+<p>Connect from your own terminal (the in-browser SSH applet is not used):</p>
+<pre style="background:#f4f4f4; border:1px solid #ddd; padding:12px; overflow:auto;"><?= $cmd ?></pre>
+<table style="margin-top:12px; border-collapse:collapse;">
+<tr><td style="padding:4px 12px 4px 0;">Host</td><td><?= $eip ?></td></tr>
+<tr><td style="padding:4px 12px 4px 0;">Port</td><td><?= $eport ?></td></tr>
+<tr><td style="padding:4px 12px 4px 0;">User</td><td><?= $euser ?></td></tr>
+</table>
+</div>
+<?php
+	}
+
+	static function hostForPserver($parent)
+	{
+		$fallback = 'localhost';
+		if (!is_object($parent) || !isset($parent->nname)) {
+			return $fallback;
+		}
+		$name = (string)$parent->nname;
+		if ($name !== '' && $name !== 'localhost') {
+			$fallback = $name;
+		}
+		try {
+			$fqdn = getFQDNforServer($name);
+		} catch (Throwable $e) {
+			return $fallback;
+		}
+		if (is_string($fqdn) && $fqdn !== '') {
+			return $fqdn;
+		}
+
+		return $fallback;
 	}
 
 	static function initThisObjectRule($parent, $class, $name = null) { return "sshclient"; }
 
-	static function initThisObject($parent, $class, $name = null) { return "sshclient"; }
+	static function initThisObject($parent, $class, $name = null)
+	{
+		$obj = new sshclient($parent->__masterserver, $parent->__readserver, 'sshclient');
+		$obj->get();
+
+		return $obj;
+	}
 }

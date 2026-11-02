@@ -1891,7 +1891,7 @@ CREATE TABLE "service" (
 ----
 -- Data dump for service, a total of 18 rows
 ----
-INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('qmail___localhost','pserver-localhost','','qmail','Qmail-toaster Mail Server','qmail','localhost','','');
+INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('exim___localhost','pserver-localhost','','exim4','Exim Mail Server','exim','localhost','','');
 INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('named___localhost','pserver-localhost','','named','Bind Dns Server','named','localhost','','');
 INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('djbdns___localhost','pserver-localhost','','djbdns','DjbDns Dns Server','tinydns','localhost','','');
 INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('pdns___localhost','pserver-localhost','','pdns','PowerDNS Dns Server','pdns','localhost','','');
