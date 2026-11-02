@@ -99,8 +99,8 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 11. Restarts FPM, waits until port 39000 is listening, creates the Hiawatha
     work directories, bounces `kloxo-web`, and pings `/fcgi-ping.php`.
 12. Starts `kloxo-backend` (PHP lxserver). A master binds TLS 7779 and
-    plaintext 7776 on localhost. A `--slave` run skips the panel UI and
-    binds TLS 7779 on all interfaces.
+    plaintext 7776 on localhost. A `--slave` run skips the panel UI, still
+    installs site PHP 5.6 / 7.4 / latest, and binds TLS 7779 on all interfaces.
 
 Default login is **admin / admin**; the panel blocks the rest of the UI until
 that password is changed. The password is also written to

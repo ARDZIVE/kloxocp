@@ -10,8 +10,10 @@
 # Does: pre-flight, clone (if needed), apt packages, /opt/kloxo layout, TLS keys,
 # lxphp.exe wrappers, kloxo-php systemd unit, pinned Hiawatha 12.4 build,
 # panel MariaDB schema via init-panel-db, phpMyAdmin under httpdocs/thirdparty,
-# kloxo-backend (lxserver). --slave writes slave-db.db and skips the panel UI.
-# Does not: Let's Encrypt, apt repo, kloxo-mail apply, verified two-host add.
+# site PHP-FPM 5.6 / 7.4 / latest (install-site-php; default latest),
+# kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
+# and skips the panel UI.
+# Does not: Let's Encrypt, signed kloxocp apt repo, kloxo-mail apply, verified two-host add.
 set -euo pipefail
 LOG="/dev/null"
 
@@ -368,6 +370,10 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
     --root="$ROOT" --password-env=KLOXO_SLAVE_PASSWORD
   systemctl enable --now nginx mariadb named 2>/dev/null \
     || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
+  log "installing site PHP 5.6, 7.4, and latest (default) on this slave"
+  if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
+    log "warn: extra site PHP versions failed; Webserver Configure can retry"
+  fi
   install_backend
   host="$(hostname -f 2>/dev/null || hostname)"
   ip="$(hostname -I 2>/dev/null | awk '{print $1}')"

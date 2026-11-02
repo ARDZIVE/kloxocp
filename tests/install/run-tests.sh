@@ -455,6 +455,11 @@ if echo "$helpout" | grep -q -- '--slave' && grep -q 'init-slave' "$ROOT/install
 else
   bad "install.sh --slave writes slave-db and starts kloxo-backend"
 fi
+if awk '/INSTALL_TYPE" == "slave"/{s=1} s && /install-site-php/{ok=1} s && /print_slave_box/{exit !ok}' "$ROOT/install.sh"; then
+  ok "install.sh --slave also installs site PHP 5.6 / 7.4 / latest"
+else
+  bad "install.sh --slave also installs site PHP 5.6 / 7.4 / latest"
+fi
 check "php -l init-slave" php -l "$ROOT/kloxo/bin/install/init-slave"
 check "init-slave --self-test" php "$ROOT/kloxo/bin/install/init-slave" --self-test
 if grep -q 'kloxo-backend.sh' "$ROOT/kloxo/init/kloxo-backend.service" \
