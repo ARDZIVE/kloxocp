@@ -4,8 +4,8 @@
 * This notice must stay intact for use
 ******************************************/
 
-var ie4=document.all
-var ns6=document.getElementById&&!document.all
+var ie4=false
+var ns6=!!document.getElementById
 
 //drag drop function for NS 4////
 /////////////////////////////////
@@ -58,16 +58,18 @@ return false
 }
 
 function password_initializedrag(e){
-crossobj=ns6? document.getElementById("showimage") : document.all.showimage
-var firedobj=ns6? e.target : event.srcElement
-var topelement=ns6? "html" : document.compatMode && document.compatMode!="BackCompat"? "documentElement" : "body"
-while (firedobj.tagName!=topelement.toUpperCase() && firedobj.id!="dragbar"){
-firedobj=ns6? firedobj.parentNode : firedobj.parentElement
+if (!e) { return; }
+crossobj=document.getElementById("showimage")
+if (!crossobj) { return; }
+var firedobj=e.target
+var topelement="html"
+while (firedobj && firedobj.tagName && firedobj.tagName!=topelement.toUpperCase() && firedobj.id!="dragbar"){
+firedobj=firedobj.parentNode
 }
 
-if (firedobj.id=="dragbar"){
-offsetx=ie4? event.clientX : e.clientX
-offsety=ie4? event.clientY : e.clientY
+if (firedobj && firedobj.id=="dragbar"){
+offsetx=e.clientX
+offsety=e.clientY
 
 tempx=parseInt(crossobj.style.left)
 tempy=parseInt(crossobj.style.top)
@@ -76,7 +78,7 @@ dragapproved=true
 document.onmousemove=drag_drop
 }
 }
-document.onmouseup=new Function("dragapproved=false")
+document.onmouseup=function(){ dragapproved=false }
 
 ////drag drop functions end here//////
 
@@ -86,7 +88,7 @@ crossobj.style.visibility="hidden";
 }
 
 function password_showbox(fulltext){
-crossobj=ns6? document.getElementById("showimage") : document.all.showimage
+crossobj=document.getElementById("showimage")
 crossobj.style.visibility="visible";
 /* document.getElementById('password_container').innerHTML = "Password: Press Escape to Close. \n<br> <br> <br> &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; " +  fulltext; */
 document.getElementById('password_container').innerHTML = "Password: " +  fulltext;

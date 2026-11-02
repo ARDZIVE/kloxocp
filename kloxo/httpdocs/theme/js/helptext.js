@@ -1,5 +1,5 @@
 function changeContent(id,message) {
-  if (document.getElementById || document.all) {
+  if (document.getElementById) {
   if (!top.leftframe) {
 	  return;
   }

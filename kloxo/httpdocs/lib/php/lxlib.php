@@ -83,7 +83,7 @@ function check_for_debug($file)
 		$sgbl->dbg = -1;
 	}
 	if ($sgbl->dbg > 0) {
-		ini_set("error_reporting", E_ALL & ~E_STRICT);
+		ini_set("error_reporting", (string) E_ALL);
 		ini_set("display_errors", "On");
 		ini_set("log_errors", "On");
 	} else {
@@ -2674,11 +2674,6 @@ function kloxo_html($value): string
 function kloxo_strftime(string $format, $timestamp = null): string
 {
 	$ts = is_numeric($timestamp) ? (int) $timestamp : time();
-	if (function_exists('strftime')) {
-		$out = @strftime($format, $ts);
-
-		return is_string($out) ? $out : '';
-	}
 
 	$map = array(
 		'%c' => 'D M j H:i:s Y',

@@ -23,7 +23,7 @@ $doc = $root . '/httpdocs';
 putenv('KLOXO_ROOT=' . $root);
 $_SERVER['DOCUMENT_ROOT'] = $doc;
 chdir($doc);
-error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+error_reporting(E_ALL & ~E_DEPRECATED);
 ini_set('display_errors', '0');
 
 include_once $doc . '/lib/html/include.php';

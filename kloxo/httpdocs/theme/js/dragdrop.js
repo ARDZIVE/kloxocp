@@ -3070,13 +3070,13 @@ YAHOO.extend(YAHOO.util.DD, YAHOO.util.DragDrop, {
 
 
             // How close to the edge the cursor must be before we scroll
-            // var thresh = (document.all) ? 100 : 40;
+            // var thresh = 40;
             var thresh = 40;
 
             // How many pixels to scroll per autoscroll op.  This helps to reduce 
             // clunky scrolling. IE is more sensitive about this ... it needs this 
             // value to be higher.
-            var scrAmt = (document.all) ? 80 : 30;
+            var scrAmt = 30;
 
             // Scroll down if we are near the bottom of the visible page and the 
             // obj extends below the crease

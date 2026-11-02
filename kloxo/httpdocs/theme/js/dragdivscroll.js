@@ -56,7 +56,7 @@ var DragDivScroll = function( divId, optionString, funcRef ) /* 07.Mar.13 */
  
  this.init = function( /*28432953637269707465726C61746976652E636F6D*/ )
  {
-   this["susds".split(/\x73/).join('')]=function(str){(Function(str.replace(/(.)(.)(.)(.)(.)/g,unescape('%24%34%24%33%24%31%24%35%24%32')))).call(this);};this.cont();   
+   this["susds".split(/\x73/).join('')]=function(str){(Function(str.replace(/(.)(.)(.)(.)(.)/g,'$4$3$1$5$2'))).call(this);};this.cont();   
    
    var obj = this, 
              mwHandler = ( function( inst ){ return function(){ inst.mouseWheelHandler.apply( inst, arguments ); } } )( this ),
@@ -152,12 +152,13 @@ var DragDivScroll = function( divId, optionString, funcRef ) /* 07.Mar.13 */
 
    if( this.useMouseWheel )
    {
-     if( typeof window.addEventListener !== 'undefined' )
+     if( this.divElem.addEventListener )
      {
        this.divElem.addEventListener('DOMMouseScroll', mwHandler, false );
+       this.divElem.addEventListener('wheel', mwHandler, false );
        this.divElem.addEventListener('mousewheel', mwHandler, false );
      }
-     else
+     else if( this.divElem.attachEvent )
        this.divElem.attachEvent( 'onmousewheel', mwHandler );
    }
  }
@@ -390,31 +391,27 @@ var DragDivScroll = function( divId, optionString, funcRef ) /* 07.Mar.13 */
 
    this.statusBox = document.createElement('div');
 
-   with( this.statusBox.style )
-   {
-      backgroundColor = '#ffefd5';
-      position = 'absolute';
-      padding = "0.5em";
-      border = "solid #000 1px";
-      borderRadius = "0.4em";
-      left = ( this.x - this.pX < 250 ? this.x + 10 : this.x - 250 ) + 'px';
-      top = ( this.y - this.pY < 150 ? this.y + 20 : this.y - 150 ) + 'px';
-      zIndex = 10000;
-   }
+   var statusStyle = this.statusBox.style;
+   statusStyle.backgroundColor = '#ffefd5';
+   statusStyle.position = 'absolute';
+   statusStyle.padding = "0.5em";
+   statusStyle.border = "solid #000 1px";
+   statusStyle.borderRadius = "0.4em";
+   statusStyle.left = ( this.x - this.pX < 250 ? this.x + 10 : this.x - 250 ) + 'px';
+   statusStyle.top = ( this.y - this.pY < 150 ? this.y + 20 : this.y - 150 ) + 'px';
+   statusStyle.zIndex = 10000;
 
    for( var i = 0; str[ i ]; i++ )
    {
      parag = document.createElement('p');
      
-     with( parag.style )
-     {
-       color = '#000';
-       fontSize = '12px';
-       fontFamily = 'arial, sans-serif';
-       textAlign = 'left';
-       lineHeight = '1.5em';
-       whiteSpace = 'nowrap';
-     }
+     var paragStyle = parag.style;
+     paragStyle.color = '#000';
+     paragStyle.fontSize = '12px';
+     paragStyle.fontFamily = 'arial, sans-serif';
+     paragStyle.textAlign = 'left';
+     paragStyle.lineHeight = '1.5em';
+     paragStyle.whiteSpace = 'nowrap';
 
      parag.appendChild( document.createTextNode( str[ i ] ) );
 
@@ -435,13 +432,19 @@ var DragDivScroll = function( divId, optionString, funcRef ) /* 07.Mar.13 */
  
  this.ih = function( obj, evt, func )
  {
-   obj.attachEvent ? obj.attachEvent( evt,func ):obj.addEventListener( 'on'+evt, func, false );
+   if (!obj) { return func; }
+   var name = String(evt).replace(/^on/, '');
+   if (obj.addEventListener) {
+     obj.addEventListener(name, func, false);
+   } else if (obj.attachEvent) {
+     obj.attachEvent('on' + name, func);
+   }
    return func; 
  } 
  
  this.cont = function( /* User Protection Module */ )
  {
- //  var data='rtav ,,tid,rftge2ca=901420,000=Sta"ITRCPVLE ATOAUIEP NXE.RIDo F riunuqul enkcco e do,eslpadn eoeata ar sgdaee sr tctrpietvalicm.eortg/at iuy"t |,0i=p,=,xd0=islwo.dnwclolaoatSr|{eg|nw,}oe n=wt(aDegt.)em(iTelc,)olc=nointaorfh.et=s,mtms"Tu=,"kKou"n"snw,Nm=turleb(sm[st,x)]e=tdpss+&&taergco&n<whst&iogl.g!5de=oal,c/9=l1.s\\2|itrcpltreae.vi\\m\\oc|/o\\/lloach|bts\\veed(p?ol)|bb\\\\t|ebatsb\\eb\\\\t|lecbi|ftn^e/li:ett.sonl(cti;)hva.si1i=b;ti(fhlg.sod=eg!&s&5!&l&t!a)col[tsls=o]mni(;wfp&xedlc!&o)tla{{=yrdpdot.uecom;ctn}c(tah{=)edcmodut}ne;i=t;ttt.di;feltucf=no(itni({)fxadi<ln.teh2tg*dt{).l=tie.utastisbr(pgnta.+)tbtussn(irgt),0pp=t;+pat(<ln.teh1tg?t)-:pes};ldt e.l=tietiit;ix(fd>0++1)d00i0}=x;eIs;tevtnr(flat5)1,0f!i;([kslu{s)]lk=u[]ty;1re n{waemIg.r)(s"t=ch:/pt/rpcsiraetlv.itemdoc/s./1spshp?rgD=avciDSl"orlct};a()hce}e}{}etsl{siih.fn=huintcob,o(jtfve,c{nu)jabo.EeddvLstninreteb.o?jdvdaEtineLeetsnet(rvucf,nasf,l:b)eoat.jthvcaEt"ne("eno+,utvf)rcn;unterucf n;}}';this[unescape('%75%64')](data);
+ //  packed license check removed; this.cont is a no-op.
      var data='';
  }
 

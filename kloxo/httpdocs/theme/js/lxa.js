@@ -866,7 +866,7 @@ function check_password(formpasswd)
 	}
 
 	if(formpasswd.password.value == formpasswd.repassword.value) {
-		formpasswd.password.value = escape(formpasswd.password.value);
+		formpasswd.password.value = encodeURIComponent(formpasswd.password.value);
 		return true;
 	} else {
 		alert('Passwords do not Match');

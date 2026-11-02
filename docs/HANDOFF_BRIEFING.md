@@ -209,7 +209,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     does not blank the dashboard. First-party `ereg*` / `dl()` /
     `htmlspecialchars(null)` leftovers and PHPMailer
     `(boolean)`/`(integer)`, `openssl_pkey_free()`, and
-    `get_magic_quotes_runtime()` are PHP 8.5-safe. The simplicity
+    `get_magic_quotes_runtime()` are PHP 8.5-safe. First-party
+    `ereg*` / `split()` (search-engine submit, site preview) are
+    preg/explode; `kloxo_strftime` no longer calls `strftime`;
+    `E_STRICT` is unused. Live theme JS no longer calls `escape` /
+    `unescape` / `document.all` / `with`. Bundled PEAR/WebDAV and
+    formmail still contain removed PHP APIs and are not on the
+    panel path. Feather/xpmenu still uses parse-time
+    `document.write`. The simplicity
     main column (`.div_content` / `#mmm`) no longer uses
     `overflow:hidden` plus `height:100%`, which clipped the middle
     of every page. The leftover splash `flush()` + `ob_start()`

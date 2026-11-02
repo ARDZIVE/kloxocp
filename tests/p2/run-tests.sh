@@ -336,6 +336,59 @@ if grep -qE 'exec\(|yum update|yum clean' "$ROOT/kloxo/bin/update.php"; then
 else
   ok "legacy update.php does not call yum"
 fi
+php_fp_hits() {
+  local pat="$1"
+  find "$ROOT/kloxo" \( -name '*.php' -o -name '*.inc' \) \
+    ! -path '*/webdisk/*' \
+    ! -path '*/file/formmail/*' \
+    ! -path '*/lib/urlrewrite/example*' \
+    ! -path '*/file/phpmyadmin/*' \
+    ! -path '*/pscript/*' \
+    -print0 | xargs -0 grep -nE "$pat" 2>/dev/null || true
+}
+if [ -z "$(php_fp_hits '\b(ereg|eregi|ereg_replace|eregi_replace)\s*\(')" ]; then
+  ok "first-party PHP does not call removed ereg*"
+else
+  bad "first-party PHP does not call removed ereg*"
+fi
+if [ -z "$(php_fp_hits '\b(mysql_connect|mysql_query|mysql_select_db|create_function|utf8_encode|utf8_decode)\s*\(')" ]; then
+  ok "first-party PHP does not call removed mysql_*/create_function/utf8_*"
+else
+  bad "first-party PHP does not call removed mysql_*/create_function/utf8_*"
+fi
+if ! grep -nE '[^[:alnum:]_]strftime\s*\(' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" >/dev/null; then
+  ok "kloxo_strftime does not call deprecated strftime()"
+else
+  bad "kloxo_strftime does not call deprecated strftime()"
+fi
+if ! grep -nE '\bescape\s*\(|\bunescape\s*\(|document\.all|\bwith\s*\(' \
+  "$ROOT/kloxo/httpdocs/theme/js/lxa.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/login.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/preop.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/helptext.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/divpop.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/jsvalidator.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/dragdrop.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/dragdivscroll.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/xpmenu/ua.js" \
+  "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/js/clock.js" >/dev/null; then
+  ok "live theme JS does not call escape/unescape/document.all/with"
+else
+  bad "live theme JS does not call escape/unescape/document.all/with"
+fi
+if ! grep -nE '\bescape\s*\(|\bunescape\s*\(|document\.all' \
+  "$ROOT/kloxo/httpdocs/theme/js/lxa.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/preop.js" \
+  "$ROOT/kloxo/httpdocs/theme/js/divpop.js" >/dev/null; then
+  ok "simplicity scripts use encodeURIComponent and getElementById"
+else
+  bad "simplicity scripts use encodeURIComponent and getElementById"
+fi
+if grep -q 'encodeURIComponent' "$ROOT/kloxo/httpdocs/theme/js/lxa.js"; then
+  ok "password form encodes with encodeURIComponent"
+else
+  bad "password form encodes with encodeURIComponent"
+fi
 
 echo
 echo "$PASS passed, $FAIL failed"

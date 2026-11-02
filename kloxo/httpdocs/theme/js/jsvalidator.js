@@ -271,5 +271,5 @@ function validator_error(n_index) {
 }
 
 function get_element (s_id) {
-	return (document.all ? document.all[s_id] : (document.getElementById ? document.getElementById(s_id) : null));
+	return document.getElementById ? document.getElementById(s_id) : null;
 }

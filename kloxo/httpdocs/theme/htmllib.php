@@ -5495,7 +5495,7 @@ class HtmlLib
 	function print_jscript_source($jsource)
 	{
 ?>
-		<script language="javascript" src="<?= $jsource ?>"></script>
+		<script src="<?= $jsource ?>"></script>
 <?php
 	}
 
@@ -5692,7 +5692,7 @@ class HtmlLib
 			}
 
 			function jsFindHelpUrl() {
-				if (document.all || document.getElementById) {
+				if (document.getElementById) {
 					gl_helpUrl = '<?=$this->get_help_url()?>';
 
 					return gl_helpUrl;

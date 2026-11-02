@@ -39,7 +39,7 @@ function defaultOnError(msg, url, line)
 {
 	// customize this for your site
 	if (top.location.href.indexOf('_files/errors/') == -1)
-		top.location = '/evangelism/xbProjects/_files/errors/index.html?msg=' + escape(msg) + '&url=' + escape(url) + '&line=' + escape(line);
+		top.location = '/evangelism/xbProjects/_files/errors/index.html?msg=' + encodeURIComponent(msg) + '&url=' + encodeURIComponent(url) + '&line=' + encodeURIComponent(line);
 }
 
 // Display Error page... 
@@ -49,7 +49,7 @@ function reportError(message)
 {
 	// customize this for your site
 	if (top.location.href.indexOf('_files/errors/') == -1)
-		top.location = '/evangelism/xbProjects/_files/errors/index.html?msg=' + escape(message);
+		top.location = '/evangelism/xbProjects/_files/errors/index.html?msg=' + encodeURIComponent(message);
 }
 
 function pageRequires(cond, msg, redirectTo)
@@ -57,7 +57,7 @@ function pageRequires(cond, msg, redirectTo)
 	if (!cond)
 	{
 		msg = 'This page requires ' + msg;
-		top.location = redirectTo + '?msg=' + escape(msg);
+		top.location = redirectTo + '?msg=' + encodeURIComponent(msg);
 	}
 	// return cond so can use in <A> onclick handlers to exclude browsers
 	// from pages they do not support.

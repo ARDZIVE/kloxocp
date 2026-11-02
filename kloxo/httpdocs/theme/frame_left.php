@@ -136,9 +136,9 @@ function xp_panel($object)
 	$skinget = $login->getSkinDir();
 ?>
 
-		<script language="javascript" type="text/javascript" src="/theme/js/xpmenu/ua.js"></script>
-		<script language="javascript" type="text/javascript" src="/theme/js/xpmenu/PanelBarOrig.js"></script>
-		<script language="javascript" type="text/javascript">
+		<script src="/theme/js/xpmenu/ua.js"></script>
+		<script src="/theme/js/xpmenu/PanelBarOrig.js"></script>
+		<script>
 			function drawMenu() {
 				var iCntr = 0;
 				var objMenu;
@@ -200,7 +200,7 @@ function xp_panel($object)
 			}
 		</script>
 
-		<script language="javascript">
+		<script>
 			var objTmp;
 <?php
 /*

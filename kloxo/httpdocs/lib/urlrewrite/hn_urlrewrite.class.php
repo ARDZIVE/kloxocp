@@ -576,7 +576,7 @@ class hn_urlRewrite
 
 	function send_page($compressed=FALSE)
 	{
-		if($compressed && ereg('gzip',$_SERVER["HTTP_ACCEPT_ENCODING"]))
+		if($compressed && isset($_SERVER["HTTP_ACCEPT_ENCODING"]) && stripos($_SERVER["HTTP_ACCEPT_ENCODING"], 'gzip') !== false)
 		{
 			// Browser kann komprimierte Daten verarbeiten:
 			header ("Content-Encoding: gzip");								// Content-Encoding senden (damit der Browser was merkt)
@@ -1013,7 +1013,9 @@ class hn_urlRewrite
 	{
 		$alpha_array = $this->CodingKey;
 		$decoded = base64_decode($str);
-		list($decoded,$letter) = split("\+",$decoded);
+		$decoded_parts = explode("+", (string) $decoded, 2);
+		$decoded = $decoded_parts[0];
+		$letter = isset($decoded_parts[1]) ? $decoded_parts[1] : '';
 		for($i=0;$i<count($alpha_array);$i++)
 		{
 			if($alpha_array[$i] == $letter)

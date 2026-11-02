@@ -1,5 +1,34 @@
 <?php
 
+function kloxo_ereg_pattern($pattern, $ignore_case = false)
+{
+	return '#' . str_replace('#', '\\#', (string) $pattern) . '#' . ($ignore_case ? 'i' : '');
+}
+
+function kloxo_ereg($pattern, $string)
+{
+	return @preg_match(kloxo_ereg_pattern($pattern), (string) $string) === 1;
+}
+
+function kloxo_eregi($pattern, $string)
+{
+	return @preg_match(kloxo_ereg_pattern($pattern, true), (string) $string) === 1;
+}
+
+function kloxo_ereg_replace($pattern, $replacement, $string)
+{
+	$out = @preg_replace(kloxo_ereg_pattern($pattern), $replacement, (string) $string);
+
+	return is_string($out) ? $out : (string) $string;
+}
+
+function kloxo_eregi_replace($pattern, $replacement, $string)
+{
+	$out = @preg_replace(kloxo_ereg_pattern($pattern, true), $replacement, (string) $string);
+
+	return is_string($out) ? $out : (string) $string;
+}
+
 function my_in_array($s, $a)
 {
 	for($t=0; $t<sizeof($a); $t++)
@@ -13,28 +42,28 @@ function apply_correction($link, $path, $domain)
 {
 	$link = trim($link);
 
-	if(eregi("^(https://)",$link))
+	if(kloxo_eregi("^(https://)",$link))
 		return false;
 
-	$path = eregi_replace("/$","",$path);
+	$path = kloxo_eregi_replace("/$","",$path);
 
-	if(eregi("^(http://)",$link)){
-		if(!ereg("(.*)($domain)(.*)",$link))
+	if(kloxo_eregi("^(http://)",$link)){
+		if(!kloxo_ereg("(.*)($domain)(.*)",$link))
 			return false;
 
-		return eregi_replace("(http://)(www\.)?($domain)","",$link);
+		return kloxo_eregi_replace("(http://)(www\.)?($domain)","",$link);
 	}
 	else{
-		if(!ereg("(^(\.{2}))|(^/)",$link)){
+		if(!kloxo_ereg("(^(\.{2}))|(^/)",$link)){
 			return $path."/".$link;
 		}
 
-		if(ereg("^/",$link)){
+		if(kloxo_ereg("^/",$link)){
 			return $link;
 		}
 
 // time to assume that it begins with ../ or ..
-		$link = ereg_replace("^(\.\.)(/?)","",$link);
+		$link = kloxo_ereg_replace("^(\.\.)(/?)","",$link);
 			$path = substr($path,0,strrpos($path,"/"));
 
 			return apply_correction($link,$path,$domain);
@@ -108,22 +137,22 @@ function get_links($page, $domain, &$links)
 		else
 			$link = @str_replace("'"," ",@str_replace('"'," ",@substr($page_,$href_pos+5,$np-$href_pos-5)));
 
-		if(ereg("\?+",$link))
+		if(kloxo_ereg("\?+",$link))
 			$link = @substr($link,0,strpos($link,"?"));
 
-		if(ereg("^((javascript:)|(ftp://)|(mailto:))",$link))
+		if(kloxo_ereg("^((javascript:)|(ftp://)|(mailto:))",$link))
 			continue;
 
 		if(($link_ = @stristr($link,$domain)) == false)
 			if(($link_ = apply_correction($link, $path, $domain)) == false)
 				continue;
 
-		$link_ = eregi_replace("^(www\.)?($domain)","",$link_);
+		$link_ = kloxo_eregi_replace("^(www\.)?($domain)","",$link_);
 
 		if(@my_in_array("http://$domain$link_",$links) == true)
 			continue;
 
-		if(ereg("((\.)($getext))$",$link_) && !ereg("(/)($ignoredir)(/)",$link_))
+		if(kloxo_ereg("((\.)($getext))$",$link_) && !kloxo_ereg("(/)($ignoredir)(/)",$link_))
 			get_links($link_,$domain,$links);
 	}
 }

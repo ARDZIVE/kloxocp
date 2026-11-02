@@ -4,10 +4,10 @@
 require "functions.php";
 require "engines.php";
 
-if(@ereg($getext,$getext) == false)
+if(@preg_match(kloxo_ereg_pattern($getext), (string) $getext) === false)
 	$getext = "(:)";
 
-if(@ereg($ignoredir,$ignoredir) == false)
+if(@preg_match(kloxo_ereg_pattern($ignoredir), (string) $ignoredir) === false)
 	$ignoredir = "(:)";
 
 $domain = $_REQUEST['domain'];
