@@ -1,8 +1,8 @@
 #!/bin/bash
-# Integration tests for kloxo-mail + the Postfix/Dovecot/Rspamd templates.
-# Needs: php-cli, a running MariaDB (root via unix socket), postfix + postfix-mysql,
+# Integration tests for kloxo-mail + the Exim/Dovecot/Rspamd templates.
+# Needs: php-cli, a running MariaDB (root via unix socket), exim4-daemon-heavy,
 # dovecot-core + dovecot-mysql, rspamd. Run as root on a DISPOSABLE machine/container:
-# it creates a system user "vmail" and (in the live-apply test) rewrites /etc/postfix,
+# it creates a system user "vmail" and (in the live-apply test) rewrites /etc/exim4,
 # /etc/dovecot and /etc/rspamd/local.d.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -17,10 +17,18 @@ bad()  { FAIL=$((FAIL+1)); printf '  FAIL %s\n' "$1"; [ -n "${2:-}" ] && printf 
 check(){ local d="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$d"; else bad "$d" "command failed: $*"; fi; }
 fails(){ local d="$1"; shift; if "$@" >/dev/null 2>&1; then bad "$d" "expected failure: $*"; else ok "$d"; fi; }
 eq()   { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected [$3] got [$2]"; fi; }
-pm()   { postmap -c "$T/out/etc/postfix" -q "$2" "mysql:$T/out/etc/postfix/sql/$1.cf" 2>/dev/null; }
-pmerr(){ postmap -c "$T/out/etc/postfix" -q "$2" "mysql:$T/out/etc/postfix/sql/$1.cf" 2>&1 >/dev/null | grep -v 'inet_protocols'; }   # lookup in rendered map
 sql()  { mysql -N -e "$1" kloxo_mail_test; }
+# Same lookups Exim uses (quote_mysql on these keys is identity).
+qdom() { sql "SELECT 1 FROM domains WHERE name='$1' AND active=1"; }
+qmbox(){ sql "SELECT 1 FROM mailboxes m JOIN domains d ON d.id=m.domain_id WHERE m.email='$1' AND m.active=1 AND d.active=1"; }
+qalias(){ sql "SELECT t.target FROM aliases a JOIN alias_targets t ON t.alias_id=a.id JOIN domains d ON d.id=a.domain_id WHERE a.source='$1' AND a.active=1 AND d.active=1" | tr '\t' '\n' | sort | tr '\n' ' '; }
+qlogin(){ sql "SELECT login FROM (
+  SELECT m.email AS login FROM mailboxes m JOIN domains d ON d.id=m.domain_id WHERE m.email='$1' AND m.active=1 AND d.active=1
+  UNION
+  SELECT m.email AS login FROM aliases a JOIN alias_targets t ON t.alias_id=a.id JOIN mailboxes m ON m.email=t.target JOIN domains d ON d.id=a.domain_id WHERE a.source='$1' AND a.active=1 AND d.active=1 AND m.active=1
+) s" | sort | tr '\n' ' '; }
 PW='correct horse battery'
+EXIMBIN="$(command -v exim4 2>/dev/null || command -v exim 2>/dev/null || true)"
 
 echo "== setup"
 mysql -e "DROP DATABASE IF EXISTS kloxo_mail_test; DROP USER IF EXISTS 'kloxo_mail_test_rw'@'localhost'; DROP USER IF EXISTS 'kloxo_mail_test_ro'@'localhost';"
@@ -57,43 +65,66 @@ fails "alias for unknown domain" "${KM[@]}" alias:add x@unknown.com alice@exampl
 
 echo "== render"
 check "render" "${KM[@]}" render --out="$T/out"
-eq "SQL map is 0640" "$(stat -c %a "$T/out/etc/postfix/sql/virtual-domains.cf")" "640"
+EXIMCONF="$T/out/etc/exim4/exim4.conf"
+eq "Exim config is 0640" "$(stat -c %a "$EXIMCONF")" "640"
 if grep -rq '@@' "$T/out"; then bad "no unreplaced placeholders" "$(grep -rn '@@' "$T/out" | head -3)"; else ok "no unreplaced placeholders"; fi
 
 check "DKIM map lists only domains with a key (example.com)" grep -q '^example.com kloxo$' "$T/out/etc/rspamd/kloxo/dkim_selectors.map"
 if grep -q 'example.org' "$T/out/etc/rspamd/kloxo/dkim_selectors.map"; then bad "domain created with --no-dkim is not in the DKIM map"; else ok "domain created with --no-dkim is not in the DKIM map"; fi
 check "dkim_signing.conf points to the maps" grep -q "map = \"$T/rspamd/kloxo/dkim_selectors.map\"" "$T/out/etc/rspamd/local.d/dkim_signing.conf"
 
-echo "== Postfix: configuration syntax"
-check "main.cf parses"   postconf -c "$T/out/etc/postfix" -n
-check "master.cf parses" postconf -c "$T/out/etc/postfix" -M
-eq "virtual_transport" "$(postconf -c "$T/out/etc/postfix" -h virtual_transport 2>/dev/null)" "lmtp:unix:private/dovecot-lmtp"
-eq "submission enforces TLS" "$(postconf -c "$T/out/etc/postfix" -P 2>/dev/null | grep -c 'submission/inet/smtpd_tls_security_level = encrypt')" "1"
-eq "smtpd_tls_protocols"  "$(postconf -c "$T/out/etc/postfix" -h smtpd_tls_protocols 2>/dev/null)" ">=TLSv1.2"
+echo "== Exim: configuration syntax"
+if [ -n "$EXIMBIN" ]; then
+  check "exim4.conf parses" "$EXIMBIN" -C "$EXIMCONF" -bV
+else
+  bad "exim4.conf parses" "exim4 not installed"
+fi
+check "AUTH advertised only with TLS on 587/465" grep -q 'auth_advertise_hosts' "$EXIMCONF"
+check "TLS 1.0/1.1 disabled" grep -q 'VERS-TLS1.1' "$EXIMCONF"
+check "implicit TLS on 465" grep -q 'tls_on_connect_ports = 465' "$EXIMCONF"
+check "quota socket before local permit" grep -q '/run/dovecot/quota-status' "$EXIMCONF"
+if grep -q 'spam = nobody:true' "$EXIMCONF" && ! grep -q 'defer_ok' "$EXIMCONF"; then
+  ok "Rspamd failure tempfails (no defer_ok)"
+else
+  bad "Rspamd failure tempfails (no defer_ok)"
+fi
+mbox_line=$(grep -n '^kloxo_mailbox:' "$EXIMCONF" | head -1 | cut -d: -f1)
+catch_line=$(grep -n '^kloxo_catchall:' "$EXIMCONF" | head -1 | cut -d: -f1)
+alias_line=$(grep -n '^kloxo_alias:' "$EXIMCONF" | head -1 | cut -d: -f1)
+if [ -n "$alias_line" ] && [ -n "$mbox_line" ] && [ "$alias_line" -lt "$mbox_line" ]; then
+  ok "exact alias router before mailbox"
+else
+  bad "exact alias router before mailbox"
+fi
+if [ -n "$mbox_line" ] && [ -n "$catch_line" ] && [ "$mbox_line" -lt "$catch_line" ]; then
+  ok "catch-all router after mailbox"
+else
+  bad "catch-all router after mailbox"
+fi
+check "Dovecot LMTP owned by Exim" grep -q 'unix_listener /run/dovecot/lmtp' "$T/out/etc/dovecot/dovecot.conf"
+check "Dovecot SASL owned by Exim" grep -q 'unix_listener /run/dovecot/auth-client' "$T/out/etc/dovecot/dovecot.conf"
 
-echo "== Postfix: SQL lookups (what Postfix really asks the database)"
-for m in virtual-domains virtual-mailboxes virtual-aliases sender-login; do
-  if [ -z "$(pmerr $m probe@example.com)" ]; then ok "map $m runs without errors/warnings"; else bad "map $m runs without errors" "$(pmerr $m probe@example.com)"; fi
-done
-eq "domain exists"                 "$(pm virtual-domains example.com)" "1"
-eq "unknown domain"                "$(pm virtual-domains nope.com)" ""
-eq "mailbox exists"                "$(pm virtual-mailboxes alice@example.com)" "1"
-eq "unknown mailbox"               "$(pm virtual-mailboxes ghost@example.com)" ""
-eq "alias expands"                 "$(pm virtual-aliases info@example.com)" "alice@example.com"
-eq "catch-all key expands"         "$(pm virtual-aliases @example.com)" "alice@example.com"
-eq "real mailbox maps to itself (catch-all cannot swallow it)" "$(pm virtual-aliases bob.nonalias@example.com)" ""
-eq "mailbox without alias -> itself" "$(pm virtual-aliases alice@example.com)" "alice@example.com"
-eq "forward-only mailbox -> external only" "$(pm virtual-aliases carol@example.com)" "carol.private@example.net"
-eq "forward+copy -> both"          "$(pm virtual-aliases bob@example.com | tr ',' '\n' | sort | tr '\n' ' ')" "bob.mobile@example.net bob@example.com "
-eq "sender login: own address"     "$(pm sender-login alice@example.com)" "alice@example.com"
-eq "sender login: alias owner"     "$(pm sender-login info@example.com)" "alice@example.com"
-eq "sender login: stranger"        "$(pm sender-login stranger@example.com)" ""
-eq "SQL injection string in key"   "$(pm virtual-mailboxes "x' OR '1'='1")" ""
+echo "== Exim: SQL lookups (same queries as the routers/ACLs)"
+eq "domain exists"                 "$(qdom example.com)" "1"
+eq "unknown domain"                "$(qdom nope.com)" ""
+eq "mailbox exists"                "$(qmbox alice@example.com)" "1"
+eq "unknown mailbox"               "$(qmbox ghost@example.com)" ""
+eq "alias expands"                 "$(qalias info@example.com)" "alice@example.com "
+eq "catch-all key expands"         "$(qalias @example.com)" "alice@example.com "
+eq "real mailbox maps to itself (catch-all cannot swallow it)" "$(qalias bob.nonalias@example.com)" ""
+eq "mailbox without alias has no exact alias" "$(qalias alice@example.com)" ""
+eq "mailbox without alias is still a mailbox" "$(qmbox alice@example.com)" "1"
+eq "forward-only mailbox -> external only" "$(qalias carol@example.com)" "carol.private@example.net "
+eq "forward+copy -> both"          "$(qalias bob@example.com)" "bob.mobile@example.net bob@example.com "
+eq "sender login: own address"     "$(qlogin alice@example.com)" "alice@example.com "
+eq "sender login: alias owner"     "$(qlogin info@example.com)" "alice@example.com "
+eq "sender login: stranger"        "$(qlogin stranger@example.com)" ""
+eq "SQL injection string in key"   "$(sql "SELECT 1 FROM mailboxes m JOIN domains d ON d.id=m.domain_id WHERE m.email='x\\' OR \\'1\\'=\\'1' AND m.active=1 AND d.active=1")" ""
 "${KM[@]}" domain:disable example.org >/dev/null
-eq "disabled domain not accepted"  "$(pm virtual-domains example.org)" ""
+eq "disabled domain not accepted"  "$(qdom example.org)" ""
 "${KM[@]}" domain:enable example.org >/dev/null
 "${KM[@]}" mailbox:disable bob@example.com >/dev/null
-eq "disabled mailbox not accepted" "$(pm virtual-mailboxes bob@example.com)" ""
+eq "disabled mailbox not accepted" "$(qmbox bob@example.com)" ""
 "${KM[@]}" mailbox:enable bob@example.com >/dev/null
 
 echo "== Dovecot: configuration and password hashes"
@@ -114,8 +145,8 @@ case "$D" in *"MX"*"10 mail.example.com."*"v=spf1 mx ip4:203.0.113.7 -all"*"_dma
 
 echo "== apply (files, backup, rollback) below a fake root"
 check "apply to fake root" "${KM[@]}" apply --root="$T/fakeroot"
-check "files installed"    test -f "$T/fakeroot/etc/postfix/main.cf"
-echo "# local edit" >> "$T/fakeroot/etc/postfix/main.cf"
+check "files installed"    test -f "$T/fakeroot/etc/exim4/exim4.conf"
+echo "# local edit" >> "$T/fakeroot/etc/exim4/exim4.conf"
 check "apply again (idempotent)" "${KM[@]}" apply --root="$T/fakeroot"
 
 echo "== purge safety"

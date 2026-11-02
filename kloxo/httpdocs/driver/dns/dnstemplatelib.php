@@ -95,6 +95,8 @@ class Dnstemplate extends DnsBase
 		if (substr($name, -5) === '.dnst') {
 			$name = substr($name, 0, -5);
 		}
+		$name = preg_replace('/[^a-z0-9.-]+/', '-', $name);
+		$name = trim((string)$name, '.-');
 
 		if ($name === '' || !preg_match('/^[a-z0-9]([a-z0-9.-]{0,58}[a-z0-9])?$/', $name)) {
 			throw new lxException($login->getThrow('invalid_char_in_template_name'), '', $name);
@@ -135,14 +137,17 @@ class Dnstemplate extends DnsBase
 			$res = array();
 		}
 
-		$vlist['nname'] = null;
-		$vlist['webipaddress'] = array('s', $res);
-		$vlist['mmailipaddress'] = array('s', $res);
-		$vlist['nameserver_f'] = null;
-		$vlist['secnameserver_f'] = null;
-		if ($res === array()) {
+		$vlist['nname'] = array('m', array('value' => 'default'));
+		if ($res !== array()) {
+			$vlist['webipaddress'] = array('s', $res);
+			$vlist['mmailipaddress'] = array('s', $res);
+		} else {
+			$vlist['webipaddress'] = null;
+			$vlist['mmailipaddress'] = null;
 			$vlist['__m_message_pre'] = 'no_ip_address';
 		}
+		$vlist['nameserver_f'] = array('m', array('value' => 'ns1'));
+		$vlist['secnameserver_f'] = array('m', array('value' => 'ns2'));
 		$ret['action'] = 'add';
 		$ret['variable'] = $vlist;
 

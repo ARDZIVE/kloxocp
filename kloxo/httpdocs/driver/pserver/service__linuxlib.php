@@ -52,6 +52,9 @@ class Service__Linux extends Lxlclass
 		$nval['trafficserver'] = 'trafficserver';
 
 		$nval['php-fpm'] = 'php-fpm';
+		$nval['mariadb'] = 'mariadb';
+		$nval['dovecot'] = 'dovecot';
+		$nval['rspamd'] = 'rspamd';
 
 		$nval['named'] = 'named';
 		$nval['bind9'] = 'bind9';
@@ -74,6 +77,17 @@ class Service__Linux extends Lxlclass
 		$nval['firewalld'] = "firewalld";
 
 		return $nval;
+	}
+
+	static function unitName($servicename)
+	{
+		$servicename = (string) $servicename;
+		$map = self::getMainServiceList();
+		if (isset($map[$servicename]) && is_string($map[$servicename]) && $map[$servicename] !== '') {
+			return $map[$servicename];
+		}
+
+		return $servicename;
 	}
 
 	static function checkService($name)

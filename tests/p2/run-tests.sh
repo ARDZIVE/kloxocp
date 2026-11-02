@@ -659,10 +659,23 @@ else
 fi
 if grep -q 'function getServiceDetails' "$ROOT/kloxo/httpdocs/driver/pserver/service__debianlib.php" \
   && grep -q 'component__deb' "$ROOT/kloxo/httpdocs/lib/html/driver_definecore.php" \
-  && grep -q 'mailqueue__postfix' "$ROOT/kloxo/httpdocs/lib/driver_define.php"; then
-  ok "Ubuntu services, component info, and postfix mail queue drivers are registered"
+  && grep -q 'mailqueue__exim' "$ROOT/kloxo/httpdocs/lib/driver_define.php" \
+  && grep -q "function updateStart" "$ROOT/kloxo/httpdocs/driver/pserver/servicelib.php" \
+  && grep -q "canGetSingle" "$ROOT/kloxo/httpdocs/driver/pserver/servicelib.php" \
+  && grep -q "lxshell_return('systemctl'" "$ROOT/kloxo/httpdocs/driver/pserver/service__debianlib.php"; then
+  ok "Ubuntu services, component info, and Exim mail queue drivers are registered"
 else
-  bad "Ubuntu services, component info, and postfix mail queue drivers are registered"
+  bad "Ubuntu services, component info, and Exim mail queue drivers are registered"
+fi
+if grep -q "exim/exim4.conf" "$ROOT/kloxo/bin/mail/kloxo-mail" \
+  && test -f "$ROOT/kloxo/file/mail/exim/exim4.conf" \
+  && ! test -f "$ROOT/kloxo/file/mail/postfix/main.cf" \
+  && grep -q 'exim4-daemon-heavy' "$ROOT/install.sh" \
+  && grep -F -q "['name' => 'exim4'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \
+  && ! grep -F -q "['name' => 'postfix'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php"; then
+  ok "hosted mail templates, installer, and Component Info are Exim"
+else
+  bad "hosted mail templates, installer, and Component Info are Exim"
 fi
 if grep -q 'KloxoComponent' "$ROOT/kloxo/httpdocs/driver/pserver/component__deblib.php" \
   && grep -q 'mariadb-server' "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \

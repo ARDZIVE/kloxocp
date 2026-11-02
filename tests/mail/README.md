@@ -1,10 +1,10 @@
 # Mail stack tests
 
 Run on a **disposable** Ubuntu 24.04 machine or container as root. The tests create a system user
-`vmail`, and the live test rewrites `/etc/postfix`, `/etc/dovecot` and `/etc/rspamd/local.d`.
+`vmail`, and the live test rewrites `/etc/exim4`, `/etc/dovecot` and `/etc/rspamd/local.d`.
 
 ```
-apt install php-cli php-mysql mariadb-server redis-server postfix postfix-mysql postfix-lmdb \
+apt install php-cli php-mysql mariadb-server redis-server exim4-daemon-heavy \
     dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd dovecot-mysql dovecot-sieve \
     dovecot-managesieved rspamd
 ```
@@ -12,10 +12,10 @@ apt install php-cli php-mysql mariadb-server redis-server postfix postfix-mysql 
 ## 1. Static and database tests (no services need to run, MariaDB must)
 
 ```
-bash tests/mail/run-tests.sh          # 73 checks; uses its own database and DB accounts
+bash tests/mail/run-tests.sh          # uses its own database and DB accounts
 ```
 
-## 2. Live end-to-end test (real Postfix + Dovecot + Rspamd + Redis + MariaDB)
+## 2. Live end-to-end test (real Exim + Dovecot + Rspamd + Redis + MariaDB)
 
 ```
 export KLOXO_MAIL_TEMPLATES=$PWD/kloxo/file/mail
@@ -30,10 +30,10 @@ echo 'correct horse battery' | $KM mailbox:add alice@example.com --password-stdi
 echo 'correct horse battery' | $KM mailbox:add bob@example.com   --password-stdin
 $KM alias:add info@example.com alice@example.com
 $KM apply                      # on a systemd host this also reloads the services
-# start the services (systemctl enable --now postfix dovecot rspamd redis-server mariadb), then:
+# start the services (systemctl enable --now exim4 dovecot rspamd redis-server mariadb), then:
 python3 tests/mail/e2e.py      # 25 checks
 ```
 
 In a container without systemd or syslog, start the services by hand and add log files through the
-custom snippets, e.g. `maillog_file = /var/log/postfix.log` in `/etc/kloxo/mail.d/postfix-main.cf` and
+custom snippets, e.g. `log_file_path = /var/log/exim4/%slog` in `/etc/kloxo/mail.d/exim4.conf` and
 `log_path = /var/log/dovecot.log` in `/etc/kloxo/mail.d/dovecot.conf`, then run `$KM apply --no-reload`.

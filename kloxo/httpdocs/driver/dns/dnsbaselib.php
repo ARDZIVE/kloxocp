@@ -140,7 +140,11 @@ class dns_record_a extends LxDnsClass
 				$this->$var = '__base__';
 			}
 
-			$this->$var = str_replace($this->getParentO()->nname, "__base__", $this->$var);
+			$parent = $this->getParentO();
+			$pname = (is_object($parent) && isset($parent->nname)) ? (string)$parent->nname : '';
+			if ($pname !== '') {
+				$this->$var = str_replace($pname, "__base__", $this->$var);
+			}
 			$this->$var = str_replace(".__base__", "", $this->$var);
 
 			if ($this->$var !== '__base__') {
@@ -374,6 +378,23 @@ abstract class Dnsbase extends Lxdb
 		return $name;
 	}
 
+	static function qualifyTemplateNs($name, $templateNname, $fallbackHost = 'ns1')
+	{
+		$name = self::normalizeNsName($name);
+		$base = self::normalizeNsName($templateNname);
+		if ($name === '') {
+			$name = self::normalizeNsName($fallbackHost);
+		}
+		if ($name === '') {
+			$name = 'ns1';
+		}
+		if (strpos($name, '.') === false && $base !== '') {
+			$name .= '.' . $base;
+		}
+
+		return self::assertNsName($name);
+	}
+
 	function createDefaultTemplate($webipaddress, $mmailipaddress = "0.0.0.0", $nameserver = "", $secnamserver = null)
 	{
 		global $login;
@@ -389,7 +410,7 @@ abstract class Dnsbase extends Lxdb
 			$mmailipaddress = $webipaddress;
 		}
 
-		$nameserver = self::assertNsName($nameserver);
+		$nameserver = self::qualifyTemplateNs($nameserver, (string)($this->nname ?? ''), 'ns1');
 		$this->soanameserver = $nameserver;
 		if (!isset($this->zone_type) || $this->zone_type === '' || $this->zone_type === null) {
 			$this->zone_type = 'master';
@@ -399,8 +420,10 @@ abstract class Dnsbase extends Lxdb
 
 		$secnamserver = self::normalizeNsName($secnamserver);
 		if ($secnamserver !== '') {
-			$secnamserver = self::assertNsName($secnamserver);
-			$this->addRec('ns', $secnamserver, $secnamserver);
+			$secnamserver = self::qualifyTemplateNs($secnamserver, (string)($this->nname ?? ''), 'ns2');
+			if ($secnamserver !== $nameserver) {
+				$this->addRec('ns', $secnamserver, $secnamserver);
+			}
 		}
 
 		$cpip = $webipaddress;
@@ -593,7 +616,17 @@ abstract class Dnsbase extends Lxdb
 			$this->webipaddress = $web;
 			$this->mmailipaddress = $mail;
 		}
-		$this->createDefaultTemplate($web, $mail, $this->nameserver_f ?? '', $this->secnameserver_f ?? '');
+		$ns = trim((string)($this->nameserver_f ?? ''));
+		$sec = trim((string)($this->secnameserver_f ?? ''));
+		if ($ns === '') {
+			$ns = 'ns1';
+		}
+		if ($sec === '') {
+			$sec = 'ns2';
+		}
+		$this->nameserver_f = $ns;
+		$this->secnameserver_f = $sec;
+		$this->createDefaultTemplate($web, $mail, $ns, $sec);
 	}
 
 	function createShowClist($subaction)
@@ -605,7 +638,16 @@ abstract class Dnsbase extends Lxdb
 
 	function isRightParent()
 	{
-		return ($this->getParentO()->getClName() === $this->parent_clname);
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			return true;
+		}
+		if (!is_object($parent) || !method_exists($parent, 'getClName')) {
+			return true;
+		}
+
+		return ($parent->getClName() === $this->parent_clname);
 	}
 
 	function createShowPropertyList(&$alist)
@@ -636,7 +678,14 @@ abstract class Dnsbase extends Lxdb
 
 	function fixParentClName()
 	{
+		if (!isset($this->dns_record_a) || !is_array($this->dns_record_a)) {
+			return;
+		}
+
 		foreach ($this->dns_record_a as $d) {
+			if (!is_object($d)) {
+				continue;
+			}
 			if (isset($d->parent_clname)) {
 				return;
 			}

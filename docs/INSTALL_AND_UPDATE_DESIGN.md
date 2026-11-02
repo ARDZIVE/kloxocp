@@ -33,7 +33,7 @@ The script only does five things:
    ports 80/443/8443 free, no other panel (cPanel, Plesk, ISPConfig...) installed.
 2. Add the **signed Kloxo CP apt repository** (GPG key pinned).
 3. `apt install kloxo-cp` (meta-package that depends on the core plus the chosen profile:
-   nginx, php-fpm, mariadb-server, bind9, an FTP server, postfix/dovecot/rspamd, certbot, ufw/fail2ban).
+   nginx, php-fpm, mariadb-server, bind9, an FTP server, exim/dovecot/rspamd, certbot, ufw/fail2ban).
 4. First-run setup: unique TLS keys via `kloxo/bin/install/generate-tls-keys` (never shipped in the package), Let's Encrypt for the panel
    hostname, firewall rules, a one-time admin login link.
 5. Print the panel URL and the result of the **self-check** (every service up, test vhost renders and validates).
@@ -62,7 +62,7 @@ The UI "Update" button calls exactly the same code path as the CLI.
 3. **Upgrade packages** from the chosen channel (`stable` default, `testing` opt-in).
 4. **Run migrations:** versioned, idempotent scripts for the panel DB schema and for config templates.
 5. **Regenerate and validate** every managed config *before* reload: `nginx -t`, `php-fpm -t`,
-   `named-checkconf` / `named-checkzone`, `postfix check`, `doveconf -n`, FTP config test.
+   `named-checkconf` / `named-checkzone`, `exim -C /etc/exim4/exim4.conf -bV`, `doveconf -n`, FTP config test.
 6. **Reload gracefully**, then **health check** (HTTP probe of the panel and a test site, service status, test mailbox login).
 7. **Automatic rollback** if any check fails: restore previous package versions and the snapshot; report why.
 
@@ -82,7 +82,7 @@ template changes under a customised site.
 | BIND | Ubuntu | `apt` | rare; zones verified with `named-checkzone` before reload |
 | FTP (Pure-FTPd or ProFTPd) | Ubuntu | `apt` | config regenerated and tested |
 | Nginx | Ubuntu or nginx.org | `apt` | templates validated with `nginx -t` |
-| Mail (Postfix, Dovecot, Rspamd) | Ubuntu | `apt`, then `kloxo-mail apply` (validate, reload, roll back) | guided, with mail-queue and mailbox backups; see `MAIL_DESIGN.md` |
+| Mail (Exim, Dovecot, Rspamd) | Ubuntu | `apt`, then `kloxo-mail apply` (validate, reload, roll back) | guided, with mail-queue and mailbox backups; see `MAIL_DESIGN.md` |
 
 Rule: the panel never edits a service config it cannot validate, and never reloads a service whose test failed.
 

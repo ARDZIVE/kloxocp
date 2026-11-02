@@ -1,70 +1,84 @@
-<?php 
+<?php
 
 include_once "driver/pserver/service__linuxlib.php";
 
-class Service__Debian extends lxDriverClass {
-
-
-	/// We need to properly port this system to debian. I tried using the chkconfig directly on debian, but it seems the individual scripts themselves have to support chkconfig if it has to work, and thus chkconfig fails to run. Now the only way is to use update-rc.d program on debain.
-
-function dbactionAdd()
+class Service__Debian extends lxDriverClass
 {
-	lxshell_return("update-rc.d", $this->main->servicename, 'defaults');
-}
-
-
-function dbactionUpdate($subaction)
-{
-	switch($subaction) 
+	function dbactionAdd()
 	{
-
-		case "toggle_status":
-			{
-
-				if ($this->main->isOn('status')) {
-				//	lxshell_return("update-rc.d", $this->main->servicename, 'defaults');
-					lxshell_return("chkconfig", $this->main->servicename, 'on');
-				} else {
-				//	lxshell_return("update-rc.d", "-f", $this->main->servicename, 'remove');
-					lxshell_return("chkconfig", $this->main->servicename, 'off');
-				}
-
-				break;
-			}
-
-		case "toggle_state":
-			{
-				if ($this->main->isOn('state')) {
-					lxshell_return("service", "{$this->main->servicename}", "start");
-				} else {
-					lxshell_return("service", "{$this->main->servicename}", "stop");
-				}
-				break;
-			}
+		$this->systemctl('enable');
 	}
 
-}
+	function unitName()
+	{
+		$svc = isset($this->main->servicename) ? (string) $this->main->servicename : '';
 
+		return Service__Linux::unitName($svc);
+	}
 
-static function getServiceList()
-{
-	return Service__Linux::getServiceList();
-}
+	function systemctl($act)
+	{
+		$unit = $this->unitName();
+		if ($unit === '' || !preg_match('/^[A-Za-z0-9_.:@+-]+$/', $unit)) {
+			return;
+		}
+		if ($unit === 'hiawatha' && ($act === 'stop' || $act === 'disable')) {
+			return;
+		}
+		if (!in_array($act, array('start', 'stop', 'restart', 'enable', 'disable'), true)) {
+			return;
+		}
 
+		lxshell_return('systemctl', $act, $unit);
+	}
 
-static function checkService($name)
-{
-	return Service__Linux::checkService($name);
-}
+	function dbactionUpdate($subaction)
+	{
+		switch ($subaction) {
+			case 'start':
+				$this->systemctl('start');
+				break;
+			case 'stop':
+				$this->systemctl('stop');
+				break;
+			case 'restart':
+				$this->systemctl('restart');
+				break;
+			case 'toggle_status':
+			case 'toggle_boot_state':
+				if ($this->main->isOn('boot_state') || $this->main->isOn('status')) {
+					$this->systemctl('enable');
+				} else {
+					$this->systemctl('disable');
+				}
+				break;
+			case 'toggle_state':
+				if ($this->main->isOn('state')) {
+					$this->systemctl('start');
+				} else {
+					$this->systemctl('stop');
+				}
+				break;
+		}
+	}
 
-static function getServiceDetails($list)
-{
-	return Service__Linux::getServiceDetails($list);
-}
+	static function getServiceList()
+	{
+		return Service__Linux::getServiceList();
+	}
 
-static function checkServiceOn($service)
-{
-	return Service__Linux::checkServiceOn($service);
-}
+	static function checkService($name)
+	{
+		return Service__Linux::checkService($name);
+	}
 
+	static function getServiceDetails($list)
+	{
+		return Service__Linux::getServiceDetails($list);
+	}
+
+	static function checkServiceOn($service)
+	{
+		return Service__Linux::checkServiceOn($service);
+	}
 }

@@ -41,8 +41,8 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 | Customer websites | **Nginx + PHP-FPM** default; Apache 2.4 + PHP-FPM (`proxy_fcgi`, no mod_php) packaged and selectable |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it |
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
-| SMTP / hosted mail | **Postfix + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
-| Switch Program SMTP | `none` or `exim` (`exim4` stub only; it does not replace Postfix) |
+| SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
+| Switch Program SMTP | `none` or `exim` (enables `exim4`; hosted mail is this stack) |
 | Database | MariaDB (panel DB `kloxo`; mail DB is separate) |
 | SQL Manager | MySQL logon, then phpMyAdmin (`/thirdparty/phpMyAdmin/kloxo-signon.php`) |
 | Billing | None |
@@ -57,7 +57,7 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 | Target OS | Ubuntu 24.04 LTS and Ubuntu 26.x; AlmaLinux/Rocky 9 later |
 | Customer websites | Nginx + PHP-FPM default; Apache selectable; multiple PHP versions side by side |
 | DNS | BIND default; PowerDNS selectable |
-| Mail | Postfix + Dovecot + Rspamd, mailboxes in MariaDB |
+| Mail | Exim + Dovecot + Rspamd, mailboxes in MariaDB |
 | Panel's own web server | Hiawatha (panel UI only) |
 | Billing integrations | None for now |
 | UI | Existing UI kept |
@@ -134,7 +134,7 @@ that password is changed. The password is also written to
 `/var/log/kloxo-install.log`.
 
 It does **not** run `kloxo-mail apply`, Let's Encrypt, or a signed apt
-install. `--profile=full` only apt-installs mail packages (Postfix, Dovecot,
+install. `--profile=full` only apt-installs mail packages (Exim, Dovecot,
 Rspamd, Redis); it does not configure mail. The installer does not run a
 browser login.
 
@@ -144,7 +144,7 @@ browser login.
 sudo bash install.sh
 sudo bash install.sh --update              # accepted; every run already git-fetches the clone
 sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
-sudo bash install.sh --profile=full        # also apt-install postfix, dovecot, rspamd, redis
+sudo bash install.sh --profile=full        # also apt-install exim4-daemon-heavy, dovecot, rspamd, redis
 sudo bash install.sh --with-mail           # same as --profile=full
 sudo bash install.sh --profile=core        # default: php, nginx, mariadb, bind9; apache2/pdns packaged, disabled
 sudo bash install.sh --dry-run             # print repo/src/root/profile and exit
@@ -263,11 +263,11 @@ apt install -y \
 ```
 
 Mail packages (only with `--profile=full` / `--with-mail`; does **not**
-configure Postfix):
+configure Exim):
 
 ```
 apt install -y \
-  postfix postfix-mysql postfix-lmdb \
+  exim4-daemon-heavy \
   dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
   dovecot-mysql dovecot-sieve dovecot-managesieved \
   rspamd redis-server
@@ -470,14 +470,14 @@ working panel; re-run `init-panel-db`.
 
 ### 10. Mail stack (independent of the panel UI)
 
-Hosted mail is **Postfix** (SMTP) + **Dovecot** (IMAP/POP3/LMTP) + **Rspamd**
-+ a dedicated MariaDB database. Switch Program SMTP is still `none` / `exim`
-only; `exim` starts Ubuntu `exim4` and does not replace this stack. P4 will
-wire the panel mail screens to `kloxo-mail`. qmail remains in the tree until
-those drivers exist.
+Hosted mail is **Exim** (SMTP) + **Dovecot** (IMAP/POP3/LMTP) + **Rspamd**
++ a dedicated MariaDB database. Switch Program SMTP is `none` / `exim`;
+`exim` enables Ubuntu `exim4` (and stops Postfix if it is still installed).
+P4 will wire the panel mail screens to `kloxo-mail`. qmail remains in the
+tree until those drivers exist.
 
 On a **disposable** machine only (`tests/mail/README.md`): live tests rewrite
-`/etc/postfix`, `/etc/dovecot`, `/etc/rspamd/local.d`.
+`/etc/exim4`, `/etc/dovecot`, `/etc/rspamd/local.d`.
 
 ```
 export KLOXO_MAIL_TEMPLATES=/opt/kloxo/file/mail

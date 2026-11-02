@@ -1,13 +1,15 @@
 # Kloxo CP: Mail Stack
 
-Status: first working implementation, tested on Ubuntu 24.04 package versions in a scratch container
-(see "What was tested" and "What is NOT done yet" at the end).
+Status: first working implementation was Postfix (tested on Ubuntu 24.04 in a scratch
+container). The MTA is now **Exim**; Dovecot + Rspamd + MariaDB are unchanged. Re-run
+`tests/mail/run-tests.sh` and `tests/mail/e2e.py` on a disposable Ubuntu host before
+treating the Exim path as live-verified.
 
 ## 1. Decision
 
 | Role | Choice | Version on Ubuntu 24.04 |
 |---|---|---|
-| SMTP (MTA) | **Postfix** | 3.8.6 |
+| SMTP (MTA) | **Exim** (`exim4-daemon-heavy`) | 4.97 |
 | IMAP / POP3 / LMTP / Sieve / SASL | **Dovecot** | 2.3.21 |
 | Spam, DKIM signing, SPF/DKIM/DMARC checks | **Rspamd** (+ Redis) | 3.8.1 |
 | Mailbox, alias and domain data | **MariaDB**, dedicated database | 10.11 |
@@ -15,12 +17,15 @@ Status: first working implementation, tested on Ubuntu 24.04 package versions in
 | Antivirus (optional "full" profile) | ClamAV through Rspamd | |
 | Webmail (not included yet) | Roundcube | |
 
+Switch Program SMTP is `none` / `exim`. `smtp__exim` enables the `exim4` unit and
+stops Postfix if it is still installed.
+
 ### Why this stack
 
-* **Postfix** has the best security track record and operational maturity of any MTA, is
-  heavily documented, and is what most large hosts and distributions standardise on.
+* **Exim** is the owner's MTA choice (cPanel-style flexibility, Ubuntu `exim4-daemon-heavy`
+  with MySQL, Dovecot SASL, LMTP and the Rspamd protocol).
 * **Dovecot** is the de-facto IMAP server: Maildir, quota, Sieve/ManageSieve, LMTP delivery,
-  SASL for Postfix, and `doveadm` for administration.
+  SASL for Exim, and `doveadm` for administration.
 * **Rspamd** replaces four older tools (SpamAssassin, OpenDKIM, OpenDMARC, policyd-spf) with one
   fast, actively developed engine. One component fewer to patch and keep in sync.
 * **Mailboxes in a dedicated MariaDB database** gives instant changes without reloads and a
@@ -31,7 +36,7 @@ Status: first working implementation, tested on Ubuntu 24.04 package versions in
 | Option | Verdict |
 |---|---|
 | qmail-toaster / vpopmail (current Kloxo) | Unmaintained, awkward to secure and extend. Replaced. |
-| Exim | Good and flexible (cPanel uses it) but configuration is harder to generate and validate safely; fewer ready-made pieces than the Postfix ecosystem. |
+| Postfix | Previous Kloxo CP default; replaced by owner decision. Templates removed. |
 | Stalwart (all-in-one, Rust) | Promising, but much younger; I would revisit it once it has a long production record. |
 | Docker suites (mailcow, Mailu) | Complete products, but they want to own the whole server and cannot be driven by a hosting panel. |
 
@@ -40,22 +45,22 @@ Status: first working implementation, tested on Ubuntu 24.04 package versions in
 ```
                        Internet
                           |
-      25 (postscreen)   587 / 465 (submission, TLS + SASL)   993 / 995 / 143 / 110 / 4190
+      25                587 / 465 (submission, TLS + SASL)   993 / 995 / 143 / 110 / 4190
             |                     |                                   |
         +---v---------------------v---+                      +--------v--------+
-        |           POSTFIX           |<----- SASL --------->|     DOVECOT     |
-        |  recipient checks (SQL),    |   (private socket)   |  auth (SQL),    |
+        |            EXIM             |<----- SASL --------->|     DOVECOT     |
+        |  recipient checks (SQL),    |   (auth-client)      |  auth (SQL),    |
         |  quota check, sender/login  |                      |  IMAP/POP3,     |
         |  match, rate limits         |------- LMTP -------->|  Sieve, quota   |
-        +---+-------------------+-----+   (private socket)   +--------+--------+
-            | milter                                                  |
+        +---+-------------------+-----+   (/run/dovecot/lmtp)+--------+--------+
+            | rspamd protocol 11333                                   |
         +---v------------+      +---------------+             +-------v--------+
         |    RSPAMD      |----->|     REDIS     |             |  /var/vmail/   |
         | spam, DKIM,    |      | (bayes, rate) |             |  domain/user/  |
         | DMARC, SPF     |      +---------------+             |  Maildir       |
         +----------------+                                    +----------------+
 
-   Postfix and Dovecot read the mail database (MariaDB, unix socket, SELECT-only account).
+   Exim and Dovecot read the mail database (MariaDB, unix socket, SELECT-only account).
    `kloxo-mail` (the panel's only writer) uses a separate read-write account.
 ```
 
@@ -86,37 +91,43 @@ Safety properties (all covered by tests):
 * passwords are never accepted on the command line (stdin or environment variable only);
 * commands run as argument arrays, never through a shell;
 * `apply` renders to a temporary directory, backs up the current files, installs, runs the
-  services' **own validators** (`postfix check`, `doveconf -n`, `rspamadm configtest`, `sievec`,
-  and a probe of every SQL map), and **restores the previous files if anything fails**;
-* your customisations live in `/etc/kloxo/mail.d/` (`postfix-main.cf`, `postfix-master.cf`,
-  `dovecot.conf`) and are appended to the generated files, so updates never overwrite them;
+  services' **own validators** (`exim -C /etc/exim4/exim4.conf -bV`, `doveconf -n`,
+  `rspamadm configtest`, `sievec`, and a mail-database probe), and **restores the previous
+  files if anything fails**;
+* your customisations live in `/etc/kloxo/mail.d/` (`exim4.conf` is inserted into the generated
+  main section; `dovecot.conf` is appended) so updates never overwrite them;
 * purge operations refuse to delete anything outside the mail store.
 
 ## 3. Security and robustness choices
 
-* **TLS everywhere:** TLS 1.2+, login only over TLS (Dovecot `ssl = required`, Postfix
-  `smtpd_tls_auth_only`); implicit TLS (465, 993, 995) and STARTTLS (587, 143, 110) offered.
+* **TLS everywhere:** TLS 1.2+, login only over TLS (Dovecot `ssl = required`, Exim
+  `auth_advertise_hosts` only when TLS is up on 587/465); implicit TLS (465, 993, 995) and
+  STARTTLS (587, 143, 110) offered. Port 25 never advertises AUTH.
 * **Passwords:** Argon2id in the database (Dovecot verifies the PHP-generated hash; tested).
 * **Submission only for authenticated users**, and **the sender must belong to the login**
-  (`reject_authenticated_sender_login_mismatch`): users cannot forge other users' addresses;
-  an alias owner may send as the alias.
-* **No backscatter:** unknown recipients are refused during the SMTP dialogue (SQL lookup);
-  full mailboxes are refused with a temporary 452 through Dovecot's `quota-status` check.
-* **Catch-all cannot swallow real mailboxes** (a classic bug): the alias lookup maps an existing
-  mailbox to itself first.
-* **Fail-safe filtering:** if Rspamd is down, Postfix defers mail (`milter_default_action =
-  tempfail`) instead of delivering it unfiltered; the sender retries.
-* **Mail database failure** causes temporary (4xx) errors, never bounces.
+  (MAIL ACL compares `$sender_address` to `$authenticated_id` via mailbox UNION alias-owner):
+  users cannot forge other users' addresses; an alias owner may send as the alias.
+* **No backscatter:** unknown recipients are refused during the SMTP dialogue (`verify = recipient`
+  plus the `kloxo_unknown` `:fail:` router); full mailboxes are refused with a temporary 452
+  through Dovecot's `quota-status` policy socket.
+* **Catch-all cannot swallow real mailboxes** (a classic bug): routers run exact alias, then
+  mailbox, then `@domain` catch-all.
+* **Fail-safe filtering:** if Rspamd is down, Exim defers mail (`spam = nobody:true` with no
+  `defer_ok`) instead of delivering it unfiltered; the sender retries.
+* **Mail database failure** causes temporary (4xx) errors, never bounces (Exim MySQL lookup
+  failure is a forced defer).
 * **Spam handling:** Rspamd marks spam; a global Sieve rule files it into `Junk`; thresholds are
   conservative (reject only at 15).
 * **Outbound DKIM:** signing is driven by maps generated from the database; only domains that
   have a key are signed; keys are created per domain, mode 0640, readable by Rspamd only.
 * **Dovecot auth cache:** 2 minutes, flushed by `kloxo-mail` on every password, quota or
   enable/disable change, so changes act at once.
-* **fail2ban jails** for Postfix and Dovecot are shipped.
-* **IPv6-less servers** are handled (Dovecot listens on `*` only when the kernel has no IPv6).
-* **postscreen** protects port 25 (greet check). DNSBLs are deliberately off by default because
-  they require a local recursive resolver (public resolvers get blocked and cause false positives).
+* **fail2ban jails** for Exim and Dovecot are shipped.
+* **IPv6-less servers** are handled (Dovecot listens on `*` and Exim `disable_ipv6` when the
+  kernel has no IPv6).
+* **Quota check runs before the local-network permit** so senders on 127.0.0.0/8 cannot bypass
+  a full mailbox. DNSBLs are deliberately off by default because they require a local recursive
+  resolver (public resolvers get blocked and cause false positives).
 
 ## 4. What the panel still has to do (outside the mail stack itself)
 
@@ -141,7 +152,7 @@ Safety properties (all covered by tests):
 The legacy mail layer is a set of swappable drivers (`Mmail__Qmail`, `Mailaccount__Qmail`,
 `Mailforward__Qmail`, `Servermail__Qmail`, `Imap4__dovecot`, `Spam__spamassassin`...). Plan:
 
-1. Add thin `*__postfix` drivers whose `dbactionAdd/Update/Delete` methods call `kloxo-mail`
+1. Add thin `*__exim` drivers whose `dbactionAdd/Update/Delete` methods call `kloxo-mail`
    through the privileged agent (no mail logic in the legacy PHP).
 2. Keep the existing UI screens (accounts, forwards, quotas, spam settings).
 3. Remove the qmail, courier, ezmlm, bogofilter and SpamAssassin drivers once the new ones work.
@@ -150,23 +161,23 @@ This step needs the legacy PHP running on PHP 8.3, so it follows the port.
 
 ## 7. What was tested
 
-Environment: a scratch container with the Ubuntu 24.04 packages listed above, no systemd, no IPv6,
-no internet, everything on localhost.
+Environment for the original Postfix implementation: a scratch container with Ubuntu 24.04
+packages, no systemd, no IPv6, no internet, everything on localhost.
 
-* **73 automated checks** (`tests/mail/run-tests.sh`): input validation and injection attempts,
-  database, all four Postfix SQL maps against the real database through Postfix's own `postmap`,
-  Postfix / Dovecot / Rspamd configuration syntax, Argon2id verification by Dovecot, DKIM and DNS
-  output, apply and rollback, purge safety.
-* **25 live end-to-end checks** (`tests/mail/e2e.py`) against running Postfix, Dovecot, Rspamd,
-  Redis and MariaDB: delivery over SMTP to a mailbox and through an alias, rejection of unknown
-  recipients, authenticated submission on 587 and 465, DKIM signing of outgoing mail, sender
-  spoofing blocked, wrong password / no TLS / no authentication refused, IMAPS and POP3S logins,
-  quota refusal during SMTP, and immediate effect of password change and mailbox disable.
-* A deliberately broken Dovecot template was rejected by `apply` and the live configuration was
-  restored byte-for-byte.
+* **`tests/mail/run-tests.sh`:** input validation and injection attempts, database, SQL lookups
+  matching the Exim routers/ACLs, Exim / Dovecot / Rspamd configuration syntax, Argon2id
+  verification by Dovecot, DKIM and DNS output, apply and rollback, purge safety.
+* **`tests/mail/e2e.py`:** 25 live checks against running Exim, Dovecot, Rspamd, Redis and
+  MariaDB (same SMTP ports 25/587/465): delivery, aliases, unknown-recipient 550, authenticated
+  submission, DKIM, sender spoofing blocked, wrong password / no TLS / no authentication refused,
+  IMAPS and POP3S, quota 452 at SMTP, immediate effect of password change and mailbox disable.
 
-Bugs found by these tests and fixed: Dovecot refusing to start without IPv6, quota check being
-bypassable from localhost, DKIM maps required by this Rspamd version, stale auth cache after
+The Postfix-era run of those suites passed. After the Exim swap they have **not** been re-run
+on Ubuntu in this change (no MariaDB/Exim on the development Mac). Do not treat Exim as
+live-verified until that re-run.
+
+Bugs found by the original tests and fixed: Dovecot refusing to start without IPv6, quota check
+being bypassable from localhost, DKIM maps required by this Rspamd version, stale auth cache after
 password/quota changes, and test cross-talk through shared DB accounts.
 
 ## 8. What is NOT done yet (be aware before relying on it)
@@ -174,12 +185,12 @@ password/quota changes, and test cross-talk through shared DB accounts.
 * Not tested on a real server with systemd, a real domain, real DNS, a real certificate or the
   public internet. **Deliverability (reputation, PTR, SPF/DKIM/DMARC alignment at Gmail/Outlook)
   must be tested on a real VM.**
-* Not tested: outbound delivery to external servers, greylisting, postscreen from external clients,
-  ClamAV, fail2ban rules in action, load and performance, backups and restores.
+* Not tested: outbound delivery to external servers, greylisting, ClamAV, fail2ban rules in action,
+  load and performance, backups and restores.
 * Not implemented: per-domain TLS certificates (SNI), Roundcube webmail, autoresponders (Sieve
   vacation via ManageSieve is available but not wired to the UI), mailing lists, mail traffic
-  statistics, queue management screens (`postqueue -j` / `postsuper`), qmail data import,
-  DNS auto-publishing, MTA-STS / TLS-RPT / DANE, AlmaLinux support.
-* The legacy panel drivers are not connected yet (section 6).
-* Secrets: DB passwords for Postfix/Dovecot live in root-owned files (0640 with the service group);
+  statistics, qmail data import, DNS auto-publishing, MTA-STS / TLS-RPT / DANE, AlmaLinux support.
+* The legacy panel drivers are not connected yet (section 6). Mail Queue can list/delete via
+  `exim -bp` / `exim -Mrm` (`mailqueue__exim`).
+* Secrets: DB passwords for Exim/Dovecot live in root-owned files (0640 with the service group);
   this is the normal pattern but should be reviewed with the privileged-agent design.

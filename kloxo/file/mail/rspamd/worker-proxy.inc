@@ -1,4 +1,6 @@
-# Kloxo CP (GENERATED). Postfix talks to this milter endpoint.
+# Kloxo CP (GENERATED). Exim uses the rspamd protocol on 11333 (worker-normal).
+# The milter proxy is left off; do not enable it unless an MTA talks milter.
+enabled = false;
 milter = yes;
 timeout = 120s;
 upstream "local" {

@@ -29,10 +29,11 @@ $cfg['Servers'][$i]['compress'] = false;
 $cfg['Servers'][$i]['AllowNoPassword'] = false;
 $cfg['Servers'][$i]['AllowRoot'] = true;
 $pmaSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-	|| ((string)($_SERVER['SERVER_PORT'] ?? '') === '7777');
+	|| ((string)($_SERVER['SERVER_PORT'] ?? '') === '7777')
+	|| strtolower((string)($_SERVER['REQUEST_SCHEME'] ?? '')) === 'https';
 $cfg['Servers'][$i]['SignonCookieParams'] = array(
 	'lifetime' => 0,
-	'path' => '/thirdparty/phpMyAdmin/',
+	'path' => '/',
 	'domain' => '',
 	'secure' => $pmaSecure,
 	'httponly' => true,

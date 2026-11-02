@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * kloxo-mail: provisioning and configuration tool for the Kloxo CP mail stack
- * (Postfix + Dovecot + Rspamd, mailboxes in a dedicated MariaDB database).
+ * (Exim + Dovecot + Rspamd, mailboxes in a dedicated MariaDB database).
  *
  * Standalone on purpose: no dependency on the legacy panel code, PHP 8.3, prepared
  * statements only, no shell strings (commands are run as argument arrays).
@@ -306,12 +306,7 @@ final class Renderer
 {
     /** template (relative to template dir) => [target path (relative to root), mode, group|null] */
     private const MAP = [
-        'postfix/main.cf'                 => ['etc/postfix/main.cf', 0644, null],
-        'postfix/master.cf'               => ['etc/postfix/master.cf', 0644, null],
-        'postfix/sql/virtual-domains.cf'  => ['etc/postfix/sql/virtual-domains.cf', 0640, 'postfix'],
-        'postfix/sql/virtual-mailboxes.cf' => ['etc/postfix/sql/virtual-mailboxes.cf', 0640, 'postfix'],
-        'postfix/sql/virtual-aliases.cf'  => ['etc/postfix/sql/virtual-aliases.cf', 0640, 'postfix'],
-        'postfix/sql/sender-login.cf'     => ['etc/postfix/sql/sender-login.cf', 0640, 'postfix'],
+        'exim/exim4.conf'                 => ['etc/exim4/exim4.conf', 0640, 'Debian-exim'],
         'dovecot/dovecot.conf'            => ['etc/dovecot/dovecot.conf', 0644, null],
         'dovecot/dovecot-sql.conf.ext'    => ['etc/dovecot/dovecot-sql.conf.ext', 0640, 'vmail'],
         'sieve/before.sieve'              => ['var/lib/dovecot/sieve/before.d/00-kloxo-spam.sieve', 0644, null],
@@ -326,10 +321,9 @@ final class Renderer
         'fail2ban/kloxo-mail.conf'        => ['etc/fail2ban/jail.d/kloxo-mail.conf', 0644, null],
     ];
 
-    /** custom snippets appended to generated files: target => custom file name */
+    /** custom snippets merged into generated files: target => custom file name */
     private const CUSTOM = [
-        'etc/postfix/main.cf'   => 'postfix-main.cf',
-        'etc/postfix/master.cf' => 'postfix-master.cf',
+        'etc/exim4/exim4.conf'     => 'exim4.conf',
         'etc/dovecot/dovecot.conf' => 'dovecot.conf',
     ];
 
@@ -364,6 +358,10 @@ final class Renderer
             'TLS_CERT' => (string)$this->c->get('tls_cert'),
             'TLS_KEY' => (string)$this->c->get('tls_key'),
             'RSPAMD_CTRL_HASH' => (string)$this->c->get('rspamd_ctrl_hash'),
+            'EXIM_USER' => 'Debian-exim',
+            'EXIM_GROUP' => 'Debian-exim',
+            'EXIM_DISABLE_IPV6' => is_file('/proc/net/if_inet6') ? 'false' : 'true',
+            'EXIM_LOCAL_INTERFACES' => is_file('/proc/net/if_inet6') ? '<; 0.0.0.0 ; ::0' : '0.0.0.0',
             // servers without IPv6 in the kernel cannot bind '::' and Dovecot would refuse to start
             'DOVECOT_LISTEN' => is_file('/proc/net/if_inet6') ? '*, ::' : '*',
         ];
@@ -380,17 +378,26 @@ final class Renderer
             if ($text === false) {
                 throw new KmException("Template missing: $src");
             }
+            $customText = '';
+            if (isset(self::CUSTOM[$target])) {
+                $custom = rtrim((string)$this->c->get('custom_dir'), '/') . '/' . self::CUSTOM[$target];
+                if (is_file($custom)) {
+                    $customText = "\n# --- custom settings from $custom ---\n" . file_get_contents($custom);
+                }
+            }
             $text = preg_replace_callback('/@@([A-Z_]+)@@/', function (array $m) use ($vars, $tpl): string {
+                if ($m[1] === 'CUSTOM_SNIPPET') {
+                    return $m[0];
+                }
                 if (!array_key_exists($m[1], $vars)) {
                     throw new KmException("Unknown placeholder @@{$m[1]}@@ in $tpl");
                 }
                 return $vars[$m[1]];
             }, $text);
-            if (isset(self::CUSTOM[$target])) {
-                $custom = rtrim((string)$this->c->get('custom_dir'), '/') . '/' . self::CUSTOM[$target];
-                if (is_file($custom)) {
-                    $text .= "\n# --- custom settings from $custom ---\n" . file_get_contents($custom);
-                }
+            $hadSnippet = str_contains($text, '@@CUSTOM_SNIPPET@@');
+            $text = str_replace('@@CUSTOM_SNIPPET@@', $customText, $text);
+            if (!$hadSnippet && $customText !== '') {
+                $text .= $customText;
             }
             $dst = rtrim($out, '/') . '/' . $target;
             if (!is_dir(dirname($dst)) && !mkdir(dirname($dst), 0750, true) && !is_dir(dirname($dst))) {
@@ -1012,14 +1019,14 @@ TXT;
 
         $msg = count($done) . ' files installed' . ($live ? '' : " below $root");
         if ($live && !isset($this->opt['no-reload'])) {
-            foreach (['postfix', 'dovecot', 'rspamd'] as $svc) {
+            foreach (['exim4', 'dovecot', 'rspamd'] as $svc) {
                 [$rc, , $err] = Proc::run(['systemctl', 'reload-or-restart', $svc]);
                 if ($rc !== 0) {
                     // roll back files and try to bring the old configuration up again
                     foreach ($done as $target) {
                         is_file("$backup/$target") ? copy("$backup/$target", "/$target") : @unlink("/$target");
                     }
-                    foreach (['postfix', 'dovecot', 'rspamd'] as $s) {
+                    foreach (['exim4', 'dovecot', 'rspamd'] as $s) {
                         Proc::run(['systemctl', 'reload-or-restart', $s]);
                     }
                     throw new KmException("reload of $svc failed ($err); previous configuration restored");
@@ -1037,7 +1044,12 @@ TXT;
         if ($rc !== 0 && Proc::exists('sievec')) {
             throw new KmException("sieve script invalid: $err");
         }
-        foreach ([['postfix', 'check'], ['doveconf', '-n'], ['rspamadm', 'configtest']] as $cmd) {
+        $exim = $this->eximBin();
+        foreach (array_filter([
+            $exim !== null ? [$exim, '-C', '/etc/exim4/exim4.conf', '-bV'] : null,
+            ['doveconf', '-n'],
+            ['rspamadm', 'configtest'],
+        ]) as $cmd) {
             if (!Proc::exists($cmd[0])) {
                 continue;
             }
@@ -1046,14 +1058,21 @@ TXT;
                 throw new KmException(implode(' ', $cmd) . ' failed: ' . substr(trim($err !== '' ? $err : $out), 0, 800));
             }
         }
-        foreach (['virtual-domains', 'virtual-mailboxes', 'virtual-aliases', 'sender-login'] as $m) {
-            [$rc, , $err] = Proc::run(['postmap', '-q', 'probe.invalid', "mysql:/etc/postfix/sql/$m.cf"]);
-            // hosts without IPv6 print a harmless "inet_protocols: disabling IPv6" warning
-            $err = implode("\n", array_filter(explode("\n", $err), fn(string $l): bool => !str_contains($l, 'inet_protocols: disabling IPv6')));
-            if ($rc > 1 || preg_match('/warning|error|fatal/i', $err)) {
-                throw new KmException("SQL map $m failed: " . trim($err));
+        try {
+            $this->db()->one('SELECT 1 AS n FROM domains LIMIT 1');
+        } catch (Throwable $e) {
+            throw new KmException('mail database probe failed: ' . $e->getMessage());
+        }
+    }
+
+    private function eximBin(): ?string
+    {
+        foreach (['exim4', 'exim'] as $bin) {
+            if (Proc::exists($bin)) {
+                return $bin;
             }
         }
+        return null;
     }
 
     private function check(): int
@@ -1070,7 +1089,7 @@ TXT;
             }
         }
         $rep['domains_missing_dkim_key'] = $missing;
-        foreach (['postfix', 'doveadm', 'rspamadm'] as $t) {
+        foreach (['exim4', 'exim', 'doveadm', 'rspamadm'] as $t) {
             $rep['tools'][$t] = Proc::exists($t);
         }
         $txt = "schema v{$rep['schema_version']}, {$rep['domains']} domains, {$rep['mailboxes']} mailboxes\n"

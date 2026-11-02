@@ -37,7 +37,7 @@ const KCP_COMPONENTS = [
     'mariadb' => 'Panel and mail databases',
     'bind9' => 'DNS (BIND)',
     'hiawatha' => 'Panel UI web server',
-    'postfix' => 'Mail MTA (via kloxo-mail)',
+    'exim4' => 'Mail MTA (via kloxo-mail)',
     'dovecot' => 'Mail IMAP/POP3 (via kloxo-mail)',
     'rspamd' => 'Mail filtering (via kloxo-mail)',
 ];

@@ -40,7 +40,7 @@ fixes were made in `install/installer.php`, `install/step2.inc` and `lib/sgbl.ph
 ## Added after the rebrand (new code, not from upstream)
 
 * `kloxo/bin/mail/kloxo-mail`: mail provisioning tool (PHP 8.3).
-* `kloxo/file/mail/`: Postfix, Dovecot, Rspamd templates, Sieve rule, fail2ban jails, mail DB schema.
+* `kloxo/file/mail/`: Exim, Dovecot, Rspamd templates, Sieve rule, fail2ban jails, mail DB schema.
 * `tests/mail/`: 73 static checks and 25 live end-to-end checks.
 * `docs/INSTALL_AND_UPDATE_DESIGN.md`, `docs/MAIL_DESIGN.md`, `docs/AUDIT_REPORT.md`.
 * `kloxo/bin/install/generate-tls-keys`: unique TLS keys per install (PHP 8.3); `tests/tls/`.

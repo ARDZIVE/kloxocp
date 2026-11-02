@@ -55,3 +55,11 @@
 16:50 Nov/02/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
 16:51 Nov/02/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
 16:51 Nov/02/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
+17:11 Nov/02/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
+17:11 Nov/02/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
+17:24 Nov/02/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
+17:24 Nov/02/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
+17:29 Nov/02/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
+17:29 Nov/02/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
+17:29 Nov/02/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
+17:29 Nov/02/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()

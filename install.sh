@@ -43,7 +43,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
   sudo bash install.sh --slave --slave-password=SECRET
 
   --profile=core   php, nginx (default), mariadb, bind9; apache2/pdns packaged, disabled
-  --profile=full   core plus postfix, dovecot, rspamd, redis
+  --profile=full   core plus exim4-daemon-heavy, dovecot, rspamd, redis
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
                    password the master uses when adding this host
@@ -301,11 +301,14 @@ apt-get install -y ca-certificates git curl openssl rsync \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
-  echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
-  apt-get install -y postfix postfix-mysql postfix-lmdb \
+  echo "exim4-config exim4/dc_eximconfigconfigtype select none" | debconf-set-selections
+  echo "exim4-config exim4/dc_use_split_config boolean false" | debconf-set-selections
+  systemctl disable --now postfix >/dev/null 2>&1 || true
+  apt-get install -y exim4-daemon-heavy \
     dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
     dovecot-mysql dovecot-sieve dovecot-managesieved \
     rspamd redis-server
+  systemctl disable --now postfix >/dev/null 2>&1 || true
 fi
 
 log "Hiawatha is not an Ubuntu package; will build pinned 12.4 from source"

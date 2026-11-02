@@ -64,6 +64,64 @@ if (is_callable(array('Service__Debian', 'getServiceDetails'))) {
 	bad('Service__Debian::getServiceDetails accepts an empty list', 'method missing');
 }
 
+$svcParsed = Service::parseServiceNname('pdns___localhost');
+$svcObj = null;
+$svcObjErr = '';
+try {
+	$svcParent = new stdClass();
+	$svcParent->__masterserver = null;
+	$svcObj = Service::initThisObject($svcParent, 'service', 'pdns___localhost');
+} catch (Throwable $e) {
+	$svcObjErr = $e->getMessage();
+}
+$svcListParent = new pserver(null, 'localhost', 'localhost');
+$svcListParent->nname = 'localhost';
+$svcList = null;
+$svcListErr = '';
+try {
+	$svcList = Service::initThisList($svcListParent, 'service');
+} catch (Throwable $e) {
+	$svcListErr = $e->getMessage();
+}
+$svcClient = new stdClass();
+$svcClient->__masterserver = null;
+$svcClientList = null;
+try {
+	$svcClientList = Service::initThisList($svcClient, 'service');
+} catch (Throwable $e) {
+	$svcClientList = $e->getMessage();
+}
+$svcNames = array();
+if (is_array($svcList)) {
+	foreach ($svcList as $row) {
+		if (is_array($row) && isset($row['nname'])) {
+			$svcNames[$row['nname']] = true;
+		}
+	}
+}
+$debSrc = (string) file_get_contents($doc . '/driver/pserver/service__debianlib.php');
+$svcDummy = new Service(null, 'localhost', 'pdns___localhost');
+$svcDummy->servicename = 'pdns';
+$svcDummy->state = 'off';
+$svcDummy->dbaction = 'clean';
+$svcDummy->updateStart(array());
+if (Service::canGetSingle()
+	&& $svcParsed === array('pdns', 'localhost')
+	&& is_object($svcObj) && ($svcObj->nname ?? '') === 'pdns___localhost'
+	&& ($svcObj->servicename ?? '') === 'pdns'
+	&& is_array($svcList) && isset($svcNames['pdns___localhost'])
+	&& is_array($svcClientList)
+	&& in_array('pdns', Service::defaultServiceList(), true)
+	&& Service__Linux::unitName('pdns-server') === 'pdns'
+	&& $svcDummy->subaction === 'start'
+	&& str_contains($debSrc, "lxshell_return('systemctl', \$act, \$unit)")
+	&& str_contains($debSrc, "case 'start':")) {
+	ok('Services start/stop load pdns___localhost and use systemctl');
+} else {
+	bad('Services start/stop load pdns___localhost and use systemctl',
+		$svcObjErr !== '' ? $svcObjErr : (is_string($svcListErr) ? $svcListErr : ''));
+}
+
 if (class_exists('Component__deb')) {
 	ok('Component__deb class loads');
 } else {
@@ -82,7 +140,7 @@ if (class_exists('KloxoComponent')) {
 		}
 	}
 	if (isset($names['nginx'], $names['apache2'], $names['bind9'], $names['pdns-server'],
-		$names['mariadb-server'], $names['postfix'], $names['dovecot-core'], $names['rspamd'],
+		$names['mariadb-server'], $names['exim4'], $names['dovecot-core'], $names['rspamd'],
 		$names['hiawatha'], $names['php8.3-cli'], $names['php5.6-cli'], $names['php7.4-fpm'])) {
 		ok('Component catalog lists the Ubuntu stack');
 	} else {
@@ -115,13 +173,13 @@ if (class_exists('KloxoComponent')) {
 	foreach ($rows as $r) {
 		$by[$r['componentname']] = $r;
 	}
-	if (isset($by['nginx'], $by['bind9'], $by['hiawatha'], $by['postfix'])
+	if (isset($by['nginx'], $by['bind9'], $by['hiawatha'], $by['exim4'])
 		&& $by['nginx']['status'] === 'on'
 		&& $by['bind9']['status'] === 'on'
 		&& $by['hiawatha']['status'] === 'on'
 		&& $by['hiawatha']['version'] === 'hiawatha-12.4'
-		&& $by['postfix']['status'] === 'off'
-		&& str_contains($by['postfix']['version'], 'is not installed')
+		&& $by['exim4']['status'] === 'off'
+		&& str_contains($by['exim4']['version'], 'is not installed')
 		&& $by['nginx']['type'] === 'web'
 		&& count($rows) === count($cat)) {
 		ok('Component rows use green/red status like Kloxo-MR');
@@ -143,17 +201,18 @@ if (class_exists('KloxoComponent')) {
 	bad('Component__deb::getListVersion returns the full catalog');
 }
 
-if (class_exists('mailqueue__postfix')) {
-	$parsed = mailqueue__postfix::parseTextQueue(
-		"ABC123  100 Tue Nov  1 12:00:00  sender@example.com\n                                         dest@example.com\n"
+if (class_exists('mailqueue__exim')) {
+	$parsed = mailqueue__exim::parseTextQueue(
+		"  4h  1.2K 1abcDEF-0001Ab-2s <sender@example.com>\n          dest@example.com\n"
 	);
-	if (is_array($parsed) && isset($parsed[0]['nname']) && $parsed[0]['nname'] === 'ABC123') {
-		ok('mailqueue__postfix parses postqueue -p text');
+	if (is_array($parsed) && isset($parsed[0]['nname']) && $parsed[0]['nname'] === '1abcDEF-0001Ab-2s'
+		&& $parsed[0]['from'] === 'sender@example.com' && $parsed[0]['to'] === 'dest@example.com') {
+		ok('mailqueue__exim parses exim -bp text');
 	} else {
-		bad('mailqueue__postfix parses postqueue -p text');
+		bad('mailqueue__exim parses exim -bp text');
 	}
 } else {
-	bad('mailqueue__postfix parses postqueue -p text', 'class missing');
+	bad('mailqueue__exim parses exim -bp text', 'class missing');
 }
 
 $pssrc = (string)file_get_contents($doc . '/driver/pserver/pserverlib.php');
@@ -545,7 +604,8 @@ if (str_contains($tplsrc, "\$vlist['nname']")
 	bad('DNS template addform does not call fixIpAddress.php');
 }
 if (str_contains($basesrc, 'function assertNsName')
-	&& str_contains($basesrc, 'self::assertNsName($secnamserver)')
+	&& str_contains($basesrc, 'function qualifyTemplateNs')
+	&& str_contains($basesrc, 'self::qualifyTemplateNs($secnamserver')
 	&& str_contains($basesrc, "static \$__desc_dns_record_a")) {
 	ok('DNS template create validates the secondary NS and stores dns_record_a');
 } else {
@@ -580,6 +640,30 @@ try {
 		bad('DNS template add sanitizes the name and appends .dnst once', (string)($added['nname'] ?? ''));
 	}
 
+	$spaced = Dnstemplate::add($admin, 'dnstemplate', array('nname' => 'My Template'));
+	if (is_array($spaced) && ($spaced['nname'] ?? '') === 'my-template.dnst') {
+		ok('DNS template add turns spaces into a plan-safe id');
+	} else {
+		bad('DNS template add turns spaces into a plan-safe id', (string)($spaced['nname'] ?? ''));
+	}
+
+	$nnameVal = $vars['nname'] ?? null;
+	$nsVal = $vars['nameserver_f'] ?? null;
+	$secVal = $vars['secnameserver_f'] ?? null;
+	if (is_array($nnameVal) && ($nnameVal[1]['value'] ?? '') === 'default'
+		&& is_array($nsVal) && ($nsVal[1]['value'] ?? '') === 'ns1'
+		&& is_array($secVal) && ($secVal[1]['value'] ?? '') === 'ns2') {
+		ok('DNS template addform prefills default, ns1 and ns2');
+	} else {
+		bad('DNS template addform prefills default, ns1 and ns2');
+	}
+	$webip = $vars['webipaddress'] ?? null;
+	if ($webip === null || (is_array($webip) && ($webip[0] ?? '') === 's' && is_array($webip[1] ?? null) && $webip[1] !== array())) {
+		ok('DNS template addform uses a select of IPs or a typed IP field');
+	} else {
+		bad('DNS template addform uses a select of IPs or a typed IP field');
+	}
+
 	$tpl = new Dnstemplate(null, null, 'default.dnst');
 	$tpl->nname = 'default.dnst';
 	$tpl->createDefaultTemplate('203.0.113.10', '203.0.113.11', 'ns1.example.com.', 'ns2.example.com.');
@@ -599,16 +683,56 @@ try {
 		bad('DNS template createDefaultTemplate builds NS, A and MX records', implode(',', array_keys($recs)));
 	}
 
+	$blank = new Dnstemplate(null, null, 'default.dnst');
+	$blank->nname = 'default.dnst';
+	$blank->createDefaultTemplate('203.0.113.10', '203.0.113.10', '', '');
+	if (($blank->soanameserver ?? '') === 'ns1.default.dnst'
+		&& isset($blank->dns_record_a['ns_ns1.default.dnst'])) {
+		ok('DNS template create fills a blank nameserver as ns1.<template>');
+	} else {
+		bad('DNS template create fills a blank nameserver as ns1.<template>', (string)($blank->soanameserver ?? ''));
+	}
+
+	$short = new Dnstemplate(null, null, 'default.dnst');
+	$short->nname = 'default.dnst';
+	$short->webipaddress = '203.0.113.9';
+	$short->mmailipaddress = '203.0.113.9';
+	$short->nameserver_f = 'ns1';
+	$short->secnameserver_f = 'ns2';
+	$short->postAdd();
+	if (($short->soanameserver ?? '') === 'ns1.default.dnst'
+		&& isset($short->dns_record_a['ns_ns1.default.dnst'], $short->dns_record_a['ns_ns2.default.dnst'], $short->dns_record_a['a___base__'])) {
+		ok('DNS template postAdd qualifies ns1/ns2 to the template name');
+	} else {
+		bad('DNS template postAdd qualifies ns1/ns2 to the template name', (string)($short->soanameserver ?? ''));
+	}
+
 	$emptyErr = '';
 	try {
-		$tpl->createDefaultTemplate('203.0.113.10', '203.0.113.10', '', '');
+		$tpl->createDefaultTemplate('203.0.113.10', '203.0.113.10', 'not a dns name', '');
 	} catch (Throwable $e) {
 		$emptyErr = $e->getMessage();
 	}
 	if ($emptyErr !== '' && !str_contains(strtolower($emptyErr), 'typeerror')) {
-		ok('DNS template create rejects a blank nameserver without TypeError');
+		ok('DNS template create rejects an invalid nameserver without TypeError');
 	} else {
-		bad('DNS template create rejects a blank nameserver without TypeError', $emptyErr);
+		bad('DNS template create rejects an invalid nameserver without TypeError', $emptyErr);
+	}
+
+	$show = new Dnstemplate(null, null, 'default.dnst');
+	$show->nname = 'default.dnst';
+	$show->parent_clname = '';
+	$okRight = false;
+	$rightErr = '';
+	try {
+		$okRight = ($show->isRightParent() === true);
+	} catch (Throwable $e) {
+		$rightErr = $e->getMessage();
+	}
+	if ($okRight) {
+		ok('DNS template show still offers add-record tabs without a loaded parent');
+	} else {
+		bad('DNS template show still offers add-record tabs without a loaded parent', $rightErr);
 	}
 	$login = $prevDnsLogin;
 } catch (Throwable $e) {

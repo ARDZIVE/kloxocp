@@ -35,7 +35,6 @@ final class KloxoComponent
             ['name' => 'nginx', 'type' => 'web', 'kind' => 'deb'],
             ['name' => 'apache2', 'type' => 'web', 'kind' => 'deb'],
             ['name' => 'hiawatha', 'type' => 'web', 'kind' => 'hiawatha'],
-            ['name' => 'postfix', 'type' => 'smtp', 'kind' => 'deb'],
             ['name' => 'exim4', 'type' => 'smtp', 'kind' => 'deb'],
             ['name' => 'dovecot-core', 'type' => 'pop', 'kind' => 'deb'],
             ['name' => 'dovecot-imapd', 'type' => 'pop', 'kind' => 'deb'],

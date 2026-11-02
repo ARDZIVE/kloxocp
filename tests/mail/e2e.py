@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end test against RUNNING Postfix + Dovecot + Rspamd + MariaDB.
+"""End-to-end test against RUNNING Exim + Dovecot + Rspamd + MariaDB.
 
 Expects (see tests/mail/README.md): domain example.com, mailboxes alice@ and bob@ with the
 password below, alias info@ -> alice@, DKIM key for example.com, services running on localhost.

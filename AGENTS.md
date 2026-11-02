@@ -6,7 +6,7 @@
 Kloxo CP: a hosting control panel forked from Kloxo-MR (AGPLv3), being modernised for Ubuntu 24.04
 and Ubuntu 26.x,
 Nginx + PHP-FPM default for sites (Apache selectable), Hiawatha for the panel itself, no billing for now, existing UI kept,
-mail via Postfix + Dovecot + Rspamd + MariaDB (done and tested), easy install/update with automatic
+mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on Ubuntu), easy install/update with automatic
 rollback (designed, not built).
 
 ## Status
@@ -30,11 +30,11 @@ Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
 disabled until selected. Admin SQL Manager opens the MySQL logon
 (`/thirdparty/phpMyAdmin/kloxo-signon.php`, `target="_blank"`) first;
 Go then redirects into phpMyAdmin as MariaDB `root`@`127.0.0.1` (panel
-admin may leave the password blank). Not mywebsql, not a second Domain tile. Component Info
+admin may leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
-postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
-on/off from dpkg. SMTP `none` / `exim`
-(qmail-toaster is no longer the selectable MTA). PHP Module Status
+exim4, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
+on/off from dpkg. SMTP `none` / `exim` (hosted mail is Exim via `kloxo-mail`;
+qmail-toaster is no longer the selectable MTA). PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `count(null)` after login. Install seeds a `localhost` driver row and
 `generalmisc_b` so the home page does not fatal on a missing driver or
@@ -81,9 +81,10 @@ Directory Index list does not `count()` a missing `dirindexlist_a`.
 Cron Tasks Mail To does not need the C daemon on TCP 7776.
 DNS Template links list `dnstemplate`, not Backup/Restore.
 The DNS Templates list has the add form on that tab; there is no separate
-Add this template tab. Adding a DNS template does not throw `no_ip_address` on an empty IP table
-(live `ip -4 addr` is used), does not run `fixIpAddress.php`, does not
-TypeError on a blank nameserver, and writes default NS/A/MX records into
+Add this template tab. The add form prefills name `default`, primary `ns1`,
+secondary `ns2`. Adding a DNS template does not throw `no_ip_address` on an empty IP table
+(live `ip -4 addr` is used; IPs are typed when that list is empty), does not run `fixIpAddress.php`,
+qualifies a blank or short nameserver to `ns1.<template>.dnst`, and writes default NS/A/MX records into
 `dns_record_a`. Secondary NS is validated separately from primary.
 FTP Configure is `serverftp` under localhost, not Backup FTP Configuration.
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
@@ -106,7 +107,7 @@ admin/admin against the live panel succeeded; every page still died
 in the Server menu at the SSH Client title until `kloxo_menu_title`
 and `install.sh` git-pull/rsync. Re-run install after pulling this
 tree, then re-check Home.
-Next: remaining P2 runtime, Debian packaging, or P4 postfix UI. See briefing
+Next: remaining P2 runtime, Debian packaging, or P4 exim UI. See briefing
 section 7.
 
 ## Commands
@@ -125,8 +126,8 @@ php kloxo/bin/install/init-slave --help
 php kloxo/bin/install/install-pdns --help
 php kloxo/bin/install/install-apache --help
 bash kloxo/bin/install/install-hiawatha --help
-bash tests/mail/run-tests.sh          # 73 mail checks (needs MariaDB root socket; disposable machine only)
-python3 tests/mail/e2e.py             # 25 live mail checks (needs running Postfix/Dovecot/Rspamd; see tests/mail/README.md)
+bash tests/mail/run-tests.sh          # mail checks (needs MariaDB root socket; disposable machine only)
+python3 tests/mail/e2e.py             # 25 live mail checks (needs running Exim/Dovecot/Rspamd; see tests/mail/README.md)
 php kloxo/bin/mail/kloxo-mail help
 php kloxo/bin/kloxocp help            # status, doctor, snapshot, rollback; update exits 2
 ```

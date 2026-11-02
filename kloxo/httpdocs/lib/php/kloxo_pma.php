@@ -137,11 +137,22 @@ function kloxo_pma_panel_is_admin(?string $root = null): bool
 	}
 	$ip = (string)($row['ip_address'] ?? '');
 	$remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
-	if ($ip !== '' && $remote !== '' && !kloxo_pma_same_ip($ip, $remote)) {
+	if ($ip !== '' && $remote !== '' && !kloxo_pma_same_ip($ip, $remote)
+		&& !kloxo_pma_is_loopback($remote) && !kloxo_pma_is_loopback($ip)) {
 		return false;
 	}
 
 	return true;
+}
+
+function kloxo_pma_is_loopback(string $ip): bool
+{
+	$ip = strtolower(trim($ip));
+	if ($ip === '127.0.0.1' || $ip === '::1' || $ip === '0:0:0:0:0:0:0:1') {
+		return true;
+	}
+
+	return str_starts_with($ip, '127.') || str_starts_with($ip, '::ffff:127.');
 }
 
 function kloxo_pma_same_ip(string $a, string $b): bool
@@ -188,17 +199,79 @@ function kloxo_pma_signon_credentials(?string $root = null): array
 /** @return array{lifetime:int,path:string,domain:string,secure:bool,httponly:bool,samesite:string} */
 function kloxo_pma_signon_cookie_params(): array
 {
-	$secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-		|| ((string)($_SERVER['SERVER_PORT'] ?? '') === '7777');
-
 	return array(
 		'lifetime' => 0,
-		'path' => '/thirdparty/phpMyAdmin/',
+		'path' => '/',
 		'domain' => '',
-		'secure' => $secure,
+		'secure' => kloxo_pma_request_is_https(),
 		'httponly' => true,
 		'samesite' => 'Lax',
 	);
+}
+
+function kloxo_pma_request_is_https(): bool
+{
+	if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+		return true;
+	}
+	if ((string)($_SERVER['SERVER_PORT'] ?? '') === '7777') {
+		return true;
+	}
+
+	return strtolower((string)($_SERVER['REQUEST_SCHEME'] ?? '')) === 'https';
+}
+
+function kloxo_pma_csrf_secret(?string $root = null): string
+{
+	$pma = '';
+	$file = kloxo_pma_pass_file($root);
+	if (is_readable($file)) {
+		$pma = (string)file_get_contents($file);
+	}
+	$panel = '';
+	$kloxo = kloxo_pma_kloxo_pass_file($root);
+	if (is_readable($kloxo)) {
+		$panel = (string)file_get_contents($kloxo);
+	}
+
+	return hash('sha256', 'kloxo-pma-csrf-v1|' . kloxo_pma_root($root) . '|' . $pma . '|' . $panel, true);
+}
+
+function kloxo_pma_csrf_issue(?string $root = null): string
+{
+	$ts = (string)time();
+
+	return $ts . '.' . hash_hmac('sha256', $ts, kloxo_pma_csrf_secret($root));
+}
+
+function kloxo_pma_csrf_ok(string $token, ?string $root = null): bool
+{
+	if (preg_match('/^([0-9]{10})\.([a-f0-9]{64})$/', $token, $m) !== 1) {
+		return false;
+	}
+	$ts = (int)$m[1];
+	if (abs(time() - $ts) > 7200) {
+		return false;
+	}
+	$expect = hash_hmac('sha256', (string)$ts, kloxo_pma_csrf_secret($root));
+
+	return hash_equals($expect, $m[2]);
+}
+
+function kloxo_pma_emit_signon_cookie(string $id): void
+{
+	if ($id === '' || headers_sent()) {
+		return;
+	}
+	$p = kloxo_pma_signon_cookie_params();
+	setcookie('KloxoPmaSignon', $id, array(
+		'expires' => 0,
+		'path' => $p['path'],
+		'domain' => $p['domain'],
+		'secure' => $p['secure'],
+		'httponly' => $p['httponly'],
+		'samesite' => $p['samesite'],
+	));
 }
 
 function kloxo_pma_panel_pdo(?string $root = null): ?PDO
@@ -237,8 +310,12 @@ function kloxo_pma_panel_pdo(?string $root = null): ?PDO
 
 function kloxo_pma_signon_start(): void
 {
+	@ini_set('zlib.output_compression', '0');
 	if (session_status() === PHP_SESSION_ACTIVE) {
-		return;
+		if (session_name() === 'KloxoPmaSignon') {
+			return;
+		}
+		session_write_close();
 	}
 	session_name('KloxoPmaSignon');
 	session_set_cookie_params(kloxo_pma_signon_cookie_params());
@@ -266,6 +343,7 @@ function kloxo_pma_signon_page(?string $root = null): void
 		header('Content-Type: text/html; charset=UTF-8');
 		header('X-Frame-Options: SAMEORIGIN');
 		header('Referrer-Policy: same-origin');
+		header('Cache-Control: no-store, no-cache, must-revalidate');
 	}
 	echo kloxo_pma_signon_form_html($root, $error, $user);
 	exit;
@@ -285,10 +363,8 @@ function kloxo_pma_signon_posted_user(): string
 /** @return string empty on success (redirect sent); otherwise an error for the form */
 function kloxo_pma_signon_submit(?string $root = null): string
 {
-	kloxo_pma_signon_start();
-	$token = (string)($_SESSION['kloxo_pma_csrf'] ?? '');
 	$posted = (string)($_POST['kloxo_pma_csrf'] ?? '');
-	if ($token === '' || $posted === '' || !hash_equals($token, $posted)) {
+	if (!kloxo_pma_csrf_ok($posted, $root)) {
 		return 'Please try again.';
 	}
 	$user = kloxo_pma_signon_posted_user();
@@ -304,32 +380,30 @@ function kloxo_pma_signon_submit(?string $root = null): string
 	if ($pass === '') {
 		return 'Enter the MySQL password.';
 	}
+	kloxo_pma_signon_start();
 	$_SESSION['PMA_single_signon_user'] = $user;
 	$_SESSION['PMA_single_signon_password'] = $pass;
 	$_SESSION['PMA_single_signon_host'] = '127.0.0.1';
-	unset($_SESSION['kloxo_pma_csrf']);
+	$_SESSION['PMA_single_signon_port'] = '3306';
+	$sid = session_id();
 	session_write_close();
-	header('Location: ' . kloxo_pma_index_url(), true, 302);
+	kloxo_pma_emit_signon_cookie((string)$sid);
+	if (!headers_sent()) {
+		header('Cache-Control: no-store');
+		header('Location: ' . kloxo_pma_index_url(), true, 302);
+	}
 	exit;
 }
 
 function kloxo_pma_signon_form_html(?string $root = null, string $error = '', string $user = 'root'): string
 {
-	if (PHP_SAPI !== 'cli') {
-		kloxo_pma_signon_start();
-	}
-	if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['kloxo_pma_csrf'])) {
-		$_SESSION['kloxo_pma_csrf'] = bin2hex(random_bytes(16));
-	}
-	$token = (session_status() === PHP_SESSION_ACTIVE)
-		? (string)($_SESSION['kloxo_pma_csrf'] ?? '') : '';
 	$esc = static function (string $s): string {
 		return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 	};
 	$err = $error !== '' ? '<p class="err">' . $esc($error) . '</p>' : '';
 	$u = $esc($user !== '' ? $user : 'root');
-	$t = $esc($token);
-	$action = $esc(kloxo_pma_url());
+	$t = $esc(kloxo_pma_csrf_issue($root));
+	$action = '';
 
 	return <<<HTML
 <!DOCTYPE html>

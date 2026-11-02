@@ -27,6 +27,16 @@ $html = kloxo_pma_signon_form_html('/tmp/kloxo-pma-missing');
 $check(str_contains($html, 'MySQL logon') && str_contains($html, 'name="pma_user"')
 	&& str_contains($html, 'name="pma_pass"') && str_contains($html, 'Go'),
 	'MySQL logon form has user, password and Go');
+$check((bool)preg_match('/name="kloxo_pma_csrf" value="[0-9]{10}\.[a-f0-9]{64}"/', $html),
+	'MySQL logon CSRF token does not need a PHP session');
+$tok = kloxo_pma_csrf_issue('/tmp/kloxo-pma-missing');
+$check(kloxo_pma_csrf_ok($tok, '/tmp/kloxo-pma-missing'), 'issued CSRF token verifies');
+$check(!kloxo_pma_csrf_ok('nope', '/tmp/kloxo-pma-missing'), 'junk CSRF token is rejected');
+$check(!kloxo_pma_csrf_ok('1000000000.' . str_repeat('a', 64), '/tmp/kloxo-pma-missing'),
+	'tampered CSRF token is rejected');
+$check(kloxo_pma_is_loopback('127.0.0.1') && kloxo_pma_is_loopback('::1')
+	&& kloxo_pma_is_loopback('::ffff:127.0.0.1') && !kloxo_pma_is_loopback('8.8.8.8'),
+	'loopback FastCGI REMOTE_ADDR is recognized');
 $check(str_contains(kloxo_pma_link_attrs(), 'target="_blank"')
 	&& str_contains(kloxo_pma_link_attrs(), 'noopener'), 'SQL Manager link opens a new tab');
 $check(kloxo_pma_href(true, 'localhost') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'localhost SQL Manager href is MySQL logon');
@@ -44,8 +54,8 @@ $check(kloxo_pma_same_ip('127.0.0.1', '127.0.0.1'), 'same IPv4 matches');
 $check(kloxo_pma_same_ip('127.0.0.1', '::ffff:127.0.0.1'), 'IPv4-mapped IPv6 matches');
 $check(!kloxo_pma_same_ip('127.0.0.1', '8.8.8.8'), 'different IPs do not match');
 $ck = kloxo_pma_signon_cookie_params();
-$check(($ck['path'] ?? '') === '/thirdparty/phpMyAdmin/' && ($ck['samesite'] ?? '') === 'Lax',
-	'signon cookie stays on the phpMyAdmin path');
+$check(($ck['path'] ?? '') === '/' && ($ck['samesite'] ?? '') === 'Lax',
+	'signon cookie is visible to phpMyAdmin index.php');
 
 $tmp = sys_get_temp_dir() . '/kloxo-pma-' . bin2hex(random_bytes(4));
 mkdir($tmp . '/etc/conf', 0750, true);

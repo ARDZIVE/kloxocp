@@ -67,6 +67,12 @@ class mailqueue extends lxclass
 			$app = $gbl->getSyncClass($parent->__masterserver, $sync, 'mailqueue');
 		}
 
+		foreach (array('/usr/sbin/exim4', '/usr/sbin/exim', '/usr/bin/exim4') as $p) {
+			if (is_executable($p)) {
+				return 'exim';
+			}
+		}
+
 		foreach (array('/usr/sbin/postqueue', '/usr/bin/postqueue') as $p) {
 			if (is_executable($p)) {
 				return 'postfix';

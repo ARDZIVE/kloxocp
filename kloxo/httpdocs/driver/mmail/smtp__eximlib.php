@@ -15,6 +15,8 @@ class Smtp__exim extends lxDriverClass
 
 	static function installMe()
 	{
+		lxshell_return('systemctl', 'stop', 'postfix');
+		lxshell_return('systemctl', 'disable', 'postfix');
 		$unit = self::unitName();
 		lxshell_return('systemctl', 'enable', $unit);
 		lxshell_return('systemctl', 'start', $unit);

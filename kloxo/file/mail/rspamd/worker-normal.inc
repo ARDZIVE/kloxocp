@@ -1,2 +1,3 @@
-# Kloxo CP (GENERATED). Scanning is done by the proxy worker (self_scan).
-enabled = false;
+# Kloxo CP (GENERATED). Exim talks to this rspamd-protocol endpoint
+# (`spamd_address = 127.0.0.1 11333 variant=rspamd`).
+bind_socket = "127.0.0.1:11333";

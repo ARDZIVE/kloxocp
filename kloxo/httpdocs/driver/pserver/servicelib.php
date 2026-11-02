@@ -157,42 +157,194 @@ class Service extends Lxdb
 		return null;
 	}
 
+	function updateStart($param)
+	{
+		$this->state = 'on';
+		$this->setUpdateSubaction('start');
+
+		return null;
+	}
+
+	function updateStop($param)
+	{
+		$this->state = 'off';
+		$this->setUpdateSubaction('stop');
+
+		return null;
+	}
+
+	function updateRestart($param)
+	{
+		$this->setUpdateSubaction('restart');
+
+		return null;
+	}
+
 	static function canGetSingle()
 	{
-		return false;
+		return true;
+	}
+
+	static function parseServiceNname($name)
+	{
+		$name = (string) $name;
+		if (preg_match('/^(.+)___(.+)$/', $name, $m)) {
+			return array($m[1], $m[2]);
+		}
+
+		return array($name, 'localhost');
+	}
+
+	static function isSafeServiceId($name)
+	{
+		return is_string($name) && $name !== '' && preg_match('/^[A-Za-z0-9_.:@+-]+$/', $name);
+	}
+
+	static function serverForParent($parent)
+	{
+		if (is_object($parent) && method_exists($parent, 'getClass')
+			&& strtolower((string) $parent->getClass()) === 'pserver'
+			&& isset($parent->nname) && self::isSafeServiceId($parent->nname)) {
+			return $parent->nname;
+		}
+
+		return 'localhost';
 	}
 
 	static function initThisListRule($parent, $class)
 	{
 	}
 
+	static function initThisObject($parent, $class, $name = null)
+	{
+		list($svc, $server) = self::parseServiceNname($name);
+		if (!self::isSafeServiceId($svc)) {
+			$svc = 'unknown';
+		}
+		if (!self::isSafeServiceId($server)) {
+			$server = 'localhost';
+		}
+
+		$master = is_object($parent) && isset($parent->__masterserver) ? $parent->__masterserver : null;
+		$nname = $svc . '___' . $server;
+		$ob = new Service($master, $server, $nname);
+		$row = null;
+
+		try {
+			$sql = new Sqlite($master, 'service');
+			$res = $sql->getRowsWhere("nname = '" . addslashes($nname) . "'");
+			if (is_array($res) && isset($res[0]) && is_array($res[0])) {
+				$row = $res[0];
+			}
+		} catch (Throwable $e) {
+			$row = null;
+		}
+
+		if (is_array($row)) {
+			$ob->setFromArray($row);
+		} else {
+			$ob->nname = $nname;
+			$ob->servicename = $svc;
+			$ob->syncserver = $server;
+			$ob->parent_clname = 'pserver-' . $server;
+			$ob->description = $svc;
+			$ob->boot_state = 'off';
+			$ob->state = 'off';
+			$ob->install_state = (function_exists('isServiceExists') && isServiceExists($svc)) ? 'on' : 'dull';
+			$ob->dbaction = 'clean';
+		}
+
+		return $ob;
+	}
+
+	static function defaultServiceList()
+	{
+		return array(
+			'nginx', 'apache2', 'bind9', 'pdns', 'exim4', 'dovecot',
+			'rspamd', 'mariadb', 'php-fpm', 'hiawatha',
+		);
+	}
+
 	static function initThisList($parent, $class)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
-		
-		$sql = new Sqlite($parent->__masterserver, "service");
 
-		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'service');
-		
-		if (!$driverapp) {
-			return array();
-		}
+		$server = self::serverForParent($parent);
+		$pcl = 'pserver-' . $server;
+		$parentCl = (is_object($parent) && method_exists($parent, 'getClname'))
+			? (string) $parent->getClname() : $pcl;
 
-		$list = $sql->getRowsWhere("parent_clname = '{$parent->getClname()}'");
-		if (!is_array($list)) {
+		$list = array();
+		try {
+			$sql = new Sqlite(is_object($parent) ? $parent->__masterserver : null, 'service');
+			$where = "syncserver = '" . addslashes($server) . "'";
+			if ($parentCl !== '' && $parentCl !== $pcl) {
+				$where .= " OR parent_clname = '" . addslashes($parentCl) . "'";
+			}
+			$where .= " OR parent_clname = '" . addslashes($pcl) . "'";
+			$got = $sql->getRowsWhere($where);
+			if (is_array($got)) {
+				$list = $got;
+			}
+		} catch (Throwable $e) {
 			$list = array();
 		}
 
 		$nlist = array();
 		foreach ($list as $l) {
-			if (isset($l['servicename'])) {
-				$nlist[$l['servicename']] = $l;
+			if (!is_array($l) || !isset($l['servicename'])) {
+				continue;
 			}
+			if (!isset($l['nname']) || $l['nname'] === '') {
+				$l['nname'] = $l['servicename'] . '___' . $server;
+			}
+			if (!isset($l['syncserver']) || $l['syncserver'] === '') {
+				$l['syncserver'] = $server;
+			}
+			$nlist[$l['servicename']] = $l;
 		}
 
-		$res = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'service', $driverapp, 'getServiceDetails', array($nlist));
+		foreach (self::defaultServiceList() as $svc) {
+			if (isset($nlist[$svc])) {
+				continue;
+			}
+			$nlist[$svc] = array(
+				'nname' => $svc . '___' . $server,
+				'servicename' => $svc,
+				'syncserver' => $server,
+				'parent_clname' => $pcl,
+				'description' => $svc,
+				'grepstring' => $svc,
+				'boot_state' => 'off',
+				'state' => 'off',
+				'install_state' => 'dull',
+			);
+		}
 
-		return is_array($res) ? $res : array();
+		$master = is_object($parent) && isset($parent->__masterserver) ? $parent->__masterserver : null;
+		$read = is_object($parent) && isset($parent->__readserver) ? $parent->__readserver : $server;
+		$driverapp = null;
+		try {
+			$driverapp = $gbl->getSyncClass($master, $read, 'service');
+		} catch (Throwable $e) {
+			$driverapp = null;
+		}
+
+		if (!$driverapp) {
+			return array_values($nlist);
+		}
+
+		try {
+			$res = kloxo_rl_driver($master, $read, 'service', $driverapp, 'getServiceDetails', array($nlist));
+		} catch (Throwable $e) {
+			return array_values($nlist);
+		}
+
+		if (is_array($res) && $res !== array()) {
+			return array_values($res);
+		}
+
+		return array_values($nlist);
 	}
 }
 

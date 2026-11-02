@@ -26,7 +26,7 @@ Owner's requirements (non-negotiable unless the owner changes them):
 | Install | One command, under ~10 minutes on a clean server |
 | Updates | One command or button for the panel and every managed component (SQL, FTP, BIND, PHP versions, web, mail), with snapshot, validation, health check and **automatic rollback** |
 | Quality bar | "Most stable and viable": earned through tests, small scope, CI and release discipline (see `INSTALL_AND_UPDATE_DESIGN.md`) |
-| Mail | Postfix + Dovecot + Rspamd + MariaDB (implemented, see section 5) |
+| Mail | Exim + Dovecot + Rspamd + MariaDB (implemented, see section 5; re-run mail tests on Ubuntu) |
 
 **Naming caveat for the owner:** "Kloxo" is the upstream project's name. `NOTICE` and `README.md` say this
 fork is independent. The owner should check trademark/confusion risk and secure a domain and GitHub
@@ -121,7 +121,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey,
     OpenLiteSpeed, and unused DNS (djbdns/nsd/mydns/yadifa/maradns) drivers and `file/` templates
     deleted. Panel Hiawatha stays under `init/hiawatha.conf.base`.
-    qmail/courier/ezmlm/spamassassin remain until postfix UI drivers exist. Tests: `tests/p1/`.
+    qmail/courier/ezmlm/spamassassin remain until P4 exim UI drivers exist. Tests: `tests/p1/`.
     Live pdns/apache2 start on Ubuntu is **UNVERIFIED**.
 12. **P2 first slice:** first-party `php -l` is clean (499 files; PEAR/WebDAV, formmail and
     urlrewrite examples still fail). `__autoload` replaced by `spl_autoload_register`
@@ -167,8 +167,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Manager opens the MySQL logon (`kloxo-signon.php`) in a new tab
     (`kloxo_pma_href`; never mywebsql), then Go redirects into phpMyAdmin
     as MariaDB `root`@`127.0.0.1` (`pma.pass` if the password is left blank,
-    WITH GRANT OPTION, no password in the URL; `AllowRoot` is on). There is
-    no SignonScript; PMA uses SignonURL like Kloxo-MR cookie logon order.
+    WITH GRANT OPTION, no password in the URL; `AllowRoot` is on). Go uses a
+    signed CSRF token (no PHP session on GET) and a `KloxoPmaSignon` cookie
+    on `/` so phpMyAdmin index can read it. There is no SignonScript; PMA
+    uses SignonURL like Kloxo-MR cookie logon order.
     OS `root`@`localhost` stays unix_socket. Admin Home shows SQL Manager only in Basic
     (`webmailanddb`), not as a second Domain tile. Live phpMyAdmin login
     after this change is unverified; re-run `install.sh` after pull.
@@ -195,7 +197,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (`login/images/kloxo.png`), not Kloxo-MR. Live logo after deploy is
     **UNVERIFIED**. Watchdog list matches Kloxo-MR (Switch To Another,
     add form, eight default services); mail action is `__driver_mail`
-    (Postfix) not qmail. Live Watchdog after deploy is **UNVERIFIED**.
+    (Exim) not qmail. Live Watchdog after deploy is **UNVERIFIED**.
     PHP config forms apply the
     usual defaults (120s / 128M / 32M / disable_functions) when the
     stored `phpini` blob only has a session path. Admin Resource Plan
@@ -354,13 +356,16 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     category Welcome and ticket 1 (Created By Kloxo, Subject
     Welcome to Kloxo, date = install time). SSH authorized keys no longer call
     `key()` on a missing list. Ubuntu Services uses
-    `Service__Debian::getServiceDetails`; Component Info has a
-    dpkg driver; Mail Queue reads Postfix `postqueue` when
+    `Service__Debian::getServiceDetails` and `systemctl` for
+    start/stop/restart; a missing `pdns___localhost` row no longer
+    blanks the page (`Service::canGetSingle` + `initThisObject`).
+    Component Info has a
+    dpkg driver; Mail Queue reads Exim `exim -bp` when
     present.     Switch Program loads debian.inc on Ubuntu and does
     not index an empty yum version. SMTP choices are `none` and
-    `exim` (the old qmail-toaster label is gone). `smtp__exim` is a
-    thin systemd enable/start stub (`exim4` on Ubuntu); it does not
-    replace the Postfix + Dovecot + Rspamd stack in `kloxo-mail`.     List and show pages share
+    `exim` (the old qmail-toaster label is gone). `smtp__exim` enables
+    `exim4` and stops Postfix; hosted mail is the Exim + Dovecot +
+    Rspamd stack in `kloxo-mail`.     List and show pages share
     `kloxo_rl_driver` / `setListFromArray` array guards and
     `initThisList` / `initThisObject` Throwable catches so a
     missing Ubuntu driver no longer TypeErrors the whole page.
@@ -383,12 +388,16 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Live Mails Per Client after deploy is **UNVERIFIED**.
     DNS Template menu and dashboard tiles list `dnstemplate` (not
     `lxbackup`); opening the list no longer throws `no_ip_address`
-    when the IP table is empty. The list tab keeps the add form;
-    there is no separate Add this template tab. Adding a template uses live Ubuntu
-    IPs, does not run `fixIpAddress.php`, strips a duplicate `.dnst`
-    suffix, validates primary and secondary NS separately, and writes
-    default NS/A/MX records to `dns_record_a`. Live template-create
-    after deploy is **UNVERIFIED**.
+    when the IP table is empty.     The list tab keeps the add form;
+    there is no separate Add this template tab. The add form prefills
+    name `default`, `ns1` and `ns2`. Adding a template uses live Ubuntu
+    IPs (or a typed IP when that list is empty), does not run
+    `fixIpAddress.php`, strips a duplicate `.dnst` suffix, qualifies a
+    blank/short nameserver to `ns1.<template>.dnst`, validates primary
+    and secondary NS separately, and writes default NS/A/MX records to
+    `dns_record_a`. Opening a template without a loaded parent still
+    shows the add-record tabs. Live template-create after deploy is
+    **UNVERIFIED**.
     FTP Configure (`serverftp`) is seeded as `pserver-localhost` and
     does not sync through the C daemon on first show.
     Re-check the live dashboard after pushing this tree and
@@ -428,36 +437,35 @@ PHP 8.3: `php -l` fails on 50 of 621 files: 42 third-party/example code, and the
 
 Full detail: `docs/MAIL_DESIGN.md`. Essentials:
 
-* **Components:** Postfix 3.8.6, Dovecot 2.3.21, Rspamd 3.8.1 (+Redis), MariaDB 10.11 (Ubuntu 24.04 packages). Maildir under `/var/vmail/<domain>/<user>/Maildir`, one system user `vmail` (uid/gid 5000).
+* **Components:** Exim 4.97 (`exim4-daemon-heavy`), Dovecot 2.3.21, Rspamd 3.8.1 (+Redis), MariaDB 10.11 (Ubuntu 24.04 packages). Maildir under `/var/vmail/<domain>/<user>/Maildir`, one system user `vmail` (uid/gid 5000).
 * **Data:** dedicated DB (default `kloxo_mail`): `domains`, `mailboxes` (Argon2id `{ARGON2ID}` hashes), `aliases` + `alias_targets` (forwarders, catch-all `@domain`). Schema: `kloxo/file/mail/schema.sql`.
 * **Tool:** `kloxo/bin/mail/kloxo-mail` (commands: `init`, `domain:*`, `mailbox:*`, `alias:*`, `dkim:*`, `dns:records`, `render`, `apply`, `check`). Config in `/etc/kloxo/mail.ini` (0600; override with `KLOXO_MAIL_CONF`). Templates located via `KLOXO_MAIL_TEMPLATES` or `kloxo/file/mail`.
-* **Templates:** `kloxo/file/mail/{postfix,dovecot,rspamd,sieve,fail2ban}`. Placeholders `@@NAME@@`. Generated files must not be edited by hand; user customisations go in `/etc/kloxo/mail.d/{postfix-main.cf,postfix-master.cf,dovecot.conf}` (appended).
-* **`apply`:** render to temp, back up (`/var/backups/kloxo-mail/<stamp>`), install, validate with `postfix check`, `doveconf -n`, `rspamadm configtest`, `sievec`, and a `postmap -q` probe of each SQL map, reload via `systemctl reload-or-restart`, **roll back** on any failure. `--root=DIR` installs below a fake root (tests); `--no-reload` for containers.
-* **Design rules that must not regress:** TLS required for logins; Argon2id; submission requires SASL and `reject_authenticated_sender_login_mismatch`; unknown recipients rejected at SMTP time; quota check (`quota-status`) placed **before** `permit_mynetworks`; real mailbox maps to itself so a catch-all cannot swallow it; `milter_default_action = tempfail`; DKIM driven by generated maps (`/etc/rspamd/kloxo/dkim_{selectors,paths}.map`, this Rspamd version signs nothing without them); Dovecot auth cache flushed by the tool on every password/quota/enable change; `listen = *` when the kernel has no IPv6.
+* **Templates:** `kloxo/file/mail/{exim,dovecot,rspamd,sieve,fail2ban}`. Placeholders `@@NAME@@`. Generated files must not be edited by hand; user customisations go in `/etc/kloxo/mail.d/{exim4.conf,dovecot.conf}` (Exim snippet is inserted into the main section).
+* **`apply`:** render to temp, back up (`/var/backups/kloxo-mail/<stamp>`), install, validate with `exim -C /etc/exim4/exim4.conf -bV`, `doveconf -n`, `rspamadm configtest`, `sievec`, and a mail-database probe, reload via `systemctl reload-or-restart`, **roll back** on any failure. `--root=DIR` installs below a fake root (tests); `--no-reload` for containers.
+* **Design rules that must not regress:** TLS required for logins; Argon2id; submission requires SASL and sender must match the authenticated login; unknown recipients rejected at SMTP time; quota check (`quota-status`) placed **before** the local-network permit; catch-all router runs after mailbox so it cannot swallow a real account; Rspamd failure tempfails (no `defer_ok`); DKIM driven by generated maps (`/etc/rspamd/kloxo/dkim_{selectors,paths}.map`, this Rspamd version signs nothing without them); Dovecot auth cache flushed by the tool on every password/quota/enable change; `listen = *` when the kernel has no IPv6.
 
 ### Verified (in a scratch container, localhost only, no systemd, no IPv6, no internet)
 
-* `tests/mail/run-tests.sh`: **73 checks pass** (validation/injection, all four SQL maps through real `postmap`, config syntax for all three services, Argon2id verified by Dovecot, DKIM/DNS output, apply, rollback, purge safety).
-* `tests/mail/e2e.py`: **25 live checks pass** against running Postfix, Dovecot, Rspamd, Redis, MariaDB (inbound delivery, aliases, 550 for unknown recipients, submission on 587/465, DKIM signing, sender-spoof block, wrong password / no-TLS / no-auth refused, IMAPS/POP3S, quota 452 at SMTP, immediate effect of password change and disable).
-* Deliberately broken template: `apply` rejected it and restored the live file byte-for-byte.
+* The original Postfix-era `tests/mail/run-tests.sh` / `e2e.py` runs passed. After the Exim swap those suites were rewritten and have **not** been re-run on Ubuntu (no MariaDB/Exim in this session). Do not treat Exim as live-verified until that re-run.
+* Deliberately broken template: `apply` rejected it and restored the live file byte-for-byte (Postfix-era).
 
 ### NOT verified / not built
 
-Real server with systemd; real DNS/PTR/certificate; outbound delivery and deliverability to Gmail/Outlook; greylisting; postscreen from external clients; ClamAV; fail2ban in action; load/performance; backups. Not built: Roundcube, per-domain TLS (SNI), autoresponders in UI (Sieve vacation available), mailing lists (ezmlm replacement), traffic stats, queue UI, qmail data import, DNS auto-publishing, MTA-STS/TLS-RPT/DANE, AlmaLinux support.
+Real server with systemd; real DNS/PTR/certificate; outbound delivery and deliverability to Gmail/Outlook; greylisting; ClamAV; fail2ban in action; load/performance; backups. Not built: Roundcube, per-domain TLS (SNI), autoresponders in UI (Sieve vacation available), mailing lists (ezmlm replacement), traffic stats, qmail data import, DNS auto-publishing, MTA-STS/TLS-RPT/DANE, AlmaLinux support. Mail Queue UI has `mailqueue__exim`.
 
 ---
 
 ## 6. Environment and how to run things
 
-* Development target: Ubuntu 24.04, PHP 8.3 (`php-cli php-mysql`), MariaDB with root via unix socket (Ubuntu default), Postfix + `postfix-mysql` + `postfix-lmdb`, Dovecot (`-imapd -pop3d -lmtpd -mysql -sieve -managesieved`), Rspamd, Redis.
-* Tests: see `tests/mail/README.md`. **Run only on a disposable machine/container**: tests create the `vmail` user and the live test rewrites `/etc/postfix`, `/etc/dovecot`, `/etc/rspamd/local.d`.
+* Development target: Ubuntu 24.04, PHP 8.3 (`php-cli php-mysql`), MariaDB with root via unix socket (Ubuntu default), `exim4-daemon-heavy`, Dovecot (`-imapd -pop3d -lmtpd -mysql -sieve -managesieved`), Rspamd, Redis.
+* Tests: see `tests/mail/README.md`. **Run only on a disposable machine/container**: tests create the `vmail` user and the live test rewrites `/etc/exim4`, `/etc/dovecot`, `/etc/rspamd/local.d`.
 * The static tests use their own DB (`kloxo_mail_test`) and accounts (`kloxo_mail_test_{rw,ro}`); DB account names follow the DB name so instances never share accounts.
 * Lint the legacy tree with `php -l` per file (a loop; parallel xargs output interleaves). Current baseline: 50 failures (section 4). First-party files are clean (`tests/p2/`).
 * Operator CLI: `php kloxo/bin/kloxocp help`. Checks: `bash tests/p3/run-tests.sh` (php-cli only; uses a temp `--root`).
 
 ### Environment lessons from the previous session (avoid repeating)
 
-* Postfix prints a harmless `inet_protocols: disabling IPv6` warning on hosts without IPv6; do not treat it as an error (the tool already filters it).
+* Exim `disable_ipv6` and Dovecot `listen = *` are set when `/proc/net/if_inet6` is missing.
 * Dovecot treats connections from the machine itself as "secure", so plaintext-login refusal cannot be tested locally; it is verified through `doveconf` (`ssl=required`, `disable_plaintext_auth=yes`).
 * `pkill -f '<pattern>'` can kill the shell that contains the pattern; use `pgrep -o -x rspamd` style exact matching. Daemons started in a tool/CI shell need `setsid ... </dev/null >log 2>&1` or the step hangs.
 * Rspamd file maps are watched; no reload is needed after DKIM map changes.
@@ -477,7 +485,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
 
 ### P1: shrink the tree (phase 1b)
 1. **DONE for web/DNS.** Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`, `apache` (Nginx default; Apache 2.4 + PHP-FPM packaged, disabled). Webcache: `none`. DNS: `none`, `bind`, `pdns` (BIND default; PowerDNS packaged, disabled). Panel Hiawatha kept in `init/`. Tests: `tests/p1/`.
-2. **NOT DONE.** qmail/courier/ezmlm/bogofilter/spamassassin drivers stay until P4 postfix UI drivers exist.
+2. **NOT DONE.** qmail/courier/ezmlm/bogofilter/spamassassin drivers stay until P4 exim UI drivers exist.
 3. **PARTIAL.** No Ubuntu package; `install-hiawatha` builds pinned 12.4
    (sha256 in the script). Config check is `hiawatha -k -c <init>`. **UNVERIFIED**
    on a real 24.04 VM. `lib.php` still contains dead Apache install/chown
@@ -523,7 +531,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    packages exist.
 
 ### P4: connect mail to the panel (phase 1e)
-Add thin `*__postfix` drivers (`Mmail__Postfix`, `Mailaccount__Postfix`, `Mailforward__Postfix`, `Servermail__Postfix`...) in `httpdocs/driver/mmail/` that call `kloxo-mail` (via the agent). Keep the existing UI screens. Then add Roundcube, Sieve vacation autoresponder, queue view, per-domain TLS, qmail import. Requires P2.
+Add thin `*__exim` drivers (`Mmail__Exim`, `Mailaccount__Exim`, `Mailforward__Exim`, `Servermail__Exim`...) in `httpdocs/driver/mmail/` that call `kloxo-mail` (via the agent). Keep the existing UI screens. Then add Roundcube, Sieve vacation autoresponder, per-domain TLS, qmail import. Requires P2. Mail Queue already has `mailqueue__exim`.
 
 ### P5: later
 AlmaLinux/Rocky support via distro map (paths, package and service names); billing extension point; CI matrix on real VMs (fresh install, update from N-1/N-2, forced failure + rollback); logo and branding assets; real project URLs replacing `kloxocp.invalid`; replace the legacy `lxlabs` service account name.
@@ -578,4 +586,4 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 
 * "Start Debian packaging (`debian/`) and a private apt repo so `kloxocp update` has packages to orchestrate."
 * "Add characterization tests, then continue the PHP 8.3 port of remaining runtime (`split`/`ereg*` in third-party trees, `create.php` Ubuntu)."
-* "Start P4 mail UI drivers: thin `*__postfix` wrappers around `kloxo-mail`, then drop qmail."
+* "Start P4 mail UI drivers: thin `*__exim` wrappers around `kloxo-mail`, then drop qmail."
