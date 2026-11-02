@@ -47,19 +47,20 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 
 **Ubuntu 24.04 or 26.x, one line (as root).** Clones
 https://github.com/ARDZIVE/kloxocp.git (public, branch `main`) if needed,
-or fetches `origin/main` when that clone already exists, then runs
-`install.sh`. Safe to repeat after a failed install or to pick up GitHub
-`main`:
+or fetches `origin/main` and hard-resets the clone when it already exists,
+then runs `install.sh`. Safe to repeat after a failed install or to pick
+up GitHub `main` (local edits in `/usr/local/src/kloxo-cp` are discarded):
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -B main FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -f -B main FETCH_HEAD && git -C /usr/local/src/kloxo-cp reset --hard FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'
 ```
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
 The line above is the supported form. Do not run this on a machine that
 already has cPanel, Plesk, or ISPConfig. It installs whatever is on GitHub
-`main`. To install this working tree instead, copy it to the server and run
-`sudo bash install.sh` from that directory.
+`main`. To install this working tree instead, copy it to the server
+**without** `.git` and run `sudo bash install.sh` from that directory
+(a git clone is reset to GitHub `main`).
 
 When it finishes, the installer prints a box with the panel URL
 (`https://<ip>:7777/`), username `admin`, and password `admin`. Accept the
@@ -77,7 +78,7 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    `php-mbstring` `php-curl`, MariaDB, Nginx, BIND 9, `iproute2`, and the
    compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`).
 3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
-   If it is already a git clone, fetches `origin/main` first. If `/opt/kloxo`
+   If it is already a git clone, fetches `origin/main` and `reset --hard` first. If `/opt/kloxo`
    is a real directory (not a symlink to the clone), copies `httpdocs` /
    `bin` / `init` from the clone. Running `install.sh` from a copied tree
    uses that directory.
@@ -141,10 +142,10 @@ sudo bash install.sh --slave --slave-password=SECRET   # second machine; no pane
 | `KLOXO_ROOT` | Program root override used by tools and tests |
 | `KLOXO_PHP` | PHP binary override (default `/usr/bin/php`) |
 
-The one-liner above **fetches `origin/main`** when `/usr/local/src/kloxo-cp`
-is already a git clone, then runs that updated `install.sh`. You do not
-need `--update` or `rm -rf` for a normal refresh. Remove the directory
-only if it is corrupt or is not a git clone:
+The one-liner above **fetches `origin/main` and `reset --hard`** when
+`/usr/local/src/kloxo-cp` is already a git clone, then runs that updated
+`install.sh`. You do not need `--update` or `rm -rf` for a normal refresh.
+Remove the directory only if it is corrupt or is not a git clone:
 
 ```
 sudo rm -rf /usr/local/src/kloxo-cp

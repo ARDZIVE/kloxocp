@@ -17,7 +17,7 @@ present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`te
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
-the README one-liner fetches `origin/main` when the clone already exists;
+the README one-liner fetches `origin/main` and hard-resets when the clone already exists;
 `kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
 change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it). Admin Servers list seeds `localhost`. The Update

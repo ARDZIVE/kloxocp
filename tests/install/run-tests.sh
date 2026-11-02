@@ -95,13 +95,14 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -B main FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'"
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y git ca-certificates && { if [ -d /usr/local/src/kloxo-cp/.git ]; then git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main && git -C /usr/local/src/kloxo-cp checkout -f -B main FETCH_HEAD && git -C /usr/local/src/kloxo-cp reset --hard FETCH_HEAD; elif [ ! -f /usr/local/src/kloxo-cp/install.sh ]; then git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp; fi; } && bash /usr/local/src/kloxo-cp/install.sh'"
 if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
   ok "README and install.sh share the same one-liner"
 else
   bad "README and install.sh share the same one-liner"
 fi
 if echo "$ONELINER" | grep -q 'git -C /usr/local/src/kloxo-cp fetch --depth 1 origin main' \
+  && echo "$ONELINER" | grep -q 'reset --hard FETCH_HEAD' \
   && echo "$ONELINER" | grep -q 'git clone --depth 1 --branch main https://github.com/ARDZIVE/kloxocp.git /usr/local/src/kloxo-cp'; then
   ok "one-liner fetches an existing clone then runs install.sh"
 else
@@ -305,7 +306,8 @@ else
 fi
 if grep -q 'syncing program files' "$ROOT/install.sh" \
   && grep -q 'rsync -a --delete' "$ROOT/install.sh" \
-  && grep -q 'updating clone in $SRC' "$ROOT/install.sh"; then
+  && grep -q 'updating clone in $SRC' "$ROOT/install.sh" \
+  && grep -q 'reset --hard FETCH_HEAD' "$ROOT/install.sh"; then
   ok "install.sh pulls git and syncs httpdocs on re-run"
 else
   bad "install.sh pulls git and syncs httpdocs on re-run"
