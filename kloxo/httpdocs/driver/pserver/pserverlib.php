@@ -255,6 +255,56 @@ class pserver extends pservercore {
 
 	}
 
+	function getSelfList()
+	{
+		try {
+			$list = parent::getSelfList();
+			if (is_array($list) && $list !== array()) {
+				$out = array();
+				foreach ($list as $k => $p) {
+					if (is_object($p) && method_exists($p, 'getId')) {
+						$out[(string)$k] = $p;
+					}
+				}
+				if ($out !== array()) {
+					return $out;
+				}
+			}
+		} catch (Throwable $e) {
+			log_log("error", "pserver getSelfList parent: " . $e->getMessage());
+		}
+
+		return self::adminServerSwitchList($this);
+	}
+
+	static function adminServerSwitchList($current = null)
+	{
+		global $login;
+
+		$out = array();
+		if (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()
+			&& method_exists($login, 'getList')) {
+			try {
+				$ps = $login->getList('pserver');
+				if (is_array($ps)) {
+					foreach ($ps as $k => $p) {
+						if (is_object($p) && method_exists($p, 'getId')) {
+							$out[(string)$k] = $p;
+						}
+					}
+				}
+			} catch (Throwable $e) {
+			}
+		}
+
+		if ($out === array() && is_object($current) && method_exists($current, 'getId')) {
+			$n = (isset($current->nname) && is_string($current->nname) && $current->nname !== '')
+				? $current->nname : 'localhost';
+			$out[$n] = $current;
+		}
+
+		return $out !== array() ? $out : null;
+	}
 
 	function getMysqlDbAdmin(&$alist)
 	{

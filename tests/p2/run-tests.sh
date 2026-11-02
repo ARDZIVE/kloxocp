@@ -256,6 +256,13 @@ if grep -A 20 'div.section, div#createNew' "$ROOT/kloxo/httpdocs/theme/htmllib.p
 else
   bad "dashboard sections are not clipped by overflow:hidden"
 fi
+if grep -A 8 '\.div_container {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'margin: 1px' \
+  && grep -A 8 '\.div_container_icons {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'width: 80px' \
+  && grep -A 8 '\.div_container_icons {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'height: 72px'; then
+  ok "dashboard buttons use tight horizontal and vertical spacing"
+else
+  bad "dashboard buttons use tight horizontal and vertical spacing"
+fi
 if awk '/class="div_menu_left"/{l=NR} /class="div_menu_right"/{r=NR} END {exit !(l && r && l<r)}' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
   && grep -q "getKeywordUc('help')" "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then
   ok "simplicity Help/Logout print on the right of the top menu"

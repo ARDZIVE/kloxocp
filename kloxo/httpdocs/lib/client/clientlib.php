@@ -565,7 +565,10 @@ class Client extends ClientBase
 			$alist['__title_domain_rec'] = $login->getKeywordUc('domain');
 			$alist[] = "a=list&c=ftpuser";
 			$this->getListActions($alist, 'mysqldb');
-			$this->getMysqlDbAdmin($alist);
+			// Admin SQL Manager lives in Basic (pserver webmailanddb), not Domain.
+			if (!$this->isAdmin()) {
+				$this->getMysqlDbAdmin($alist);
+			}
 			$alist[] = "a=show&l[class]=ffile&l[nname]=/";
 			$alist['__v_dialog_defd'] = "a=updateform&sa=default_domain";
 

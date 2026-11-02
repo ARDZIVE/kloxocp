@@ -112,7 +112,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     none/BIND/PowerDNS. BIND is the **default** (`pg_dns=bind`, bind9 enabled). PowerDNS is
     apt-installed and prepared (`install-pdns`: MariaDB schema, `/etc/powerdns/pdns.d/zz-kloxo-gmysql.conf`)
     with the `pdns` unit **disabled** until Switch Program selects it (stops bind9, starts pdns;
-    only one listener on port 53). Nginx is the **default** web (`pg_web=nginx`, nginx enabled).
+    only one listener on port 53). `install.sh` uses a temporary `policy-rc.d` (exit 101) plus a
+    runtime systemd mask so apt postinst cannot start `pdns` (no gmysql yet; BIND owns 53) or
+    `apache2` (Nginx owns 80/443). Nginx is the **default** web (`pg_web=nginx`, nginx enabled).
     Apache 2.4 is apt-installed and prepared (`install-apache`: PHP-FPM via `proxy_fcgi`,
     `/etc/apache2/conf-available/zz-kloxo.conf`) with the `apache2` unit **disabled** until
     Switch Program selects it (stops nginx, starts apache2; only one listener on 80/443).
@@ -160,8 +162,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise). Admin SQL
     Manager uses panel sign-on (`kloxo_pma` ALL ON *.*, `pma.pass`, no
-    password in the URL). Live phpMyAdmin login after this change is
-    unverified; re-run `install.sh` after pull.
+    password in the URL). Admin Home shows SQL Manager only in Basic
+    (`webmailanddb`), not as a second Domain tile. Live phpMyAdmin login
+    after this change is unverified; re-run `install.sh` after pull.
     Component Info uses Ubuntu package names (`kloxo_component.php`) instead
     of CentOS `set.*.lst` RPM names; Hiawatha is the panel binary. Live
     Component Info list is **UNVERIFIED**.
@@ -185,9 +188,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `traceroute_failed` when the Ubuntu binary is missing; it uses
     `traceroute`/`tracepath` with a validated host and an empty list on
     failure.     Localhost File Manager / Switch Program / Traceroute / Cron Tasks
-    no longer require the C daemon on TCP 7776 (`No socket connect to
-    server localhost`); `remote_exec` always runs `do_local_action` for
-    localhost (the C daemon is not started on Ubuntu). Mail To on Cron
+    no longer die with `No socket connect to server localhost`. Panel
+    FPM is `lxlabs`; `remote_exec` sends privileged work to
+    `kloxo-backend` on loopback 7776 (root) and falls back to
+    `do_local_action` if that socket is down. File Manager listing
+    skips unreadable entries, treats `/` as a directory, and the list
+    toolbar keeps the Kloxo-MR search box (the left Find column stays
+    hidden). `init-panel-db` seeds `/home/admin`. Mail To on Cron
     Tasks does not sync the client/pserver through that socket; crontab
     rewrite uses argument-array `/usr/bin/crontab -u` and skips a
     missing job list. `slave_get_driver` is null-safe
@@ -294,8 +301,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     SSH Terminal and File Manager no longer show the
     left-column Find box. LxGuard list tabs (connections, raw hits,
     whitelist) omit the Find/search input too. SSH Terminal is admin-only (pserver
-    child, not client home) and shows a copyable `ssh -p`
-    command (no Java applet). Adding a client no longer TypeErrors
+    child, not client home) and shows a WebConsole-like black terminal
+    (`Switch To Another`, prompt, command form; `proc_open` `bash -lc`;
+    no Java applet, no `web-console.php` unserialize). Live SSH Terminal
+    after deploy is **UNVERIFIED**. Adding a client no longer TypeErrors
     on `implode()` with a string (`contactemail`, `coma_*_list`,
     `kloxo_implode` / `kloxo_list_from`). Live client-create after
     deploy is **UNVERIFIED**. Adding a Resource Plan does not throw
@@ -324,6 +333,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `ipaddress::listSystemIps`. Directory Index list does not
     `count()` a missing `dirindexlist_a`.     Cron Tasks Mail To no
     longer throws `No socket connect to server [localhost]`.
+    Home dashboard tiles sit closer together (80×72, 1px gap).
+    Mails Per Client (`clientmail` under pserver) shows Switch To
+    Another for sibling servers; the list reads that server's logs.
+    Live Mails Per Client after deploy is **UNVERIFIED**.
     DNS Template menu and dashboard tiles list `dnstemplate` (not
     `lxbackup`); opening the list no longer throws `no_ip_address`
     when the IP table is empty.

@@ -595,6 +595,9 @@ function lxfile_dstat($dir, $duflag)
 {
 	$dir = expand_real_root($dir);
 	$list = lscandir_without_dot($dir);
+	if (!is_array($list)) {
+		return array();
+	}
 
 	$ret = array();
 

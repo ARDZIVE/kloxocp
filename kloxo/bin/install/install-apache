@@ -225,6 +225,7 @@ TXT;
         if (!Proc::exists('systemctl')) {
             return;
         }
+        Proc::run(['systemctl', 'reset-failed', 'apache2']);
         Proc::run(['systemctl', 'disable', '--now', 'apache2']);
         Proc::run(['systemctl', 'disable', '--now', 'httpd']);
     }

@@ -2417,7 +2417,9 @@ abstract class Lxclass
 		// This should have only been done in the initlistifundef and only the first time, 
 		// but there u fucking have it.. Stupid php..
 		foreach ($this->$list as $o) {
-			$o->__parent_o = $this;
+			if (is_object($o)) {
+				$o->__parent_o = $this;
+			}
 		}
 
 		return $this->$list;
@@ -4204,6 +4206,9 @@ abstract class Lxclass
 		} else {
 			$list = $parent->getVirtualList($class, $count);
 		}
+		if (!is_array($list)) {
+			$list = array();
+		}
 
 		$pp = $this;
 
@@ -4219,6 +4224,9 @@ abstract class Lxclass
 		$ret = null;
 
 		foreach ($list as $k => $ob) {
+			if (!is_object($ob)) {
+				continue;
+			}
 			// Big big hack... this is to prevent the easyinstaller titles from cropping up here. NEed a better system though.
 			if (csb($k, "__title_")) {
 				continue;

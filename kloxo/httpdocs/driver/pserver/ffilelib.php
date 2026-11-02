@@ -577,13 +577,15 @@ class Ffile extends Lxclass
 		}
 
 		$parent = $this->getParentO();
-		$desc = get_classvar_description($parent->getClass());
+		$desc = is_object($parent) ? get_classvar_description($parent->getClass()) : null;
+		$desc_label = (is_array($desc) && isset($desc[2])) ? kloxo_string($desc[2]) : '';
+		$parent_id = is_object($parent) ? kloxo_string($parent->getId()) : '';
 ?>
-		Address: (<?= $desc[2] ?>: <a class=insidelist href="<?= $url ?>"><?= $parent->getId() ?></a>)
+		Address: (<?= $desc_label ?>: <a class=insidelist href="<?= $url ?>"><?= $parent_id ?></a>)
 <?php
-		$list = explode('/', $this->nname);
-	//	implode('/', $list);
-		
+		$list = explode('/', kloxo_string($this->nname));
+		$nlist = array();
+
 		for ($j = 0; $j < count($list); $j++) {
 			$nlist[] = $list[$j];
 			$newname = implode('/', $nlist);
@@ -629,8 +631,12 @@ class Ffile extends Lxclass
 <?php
 		$list = $gbl->getSessionV("frm_clip_list");
 
-		if ($list) {
-			$file = implode(", ", $list);
+		if (is_array($list) && $list) {
+			$flat = array();
+			foreach ($list as $item) {
+				$flat[] = kloxo_string($item);
+			}
+			$file = implode(", ", $flat);
 
 			if (strlen($file) > 30) {
 				$file = substr($file, 0, 30) . " ...";
@@ -1147,7 +1153,8 @@ class Ffile extends Lxclass
 
 	function getPermissions(&$perm_number)
 	{
-		$val1 = $this->mode;
+		$val1 = is_numeric($this->mode) ? (int) $this->mode : 0;
+		$perm_number = is_scalar($perm_number) ? (string) $perm_number : '';
 		$str = array(0 => "---", 1 => "x--", 2 => "-w-", 3 => "wx-", 4 => "--r", 5 => "x-r", 6 => "-wr", 7 => "xwr");
 		$n = '-3';
 		$m = 3;
@@ -1221,22 +1228,24 @@ class Ffile extends Lxclass
 
 			case "realsize":
 			case "size":
-				if ($this->size < 1024) {
-					return $this->size . 'B';
+				$size = is_numeric($this->size) ? (int) $this->size : 0;
+				if ($size < 1024) {
+					return $size . 'B';
 				}
 
-				if ($this->size < 1024 * 1024) {
-					return round($this->size / (1024), 0) . "K";
+				if ($size < 1024 * 1024) {
+					return round($size / (1024), 0) . "K";
 				}
 
-				if ($this->size < 1024 * 1024 * 1024) {
-					return round($this->size / (1024 * 1024), 1) . "M";
+				if ($size < 1024 * 1024 * 1024) {
+					return round($size / (1024 * 1024), 1) . "M";
 				}
 
-				return round($this->size / (1024 * 1024 * 1024), 3) . "G";
+				return round($size / (1024 * 1024 * 1024), 3) . "G";
 
 			case "mtime":
-				return lxgettime($this->mtime);
+				$mtime = is_numeric($this->mtime) ? (int) $this->mtime : time();
+				return lxgettime($mtime);
 
 			default:
 				return parent::display($var);
@@ -1420,8 +1429,8 @@ class Ffile extends Lxclass
 			$fpath = preg_replace('/(\/){1,3}(.*)/', '/$2', "{$fpathp}/{$file}");
 			$file = preg_replace('/(\/){1,3}(.*)/', '/$2', "{$parent->nname}/{$file}");
 			
-			if (!isset($parent->ffile_l)) {
-				$parent->ffile_l = null;
+			if (!isset($parent->ffile_l) || !is_array($parent->ffile_l)) {
+				$parent->ffile_l = array();
 			}
 
 			$parent->ffile_l[$file] = new Ffile($parent->__masterserver, $parent->__readserver, $parent->root, $file, 
@@ -1483,6 +1492,14 @@ class Ffile extends Lxclass
 
 		if (!is_array($stat)) {
 			$stat = array('name' => $this->getFullPath(), 'size' => 0, 'ttype' => 'directory');
+		}
+
+		$path = $this->getFullPath();
+		if ((!isset($stat['ttype']) || $stat['ttype'] === '') && ($this->nname === '/' || (is_string($path) && is_dir($path)))) {
+			$stat['ttype'] = 'directory';
+		}
+		if ($this->nname === '/' && (!isset($stat['ttype']) || $stat['ttype'] === 'file')) {
+			$stat['ttype'] = 'directory';
 		}
 
 		$this->setFromArray($stat);
@@ -1570,9 +1587,13 @@ class Ffile extends Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml; 
 
-		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'ffile');
+		try {
+			$gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'ffile');
+		} catch (Throwable $e) {
+			log_log("error", "ffile createListNlist: " . $e->getMessage());
+		}
 
-		$duflag = $parent->duflag;
+		$duflag = isset($parent->duflag) ? $parent->duflag : false;
 
 		$nlist["ttype"] = "2%";
 
@@ -1585,8 +1606,8 @@ class Ffile extends Lxclass
 
 		$nlist["nname"] = "70%";
 
-	//	if ($parent->getParentO()->is__table('web')) {
-		if ($parent->getParentO()->getClass() === 'web') {
+		$gp = $parent->getParentO();
+		if (is_object($gp) && $gp->getClass() === 'web') {
 			$nlist["protect"] = "3%";
 		}
 

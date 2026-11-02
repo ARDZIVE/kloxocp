@@ -175,7 +175,12 @@ function __ac_desc_show($object)
 		return;
 	}
 
-	$selflist = $object->getSelfList();
+	$selflist = null;
+	try {
+		$selflist = $object->getSelfList();
+	} catch (Throwable $e) {
+		log_log("error", "getSelfList: " . $e->getMessage());
+	}
 
 	$class = lget_class($object);
 	$subaction = $ghtml->frm_subaction;
@@ -199,14 +204,18 @@ function __ac_desc_show($object)
 			$parent->createShowPropertyList($prlist);
 			if (isset($prlist['property']) && is_array($prlist['property'])) {
 				foreach ($prlist['property'] as $k => $v) {
-					$prlist['property'][$k] = "goback=1&$v";
+					$prlist['property'][$k] = "goback=1&" . kloxo_string($v);
 				}
 			}
 		}
 	}
 
 	if (!empty($prlist['property'])) {
-		$ghtml->print_tab_block($prlist['property']);
+		try {
+			$ghtml->print_tab_block($prlist['property']);
+		} catch (Throwable $e) {
+			log_log("error", "print_tab_block: " . $e->getMessage());
+		}
 	}
 
 	$ghtml->print_content_begin();
@@ -222,7 +231,11 @@ function __ac_desc_show($object)
 	}
 
 	if ($selflist) {
-		$ghtml->printShowSelectBox($selflist);
+		try {
+			$ghtml->printShowSelectBox($selflist);
+		} catch (Throwable $e) {
+			log_log("error", "printShowSelectBox: " . $e->getMessage());
+		}
 	}
 
 	$printed_message = false;
@@ -495,7 +508,15 @@ function __ac_desc_show($object)
 	</table>
 <?php
 
-	$object->showRawPrint($subaction);
+	try {
+		$object->showRawPrint($subaction);
+	} catch (lxException $e) {
+		throw $e;
+	} catch (Throwable $e) {
+		log_log("error", "showRawPrint: " . $e->getMessage());
+		echo '<div style="padding:16px">Could not display this page: '
+			. htmlspecialchars($e->getMessage(), ENT_QUOTES) . '</div>';
+	}
 
 	$aflist = $object->createShowAddform();
 	$uflist = $object->createShowUpdateform();
@@ -815,7 +836,12 @@ function __ac_desc_list($object, $cname = null)
 
 	$rclass = $cname;
 
-	$selflist = $object->getSelfList();
+	$selflist = null;
+	try {
+		$selflist = $object->getSelfList();
+	} catch (Throwable $e) {
+		log_log("error", "getSelfList: " . $e->getMessage());
+	}
 
 //	check_for_license();
 	$refresh = $ghtml->frm_list_refresh;
@@ -833,7 +859,11 @@ function __ac_desc_list($object, $cname = null)
 	$ghtml->print_content_begin();
 
 	if ($selflist) {
-		$ghtml->printShowSelectBox($selflist);
+		try {
+			$ghtml->printShowSelectBox($selflist);
+		} catch (Throwable $e) {
+			log_log("error", "printShowSelectBox: " . $e->getMessage());
+		}
 	}
 
 	$ghtml->print_message();
@@ -1098,8 +1128,9 @@ function __ac_desc_UpdateForm($object)
 		// MR -- need if here because error in debug mode
 		if (isset($alist['property'])) {
 			foreach ($alist['property'] as &$a) {
-				$a .= '&goback=1';
+				$a = kloxo_string($a) . '&goback=1';
 			}
+			unset($a);
 		}
 
 		$nalist = lx_merge_good($nalist, $alist['property']);
@@ -1121,7 +1152,7 @@ function __ac_desc_UpdateForm($object)
 			$parent->createShowPropertyList($prlist);
 			if (isset($prlist['property']) && is_array($prlist['property'])) {
 				foreach ($prlist['property'] as $k => $v) {
-					$prlist['property'][$k] = "goback=1&$v";
+					$prlist['property'][$k] = "goback=1&" . kloxo_string($v);
 				}
 			}
 		}

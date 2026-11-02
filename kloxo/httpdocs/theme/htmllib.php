@@ -1678,29 +1678,29 @@ class HtmlLib
 			$sectionfloat = "none";
 			$sectionheight = "auto";
 			$showpagewidth = "100%";
-			$sectionmargin = "0 0 10px 0";
+			$sectionmargin = "0 0 4px 0";
 			$sectionwidth = "100%";
 		} elseif ($show_direction === 'vertical 2') {
 			$sectionwidth = "300px";
 			$sectionfloat = "none";
 			$sectionheight = "auto";
 			$showpagewidth = "640px";
-			$sectionmargin = "0 0 10px 15px";
+			$sectionmargin = "0 0 4px 8px";
 		} elseif ($show_direction === 'horizontal') {
 			$sectionwidth = "400px";
 			$sectionfloat = "left";
 			$sectionheight = "415";
 			$showpagewidth = "615px";
-			$sectionmargin = "0 10px 10px 0";
+			$sectionmargin = "0 6px 4px 0";
 		} else {
 			$sectionfloat = "none";
 			$sectionheight = "auto";
 			$showpagewidth = "100%";
-			$sectionmargin = "0 0 10px 0";
+			$sectionmargin = "0 0 4px 0";
 			$sectionwidth = "100%";
 		}
 
-		$wrapstyle = "width: 100%; margin: 0 0 20px 0";
+		$wrapstyle = "width: 100%; margin: 0 0 8px 0";
 
 		$img_url = $this->get_expand_url();
 ?>
@@ -1711,14 +1711,14 @@ class HtmlLib
 				background-color: #fff;
 				/* margin: 9px 5px; */
 				margin: <?=$sectionmargin?>;
-				padding: 0 0 8px 0;
+				padding: 0 0 2px 0;
 				/* width: 520px; */
 				width: <?=$sectionwidth?>;
 				resize: both;
 				overflow: visible;
 				float: <?=$sectionfloat?>;
 				height: auto;
-				min-height: 120px;
+				min-height: 0;
 				box-sizing: border-box;
 			}
 			div.section::after, div#createNew::after {
@@ -1734,7 +1734,7 @@ class HtmlLib
 			div#createNew h3, div.section h3 {
 				font-size: 12px;
 				padding: 2px 5px;
-				margin: 0 0 10px 0;
+				margin: 0 0 2px 0;
 				display: block;
 				font-family: Tahoma, Verdana, Arial, Helvetica, Arial, sans-serif;
 				color: #036;
@@ -3338,23 +3338,26 @@ class HtmlLib
 				foreach ($value as $k => $v) {
 					if (is_array($v)) {
 						foreach ($v as $nk => $nv) {
+							if (is_array($nv)) {
+								continue;
+							}
 ?>
 
-			<input type="hidden" id="<?= $key ?>[<?= $k ?>][<?= $nk ?>]" name="<?= $key ?>[<?= $k ?>][<?= $nk ?>]" value="<?= $nv ?>">
+			<input type="hidden" id="<?= kloxo_string($key) ?>[<?= kloxo_string($k) ?>][<?= kloxo_string($nk) ?>]" name="<?= kloxo_string($key) ?>[<?= kloxo_string($k) ?>][<?= kloxo_string($nk) ?>]" value="<?= htmlspecialchars(kloxo_string($nv), ENT_QUOTES) ?>">
 <?php
 						}
 
 					} else {
 ?>
 
-			<input type="hidden" id="<?= $key ?>[<?= $k ?>]" name="<?= $key ?>[<?= $k ?>]" value="<?= $v ?>">
+			<input type="hidden" id="<?= kloxo_string($key) ?>[<?= kloxo_string($k) ?>]" name="<?= kloxo_string($key) ?>[<?= kloxo_string($k) ?>]" value="<?= htmlspecialchars(kloxo_string($v), ENT_QUOTES) ?>">
 <?php
 					}
 				}
 			} else {
 ?>
 
-			<input type="hidden" id="<?= $key ?>" name="<?= $key ?>" value="<?= $value ?>">
+			<input type="hidden" id="<?= kloxo_string($key) ?>" name="<?= kloxo_string($key) ?>" value="<?= htmlspecialchars(kloxo_string($value), ENT_QUOTES) ?>">
 <?php
 			}
 		}
@@ -3381,14 +3384,17 @@ class HtmlLib
 				foreach ($value as $k => $v) {
 					if (is_array($v)) {
 						foreach ($v as $nk => $nv) {
-							$string .= $key . "[" . $k . "]" . "[" . $nk . "]=" . $nv . "&";
+							if (is_array($nv)) {
+								continue;
+							}
+							$string .= kloxo_string($key) . "[" . kloxo_string($k) . "]" . "[" . kloxo_string($nk) . "]=" . rawurlencode(kloxo_string($nv)) . "&";
 						}
 					} else {
-						$string .= $key . "[" . $k . "]=" . $v . "&";
+						$string .= kloxo_string($key) . "[" . kloxo_string($k) . "]=" . rawurlencode(kloxo_string($v)) . "&";
 					}
 				}
 			} else {
-				$string .= "$key=$value&";
+				$string .= kloxo_string($key) . "=" . rawurlencode(kloxo_string($value)) . "&";
 			}
 
 		}
@@ -3424,10 +3430,14 @@ class HtmlLib
 		}
 
 		foreach ($descr as &$d) {
+			if (!is_string($d)) {
+				continue;
+			}
 			if (strstr($d, "[%v]") !== false) {
-				$d = str_replace("[%v]", $classdesc, $d);
+				$d = str_replace("[%v]", kloxo_string($classdesc), $d);
 			}
 		}
+		unset($d);
 	}
 
 	function generateParentListUrl($nobject)
@@ -4275,8 +4285,9 @@ class HtmlLib
 		$btnpath = $gen_image_path . "/icon/";
 
 		$classdesc = $this->get_class_description($rclass);
+		$classdesc2 = (is_array($classdesc) && isset($classdesc[2])) ? kloxo_string($classdesc[2]) : kloxo_string($class);
 
-		$unique_name = trim($parent->nname) . trim($class) . trim($classdesc[2]);
+		$unique_name = trim(kloxo_string($parent->nname)) . trim(kloxo_string($class)) . trim($classdesc2);
 		$unique_name = fix_nname_to_be_variable($unique_name);
 
 		$imgpath = $login->getSkinDir();
@@ -4365,14 +4376,15 @@ class HtmlLib
 			}
 
 			foreach ($descr[$name] as &$d) {
-				if ($this->is_special_url($d)) {
+				if ($this->is_special_url($d) || !is_string($d)) {
 					continue;
 				}
 
 				if (strstr($d, "%v") !== false) {
-					$d = str_replace("[%v]", $classdesc[2], $d);
+					$d = str_replace("[%v]", $classdesc2, $d);
 				}
 			}
+			unset($d);
 ?>
 
 								<td nowrap align="right"><span style="font-weight: bold"><?= $descr[$name][2] ?> </span> &nbsp;</td>
@@ -4556,8 +4568,9 @@ class HtmlLib
 		$imgtopline = $skindir . "/images/top_line.gif";
 
 		$classdesc = $this->get_class_description($rclass, $display);
+		$classdesc2 = (is_array($classdesc) && isset($classdesc[2])) ? kloxo_string($classdesc[2]) : kloxo_string($class);
 
-		$unique_name = trim($parent->nname) . trim($class) . trim($display) . trim($classdesc[2]);
+		$unique_name = trim(kloxo_string($parent->nname)) . trim(kloxo_string($class)) . trim(kloxo_string($display)) . trim($classdesc2);
 
 		$unique_name = fix_nname_to_be_variable($unique_name);
 ?>
@@ -4664,7 +4677,7 @@ class HtmlLib
 		<div class="div_showhide">
 			<fieldset style="padding: 0 ; text-align: center ; margin: 0; border: 0; border-top: 1px solid <?= $bordertop ?>">
 				<legend>
-					<span style='font-weight:bold'><?= $pluraldesc ?> <?= $showvar ?> <?= $login->getKeywordUc('under') ?> <?= $parent->getId() ?>
+					<span style='font-weight:bold'><?= kloxo_string($pluraldesc) ?> <?= kloxo_string($showvar) ?> <?= $login->getKeywordUc('under') ?> <?= kloxo_string($parent->getId()) ?>
 					<span style="color:red"><?= $filterundermes ?></span> <?= $this->print_machine($parent) ?> (<?= $perpageof ?><?= $total_num ?>)</span>
 				</legend>
 			</fieldset>
@@ -4673,8 +4686,9 @@ class HtmlLib
 		}
 
 		if (!$sellist && !$this->isResourceClass($class) && !$gbl->__inside_ajax) {
-			$skip_search = kloxo_skip_find_class($class)
-				|| (is_object($parent) && kloxo_skip_find_class($parent->getClass()));
+			$skip_search = strtolower((string)$class) !== 'ffile'
+				&& (kloxo_skip_find_class($class)
+				|| (is_object($parent) && kloxo_skip_find_class($parent->getClass())));
 ?>
 
 		<div class="div_showhide">
@@ -4867,14 +4881,15 @@ class HtmlLib
 			}
 
 			foreach ($descr[$name] as &$d) {
-				if ($this->is_special_url($d)) {
+				if ($this->is_special_url($d) || !is_string($d)) {
 					continue;
 				}
 
 				if (strstr($d, "%v") !== false) {
-					$d = str_replace("[%v]", $classdesc[2], $d);
+					$d = str_replace("[%v]", $classdesc2, $d);
 				}
 			}
+			unset($d);
 
 			$numwidth = intval(str_replace("%", "", $width));
 
@@ -5995,12 +6010,13 @@ class HtmlLib
 
 		$classdesc = null;
 
-		if (!$help) {
+		$help = kloxo_string($help);
+		if ($help === '') {
 			return null;
 		}
 
 		if ($name) {
-			$val = " <span style='color:blue'> " . $name . "</span>";
+			$val = " <span style='color:blue'> " . kloxo_string($name) . "</span>";
 			if (preg_match("/\[%s\]/", $help)) {
 				$help = str_replace("[%s]", $val, $help);
 			} else {
@@ -6140,9 +6156,14 @@ class HtmlLib
 		$num = kcount($cgi_o_o) - 1;
 
 		while ($num >= 0) {
-			$class = $cgi_o_o[$num]['class'];
+			if (!isset($cgi_o_o[$num]) || !is_array($cgi_o_o[$num])) {
+				$num--;
+				continue;
+			}
+			$class = kloxo_string($cgi_o_o[$num]['class'] ?? '');
 			$desc = $this->get_class_description($class);
-			if (isset($cgi_o_o[$num]['nname']) && !csa($desc[0], 'P')) {
+			$desc0 = (is_array($desc) && isset($desc[0])) ? $desc[0] : '';
+			if (isset($cgi_o_o[$num]['nname']) && !csa($desc0, 'P')) {
 				break;
 			}
 			$num--;
@@ -6152,33 +6173,38 @@ class HtmlLib
 			return;
 		}
 
-		$oldname = $cgi_o_o[$num]['nname'];
+		$oldname = kloxo_string($cgi_o_o[$num]['nname'] ?? '');
 
 		$subactionstr = null;
 
-		if ($this->frm_subaction) {
-			$subactionstr = "<input type='hidden' id='frm_subaction' name='frm_subaction' value='{$this->frm_subaction}'>\n";
+		$frm_subaction = htmlspecialchars(kloxo_string($this->frm_subaction ?? ''), ENT_QUOTES);
+		if ($frm_subaction !== '') {
+			$subactionstr = "<input type='hidden' id='frm_subaction' name='frm_subaction' value='{$frm_subaction}'>\n";
 		}
 
-		if ($this->frm_consumedlogin) {
-			$subactionstr .= "<input type='hidden' id='frm_consumedlogin' name='frm_consumedlogin' value='{$this->frm_consumedlogin}'>";
+		$frm_consumedlogin = htmlspecialchars(kloxo_string($this->frm_consumedlogin ?? ''), ENT_QUOTES);
+		if ($frm_consumedlogin !== '') {
+			$subactionstr .= "<input type='hidden' id='frm_consumedlogin' name='frm_consumedlogin' value='{$frm_consumedlogin}'>";
 		}
 
 		$cnamestr = null;
 
-		if ($this->frm_o_cname) {
-			$cnamestr = "<input type='hidden' id='frm_o_cname' name='frm_o_cname' value='{$this->frm_o_cname}'>";
+		$frm_o_cname = htmlspecialchars(kloxo_string($this->frm_o_cname ?? ''), ENT_QUOTES);
+		if ($frm_o_cname !== '') {
+			$cnamestr = "<input type='hidden' id='frm_o_cname' name='frm_o_cname' value='{$frm_o_cname}'>";
 		}
 
 		$dttypestr = null;
 
 		// This needs to be an array.
-		if ($this->frm_dttype) {
-			$dttypestr = "<input type='hidden' id='frm_dttype[val]' name='frm_dttype[val]' value='{$this->frm_dttype['val']}'>";
-			$dttypestr .= "<input type='hidden' id='frm_dttype[var]' name='frm_dttype[var]' value='{$this->frm_dttype['var']}'>";
+		if (is_array($this->frm_dttype)) {
+			$dttype_val = htmlspecialchars(kloxo_string($this->frm_dttype['val'] ?? ''), ENT_QUOTES);
+			$dttype_var = htmlspecialchars(kloxo_string($this->frm_dttype['var'] ?? ''), ENT_QUOTES);
+			$dttypestr = "<input type='hidden' id='frm_dttype[val]' name='frm_dttype[val]' value='{$dttype_val}'>";
+			$dttypestr .= "<input type='hidden' id='frm_dttype[var]' name='frm_dttype[var]' value='{$dttype_var}'>";
 		}
 
-		$frm_action = $this->frm_action;
+		$frm_action = htmlspecialchars(kloxo_string($this->frm_action ?? ''), ENT_QUOTES);
 		$filter = null;
 
 		$hpfilter = $login->getHPFilter();
@@ -6211,14 +6237,20 @@ class HtmlLib
 				<form name="topjumpselect" method="get" action='/display.php' accept-charset="utf-8">
 <?php
 		foreach ($cgi_o_o as $k => $v) {
+			if (!is_array($v)) {
+				continue;
+			}
+			$ek = htmlspecialchars(kloxo_string($k), ENT_QUOTES);
+			$eclass = htmlspecialchars(kloxo_string($v['class'] ?? ''), ENT_QUOTES);
 ?>
 
-					<input type="hidden" id="frm_o_o[<?= $k ?>][class]" name="frm_o_o[<?= $k ?>][class]" value="<?= $v['class'] ?>"/>
+					<input type="hidden" id="frm_o_o[<?= $ek ?>][class]" name="frm_o_o[<?= $ek ?>][class]" value="<?= $eclass ?>"/>
 <?php
 			if ($k != $num && isset($v['nname'])) {
+				$enname = htmlspecialchars(kloxo_string($v['nname']), ENT_QUOTES);
 ?>
 
-					<input type="hidden" id="frm_o_o[<?= $k ?>][nname]" name="frm_o_o[<?= $k ?>][nname]" value="<?= $v['nname'] ?>"/>
+					<input type="hidden" id="frm_o_o[<?= $ek ?>][nname]" name="frm_o_o[<?= $ek ?>][nname]" value="<?= $enname ?>"/>
 <?php
 
 			}
@@ -6236,24 +6268,29 @@ class HtmlLib
 
 					<?= $filteropacitystringspan ?>
 
-					<select <?= $filteropacitystring ?> <?= $ststring ?> class="textbox select_switch" onChange='document.topjumpselect.submit()' name='frm_o_o[<?= $num ?>][nname]'>
+					<select <?= $filteropacitystring ?> <?= $ststring ?> class="textbox select_switch" onChange='document.topjumpselect.submit()' name='frm_o_o[<?= (int)$num ?>][nname]'>
 
 <?php
-		foreach ($list as $k => $l) {
-			$tdisp = $l->getId();
+		foreach ((array)$list as $k => $l) {
+			if (!is_object($l) || !method_exists($l, 'getId')) {
+				continue;
+			}
+			$tdisp = kloxo_string($l->getId());
 
-			if ($sgbl->isDebug()) {
-				$tdisp = $l->getClName();
+			if ($sgbl->isDebug() && method_exists($l, 'getClName')) {
+				$tdisp = kloxo_string($l->getClName());
 			}
 
 			$selected = '';
 
-			if ($k == $oldname) {
+			if ((string)$k === (string)$oldname) {
 				$selected = 'SELECTED';
 			}
+			$ek = htmlspecialchars(kloxo_string($k), ENT_QUOTES);
+			$etdisp = htmlspecialchars($tdisp, ENT_QUOTES);
 ?>
 
-						<option <?= $selected ?> value="<?= $k ?>"><?= $tdisp ?></option>
+						<option <?= $selected ?> value="<?= $ek ?>"><?= $etdisp ?></option>
 <?php
 		}
 ?>
@@ -7331,7 +7368,7 @@ class HtmlLib
 
 	static function fix_lt_gt($value)
 	{
-		$value = str_replace(array("<", ">"), array("&lt;", "&gt;"), $value);
+		$value = str_replace(array("<", ">"), array("&lt;", "&gt;"), kloxo_string($value));
 
 		return $value;
 	}
@@ -10073,8 +10110,9 @@ function uploadAbort(e) { // upload abort
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		if (kloxo_skip_find_class($class)
-			|| (is_object($parent) && kloxo_skip_find_class($parent->getClass()))) {
+		if (strtolower((string)$class) !== 'ffile'
+			&& (kloxo_skip_find_class($class)
+			|| (is_object($parent) && kloxo_skip_find_class($parent->getClass())))) {
 			return;
 		}
 

@@ -98,7 +98,10 @@ is a no-op; `download_file()` refuses `http://`; version and wordlist HTTP fetch
   classic route to command injection.
 * **H2: 55 `eval()` calls and 25 `extract()` calls**; 23 variable-path `include/require`.
 * **H3: `httpdocs/web-console/` CLOSED.** The shell (`web-console.php`) is deleted; `index.php`
-  is a 403 stub that does not unserialize. The SSH-client iframe no longer loads it.
+  is a 403 stub that does not unserialize. SSH Terminal is a first-party admin
+  form (`sshclientlib.php`) that looks like WebConsole and runs commands with
+  `proc_open(['/bin/bash','-lc',$cmd])` as the panel user; it does not iframe
+  or unserialize the deleted gadget.
 * **H4: Weak credential handling.** 35 `md5()` and 35 `crypt()` uses; the admin password is
   created with MD5-crypt (`crypt($pass, '$1$…')`) in `lib/html/initlib.php`. Only 4
   `password_hash` uses. Install seeds the well-known default **admin / admin**;

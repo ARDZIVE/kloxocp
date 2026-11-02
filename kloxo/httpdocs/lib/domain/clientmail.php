@@ -26,10 +26,28 @@ class clientmail extends lxclass {
 
 	static function initThisListRule($parent, $class) { return null; }
 
+	static function serverNameForParent($parent)
+	{
+		if (!is_object($parent)) {
+			return 'localhost';
+		}
+		if (method_exists($parent, 'getClass') && $parent->getClass() === 'pserver'
+			&& isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+			return $parent->nname;
+		}
+		if (isset($parent->syncserver) && is_string($parent->syncserver) && $parent->syncserver !== '') {
+			return $parent->syncserver;
+		}
+		if (isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+			return $parent->nname;
+		}
+
+		return 'localhost';
+	}
+
 	static function initThisList($parent, $class)
 	{
-		$sync = (is_object($parent) && isset($parent->syncserver) && $parent->syncserver !== '')
-			? $parent->syncserver : 'localhost';
+		$sync = self::serverNameForParent($parent);
 		try {
 			$res = rl_exec_get(null, $sync,  array("clientmail", "readtotallog"), array());
 		} catch (Throwable $e) {

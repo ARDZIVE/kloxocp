@@ -13,12 +13,13 @@ check "php -l remote_auth_gate.php" php -l "$ROOT/kloxo/httpdocs/lib/html/remote
 check "php -l remotelib.php"        php -l "$ROOT/kloxo/httpdocs/lib/html/remotelib.php"
 check "php -l test_auth_gate.php"   php -l "$HERE/test_auth_gate.php"
 
-echo "== localhost does not need the C daemon"
-if grep -A 30 'function remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'return do_local_action($cmd)' \
-  && ! grep -A 30 'function remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'os_isSelfSystemOrLxlabsUser'; then
-  ok "localhost File Manager/Switch/Cron run in-process without the C daemon"
+echo "== localhost File Manager"
+if grep -A 50 'function remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'posix_geteuid' \
+  && grep -A 80 'function remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'return do_local_action($cmd)' \
+  && grep -A 80 'function remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'localhost backend'; then
+  ok "localhost File Manager uses kloxo-backend as root, in-process fallback"
 else
-  bad "localhost File Manager/Switch/Cron run in-process without the C daemon"
+  bad "localhost File Manager uses kloxo-backend as root, in-process fallback"
 fi
 if grep -A 20 'function os_isSelfSystemOrLxlabsUser' "$ROOT/kloxo/httpdocs/lib/html/linuxlib.php" | grep -q 'return false'; then
   ok "os_isSelfSystemOrLxlabsUser returns false for other users"
@@ -30,7 +31,8 @@ if grep -A 20 'function slave_get_driver' "$ROOT/kloxo/httpdocs/lib/html/lib.php
 else
   bad "slave_get_driver does not index a missing slavedb/driver file"
 fi
-if grep -A 16 'function lxfile_dstat' "$ROOT/kloxo/httpdocs/lib/html/commonfslib.php" | grep -q 'is_array($stat)' \
+if grep -A 20 'function lxfile_dstat' "$ROOT/kloxo/httpdocs/lib/html/commonfslib.php" | grep -q 'is_array($stat)' \
+  && grep -A 20 'function lxfile_dstat' "$ROOT/kloxo/httpdocs/lib/html/commonfslib.php" | grep -q 'is_array($list)' \
   && grep -A 12 'function lxfile_stat' "$ROOT/kloxo/httpdocs/lib/html/commonfslib.php" | grep -q 'is_array($list)'; then
   ok "File Manager listing skips unreadable entries instead of TypeError"
 else

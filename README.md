@@ -77,6 +77,8 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 2. Installs the **core** apt set: `php-cli` `php-fpm` `php-mysql` `php-xml`
    `php-mbstring` `php-curl`, MariaDB, Nginx, BIND 9, `iproute2`, and the
    compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`).
+   Also packages `pdns-server` and `apache2` but does not let apt start them
+   (BIND stays on 53, Nginx on 80/443).
 3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
    If it is already a git clone, fetches `origin/main` and `reset --hard` first. If `/opt/kloxo`
    is a real directory (not a symlink to the clone), copies `httpdocs` /
@@ -252,7 +254,9 @@ builds pinned 12.4. Redis is a mail-stack dependency, not a core panel package.
 `pdns-server` is installed and left **disabled**; BIND stays on port 53 until
 Switch Program selects PowerDNS. `apache2` is installed and left **disabled**;
 Nginx stays on 80/443 until Switch Program selects Apache (PHP-FPM via
-`proxy_fcgi`, not mod_php).
+`proxy_fcgi`, not mod_php). During apt, `install.sh` tells `invoke-rc.d` not
+to start those two units (they have no backend yet, and would fight BIND /
+Nginx for the ports).
 
 ### 3. Place the tree at `/opt/kloxo`
 

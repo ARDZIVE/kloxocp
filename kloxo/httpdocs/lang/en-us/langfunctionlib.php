@@ -1,6 +1,10 @@
 <?php 
 function get_plural($word)
 {
+	$word = function_exists('kloxo_string') ? kloxo_string($word) : (is_string($word) ? $word : '');
+	if ($word === '') {
+		return '';
+	}
 	if ($word[strlen($word) - 1] === 's') {
 		$ret = "{$word}es";
 	} else if ($word[strlen($word) - 1] === 'y') {

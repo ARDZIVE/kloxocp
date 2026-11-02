@@ -23,11 +23,13 @@ change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it). Admin Servers list seeds `localhost`. The Update
 screen shows the local `kloxoversion` (`kloxocp update` still exits 2).
 Switch Program DNS default is BIND (`pg_dns=bind`); PowerDNS is packaged and
-prepared (`install-pdns`) but the `pdns` unit stays disabled until selected.
+prepared (`install-pdns`) but the `pdns` unit stays disabled until selected
+(apt postinst is blocked from starting it).
 Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
 (`install-apache`, PHP-FPM via proxy_fcgi, no mod_php) but `apache2` stays
 disabled until selected. Admin SQL Manager opens phpMyAdmin via panel
-sign-on (`kloxo_pma`, all databases; no password in the URL). Component Info
+sign-on (`kloxo_pma`, all databases; no password in the URL) from the
+Basic home tile, not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
 postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim`
@@ -50,9 +52,12 @@ Customer sites default to the newest installed PHP-FPM; 5.6.40 and 7.4.33
 are installed beside it (`install-site-php`, ppa:ondrej/php) and can be
 chosen on Webserver Configure (PHP Used / PHP Branch list php8.3, php7.4,
 php5.6 — not php52m). The panel itself stays on distro PHP. Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager show pages
-omit the left Find box. LxGuard list tabs (connections, raw hits, whitelist)
+omit the left Find box. File Manager keeps the list toolbar search (T Hidden,
+New dir, Copy/Cut/Paste, columns Size/Name/Modified/Owner/Permissions) like
+Kloxo-MR; listing uses kloxo-backend on loopback 7776 when the panel is not
+root, with in-process fallback. LxGuard list tabs (connections, raw hits, whitelist)
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
-home) and shows a copyable `ssh` command. Install seeds a Welcome HelpDesk ticket (Created By Kloxo). List/driver calls guard a missing
+home) and shows a WebConsole-like black terminal (no Java applet). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). List/driver calls guard a missing
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.
@@ -60,6 +65,7 @@ Cron Tasks Mail To does not need the C daemon on TCP 7776.
 DNS Template links list `dnstemplate`, not Backup/Restore.
 FTP Configure is `serverftp` under localhost, not Backup FTP Configuration.
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
+Mails Per Client lists under the selected pserver and shows Switch To Another.
 Admin Servers can add a remote host (hostname or IPv4 plus the slave password)
 on the list page; there is no separate Add Server tab. Adding a client does
 not implode() a string (contact email / coma_* lists). Adding a Resource Plan

@@ -426,6 +426,12 @@ if grep -q 'function seedHelpdesk' "$ROOT/kloxo/bin/install/init-panel-db" \
 else
   bad "init-panel-db seeds Welcome HelpDesk ticket and category"
 fi
+if grep -q 'function seedAdminHome' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "/home/admin" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds /home/admin for File Manager"
+else
+  bad "init-panel-db seeds /home/admin for File Manager"
+fi
 if grep -q 'max_execution_time_flag' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function phpiniFlagDefaults' "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds full phpini defaults"
 else
@@ -545,6 +551,14 @@ if grep -q 'pdns-server' "$ROOT/install.sh" && grep -q 'pdns-backend-mysql' "$RO
   ok "install.sh packages pdns and leaves it disabled"
 else
   bad "install.sh packages pdns and leaves it disabled"
+fi
+if grep -q 'Temporary Kloxo CP policy' "$ROOT/install.sh" \
+  && grep -q 'exit 101' "$ROOT/install.sh" \
+  && grep -q 'mask --runtime pdns.service apache2.service' "$ROOT/install.sh" \
+  && grep -q 'reset-failed pdns' "$ROOT/install.sh"; then
+  ok "install.sh blocks apt from starting pdns and apache2"
+else
+  bad "install.sh blocks apt from starting pdns and apache2"
 fi
 if grep -E 'enable --now pdns' "$ROOT/install.sh"; then
   bad "install.sh does not enable pdns at boot"

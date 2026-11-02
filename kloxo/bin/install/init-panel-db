@@ -279,6 +279,7 @@ TXT;
         $this->writePass($passFile, $dbPass);
         $this->ensurePmaUser($rootUser);
         $this->seedAdmin($pdo, $adminPass);
+        $this->seedAdminHome();
         $this->seedAdminPriv($pdo);
         $this->seedGeneral($pdo);
         $this->seedHelpdesk($pdo);
@@ -626,6 +627,37 @@ TXT;
              VALUES ('admin', ?, ?, 'admin', 'on', 'on', ?, '', '', 'localhost')"
         );
         $stmt->execute([$hash, $adminPass, (string)time()]);
+    }
+
+    private function seedAdminHome(): void
+    {
+        $home = '/home/admin';
+        if (function_exists('posix_geteuid') && posix_geteuid() !== 0) {
+            return;
+        }
+        if (!is_dir($home) && !@mkdir($home, 0751, true) && !is_dir($home)) {
+            return;
+        }
+        @chmod($home, 0751);
+        if (function_exists('posix_getpwnam') && posix_getpwnam('admin') === false && Proc::exists('useradd')) {
+            Proc::run([
+                'useradd', '-M', '-d', $home, '-s', '/usr/sbin/nologin',
+                '-c', 'Kloxo admin', 'admin',
+            ]);
+        }
+        if (function_exists('posix_getpwnam')) {
+            $pw = posix_getpwnam('admin');
+            if (is_array($pw) && isset($pw['uid'], $pw['gid'])) {
+                @chown($home, (int)$pw['uid']);
+                @chgrp($home, (int)$pw['gid']);
+            }
+        }
+        foreach (['kloxoscript', '__processed_stats'] as $sub) {
+            $d = $home . '/' . $sub;
+            if (!is_dir($d)) {
+                @mkdir($d, 0751, true);
+            }
+        }
     }
 
     private function seedAdminPriv(PDO $pdo): void

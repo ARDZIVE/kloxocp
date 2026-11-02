@@ -1634,6 +1634,21 @@ function kloxo_skip_find_class($class)
 	return in_array($c, $skip, true);
 }
 
+function kloxo_string($value)
+{
+	if (is_string($value)) {
+		return $value;
+	}
+	if ($value === null || $value === false) {
+		return '';
+	}
+	if (is_scalar($value)) {
+		return (string)$value;
+	}
+
+	return '';
+}
+
 function kloxo_implode($separator, $list)
 {
 	$sep = is_string($separator) ? $separator : ',';

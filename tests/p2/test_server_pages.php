@@ -156,6 +156,43 @@ if (class_exists('mailqueue__postfix')) {
 	bad('mailqueue__postfix parses postqueue -p text', 'class missing');
 }
 
+$pssrc = (string)file_get_contents($doc . '/driver/pserver/pserverlib.php');
+$cmsrc = (string)file_get_contents($doc . '/lib/domain/clientmail.php');
+$listdisp = (string)file_get_contents($doc . '/theme/coredisplaylib.php');
+if (str_contains($pssrc, 'function getSelfList')
+	&& str_contains($pssrc, 'adminServerSwitchList')
+	&& str_contains($cmsrc, 'serverNameForParent')
+	&& str_contains($cmsrc, 'self::serverNameForParent($parent)')
+	&& str_contains($listdisp, 'printShowSelectBox')) {
+	ok('Mails Per Client list has Switch To Another for servers');
+} else {
+	bad('Mails Per Client list has Switch To Another for servers');
+}
+try {
+	$ps = new pserver(null, null, 'localhost');
+	$ps->nname = 'localhost';
+	$sw = $ps->getSelfList();
+	if (is_array($sw) && isset($sw['localhost']) && is_object($sw['localhost'])) {
+		ok('pserver Switch To Another includes localhost');
+	} else {
+		bad('pserver Switch To Another includes localhost', var_export(is_array($sw) ? array_keys($sw) : $sw, true));
+	}
+} catch (Throwable $e) {
+	bad('pserver Switch To Another includes localhost', $e->getMessage());
+}
+try {
+	$pobj = new pserver(null, null, 'localhost');
+	$pobj->nname = 'mailhost.example';
+	if (clientmail::serverNameForParent($pobj) === 'mailhost.example'
+		&& clientmail::serverNameForParent(null) === 'localhost') {
+		ok('Mails Per Client uses the selected server name');
+	} else {
+		bad('Mails Per Client uses the selected server name');
+	}
+} catch (Throwable $e) {
+	bad('Mails Per Client uses the selected server name', $e->getMessage());
+}
+
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
 	&& str_contains($src, "'sshconfig', 'lxguard', 'sshclient', 'ffile'")
@@ -173,6 +210,22 @@ if (function_exists('kloxo_skip_find_class')
 	ok('LxGuard pages skip the Find input');
 } else {
 	bad('LxGuard pages skip the Find input');
+}
+
+$clsrc = (string)file_get_contents($doc . '/lib/client/clientlib.php');
+$pssrc = (string)file_get_contents($doc . '/driver/pserver/pserverlib.php');
+$dom = '';
+$dpos = strpos($clsrc, "__title_domain_rec");
+if ($dpos !== false) {
+	$dom = substr($clsrc, $dpos, 900);
+}
+if ($dom !== '' && str_contains($dom, 'if (!$this->isAdmin())')
+	&& preg_match('/if \(!\$this->isAdmin\(\)\)\s*\{\s*\$this->getMysqlDbAdmin/s', $dom)
+	&& str_contains($pssrc, "__title_webmailanddb")
+	&& str_contains($pssrc, 'getMysqlDbAdmin($alist)')) {
+	ok('SQL Manager is in Basic, not an extra Domain tile for admin');
+} else {
+	bad('SQL Manager is in Basic, not an extra Domain tile for admin');
 }
 
 if (function_exists('kloxo_driver_class')
@@ -545,11 +598,35 @@ try {
 }
 
 $sshsrc = (string)file_get_contents($doc . '/driver/pserver/sshclientlib.php');
-if (!str_contains($sshsrc, '<applet') && str_contains($sshsrc, 'ssh -p')
+if (!str_contains($sshsrc, '<applet')
+	&& !str_contains($sshsrc, 'web-console/index.php')
+	&& !str_contains($sshsrc, 'unserialize')
+	&& str_contains($sshsrc, 'kloxo-ssh-terminal')
+	&& str_contains($sshsrc, "array('/bin/bash', '-lc'")
 	&& str_contains($sshsrc, 'only_admin_can_access')) {
-	ok('SSH Terminal shows a copyable ssh command instead of a Java applet');
+	ok('SSH Terminal is an in-page WebConsole, not a Java applet');
 } else {
-	bad('SSH Terminal shows a copyable ssh command instead of a Java applet');
+	bad('SSH Terminal is an in-page WebConsole, not a Java applet');
+}
+try {
+	$echoed = sshclient::runAdminCommand('echo kloxo-ssh-ok');
+	if (is_string($echoed) && str_contains($echoed, 'kloxo-ssh-ok')) {
+		ok('SSH Terminal runs echo via bash -lc');
+	} else {
+		bad('SSH Terminal runs echo via bash -lc', var_export($echoed, true));
+	}
+} catch (Throwable $e) {
+	bad('SSH Terminal runs echo via bash -lc', $e->getMessage());
+}
+try {
+	$empty = sshclient::runAdminCommand('');
+	if ($empty === '') {
+		ok('SSH Terminal rejects an empty command');
+	} else {
+		bad('SSH Terminal rejects an empty command', var_export($empty, true));
+	}
+} catch (Throwable $e) {
+	bad('SSH Terminal rejects an empty command', $e->getMessage());
 }
 $clsrc = (string)file_get_contents($doc . '/lib/client/clientlib.php');
 $clbase = (string)file_get_contents($doc . '/lib/client/clientbaselib.php');
@@ -588,6 +665,53 @@ if (is_array($stat) && isset($stat['other_username']) && is_array($emptyStat)) {
 	ok('File Manager owner lookup accepts a missing posix user');
 } else {
 	bad('File Manager owner lookup accepts a missing posix user');
+}
+
+if (function_exists('kloxo_string') && kloxo_string(array('x')) === '' && kloxo_string(null) === '' && kloxo_string(7) === '7') {
+	ok('kloxo_string refuses arrays');
+} else {
+	bad('kloxo_string refuses arrays');
+}
+
+$ff = new Ffile(null, 'localhost', sys_get_temp_dir(), '/', 'nobody');
+$ff->mode = 16877;
+$ff->size = 4096;
+$ff->mtime = 1521260517;
+$ff->base = 'Maildir';
+$ff->nname = '/Maildir';
+$ff->ttype = 'directory';
+$dummy = null;
+$perm = $ff->getPermissions($dummy);
+$nlist = array();
+try {
+	$nlist = Ffile::createListNlist($ff, null);
+} catch (Throwable $e) {
+	$nlist = array('error' => $e->getMessage());
+}
+$htmlsrc = (string)file_get_contents($doc . '/theme/htmllib.php');
+if (is_string($perm) && $perm !== ''
+	&& is_string($ff->display('size')) && str_ends_with($ff->display('size'), 'K')
+	&& is_string($ff->display('mtime'))
+	&& is_array($nlist) && isset($nlist['nname'], $nlist['mode'], $nlist['other_username'], $nlist['pvrename'], $nlist['pvdownload'])
+	&& str_contains($htmlsrc, "strtolower((string)\$class) !== 'ffile'")
+	&& str_contains($htmlsrc, 'kloxo_string($parent->nname)')) {
+	ok('File Manager list columns and toolbar search match Kloxo-MR');
+} else {
+	bad('File Manager list columns and toolbar search match Kloxo-MR', isset($nlist['error']) ? $nlist['error'] : '');
+}
+
+$cff = (string)file_get_contents($doc . '/lib/php/coreffilelib.php');
+$missing = array('no');
+try {
+	$missing = coreFfile::get_full_stat('nobody', sys_get_temp_dir(), sys_get_temp_dir() . '/kloxo-no-such-ffile-dir', false);
+} catch (Throwable $e) {
+	$missing = array('error' => $e->getMessage());
+}
+if ((is_array($missing) && $missing === array())
+	|| str_contains($cff, "return array();\n\t\t}\n\n\t\t\$ret = lxfile_dstat")) {
+	ok('File Manager listing a missing directory is an empty list');
+} else {
+	bad('File Manager listing a missing directory is an empty list', isset($missing['error']) ? $missing['error'] : '');
 }
 
 if (os_get_user_from_uid(999999) === '999999' && os_get_group_from_gid(999999) === '999999') {

@@ -6,13 +6,19 @@ class coreFfile
 	{
 		self::check_for_break($root, $path);
 
-		$ret = lxfile_dstat($path, $duflag);
-		
-		if ($ret) {
-			foreach ($ret as &$r) {
-				$r = self::createFfileVariables($r);
-			}
+		if (!is_string($path) || $path === '' || (!is_dir($path) && !is_link($path))) {
+			return array();
 		}
+
+		$ret = lxfile_dstat($path, $duflag);
+		if (!is_array($ret)) {
+			return array();
+		}
+
+		foreach ($ret as &$r) {
+			$r = self::createFfileVariables($r);
+		}
+		unset($r);
 
 		return $ret;
 	}

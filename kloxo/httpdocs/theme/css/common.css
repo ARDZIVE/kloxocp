@@ -701,37 +701,39 @@ html>body #quotausagebar span.last {
 
 	.div_container_icons {
 		cursor: pointer;
-		width: 90px;
-		height: 90px;
-		padding: 1px;
-		margin: 1px;
+		width: 80px;
+		height: 72px;
+		padding: 0;
+		margin: 0;
+		box-sizing: border-box;
 	}
 
 	.div_icons_image {
-		margin: 1px auto;
-		height: 40px;
+		margin: 0 auto;
+		height: 32px;
 		text-align: center;
 	}
 
 	.div_icons_text {
-		margin: 1px auto;
-		height: 50px;
+		margin: 0 auto;
+		height: 36px;
 		text-align: center;
+		line-height: 1.15;
 	}
 
 	.div_icons_text_reverse {
-		margin: 1px auto;
-		height: 50px;
+		margin: 0 auto;
+		height: 36px;
 		display: table-cell;
 		vertical-align: bottom;
-		padding-bottom: 3px;
+		padding-bottom: 1px;
 	}
 
 	.div_container {
 		visibility: visible;
 		display: inline-block;
 		float: left;
-		margin: 3px;
+		margin: 1px;
 		overflow: visible;
 	}
 
@@ -770,7 +772,7 @@ html>body #quotausagebar span.last {
 	.div_home_right #show_page {
 		float: none !important;
 		width: 100% !important;
-		margin: 0 0 10px 0 !important;
+		margin: 0 0 4px 0 !important;
 		box-sizing: border-box;
 	}
 

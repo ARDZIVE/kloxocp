@@ -286,14 +286,15 @@ function remote_exec($machine, $cmd)
 
 	$version = $sgbl->__ver_major_minor_release;
 
-	if (isLocalhost($machine)) {
-		if (is_secondary_master()) {
-			throw new lxException($login->getThrow('on_secondary_master'), '', $machine);
-		}
-		// Panel PHP-FPM is lxlabs, not root. Ubuntu never starts the C
-		// daemon on :7776, so localhost work must run in-process. Do not
-		// gate on posix uid: a failed getpwuid used to fall through to
-		// TCP and throw "No socket connect to server [localhost]".
+	if (isLocalhost($machine) && is_secondary_master()) {
+		throw new lxException($login->getThrow('on_secondary_master'), '', $machine);
+	}
+
+	$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
+	// Root (kloxo-backend) always runs in-process. Panel PHP-FPM is lxlabs:
+	// File Manager and other privileged work go to loopback 7776, then fall
+	// back to in-process so a down backend cannot blank the page.
+	if (isLocalhost($machine) && $euid === 0) {
 		try {
 			return do_local_action($cmd);
 		} catch (lxException $e) {
@@ -326,7 +327,22 @@ function remote_exec($machine, $cmd)
 
 	print_time('remote_exec');
 
-	$rmt = do_remote_exec($machine, $cmd, $cmdtype, $nname, $dbaction);
+	try {
+		$rmt = do_remote_exec($machine, $cmd, $cmdtype, $nname, $dbaction);
+	} catch (Throwable $e) {
+		if (isLocalhost($machine)) {
+			log_log("error", "localhost backend: " . $e->getMessage());
+			try {
+				return do_local_action($cmd);
+			} catch (lxException $le) {
+				throw $le;
+			} catch (Throwable $le) {
+				log_log("error", "do_local_action: " . $le->getMessage());
+				throw new lxException($login->getThrow('could_not_connect_to_server'), '', $machine);
+			}
+		}
+		throw $e;
+	}
 	$class = 'get_action';
 	$subaction = "get";
 

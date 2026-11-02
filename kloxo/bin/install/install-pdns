@@ -279,6 +279,7 @@ TXT;
         if (!Proc::exists('systemctl')) {
             return;
         }
+        Proc::run(['systemctl', 'reset-failed', 'pdns']);
         Proc::run(['systemctl', 'disable', '--now', 'pdns']);
     }
 }
