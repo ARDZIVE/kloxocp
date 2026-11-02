@@ -151,7 +151,8 @@ abstract class Lxclass
 		//	debugBacktrace();
 		}
 
-		if (isLocalhost($this->__masterserver) && $login->isSuperClient()) {
+		if (isLocalhost($this->__masterserver) && is_object($login)
+			&& method_exists($login, 'isSuperClient') && $login->isSuperClient()) {
 			return;
 		}
 
@@ -6314,6 +6315,7 @@ abstract class Lxclass
 	}
 }
 
+#[AllowDynamicProperties]
 class LxaClass extends Lxclass
 {
 	function get() { }

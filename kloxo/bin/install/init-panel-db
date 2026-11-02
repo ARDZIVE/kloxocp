@@ -289,6 +289,7 @@ TXT;
         $this->seedPhpini($pdo);
         $this->seedServerweb($pdo);
         $this->seedServerftp($pdo);
+        $this->seedWatchdog($pdo);
         $this->seedSpecialplay($pdo);
 
         $client = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
@@ -847,6 +848,38 @@ TXT;
             "INSERT INTO serverftp (nname, parent_clname, parent_cmlist, maxclient, highport, lowport, enable_anon_ftp)
              VALUES ('pserver-localhost', 'pserver-localhost', '', '5000', '65000', '45000', 'on')"
         );
+    }
+
+    /** @return list<array{0:string,1:string,2:string,3:string}> */
+    public static function watchdogDefaults(): array
+    {
+        return [
+            ['dns', '53', '__driver_dns', 'on'],
+            ['ftp', 'pgrep ^pure-ftpd', '__driver_ftp', 'on'],
+            ['mail', '25', '__driver_mail', 'on'],
+            ['mysql', 'pgrep ^mysql', '__driver_mysql', 'on'],
+            ['php-fpm', 'pgrep ^php-fpm', '__driver_php-fpm', 'on'],
+            ['webcache', '8080', '__driver_web', 'off'],
+            ['webproxy', '30080', '__driver_web', 'off'],
+            ['web', '80', '__driver_web', 'on'],
+        ];
+    }
+
+    private function seedWatchdog(PDO $pdo): void
+    {
+        $stmt = $pdo->prepare(
+            "INSERT INTO watchdog (nname, parent_clname, parent_cmlist, servicename, syncserver, port, action, status, added_by_system, oldsyncserver, olddeleteflag)
+             VALUES (?, 'pserver-localhost', '', ?, 'localhost', ?, ?, ?, 'on', '', '')"
+        );
+        foreach (self::watchdogDefaults() as $row) {
+            [$service, $port, $action, $status] = $row;
+            $nname = $service . '___localhost';
+            $n = (int)$pdo->query('SELECT COUNT(*) FROM watchdog WHERE nname = ' . $pdo->quote($nname))->fetchColumn();
+            if ($n > 0) {
+                continue;
+            }
+            $stmt->execute([$nname, $service, $port, $action, $status]);
+        }
     }
 
     /** @return array<string,string> */

@@ -1,7 +1,9 @@
 <?php
 
+#[AllowDynamicProperties]
 class phpini_flag_b extends lxaclass
 {
+	static $__desc = array("", "", "php_configuration");
 	static $__desc_display_error_flag = array("f", "", "display_errors");
 	static $__desc_register_global_flag = array("f", "", "register_globals");
 	static $__desc_enable_zend_flag = array("f", "", "enable_zend");
@@ -201,13 +203,31 @@ class phpini extends lxdb
 		$this->__var_webdriver = $driverapp;
 	}
 
-	function createShowPropertyList(&$alist)
+	static function phpiniPropertyTabs()
 	{
-		$alist['property'] = array();
-		$alist['property'][] = 'a=show';
-		$alist['property'][] = 'a=updateform&sa=extraedit';
+		return array(
+			'a=show',
+			'a=updateform&sa=extraedit',
+		);
 	}
 
+	function createShowPropertyList(&$alist)
+	{
+		$alist['property'] = self::phpiniPropertyTabs();
+
+		return $alist;
+	}
+
+	function getSelfList()
+	{
+		try {
+			return parent::getSelfList();
+		} catch (Throwable $e) {
+			log_log("error", "phpini getSelfList: " . $e->getMessage());
+
+			return null;
+		}
+	}
 
 	function createShowUpdateform()
 	{
@@ -259,7 +279,12 @@ class phpini extends lxdb
 	{
 		global $login;
 
-		$this->initPhpIni();
+		try {
+			$this->initPhpIni();
+		} catch (Throwable $e) {
+			log_log("error", "phpini initPhpIni: " . $e->getMessage());
+			$this->fixphpIniFlag();
+		}
 
 		$parentClass = $this->phpiniParentClass();
 		$vlist = array();
@@ -427,6 +452,9 @@ class phpini extends lxdb
 
 	function initialValue($var, $val)
 	{
+		if (!isset($this->phpini_flag_b) || lget_class($this->phpini_flag_b) !== 'phpini_flag_b') {
+			$this->phpini_flag_b = new phpini_flag_b(null, null, $this->nname);
+		}
 		if (!isset($this->phpini_flag_b->$var) || !$this->phpini_flag_b->$var) {
 			$this->phpini_flag_b->$var = $val;
 		}

@@ -660,15 +660,25 @@ function send_system_monitor_message_to_admin($prog)
 
 function check_if_port_on($port)
 {
+	$port = is_scalar($port) ? (string) $port : '';
+	if ($port === '') {
+		return false;
+	}
+
 	$list = explode("||", $port);
 
 	$ret = false;
 
 	foreach ($list as $k => $v) {
+		$v = trim((string) $v);
+		if ($v === '') {
+			continue;
+		}
 		if (strpos($v, '.sock') !== false) {
-			// unix socket -> /var/lib/mysql/mysql.sock for mysql
-			// $socket = fsockopen('unix://{$v}', '-1', $errno, $errstr, 5);
-			$socket = fsockopen('unix://{$v}', '-1', $errno, $errstr);
+			if (!preg_match('#^/[A-Za-z0-9._/-]+\.sock$#', $v)) {
+				continue;
+			}
+			$socket = @fsockopen('unix://' . $v, -1, $errno, $errstr, 5);
 
 			if ($socket) {
 				fclose($socket);
@@ -677,26 +687,30 @@ function check_if_port_on($port)
 
 			}
 		} elseif (strpos($v, '.pid') !== false) {
-			if (filesize($v) !== 0) {
+			if (is_file($v) && filesize($v) !== 0) {
 				$ret = true;
 			}
 		} elseif (strpos($v, ' status') !== false) {
-			exec($v, $out, $ret);
-
-		//	if (strpos($out[0], '(pid ') !== false) {
-		//	if (strpos($out[0], 'running') !== false) {
-			if (count($out) > 0) {
-				$ret = true;
-			}
+			continue;
 		} elseif (strpos($v, 'pgrep') !== false) {
-			exec($v, $out, $ret);
+			if (!preg_match('/^pgrep(\s+-f)?\s+\^?[A-Za-z0-9._-]+$/', $v)) {
+				continue;
+			}
+			$out = array();
+			exec($v, $out);
 
 			if (count($out) > 0) {
 				return true;
 			}
 		} else {
-			// standard port -> 3306 for mysql
-			$socket = fsockopen('127.0.0.1', $v, $errno, $errstr, 5);
+			if (!ctype_digit($v)) {
+				continue;
+			}
+			$pnum = (int) $v;
+			if ($pnum < 1 || $pnum > 65535) {
+				continue;
+			}
+			$socket = @fsockopen('127.0.0.1', $pnum, $errno, $errstr, 5);
 
 			if ($socket) {
 				fclose($socket);

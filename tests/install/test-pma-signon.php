@@ -22,6 +22,10 @@ $check = static function (bool $ok, string $msg) use (&$fail): void {
 };
 
 $check(kloxo_pma_url() === '/thirdparty/phpMyAdmin/', 'SQL Manager URL is /thirdparty/phpMyAdmin/');
+$check(kloxo_pma_href(true, 'localhost') === '/thirdparty/phpMyAdmin/', 'localhost SQL Manager href is phpMyAdmin');
+$check(kloxo_pma_href(false, '') === '/thirdparty/phpMyAdmin/', 'empty remote server stays phpMyAdmin path');
+$remote = kloxo_pma_href(false, 'bad host');
+$check(str_contains($remote, 'phpMyAdmin') && !str_contains($remote, ' '), 'unsafe remote host does not invent a URL');
 $login = kloxo_pma_login('/tmp/kloxo-pma-missing');
 $check($login['user'] === 'root', 'sign-on user is MariaDB root');
 $check($login['host'] === '127.0.0.1', 'sign-on host is 127.0.0.1');

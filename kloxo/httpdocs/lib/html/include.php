@@ -13,6 +13,7 @@ include_once "$dir/lib/sgbl.php";
 include_once "$dir/lib/gbl.php";
 include_once "$dir/lib/html/lib.php";
 include_once "$dir/lib/php/lxlib.php" ;
+include_once "$dir/lib/php/kloxo_pma.php";
 include_once "$dir/lib/php/common.inc";
 include_once "$dir/lib/html/remotelib.php";
 include_once "$dir/lib/php/lxdb.php";

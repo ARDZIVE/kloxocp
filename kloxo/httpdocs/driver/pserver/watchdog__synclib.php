@@ -18,28 +18,46 @@ class watchdog__sync extends Lxdriverclass
 
 		$list = lfile_get_unserialize("../etc/watchdog.conf");
 
-		foreach((array)$list as $l) {
-			if (!isOn($l['status'])) {
-				print("{$l['servicename']} is disabled\n");
+		foreach ((array) $list as $l) {
+			if (!is_array($l)) {
+				continue;
+			}
+			$status = isset($l['status']) ? $l['status'] : 'off';
+			$name = isset($l['servicename']) ? (string) $l['servicename'] : '';
+			$port = isset($l['port']) ? $l['port'] : '';
+			$raw = isset($l['action']) ? (string) $l['action'] : '';
+			if (!isOn($status)) {
+				print("{$name} is disabled\n");
 				continue;
 			}
 
-			if (check_if_port_on($l['port'])) {
+			if (check_if_port_on($port)) {
 				continue;
 			}
 
-			if (csb($l['action'], "__driver_")) {
-				$action = str_replace("__driver_", "sh /script/restart-", $l['action']) . " --force >/dev/null 2>&1";
-			} elseif (csb($l['action'], "restart-")) {
-				$action = "sh /script/" . $l['action'] . " --force >/dev/null 2>&1";
+			$drv = '';
+			if (csb($raw, "__driver_")) {
+				$drv = substr($raw, strlen('__driver_'));
+				if ($drv === 'qmail') {
+					$drv = 'mail';
+				}
+			} elseif (csb($raw, "restart-")) {
+				$drv = substr($raw, strlen('restart-'));
 			} else {
-				$action = $l['action'];
-				exec_with_all_closed("{$action} >/dev/null 2>&1");
+				continue;
 			}
-			
+			if (!preg_match('/^[A-Za-z0-9._-]+$/', $drv)) {
+				continue;
+			}
+			$script = "/script/restart-{$drv}";
+			if (!is_file($script) && !is_link($script)) {
+				continue;
+			}
+			$action = "sh {$script} --force";
+			lxshell_return('/bin/sh', $script, '--force');
 
-			log_log("watchdog", "$action executed for port {$l['port']}");
-			send_system_monitor_message_to_admin("Port: {$l['port']}\nAction: {$action}");
+			log_log("watchdog", "$action executed for port {$port}");
+			send_system_monitor_message_to_admin("Port: {$port}\nAction: {$action}");
 		}
 	}
 
@@ -51,9 +69,13 @@ class watchdog__sync extends Lxdriverclass
 				break;
 			case "full_update":
 			default:
-				$result = $this->main->__var_watchlist;
+				$result = (isset($this->main->__var_watchlist) && is_array($this->main->__var_watchlist))
+					? $this->main->__var_watchlist : array();
 				unset($this->main->__var_watchlist);
 				$result = merge_array_object_not_deleted($result, $this->main);
+				if (!is_array($result)) {
+					$result = array();
+				}
 				lfile_put_serialize("../etc/watchdog.conf", $result);
 				break;
 		}

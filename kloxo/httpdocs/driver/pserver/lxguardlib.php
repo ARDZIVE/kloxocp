@@ -14,13 +14,62 @@ class lxguard extends lxdb
 	static $__desc_rawlxguardhit_l = array("d", "",  "");
 	static $__desc_lxguardhitdisplay_l = array("d", "",  "");
 
-	static function initThisObjectRule($parent, $class, $name = null) { return $parent->nname; }
+	static function initThisObjectRule($parent, $class, $name = null)
+	{
+		return is_object($parent) && isset($parent->nname) ? $parent->nname : 'localhost';
+	}
+
+	function getSelfList()
+	{
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
+
+		$current = (is_object($parent) && method_exists($parent, 'getClass')
+			&& $parent->getClass() === 'pserver')
+			? $parent : $this;
+
+		$canDb = function_exists('lfile_exists') && lfile_exists('__path_admin_pass')
+			&& trim((string) lfile_get_contents('__path_admin_pass')) !== '';
+
+		$out = array();
+		if ($canDb && class_exists('pserver') && is_callable(array('pserver', 'adminServerSwitchList'))) {
+			try {
+				$got = pserver::adminServerSwitchList($current);
+				if (is_array($got)) {
+					foreach ($got as $k => $p) {
+						if (is_object($p) && method_exists($p, 'getId')) {
+							$out[(string) $k] = $p;
+						}
+					}
+				}
+			} catch (Throwable $e) {
+				$out = array();
+			}
+		}
+
+		if ($out === array() && is_object($current) && method_exists($current, 'getId')) {
+			$n = (isset($current->nname) && is_string($current->nname) && $current->nname !== '')
+				? $current->nname : 'localhost';
+			$out[$n] = $current;
+		}
+
+		return $out !== array() ? $out : null;
+	}
 
 	function createShowPropertyList(&$alist)
 	{
-		$nalist = lxguardhitdisplay::createListAlist($this->getParentO(), 'lxguard');
+		$alist['property'] = array(
+			'a=show',
+			'a=list&c=lxguardhitdisplay',
+			'a=list&c=rawlxguardhit',
+			'a=list&c=lxguardwhitelist',
+		);
 
-		$alist['property'] = $nalist;
+		return $alist;
 	}
 
 	function createExtraVariables()
@@ -43,7 +92,7 @@ class lxguard extends lxdb
 			try {
 				lxguardhitdisplay::getDataFromServer($l);
 				self::save_current_hitlist($l);
-			} catch (exception $e) {
+			} catch (Throwable $e) {
 			}
 		}
 	}
@@ -120,6 +169,7 @@ class lxguard extends lxdb
 	function updateform($subaction, $param)
 	{
 		$this->setDefaultValue("disablehit", "20");
+		$vlist = array();
 		$vlist['disablehit'] = null;
 		$vlist['configure_flag'] = null;
 

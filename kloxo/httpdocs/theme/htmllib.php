@@ -365,7 +365,17 @@ class HtmlLib
 			return;
 		}
 
-		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
+		$skin_name = 'simplicity';
+		try {
+			if (isset($login) && is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && !empty($sp->skin_name)) {
+					$skin_name = $sp->skin_name;
+				}
+			}
+		} catch (Throwable $e) {
+			$skin_name = 'simplicity';
+		}
 
 		// MR -- because 'default' skin removed
 		if ($skin_name === 'default' || $skin_name === '' || $skin_name === null) {
@@ -1510,6 +1520,13 @@ class HtmlLib
 			$complete = null;
 		}
 
+		$resolvedHref = is_string($url) ? $url : '';
+		$isExternal = $resolvedHref !== ''
+			&& (str_starts_with($resolvedHref, '/thirdparty/')
+				|| str_starts_with($resolvedHref, 'http://')
+				|| str_starts_with($resolvedHref, 'https://')
+				|| str_starts_with($resolvedHref, '/installatron/'));
+
 		if ($complete) {
 			$this->get_post_from_get($url, $path, $post);
 			$descr = $this->getActionDescr($path, $post, $class, $name, $identity);
@@ -1587,7 +1604,15 @@ class HtmlLib
 
 		<div id="<?= $dividentity ?>" class="div_container" style="<?= $bgcolor ?>">
 <?php
-		if (strpos($path, '/display.php') !== false) {
+		if ($isExternal) {
+			$escHref = htmlspecialchars($resolvedHref, ENT_QUOTES);
+			$tgt = is_string($target) ? $target : "target='_blank'";
+?>
+			<a <?= $tgt ?> href="<?= $escHref ?>">
+				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
+			</a>
+<?php
+		} elseif (is_string($path) && strpos($path, '/display.php') !== false) {
 ?>
 			<a <?= $target ?> href="<?= $path ?>?<?= $this->get_get_from_post(null, $post) ?>">
 				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
@@ -1608,8 +1633,10 @@ class HtmlLib
 			</form>
 <?php
 			} else {
+				$fallback = (is_string($path) && $path !== '') ? $path : $resolvedHref;
+				$escHref = htmlspecialchars((string) $fallback, ENT_QUOTES);
 ?>
-			<a <?= $target ?> href="<?= $path ?>?<?= $this->get_get_from_post(null, $post) ?>">
+			<a <?= $target ?> href="<?= $escHref ?>">
 				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
 			</a>
 <?php
@@ -2163,7 +2190,9 @@ class HtmlLib
 			lxclass::resolve_class_differences($class, $variable, $dclass, $dvariable);
 
 			if ($dclass != $class && cse($dclass, "_b")) {
-				$value = $stuff->$dclass->$dvariable;
+				$value = (isset($stuff->$dclass) && is_object($stuff->$dclass)
+					&& isset($stuff->$dclass->$dvariable))
+					? $stuff->$dclass->$dvariable : null;
 			} else {
 				if ($stuff->isQuotaVariable($variable)) {
 					$value = $stuff->priv->$variable;
@@ -2626,6 +2655,10 @@ class HtmlLib
 
 		$this->fix_stuff_or_class($stuff, $variable, $class, $value);
 
+		if (!is_array($list)) {
+			$list = array();
+		}
+
 		if (!is_object($stuff)) {
 			$flist = $assoc ? array_keys($list) : $list;
 			$value = getFirstFromList($flist);
@@ -2636,6 +2669,9 @@ class HtmlLib
 			$list = $list->list;
 		} else {
 			$descr = $this->get_classvar_description_after_overload($class, $variable);
+		}
+		if (!is_array($descr) || !isset($descr[2])) {
+			$descr = array('', '', is_string($variable) ? $variable : '');
 		}
 
 		$desc = $this->get_form_variable_name($descr[2]);
@@ -2796,6 +2832,9 @@ class HtmlLib
 		}
 
 		$descr = $this->get_classvar_description_after_overload($nclass, $nvariable);
+		if (!is_array($descr) || !isset($descr[2])) {
+			$descr = array('', '', is_string($nvariable) ? $nvariable : '');
+		}
 
 		$rvr = new FormVar();
 		$rvr->name = "frm_{$class}_c_{$variable}_aaa_checkname";
@@ -3416,7 +3455,16 @@ class HtmlLib
 		lxclass::resolve_class_differences($class, $property, $dclass, $dproperty);
 
 		$classdesc = get_classvar_description($dclass);
+		if (!is_array($classdesc) || !isset($classdesc[2])) {
+			$classdesc = array('', '', is_string($dclass) && $dclass !== '' ? $dclass : '');
+		}
 		$prop_descr = get_classvar_description($dclass, $dproperty);
+		if (!is_array($prop_descr)) {
+			$prop_descr = array('', '', is_string($dproperty) && $dproperty !== '' ? $dproperty : '');
+		}
+		if (!isset($prop_descr[2]) || $prop_descr[2] === null) {
+			$prop_descr[2] = is_string($dproperty) && $dproperty !== '' ? $dproperty : '';
+		}
 		$this->fix_variable_overload($prop_descr, $classdesc[2]);
 		$prop_descr[2] = getNthToken($prop_descr[2], 1);
 
@@ -4687,6 +4735,7 @@ class HtmlLib
 
 		if (!$sellist && !$this->isResourceClass($class) && !$gbl->__inside_ajax) {
 			$skip_search = strtolower((string)$class) !== 'ffile'
+				&& strtolower((string)$class) !== 'tickethistory'
 				&& (kloxo_skip_find_class($class)
 				|| (is_object($parent) && kloxo_skip_find_class($parent->getClass())));
 ?>
@@ -9850,6 +9899,14 @@ function uploadAbort(e) { // upload abort
 ?>
 			</div>
 <?php
+			$kloxo_logo = '/login/images/kloxo.png';
+			$kloxo_logo_abs = getcwd() . '/login/images/kloxo.png';
+			if (is_file($kloxo_logo_abs)) {
+				$kloxo_logo .= '?v=' . (int) filemtime($kloxo_logo_abs);
+			}
+?>
+			<div class="div_fixed_logo_right"><a href="https://kloxocp.invalid" title="Kloxo CP"><img src="<?= htmlspecialchars($kloxo_logo, ENT_QUOTES) ?>" height="50" alt="Kloxo CP"/></a></div>
+<?php
 		}
 
 		if (($as_simple_skin) || ($skin_name === 'simplicity')) {
@@ -9862,11 +9919,6 @@ function uploadAbort(e) { // upload abort
 
 			<div id="mmm" class="<?= $mmmclass ?>">
 <?php
-			if ($skin_name === 'simplicity') {
-?>
-			<div class="div_fixed_logo_right"><a href="https://kloxocp.invalid"><img src="/login/images/kloxo.png" height="40"/></a></div>
-<?php
-			}
 		}
 
 		return;
@@ -10125,6 +10177,7 @@ function uploadAbort(e) { // upload abort
 		global $gbl, $sgbl, $login, $ghtml;
 
 		if (strtolower((string)$class) !== 'ffile'
+			&& strtolower((string)$class) !== 'tickethistory'
 			&& (kloxo_skip_find_class($class)
 			|| (is_object($parent) && kloxo_skip_find_class($parent->getClass())))) {
 			return;

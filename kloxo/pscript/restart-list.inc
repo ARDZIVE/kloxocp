@@ -9,13 +9,13 @@ else
 	list_phpfpm=($(chkconfig --list|grep ':on'|grep ^'php'|grep '\-fpm'|awk '{print $1}'|tr '\n' ' '))
 fi
 
-list_web=(varnish trafficserver squid spawn-fcgi memcached lighttpd nginx hiawatha httpd htcacheclean)
+list_web=(varnish trafficserver squid spawn-fcgi memcached lighttpd nginx hiawatha httpd apache2 htcacheclean)
 list_web=("${list_phpfpm[@]}" "${list_web[@]}")
 
-list_mysql=(mysql mysqld)
-list_mail=(qmail)
-list_ftp=(pure-ftpd)
-list_dns=(named djbdns pdns nsd yadifad)
+list_mysql=(mysql mysqld mariadb)
+list_mail=(qmail postfix)
+list_ftp=(pure-ftpd vsftpd)
+list_dns=(named bind9 djbdns pdns nsd yadifad)
 list_syslog=(syslog rsyslog syslog-ng httpry)
 
 list_services=("${list_mysql[@]}" "${list_dns[@]}" "${list_web[@]}" "${list_mail[@]}" "${list_ftp[@]}")

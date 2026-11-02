@@ -1627,7 +1627,7 @@ function kloxo_skip_find_class($class)
 	$c = strtolower((string)$class);
 	static $skip = array(
 		'llog', 'driver', 'phpini', 'lxbackup', 'serverweb', 'serverftp',
-		'sshconfig', 'lxguard', 'sshclient', 'ffile',
+		'sshconfig', 'lxguard', 'sshclient', 'ffile', 'ticket', 'notification',
 		'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist', 'lxguardhit',
 	);
 

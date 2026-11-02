@@ -175,51 +175,35 @@ class databasecore extends Lxdb
 
 	function getDbAdminUrl()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-
-//		$flagfile = "../etc/flag/user_sql_manager.flg";
-
-//		if (file_exists($flagfile)) {
-//			$url = file_get_contents($flagfile);
-//			$url = trim($url);
-//			$url = trim($url, "\n");
-
-//			return $url;
-
-		$incfile = "lib/sqlmgr.php";
-
-		if (file_exists($incfile)) {
-			// MR -- logic must be declare $dbadminUrl
-			include $incfile;
-			
-			return $dbadminUrl;
-		} else {
-			if ($this->dbtype === 'mysql') {
-				if (file_exists("./thirdparty/mywebsql/")) {
-					$url = "/thirdparty/mywebsql/";
-				} else {
-					$url = "/thirdparty/phpMyAdmin/";
-				}
-			} elseif ($this->dbtype === 'pgsql') {
-					$url = "/thirdparty/phpPgAdmin/";
-			}
-
-			if ($this->isLocalhost()) {
+		if (($this->dbtype ?? 'mysql') === 'pgsql') {
+			$url = "/thirdparty/phpPgAdmin/";
+			if (method_exists($this, 'isLocalhost') && $this->isLocalhost()) {
 				return $url;
-			} else {
-				$fqdn = getFQDNforServer($this->syncserver);
-
-				if (http_is_self_ssl()) {
-					$port = get_kloxo_port('ssl');
-					$schema = "https://";
-				} else {
-					$port = get_kloxo_port('nonssl');
-					$schema = "http://";
-				}
-
-				return "{$schema}{$fqdn}:{$port}{$url}";
 			}
+			$fqdn = function_exists('getFQDNforServer')
+				? (string) getFQDNforServer($this->syncserver) : '';
+			if ($fqdn === '' || preg_match('/^[A-Za-z0-9._-]+$/', $fqdn) !== 1) {
+				return $url;
+			}
+			$ssl = function_exists('http_is_self_ssl') && http_is_self_ssl();
+			$port = function_exists('get_kloxo_port')
+				? (string) get_kloxo_port($ssl ? 'ssl' : 'nonssl')
+				: ($ssl ? '7777' : '7778');
+			if (preg_match('/^[0-9]{2,5}$/', $port) !== 1) {
+				$port = $ssl ? '7777' : '7778';
+			}
+
+			return ($ssl ? 'https://' : 'http://') . $fqdn . ':' . $port . $url;
 		}
+
+		if (!function_exists('kloxo_pma_href')) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
+		}
+		$local = !method_exists($this, 'isLocalhost') || $this->isLocalhost();
+		$server = (isset($this->syncserver) && is_string($this->syncserver))
+			? $this->syncserver : 'localhost';
+
+		return kloxo_pma_href($local, $server);
 	}
 
 	function createShowPropertyList(&$alist)

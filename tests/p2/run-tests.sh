@@ -408,10 +408,15 @@ if grep -q '<table class="div_home_page"' "$ROOT/kloxo/httpdocs/theme/coredispla
 else
   bad "home page keeps Find/Information/Resource beside the dashboard tiles"
 fi
-if awk '/id="mmm"/{m=NR} /div_fixed_logo_right/{l=NR} END {exit !(m && l && m<l)}' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
-  && grep -A 18 '.div_fixed_logo_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'z-index: 5' \
-  && grep -A 18 '.div_fixed_logo_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'position: fixed' \
-  && grep -A 18 '.div_fixed_logo_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'right: 10px'; then
+if grep -q 'class="div_fixed_logo_right"' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -q '/login/images/kloxo.png' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -q 'alt="Kloxo CP"' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && awk '/div_fixed_logo_right/{l=NR} /id="mmm"/{m=NR} END {exit !(l && m && l<m)}' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -A 24 '.div_fixed_logo_right {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'z-index: 20' \
+  && grep -A 24 '.div_fixed_logo_right {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'position: fixed' \
+  && grep -A 24 '.div_fixed_logo_right {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'right: 10px' \
+  && test -f "$ROOT/kloxo/httpdocs/login/images/kloxo.png" \
+  && file "$ROOT/kloxo/httpdocs/login/images/kloxo.png" | grep -q 'PNG image'; then
   ok "simplicity logo sits on the right of the screen"
 else
   bad "simplicity logo sits on the right of the screen"

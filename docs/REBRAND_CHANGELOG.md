@@ -34,7 +34,7 @@ fixes were made in `install/installer.php`, `install/step2.inc` and `lib/sgbl.ph
 * `cexe/closeinput`, `cexe/closeallinput`, `cexe/lxmisc`: prebuilt 32-bit ELF binaries from 2019
   (two are setuid helpers, see audit C4). Sources remain.
 * `pscript/setup-tht`: TheHostingTool billing installer (billing is out of scope for now).
-* `kloxo-mr_big.png`: upstream logo. A new Kloxo CP logo is needed.
+* `kloxo-mr_big.png`: upstream logo. Replaced by `httpdocs/login/images/kloxo.png` (Kloxo CP wordmark, top-right of every panel page).
 * `how-to-install.txt` moved to `docs/legacy/` (RHEL/CentOS steps, obsolete).
 
 ## Added after the rebrand (new code, not from upstream)

@@ -195,21 +195,24 @@ try {
 
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
-	&& str_contains($src, "'sshconfig', 'lxguard', 'sshclient', 'ffile'")
+	&& str_contains($src, "'sshconfig', 'lxguard', 'sshclient', 'ffile', 'ticket', 'notification'")
 	&& str_contains($src, "'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist'")) {
-	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file show pages');
+	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification show pages');
 } else {
-	bad('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file show pages');
+	bad('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification show pages');
 }
 if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('lxguard')
 	&& kloxo_skip_find_class('lxguardhitdisplay')
 	&& kloxo_skip_find_class('rawlxguardhit')
 	&& kloxo_skip_find_class('lxguardwhitelist')
+	&& kloxo_skip_find_class('ticket')
+	&& kloxo_skip_find_class('notification')
+	&& !kloxo_skip_find_class('tickethistory')
 	&& !kloxo_skip_find_class('client')) {
-	ok('LxGuard pages skip the Find input');
+	ok('LxGuard, HelpDesk ticket and Notification pages skip the Find input');
 } else {
-	bad('LxGuard pages skip the Find input');
+	bad('LxGuard, HelpDesk ticket and Notification pages skip the Find input');
 }
 
 $clsrc = (string)file_get_contents($doc . '/lib/client/clientlib.php');
@@ -226,6 +229,51 @@ if ($dom !== '' && str_contains($dom, 'if (!$this->isAdmin())')
 	ok('SQL Manager is in Basic, not an extra Domain tile for admin');
 } else {
 	bad('SQL Manager is in Basic, not an extra Domain tile for admin');
+}
+
+$pmaUrl = '';
+$pmaErr = '';
+try {
+	$psPma = new pserver(null, 'localhost', 'localhost');
+	$psPma->nname = 'localhost';
+	$pmaAlist = array();
+	$psPma->getMysqlDbAdmin($pmaAlist);
+	$pmaUrl = (isset($pmaAlist[0]) && is_object($pmaAlist[0]) && isset($pmaAlist[0]->url))
+		? (string) $pmaAlist[0]->url : '';
+} catch (Throwable $e) {
+	$pmaErr = $e->getMessage();
+}
+$cliPmaUrl = '';
+try {
+	$cliPma = new Client(null, 'localhost', 'admin');
+	$cliPma->nname = 'admin';
+	$cliPma->mysqldbsyncserver = 'localhost';
+	$cliAlist = array();
+	$cliPma->getMysqlDbAdmin($cliAlist);
+	$cliPmaUrl = (isset($cliAlist[0]) && is_object($cliAlist[0]) && isset($cliAlist[0]->url))
+		? (string) $cliAlist[0]->url : '';
+} catch (Throwable $e) {
+	$pmaErr = $pmaErr !== '' ? $pmaErr : $e->getMessage();
+}
+$dbPmaUrl = '';
+try {
+	$dbPma = new mysqldb(null, 'localhost', 'testdb');
+	$dbPma->syncserver = 'localhost';
+	$dbPmaUrl = (string) $dbPma->getDbAdminUrl();
+} catch (Throwable $e) {
+	$pmaErr = $pmaErr !== '' ? $pmaErr : $e->getMessage();
+}
+$btnSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
+$pmaWant = function_exists('kloxo_pma_url') ? kloxo_pma_url() : '/thirdparty/phpMyAdmin/';
+if ($pmaUrl === $pmaWant && $cliPmaUrl === $pmaWant && $dbPmaUrl === $pmaWant
+	&& str_contains($pssrc, 'kloxo_pma_href')
+	&& !str_contains($pssrc, 'mywebsql')
+	&& !str_contains($clsrc, 'mywebsql')
+	&& str_contains($btnSrc, "str_starts_with(\$resolvedHref, '/thirdparty/')")) {
+	ok('SQL Manager tile points at phpMyAdmin');
+} else {
+	bad('SQL Manager tile points at phpMyAdmin',
+		$pmaErr !== '' ? $pmaErr : ('ps=' . $pmaUrl . ' client=' . $cliPmaUrl . ' db=' . $dbPmaUrl));
 }
 
 if (function_exists('kloxo_driver_class')
@@ -764,10 +812,100 @@ try {
 }
 
 $wsrc = (string)file_get_contents($doc . '/lib/ticket/ticketlib.php');
-if (str_contains($wsrc, 'Welcome to Kloxo') && str_contains($wsrc, "createParentName('pserver', 'Kloxo')")) {
+if (str_contains($wsrc, 'Welcome to Kloxo') && str_contains($wsrc, "createParentName('pserver', 'Kloxo')")
+	&& str_contains($wsrc, 'function getSelfList')) {
 	ok('Welcome ticket is Created By Kloxo with subject Welcome to Kloxo');
 } else {
 	bad('Welcome ticket is Created By Kloxo with subject Welcome to Kloxo');
+}
+
+$tk = new Ticket(null, null, '1');
+$tk->nname = '1';
+$tk->state = 'open';
+$tk->made_by = 'pserver-Kloxo';
+$tk->sent_to = 'client-admin';
+$tkSw = null;
+$tkSwErr = '';
+try {
+	$tkSw = $tk->getSelfList();
+} catch (Throwable $e) {
+	$tkSwErr = $e->getMessage();
+}
+$tkProps = array('property' => array());
+$tk->createShowPropertyList($tkProps);
+$tkAdd = $tk->createShowAddform();
+$tkClist = $tk->createShowClist('');
+$histForm = null;
+$histFormErr = '';
+try {
+	$histForm = TicketHistory::addform($tk, 'tickethistory');
+} catch (Throwable $e) {
+	$histFormErr = $e->getMessage();
+}
+$histVars = (is_array($histForm) && isset($histForm['variable']) && is_array($histForm['variable']))
+	? $histForm['variable'] : array();
+$histNlist = TicketHistory::createListNlist($tk, null);
+$histAdd = null;
+$histAddErr = '';
+try {
+	$histAdd = TicketHistory::add($tk, 'tickethistory', array('state' => 'closed', 'text_reason' => 'done'));
+} catch (Throwable $e) {
+	$histAddErr = $e->getMessage();
+}
+$htmlSrc = (string)file_get_contents($doc . '/theme/htmllib.php');
+$keepReplySearch = str_contains($htmlSrc, "strtolower((string)\$class) !== 'tickethistory'");
+if (is_array($tkSw) && isset($tkSw['1']) && is_object($tkSw['1'])
+	&& isset($tkProps['property'][0], $tkProps['property'][1])
+	&& str_contains((string)$tkProps['property'][0], 'a=show')
+	&& str_contains((string)$tkProps['property'][1], 'tickethistory')
+	&& is_array($tkAdd) && array_key_exists('tickethistory', $tkAdd)
+	&& is_array($tkClist) && array_key_exists('tickethistory', $tkClist)
+	&& is_array($histForm) && ($histForm['action'] ?? '') === 'add'
+	&& array_key_exists('state', $histVars) && array_key_exists('text_reason', $histVars)
+	&& is_array($histNlist) && isset($histNlist['made_by'], $histNlist['text_reason'], $histNlist['ddate'], $histNlist['state'])
+	&& is_array($histAdd) && ($histAdd['nname'] ?? '') === '1___1'
+	&& ($histAdd['state'] ?? '') === 'closed'
+	&& (int)$tk->history_num === 1
+	&& $tk->display('made_by') === 'Kloxo'
+	&& $keepReplySearch) {
+	ok('HelpDesk ticket show skips Find, lists Switch To Another, and Add Reply');
+} else {
+	$why = $tkSwErr !== '' ? $tkSwErr : ($histFormErr !== '' ? $histFormErr : ($histAddErr !== '' ? $histAddErr : 'selflist/addform mismatch'));
+	bad('HelpDesk ticket show skips Find, lists Switch To Another, and Add Reply', $why);
+}
+
+$escForm = null;
+$escFormErr = '';
+try {
+	$escForm = $tk->updateform('escalate', array());
+} catch (Throwable $e) {
+	$escFormErr = $e->getMessage();
+}
+$escFields = array();
+if (is_array($escForm)) {
+	foreach ($escForm as $ek => $ev) {
+		if (!str_starts_with((string)$ek, '__')) {
+			$escFields[] = $ek;
+		}
+	}
+}
+$escDo = null;
+$escDoErr = '';
+try {
+	$escDo = $tk->updateEscalate(array());
+} catch (Throwable $e) {
+	$escDoErr = $e->getMessage();
+}
+$hasEscalateTab = str_contains($wsrc, 'a=updateform&sa=escalate')
+	&& str_contains($wsrc, "if (\$subaction === 'escalate')");
+if (is_array($escForm) && $escFields === array()
+	&& $hasEscalateTab
+	&& is_array($escDo) && ($escDo['nothing'] ?? '') === 'h'
+	&& ($tk->escalate ?? '') === 'on') {
+	ok('HelpDesk Escalate is a confirmation form with Update');
+} else {
+	$why = $escFormErr !== '' ? $escFormErr : ($escDoErr !== '' ? $escDoErr : 'escalate form mismatch');
+	bad('HelpDesk Escalate is a confirmation form with Update', $why);
 }
 
 if (function_exists('kloxo_implode') && function_exists('kloxo_list_from')) {
@@ -869,7 +1007,8 @@ try {
 	$sw->__parent_o = $ps;
 	$uflist = $sw->createShowUpdateform();
 	$need = array('php_used', 'php_branch', 'multiple_php_activate', 'multiple_php_install',
-		'multiple_php_remove', 'php_type', 'apache_optimize', 'mysql_convert', 'fix_chownchmod');
+		'multiple_php_remove', 'php_type', 'apache_optimize', 'mysql_convert', 'fix_chownchmod',
+		'pagespeed_clear_cache');
 	$okform = true;
 	foreach ($need as $k) {
 		if (!array_key_exists($k, $uflist)) {
@@ -882,35 +1021,88 @@ try {
 	} else {
 		bad('Webserver Configure shows the Kloxo-MR sections without php52m');
 	}
-} catch (Throwable $e) {
-	bad('Webserver Configure shows the Kloxo-MR sections without php52m', $e->getMessage());
-}
 
-try {
-	$sw = new serverweb(null, 'localhost', 'pserver-localhost');
-	$sw->syncserver = 'localhost';
-	$used = $sw->updateform('php_used', array());
-	$branch = $sw->updateform('php_branch', array());
+	$expect = array(
+		'php_used' => array('php_used'),
+		'php_branch' => array('php_branch'),
+		'multiple_php_activate' => array('multiple_php_already_installed', 'multiple_php_flag'),
+		'multiple_php_install' => array('multiple_php_install'),
+		'multiple_php_remove' => array('multiple_php_remove'),
+		'php_type' => array('php_type', 'secondary_php'),
+		'apache_optimize' => array('apache_optimize', 'enable_keepalive'),
+		'mysql_convert' => array('mysql_convert', 'mysql_charset'),
+		'fix_chownchmod' => array('fix_chownchmod'),
+		'pagespeed_clear_cache' => array('pagespeed_cache'),
+	);
+	$allForms = true;
+	$allWhy = '';
+	foreach ($expect as $sa => $fields) {
+		try {
+			$vf = $sw->updateform($sa, array());
+		} catch (Throwable $e) {
+			$allForms = false;
+			$allWhy = $sa . ': ' . $e->getMessage();
+			break;
+		}
+		if (!is_array($vf)) {
+			$allForms = false;
+			$allWhy = $sa . ': not an array';
+			break;
+		}
+		foreach ($fields as $f) {
+			if (!array_key_exists($f, $vf)) {
+				$allForms = false;
+				$allWhy = $sa . ' missing ' . $f;
+				break 2;
+			}
+		}
+	}
+	$phpUsed = $sw->updateform('php_used', array());
 	$inst = $sw->updateform('multiple_php_install', array());
-	$opt = $sw->updateform('apache_optimize', array());
-	$phpUsed = $used['php_used'][1] ?? array();
+	$usedList = $phpUsed['php_used'][1] ?? array();
 	$avail = $inst['multiple_php_install'][1] ?? array();
-	if (is_array($phpUsed) && $phpUsed !== [] && !in_array('--PHP Branch--', $phpUsed, true)
-		&& is_array($branch['php_branch'][1] ?? null)
-		&& is_array($avail) && !in_array('m', $avail, true) && !in_array('php52m', $avail, true)
-		&& array_key_exists('apache_optimize', $opt) && array_key_exists('enable_keepalive', $opt)) {
+	if ($allForms && is_array($usedList) && $usedList !== [] && !in_array('--PHP Branch--', $usedList, true)
+		&& !in_array('php52m', is_array($avail) ? $avail : array(), true)) {
 		ok('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m');
 	} else {
-		bad('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m');
+		bad('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m', $allWhy);
+	}
+	if ($allForms) {
+		ok('Webserver Configure every section form loads');
+	} else {
+		bad('Webserver Configure every section form loads', $allWhy);
+	}
+
+	$drv = new serverweb__nginx();
+	$drv->main = $sw;
+	$sw->apache_optimize = 'high';
+	$sw->enable_keepalive = 'on';
+	$optErr = '';
+	try {
+		$drv->set_apache_optimize();
+	} catch (Throwable $e) {
+		$optErr = $e->getMessage();
+	}
+	if ($optErr === '') {
+		ok('Webserver Configure Apache optimize apply does not TypeError');
+	} else {
+		bad('Webserver Configure Apache optimize apply does not TypeError', $optErr);
 	}
 } catch (Throwable $e) {
+	bad('Webserver Configure shows the Kloxo-MR sections without php52m', $e->getMessage());
 	bad('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m', $e->getMessage());
+	bad('Webserver Configure every section form loads', $e->getMessage());
+	bad('Webserver Configure Apache optimize apply does not TypeError', $e->getMessage());
 }
 
 $webSrc = (string)file_get_contents($doc . '/driver/web/serverweblib.php');
+$webSync = (string)file_get_contents($doc . '/driver/web/serverweb__lib.php');
 if (!str_contains($webSrc, 'getCleanRpmBranchListOnList')
 	&& !str_contains($webSrc, "exec(\"cat /etc/httpd")
-	&& str_contains($webSrc, 'KloxoPhpver::phpUsedChoices')) {
+	&& str_contains($webSrc, 'KloxoPhpver::phpUsedChoices')
+	&& str_contains($webSync, '"--select=chown"')
+	&& str_contains($webSync, 'function writeUbuntuApacheOptimize')
+	&& str_contains($webSync, 'function set_php_type_ubuntu')) {
 	ok('Webserver Configure does not parse CentOS php.lst or cat httpd');
 } else {
 	bad('Webserver Configure does not parse CentOS php.lst or cat httpd');
@@ -945,6 +1137,49 @@ if (str_contains($src, 'lxguard_not_configured')
 	ok('LxGuard alert [here] points at pserver/localhost/lxguard');
 } else {
 	bad('LxGuard alert [here] points at pserver/localhost/lxguard', $htmlOut);
+}
+
+$lgParent = new pserver(null, 'localhost', 'localhost');
+$lgParent->nname = 'localhost';
+$lg = new lxguard(null, 'localhost', 'localhost');
+$lg->nname = 'localhost';
+$lg->syncserver = 'localhost';
+$lg->__parent_o = $lgParent;
+$lgSwitch = null;
+$lgSwitchErr = '';
+try {
+	$lgSwitch = $lg->getSelfList();
+} catch (Throwable $e) {
+	$lgSwitchErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
+$lgTabs = array('property' => array());
+$lg->createShowPropertyList($lgTabs);
+$lgForm = null;
+try {
+	$lgForm = $lg->updateform('update', array());
+} catch (Throwable $e) {
+	$lgSwitchErr = $lgSwitchErr !== '' ? $lgSwitchErr : $e->getMessage();
+}
+$lgSrc = (string) file_get_contents($doc . '/driver/pserver/lxguardlib.php');
+$lgTabOk = is_array($lgTabs['property'] ?? null)
+	&& in_array('a=show', $lgTabs['property'], true)
+	&& in_array('a=list&c=lxguardhitdisplay', $lgTabs['property'], true)
+	&& in_array('a=list&c=rawlxguardhit', $lgTabs['property'], true)
+	&& in_array('a=list&c=lxguardwhitelist', $lgTabs['property'], true);
+$lgSwitchOk = is_array($lgSwitch) && isset($lgSwitch['localhost'])
+	&& is_object($lgSwitch['localhost']) && method_exists($lgSwitch['localhost'], 'getId')
+	&& (string) $lgSwitch['localhost']->getId() === 'localhost';
+$lgFormOk = is_array($lgForm) && array_key_exists('disablehit', $lgForm)
+	&& array_key_exists('configure_flag', $lgForm);
+if ($lgSwitchOk && $lgTabOk && $lgFormOk && str_contains($lgSrc, 'function getSelfList')
+	&& str_contains($lgSrc, 'adminServerSwitchList')) {
+	ok('LxGuard show has Switch To Another and Kloxo-MR tabs');
+} else {
+	bad('LxGuard show has Switch To Another and Kloxo-MR tabs',
+		$lgSwitchErr !== '' ? $lgSwitchErr
+			: ('keys=' . implode(',', is_array($lgSwitch) ? array_keys($lgSwitch) : array())
+				. ' tabs=' . implode(',', (array) ($lgTabs['property'] ?? array()))
+				. ' form=' . implode(',', is_array($lgForm) ? array_keys($lgForm) : array())));
 }
 
 $prevLogin2 = $login;
@@ -1009,7 +1244,7 @@ $ini->syncserver = 'localhost';
 $ini->parent_clname = 'client-admin';
 $ini->__parent_o = $client;
 $tabs = array('property' => array());
-$ini->createShowPropertyList($tabs);
+$tabRet = $ini->createShowPropertyList($tabs);
 $edit = null;
 $extra = null;
 $editErr = '';
@@ -1024,10 +1259,26 @@ try {
 } catch (Throwable $e) {
 	$extraErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
 }
+$flagDesc = null;
+$flagDescErr = '';
+try {
+	$h = new HtmlLib();
+	$flagDesc = $h->get_classvar_description_after_overload('phpini', 'phpini_flag_b-display_error_flag');
+} catch (Throwable $e) {
+	$flagDescErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
 $login = $prevLogin3;
+$sharedTabs = phpini::phpiniPropertyTabs();
 $tabOk = is_array($tabs['property'] ?? null)
 	&& in_array('a=show', $tabs['property'], true)
-	&& in_array('a=updateform&sa=extraedit', $tabs['property'], true);
+	&& in_array('a=updateform&sa=extraedit', $tabs['property'], true)
+	&& is_array($tabRet) && ($tabRet['property'] ?? null) === $tabs['property']
+	&& is_array($sharedTabs)
+	&& in_array('a=show', $sharedTabs, true)
+	&& in_array('a=updateform&sa=extraedit', $sharedTabs, true)
+	&& method_exists($ini, 'getSelfList')
+	&& is_array($flagDesc) && isset($flagDesc[0]) && $flagDesc[0] === 'f'
+	&& $flagDescErr === '';
 $editNeed = array(
 	'phpini_flag_b-display_error_flag',
 	'phpini_flag_b-log_errors_flag',
@@ -1083,21 +1334,76 @@ if ($tabOk && $editOk && $extraOk
 	ok('PHP Configure and Advanced PHP Configure share tabs and Kloxo-MR fields');
 } else {
 	$detail = $editErr !== '' ? $editErr : ($extraErr !== '' ? $extraErr
+		: ($flagDescErr !== '' ? $flagDescErr
 		: ('tabs=' . implode(',', (array) ($tabs['property'] ?? array()))
 			. ' session=' . $sessionPath
+			. ' flag0=' . (is_array($flagDesc) && isset($flagDesc[0]) ? (string) $flagDesc[0] : 'none')
 			. ' edit=' . implode(',', is_array($edit) ? array_keys($edit) : array())
-			. ' extra=' . implode(',', is_array($extra) ? array_keys($extra) : array())));
+			. ' extra=' . implode(',', is_array($extra) ? array_keys($extra) : array()))));
 	bad('PHP Configure and Advanced PHP Configure share tabs and Kloxo-MR fields', $detail);
 }
 
 $syncSrc = (string) file_get_contents($doc . '/driver/pserver/phpini__synclib.php');
 $ufSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$iniSrc = (string) file_get_contents($doc . '/driver/pserver/phpinilib.php');
 if (str_contains($syncSrc, '//	lxfile_unix_chmod($fcgid_target, "0755")')
 	&& !preg_match('/^\s*lxfile_unix_chmod\(\$fcgid_target/m', $syncSrc)
-	&& str_contains($ufSrc, 'getSelfList: ')) {
+	&& str_contains($ufSrc, 'getSelfList: ')
+	&& str_contains($ufSrc, 'kloxo_print_object_property_tabs')
+	&& str_contains($ufSrc, "\$class !== 'phpini'")
+	&& str_contains($iniSrc, 'function phpiniPropertyTabs')
+	&& str_contains($iniSrc, '#[AllowDynamicProperties]')) {
 	ok('phpini sync does not chmod an unset fcgid_target; UpdateForm guards getSelfList');
 } else {
 	bad('phpini sync does not chmod an unset fcgid_target; UpdateForm guards getSelfList');
+}
+
+$wdParent = new pserver(null, 'localhost', 'localhost');
+$wdParent->nname = 'localhost';
+$wdForm = null;
+$wdFormErr = '';
+try {
+	$wdForm = watchdog::addform($wdParent, 'watchdog');
+} catch (Throwable $e) {
+	$wdFormErr = $e->getMessage();
+}
+$wdVars = (is_array($wdForm) && isset($wdForm['variable']) && is_array($wdForm['variable']))
+	? $wdForm['variable'] : array();
+$wdNlist = watchdog::createListNlist($wdParent, null);
+$wdDefaults = watchdog::defaultWatchdogList();
+$wdNames = array();
+foreach ($wdDefaults as $row) {
+	if (isset($row[0])) {
+		$wdNames[] = $row[0];
+	}
+}
+$wdAdd = watchdog::add($wdParent, 'watchdog', array('servicename' => 'dns', 'port' => '53', 'action' => '__driver_dns'));
+$wdSrc = (string) file_get_contents($doc . '/driver/pserver/watchdoglib.php');
+$wdSync = (string) file_get_contents($doc . '/driver/pserver/watchdog__synclib.php');
+if (is_array($wdForm) && ($wdForm['action'] ?? '') === 'add'
+	&& array_key_exists('servicename', $wdVars) && array_key_exists('status', $wdVars)
+	&& array_key_exists('port', $wdVars) && array_key_exists('action', $wdVars)
+	&& is_array($wdNlist) && isset($wdNlist['status'], $wdNlist['servicename'], $wdNlist['port'], $wdNlist['action'])
+	&& count($wdDefaults) === 8
+	&& $wdNames === array('dns', 'ftp', 'mail', 'mysql', 'php-fpm', 'webcache', 'webproxy', 'web')
+	&& ($wdAdd['syncserver'] ?? '') === 'localhost'
+	&& str_contains($wdSrc, 'foreach (self::defaultWatchdogList()')
+	&& str_contains($wdSync, 'lxshell_return')
+	&& !str_contains($wdSync, '__driver_qmail')) {
+	ok('Watchdog list add form and eight Kloxo-MR default services');
+} else {
+	bad('Watchdog list add form and eight Kloxo-MR default services',
+		$wdFormErr !== '' ? $wdFormErr : ('names=' . implode(',', $wdNames)));
+}
+
+if (function_exists('check_if_port_on')
+	&& check_if_port_on(null) === false
+	&& check_if_port_on('') === false
+	&& check_if_port_on('not-a-port') === false
+	&& check_if_port_on('pgrep ; rm -rf /') === false) {
+	ok('check_if_port_on rejects empty and unsafe watchdog port strings');
+} else {
+	bad('check_if_port_on rejects empty and unsafe watchdog port strings');
 }
 
 echo "$pass passed, $fail failed\n";

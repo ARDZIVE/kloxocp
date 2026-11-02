@@ -163,7 +163,7 @@ table.content_title td {
 <table class="header">
 	<tr>
 		<td width="100%"><img style="margin:5px; padding:5px; height:50px" class="logo" src="<?php echo $logo_url; ?>" alt="hosting-logo"></td>
-		<td><a href="https://kloxocp.invalid/work/" title="Go to Kloxo CP website"><img style="margin:5px; padding:5px; height:50px" class="logo" src="./images/kloxo.png" alt="kloxo-logo"></a></td>
+		<td><a href="https://kloxocp.invalid/work/" title="Go to Kloxo CP website"><img style="margin:5px; padding:5px; height:50px" class="logo" src="./images/kloxo.png" alt="Kloxo CP"></a></td>
 	</tr>
 </table>
 <table class="content">

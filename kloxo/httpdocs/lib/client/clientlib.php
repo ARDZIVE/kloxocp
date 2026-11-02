@@ -142,10 +142,12 @@ class Client extends ClientBase
 		}
 
 		if ($ghtml->frm_subaction === 'extraedit') {
-			$alist['property'][] = "a=show&o=phpini";
-			$alist['property'][] = "a=updateform&sa=extraedit&o=phpini";
+			$alist['property'] = array(
+				"a=show&o=phpini",
+				"a=updateform&sa=extraedit&o=phpini",
+			);
 
-			return;
+			return $alist;
 		}
 
 		if ($ghtml->frm_subaction === 'password') {
@@ -376,27 +378,14 @@ class Client extends ClientBase
 
 	function getMysqlDbAdmin(&$alist)
 	{
-		$incfile = "lib/sqlmgr.php";
-
-		if (file_exists($incfile)) {
-			include $incfile;
-		} else {
-			if ($this->isLocalhost('mysqldbsyncserver')) {
-				$dbadminUrl = "/thirdparty/phpMyAdmin/";
-			} else {
-				$fqdn = getFQDNforServer($this->mysqldbsyncserver);
-
-				if (http_is_self_ssl()) {
-					$port = get_kloxo_port('ssl');
-					$schema = "https://";
-				} else {
-					$port = get_kloxo_port('nonssl');
-					$schema = "https://";
-				}
-
-				$dbadminUrl = "{$schema}{$fqdn}:{$port}/thirdparty/phpMyAdmin/";
-			}
+		if (!function_exists('kloxo_pma_href')) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
 		}
+		$local = !method_exists($this, 'isLocalhost') || $this->isLocalhost('mysqldbsyncserver');
+		$server = (isset($this->mysqldbsyncserver) && is_string($this->mysqldbsyncserver)
+			&& $this->mysqldbsyncserver !== '')
+			? $this->mysqldbsyncserver : 'localhost';
+		$dbadminUrl = kloxo_pma_href($local, $server);
 
 		$alist[] = create_simpleObject(array('url' => $dbadminUrl,
 			'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));

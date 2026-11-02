@@ -35,6 +35,36 @@ function kloxo_pma_url(): string
 	return '/thirdparty/phpMyAdmin/';
 }
 
+/**
+ * Dashboard / tile href for SQL Manager. Localhost stays a panel path;
+ * a remote pserver uses that host's panel phpMyAdmin.
+ */
+function kloxo_pma_href(bool $local = true, string $server = ''): string
+{
+	$path = kloxo_pma_url();
+	if ($local || $server === '' || $server === 'localhost') {
+		return $path;
+	}
+	$fqdn = function_exists('getFQDNforServer') ? (string) getFQDNforServer($server) : $server;
+	if ($fqdn === '' || preg_match('/^[A-Za-z0-9._-]+$/', $fqdn) !== 1) {
+		return $path;
+	}
+	$ssl = function_exists('http_is_self_ssl') && http_is_self_ssl();
+	$port = '7777';
+	if (function_exists('get_kloxo_port')) {
+		$got = (string) get_kloxo_port($ssl ? 'ssl' : 'nonssl');
+		if (preg_match('/^[0-9]{2,5}$/', $got) === 1) {
+			$port = $got;
+		} elseif (!$ssl) {
+			$port = '7778';
+		}
+	} elseif (!$ssl) {
+		$port = '7778';
+	}
+
+	return ($ssl ? 'https://' : 'http://') . $fqdn . ':' . $port . $path;
+}
+
 /** @return array{user:string,pass:string,host:string} */
 function kloxo_pma_login(?string $root = null): array
 {

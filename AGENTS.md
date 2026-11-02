@@ -29,7 +29,8 @@ Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
 (`install-apache`, PHP-FPM via proxy_fcgi, no mod_php) but `apache2` stays
 disabled until selected. Admin SQL Manager opens phpMyAdmin via panel
 sign-on as MariaDB `root`@`127.0.0.1` (all databases; no password in the URL)
-from the Basic home tile, not a second Domain tile. Component Info
+from the Basic home tile (`kloxo_pma_href` → `/thirdparty/phpMyAdmin/`, not
+mywebsql), not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
 postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim`
@@ -46,21 +47,32 @@ Status, Show/Hide and the clock stay on the top right in one row.
 The green menu strip fills the middle of the red bar (Home…Task on
 the left of the green, Help/Logout on the right of the green, still
 immediately left of Status). Content tabs sit on the beige header
-like Kloxo-MR; the logo sits on the right of the screen.
+like Kloxo-MR; the Kloxo CP logo sits on the right of the screen.
 The content white panel fills to the bottom of the page.
 Customer sites default to the newest installed PHP-FPM; 5.6.40 and 7.4.33
 are installed beside it (`install-site-php`, ppa:ondrej/php) and can be
 chosen on Webserver Configure (PHP Used / PHP Branch list php8.3, php7.4,
-php5.6 — not php52m). The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share the PHP Configure /
-Advanced PHP Configure tabs (extraedit does not fall back to client
-tabs). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager show pages
-omit the left Find box. File Manager keeps the list toolbar search (T Hidden,
+php5.6 — not php52m). Webserver Configure section forms (PHP Used/Branch,
+Multiple PHP, PHP Type, Apache optimize, MySQL convert, fix ownership,
+Pagespeed) load without the panel DB; Apache optimize writes
+`kloxo-optimize.conf`; PHP Type on Ubuntu is proxy_fcgi + mpm_event/worker;
+fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share the PHP Configure /
+Advanced PHP Configure tabs (`phpini::phpiniPropertyTabs`; extraedit does
+not fall back to client/pserver tabs). Nested `phpini_flag_b-*` form
+fields resolve without a TypeError when the flag class has no `$__desc`. Watchdog under localhost lists the Kloxo-MR eight services
+(add form + Switch To Another; mail uses `__driver_mail`). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification show pages
+omit the left Find box. HelpDesk ticket show has Switch To Another
+(sibling ticket ids), Ticket / Add Reply / Escalate, inline Add Reply
+(State, Text Reason), and Replies Under N (Changed By, Text Reason,
+Date, State); the replies toolbar search stays. Escalate is Switch To
+Another plus a confirmation Update (no extra fields). File Manager keeps the list toolbar search (T Hidden,
 New dir, Copy/Cut/Paste, columns Size/Name/Modified/Owner/Permissions) like
 Kloxo-MR; listing uses kloxo-backend on loopback 7776 when the panel is not
-root, with in-process fallback. LxGuard list tabs (connections, raw hits, whitelist)
+root, with in-process fallback. LxGuard show has Switch To Another (pserver list, at least localhost)
+and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend
-(no Java applet, no NOPASSWD sudoers). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). List/driver calls guard a missing
+(no Java applet, no NOPASSWD sudoers). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). HelpDesk ticket show skips Find and lists Switch To Another. List/driver calls guard a missing
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.

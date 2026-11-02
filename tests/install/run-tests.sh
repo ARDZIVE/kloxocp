@@ -427,6 +427,14 @@ if grep -q 'function seedHelpdesk' "$ROOT/kloxo/bin/install/init-panel-db" \
 else
   bad "init-panel-db seeds Welcome HelpDesk ticket and category"
 fi
+if grep -q 'function seedWatchdog' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'function watchdogDefaults' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "'php-fpm'" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "'__driver_mail'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds Watchdog defaults for localhost"
+else
+  bad "init-panel-db seeds Watchdog defaults for localhost"
+fi
 if grep -q 'function seedAdminHome' "$ROOT/kloxo/bin/install/init-panel-db" \
   && grep -q "/home/admin" "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds /home/admin for File Manager"

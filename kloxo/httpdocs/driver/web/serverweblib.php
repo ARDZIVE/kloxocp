@@ -57,11 +57,17 @@ class serverweb extends lxdb
 
 	function updateform($subaction, $param)
 	{
+		$vlist = array();
+
 		switch($subaction) {
 			case "apache_optimize":
 				$this->apache_optimize = null;
 				$txt = '';
-				foreach (array('/etc/apache2/conf-available/~kloxo.conf', '/etc/httpd/conf.d/~kloxo.conf') as $conf) {
+				foreach (array(
+					'/etc/apache2/conf-available/kloxo-optimize.conf',
+					'/etc/apache2/conf-available/~kloxo.conf',
+					'/etc/httpd/conf.d/~kloxo.conf',
+				) as $conf) {
 					if (is_file($conf)) {
 						$txt = (string)@file_get_contents($conf);
 						break;
@@ -74,9 +80,9 @@ class serverweb extends lxdb
 				}
 				$vlist['apache_optimize'] = array('s', $a);
 
-				$b = 'high';
+				$b = 'default';
 				foreach ($a as $v) {
-					if (stripos($txt, 'selected: ' . $v) !== false || stripos($txt, $v) !== false) {
+					if (stripos($txt, 'selected: ' . $v) !== false) {
 						$b = $v;
 						break;
 					}
@@ -110,22 +116,43 @@ class serverweb extends lxdb
 
 				break;
 			case "php_type":
+				$existing = isset($this->php_type) ? (string)$this->php_type : '';
 				$this->php_type = null;
 				$this->secondary_php = null;
 				$a = array('php-fpm_event', 'php-fpm_worker', 'proxy_fcgi_event', 'proxy_fcgi_worker');
 				$vlist['php_type'] = array('s', $a);
 
-				$d = db_get_value("serverweb", "pserver-". $this->syncserver, "php_type");
-				if (!$d || strpos((string)$d, 'mod_php') !== false || strpos((string)$d, 'suphp') !== false
-					|| strpos((string)$d, 'fcgid') !== false) {
+				$d = '';
+				$key = isset($this->nname) && $this->nname !== ''
+					? (string)$this->nname
+					: 'pserver-' . (isset($this->syncserver) && $this->syncserver !== ''
+						? $this->syncserver : 'localhost');
+				$pass = lfile_get_contents("__path_admin_pass");
+				if (is_string($pass) && trim($pass) !== '') {
+					try {
+						$d = (string)db_get_value("serverweb", $key, "php_type");
+					} catch (Throwable $e) {
+						$d = '';
+					}
+				}
+				if ($d === '' && $existing !== '') {
+					$d = $existing;
+				}
+				if ($d === '' || strpos($d, 'mod_php') !== false || strpos($d, 'suphp') !== false
+					|| strpos($d, 'fcgid') !== false) {
 					$d = 'proxy_fcgi_event';
-					db_set_default("serverweb", "php_type", $d,
-						"nname = 'pserver-{$this->syncserver}'");
+					if (is_string($pass) && trim($pass) !== '') {
+						try {
+							db_set_default("serverweb", "php_type", $d, "nname = '" . $key . "'");
+						} catch (Throwable $e) {
+						}
+					}
 				}
 				$this->setDefaultValue('php_type', $d);
 
 				$vlist['secondary_php'] = array('f', array('on', 'off'));
-				if (file_exists("../etc/flag/enablemultiplephp.flg")) {
+				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+				if (file_exists(KloxoPhpver::flagDirectory() . '/enablemultiplephp.flg')) {
 					$this->setDefaultValue('secondary_php', 'on');
 				}
 
@@ -141,7 +168,12 @@ class serverweb extends lxdb
 			case "multiple_php_install":
 				$this->multiple_php_install = null;
 				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
-				$vlist['multiple_php_install'] = array('U', KloxoPhpver::availableToInstall());
+				$avail = KloxoPhpver::availableToInstall();
+				if ($avail === array()) {
+					$vlist['multiple_php_install'] = array('M', '(all catalog versions are already installed)');
+				} else {
+					$vlist['multiple_php_install'] = array('U', $avail);
+				}
 
 				break;
 
@@ -161,7 +193,7 @@ class serverweb extends lxdb
 				$vlist['multiple_php_already_installed'] = array('M', $h);
 				$vlist['multiple_php_flag'] = array('f', array('on', 'off'));
 				$this->multiple_php_flag = null;
-				$s = file_exists('../etc/flag/enablemultiplephp.flg') ? 'on' : 'off';
+				$s = file_exists(KloxoPhpver::flagDirectory() . '/enablemultiplephp.flg') ? 'on' : 'off';
 				$this->setDefaultValue('multiple_php_flag', $s);
 
 				break;
@@ -182,7 +214,8 @@ class serverweb extends lxdb
 
 				$vlist['enable_php52m_fpm'] = array("f", array('on', 'off'));
 
-				if (file_exists("../etc/flag/enable_php52m-fpm.flg")) {
+				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+				if (file_exists(KloxoPhpver::flagDirectory() . '/enable_php52m-fpm.flg')) {
 					$this->setDefaultValue('enable_php52m_fpm', 'on');
 				}
 
@@ -191,7 +224,7 @@ class serverweb extends lxdb
 			case "pagespeed_clear_cache":
 				$this->pagespeed_cache = null;
 
-				$vlist['pagespeed_cache'] = array('s', array( 'clear'));
+				$vlist['pagespeed_cache'] = array('s', array('clear'));
 
 				break;
 

@@ -160,10 +160,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     those versions via distro apt then `ppa:ondrej/php`. The old scanner only
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
-    `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise). Admin SQL
+    `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL
     Manager uses panel sign-on as MariaDB `root`@`127.0.0.1` (`pma.pass`,
     WITH GRANT OPTION, no password in the URL; `AllowRoot` is on).
-    OS `root`@`localhost` stays unix_socket. Admin Home shows SQL Manager only in Basic
+    The SQL Manager tile href is always `/thirdparty/phpMyAdmin/`
+    (`kloxo_pma_href`; never mywebsql). OS `root`@`localhost` stays unix_socket. Admin Home shows SQL Manager only in Basic
     (`webmailanddb`), not as a second Domain tile. Live phpMyAdmin login
     after this change is unverified; re-run `install.sh` after pull.
     Component Info uses Ubuntu package names (`kloxo_component.php`) instead
@@ -178,12 +179,19 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `*_none` drivers (`dns__none`, `web__none`); Switch Program no longer
     TypeErrors on those classes. Client mail counts read
     `/var/log/mail.log` (Ubuntu) or `/var/log/maillog` and do not call
-    `feof(false)` when the file is missing. PHP Configure (`phpini` show)
+    `feof(false)` when the file is missing.     PHP Configure (`phpini` show)
     and Advanced PHP Configure (`sa=extraedit`) always share the two
-    content tabs; extraedit no longer dies in `getSelfList` or a missing
-    panel DB password, and a client session path is
+    beige-header tabs (`a=show` / `a=updateform&sa=extraedit`); phpini
+    never falls back to client/pserver tabs. extraedit no longer dies in
+    `getSelfList` or a missing panel DB password, nested `phpini_flag_b-*`
+    field descriptions no longer TypeError, and a client session path is
     `/home/kloxo/client/{user}/session`. Live PHP Configure after deploy
-    is **UNVERIFIED**. PHP config forms apply the
+    is **UNVERIFIED**. The panel top-right logo is the Kloxo CP wordmark
+    (`login/images/kloxo.png`), not Kloxo-MR. Live logo after deploy is
+    **UNVERIFIED**. Watchdog list matches Kloxo-MR (Switch To Another,
+    add form, eight default services); mail action is `__driver_mail`
+    (Postfix) not qmail. Live Watchdog after deploy is **UNVERIFIED**.
+    PHP config forms apply the
     usual defaults (120s / 128M / 32M / disable_functions) when the
     stored `phpini` blob only has a session path. Admin Resource Plan
     add form uses unlimited quotas and flags on (Easy Installer stays
@@ -304,9 +312,18 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     cannot keep the old simplicity sheet after deploy.
     Log Manager, Driver Configuration, PHP Configuration,
     Backup/Restore, Webserver Configure, SSH Configure, LxGuard,
-    SSH Terminal and File Manager no longer show the
-    left-column Find box. LxGuard list tabs (connections, raw hits,
-    whitelist) omit the Find/search input too. SSH Terminal is admin-only (pserver
+    SSH Terminal, File Manager, HelpDesk ticket show and Notification
+    no longer show the left-column Find box. HelpDesk ticket show puts Switch To Another
+    at the top (sibling ticket ids) and keeps Ticket / Add Reply /
+    Escalate plus the inline Add Reply form (State, Text Reason) and
+    Replies list (Changed By, Text Reason, Date, State). The replies
+    toolbar search stays. Escalate is a confirmation page (Switch To
+    Another, Escalate for N, Update; no extra fields) and no longer
+    TypeErrors through Lxclient::updateform. Live HelpDesk ticket
+    show/escalate after deploy is **UNVERIFIED**. LxGuard show (and its
+    Connections / Raw Connections / White List tabs) has Switch To Another
+    across pservers (`lxguard::getSelfList` via `pserver::adminServerSwitchList`,
+    at least `localhost`). LxGuard list tabs omit the Find/search input too. SSH Terminal is admin-only (pserver
     child, not client home) and shows a WebConsole-like black terminal
     (`Switch To Another`, `root@host #` prompt, command form). Panel FPM
     sends commands to `kloxo-backend` (root on loopback 7776) then
@@ -322,7 +339,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     parent quota like a client. Live plan-create after deploy is
     **UNVERIFIED**. Command Center / Timezone / Switch
     Program / Cron Tasks / File Manager / HelpDesk forms no longer
-    TypeError on empty lists. `init-panel-db` seeds HelpDesk
+    TypeError on empty lists. HelpDesk ticket show skips Find, lists
+    Switch To Another, and Add Reply no longer TypeErrors on a missing
+    parent state or notify failure. `init-panel-db` seeds HelpDesk
     category Welcome and ticket 1 (Created By Kloxo, Subject
     Welcome to Kloxo, date = install time). SSH authorized keys no longer call
     `key()` on a missing list. Ubuntu Services uses
@@ -521,10 +540,15 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    Webserver Configure keeps the Kloxo-MR section layout (PHP Used, PHP
    Branch, Multiple PHP already-installed/enable/install/remove, PHP Type
    for Apache, Apache optimize, MySQL convert, fix ownership, Pagespeed)
-   with Ubuntu `phpX.Y` ids, not `php52m`. **PHP Used** switches the
-   default; a domain can still pick another installed version. 5.6 / 7.4
-   are EOL and only for legacy sites. Live Webserver Configure after
-   deploy is **UNVERIFIED**.
+   with Ubuntu `phpX.Y` ids, not `php52m`. Each section form loads without
+   a DB password. Apache optimize writes
+   `/etc/apache2/conf-available/kloxo-optimize.conf` (validate `apache2ctl
+   -t`, roll back on failure). PHP Type on Ubuntu enables mpm_event or
+   mpm_worker plus proxy_fcgi, never mod_php. Fix ownership maps to
+   `--select=chown`, permissions to `--select=chmod`. **PHP Used**
+   switches the default; a domain can still pick another installed
+   version. 5.6 / 7.4 are EOL and only for legacy sites. Live Webserver
+   Configure submit after deploy is **UNVERIFIED**.
 5. FTP server choice (Pure-FTPd vs ProFTPd). **Answered:** DNS is BIND by default;
    PowerDNS is packaged and prepared, started only when Switch Program selects `pdns`.
    Live switch on Ubuntu is **UNVERIFIED**.

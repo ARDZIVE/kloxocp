@@ -189,34 +189,13 @@ function __ac_desc_show($object)
 	//	check_for_license();
 	}
 
-	$object->getAnyErrorMessage();
-
-	$prlist = array('property' => array());
-	$object->createShowPropertyList($prlist);
-
-	if (!isset($prlist['property']) || !is_array($prlist['property'])) {
-		$prlist['property'] = array();
+	try {
+		$object->getAnyErrorMessage();
+	} catch (Throwable $e) {
+		log_log("error", "getAnyErrorMessage: " . $e->getMessage());
 	}
 
-	if (!$prlist['property']) {
-		$parent = $object->getParentO();
-		if (is_object($parent)) {
-			$parent->createShowPropertyList($prlist);
-			if (isset($prlist['property']) && is_array($prlist['property'])) {
-				foreach ($prlist['property'] as $k => $v) {
-					$prlist['property'][$k] = "goback=1&" . kloxo_string($v);
-				}
-			}
-		}
-	}
-
-	if (!empty($prlist['property'])) {
-		try {
-			$ghtml->print_tab_block($prlist['property']);
-		} catch (Throwable $e) {
-			log_log("error", "print_tab_block: " . $e->getMessage());
-		}
-	}
+	kloxo_print_object_property_tabs($object);
 
 	$ghtml->print_content_begin();
 
@@ -518,15 +497,33 @@ function __ac_desc_show($object)
 			. htmlspecialchars($e->getMessage(), ENT_QUOTES) . '</div>';
 	}
 
-	$aflist = $object->createShowAddform();
-	$uflist = $object->createShowUpdateform();
+	$aflist = array();
+	try {
+		$aflist = $object->createShowAddform();
+	} catch (Throwable $e) {
+		log_log("error", "createShowAddform: " . $e->getMessage());
+	}
+	$uflist = array();
+	try {
+		$uflist = $object->createShowUpdateform();
+	} catch (Throwable $e) {
+		log_log("error", "createShowUpdateform: " . $e->getMessage());
+	}
 
 	foreach ((array)$uflist as $k => $v) {
-		do_updateform($object, $k);
+		try {
+			do_updateform($object, $k);
+		} catch (Throwable $e) {
+			log_log("error", "do_updateform $k: " . $e->getMessage());
+		}
 	}
 
 	foreach ((array)$aflist as $k => $v) {
-		do_addform($object, $k);
+		try {
+			do_addform($object, $k);
+		} catch (Throwable $e) {
+			log_log("error", "do_addform $k: " . $e->getMessage());
+		}
 	}
 
 	foreach ((array)$clist as $k => $v) {
@@ -670,6 +667,57 @@ function __ac_desc_graph($object)
 	<img src="/tmp/<?=$tmpgraph?>">
 <?php
 	$ghtml->print_content_end();
+}
+
+function kloxo_print_object_property_tabs($object)
+{
+	global $ghtml;
+
+	$prlist = array('property' => array());
+	if (is_object($object) && method_exists($object, 'createShowPropertyList')) {
+		try {
+			$object->createShowPropertyList($prlist);
+		} catch (Throwable $e) {
+			log_log("error", "createShowPropertyList: " . $e->getMessage());
+		}
+	}
+	if (!isset($prlist['property']) || !is_array($prlist['property'])) {
+		$prlist['property'] = array();
+	}
+
+	$class = (is_object($object) && method_exists($object, 'getClass'))
+		? $object->getClass() : '';
+
+	if ($class === 'phpini' && $prlist['property'] === array()) {
+		$prlist['property'] = class_exists('phpini') && is_callable(array('phpini', 'phpiniPropertyTabs'))
+			? phpini::phpiniPropertyTabs()
+			: array('a=show', 'a=updateform&sa=extraedit');
+	}
+
+	if (!$prlist['property'] && $class !== 'phpini') {
+		$parent = (is_object($object) && method_exists($object, 'getParentO'))
+			? $object->getParentO() : null;
+		if (is_object($parent) && method_exists($parent, 'createShowPropertyList')) {
+			try {
+				$parent->createShowPropertyList($prlist);
+			} catch (Throwable $e) {
+				log_log("error", "parent createShowPropertyList: " . $e->getMessage());
+			}
+			if (isset($prlist['property']) && is_array($prlist['property'])) {
+				foreach ($prlist['property'] as $k => $v) {
+					$prlist['property'][$k] = "goback=1&" . kloxo_string($v);
+				}
+			}
+		}
+	}
+
+	if (!empty($prlist['property']) && is_object($ghtml) && method_exists($ghtml, 'print_tab_block')) {
+		try {
+			$ghtml->print_tab_block($prlist['property']);
+		} catch (Throwable $e) {
+			log_log("error", "print_tab_block: " . $e->getMessage());
+		}
+	}
 }
 
 function showParentProperty($object)
@@ -1119,57 +1167,7 @@ function __ac_desc_UpdateForm($object)
 	}
 	$subaction = $ghtml->frm_subaction;
 
-/*
-	$object->createShowPropertyList($alist);
-
-	if (isset($alist['property']) && count($alist['property']) > 1) {
-		$nalist = null;
-		$nalist = lx_merge_good($nalist, $alist['property']);
-	} elseif ($object->getParentO()) {
-		$alist['property'] = null;
-		$object->getParentO()->createShowPropertyList($alist);
-		$nalist = null;
-	
-		// MR -- need if here because error in debug mode
-		if (isset($alist['property'])) {
-			foreach ($alist['property'] as &$a) {
-				$a = kloxo_string($a) . '&goback=1';
-			}
-			unset($a);
-		}
-
-		$nalist = lx_merge_good($nalist, $alist['property']);
-	}
-
-	$ghtml->print_tab_block($nalist);
-*/
-	// MR -- use logic from show
-	$prlist = array('property' => array());
-	$object->createShowPropertyList($prlist);
-
-	if (!isset($prlist['property']) || !is_array($prlist['property'])) {
-		$prlist['property'] = array();
-	}
-
-	if (!$prlist['property']) {
-		$parent = $object->getParentO();
-		if (is_object($parent)) {
-			$parent->createShowPropertyList($prlist);
-			if (isset($prlist['property']) && is_array($prlist['property'])) {
-				foreach ($prlist['property'] as $k => $v) {
-					$prlist['property'][$k] = "goback=1&" . kloxo_string($v);
-				}
-			}
-		}
-	}
-
-	if (!empty($prlist['property'])) {
-		try {
-			$ghtml->print_tab_block($prlist['property']);
-		} catch (Throwable $e) {
-			log_log("error", "print_tab_block: " . $e->getMessage());
-		}
-	}
+	kloxo_print_object_property_tabs($object);
 
 	$ghtml->print_content_begin();
 
@@ -1232,6 +1230,9 @@ function do_updateform($object, $subaction)
 		}
 
 		$vlist = $object->updateform($subaction, $param);
+		if (!is_array($vlist)) {
+			$vlist = array();
+		}
 
 		$tparam = null;
 
@@ -1526,8 +1527,8 @@ function create_xml($object, $stuff, $ret)
 		$class = $stuff;
 	}
 
-	$vlist = $ret['variable'];
-	$action = $ret['action'];
+	$vlist = isset($ret['variable']) && is_array($ret['variable']) ? $ret['variable'] : array();
+	$action = $ret['action'] ?? 'update';
 
 	$string = null;
 
@@ -1546,13 +1547,14 @@ function create_xml($object, $stuff, $ret)
 
 		// Hack hack:: used_s is handled separately.. There is no other way, since without any other way to recognize it, 
 		// quota variables  defaults to priv...
+		$descr = array('', '', is_string($k) ? $k : '');
 		if (!csb($k, "used_s")) {
-			if ($v && $ghtml->is_special_variable($v[1])) {
+			if (is_array($v) && isset($v[1]) && $ghtml->is_special_variable($v[1])) {
 				//
 			} else {
 				$descr = $ghtml->get_classvar_description_after_overload($class, $k);
 
-				if (count($descr) < 3) {
+				if (!is_array($descr) || count($descr) < 3) {
 					dprint("Variable $k in $class Not Defined... <br/> \n");
 					$descr = array($class, $k, "Not Defined");
 				}
@@ -1573,7 +1575,7 @@ function create_xml($object, $stuff, $ret)
 			continue;
 		}
 
-		if ($v) {
+		if (is_array($v) && isset($v[0])) {
 			if (csa($v[0], 'I')) {
 				if ($v[1] && is_array($v[1])) {
 					$opt = $v[1];

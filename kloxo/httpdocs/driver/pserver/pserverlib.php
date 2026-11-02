@@ -308,43 +308,12 @@ class pserver extends pservercore {
 
 	function getMysqlDbAdmin(&$alist)
 	{
-	//	$flagfile = "../etc/flag/user_sql_manager.flg";
-
-	//	if (file_exists($flagfile)) {
-	//		$url = file_get_contents($flagfile);
-	//		$url = trim($url);
-	//		$url = trim($url, "\n");
-
-	//		$dbadminUrl = $url;
-
-		$incfile = "lib/sqlmgr.php";
-
-		if (file_exists($incfile)) {
-			// MR -- logic must be declare $dbadminUrl
-			include $incfile;
-		} else {
-			if (file_exists("./thirdparty/mywebsql/")) {
-				$url = "/thirdparty/mywebsql/";
-			} else {
-				$url = "/thirdparty/phpMyAdmin/";
-			}
-
-			if (!$this->isLocalhost('nname')) {
-				$fqdn = getFQDNforServer($this->nname);
-
-				if (http_is_self_ssl()) {
-					$port = get_kloxo_port('ssl');
-					$schema = "https://";
-				} else {
-					$port = get_kloxo_port('nonssl');
-					$schema = "http://";
-				}
-
-				$dbadminUrl = "{$schema}{$fqdn}:{$port}{$url}";
-			} else {
-				$dbadminUrl =  $url;
-			}
+		if (!function_exists('kloxo_pma_href')) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
 		}
+		$local = method_exists($this, 'isLocalhost') && $this->isLocalhost('nname');
+		$server = (isset($this->nname) && is_string($this->nname)) ? $this->nname : 'localhost';
+		$dbadminUrl = kloxo_pma_href($local, $server);
 
 		$alist[] = create_simpleObject(array('url' => $dbadminUrl,
 			'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
@@ -358,8 +327,10 @@ class pserver extends pservercore {
 		if ($ghtml->frm_subaction === 'commandcenter') {
 			$alist['property'][] = "a=updateform&sa=commandcenter";
 		} elseif ($ghtml->frm_subaction === 'extraedit') {
-			$alist['property'][] = "a=show&o=phpini";
-			$alist['property'][] = "a=updateform&sa=extraedit&o=phpini";
+			$alist['property'] = array(
+				"a=show&o=phpini",
+				"a=updateform&sa=extraedit&o=phpini",
+			);
 		} elseif ($ghtml->frm_subaction === 'timezone') {
 			$alist['property'][] = "a=updateform&sa=timezone";
 	//	} elseif ($ghtml->frm_subaction === 'update') {

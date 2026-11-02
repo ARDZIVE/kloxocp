@@ -26,17 +26,41 @@ class TicketHistory extends Lxdb
 	static function ticketSendNotification($from, $id, $category, $object, $action, $actxt, $made_by, $subject, $message, $extra = null)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
-		
-		$o = $login->getObject('ticketconfig');
 
-		$name = ucfirst($sgbl->__var_program_name);
+		if (!is_object($object) || !is_object($login) || !method_exists($login, 'getObject')) {
+			return;
+		}
 
-		$notf = $object->getObject('notification');
+		try {
+			$o = $login->getObject('ticketconfig');
+		} catch (Throwable $e) {
+			return;
+		}
+
+		$name = is_object($sgbl) && isset($sgbl->__var_program_name)
+			? ucfirst((string)$sgbl->__var_program_name) : 'Kloxo';
+
+		try {
+			$notf = $object->getObject('notification');
+		} catch (Throwable $e) {
+			return;
+		}
 
 		$val = null;
 		$flag = $action . "_flag";
-		
-		if (!$object->contactemail || !$notf->notflag_b->isOn($flag)) {
+
+		if (!$object->contactemail) {
+			return;
+		}
+		$flagOn = false;
+		try {
+			$flagOn = is_object($notf) && isset($notf->notflag_b)
+				&& is_object($notf->notflag_b) && method_exists($notf->notflag_b, 'isOn')
+				&& $notf->notflag_b->isOn($flag);
+		} catch (Throwable $e) {
+			$flagOn = false;
+		}
+		if (!$flagOn) {
 			return;
 		}
 
@@ -46,8 +70,8 @@ class TicketHistory extends Lxdb
 		list($parentclass, $parentname) = getParentNameAndClass($made_by);
 		
 		$mail = null;
-		
-		if ($o->isOn('mail_enable')) {
+
+		if (is_object($o) && method_exists($o, 'isOn') && $o->isOn('mail_enable')) {
 			$mail  .= "When replying please leave the subject intact for the helpdesk to parse...\n-----\n";
 		}
 		
@@ -57,7 +81,7 @@ class TicketHistory extends Lxdb
 		$mail .= "". $message . "\n";
 		$mail .= "--------------------------\n";
 
-		$reply_to = $o->mail_account;
+		$reply_to = (is_object($o) && isset($o->mail_account)) ? $o->mail_account : '';
 
 		if (!$reply_to) {
 			$reply_to = "helpdesk";
@@ -96,9 +120,16 @@ class TicketHistory extends Lxdb
 	function display($var)
 	{
 		if ($var === 'made_by') {
-			return $this->getParentName('made_by');
+			if (!isset($this->made_by) || $this->made_by === null || $this->made_by === '') {
+				return '';
+			}
+			try {
+				return $this->getParentName('made_by');
+			} catch (Throwable $e) {
+				return (string)$this->made_by;
+			}
 		}
-		
+
 		return parent::display($var);
 	}
 
@@ -153,9 +184,31 @@ class TicketHistory extends Lxdb
 	static function getObjectsTosend($parent, $param, $action)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
-		
+
+		if (!is_object($parent) || !is_array($param)) {
+			return;
+		}
+		if (class_exists('Ticket') && method_exists('Ticket', 'canReadPanelDb')
+			&& !Ticket::canReadPanelDb()) {
+			return;
+		}
+
+		try {
+			self::getObjectsTosendDo($parent, $param, $action);
+		} catch (Throwable $e) {
+			log_log("error", "ticket getObjectsTosend: " . $e->getMessage());
+		}
+	}
+
+	static function getObjectsTosendDo($parent, $param, $action)
+	{
+		global $gbl, $sgbl, $login, $ghtml;
+
 		$pclass = $parent->getParentClass('made_by');
 		$pname = $parent->getParentName('made_by');
+		if (!is_string($pclass) || $pclass === '' || !class_exists($pclass)) {
+			return;
+		}
 		$obj = new $pclass($parent->__masterserver, null, $pname);
 		$obj->get();
 		$extra = null;
@@ -193,11 +246,11 @@ class TicketHistory extends Lxdb
 
 		$otherclass = $parent->getParentClass('sent_to');
 		$othername = $parent->getParentName('sent_to');
-		
-		if (!$otherclass) {
+
+		if (!$otherclass || !is_string($otherclass) || !class_exists($otherclass)) {
 			return;
 		}
-		
+
 		$otherobj = new $otherclass($parent->__masterserver, null, $othername);
 		$otherobj->get();
 
@@ -224,44 +277,76 @@ class TicketHistory extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$parent->history_num += 1;
-		$param['nname'] = $parent->nname . "___" . $parent->history_num;
-
-		if (!isset($param['made_by'])) {
-			if ($parent->isLogin()) {
-				$ret = $gbl->getSessionV('extra_var');
-				dprintr($ret);
-				$param['made_by'] = $ret['ticket_c'];
-			} else {
-				$param['made_by'] = $parent->getParentO()->getClName();
-			}
+		if (!is_array($param)) {
+			$param = array();
 		}
 
-	//	$param['text_reason'] = str_replace("'", "\'", $param['text_reason']);
+		$parent->history_num = (int)($parent->history_num ?? 0) + 1;
+		$param['nname'] = $parent->nname . "___" . $parent->history_num;
+
+		if (!isset($param['made_by']) || $param['made_by'] === '' || $param['made_by'] === null) {
+			$made = '';
+			if (is_object($parent) && method_exists($parent, 'isLogin') && $parent->isLogin()) {
+				$ret = is_object($gbl) && method_exists($gbl, 'getSessionV')
+					? $gbl->getSessionV('extra_var') : null;
+				if (is_array($ret) && isset($ret['ticket_c'])) {
+					$made = (string)$ret['ticket_c'];
+				}
+			}
+			if ($made === '' && is_object($parent) && method_exists($parent, 'getParentO')) {
+				try {
+					$gp = $parent->getParentO();
+					if (is_object($gp) && method_exists($gp, 'getClName')) {
+						$made = $gp->getClName();
+					}
+				} catch (Throwable $e) {
+				}
+			}
+			if ($made === '' && is_object($login) && method_exists($login, 'getClName')) {
+				$made = $login->getClName();
+			}
+			$param['made_by'] = $made !== '' ? $made : 'client-admin';
+		}
+
+		if (!isset($param['state']) || $param['state'] === '' || $param['state'] === null) {
+			$param['state'] = (is_object($parent) && isset($parent->state) && $parent->state !== '')
+				? (string)$parent->state : 'open';
+		}
+		if (!isset($param['text_reason'])) {
+			$param['text_reason'] = '';
+		}
+
 		$parent->dbaction = 'update';
 
-		self::getObjectsTosend($parent, $param, "ticketchange");
+		try {
+			self::getObjectsTosend($parent, $param, "ticketchange");
+		} catch (Throwable $e) {
+			log_log("error", "ticket history notify: " . $e->getMessage());
+		}
 
 		$parent->state = $param['state'];
 		$parent->date_modified = time();
 		$parent->setUpdateSubaction();
-		
+
 		return $param;
 	}
 
 	static function addform($parent, $class, $typetd = null)
 	{
-	//	$vlist['subject_f'] = array('M', $parent->subject);
 		$slist = Ticket::getStateList();
-
-		unset($slist[$parent->state]);
+		$cur = (is_object($parent) && isset($parent->state)) ? (string)$parent->state : '';
+		if ($cur !== '' && isset($slist[$cur])) {
+			unset($slist[$cur]);
+		}
+		if ($slist === array()) {
+			$slist = Ticket::getStateList();
+		}
 		$vlist['state'] = array('s', $slist);
-
 		$vlist['text_reason'] = null;
 
 		$ret['variable'] = $vlist;
 		$ret['action'] = 'add';
-		
+
 		return $ret;
 	}
 }
