@@ -40,11 +40,30 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it |
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
-| Switch Program SMTP | `none` or `exim` (enables `exim4`; hosted mail is this stack) |
+| Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` or `exim`. Content tab labelled **Switch Program**. |
 | Database | MariaDB (panel DB `kloxo`; mail DB is separate) |
-| SQL Manager | phpMyAdmin in a new tab (`kloxo-signon.php` SSO as panel admin) |
+| SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `root`@`127.0.0.1`) |
 | Billing | None |
 | License | GNU AGPL v3 |
+
+### Panel UI (after install)
+
+Default skin is simplicity. Content tabs sit on the beige header (Kloxo-MR layout).
+The Kloxo CP logo sits on the right of the screen. First login is **admin / admin**;
+the Change Password modal is required (Esc/Close cannot skip it).
+
+| Screen | Behaviour |
+|---|---|
+| SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
+| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP `none` / `exim`. |
+| PHP Configure | Tabs **PHP Configure** and **Advanced PHP Configure**. |
+| Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
+| Update | **10.1-2026110201**, note **Kloxo fork by Hampik TALATINIAN**. `kloxocp update` is not built (exits 2). |
+| Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
+| SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
+| HelpDesk | A Welcome ticket is seeded on install. |
+| Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
+| Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |
 
 ## Goals
 
@@ -432,15 +451,17 @@ network files and can take the host off the network.
 
 phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
 `kloxo/bin/install/install-phpmyadmin` (not shipped in git). Admin **SQL Manager**
-opens `/thirdparty/phpMyAdmin/kloxo-signon.php` in a new tab (`target="_blank"`).
-A live panel-admin session is signed in as MariaDB `root`@`127.0.0.1` (all
-databases, WITH GRANT OPTION) and redirected into phpMyAdmin in that tab.
-The MariaDB password is never put in the URL. Other users still see the MySQL
-logon form; panel admin may leave the password blank to use `pma.pass`. OS
-`root`@`localhost` stays unix_socket.
+opens `/thirdparty/phpMyAdmin/kloxo-signon.php` in a new browser tab
+(`target="_blank"`). A live panel-admin session is signed in as MariaDB
+`root`@`127.0.0.1` (all databases, WITH GRANT OPTION) and redirected into
+phpMyAdmin in that tab. Cross-site GET does not auto-sign-on. The MariaDB
+password is never put in the URL. Other users still see the MySQL logon form;
+panel admin may leave the password blank to use `pma.pass`. OS `root`@`localhost`
+stays unix_socket. SQL Manager is under Basic, not a second Domain tile.
 A 405 from Hiawatha on that URL means the directory has no `index.php`.
 Re-run `install.sh` (or `install-phpmyadmin` plus `init-panel-db`) after
-pulling this tree so sign-on and `root`@`127.0.0.1` exist.
+pulling this tree so sign-on and `root`@`127.0.0.1` exist. Live phpMyAdmin
+login after re-install is unverified.
 
 ### 9. MariaDB for the panel
 
@@ -479,10 +500,11 @@ working panel; re-run `init-panel-db`.
 ### 10. Mail stack (independent of the panel UI)
 
 Hosted mail is **Exim** (SMTP) + **Dovecot** (IMAP/POP3/LMTP) + **Rspamd**
-+ a dedicated MariaDB database. Switch Program SMTP is `none` / `exim`;
-`exim` enables Ubuntu `exim4` (and stops Postfix if it is still installed).
-P4 will wire the panel mail screens to `kloxo-mail`. qmail remains in the
-tree until those drivers exist.
++ a dedicated MariaDB database. Switch Program SMTP is `none` / `exim`
+(the content tab is labelled **Switch Program**); `exim` enables Ubuntu
+`exim4` (and stops Postfix if it is still installed). qmail-toaster is not
+the selectable MTA. P4 will wire the panel mail screens to `kloxo-mail`.
+qmail remains in the tree until those drivers exist.
 
 On a **disposable** machine only (`tests/mail/README.md`): live tests rewrite
 `/etc/exim4`, `/etc/dovecot`, `/etc/rspamd/local.d`.
