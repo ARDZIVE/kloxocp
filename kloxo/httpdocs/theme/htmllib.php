@@ -1675,35 +1675,32 @@ class HtmlLib
 		}
 
 		if (($show_direction === 'vertical') || ($retcount === 1)) {
-			$sectionfloat = "inherit";
+			$sectionfloat = "none";
 			$sectionheight = "auto";
-			$showpagewidth = "640";
-			if ($retcount === 1) {
-				$sectionmargin = "0 auto 10px auto";
-				$sectionwidth = "800";
-			} else {
-				$sectionmargin = "0 10px 10px 0";
-				$sectionwidth = "640";
-			}
+			$showpagewidth = "100%";
+			$sectionmargin = "0 0 10px 0";
+			$sectionwidth = "100%";
 		} elseif ($show_direction === 'vertical 2') {
-			$sectionwidth = "300";
-			$sectionfloat = "inherit";
+			$sectionwidth = "300px";
+			$sectionfloat = "none";
 			$sectionheight = "auto";
-			$showpagewidth = "640";
+			$showpagewidth = "640px";
 			$sectionmargin = "0 0 10px 15px";
 		} elseif ($show_direction === 'horizontal') {
-			$sectionwidth = "400";
+			$sectionwidth = "400px";
 			$sectionfloat = "left";
 			$sectionheight = "415";
-			$showpagewidth = "615";
+			$showpagewidth = "615px";
 			$sectionmargin = "0 10px 10px 0";
+		} else {
+			$sectionfloat = "none";
+			$sectionheight = "auto";
+			$showpagewidth = "100%";
+			$sectionmargin = "0 0 10px 0";
+			$sectionwidth = "100%";
 		}
 
-		if ($retcount === 1) {
-			$wrapstyle = "width: 800px; margin: 0 auto 20px auto";
-		} else {
-			$wrapstyle = "float:left; margin: 0 0 20px 15px";
-		}
+		$wrapstyle = "width: 100%; margin: 0 0 20px 0";
 
 		$img_url = $this->get_expand_url();
 ?>
@@ -1716,12 +1713,13 @@ class HtmlLib
 				margin: <?=$sectionmargin?>;
 				padding: 0 0 8px 0;
 				/* width: 520px; */
-				width: <?=$sectionwidth?>px;
+				width: <?=$sectionwidth?>;
 				resize: both;
 				overflow: visible;
-				float: left;
+				float: <?=$sectionfloat?>;
 				height: auto;
 				min-height: 120px;
+				box-sizing: border-box;
 			}
 			div.section::after, div#createNew::after {
 				content: "";
@@ -1773,14 +1771,14 @@ class HtmlLib
 <?php
 		if (($show_direction !== 'horizontal') || ($retcount === 1)) {
 ?>
-			<div id="show_page" style="float:left; width: <?= $showpagewidth ?>px; margin: 0 auto 0 auto">
+			<div id="show_page" style="float:none; width: <?= $showpagewidth ?>; margin: 0">
 <?php
 
 		} else {
 			$horiz_width = 15 + ($retcount * ($sectionwidth + 10)) + 15;
 ?>
 
-				<div id="show_page" style="background-color: #def; padding:10px; border: 1px solid #ddd; float:left; width: <?= $showpagewidth ?>px; height: <?= $sectionheight + 20; ?>px; overflow: auto; white-space: nowarp; margin: 0 auto 0 auto">
+				<div id="show_page" style="background-color: #def; padding:10px; border: 1px solid #ddd; float:left; width: <?= $showpagewidth ?>; height: <?= $sectionheight + 20; ?>px; overflow: auto; white-space: nowarp; margin: 0 auto 0 auto">
 					<div id='horiz_scroll' style="width: <?= $horiz_width ?>px">
 <?php
 		}

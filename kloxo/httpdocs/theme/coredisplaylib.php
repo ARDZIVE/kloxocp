@@ -416,8 +416,9 @@ function __ac_desc_show($object)
 	if (!$printed_message) {
 ?>
 
-	<div class="div_home_page">
-		<div class="div_home_left">
+	<table class="div_home_page" style="width:100%; border:0; border-collapse:separate; border-spacing:15px 0; margin:10px 0;">
+		<tr>
+			<td class="div_home_left" style="width:240px; max-width:240px; vertical-align:top; padding:0;">
 <?php
 			try {
 				$ghtml->print_find($object);
@@ -457,8 +458,8 @@ function __ac_desc_show($object)
 				}
 			}
 ?>
-		</div>
-		<div class="div_home_right">
+			</td>
+			<td class="div_home_right" style="vertical-align:top; padding:0;">
 <?php
 			if (isset($nalist) && $nalist) {
 				try {
@@ -468,8 +469,9 @@ function __ac_desc_show($object)
 				}
 			}
 ?>
-		</div>
-	</div>
+			</td>
+		</tr>
+	</table>
 <?php
 	} else {
 		if (isset($nalist) && $nalist) {

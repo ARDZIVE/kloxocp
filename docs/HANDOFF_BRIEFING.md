@@ -241,8 +241,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `Lxclass` (PHP 8 fatal on autoload). Menu titles now go through
     `kloxo_menu_title`; Status/Show-Hide/time print before the left
     menu; `install.sh` fetches origin and rsyncs a non-symlink
-    `/opt/kloxo`. Re-check the live dashboard after pushing this tree
-    and re-running install.
+    `/opt/kloxo`.     Home is a two-column table (Find/Information/Resource left,
+    tiles right). Help/Logout print after the left menu so they sit
+    on the right of the green bar. getLastLogin still writes the
+    current IP when there is only one utmp row. Re-check the live
+    dashboard after pushing this tree and re-running install.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 

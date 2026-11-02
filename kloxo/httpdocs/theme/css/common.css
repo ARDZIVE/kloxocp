@@ -736,26 +736,27 @@ html>body #quotausagebar span.last {
 	}
 
 	.div_home_page {
-		width: 900px;
+		width: 100%;
 		max-width: 100%;
-		margin: 10px auto;
-		display: flex;
-		align-items: flex-start;
-		gap: 15px;
+		margin: 10px 0;
 		overflow: visible;
 		background-color: #fff;
 	}
 
 	.div_home_left {
 		width: 240px;
-		flex: 0 0 240px;
 		overflow: visible;
+		vertical-align: top;
 	}
 
 	.div_home_right {
-		flex: 1 1 auto;
-		min-width: 0;
 		overflow: visible;
+		vertical-align: top;
+	}
+
+	.div_home_left .div_note,
+	.div_home_left .div_resource {
+		margin: 0;
 	}
 
 	.div_home_right > div {
@@ -764,10 +765,12 @@ html>body #quotausagebar span.last {
 		width: 100% !important;
 	}
 
-	.div_home_right div.section {
+	.div_home_right div.section,
+	.div_home_right #show_page {
 		float: none !important;
 		width: 100% !important;
 		margin: 0 0 10px 0 !important;
+		box-sizing: border-box;
 	}
 
 	.div_content {

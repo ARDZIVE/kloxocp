@@ -220,11 +220,11 @@ if grep -A 20 'div.section, div#createNew' "$ROOT/kloxo/httpdocs/theme/htmllib.p
 else
   bad "dashboard sections are not clipped by overflow:hidden"
 fi
-if grep -F -q 'div_menu_right' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
-  && awk 'found && /getKeywordUc\(.logout.\)/{print; exit} /div_menu_right/{found=1}' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" | grep -q logout; then
-  ok "simplicity Help/Logout print before the rest of the top menu"
+if awk '/class="div_menu_left"/{l=NR} /class="div_menu_right"/{r=NR} END {exit !(l && r && l<r)}' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && grep -q "getKeywordUc('help')" "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then
+  ok "simplicity Help/Logout print on the right of the top menu"
 else
-  bad "simplicity Help/Logout print before the rest of the top menu"
+  bad "simplicity Help/Logout print on the right of the top menu"
 fi
 if grep -F -q 'flex-wrap: wrap' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" \
   && grep -F -q '.div_menu_right' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css"; then
@@ -288,13 +288,19 @@ if grep -A 12 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | g
 else
   bad "simplicity Status/Show-Hide/time stay visible on the top right"
 fi
-if grep -q 'div_home_page' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
+if grep -q '<table class="div_home_page"' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
   && grep -q 'div_home_left' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
   && grep -q 'div_home_right' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
   && grep -q 'print_object_action_block' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
   ok "home page keeps Find/Information/Resource beside the dashboard tiles"
 else
   bad "home page keeps Find/Information/Resource beside the dashboard tiles"
+fi
+if grep -A 20 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | grep -q 'info_currentloginip' \
+  && grep -A 20 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | awk '/info_currentloginip/{c=1} /isset\(\$res\[1\]\)/ { if (c) ok=1 } END { exit !ok }'; then
+  ok "information table still shows current login on the first session"
+else
+  bad "information table still shows current login on the first session"
 fi
 if grep -q 'is_array($raw)' "$ROOT/kloxo/httpdocs/lib/php/resourcelib.php" \
   && grep -q 'if (!$privobj)' "$ROOT/kloxo/httpdocs/lib/php/resourcelib.php"; then
