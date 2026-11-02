@@ -201,46 +201,42 @@ class ClientBase extends ClientCore
 			//	$ghtml->__http_vars['frm_emessage'] = "ssh_root_password_access";
 			}
 
-			if ($sgbl->isKloxo()) {
-				$v = db_get_value("servermail", "localhost", "myname");
-				if ($sgbl->isKloxo() && !$v) {
-					$ghtml->__http_vars['frm_emessage'] = "mail_server_name_not_set";
-				}
-			}
-
 			if (!$gbl->getSessionV('__v_error_not_first_time')) {
+				if ($sgbl->isKloxo()) {
+					$v = db_get_value("servermail", "localhost", "myname");
+					if (!$v) {
+						$ghtml->__http_vars['frm_emessage'] = "mail_server_name_not_set";
+					}
+				}
+
 				$v = db_get_value("lxguard", "localhost", "configure_flag");
 				$this->__t_check_var = $v;
 				if (!$this->isOn('__t_check_var')) {
 					$ghtml->__http_vars['frm_emessage'] = "lxguard_not_configured";
 				}
-			}
 
-			// MR -- need this trick to make sure driver info sync between slavedb and kloxo database
-			// if going to 'switch program' sync will be processed.
-			if (!$gbl->getSyncClass($this->__masterserver, $this->syncserver, 'web')) {
-				$ghtml->__http_vars['frm_emessage'] = "switch_program_not_set";
-			}
-		}
-
-		if ($login->sp_specialplay_o->specialplay_b->skin_name === 'simplicity') {
-		//	if ($this->isAdmin()) {
-			if ($login->nname === 'admin') {
-				$server = $this->syncserver ?: 'localhost';
-				$server_phpini = unserialize(base64_decode(db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b")));
-
-				// MR -- pserver must set/update php.ini
-			//	if (!isset($server_phpini->session_save_path_flag)) {
-				if (!$server_phpini->session_save_path_flag) {
-					$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_pserver";
+				// MR -- need this trick to make sure driver info sync between slavedb and kloxo database
+				// if going to 'switch program' sync will be processed.
+				if (!$gbl->getSyncClass($this->__masterserver, $this->syncserver, 'web')) {
+					$ghtml->__http_vars['frm_emessage'] = "switch_program_not_set";
 				}
 
-				// MR -- double check for php.ini in client (especially for admin)
-				$server_phpini = unserialize(base64_decode(db_get_value("phpini", "client-" . $this->nname, "ser_phpini_flag_b")));
+				$sp = (is_object($login) && isset($login->sp_specialplay_o) && is_object($login->sp_specialplay_o)
+					&& isset($login->sp_specialplay_o->specialplay_b))
+					? $login->sp_specialplay_o->specialplay_b : null;
+				if (is_object($sp) && isset($sp->skin_name) && $sp->skin_name === 'simplicity') {
+					$server = $this->syncserver ?: 'localhost';
+					$raw = db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b");
+					$server_phpini = is_string($raw) ? @unserialize(base64_decode($raw)) : false;
+					if (!is_object($server_phpini) || empty($server_phpini->session_save_path_flag)) {
+						$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_pserver";
+					}
 
-			//	if (!isset($server_phpini->session_save_path_flag)) {
-				if (!$server_phpini->session_save_path_flag) {
-					$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_client";
+					$raw = db_get_value("phpini", "client-" . $this->nname, "ser_phpini_flag_b");
+					$server_phpini = is_string($raw) ? @unserialize(base64_decode($raw)) : false;
+					if (!is_object($server_phpini) || empty($server_phpini->session_save_path_flag)) {
+						$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_client";
+					}
 				}
 			}
 		}

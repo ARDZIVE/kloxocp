@@ -225,6 +225,14 @@ if ! awk '/function password_contact_check/,/^function /' "$ROOT/kloxo/httpdocs/
 else
   bad "first-login password form does not hide the dashboard"
 fi
+if sed -n '/function password_contact_check(/,/^function do_display_init(/p' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'kloxo-inline-alert' \
+  && ! sed -n '/function password_contact_check(/,/^function do_display_init(/p' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" | grep -q 'print_message(' \
+  && grep -q 'function print_inline_alert' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -q 'kloxo-inline-alert' "$ROOT/kloxo/httpdocs/theme/css/common.css"; then
+  ok "first-login password warning is inline and does not cover the form"
+else
+  bad "first-login password warning is inline and does not cover the form"
+fi
 if grep -q 'checkButton('\''webhosting_flag'\'')' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php" \
   && grep -q 'checkButton('\''webhosting_flag'\'')' "$ROOT/kloxo/httpdocs/lib/client/clientcorelib.php"; then
   ok "home button list does not call priv on null"
@@ -549,7 +557,9 @@ if grep -A 25 'function convert_message' "$ROOT/kloxo/httpdocs/theme/htmllib.php
 else
   bad "popup message conversion and Help toggle survive missing objects"
 fi
-if awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q "skin_name !== 'simplicity'"; then
+if awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q "skin_name === 'simplicity'" \
+  && awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'print_inline_alert' \
+  && awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'isSimplicitySkin'; then
   ok "simplicity Status tooltip does not print a second error popup"
 else
   bad "simplicity Status tooltip does not print a second error popup"

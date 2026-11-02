@@ -8787,12 +8787,47 @@ function uploadAbort(e) { // upload abort
 
 	function print_on_status_bar($message)
 	{
+		$js = json_encode((string) $message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		if (!is_string($js) || $js === '') {
+			$js = '""';
+		}
 ?>
 
 		<script>
-			top.bottomframe.updateStatusBar("<?=$message?>");
+			(function () {
+				try {
+					if (top.bottomframe && typeof top.bottomframe.updateStatusBar === 'function') {
+						top.bottomframe.updateStatusBar(<?= $js ?>);
+					}
+				} catch (e) {}
+			})();
 		</script>
 <?php
+	}
+
+	function print_inline_alert($body_html)
+	{
+		if (!is_string($body_html) || $body_html === '') {
+			return;
+		}
+?>
+		<div class="kloxo-inline-alert" role="alert"><?= $body_html ?></div>
+<?php
+	}
+
+	function isSimplicitySkin()
+	{
+		global $login;
+
+		if (!is_object($login) || !method_exists($login, 'getSpecialObject')) {
+			return false;
+		}
+		try {
+			$sp = $login->getSpecialObject('sp_specialplay');
+			return is_object($sp) && isset($sp->skin_name) && $sp->skin_name === 'simplicity';
+		} catch (Throwable $e) {
+			return false;
+		}
 	}
 
 	function print_message($skin_name = null)
@@ -8860,20 +8895,26 @@ function uploadAbort(e) { // upload abort
 
 			// In the status bar, you should print with mainframe. But in the main page, it should be simple url.
 			$pmess = $this->format_message($mess, $value, false);
-			if ($skin_name !== 'simplicity') {
-				$this->show_error_message($pmess, $message, $imgfile, $color, $style, $fontstyle);
-			}
-
-			$pmess = $this->format_message($mess, $value, true);
-			$pmess = substr($pmess, 0, 270);
 
 			if ($skin_name === 'simplicity') {
+				$pmess = $this->format_message($mess, $value, true);
+				$pmess = substr($pmess, 0, 270);
 				$message = preg_replace("/<.*?>/", "", $message);
 				$pmess = preg_replace("/<.*?>/", "", $pmess);
 				return $message . " " . $pmess . "...";
-			} else {
-				$this->print_on_status_bar("$message $pmess...");
 			}
+
+			if ($this->isSimplicitySkin()) {
+				// Fixed modal sat on the password form and every later page.
+				$this->print_inline_alert($message . ' ' . $this->convert_message($pmess));
+				return '';
+			}
+
+			$this->show_error_message($pmess, $message, $imgfile, $color, $style, $fontstyle);
+
+			$pmess = $this->format_message($mess, $value, true);
+			$pmess = substr($pmess, 0, 270);
+			$this->print_on_status_bar("$message $pmess...");
 		}
 
 		return '';

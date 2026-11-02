@@ -289,11 +289,13 @@ class pservercore extends Lxclient
 			}
 		}
 
-		if ($login->sp_specialplay_o->specialplay_b->skin_name === 'simplicity') {
-			$server_phpini = unserialize(base64_decode(db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b")));
-
-			// MR -- pserver must set/update php.ini
-			if (!isset($server_phpini->session_save_path_flag)) {
+		$sp = (is_object($login) && isset($login->sp_specialplay_o) && is_object($login->sp_specialplay_o)
+			&& isset($login->sp_specialplay_o->specialplay_b))
+			? $login->sp_specialplay_o->specialplay_b : null;
+		if (is_object($sp) && isset($sp->skin_name) && $sp->skin_name === 'simplicity') {
+			$raw = db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b");
+			$server_phpini = is_string($raw) ? @unserialize(base64_decode($raw)) : false;
+			if (!is_object($server_phpini) || empty($server_phpini->session_save_path_flag)) {
 				$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_pserver";
 			}
 		}

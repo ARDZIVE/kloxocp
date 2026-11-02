@@ -988,6 +988,18 @@ html>body #quotausagebar span.last {
 		margin: 0;
 	}
 
+	.kloxo-inline-alert {
+		position: relative;
+		z-index: 1;
+		max-width: 640px;
+		margin: 8px auto;
+		padding: 10px 12px;
+		border: 1px solid #c66;
+		background: #fee;
+		color: #000;
+		box-sizing: border-box;
+	}
+
 	.kloxo-modal {
 		position: fixed;
 		z-index: 10050;

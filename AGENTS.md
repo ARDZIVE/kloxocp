@@ -19,7 +19,7 @@ P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
 the README one-liner fetches `origin/main` when the clone already exists;
 `kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
-change after first login. Admin Servers list seeds `localhost`. The Update
+change after first login (inline alert, not a blocking error box). Admin Servers list seeds `localhost`. The Update
 screen shows the local `kloxoversion` (`kloxocp update` still exits 2).
 Switch Program loads `dns__none` / `web__none`. PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer

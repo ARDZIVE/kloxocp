@@ -2202,18 +2202,18 @@ function password_contact_check()
 	}
 
 	if (check_raw_password('client', 'admin', 'admin')) {
+		global $g_language_mes;
+		$warn = 'The default admin/admin password must be changed before you can use the panel. Choose a new password now.';
+		if (isset($g_language_mes->__emessage['security_warning'])) {
+			$warn = $g_language_mes->__emessage['security_warning'];
+		}
 ?>
 
 		<br/>
 		<div style="width: 640px; background-color: #fff; margin: 0 auto; border: 1px solid #ddd;">
+		<div class="kloxo-inline-alert" role="alert"><span style="color:red"><b>Alert: </b></span><?= htmlspecialchars($warn, ENT_QUOTES) ?></div>
 		<br/>
 <?php
-
-			if (!isset($ghtml->__http_vars['frm_emessage'])) {
-				$ghtml->__http_vars['frm_emessage'] = 'security_warning';
-			}
-
-			$ghtml->print_message();
 			$gbl->frm_ev_list = "old_password_f";
 			do_updateform($login, 'password');
 ?>
@@ -2221,7 +2221,8 @@ function password_contact_check()
 		<br/>
 <?php
 		// Keep the home action buttons visible under the password form.
-		// Exiting here left a blank dashboard until the password was saved.
+		// A modal error box sat on top of the fields and blocked the change, so
+		// the same overlay came back on every page until the password was saved.
 	}
 }
 
