@@ -306,6 +306,10 @@ function get_com_ob($obj)
 
 function make_hidden_if_one($dlist)
 {
+	if (!is_array($dlist) || $dlist === array()) {
+		return array('h', '');
+	}
+
 	if (count($dlist) === 1) {
 		return array('h', getFirstFromList($dlist));
 	}

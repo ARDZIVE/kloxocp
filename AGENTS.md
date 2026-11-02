@@ -28,8 +28,8 @@ prepared (`install-pdns`) but the `pdns` unit stays disabled until selected
 Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
 (`install-apache`, PHP-FPM via proxy_fcgi, no mod_php) but `apache2` stays
 disabled until selected. Admin SQL Manager opens phpMyAdmin via panel
-sign-on (`kloxo_pma`, all databases; no password in the URL) from the
-Basic home tile, not a second Domain tile. Component Info
+sign-on as MariaDB `root`@`127.0.0.1` (all databases; no password in the URL)
+from the Basic home tile, not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
 postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim`
@@ -51,13 +51,16 @@ The content white panel fills to the bottom of the page.
 Customer sites default to the newest installed PHP-FPM; 5.6.40 and 7.4.33
 are installed beside it (`install-site-php`, ppa:ondrej/php) and can be
 chosen on Webserver Configure (PHP Used / PHP Branch list php8.3, php7.4,
-php5.6 — not php52m). The panel itself stays on distro PHP. Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager show pages
+php5.6 — not php52m). The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share the PHP Configure /
+Advanced PHP Configure tabs (extraedit does not fall back to client
+tabs). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager show pages
 omit the left Find box. File Manager keeps the list toolbar search (T Hidden,
 New dir, Copy/Cut/Paste, columns Size/Name/Modified/Owner/Permissions) like
 Kloxo-MR; listing uses kloxo-backend on loopback 7776 when the panel is not
 root, with in-process fallback. LxGuard list tabs (connections, raw hits, whitelist)
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
-home) and shows a WebConsole-like black terminal (no Java applet). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). List/driver calls guard a missing
+home) and shows a WebConsole-like black terminal as root via kloxo-backend
+(no Java applet, no NOPASSWD sudoers). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). List/driver calls guard a missing
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.

@@ -71,7 +71,12 @@ class sshclient extends lxclass
 
 		$hist = self::loadHistory();
 		if ($command !== '') {
-			$output = self::runAdminCommand($command);
+			$server = 'localhost';
+			$parent = $this->getParentO();
+			if (is_object($parent) && isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+				$server = $parent->nname;
+			}
+			$output = self::runAdminCommand($command, false, $server);
 			$hist[] = array('cmd' => $command, 'out' => $output);
 			if (count($hist) > 40) {
 				$hist = array_slice($hist, -40);
@@ -81,8 +86,10 @@ class sshclient extends lxclass
 
 		$user = self::promptUser();
 		$host = self::promptHost();
+		$psuf = self::promptSuffix();
 		$euser = htmlspecialchars($user, ENT_QUOTES);
 		$ehost = htmlspecialchars($host, ENT_QUOTES);
+		$esuf = htmlspecialchars($psuf, ENT_QUOTES);
 		$token = htmlspecialchars(function_exists('getCSRFToken') ? (string)getCSRFToken() : '', ENT_QUOTES);
 ?>
 <div class="kloxo-ssh-terminal" style="padding:8px 16px 24px;">
@@ -101,7 +108,7 @@ class sshclient extends lxclass
 			$pcmd = htmlspecialchars(kloxo_string($row['cmd'] ?? ''), ENT_QUOTES);
 			$pout = htmlspecialchars(kloxo_string($row['out'] ?? ''), ENT_QUOTES);
 ?>
-		<div><span style="color:#e36;"> <?= $euser ?></span><span style="color:#ddd;">@</span><span style="color:#e36;"><?= $ehost ?></span><span style="color:#ddd;"> ~$ </span><span style="color:#ddd;"><?= $pcmd ?></span></div>
+		<div><span style="color:#e36;"> <?= $euser ?></span><span style="color:#ddd;">@</span><span style="color:#e36;"><?= $ehost ?></span><span style="color:#ddd;"> ~<?= $esuf ?> </span><span style="color:#ddd;"><?= $pcmd ?></span></div>
 <?php
 			if ($pout !== '') {
 ?>
@@ -126,7 +133,7 @@ class sshclient extends lxclass
 		}
 ?>
 			<div style="display:flex; align-items:baseline; gap:0;">
-				<span style="color:#e36; white-space:nowrap;"> <?= $euser ?></span><span style="color:#ddd;">@</span><span style="color:#e36;"><?= $ehost ?></span><span style="color:#ddd; white-space:nowrap;"> ~$&nbsp;</span>
+				<span style="color:#e36; white-space:nowrap;"> <?= $euser ?></span><span style="color:#ddd;">@</span><span style="color:#e36;"><?= $ehost ?></span><span style="color:#ddd; white-space:nowrap;"> ~<?= $esuf ?>&nbsp;</span>
 				<input id="kloxo-ssh-cmd" type="text" name="frm_sshclient_command" autocomplete="off" spellcheck="false" style="flex:1; min-width:0; background:#000; color:#ddd; border:0; outline:0; font:inherit; padding:0;">
 			</div>
 		</form>
@@ -143,14 +150,12 @@ class sshclient extends lxclass
 
 	static function promptUser()
 	{
-		if (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) {
-			$pw = @posix_getpwuid(posix_geteuid());
-			if (is_array($pw) && isset($pw['name']) && is_string($pw['name']) && $pw['name'] !== '') {
-				return $pw['name'];
-			}
-		}
+		return 'root';
+	}
 
-		return 'user';
+	static function promptSuffix()
+	{
+		return '#';
 	}
 
 	static function promptHost()
@@ -163,7 +168,7 @@ class sshclient extends lxclass
 		return 'localhost';
 	}
 
-	static function runAdminCommand($command)
+	static function runAdminCommand($command, $forceLocal = false, $server = 'localhost')
 	{
 		$command = str_replace("\0", '', kloxo_string($command));
 		$command = trim($command);
@@ -174,7 +179,23 @@ class sshclient extends lxclass
 			$command = substr($command, 0, 4096);
 		}
 
-		$cwd = '/home/kloxo';
+		$euid = function_exists('posix_geteuid') ? (int)posix_geteuid() : 0;
+		$panel = function_exists('php_sapi_name') ? php_sapi_name() : 'cli';
+		$useBackend = !$forceLocal && $euid !== 0 && $panel !== 'cli'
+			&& function_exists('rl_exec_get');
+		if ($useBackend) {
+			$host = is_string($server) && $server !== '' ? $server : 'localhost';
+			try {
+				$out = rl_exec_get(null, $host, array('sshclient', 'runAdminCommand'),
+					array($command, true, $host));
+				if (is_string($out)) {
+					return $out;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+
+		$cwd = ($euid === 0 && is_dir('/root') && is_readable('/root')) ? '/root' : '/home/kloxo';
 		if (!is_dir($cwd) || !is_readable($cwd)) {
 			$tmp = function_exists('sys_get_temp_dir') ? sys_get_temp_dir() : '/tmp';
 			$cwd = is_dir($tmp) ? $tmp : '/tmp';
@@ -191,6 +212,7 @@ class sshclient extends lxclass
 			'TERM' => 'dumb',
 			'LANG' => 'C.UTF-8',
 			'SHELL' => '/bin/bash',
+			'USER' => ($euid === 0) ? 'root' : 'lxlabs',
 		);
 
 		$proc = @proc_open(array('/bin/bash', '-lc', $command), $spec, $pipes, $cwd, $env);

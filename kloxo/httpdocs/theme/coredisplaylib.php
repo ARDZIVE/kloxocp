@@ -1111,7 +1111,12 @@ function __ac_desc_UpdateForm($object)
 		return;
 	}
 
-	$selflist = $object->getSelfList();
+	$selflist = null;
+	try {
+		$selflist = $object->getSelfList();
+	} catch (Throwable $e) {
+		log_log("error", "getSelfList: " . $e->getMessage());
+	}
 	$subaction = $ghtml->frm_subaction;
 
 /*
@@ -1159,7 +1164,11 @@ function __ac_desc_UpdateForm($object)
 	}
 
 	if (!empty($prlist['property'])) {
-		$ghtml->print_tab_block($prlist['property']);
+		try {
+			$ghtml->print_tab_block($prlist['property']);
+		} catch (Throwable $e) {
+			log_log("error", "print_tab_block: " . $e->getMessage());
+		}
 	}
 
 	$ghtml->print_content_begin();
@@ -1174,16 +1183,21 @@ function __ac_desc_UpdateForm($object)
 
 	$sublist = $object->getMultiUpload($subaction);
 
-	if (is_array($sublist)) {
-		foreach ($sublist as $subaction) {
-			do_updateform($object, $subaction);
+	try {
+		if (is_array($sublist)) {
+			foreach ($sublist as $subaction) {
+				do_updateform($object, $subaction);
 ?>
 
 			<br/> <br/> <br/>
 <?php
+			}
+		} else {
+			do_updateform($object, $sublist);
 		}
-	} else {
-		do_updateform($object, $sublist);
+	} catch (Throwable $e) {
+		log_log("error", "do_updateform: " . $e->getMessage());
+		print('<div class="div_content" style="padding:16px">The requested form could not be loaded.</div>');
 	}
 
 	$ghtml->print_content_end();

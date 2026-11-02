@@ -4244,8 +4244,14 @@ abstract class Lxclass
 			if ($this->isExceptionForSelflist()) {
 				$nob = $ob->getObject($this->getClass());
 			} else if ($this->is__table('phpini')) {
-				$nob = $ob->getObject($this->getClass());
-		//	} else if ($this->is__table('spam')) {
+				try {
+					$nob = $ob->getObject($this->getClass());
+				} catch (Throwable $e) {
+					continue;
+				}
+				if (!is_object($nob)) {
+					continue;
+				}
 			} else if ($this->getClass() === 'spam') {
 				$nob = $ob->getObject('mmail')->getObject($this->getClass());
 			} else {
@@ -6275,6 +6281,10 @@ abstract class Lxclass
 	function isQuotaVariable($k)
 	{
 		$descr = get_classvar_description(get_class($this), $k);
+
+		if (!is_array($descr) || !isset($descr[0])) {
+			return false;
+		}
 
 		if (csa($descr[0], 'q')) {
 			return $this->isQuotaVariableSpecific($k);

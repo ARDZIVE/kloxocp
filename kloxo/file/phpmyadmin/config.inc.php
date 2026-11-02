@@ -27,4 +27,4 @@ $cfg['Servers'][$i]['LogoutURL'] = '/display.php';
 $cfg['Servers'][$i]['host'] = '127.0.0.1';
 $cfg['Servers'][$i]['compress'] = false;
 $cfg['Servers'][$i]['AllowNoPassword'] = false;
-$cfg['Servers'][$i]['AllowRoot'] = false;
+$cfg['Servers'][$i]['AllowRoot'] = true;

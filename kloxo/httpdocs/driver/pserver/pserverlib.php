@@ -357,6 +357,9 @@ class pserver extends pservercore {
 
 		if ($ghtml->frm_subaction === 'commandcenter') {
 			$alist['property'][] = "a=updateform&sa=commandcenter";
+		} elseif ($ghtml->frm_subaction === 'extraedit') {
+			$alist['property'][] = "a=show&o=phpini";
+			$alist['property'][] = "a=updateform&sa=extraedit&o=phpini";
 		} elseif ($ghtml->frm_subaction === 'timezone') {
 			$alist['property'][] = "a=updateform&sa=timezone";
 	//	} elseif ($ghtml->frm_subaction === 'update') {

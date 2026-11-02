@@ -701,39 +701,69 @@ html>body #quotausagebar span.last {
 
 	.div_container_icons {
 		cursor: pointer;
-		width: 80px;
-		height: 72px;
-		padding: 0;
-		margin: 0;
+		width: 90px;
+		height: 90px;
+		padding: 1px;
+		margin: 1px;
 		box-sizing: border-box;
 	}
 
 	.div_icons_image {
-		margin: 0 auto;
-		height: 32px;
+		margin: 1px auto;
+		height: 40px;
 		text-align: center;
+		line-height: 40px;
+	}
+
+	.div_icons_image .if32 {
+		display: inline-block;
+		font-size: 32px;
+		line-height: 32px;
+		height: 32px;
+		vertical-align: middle;
+	}
+
+	.div_icons_image .if16 {
+		display: none;
+	}
+
+	.div_icons_image img {
+		width: 32px;
+		height: 32px;
+		display: inline-block;
+		vertical-align: middle;
+		border: 0;
 	}
 
 	.div_icons_text {
-		margin: 0 auto;
-		height: 36px;
+		margin: 1px auto;
+		height: 50px;
 		text-align: center;
-		line-height: 1.15;
+		line-height: 1.2;
+		font-size: 8pt;
+		padding: 0 2px;
+	}
+
+	.div_icons_text .icontextlink,
+	.div_icons_text_reverse .icontextlink {
+		font-size: 8pt;
+		line-height: 1.2;
 	}
 
 	.div_icons_text_reverse {
-		margin: 0 auto;
-		height: 36px;
+		margin: 1px auto;
+		height: 50px;
 		display: table-cell;
 		vertical-align: bottom;
-		padding-bottom: 1px;
+		padding-bottom: 3px;
+		font-size: 8pt;
 	}
 
 	.div_container {
 		visibility: visible;
 		display: inline-block;
 		float: left;
-		margin: 1px;
+		margin: 3px;
 		overflow: visible;
 	}
 

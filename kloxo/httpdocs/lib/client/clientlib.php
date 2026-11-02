@@ -141,6 +141,13 @@ class Client extends ClientBase
 			return;
 		}
 
+		if ($ghtml->frm_subaction === 'extraedit') {
+			$alist['property'][] = "a=show&o=phpini";
+			$alist['property'][] = "a=updateform&sa=extraedit&o=phpini";
+
+			return;
+		}
+
 		if ($ghtml->frm_subaction === 'password') {
 			$alist['property'][] = "a=updateform&sa=password";
 		} elseif ($ghtml->frm_subaction === 'information') {

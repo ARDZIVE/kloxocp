@@ -437,8 +437,12 @@ abstract class Dnsbase extends Lxdb
 
 	function getIpForBaseDomain()
 	{
+		if (!isset($this->dns_record_a) || !is_array($this->dns_record_a)) {
+			return '0.0.0.0';
+		}
+
 		foreach ($this->dns_record_a as $d) {
-			if ($d->ttype === 'a' && $d->hostname === '__base__') {
+			if (is_object($d) && isset($d->ttype) && $d->ttype === 'a' && isset($d->hostname) && $d->hostname === '__base__') {
 				return $d->param;
 			}
 		}

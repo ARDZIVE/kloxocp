@@ -601,8 +601,11 @@ $sshsrc = (string)file_get_contents($doc . '/driver/pserver/sshclientlib.php');
 if (!str_contains($sshsrc, '<applet')
 	&& !str_contains($sshsrc, 'web-console/index.php')
 	&& !str_contains($sshsrc, 'unserialize')
+	&& !str_contains($sshsrc, 'NOPASSWD')
 	&& str_contains($sshsrc, 'kloxo-ssh-terminal')
 	&& str_contains($sshsrc, "array('/bin/bash', '-lc'")
+	&& str_contains($sshsrc, 'rl_exec_get')
+	&& str_contains($sshsrc, "return 'root'")
 	&& str_contains($sshsrc, 'only_admin_can_access')) {
 	ok('SSH Terminal is an in-page WebConsole, not a Java applet');
 } else {
@@ -911,6 +914,190 @@ if (!str_contains($webSrc, 'getCleanRpmBranchListOnList')
 	ok('Webserver Configure does not parse CentOS php.lst or cat httpd');
 } else {
 	bad('Webserver Configure does not parse CentOS php.lst or cat httpd');
+}
+
+global $ghtml, $login;
+$prevLogin = $login;
+$login = new Client(null, 'localhost', 'admin');
+$login->nname = 'admin';
+$login->syncserver = 'localhost';
+$html = (is_object($ghtml) && method_exists($ghtml, 'format_message')) ? $ghtml : new HtmlLib();
+$html->__http_vars['frm_o_o'] = array();
+$src = (string)file_get_contents($doc . '/lang/en-us/messagelib.php');
+$msg = 'Click <url:k[class]=pserver&k[nname]=[%_server_%]&a=show&o=lxguard>[here]</url> to configure Lxguard.';
+$htmlOut = '';
+try {
+	$htmlOut = (string)$html->format_message($msg, null, false);
+} catch (Throwable $e) {
+	$htmlOut = $e->getMessage();
+}
+$login = $prevLogin;
+if (str_contains($src, 'lxguard_not_configured')
+	&& str_contains($src, 'a=show&o=lxguard')
+	&& str_contains($htmlOut, 'frm_action=show')
+	&& str_contains($htmlOut, 'frm_o_o')
+	&& str_contains($htmlOut, 'pserver')
+	&& str_contains($htmlOut, 'localhost')
+	&& str_contains($htmlOut, 'lxguard')
+	&& str_contains($htmlOut, 'href=')
+	&& !str_contains($htmlOut, '%_server_%')
+	&& !str_contains($htmlOut, '%25_server_')) {
+	ok('LxGuard alert [here] points at pserver/localhost/lxguard');
+} else {
+	bad('LxGuard alert [here] points at pserver/localhost/lxguard', $htmlOut);
+}
+
+$prevLogin2 = $login;
+$login = new Client(null, 'localhost', 'admin');
+$login->nname = 'admin';
+$login->syncserver = 'localhost';
+$login->cttype = 'admin';
+$parent = new Client(null, 'localhost', 'admin');
+$parent->nname = 'admin';
+$parent->syncserver = 'localhost';
+$parent->cttype = 'admin';
+$parent->username = 'admin';
+$parent->websyncserver = 'localhost';
+$form = null;
+$formErr = '';
+try {
+	if (method_exists($parent, 'ensureAdminResourcePriv')) {
+		$parent->ensureAdminResourcePriv();
+	}
+	$form = domain::addform($parent, 'domain');
+} catch (Throwable $e) {
+	$formErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
+$vars = (is_array($form) && isset($form['variable']) && is_array($form['variable'])) ? $form['variable'] : array();
+$listForm = null;
+try {
+	$listForm = domain::AddListForm($parent, 'domain');
+} catch (Throwable $e) {
+	$listForm = $e->getMessage();
+}
+$tpl = domainBase::getDnsTemplateList($parent);
+$hidden = make_hidden_if_one(null);
+$addSrc = (string)file_get_contents($doc . '/lib/domain/domainlib.php');
+$login = $prevLogin2;
+if (is_array($form) && ($form['action'] ?? '') === 'add'
+	&& isset($vars['nname'], $vars['domain_owned_flag'], $vars['docroot'], $vars['ssl_flag'],
+		$vars['awstats_flag'], $vars['easyinstaller_flag'], $vars['cgi_flag'], $vars['php_flag'],
+		$vars['simple_add_f'])
+	&& is_array($listForm)
+	&& is_array($tpl)
+	&& is_array($hidden)
+	&& str_contains($addSrc, "isset(\$param['domain_owned_flag'])")
+	&& str_contains($addSrc, 'createDefaultTemplate')) {
+	ok('admin Domains add form matches Kloxo-MR and does not require a DNS template');
+} else {
+	bad('admin Domains add form matches Kloxo-MR and does not require a DNS template',
+		$formErr !== '' ? $formErr : ('keys=' . implode(',', array_keys($vars))));
+}
+
+$prevLogin3 = $login;
+$login = new Client(null, 'localhost', 'admin');
+$login->nname = 'admin';
+$login->syncserver = 'localhost';
+$login->cttype = 'admin';
+$client = new Client(null, 'localhost', 'admin');
+$client->nname = 'admin';
+$client->syncserver = 'localhost';
+$client->cttype = 'admin';
+$ini = new phpini(null, 'localhost', 'client-admin');
+$ini->nname = 'client-admin';
+$ini->syncserver = 'localhost';
+$ini->parent_clname = 'client-admin';
+$ini->__parent_o = $client;
+$tabs = array('property' => array());
+$ini->createShowPropertyList($tabs);
+$edit = null;
+$extra = null;
+$editErr = '';
+$extraErr = '';
+try {
+	$edit = $ini->updateform('edit', array());
+} catch (Throwable $e) {
+	$editErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
+try {
+	$extra = $ini->updateform('extraedit', array());
+} catch (Throwable $e) {
+	$extraErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
+$login = $prevLogin3;
+$tabOk = is_array($tabs['property'] ?? null)
+	&& in_array('a=show', $tabs['property'], true)
+	&& in_array('a=updateform&sa=extraedit', $tabs['property'], true);
+$editNeed = array(
+	'phpini_flag_b-display_error_flag',
+	'phpini_flag_b-log_errors_flag',
+	'phpini_flag_b-output_compression_flag',
+	'phpini_flag_b-date_timezone_flag',
+	'phpini_flag_b-phpfpm_type_flag',
+	'phpini_flag_b-session_save_path_flag',
+	'phpini_flag_b-phpfpm_limit_extensions',
+);
+$extraNeed = array(
+	'phpini_flag_b-sendmail_from',
+	'phpini_flag_b-enable_dl_flag',
+	'phpini_flag_b-output_buffering_flag',
+	'phpini_flag_b-allow_url_fopen_flag',
+	'phpini_flag_b-allow_url_include_flag',
+	'phpini_flag_b-register_argc_argv_flag',
+	'phpini_flag_b-disable_functions',
+	'phpini_flag_b-max_execution_time_flag',
+	'phpini_flag_b-max_input_time_flag',
+	'phpini_flag_b-memory_limit_flag',
+	'phpini_flag_b-post_max_size_flag',
+	'phpini_flag_b-upload_max_filesize',
+	'phpini_flag_b-max_input_vars_flag',
+	'phpini_flag_b-file_uploads_flag',
+	'phpini_flag_b-cgi_force_redirect_flag',
+);
+$editOk = is_array($edit);
+foreach ($editNeed as $k) {
+	if (!is_array($edit) || !array_key_exists($k, $edit)) {
+		$editOk = false;
+		break;
+	}
+}
+$extraOk = is_array($extra);
+foreach ($extraNeed as $k) {
+	if (!is_array($extra) || !array_key_exists($k, $extra)) {
+		$extraOk = false;
+		break;
+	}
+}
+$sessionPath = (isset($ini->phpini_flag_b) && is_object($ini->phpini_flag_b)
+	&& isset($ini->phpini_flag_b->session_save_path_flag))
+	? (string) $ini->phpini_flag_b->session_save_path_flag : '';
+$tz = is_array($edit) && isset($edit['phpini_flag_b-date_timezone_flag'][1])
+	? $edit['phpini_flag_b-date_timezone_flag'][1] : array();
+$fpm = is_array($edit) && isset($edit['phpini_flag_b-phpfpm_type_flag'][1])
+	? $edit['phpini_flag_b-phpfpm_type_flag'][1] : array();
+if ($tabOk && $editOk && $extraOk
+	&& $sessionPath === '/home/kloxo/client/admin/session'
+	&& is_array($tz) && $tz !== array()
+	&& is_array($fpm) && in_array('static', $fpm, true)
+	&& is_array($extra) && !array_key_exists('phpini_flag_b-display_error_flag', $extra)) {
+	ok('PHP Configure and Advanced PHP Configure share tabs and Kloxo-MR fields');
+} else {
+	$detail = $editErr !== '' ? $editErr : ($extraErr !== '' ? $extraErr
+		: ('tabs=' . implode(',', (array) ($tabs['property'] ?? array()))
+			. ' session=' . $sessionPath
+			. ' edit=' . implode(',', is_array($edit) ? array_keys($edit) : array())
+			. ' extra=' . implode(',', is_array($extra) ? array_keys($extra) : array())));
+	bad('PHP Configure and Advanced PHP Configure share tabs and Kloxo-MR fields', $detail);
+}
+
+$syncSrc = (string) file_get_contents($doc . '/driver/pserver/phpini__synclib.php');
+$ufSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+if (str_contains($syncSrc, '//	lxfile_unix_chmod($fcgid_target, "0755")')
+	&& !preg_match('/^\s*lxfile_unix_chmod\(\$fcgid_target/m', $syncSrc)
+	&& str_contains($ufSrc, 'getSelfList: ')) {
+	ok('phpini sync does not chmod an unset fcgid_target; UpdateForm guards getSelfList');
+} else {
+	bad('phpini sync does not chmod an unset fcgid_target; UpdateForm guards getSelfList');
 }
 
 echo "$pass passed, $fail failed\n";

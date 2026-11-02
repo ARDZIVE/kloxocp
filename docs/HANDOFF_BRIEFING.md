@@ -161,8 +161,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise). Admin SQL
-    Manager uses panel sign-on (`kloxo_pma` ALL ON *.*, `pma.pass`, no
-    password in the URL). Admin Home shows SQL Manager only in Basic
+    Manager uses panel sign-on as MariaDB `root`@`127.0.0.1` (`pma.pass`,
+    WITH GRANT OPTION, no password in the URL; `AllowRoot` is on).
+    OS `root`@`localhost` stays unix_socket. Admin Home shows SQL Manager only in Basic
     (`webmailanddb`), not as a second Domain tile. Live phpMyAdmin login
     after this change is unverified; re-run `install.sh` after pull.
     Component Info uses Ubuntu package names (`kloxo_component.php`) instead
@@ -177,7 +178,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `*_none` drivers (`dns__none`, `web__none`); Switch Program no longer
     TypeErrors on those classes. Client mail counts read
     `/var/log/mail.log` (Ubuntu) or `/var/log/maillog` and do not call
-    `feof(false)` when the file is missing. PHP config forms apply the
+    `feof(false)` when the file is missing. PHP Configure (`phpini` show)
+    and Advanced PHP Configure (`sa=extraedit`) always share the two
+    content tabs; extraedit no longer dies in `getSelfList` or a missing
+    panel DB password, and a client session path is
+    `/home/kloxo/client/{user}/session`. Live PHP Configure after deploy
+    is **UNVERIFIED**. PHP config forms apply the
     usual defaults (120s / 128M / 32M / disable_functions) when the
     stored `phpini` blob only has a session path. Admin Resource Plan
     add form uses unlimited quotas and flags on (Easy Installer stays
@@ -302,8 +308,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     left-column Find box. LxGuard list tabs (connections, raw hits,
     whitelist) omit the Find/search input too. SSH Terminal is admin-only (pserver
     child, not client home) and shows a WebConsole-like black terminal
-    (`Switch To Another`, prompt, command form; `proc_open` `bash -lc`;
-    no Java applet, no `web-console.php` unserialize). Live SSH Terminal
+    (`Switch To Another`, `root@host #` prompt, command form). Panel FPM
+    sends commands to `kloxo-backend` (root on loopback 7776) then
+    `proc_open` `bash -lc`; `sudo` works because the shell is already
+    root. No Java applet, no `web-console.php` unserialize, no NOPASSWD
+    sudoers. Live SSH Terminal
     after deploy is **UNVERIFIED**. Adding a client no longer TypeErrors
     on `implode()` with a string (`contactemail`, `coma_*_list`,
     `kloxo_implode` / `kloxo_list_from`). Live client-create after
@@ -333,7 +342,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `ipaddress::listSystemIps`. Directory Index list does not
     `count()` a missing `dirindexlist_a`.     Cron Tasks Mail To no
     longer throws `No socket connect to server [localhost]`.
-    Home dashboard tiles sit closer together (80×72, 1px gap).
+    Home dashboard tiles match Kloxo-MR (90×90 cell, 32px icon
+    in a 40px slot, 50px 8pt caption, 3px tile margin).
+    The LxGuard-not-configured alert [here] link is converted
+    before URL-encoding and opens `pserver` / localhost / `lxguard`.
+    Admin Domains (`a=list&c=domain`) shows the Kloxo-MR add form
+    (name, owner confirm, `/home/admin/` docroot, SSL/stats/
+    Easy Installer/CGI/PHP, Add) even with no DNS template;
+    postAdd synthesizes ns1/ns2 A/MX records from the server IP.
     Mails Per Client (`clientmail` under pserver) shows Switch To
     Another for sibling servers; the list reads that server's logs.
     Live Mails Per Client after deploy is **UNVERIFIED**.
@@ -445,7 +461,8 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `generalmisc_b`. Home show no longer fatals on a null `used` object,
    missing driver row, or admin `getParentO()`. Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
-   sign-on (`kloxo_pma` ALL ON *.*, `auth_type=signon`) is in tree;
+   sign-on is MariaDB `root`@`127.0.0.1` (`auth_type=signon`,
+   `AllowRoot`, `pma.pass`; unix_socket `root`@`localhost` unchanged).
    live phpMyAdmin login after re-install is **UNVERIFIED**. Remaining
    compile failures are third-party (`webdisk/PEAR*`, formmail,
    urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.

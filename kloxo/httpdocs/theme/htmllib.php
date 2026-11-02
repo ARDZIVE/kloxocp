@@ -8677,7 +8677,7 @@ function uploadAbort(e) { // upload abort
 		$ret = preg_match("/<url:([^>]*)>([^<]*)<\/url>/", $pinfo, $matches);
 
 		if ($ret) {
-			$fullurl = $this->getFullUrl(trim($matches[1]));
+			$fullurl = $this->url_tag_href($matches[1]);
 			$pinfo = preg_replace("/<url:([^>]*)>([^<]*)<\/url>/", "<a class='insidelist' href='$fullurl'><span style='font-weight:bold'>$matches[2]</span></a>", $pinfo);
 		}
 
@@ -8736,11 +8736,23 @@ function uploadAbort(e) { // upload abort
 		}
 	}
 
+	function url_tag_href($raw)
+	{
+		$raw = trim((string) $raw);
+		if ($raw === '') {
+			return '';
+		}
+
+		$parent = (strpos($raw, 'k[class]') !== false) ? null : 'default';
+
+		return $this->getFullUrl($raw, $parent);
+	}
+
 	function convert_message($pinfo)
 	{
 		global $gbl, $sgbl, $login;
 
-		if (!isset($login->syncserver)) {
+		if (!is_string($pinfo) || $pinfo === '' || !is_object($login)) {
 			return $pinfo;
 		}
 
@@ -8760,7 +8772,8 @@ function uploadAbort(e) { // upload abort
 			$pinfo = str_replace("[%_mailaccount_%]", 'mailaccount@domain.com', $pinfo);
 		}
 
-		$pinfo = str_replace("[%_server_%]", $login->syncserver, $pinfo);
+		$server = (isset($login->syncserver) && $login->syncserver !== '') ? $login->syncserver : 'localhost';
+		$pinfo = str_replace("[%_server_%]", $server, $pinfo);
 		$pinfo = str_replace("[%_loginas_%]", $login->nname, $pinfo);
 		$pinfo = str_replace("[%_programname_%]", 'Kloxo CP', $pinfo);
 
@@ -9039,7 +9052,7 @@ function uploadAbort(e) { // upload abort
 		$ret = preg_match("/<url:([^>]*)>([^<]*)<\/url>/", $mess, $matches);
 
 		if ($ret) {
-			$fullurl = $this->getFullUrl(trim($matches[1]));
+			$fullurl = $this->url_tag_href($matches[1]);
 			$mess = preg_replace("/<url:([^>]*)>([^<]*)<\/url>/", "<a class='insidelist' $tstring href='$fullurl'> $matches[2] </a>", $mess);
 		} else {
 			$ret = preg_match("/<burl:([^>]*)>([^<]*)<\/burl>/", $mess, $matches);
@@ -9054,6 +9067,7 @@ function uploadAbort(e) { // upload abort
 
 	function format_message($mess, $value, $mainframeflag)
 	{
+		$mess = $this->convert_message($mess);
 		$mess = str_replace("[b]", "<span style='font-weight:bold'>", $mess);
 		$mess = str_replace("[/b]", "</span>", $mess);
 		$mess = str_replace("[%s]", "<span style='font-weight:bold; color:black'>$value</span>", $mess);

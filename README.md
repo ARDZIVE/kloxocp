@@ -402,11 +402,12 @@ files and can take the host off the network.
 
 phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
 `kloxo/bin/install/install-phpmyadmin` (not shipped in git). Admin **SQL Manager**
-opens it already signed on as `kloxo_pma` (all databases). There is no
-phpMyAdmin login form and the MariaDB password is never put in the URL.
+opens it already signed on as MariaDB `root`@`127.0.0.1` (all databases,
+WITH GRANT OPTION). There is no phpMyAdmin login form and the MariaDB
+password is never put in the URL. OS `root`@`localhost` stays unix_socket.
 A 405 from Hiawatha on that URL means the directory has no `index.php`.
 Re-run `install.sh` (or `install-phpmyadmin` plus `init-panel-db`) after
-pulling this tree so sign-on and `kloxo_pma` exist.
+pulling this tree so sign-on and `root`@`127.0.0.1` exist.
 
 ### 9. MariaDB for the panel
 

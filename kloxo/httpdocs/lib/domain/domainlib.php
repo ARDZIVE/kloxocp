@@ -591,12 +591,18 @@ class Domaind extends DomainBase
 		$gen = $login->getObject('general')->generalmisc_b;
 
 		$parent = $this->getParentO();
-		$domdefault = $parent->getObject('domaindefault');
+		$domdefault = null;
+		try {
+			$domdefault = is_object($parent) ? $parent->getObject('domaindefault') : null;
+		} catch (Throwable $e) {
+			$domdefault = null;
+		}
 		$web = $this->getObject("web");
 		$mmail = $this->getObject('mmail');
 		$dns = $this->getObject("dns");
 
-		$web->remove_processed_stats = $domdefault->remove_processed_stats;
+		$web->remove_processed_stats = (is_object($domdefault) && isset($domdefault->remove_processed_stats))
+			? $domdefault->remove_processed_stats : '';
 
 		$dname = $this->nname;
 
@@ -622,15 +628,24 @@ class Domaind extends DomainBase
 			} else {
 				$cparent = $parent;
 			}
-			
-			$this->template_used = $cparent->template_used;
-			$this->resourceplan_used = $cparent->resourceplan_used;
-			$this->priv = clone $cparent->priv;
-			$this->listpriv = clone $cparent->listpriv;
-			$this->disable_per = $cparent->disable_per;
-			$this->password = $cparent->password;
-			$this->realpass = $cparent->realpass;
+
+			if (is_object($cparent) && method_exists($cparent, 'ensureAdminResourcePriv')) {
+				$cparent->ensureAdminResourcePriv();
+			}
+
+			$this->template_used = is_object($cparent) && isset($cparent->template_used) ? $cparent->template_used : '';
+			$this->resourceplan_used = is_object($cparent) && isset($cparent->resourceplan_used) ? $cparent->resourceplan_used : '';
+			$this->priv = (is_object($cparent) && isset($cparent->priv) && is_object($cparent->priv))
+				? clone $cparent->priv : new Priv(null, null, $this->nname);
+			$this->listpriv = (is_object($cparent) && isset($cparent->listpriv) && is_object($cparent->listpriv))
+				? clone $cparent->listpriv : new listpriv(null, null, $this->nname);
+			$this->disable_per = is_object($cparent) && isset($cparent->disable_per) ? $cparent->disable_per : '';
+			$this->password = is_object($cparent) && isset($cparent->password) ? $cparent->password : '';
+			$this->realpass = is_object($cparent) && isset($cparent->realpass) ? $cparent->realpass : '';
 			$this->priv->phpfcgiprocess_num = 0;
+			if (!isset($web->priv) || !is_object($web->priv)) {
+				$web->priv = new Priv(null, null, $web->nname);
+			}
 			$web->priv->phpfcgiprocess_num = 0;
 			$this->priv->phpfcgi_flag = 'off';
 			$web->priv->phpfcgi_flag = 'off';
@@ -664,31 +679,62 @@ class Domaind extends DomainBase
 
 		$this->docroot = coreFfile::getRealpath($this->docroot);
 
-		if ($this->isClass('subdomain')) {
-			$dnstemplate = $parentdomain->getObject('dns');
-		} else {
-			$dnstemplate = new Dnstemplate($this->__masterserver, null, $this->dnstemplate_f);
-			$dnstemplate->get();
-			if ($dnstemplate->dbaction === 'add') {
-				throw new lxException($login->getThrow('no_dns_template'), '', $this->dnstemplate_f);
-			}
-		}
-
-	//	$mmail->catchall = $domaindefault->catchall;
-
 		if (!$mmail->catchall) {
 			$mmail->catchall = 'Delete';
 		}
 
-		$web->ipaddress = $dnstemplate->getIpForBaseDomain();
 		$web->docroot = $this->docroot;
-
 		$web->docroot = trim($web->docroot);
 		$web->docroot = trim($web->docroot, "/");
-
 		validate_docroot($web->docroot);
 
-		$dns->copyObject($dnstemplate);
+		$copied = false;
+		if ($this->isClass('subdomain')) {
+			$dnstemplate = $parentdomain->getObject('dns');
+			if (is_object($dnstemplate)) {
+				$web->ipaddress = $dnstemplate->getIpForBaseDomain();
+				$dns->copyObject($dnstemplate);
+				$copied = true;
+			}
+		} else {
+			if (!$this->dnstemplate_f) {
+				try {
+					$list = domainBase::getDnsTemplateList($parent);
+				} catch (Throwable $e) {
+					$list = array();
+				}
+				if (is_array($list) && $list !== array()) {
+					$this->dnstemplate_f = (string) getFirstFromList($list);
+				}
+			}
+			if ($this->dnstemplate_f) {
+				$dnstemplate = new Dnstemplate($this->__masterserver, null, $this->dnstemplate_f);
+				try {
+					$dnstemplate->get();
+				} catch (Throwable $e) {
+					$dnstemplate->dbaction = 'add';
+				}
+				if ($dnstemplate->dbaction !== 'add') {
+					$web->ipaddress = $dnstemplate->getIpForBaseDomain();
+					$dns->copyObject($dnstemplate);
+					$copied = true;
+				}
+			}
+		}
+
+		if (!$copied) {
+			$ip = '127.0.0.1';
+			try {
+				$got = getOneIPForServer('localhost');
+				if (is_string($got) && $got !== '' && $got !== '0.0.0.0') {
+					$ip = $got;
+				}
+			} catch (Throwable $e) {
+			}
+			$dns->createDefaultTemplate($ip, $ip, 'ns1.' . $this->nname, 'ns2.' . $this->nname);
+			$web->ipaddress = $ip;
+		}
+
 		$dns->dbaction = 'add';
 
 		$web->syncserver = $parent->websyncserver;
@@ -962,7 +1008,9 @@ class Domaind extends DomainBase
 		validate_domain_name($param['nname']);
 
 		// MR -- no need domain_owned with /script/add
-		if (($param['domain_owned_flag'] !== 'on') && ($param['domain_owned_flag'])) {
+		$owned = (isset($param['domain_owned_flag']) && is_string($param['domain_owned_flag']))
+			? $param['domain_owned_flag'] : 'off';
+		if ($owned !== 'on' && $owned) {
 			validate_domain_owned($param['nname']);
 		}
 
@@ -1120,38 +1168,49 @@ class Domaind extends DomainBase
 
 	static function addform($parent, $class, $typetd = null)
 	{
-	/*
-		if ($parent->isNotCustomer()) {
-			$ret['variable'] = $vlist;
-			$ret['action'] = '';
-	
-			return $ret;
+		if (is_object($parent) && method_exists($parent, 'ensureAdminResourcePriv')) {
+			$parent->ensureAdminResourcePriv();
 		}
-	*/
 
-		$res = DomainBase::getDnsTemplateList($parent);
 		$vlist['nname'] = "";
-
 		$vlist['domain_owned_flag'] = array('f', 'on', 'off');
-	//	$vlist['domain_owned_flag'] = null;
 
-		$dir = "__path_customer_root/{$parent->getPathFromName()}";
-		$dir = expand_real_root($dir);
-		
-		if ($parent->priv->isOn('document_root_flag')) {
-			$vlist['docroot'] = array('m', array('pretext' => "$dir/"));
+		$user = 'admin';
+		if (is_object($parent) && method_exists($parent, 'getPathFromName')) {
+			$got = $parent->getPathFromName();
+			if (is_string($got) && $got !== '') {
+				$user = $got;
+			}
+		}
+		$dir = expand_real_root("__path_customer_root/{$user}");
+
+		$canDocroot = true;
+		if (is_object($parent) && isset($parent->priv) && is_object($parent->priv)
+			&& method_exists($parent, 'isAdmin') && !$parent->isAdmin()) {
+			$canDocroot = $parent->priv->isOn('document_root_flag');
+		}
+		if ($canDocroot) {
+			$vlist['docroot'] = array('m', array('pretext' => "{$dir}/"));
 		}
 
-	//	$templatelist = $parent->getResourcePlanList('resourceplan');
-	//	$vlist['password'] = null;
+		$vlist['simple_add_f'] = array('h', 'on');
 		$vlist['__v_button'] = 'add';
 
-		$vlist['dnstemplate_f'] = make_hidden_if_one($res);
-	//	$vlist['resourceplan_f'] = array('A', $templatelist);
+		$res = array();
+		try {
+			$res = DomainBase::getDnsTemplateList($parent);
+		} catch (Throwable $e) {
+			$res = array();
+		}
+		if (is_array($res) && $res !== array()) {
+			$vlist['dnstemplate_f'] = make_hidden_if_one($res);
+		}
 
-	//	$vlist['__c_subtitle_quota'] = 'Features';
-		$qvlist = getQuotaListForClass('domain', array('ttype' => 'virtual', 'webpserver' => $parent->websyncserver));
-		$vlist = lx_array_merge(array($vlist, $qvlist));
+		$vlist['ssl_flag'] = array();
+		$vlist['awstats_flag'] = array();
+		$vlist['easyinstaller_flag'] = array();
+		$vlist['cgi_flag'] = array();
+		$vlist['php_flag'] = array();
 
 		$ret['variable'] = $vlist;
 		$ret['action'] = "add";
@@ -1688,13 +1747,26 @@ class subdomain extends Domaind
 
 	static function addform($parent, $class, $typetd = null)
 	{
-		$dir = "__path_customer_root/{$parent->getPathFromName()}";
-		$dir = expand_real_root($dir);
-		$vv = array('var' => "subdomain_parent", 'val' => array('s', get_namelist_from_objectlist($parent->getList('domain'))));
+		if (is_object($parent) && method_exists($parent, 'ensureAdminResourcePriv')) {
+			$parent->ensureAdminResourcePriv();
+		}
+
+		$user = (is_object($parent) && method_exists($parent, 'getPathFromName'))
+			? $parent->getPathFromName() : 'admin';
+		$dir = expand_real_root("__path_customer_root/{$user}");
+		$domains = array();
+		try {
+			$domains = is_object($parent) ? $parent->getList('domain') : array();
+		} catch (Throwable $e) {
+			$domains = array();
+		}
+		$vv = array('var' => "subdomain_parent", 'val' => array('s', get_namelist_from_objectlist($domains)));
 		$vlist['nname'] = array('m', array('posttext' => ".", 'postvar' => $vv));
 
-		if ($parent->priv->isOn('document_root_flag')) {
-			$vlist['docroot'] = array('m', array('pretext' => "$dir/"));
+		$canDocroot = !is_object($parent) || !isset($parent->priv) || !is_object($parent->priv)
+			|| $parent->priv->isOn('document_root_flag');
+		if ($canDocroot) {
+			$vlist['docroot'] = array('m', array('pretext' => "{$dir}/"));
 		}
 
 		$ret['variable'] = $vlist;

@@ -181,10 +181,12 @@ if grep -q 'function initThisObject' "$ROOT/kloxo/httpdocs/driver/pserver/lxupda
 else
   bad "Lxupdate defines initThisObject"
 fi
-if grep -q 'initialValuesBasic()' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" && grep -q 'function initPhpIni' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php"; then
-  ok "phpini forms apply initialValuesBasic"
+if grep -q 'initialValuesBasic()' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" && grep -q 'function initPhpIni' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" \
+  && grep -q "a=updateform&sa=extraedit" "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" \
+  && grep -q 'phpiniCanReadPanelDb' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php"; then
+  ok "phpini forms apply initialValuesBasic and keep PHP Configure / Advanced tabs"
 else
-  bad "phpini forms apply initialValuesBasic"
+  bad "phpini forms apply initialValuesBasic and keep PHP Configure / Advanced tabs"
 fi
 if grep -q 'function ensureAdminResourcePriv' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" && grep -q "easyinstaller" "$ROOT/kloxo/httpdocs/lib/php/lxclass.php"; then
   ok "admin resource plan defaults unlimited; easyinstaller off"
@@ -256,12 +258,15 @@ if grep -A 20 'div.section, div#createNew' "$ROOT/kloxo/httpdocs/theme/htmllib.p
 else
   bad "dashboard sections are not clipped by overflow:hidden"
 fi
-if grep -A 8 '\.div_container {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'margin: 1px' \
-  && grep -A 8 '\.div_container_icons {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'width: 80px' \
-  && grep -A 8 '\.div_container_icons {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'height: 72px'; then
-  ok "dashboard buttons use tight horizontal and vertical spacing"
+if grep -A 8 '\.div_container {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'margin: 3px' \
+  && grep -A 8 '\.div_container_icons {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'width: 90px' \
+  && grep -A 8 '\.div_container_icons {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'height: 90px' \
+  && grep -A 12 '\.div_icons_text {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'font-size: 8pt' \
+  && grep -A 12 '\.div_icons_text {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'height: 50px' \
+  && grep -A 6 '\.div_icons_image {' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'height: 40px'; then
+  ok "dashboard tiles match Kloxo-MR 90x90 cells, 32px icons, and 8pt labels"
 else
-  bad "dashboard buttons use tight horizontal and vertical spacing"
+  bad "dashboard tiles match Kloxo-MR 90x90 cells, 32px icons, and 8pt labels"
 fi
 if awk '/class="div_menu_left"/{l=NR} /class="div_menu_right"/{r=NR} END {exit !(l && r && l<r)}' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
   && grep -q "getKeywordUc('help')" "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then
@@ -618,6 +623,21 @@ if grep -A 25 'function convert_message' "$ROOT/kloxo/httpdocs/theme/htmllib.php
   ok "popup message conversion and Help toggle survive missing objects"
 else
   bad "popup message conversion and Help toggle survive missing objects"
+fi
+if grep -q 'function url_tag_href' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -A 8 'function format_message' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'convert_message' \
+  && grep -A 8 "lxguard_not_configured" "$ROOT/kloxo/httpdocs/lang/en-us/messagelib.php" | grep -q 'a=show&o=lxguard'; then
+  ok "LxGuard alert [here] is converted to a pserver lxguard URL"
+else
+  bad "LxGuard alert [here] is converted to a pserver lxguard URL"
+fi
+if grep -A 40 'static function addform' "$ROOT/kloxo/httpdocs/lib/domain/domainlib.php" | grep -q 'domain_owned_flag' \
+  && grep -A 40 'static function addform' "$ROOT/kloxo/httpdocs/lib/domain/domainlib.php" | grep -q 'simple_add_f' \
+  && grep -A 40 'static function addform' "$ROOT/kloxo/httpdocs/lib/domain/domainlib.php" | grep -q 'ssl_flag' \
+  && grep -A 25 'function getDnsTemplateList' "$ROOT/kloxo/httpdocs/lib/domain/domainbaselib.php" | grep -q 'kloxo_list_from'; then
+  ok "admin Domains add form has owner/docroot/SSL/PHP flags and no longer throws without a DNS template"
+else
+  bad "admin Domains add form has owner/docroot/SSL/PHP flags and no longer throws without a DNS template"
 fi
 if awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q "skin_name === 'simplicity'" \
   && awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'print_inline_alert' \

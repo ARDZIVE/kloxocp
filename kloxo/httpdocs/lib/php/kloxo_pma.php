@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /**
- * phpMyAdmin sign-on: panel admin opens SQL Manager already connected,
- * with ALL PRIVILEGES on every MariaDB database. Credentials stay in
- * etc/conf/pma.pass (never in the URL).
+ * phpMyAdmin sign-on: panel admin opens SQL Manager already connected
+ * as MariaDB root@127.0.0.1 (full privileges). Credentials stay in
+ * etc/conf/pma.pass (never in the URL). OS root@localhost stays unix_socket.
  */
 
 function kloxo_pma_root(?string $root = null): string
@@ -45,7 +45,7 @@ function kloxo_pma_login(?string $root = null): array
 	}
 
 	return array(
-		'user' => 'kloxo_pma',
+		'user' => 'root',
 		'pass' => $pass,
 		'host' => '127.0.0.1',
 	);

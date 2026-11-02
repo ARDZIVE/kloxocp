@@ -203,8 +203,9 @@ init-panel-db 0.1.0: create the Kloxo CP panel MariaDB schema
 Loads kloxo/file/sql/db-structure-base.sql (and -update.sql) synchronously.
 Creates the kloxo database user with MariaDB 10.11 syntax (CREATE USER +
 GRANT; never GRANT ... IDENTIFIED BY). Writes <root>/etc/conf/kloxo.pass
-(0640, owned by lxlabs). Creates kloxo_pma with ALL PRIVILEGES on *.* for
-admin SQL Manager (phpMyAdmin sign-on; <root>/etc/conf/pma.pass).
+(0640, owned by lxlabs). Sets root@127.0.0.1 (password in
+<root>/etc/conf/pma.pass) so admin SQL Manager opens phpMyAdmin as root.
+root@localhost stays unix_socket. Also creates kloxo_pma as a fallback.
 Inserts admin / general rows if they are missing.
 
 Admin UI password: omitted flags seed the well-known default admin/admin
@@ -541,39 +542,48 @@ TXT;
     {
         $passFile = $this->root . '/etc/conf/pma.pass';
         $pass = $this->dbPassword($passFile);
-        $u = 'kloxo_pma';
         try {
             $pdo = $this->connectRoot($rootUser);
-            $stmt = $pdo->prepare("CREATE USER IF NOT EXISTS '{$u}'@'localhost' IDENTIFIED BY ?");
-            $stmt->execute([$pass]);
-            $stmt = $pdo->prepare("CREATE USER IF NOT EXISTS '{$u}'@'127.0.0.1' IDENTIFIED BY ?");
-            $stmt->execute([$pass]);
-            $stmt = $pdo->prepare("ALTER USER '{$u}'@'localhost' IDENTIFIED BY ?");
-            $stmt->execute([$pass]);
-            $stmt = $pdo->prepare("ALTER USER '{$u}'@'127.0.0.1' IDENTIFIED BY ?");
-            $stmt->execute([$pass]);
-            $pdo->exec("GRANT ALL PRIVILEGES ON *.* TO '{$u}'@'localhost'");
-            $pdo->exec("GRANT ALL PRIVILEGES ON *.* TO '{$u}'@'127.0.0.1'");
-            $pdo->exec('FLUSH PRIVILEGES');
+            $this->grantPmaAccounts($pdo, $pass);
         } catch (Throwable $e) {
             $this->cliGrantPma($rootUser, $pass);
         }
         $this->writePass($passFile, $pass);
     }
 
+    private function grantPmaAccounts(PDO $pdo, string $pass): void
+    {
+        foreach (array(
+            array('root', '127.0.0.1'),
+            array('kloxo_pma', 'localhost'),
+            array('kloxo_pma', '127.0.0.1'),
+        ) as $acct) {
+            [$u, $h] = $acct;
+            $stmt = $pdo->prepare("CREATE USER IF NOT EXISTS '{$u}'@'{$h}' IDENTIFIED BY ?");
+            $stmt->execute([$pass]);
+            $stmt = $pdo->prepare("ALTER USER '{$u}'@'{$h}' IDENTIFIED BY ?");
+            $stmt->execute([$pass]);
+            $pdo->exec("GRANT ALL PRIVILEGES ON *.* TO '{$u}'@'{$h}' WITH GRANT OPTION");
+        }
+        $pdo->exec('FLUSH PRIVILEGES');
+    }
+
     private function cliGrantPma(string $rootUser, string $pass): void
     {
         $bin = Proc::exists('mariadb') ? 'mariadb' : (Proc::exists('mysql') ? 'mysql' : '');
         if ($bin === '') {
-            throw new IpdbException('MariaDB client not in PATH; cannot create kloxo_pma');
+            throw new IpdbException('MariaDB client not in PATH; cannot grant phpMyAdmin root');
         }
         $q = $this->sqlQuote($pass);
-        $sql = "CREATE USER IF NOT EXISTS 'kloxo_pma'@'localhost' IDENTIFIED BY {$q};\n"
+        $sql = "CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY {$q};\n"
+            . "ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY {$q};\n"
+            . "GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;\n"
+            . "CREATE USER IF NOT EXISTS 'kloxo_pma'@'localhost' IDENTIFIED BY {$q};\n"
             . "CREATE USER IF NOT EXISTS 'kloxo_pma'@'127.0.0.1' IDENTIFIED BY {$q};\n"
             . "ALTER USER 'kloxo_pma'@'localhost' IDENTIFIED BY {$q};\n"
             . "ALTER USER 'kloxo_pma'@'127.0.0.1' IDENTIFIED BY {$q};\n"
-            . "GRANT ALL PRIVILEGES ON *.* TO 'kloxo_pma'@'localhost';\n"
-            . "GRANT ALL PRIVILEGES ON *.* TO 'kloxo_pma'@'127.0.0.1';\n"
+            . "GRANT ALL PRIVILEGES ON *.* TO 'kloxo_pma'@'localhost' WITH GRANT OPTION;\n"
+            . "GRANT ALL PRIVILEGES ON *.* TO 'kloxo_pma'@'127.0.0.1' WITH GRANT OPTION;\n"
             . "FLUSH PRIVILEGES;\n";
         $cmd = [$bin, '--protocol=socket', '-u', $rootUser];
         foreach ($this->socketCandidates() as $sock) {
@@ -584,7 +594,7 @@ TXT;
         }
         [$rc, $out, $err] = Proc::run($cmd, $sql);
         if ($rc !== 0) {
-            throw new IpdbException('kloxo_pma user failed: ' . trim($err . ' ' . $out));
+            throw new IpdbException('phpMyAdmin root@127.0.0.1 failed: ' . trim($err . ' ' . $out));
         }
     }
 

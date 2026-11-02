@@ -77,7 +77,7 @@ class phpini__sync extends Lxdriverclass
 		//	file_put_contents($fcgid_target, $fcgid_parse);
 
 		//	exec("'cp' -f /opt/configs/apache/tpl/php*.fcgi /home/kloxo/client");
-			lxfile_unix_chmod($fcgid_target, "0755");
+		//	lxfile_unix_chmod($fcgid_target, "0755");
 
 			$suphp_parse = getParseInlinePhp($suphp_cont, $input);
 			$suphp_target = '/etc/suphp.conf';

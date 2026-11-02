@@ -204,10 +204,11 @@ else
 fi
 if grep -q "auth_type'] = 'signon'" "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
   && grep -q 'kloxo-signon.php' "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
-  && grep -q '127.0.0.1' "$ROOT/kloxo/file/phpmyadmin/config.inc.php"; then
-  ok "phpMyAdmin config uses panel sign-on (no cookie login form)"
+  && grep -q '127.0.0.1' "$ROOT/kloxo/file/phpmyadmin/config.inc.php" \
+  && grep -q "AllowRoot'] = true" "$ROOT/kloxo/file/phpmyadmin/config.inc.php"; then
+  ok "phpMyAdmin config uses panel sign-on as root (no cookie login form)"
 else
-  bad "phpMyAdmin config uses panel sign-on (no cookie login form)"
+  bad "phpMyAdmin config uses panel sign-on as root (no cookie login form)"
 fi
 if grep -q 'kloxo-signon.php' "$ROOT/kloxo/bin/install/install-phpmyadmin" \
   && [ -f "$ROOT/kloxo/file/phpmyadmin/kloxo-signon.php" ]; then
@@ -215,12 +216,12 @@ if grep -q 'kloxo-signon.php' "$ROOT/kloxo/bin/install/install-phpmyadmin" \
 else
   bad "install-phpmyadmin copies kloxo-signon.php"
 fi
-if grep -q 'kloxo_pma' "$ROOT/kloxo/bin/install/init-panel-db" \
-  && grep -F -q "GRANT ALL PRIVILEGES ON *.* TO 'kloxo_pma'" "$ROOT/kloxo/bin/install/init-panel-db" \
+if grep -q "root'@'127.0.0.1'" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -F -q "GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION" "$ROOT/kloxo/bin/install/init-panel-db" \
   && grep -q 'pma.pass' "$ROOT/kloxo/bin/install/init-panel-db"; then
-  ok "init-panel-db creates kloxo_pma with ALL PRIVILEGES"
+  ok "init-panel-db grants phpMyAdmin root@127.0.0.1 WITH GRANT OPTION"
 else
-  bad "init-panel-db creates kloxo_pma with ALL PRIVILEGES"
+  bad "init-panel-db grants phpMyAdmin root@127.0.0.1 WITH GRANT OPTION"
 fi
 check "php -l kloxo_pma.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_pma.php"
 check "php -l kloxo-signon.php" php -l "$ROOT/kloxo/file/phpmyadmin/kloxo-signon.php"

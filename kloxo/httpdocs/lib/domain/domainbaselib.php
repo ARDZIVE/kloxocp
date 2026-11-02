@@ -75,22 +75,33 @@ abstract class DomainBase extends DomainCore
 
 	static function getDnsTemplateList($parent)
 	{
-		global $login;
+		$res = array();
 
-		$res = $parent->dnstemplate_list;
-	//	dprintr($res);
-		
-		if (!$res) {
-			$sq = new Sqlite(null, "dnstemplate");
-			$res = $sq->getTable();
-			$res = get_namelist_from_arraylist($res);
+		if (is_object($parent) && isset($parent->dnstemplate_list) && $parent->dnstemplate_list) {
+			$res = kloxo_list_from($parent->dnstemplate_list);
 		}
 
-		if (!$res) {
-			throw new lxException($login->getThrow("no_dns_template"));
+		if ($res === array()) {
+			$pass = '';
+			try {
+				if (function_exists('lfile_exists') && lfile_exists('__path_admin_pass')) {
+					$pass = trim((string) lfile_get_contents('__path_admin_pass'));
+				}
+			} catch (Throwable $e) {
+				$pass = '';
+			}
+
+			if ($pass !== '') {
+				try {
+					$sq = new Sqlite(null, 'dnstemplate');
+					$res = get_namelist_from_arraylist($sq->getTable());
+				} catch (Throwable $e) {
+					$res = array();
+				}
+			}
 		}
 
-		return $res;
+		return is_array($res) ? $res : array();
 	}
 
 	function updateform($subaction, $param)

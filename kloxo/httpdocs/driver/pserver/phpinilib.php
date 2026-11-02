@@ -133,52 +133,78 @@ class phpini extends lxdb
 		}
 	}
 
+	function phpiniParentClass()
+	{
+		$parent = $this->getParentO();
+
+		return is_object($parent) ? $parent->getClass() : '';
+	}
+
+	function phpiniCanReadPanelDb()
+	{
+		return function_exists('lfile_exists') && lfile_exists('__path_admin_pass')
+			&& trim((string) lfile_get_contents('__path_admin_pass')) !== '';
+	}
+
 	function createExtraVariables()
 	{
 		global $gbl, $login;
 
 		$this->fixphpIniFlag();
-		$gen = $login->getObject('general')->generalmisc_b;
 
-		//	if (!$this->getParentO()->is__table('pserver')) {
-		if ($this->getParentO()->getClass() !== 'pserver') {
-			$ob = new phpini(null, $this->syncserver, createParentName('pserver', $this->syncserver));
-			$ob->get();
-			$ob->fixphpIniFlag();
-
-			// MR -- trick for escape web-based php.ini
-			//	if ($this->getParentO()->is__table('web')) {
-			if ($this->getParentO()->getClass() === 'web') {
-				$this->__var_docrootpath = $this->getParentO()->getFullDocRoot();
-			}
-
-			$list = $this->getInheritedList();
-
-			foreach ($list as $l) {
-				$this->phpini_flag_b->$l = $ob->phpini_flag_b->$l;
-			}
-
-			// MR -- trick for escape web-based php.ini
-			//	if ($this->getParentO()->is__table('web')) {
-			if ($this->getParentO()->getClass() === 'web') {
-				$this->__var_web_user = $this->getParentO()->username;
-			//	$this->__var_customer_name = $this->getParentO()->customer_name;
-			//	$this->__var_disable_openbasedir = (isset($this->getParentO()->webmisc_b->disable_openbasedir)) ?
-			//	$this->getParentO()->webmisc_b->disable_openbasedir : null;
-			} else {
-				$this->__var_web_user = $this->getParentO()->nname;
+		$gen = null;
+		if (isset($login) && is_object($login) && method_exists($login, 'getObject') && $this->phpiniCanReadPanelDb()) {
+			try {
+				$gobj = $login->getObject('general');
+				if (is_object($gobj) && isset($gobj->generalmisc_b)) {
+					$gen = $gobj->generalmisc_b;
+				}
+			} catch (Throwable $e) {
+				$gen = null;
 			}
 		}
 
-		$this->__var_extrabasedir = (isset($gen->extrabasedir)) ? $gen->extrabasedir : null;
-		$driverapp = $gbl->getSyncClass(null, $this->syncserver, 'web');
+		$parentClass = $this->phpiniParentClass();
+		$parent = $this->getParentO();
+
+		if ($parentClass !== '' && $parentClass !== 'pserver' && $this->phpiniCanReadPanelDb()) {
+			try {
+				$sync = ($this->syncserver !== null && $this->syncserver !== '') ? $this->syncserver : 'localhost';
+				$ob = new phpini(null, $sync, createParentName('pserver', $sync));
+				$ob->get();
+				$ob->fixphpIniFlag();
+
+				if ($parentClass === 'web' && is_object($parent) && method_exists($parent, 'getFullDocRoot')) {
+					$this->__var_docrootpath = $parent->getFullDocRoot();
+				}
+
+				$list = $this->getInheritedList();
+
+				foreach ($list as $l) {
+					if (isset($ob->phpini_flag_b) && is_object($ob->phpini_flag_b) && isset($ob->phpini_flag_b->$l)) {
+						$this->phpini_flag_b->$l = $ob->phpini_flag_b->$l;
+					}
+				}
+
+				if ($parentClass === 'web' && is_object($parent) && isset($parent->username)) {
+					$this->__var_web_user = $parent->username;
+				} elseif (is_object($parent) && isset($parent->nname)) {
+					$this->__var_web_user = $parent->nname;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+
+		$this->__var_extrabasedir = (is_object($gen) && isset($gen->extrabasedir)) ? $gen->extrabasedir : null;
+		$driverapp = (is_object($gbl) && method_exists($gbl, 'getSyncClass'))
+			? $gbl->getSyncClass(null, $this->syncserver, 'web') : '';
 		$this->__var_webdriver = $driverapp;
 	}
 
 	function createShowPropertyList(&$alist)
 	{
+		$alist['property'] = array();
 		$alist['property'][] = 'a=show';
-
 		$alist['property'][] = 'a=updateform&sa=extraedit';
 	}
 
@@ -195,10 +221,12 @@ class phpini extends lxdb
 		// We need to write because the fixphpini reads everything from the database.
 		$this->write();
 
-
-	//	if ($this->getParentO()->is__table('pserver')) {
-		if ($this->getParentO()->getClass() === 'pserver') {
-			exec("sh /script/fixphp --server={$this->getParentO()->nname}");
+		$parent = $this->getParentO();
+		if (is_object($parent) && $parent->getClass() === 'pserver') {
+			$server = isset($parent->nname) ? (string) $parent->nname : '';
+			if ($server !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $server)) {
+				exec("sh /script/fixphp --server={$server}");
+			}
 
 			exec("sh /script/enable-php-fpm");
 		}
@@ -233,7 +261,8 @@ class phpini extends lxdb
 
 		$this->initPhpIni();
 
-		$parent = $this->getParentO();
+		$parentClass = $this->phpiniParentClass();
+		$vlist = array();
 
 		if ($subaction === 'extraedit') {
 			$totallist = $this->getExtraList();
@@ -245,8 +274,7 @@ class phpini extends lxdb
 		$adminList = $this->getAdminList();
 
 		foreach ($totallist as $l) {
-		//	if ((!$parent->is__table('pserver') && array_search_bool($l, $inheritedlist)) || array_search_bool($l, $adminList)) {
-			if (($parent->getClass() !== 'pserver' && array_search_bool($l, $inheritedlist)) || array_search_bool($l, $adminList)) {
+			if (($parentClass !== 'pserver' && array_search_bool($l, $inheritedlist)) || array_search_bool($l, $adminList)) {
 				$vlist["phpini_flag_b-$l"] = array('M', null);
 			} else {
 				$vlist["phpini_flag_b-$l"] = null;
@@ -254,11 +282,16 @@ class phpini extends lxdb
 		}
 
 		if ($subaction !== 'extraedit') {
-			$this->initialValue('phpini_flag_b-date_timezone_flag', 'Europe/London');
-			$vlist["phpini_flag_b-date_timezone_flag"] = array('s', getTimeZoneList());
+			$this->initialValue('date_timezone_flag', 'Europe/London');
+			$tz = function_exists('getTimeZoneList') ? getTimeZoneList() : array('UTC');
+			if (!is_array($tz) || $tz === array()) {
+				$tz = array('UTC');
+			}
+			$vlist["phpini_flag_b-date_timezone_flag"] = array('s', $tz);
 
-			if ($login->isAdmin()) {
-				$this->initialValue('phpini_flag_b-phpfpm_type_flag', 'ondemand');
+			$isAdmin = isset($login) && is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin();
+			if ($isAdmin) {
+				$this->initialValue('phpfpm_type_flag', 'ondemand');
 				$vlist["phpini_flag_b-phpfpm_type_flag"] = array('s', self::getPhpfpmTypeList());
 			} else {
 				$cur = (isset($this->phpini_flag_b) && is_object($this->phpini_flag_b)
@@ -267,15 +300,9 @@ class phpini extends lxdb
 					? $this->phpini_flag_b->phpfpm_type_flag : 'ondemand';
 				$vlist["phpini_flag_b-phpfpm_type_flag"] = array('s', array($cur));
 			}
-
-		//	$vlist["phpini_flag_b-phpfpm_limit_extensions"] = array('t', self::getPhpfpmLimitExtensions());
-
 		}
 
-		// MR -- still not work (like in 'appearance')
-		// still something wrong with 'updateall' process!
-	//	if ($parent->is__table('pserver')) {
-		if ($parent->getClass() === 'pserver') {
+		if ($parentClass === 'pserver') {
 			$vlist['__v_updateall_button'] = array();
 		}
 
@@ -295,13 +322,35 @@ class phpini extends lxdb
 
 		$this->initialValuesBasic();
 
-		if ($this->getParentO()->getClass() === 'pserver') {
+		$parentClass = $this->phpiniParentClass();
+		if ($parentClass === 'pserver' || $parentClass === '') {
+			return;
+		}
+
+		if ($parentClass === 'client') {
+			$parent = $this->getParentO();
+			$user = (is_object($parent) && isset($parent->nname)) ? (string) $parent->nname : '';
+			if ($user !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $user)) {
+				$path = "/home/kloxo/client/{$user}/session";
+				$cur = isset($this->phpini_flag_b->session_save_path_flag)
+					? (string) $this->phpini_flag_b->session_save_path_flag : '';
+				if ($cur === '' || $cur === '/var/lib/php/sessions' || $cur === '/var/lib/php/session') {
+					$this->phpini_flag_b->session_save_path_flag = $path;
+				}
+			}
+		}
+
+		if (!$this->phpiniCanReadPanelDb()) {
 			return;
 		}
 
 		$sync = ($this->syncserver !== null && $this->syncserver !== '') ? $this->syncserver : 'localhost';
-		$p = new phpini(null, $sync, createParentName('pserver', $sync));
-		$p->get();
+		try {
+			$p = new phpini(null, $sync, createParentName('pserver', $sync));
+			$p->get();
+		} catch (Throwable $e) {
+			return;
+		}
 		if (!isset($p->phpini_flag_b) || lget_class($p->phpini_flag_b) !== 'phpini_flag_b') {
 			return;
 		}
@@ -311,13 +360,6 @@ class phpini extends lxdb
 
 		foreach ($list as $v) {
 			if ($v === 'session_save_path_flag') {
-				if ($this->getParentO()->getClass() === 'client') {
-					$user = $this->getParentO()->nname;
-					if ($user !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $user)) {
-						$path = "/home/kloxo/client/{$user}/session";
-						$this->initialValue($v, $path);
-					}
-				}
 				continue;
 			}
 			if (isset($b->$v) && $b->$v !== '' && $b->$v !== null) {
@@ -333,9 +375,9 @@ class phpini extends lxdb
 		$this->initialValue('upload_max_filesize', '16M');
 		$this->initialValue('register_global_flag', 'off');
 
-		$this->phpini_flag_b->session_save_path_flag = is_dir('/var/lib/php/sessions')
+		$defaultSession = is_dir('/var/lib/php/sessions')
 			? '/var/lib/php/sessions' : '/var/lib/php/session';
-		$this->initialValue('session_save_path_flag', $this->phpini_flag_b->session_save_path_flag);
+		$this->initialValue('session_save_path_flag', $defaultSession);
 
 		$initial = 'exec,passthru,shell_exec,system,proc_open,popen,show_source';
 		$this->initialValue('disable_functions', $initial);
