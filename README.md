@@ -1,6 +1,10 @@
 # Kloxo CP
 
-A web hosting control panel, derived from **Kloxo-MR** (itself a fork of **Kloxo** by LxLabs / LxCenter).
+A web hosting control panel, forked from **Kloxo-MR** (itself a fork of **Kloxo**
+by LxLabs / LxCenter). This tree modernises that panel for Ubuntu 24.04 and
+Ubuntu 26.x. The existing UI is kept. There is no billing.
+
+Public git remote: https://github.com/ARDZIVE/kloxocp.git (`main`).
 
 ## Version
 
@@ -16,18 +20,33 @@ file is **not** rewritten, because existing version parsers expect that format. 
 single Kloxo CP version scheme comes with packaging (not built yet).
 
 > **Status: 0.1.0-dev, NOT FOR PRODUCTION.**
-> Do not expose this on a public network. The legacy PHP is still PHP 5-era in behaviour,
-> apt packaging is not built, and a full UI login against MariaDB is not verified
-> in a browser from this tree. First-party PHP **parses and loads** on PHP 8.
-> Ubuntu 24.04 / 26.x `install.sh` clones https://github.com/ARDZIVE/kloxocp.git,
-> builds pinned Hiawatha 12.4, starts panel FastCGI on `127.0.0.1:39000` as
-> `lxlabs`, and runs `init-panel-db` (admin, `localhost` server and driver,
-> appearance, `generalmisc_b`). Default login is **admin / admin**;
-> change it on first login. `kloxocp update` and signed apt packages are not built.
+> Do not expose this on a public network. Phase-1a security items (C1–C5) are
+> closed, first-party PHP parses and loads on PHP 8, and `install.sh` can
+> bootstrap a panel, but the legacy PHP is still PHP 5-era in behaviour.
+> Signed apt packaging and `kloxocp update` are not built. The hosted-mail
+> stack is implemented; the panel mail screens are not fully wired to it yet
+> (P4).
 >
-> Read `docs/AUDIT_REPORT.md` (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md`
-> (the intended production installer), and `docs/MAIL_DESIGN.md` (mail stack, which is
-> implemented and tested).
+> Read `docs/HANDOFF_BRIEFING.md` (current state), `docs/AUDIT_REPORT.md`
+> (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md` (intended
+> production installer), and `docs/MAIL_DESIGN.md` (mail stack).
+
+## Stack
+
+| Role | Choice |
+|---|---|
+| Target OS | Ubuntu 24.04 LTS (PHP 8.3) and Ubuntu 26.x (PHP 8.5) |
+| Panel UI web server | Hiawatha 12.4 (panel only; source-built, not an apt package) |
+| Panel PHP | Distro PHP-FPM as user `lxlabs` on `127.0.0.1:39000` |
+| Customer websites | **Nginx + PHP-FPM** default; Apache 2.4 + PHP-FPM (`proxy_fcgi`, no mod_php) packaged and selectable |
+| Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it |
+| DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
+| SMTP / hosted mail | **Postfix + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
+| Switch Program SMTP | `none` or `exim` (`exim4` stub only; it does not replace Postfix) |
+| Database | MariaDB (panel DB `kloxo`; mail DB is separate) |
+| SQL Manager | MySQL logon, then phpMyAdmin (`/thirdparty/phpMyAdmin/kloxo-signon.php`) |
+| Billing | None |
+| License | GNU AGPL v3 |
 
 ## Goals
 
@@ -36,7 +55,8 @@ single Kloxo CP version scheme comes with packaging (not built yet).
 | Install | One command on Ubuntu 24.04 or 26.x (`install.sh` clones this git tree and bootstraps; apt repo not built) |
 | Updates | One command or one button, with backup, health check and rollback (`snapshot`/`rollback` exist; `update` not built) |
 | Target OS | Ubuntu 24.04 LTS and Ubuntu 26.x; AlmaLinux/Rocky 9 later |
-| Customer websites | Nginx + PHP-FPM (multiple PHP versions side by side) |
+| Customer websites | Nginx + PHP-FPM default; Apache selectable; multiple PHP versions side by side |
+| DNS | BIND default; PowerDNS selectable |
 | Mail | Postfix + Dovecot + Rspamd, mailboxes in MariaDB |
 | Panel's own web server | Hiawatha (panel UI only) |
 | Billing integrations | None for now |
@@ -91,17 +111,19 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 6. Starts panel PHP-FPM (`kloxo-php`) as **`lxlabs`** on `127.0.0.1:39000`.
 7. Builds pinned **Hiawatha 12.4** (`install-hiawatha`) **before** the database
    schema, then starts `kloxo-web` on 7777/7778.
-8. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
+8. Enables Nginx, MariaDB, and BIND. Prepares Apache (`install-apache`) and
+   PowerDNS (`install-pdns`) and leaves those units **disabled**.
+9. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
    `localhost` driver with `dns` = `bind` and `web` = `nginx`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
-9. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
-10. Installs customer-site PHP-FPM **5.6** (5.6.40), **7.4** (7.4.33), and
+10. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
+11. Installs customer-site PHP-FPM **5.6** (5.6.40), **7.4** (7.4.33), and
     the newest `phpX.Y-fpm` apt can see (`install-site-php`; default is that
     newest). Old versions are only for legacy sites (Webserver Configure →
     PHP Used). The panel FPM stays `kloxo-php`.
-11. Restarts FPM, waits until port 39000 is listening, creates the Hiawatha
+12. Restarts FPM, waits until port 39000 is listening, creates the Hiawatha
     work directories, bounces `kloxo-web`, and pings `/fcgi-ping.php`.
-12. Starts `kloxo-backend` (PHP lxserver). A master binds TLS 7779 and
+13. Starts `kloxo-backend` (PHP lxserver). A master binds TLS 7779 and
     plaintext 7776 on localhost. A `--slave` run skips the panel UI, still
     installs site PHP 5.6 / 7.4 / latest, and binds TLS 7779 on all interfaces.
 
@@ -113,8 +135,8 @@ that password is changed. The password is also written to
 
 It does **not** run `kloxo-mail apply`, Let's Encrypt, or a signed apt
 install. `--profile=full` only apt-installs mail packages (Postfix, Dovecot,
-Rspamd, Redis); it does not configure mail. Browser login is not proven by
-the installer.
+Rspamd, Redis); it does not configure mail. The installer does not run a
+browser login.
 
 ### Flags and environment
 
@@ -199,12 +221,14 @@ run Hiawatha, the systemd units, or the live mail tests.
 at distro PHP 8, create runtime directories, install OS packages, build pinned
 Hiawatha 12.4, load the panel MariaDB schema (`init-panel-db`: admin,
 `localhost` server and driver, appearance, `generalmisc_b`), install phpMyAdmin,
-start `kloxo-php` / `kloxo-web`, optionally apt-install mail packages
+prepare Apache and PowerDNS without starting them, start `kloxo-php` /
+`kloxo-web` / `kloxo-backend`, optionally apt-install mail packages
 (`--profile=full`), and confirm `include.php` loads.
 
 **Does not (yet):** a signed apt package, Let's Encrypt for the panel hostname,
-`kloxo-mail apply`, or a verified admin login through the browser. The legacy
-`kloxo/install/` scripts are CentOS/RPM-only — do not run them on Ubuntu.
+or `kloxo-mail apply` (mail packages only; hosted mail is not configured).
+The legacy `kloxo/install/` scripts are CentOS/RPM-only — do not run them on
+Ubuntu.
 
 ### 1. Requirements
 
@@ -389,16 +413,15 @@ Hiawatha 12.4 needs a writable work dir or `kloxo-web` exits 1.
 
 Open in a browser: `https://YOUR-HOST:7777/` (self-signed cert; expect a warning).
 Unauthenticated requests redirect to `/login/`. Log in as **admin / admin**
-and change the password when the panel asks. After that change the home
-dashboard should show (admin has no parent; the schema must include the
-`localhost` driver row). A blank page there usually means an older tree
-without those seeds: update the files, re-run `init-panel-db`, and
-`systemctl restart kloxo-php`. A fresh admin has no allowed-IP / blocked-IP
-rows; that empty list must not crash login.
-**A full browser session after password change is not verified from this tree.**
-The IP list is read from `ip -4 addr` on Ubuntu (Refresh is safe). Do not use
-Add / Update / Delete on that page: those still write CentOS-style network
-files and can take the host off the network.
+and change the password when the panel asks (required Change Password modal;
+Esc/Close cannot skip it). After that change the home dashboard should show
+(admin has no parent; the schema must include the `localhost` driver row). A
+blank page there usually means an older tree without those seeds: update the
+files, re-run `init-panel-db`, and `systemctl restart kloxo-php`. A fresh
+admin has no allowed-IP / blocked-IP rows; that empty list must not crash
+login. The IP list is read from `ip -4 addr` on Ubuntu (Refresh is safe). Do
+not use Add / Update / Delete on that page: those still write CentOS-style
+network files and can take the host off the network.
 
 phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
 `kloxo/bin/install/install-phpmyadmin` (not shipped in git). Admin **SQL Manager**
@@ -443,9 +466,15 @@ php ../bin/install/create.php --install-type=master \
 ```
 
 Do not treat a run that only created `general` (0 rows, no `client` table) as a
-working panel; re-run `init-panel-db`. Browser login is still **UNVERIFIED**.
+working panel; re-run `init-panel-db`.
 
 ### 10. Mail stack (independent of the panel UI)
+
+Hosted mail is **Postfix** (SMTP) + **Dovecot** (IMAP/POP3/LMTP) + **Rspamd**
++ a dedicated MariaDB database. Switch Program SMTP is still `none` / `exim`
+only; `exim` starts Ubuntu `exim4` and does not replace this stack. P4 will
+wire the panel mail screens to `kloxo-mail`. qmail remains in the tree until
+those drivers exist.
 
 On a **disposable** machine only (`tests/mail/README.md`): live tests rewrite
 `/etc/postfix`, `/etc/dovecot`, `/etc/rspamd/local.d`.
@@ -517,13 +546,15 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)
   bin/install/generate-tls-keys  unique TLS keys per install
   bin/install/init-panel-db      Ubuntu MariaDB panel schema
+  bin/install/init-slave         slave-db.db for a --slave host
   bin/install/install-hiawatha   pinned Hiawatha 12.4 source build
   bin/install/install-pdns       PowerDNS schema + gmysql snippet (unit stays disabled)
   bin/install/install-apache     Apache 2.4 PHP-FPM vhosts (unit stays disabled)
   bin/install/install-phpmyadmin phpMyAdmin under httpdocs/thirdparty
+  bin/install/install-site-php   site PHP-FPM 5.6 / 7.4 / latest
 install.sh        Ubuntu 24.04 / 26.x bootstrap (clone + apt + layout + TLS)
 tests/            mail, tls, remote, security, p1, p2, p3, install
-docs/             audit, design, mail stack, changelog, legacy notes
+docs/             handoff, audit, design, mail stack, changelog, legacy notes
 ```
 
 ## Licensing and naming
