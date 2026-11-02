@@ -12,9 +12,13 @@ class WebLastVisit extends Lxaclass
 
 	static function initThisList($parent, $class)
 	{
-		$res = rl_exec_get(null, $parent->syncserver,  array("WebLastVisit", "getTrafficInfo"), array($parent->nname));
+		try {
+			$res = rl_exec_get(null, $parent->syncserver,  array("WebLastVisit", "getTrafficInfo"), array($parent->nname));
+		} catch (Throwable $e) {
+			return array();
+		}
 
-		return $res;
+		return is_array($res) ? $res : array();
 	}
 
 	static function perPage() { return 500; }

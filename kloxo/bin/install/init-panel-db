@@ -282,6 +282,7 @@ TXT;
         $this->seedDriver($pdo);
         $this->seedPhpini($pdo);
         $this->seedServerweb($pdo);
+        $this->seedServerftp($pdo);
         $this->seedSpecialplay($pdo);
 
         $client = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
@@ -731,6 +732,18 @@ TXT;
         $pdo->exec(
             "UPDATE serverweb SET php_type = IF(php_type IS NULL OR php_type = '', 'php-fpm_event', php_type)
              WHERE nname = 'pserver-localhost'"
+        );
+    }
+
+    private function seedServerftp(PDO $pdo): void
+    {
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM serverftp WHERE nname = 'pserver-localhost'")->fetchColumn();
+        if ($n > 0) {
+            return;
+        }
+        $pdo->exec(
+            "INSERT INTO serverftp (nname, parent_clname, parent_cmlist, maxclient, highport, lowport, enable_anon_ftp)
+             VALUES ('pserver-localhost', 'pserver-localhost', '', '5000', '65000', '45000', 'on')"
         );
     }
 

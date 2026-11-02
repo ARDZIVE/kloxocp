@@ -88,6 +88,6 @@ class ExclusiveIp extends Lxclass
 			$result = $db->getRowsWhere("clientname = '" . $parent->nname . "'");
 		}
 
-		return $result;
+		return is_array($result) ? $result : array();
 	}
 }

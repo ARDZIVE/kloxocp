@@ -94,6 +94,9 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 9. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
 10. Restarts FPM, waits until port 39000 is listening, creates the Hiawatha
     work directories, bounces `kloxo-web`, and pings `/fcgi-ping.php`.
+11. Starts `kloxo-backend` (PHP lxserver). A master binds TLS 7779 and
+    plaintext 7776 on localhost. A `--slave` run skips the panel UI and
+    binds TLS 7779 on all interfaces.
 
 Default login is **admin / admin**; the panel blocks the rest of the UI until
 that password is changed. The password is also written to
@@ -121,11 +124,13 @@ sudo bash install.sh --root=/opt/kloxo     # program root
 sudo bash install.sh --branch=main         # git branch
 sudo bash install.sh --repo=URL            # git URL
 sudo bash install.sh --help
+sudo bash install.sh --slave --slave-password=SECRET   # second machine; no panel UI
 ```
 
 | Variable | Meaning |
 |---|---|
 | `KLOXO_ADMIN_PASSWORD` | Panel admin password (default `admin`; otherwise min 8 chars) |
+| `KLOXO_SLAVE_PASSWORD` | Slave backend password (min 8 chars; used with `--slave`) |
 | `KLOXO_GIT_URL` | Git remote (default `https://github.com/ARDZIVE/kloxocp.git`) |
 | `KLOXO_GIT_BRANCH` | Git branch (default `main`) |
 | `KLOXO_GIT_TOKEN` | Optional GitHub token for a private fork |
@@ -142,6 +147,24 @@ sudo rm -rf /usr/local/src/kloxo-cp
 ```
 
 then run the one-liner again.
+
+### Multi-server (master / slave)
+
+Same workflow as Kloxo-MR, with the localhost-only bind from the audit kept
+on a master:
+
+1. On the **second machine**, install as a slave (no panel UI on 7777):
+
+```
+sudo bash install.sh --slave --slave-password='at-least-8-chars'
+```
+
+2. Allow **TCP 7779** from the master to that host. Port 7776 stays on
+   localhost and is never opened to the network.
+3. On the **master** panel: **Servers → Add**, IP or hostname of the slave,
+   and the same password. The master talks TLS 1.2+ to `:7779`.
+
+Live two-host add is not proven by the installer. Do not expose 7776.
 
 Signed apt packages (`docs/INSTALL_AND_UPDATE_DESIGN.md`) are not built.
 The rest of this section is the same path, spelled out by hand, for
@@ -364,8 +387,10 @@ files and can take the host off the network.
 
 phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
 `kloxo/bin/install/install-phpmyadmin` (not shipped in git). A 405 from
-Hiawatha on that URL means the directory has no `index.php`; run the
-installer as root.
+Hiawatha on that URL means the directory has no `index.php`. A page that
+only shows the phpMyAdmin logo (no login form) means Debian vendor JS
+symlinks were copied; re-run the installer as root so jQuery is a real
+file under WebsiteRoot.
 
 ### 9. MariaDB for the panel
 

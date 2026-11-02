@@ -56,12 +56,43 @@ class mailqueue extends lxclass
 
 	static function canGetSingle() { return true; }
 
+	static function queueDriverApp($parent)
+	{
+		global $gbl;
+
+		$app = null;
+		if (is_object($parent) && is_object($gbl)) {
+			$sync = method_exists($parent, 'getSyncServerForChild')
+				? $parent->getSyncServerForChild('mailqueue') : $parent->syncserver;
+			$app = $gbl->getSyncClass($parent->__masterserver, $sync, 'mailqueue');
+		}
+
+		foreach (array('/usr/sbin/postqueue', '/usr/bin/postqueue') as $p) {
+			if (is_executable($p)) {
+				return 'postfix';
+			}
+		}
+
+		return (is_string($app) && $app !== '') ? $app : 'qmail';
+	}
+
 	static function initThisObject($parent, $class, $name = null)
 	{
-		$res = rl_exec_in_driver($parent, 'mailqueue', "readSingleMail", array($name));
-
 		$ob = new mailqueue(null, $parent->syncserver, $name);
-		
+		$app = self::queueDriverApp($parent);
+		$sync = method_exists($parent, 'getSyncServerForChild')
+			? $parent->getSyncServerForChild('mailqueue') : $parent->syncserver;
+
+		try {
+			$res = kloxo_rl_driver($parent->__masterserver, $sync, 'mailqueue', $app, 'readSingleMail', array($name));
+		} catch (Throwable $e) {
+			$res = array();
+		}
+
+		if (!is_array($res)) {
+			$res = array();
+		}
+
 		foreach($res as $k => $r) {
 			$ob->$k = $r;
 			$ob->parent_clname = $parent->getClName();
@@ -98,16 +129,25 @@ class mailqueue extends lxclass
 
 	static function initThisList($parent, $class)
 	{
-	//	dprint("I shouldn't get called when single is read\n");
-		
-		$res = rl_exec_in_driver($parent, 'mailqueue', "readMailqueue", array());
+		$app = self::queueDriverApp($parent);
+		$sync = method_exists($parent, 'getSyncServerForChild')
+			? $parent->getSyncServerForChild('mailqueue') : $parent->syncserver;
 
-		if (!$res) { return; }
+		try {
+			$res = kloxo_rl_driver($parent->__masterserver, $sync, 'mailqueue', $app, 'readMailqueue', array());
+		} catch (Throwable $e) {
+			return array();
+		}
+
+		if (!is_array($res)) {
+			return array();
+		}
 
 		foreach($res as &$_r) {
-			$_r['syncserver'] = 'localhost';
+			$_r['syncserver'] = is_object($parent) && isset($parent->syncserver) ? $parent->syncserver : 'localhost';
 			$_r['parent_clname'] = $parent->getClName();
 		}
+		unset($_r);
 
 		return $res;
 	}

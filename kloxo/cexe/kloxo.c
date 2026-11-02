@@ -276,16 +276,25 @@ char tcp_create_socket(short int s_port)
 	int err;
 	int listen_sock;
 	int sock;
+	int reuse = 1;
 	struct sockaddr_in sa_serv;
 	struct sockaddr_in sa_cli;
 
 	listen_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	RETURN_ERR(listen_sock, "socket");
+	(void)setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 	memset(&sa_serv, '\0', sizeof(sa_serv));
 	sa_serv.sin_family = AF_INET;
-	/* Localhost only by default (audit C2). Multi-server is an explicit later choice. */
-	sa_serv.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	/*
+	 * Audit C2: plaintext 7776 is always loopback. TLS 7779 is loopback on a
+	 * master and INADDR_ANY only on a slave so the master panel can reach it.
+	 */
+	if (s_port == 7779 && global_type == SLAVE) {
+		sa_serv.sin_addr.s_addr = htonl(INADDR_ANY);
+	} else {
+		sa_serv.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	}
 	sa_serv.sin_port = htons(s_port); /* Server Port number */
 	err = bind(listen_sock, (struct sockaddr*)&sa_serv, sizeof(sa_serv));
 	RETURN_ERR(err, "bind");
@@ -569,8 +578,11 @@ int main(int argc, char **argv)
 
 	if (!strcmp(argv[1], "master")) {
 		global_type = MASTER;
-	} else {
+	} else if (!strcmp(argv[1], "slave")) {
 		global_type = SLAVE;
+	} else {
+		printf("Usage: %s master|slave\n", argv[0]);
+		exit(1);
 	}
 
 	if (getuid() != 0) {

@@ -176,14 +176,16 @@ class pserver extends pservercore {
 
 	function updatemailQueueFlush($param)
 	{
-		rl_exec_get(null, $this->syncserver, array("mailqueue__qmail", 'QueueFlush'), array());
+		$app = mailqueue::queueDriverApp($this);
+		kloxo_rl_driver(null, $this->syncserver, 'mailqueue', $app, 'QueueFlush', array());
 		return null;
 	}
 
 	function updatemailQueueDelete($param)
 	{
 		$this->updateAccountSel($param, "mailqueuedelete");
-		rl_exec_get(null, $this->syncserver, array("mailqueue__qmail", 'QueueDelete'),
+		$app = mailqueue::queueDriverApp($this);
+		kloxo_rl_driver(null, $this->syncserver, 'mailqueue', $app, 'QueueDelete',
 			array($this->mailqueuedelete_list));
 
 		return null;

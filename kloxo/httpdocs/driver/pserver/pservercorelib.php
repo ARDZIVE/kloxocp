@@ -220,11 +220,18 @@ class pservercore extends Lxclient
 
 	function isSync()
 	{
-		if ($this->subaction === 'password') {
-			return true;
+		if ($this->subaction === 'cron_mailto') {
+			return false;
 		}
 
 		return true;
+	}
+
+	function postSync()
+	{
+		if ($this->subaction === 'cron_mailto') {
+			cron::rewriteCrontabForParent($this);
+		}
 	}
 
 	static function createListAlist($parent, $class)
@@ -236,7 +243,7 @@ class pservercore extends Lxclient
 		$alist[] = "a=list&c=$class";
 
 		if ($parent->isAdmin()) {
-		//	$alist[] = "a=addform&c=$class";
+			$alist[] = "a=addform&c=$class";
 		}
 
 		$alist[] = "a=updateform&sa=forcedeletepserver&c=client";
@@ -468,29 +475,48 @@ class pservercore extends Lxclient
 			return $rlist;
 		}
 
+		$rlist = array();
+
 		if ($sgbl->isHyperVm()) {
 			$rlist = $this->getVpsRam();
+			if (!is_array($rlist)) {
+				$rlist = array();
+			}
 		}
 
 		$driverapp = $gbl->getSyncClass($this->__masterserver, $this->__readserver, 'pserver');
-		$l = rl_exec_get($this->__masterserver, $this->__readserver, array("pserver__$driverapp", "pserverInfo"));
+		$l = kloxo_rl_driver($this->__masterserver, $this->__readserver, 'pserver', $driverapp, 'pserverInfo', null);
+		if (!is_array($l)) {
+			$l = array();
+		}
+		foreach (array('used_s_memory', 'priv_s_memory', 'used_s_membuffers', 'used_s_memcached', 'used_s_realused') as $memk) {
+			if (!isset($l[$memk])) {
+				$l[$memk] = 0;
+			}
+		}
 
-		$osdet = $l['osdet'];
+		$osdet = isset($l['osdet']) && is_array($l['osdet']) ? $l['osdet'] : array();
 
-		if ($this->osversion !== $osdet['version']) {
+		if (isset($osdet['version']) && $this->osversion !== $osdet['version']) {
 			$this->osversion = $osdet['version'];
 			$this->setUpdateSubaction();
 		}
 
-		$lvm = $l['lvm'];
+		$lvm = isset($l['lvm']) ? $l['lvm'] : array();
 
 		foreach ((array)$lvm as $k => $c) {
+			if (!is_array($c)) {
+				continue;
+			}
 			$rlist[] = array('lvm', "{$c['nname']}", $c['used'], $c['total']);
 		}
 
-		$disk = $l['disk'];
+		$disk = isset($l['disk']) && is_array($l['disk']) ? $l['disk'] : array();
 
 		foreach ($disk as $k => $c) {
+			if (!is_array($c) || !isset($c['nname'])) {
+				continue;
+			}
 			$c['nname'] = str_replace(":", "_", $c['nname']);
 
 			if (csa($c['nname'], "mapper")) {
@@ -522,22 +548,30 @@ class pservercore extends Lxclient
 			$rlist[] = array('Virtual Memory', "Virtual:Virtual Memory Usage", getGBOrMB($l['used_s_virtual']), getGBOrMB($l['priv_s_virtual']));
 		}
 
-		$rlist[] = array('Server Traffic', "Traffic:Server Traffic For Current Month", $this->used->server_traffic_usage, '-');
-		$rlist[] = array('Server Traffic', "Last Traffic:Server Traffic For Last Month", $this->used->server_traffic_last_usage, '-');
+		$used_traffic = (isset($this->used) && is_object($this->used) && isset($this->used->server_traffic_usage))
+			? $this->used->server_traffic_usage : 0;
+		$used_last = (isset($this->used) && is_object($this->used) && isset($this->used->server_traffic_last_usage))
+			? $this->used->server_traffic_last_usage : 0;
+		$rlist[] = array('Server Traffic', "Traffic:Server Traffic For Current Month", $used_traffic, '-');
+		$rlist[] = array('Server Traffic', "Last Traffic:Server Traffic For Last Month", $used_last, '-');
 
-		$cpu = $l['cpu'];
+		$cpu = isset($l['cpu']) && is_array($l['cpu']) ? $l['cpu'] : array();
 
 		foreach ($cpu as $k => $c) {
 		//	$rlist[] = array('cpu', "CPU$k Model (speed)",  "{$c['used_s_cpumodel']} ({$c['used_s_cpuspeed']})", '-');
 		//	$rlist[] = array('cpu', "CPU$k speed", "{$c['used_s_cpuspeed']}", '-');
-			$rlist[] = array('cpu', "CPU$k:CPU processor/core $k", "{$c['used_s_cpuspeed']}", '-');
+			$speed = (is_array($c) && isset($c['used_s_cpuspeed'])) ? $c['used_s_cpuspeed'] : '';
+			$rlist[] = array('cpu', "CPU$k:CPU processor/core $k", $speed, '-');
 		}
 
 		$loadavg = sys_getloadavg();
+		if (!is_array($loadavg)) {
+			$loadavg = array(0, 0, 0);
+		}
 
-		$rlist[] = array('loadavg', "LoadAvg1:Load Average in 1 minutes", number_format($loadavg['0'], 2) . " %", '100 %');
-		$rlist[] = array('loadavg', "LoadAvg5:Load Average in 5 minutes", number_format($loadavg['1'], 2) . " %", '100 %');
-		$rlist[] = array('loadavg', "LoadAvg15:Load Average in 15 minutes", number_format($loadavg['2'], 2) . " %", '100 %');
+		$rlist[] = array('loadavg', "LoadAvg1:Load Average in 1 minutes", number_format(isset($loadavg[0]) ? $loadavg[0] : 0, 2) . " %", '100 %');
+		$rlist[] = array('loadavg', "LoadAvg5:Load Average in 5 minutes", number_format(isset($loadavg[1]) ? $loadavg[1] : 0, 2) . " %", '100 %');
+		$rlist[] = array('loadavg', "LoadAvg15:Load Average in 15 minutes", number_format(isset($loadavg[2]) ? $loadavg[2] : 0, 2) . " %", '100 %');
 		
 
 		return $rlist;
@@ -638,20 +672,43 @@ class pservercore extends Lxclient
 		}
 	}
 
+	static function nnameIsValid($nname)
+	{
+		if (!is_string($nname)) {
+			return false;
+		}
+		$nname = trim($nname);
+		if ($nname === '' || strlen($nname) > 253) {
+			return false;
+		}
+		if (filter_var($nname, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+			return true;
+		}
+		return (bool)preg_match('/^(?=.{1,253}$)([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$/', $nname);
+	}
+
 	static function add($parent, $class, $param)
 	{
 		global $login;
 
-		if (!preg_match("/^[A-Za-z.0-9-]*$/", $param['nname'])) {
-			throw new lxException($login->getThrow("only_alpha_numeric_characters_allowed"), '', $param['nname']);
+		$nname = isset($param['nname']) ? trim((string)$param['nname']) : '';
+		if (!self::nnameIsValid($nname)) {
+			throw new lxException($login->getThrow("only_alpha_numeric_characters_allowed"), '', $nname);
+		}
+
+		$pass = isset($param['ps_password']) ? (string)$param['ps_password'] : '';
+		if ($pass === '' || strlen($pass) < 8) {
+			throw new lxException($login->getThrow("password_too_short"), '', '8');
 		}
 
 		if_not_admin_complain_and_exit();
 
-		$param['nname'] = trim($param['nname']);
-		$param['syncserver'] = $param['nname'];
-		$param['realpass'] = $param['ps_password'];
-		$param['password'] = crypt($param['ps_password'], '$1$'.randomString(8).'$');
+		$param['nname'] = $nname;
+		$param['syncserver'] = $nname;
+		$param['realpass'] = $pass;
+		$param['password'] = function_exists('kloxo_password_hash')
+			? kloxo_password_hash($pass)
+			: crypt($pass, '$1$'.randomString(8).'$');
 
 		return $param;
 	}
@@ -665,26 +722,38 @@ class pservercore extends Lxclient
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$gen = $login->getObject('general')->generalmisc_b;
+		$failedlist = array();
+		if (!is_array($list)) {
+			return;
+		}
 
 		foreach ($list as $l) {
+			if (!is_object($l) || !isset($l->nname)) {
+				continue;
+			}
 			try {
 				$res = rl_exec_get(null, $l->nname, "getAllOperatingSystemDetails", array());
+				if (!is_array($res)) {
+					continue;
+				}
 
-				if ($l->osversion !== $res['version']) {
+				if (isset($res['version']) && $l->osversion !== $res['version']) {
 					$l->osversion = $res['version'];
 					$l->setUpdateSubaction();
 				}
 
-				$l->loadavg = $res['loadavg'];
+				if (isset($res['loadavg'])) {
+					$l->loadavg = $res['loadavg'];
+				}
 			} catch (Exception $e) {
-				$res = null;
+				$failedlist[$l->nname] = $e->getMessage();
+			} catch (Throwable $e) {
 				$failedlist[$l->nname] = $e->getMessage();
 			}
 		}
 
 		if ($failedlist) {
-			$emessage = null;
+			$emessage = '';
 
 			foreach ($failedlist as $k => $m) {
 				$emessage .= "&nbsp; Failed to get Status from $k. Server said: $m <br>  ";
@@ -724,7 +793,14 @@ class pservercore extends Lxclient
 
 	static function AddListForm($parent, $class)
 	{
-		return self::addform($parent, $class);
+		if (!is_object($parent) || !method_exists($parent, 'isAdmin') || !$parent->isAdmin()) {
+			return null;
+		}
+		try {
+			return self::addform($parent, $class);
+		} catch (Throwable $e) {
+			return null;
+		}
 	}
 
 	static function addform($parent, $class, $typetd = null)
@@ -819,7 +895,7 @@ class pservercore extends Lxclient
 
 		$driverapp = $gbl->getSyncClass($this->__masterserver, $this->__readserver, 'package');
 
-		rl_exec_get($this->__masterserver, $this->__readserver, array("package__$driverapp", 'doUpdate'), array($list));
+		kloxo_rl_driver($this->__masterserver, $this->__readserver, 'package', $driverapp, 'doUpdate', array($list));
 
 	}
 
@@ -1123,64 +1199,67 @@ STRIN;
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		dprint($this->nname);
+		$server = (isset($this->nname) && is_string($this->nname) && $this->nname !== '')
+			? $this->nname : 'localhost';
+		$sync = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+			? $this->syncserver : $server;
 
-		$rmt = new Remote();
+		dprint($server);
 
-		$driverapp = $gbl->getSyncClass($this->__masterserver, $this->nname, 'ipaddress');
-
+		$driverapp = is_object($gbl) ? $gbl->getSyncClass($this->__masterserver, $server, 'ipaddress') : null;
 		if (!$driverapp) {
-			print("NO driverapp for ipaddress\n");
-
-		//	exit;
-			return;
+			$driverapp = 'debian';
 		}
 
-		$rmt->func = array("Ipaddress__$driverapp", "listSystemIps");
-		$rmt->arglist = array($this->nname);
-		$rmt->action = 'get';
-		$rmt->slave_password = $this->realpass;
-		$gbl->pserver_password = $this->realpass;
-
-		$result = rl_exec(null, $this->nname, $rmt);
-
-		if (!$result) {
-			dprint("No Result <br> <br> \n\n\n");
+		if (isset($this->realpass)) {
+			$gbl->pserver_password = $this->realpass;
 		}
 
-	//	dprintr($result);
+		$result = kloxo_rl_driver($this->__masterserver, $server, 'ipaddress', $driverapp, 'listSystemIps', array($server));
+		if (!is_array($result)) {
+			$result = array();
+		}
 
 		// hack hack hack
 		// Direclty call 'was' to sync the pserver. This is needed because this is an out of the way Action,
 		// to remove the ipaddress from the database before the newly got ones are added in.
 
+		$exclusive_client = array();
 		$iplist = $this->getList("ipaddress");
 
-		if ($iplist) {
+		if (is_array($iplist)) {
 			foreach ($iplist as $ip) {
+				if (!is_object($ip)) {
+					continue;
+				}
 				$exclusive_client[$ip->nname] = $ip->clientname;
 				$ip->dbaction = 'delete';
 				$ip->write();
 				$ip->dbaction = 'clean';
 			}
-
-		//	$this->was();
 		}
 
 		foreach ($result as $row) {
-			if (!trim($row['ipaddr'])) {
+			if (!is_array($row)) {
+				continue;
+			}
+			$ipaddr = isset($row['ipaddr']) ? trim((string)$row['ipaddr']) : '';
+			if ($ipaddr === '') {
 				continue;
 			}
 
-			$row['nname'] = $row['devname'] . "___" . $this->syncserver;
-			$row['syncserver'] = $this->syncserver;
+			$dev = isset($row['devname']) && $row['devname'] !== '' ? (string)$row['devname'] : 'eth0';
+			$row['ipaddr'] = $ipaddr;
+			$row['devname'] = $dev;
+			$row['nname'] = $dev . "___" . $sync;
+			$row['syncserver'] = $sync;
 			$row['parent_clname'] = $this->getClName();
 
 			if (isset($exclusive_client[$row['nname']])) {
 				$row['clientname'] = $exclusive_client[$row['nname']];
 			}
 
-			$obj = New Ipaddress($this->__masterserver, $this->syncserver, $row['nname']);
+			$obj = new Ipaddress($this->__masterserver, $sync, $row['nname']);
 			$obj->create($row);
 			$obj->write();
 			$obj->dbaction = 'clean';
@@ -1258,13 +1337,16 @@ STRIN;
 			case "switchprogram":
 				// MR -- 'nname' = syncserver in here (because pserver class)!
 				// check if slavedb/driver file first and if empty then check driver table
-				$this->web_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('web'));
-				$this->webcache_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('webcache'));
-				$this->dns_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('dns'));
-				$this->spam_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('spam'));
-				$this->pop3_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('pop3'));
-			//	$this->imap4_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('imap4'));
-				$this->smtp_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('smtp'));
+				try {
+					$this->web_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('web'));
+					$this->webcache_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('webcache'));
+					$this->dns_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('dns'));
+					$this->spam_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('spam'));
+					$this->pop3_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('pop3'));
+					$this->smtp_driver = rl_exec_get('localhost', $this->syncserver, 'slave_get_driver', array('smtp'));
+				} catch (Throwable $e) {
+					log_log("error", "switchprogram slave_get_driver: " . $e->getMessage());
+				}
 
 				if (!isset($this->web_driver)) {
 					$this->web_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'web');
@@ -1289,21 +1371,53 @@ STRIN;
 			//	$this->imap4_driver = $a['pop3'];
 				$this->smtp_driver = $a['smtp'];
 
-				rl_exec_get('localhost', $this->syncserver, 'slave_save_db', array('driver', $a));
+				try {
+					rl_exec_get('localhost', $this->syncserver, 'slave_save_db', array('driver', $a));
+				} catch (Throwable $e) {
+					log_log("error", "switchprogram slave_save_db: " . $e->getMessage());
+				}
 
 				$this->was();
 
 				// MR -- always off because one-time process
 			//	$this->no_fix_config = 'off';
 
-				include "../file/driver/rhel.inc";
+				$os = (isset($this->ostype) && $this->ostype !== '') ? $this->ostype : 'debian';
+				$inc = ($os === 'debian' || $os === 'ubuntu') ? 'debian.inc' : 'rhel.inc';
+				$incpath = "../file/driver/{$inc}";
+				if (is_file($incpath)) {
+					include $incpath;
+				}
+				if (!isset($driver) || !is_array($driver)) {
+					$driver = array();
+				}
+				if (!isset($driver['web'])) {
+					$driver['web'] = array('none', 'nginx');
+				}
+				if (!isset($driver['webcache'])) {
+					$driver['webcache'] = array('none');
+				}
+				if (!isset($driver['dns'])) {
+					$driver['dns'] = array('none', 'bind', 'pdns');
+				}
+				if (!isset($driver['spam'])) {
+					$driver['spam'] = array('none');
+				}
+				if (!isset($driver['pop3'])) {
+					$driver['pop3'] = array('none', 'dovecot');
+				}
+				if (!isset($driver['smtp'])) {
+					$driver['smtp'] = array('none', 'qmail');
+				}
 
 				$vlist['web_driver'] = array('s', $driver['web']);
 
-				// MR -- get httpd24u info
-				exec("cat ../etc/list/httpd.lst|grep httpd24", $out);
+				$out = array();
+				if (($os !== 'debian' && $os !== 'ubuntu') && is_file('../etc/list/httpd.lst')) {
+					exec("cat ../etc/list/httpd.lst|grep httpd24", $out);
+				}
 
-				if (count($out) > 0) {
+				if (is_array($out) && count($out) > 0) {
 					if (version_compare(getRpmVersionFromYum('httpd'), '2.4.0', '>')) {
 						exec("echo '' > ../etc/flag/use_apache24.flg");
 						$this->use_apache24 = 'on';

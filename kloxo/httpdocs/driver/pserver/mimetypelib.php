@@ -35,6 +35,6 @@ class mimetype extends lxdb
 	{
 		$sq = new Sqlite(null, 'mimetype');
 		$list = $sq->getRowsWhere("domainname = '$parent->nname'");
-		$parent->setListFromArray($parent->__masterserver, $parent->__readserver, 'mimetype', $result, true);
+		$parent->setListFromArray($parent->__masterserver, $parent->__readserver, 'mimetype', is_array($list) ? $list : array(), true);
 	}
 }

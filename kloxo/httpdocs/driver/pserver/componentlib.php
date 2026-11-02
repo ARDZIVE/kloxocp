@@ -91,7 +91,10 @@ class Component extends Lxclass
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'component');
-		$ar = rl_exec_get($parent->__masterserver, $parent->__readserver, array("component__$driverapp", "getDetailedInfo"), $parent->nname);
+		if (!$driverapp) {
+			$driverapp = 'deb';
+		}
+		$ar = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'component', $driverapp, 'getDetailedInfo', $parent->nname);
 		$res['full_version'] = $ar;
 		$obj = new Component($parent->__masterserver, $parent->__readserver, $name);
 
@@ -114,10 +117,13 @@ class Component extends Lxclass
 		$list = self::initThisArray($parent, $class, array('componentname'));
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'component');
+		if (!$driverapp) {
+			$driverapp = 'deb';
+		}
 
-		$res = rl_exec_get($parent->__masterserver, $parent->__readserver,  array("component__$driverapp", "getListVersion"), array($parent->syncserver, $list));
+		$res = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'component', $driverapp, 'getListVersion', array($parent->syncserver, $list));
 
-		return $res;
+		return is_array($res) ? $res : array();
 	}
 
 	static function initThisArray($parent, $class, $fieldlist)

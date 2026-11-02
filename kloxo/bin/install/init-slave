@@ -1,0 +1,199 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * init-slave: write the slave identity file used by the backend daemon.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at
+ * your option) any later version. See LICENSE.txt.
+ *
+ * Standalone: no legacy panel includes. PHP 8.3, no shell strings.
+ *
+ * Usage:
+ *   init-slave --root=DIR --password-env=VAR
+ *   init-slave --self-test
+ *   init-slave --help
+ */
+
+const INIT_SLAVE_VERSION = '0.1.0';
+
+if (!class_exists('Remote', false)) {
+	class Remote
+	{
+		/** @var string */
+		public $password = '';
+		/** @var mixed */
+		public $data = null;
+	}
+}
+
+function slave_hash(string $plain): string
+{
+	if ($plain === '') {
+		throw new RuntimeException('slave password is empty');
+	}
+	if (defined('PASSWORD_ARGON2ID')) {
+		$h = password_hash($plain, PASSWORD_ARGON2ID);
+		if (is_string($h) && $h !== '') {
+			return $h;
+		}
+	}
+	$h = password_hash($plain, PASSWORD_DEFAULT);
+	if (!is_string($h) || $h === '') {
+		throw new RuntimeException('password_hash failed');
+	}
+	return $h;
+}
+
+function write_slave(string $root, string $plain): void
+{
+	if ($root === '' || str_contains($root, '..')) {
+		throw new RuntimeException('invalid --root');
+	}
+	if (strlen($plain) < 8) {
+		throw new RuntimeException('slave password must be at least 8 characters');
+	}
+
+	$conf = $root . '/etc/conf';
+	$slavedb = $root . '/etc/slavedb';
+	if (!is_dir($conf) && !mkdir($conf, 0700, true) && !is_dir($conf)) {
+		throw new RuntimeException('cannot create ' . $conf);
+	}
+	if (!is_dir($slavedb) && !mkdir($slavedb, 0700, true) && !is_dir($slavedb)) {
+		throw new RuntimeException('cannot create ' . $slavedb);
+	}
+
+	$rm = new Remote();
+	$rm->password = slave_hash($plain);
+	$path = $conf . '/slave-db.db';
+	$tmp = $path . '.tmp';
+	if (file_put_contents($tmp, serialize($rm)) === false) {
+		throw new RuntimeException('cannot write ' . $tmp);
+	}
+	chmod($tmp, 0600);
+	if (!rename($tmp, $path)) {
+		@unlink($tmp);
+		throw new RuntimeException('cannot install ' . $path);
+	}
+	chmod($path, 0600);
+
+	$drv = new Remote();
+	$drv->data = array(
+		'web' => 'nginx',
+		'webcache' => 'none',
+		'dns' => 'bind',
+		'pop3' => 'courier',
+		'smtp' => 'qmail',
+		'spam' => 'bogofilter',
+	);
+	$dpath = $slavedb . '/driver';
+	$dtmp = $dpath . '.tmp';
+	if (file_put_contents($dtmp, serialize($drv)) === false) {
+		throw new RuntimeException('cannot write ' . $dtmp);
+	}
+	chmod($dtmp, 0600);
+	if (!rename($dtmp, $dpath)) {
+		@unlink($dtmp);
+		throw new RuntimeException('cannot install ' . $dpath);
+	}
+	chmod($dpath, 0600);
+}
+
+function self_test(): int
+{
+	$root = sys_get_temp_dir() . '/kloxo-init-slave-' . bin2hex(random_bytes(4));
+	$pass = 'test-slave-password';
+	try {
+		write_slave($root, $pass);
+		$path = $root . '/etc/conf/slave-db.db';
+		$raw = file_get_contents($path);
+		if (!is_string($raw) || $raw === '') {
+			throw new RuntimeException('slave-db empty');
+		}
+		$rmt = unserialize($raw, array('allowed_classes' => array('Remote')));
+		if (!is_object($rmt) || !isset($rmt->password) || !is_string($rmt->password)) {
+			throw new RuntimeException('slave-db did not unserialize');
+		}
+		if (!password_verify($pass, $rmt->password)) {
+			throw new RuntimeException('stored hash does not verify');
+		}
+		$drv = unserialize((string)file_get_contents($root . '/etc/slavedb/driver'), array('allowed_classes' => array('Remote')));
+		if (!is_object($drv) || !isset($drv->data['web']) || $drv->data['web'] !== 'nginx') {
+			throw new RuntimeException('slavedb/driver missing nginx');
+		}
+		echo "ok init-slave --self-test\n";
+		return 0;
+	} finally {
+		$it = is_dir($root) ? new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+			RecursiveIteratorIterator::CHILD_FIRST
+		) : array();
+		foreach ($it as $f) {
+			$f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
+		}
+		@rmdir($root);
+	}
+}
+
+function usage(): void
+{
+	echo "init-slave " . INIT_SLAVE_VERSION . "\n";
+	echo "  --root=DIR --password-env=VAR   write etc/conf/slave-db.db\n";
+	echo "  --self-test                     write and verify a temp slave-db\n";
+	echo "  --help\n";
+}
+
+$root = '';
+$env = 'KLOXO_SLAVE_PASSWORD';
+$self = false;
+
+foreach (array_slice($argv, 1) as $a) {
+	if ($a === '--help' || $a === '-h') {
+		usage();
+		exit(0);
+	}
+	if ($a === '--self-test') {
+		$self = true;
+		continue;
+	}
+	if (str_starts_with($a, '--root=')) {
+		$root = substr($a, 7);
+		continue;
+	}
+	if (str_starts_with($a, '--password-env=')) {
+		$env = substr($a, 15);
+		continue;
+	}
+	fwrite(STDERR, "unknown option: {$a}\n");
+	exit(1);
+}
+
+try {
+	if ($self) {
+		exit(self_test());
+	}
+	if ($root === '') {
+		fwrite(STDERR, "need --root=DIR\n");
+		exit(1);
+	}
+	if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $env)) {
+		fwrite(STDERR, "invalid --password-env\n");
+		exit(1);
+	}
+	$plain = getenv($env);
+	if (!is_string($plain) || $plain === '') {
+		fwrite(STDERR, "{$env} is empty\n");
+		exit(1);
+	}
+	write_slave($root, $plain);
+	echo "slave identity written under {$root}/etc/conf/slave-db.db\n";
+	exit(0);
+} catch (Throwable $e) {
+	fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+	exit(1);
+}

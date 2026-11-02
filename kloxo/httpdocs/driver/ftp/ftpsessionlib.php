@@ -38,24 +38,38 @@ class ftpsession extends Lxclass
 
 	static function initThisList($parent, $class)
 	{
-	//	if ($parent->is__table('client')) {
-		if ($parent->getClass() === 'client') {
-			if ($parent->username) {
-				$username = $parent->username;
-				$res = rl_exec_in_driver($parent, $class, "getFtpList", array($username));
+		if (!is_object($parent)) {
+			return array();
+		}
+
+		try {
+			if (method_exists($parent, 'getClass') && $parent->getClass() === 'client') {
+				$username = isset($parent->username) ? (string)$parent->username : '';
+				if ($username === '') {
+					return array();
+				}
+				$res = rl_exec_in_driver($parent, $class, 'getFtpList', array($username));
 			} else {
-				return null;
+				$res = rl_exec_in_driver($parent, $class, 'getFtpList', array());
 			}
-		} else {
-			$res = rl_exec_in_driver($parent, $class, "getFtpList", array());
+		} catch (Throwable $e) {
+			return array();
 		}
 
-		if (!$res) { return null; }
-
-		foreach($res as &$__r) {
-			$__r['parent_clname'] = $parent->getClName();
+		if (!is_array($res) || $res === array()) {
+			return array();
 		}
 
-		return $res;
+		$out = array();
+		$clname = method_exists($parent, 'getClName') ? $parent->getClName() : '';
+		foreach ($res as $row) {
+			if (!is_array($row)) {
+				continue;
+			}
+			$row['parent_clname'] = $clname;
+			$out[] = $row;
+		}
+
+		return $out;
 	}
 }

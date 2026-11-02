@@ -120,10 +120,18 @@ class Mailaccount extends Lxclient
 
 	static function findTotalUsage($driver, $list)
 	{
-		$class = "mailaccount__$driver";
+		$class = kloxo_driver_class('mailaccount', $driver);
+		if ($class === null || !is_array($list)) {
+			return array();
+		}
 
+		$mdiskusage = array();
 		foreach ($list as $k => $d) {
-			$mdiskusage[$k] = exec_class_method($class, "Mailaccdisk_usage", $d['nname']);
+			$nname = is_array($d) && isset($d['nname']) ? $d['nname'] : null;
+			if ($nname === null) {
+				continue;
+			}
+			$mdiskusage[$k] = exec_class_method($class, "Mailaccdisk_usage", $nname);
 		}
 
 		return $mdiskusage;

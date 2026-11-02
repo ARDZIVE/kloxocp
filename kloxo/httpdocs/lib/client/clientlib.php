@@ -65,11 +65,18 @@ class Client extends ClientBase
 
 	function isSync()
 	{
-		if ($this->subaction === 'boxpos') {
+		if ($this->subaction === 'boxpos' || $this->subaction === 'cron_mailto') {
 			return false;
 		}
 
 		return true;
+	}
+
+	function postSync()
+	{
+		if ($this->subaction === 'cron_mailto') {
+			cron::rewriteCrontabForParent($this);
+		}
 	}
 
 	function createShowMainImageList()
@@ -197,7 +204,12 @@ class Client extends ClientBase
 
 	function getSyncServerForChild($class)
 	{
-		return $this->websyncserver;
+		$web = isset($this->websyncserver) ? (string)$this->websyncserver : '';
+		if ($web !== '') {
+			return $web;
+		}
+		$sync = isset($this->syncserver) ? (string)$this->syncserver : '';
+		return $sync !== '' ? $sync : 'localhost';
 	}
 
 	function changePlanSpecific($plan)
@@ -523,7 +535,7 @@ class Client extends ClientBase
 
 		if ($this->isAdmin()) {
 			if ($this->checkButton("dns_manage_flag")) {
-				$alist[] = "c=dnstemplate&a=list";
+				$alist[] = "a=list&c=dnstemplate";
 			}
 		}
 

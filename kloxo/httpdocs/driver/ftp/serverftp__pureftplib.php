@@ -48,6 +48,9 @@ class serverftp__pureftp extends lxDriverclass
 
 		// MR -- init.d
 		$txt = lfile_get_contents("../file/pure-ftpd/etc/pure-ftpd/pure-ftpd.conf");
+		if (!is_string($txt) || $txt === '') {
+			return;
+		}
 		$txt = str_replace("%lowport%", $this->main->lowport, $txt);
 		$txt = str_replace("%highport%", $this->main->highport, $txt);
 		$txt = str_replace("%maxclient%", $this->main->maxclient, $txt);
@@ -56,7 +59,9 @@ class serverftp__pureftp extends lxDriverclass
 
 		$txt = str_replace("%enabletls%", $tlsval, $txt);
 
-		lfile_put_contents("/etc/pure-ftpd/pure-ftpd.conf", $txt);
+		if (is_dir('/etc/pure-ftpd')) {
+			lfile_put_contents("/etc/pure-ftpd/pure-ftpd.conf", $txt);
+		}
 
 		createRestartFile('restart-ftp');
 	}

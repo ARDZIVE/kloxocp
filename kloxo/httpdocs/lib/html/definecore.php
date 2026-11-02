@@ -1,7 +1,7 @@
 <?php 
 
 $gl_class_array["dnsbase"] = "driver/dns/dnsbaselib.php";
-$gl_class_array["dnstemplate"] = "driver/dns//dnstemplatelib.php";
+$gl_class_array["dnstemplate"] = "driver/dns/dnstemplatelib.php";
 $gl_class_array["dns"] = "driver/dns/dnslib.php";
 $gl_class_array["dns_record_a"] = "driver/dns/dnsbaselib.php";
 

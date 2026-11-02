@@ -4,60 +4,72 @@ class Process__Linux extends lxDriverClass
 {
 	static function readProcessList()
 	{
+		$return = array();
 		$list = lscandir("/proc");
+		if (!is_array($list)) {
+			return $return;
+		}
 
-		foreach($list as $pid) {
-			if (is_numeric($pid) && $pid[0] != ".") {
-				$cmdlinearr = lfile("/proc/" . $pid. "/cmdline");
+		foreach ($list as $pid) {
+			if (!is_numeric($pid)) {
+				continue;
+			}
 
-				$return[$pid]['nname'] = $pid;
+			$cmdlinearr = lfile("/proc/" . $pid . "/cmdline");
+			if (!is_array($cmdlinearr) || !isset($cmdlinearr[0]) || $cmdlinearr[0] === '') {
+				continue;
+			}
 
-				if (!$cmdlinearr)  {
-					unset($return[$pid]);
-					continue;
+			$cmdline = preg_replace('+\0+i', " ", $cmdlinearr[0]);
+			$command = substr($cmdline, 0, 100);
+
+			if (csa($cmdline, "display.php") && csa($cmdline, "kloxo")) {
+				continue;
+			}
+
+			$row = array(
+				'nname' => (string) $pid,
+				'command' => $command,
+				'state' => '',
+				'username' => '',
+				'memory' => 0,
+			);
+
+			$arr = lfile("/proc/" . $pid . "/status");
+			if (!is_array($arr)) {
+				$return[$pid] = $row;
+				continue;
+			}
+
+			foreach ($arr as $a) {
+				if (csb($a, "State:")) {
+					$a = trim($a);
+					$a = strtil($a, "(");
+					$a = strfrom($a, "State:");
+					$a = trim($a);
+					$row["state"] = ($a === "S") ? "ZZ" : $a;
 				}
 
-				$cmdline = $cmdlinearr[0];
-				$cmdline = preg_replace('+\0+i', " " , $cmdline);
-				$return[$pid]["command"] = substr($cmdline, 0, 100);
-				
-				if (csa($cmdline, "display.php") && csa($cmdline, "kloxo")) {
-					unset($return[$pid]);
-					continue;
+				if (csa($a, "Uid")) {
+					$uidarr = explode(":", $a);
+					$value = isset($uidarr[1]) ? trimSpaces($uidarr[1]) : '';
+					$uidarr2 = explode(" ", $value);
+					$uid = isset($uidarr2[1]) ? (int) trim($uidarr2[1]) : 0;
+					$pwd = posix_getpwuid($uid);
+					$row["username"] = (is_array($pwd) && isset($pwd['name'])) ? $pwd['name'] : (string) $uid;
 				}
-				
-				$arr  =  lfile("/proc/" . $return[$pid]["nname"] . "/status");
-				
-				foreach($arr as $a) {
-					if (csb($a, "State:")) {
-						$a = trim($a);
-						$a = strtil($a, "(");
-						$a = strfrom($a, "State:");
-						$a = trim($a);
-						$return[$pid]["state"] = $a;
-						$return[$pid]["state"] = ($return[$pid]["state"] === "S")? "ZZ": $return[$pid]["state"];
-					}
 
-					if (csa($a, "Uid")) {
-						$uidarr = explode(":", $a);
-						$value = trimSpaces($uidarr[1]);
-						$uidarr2 = explode(" ", $value);
-						$uid = trim($uidarr2[1]);
-						$pwd = posix_getpwuid($uid);
-						$username = $pwd['name'];
-						$return[$pid]["username"] = $username;
-					}
-
-					if (csa($a, "VmSize")) {
-						$uidarr = explode(":", $a);
-						$uidarr = trimSpaces($uidarr[1]);
-						$uidarr = strtilfirst($uidarr, " ");
-						$return[$pid]['memory'] = round($uidarr/1024, 2);
-					}
+				if (csa($a, "VmSize")) {
+					$uidarr = explode(":", $a);
+					$uidarr = isset($uidarr[1]) ? trimSpaces($uidarr[1]) : '0';
+					$uidarr = strtilfirst($uidarr, " ");
+					$row['memory'] = round(((float) $uidarr) / 1024, 2);
 				}
 			}
+
+			$return[$pid] = $row;
 		}
-		
+
 		return $return;
 	}
 

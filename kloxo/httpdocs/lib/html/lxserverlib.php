@@ -8,17 +8,24 @@ function lxserver_main()
 	// Set time limit to indefinite execution
 
 
-	if ($argv[1] === 'slave') {
+	$mode = (isset($argv[1]) && is_string($argv[1])) ? $argv[1] : '';
+
+	if ($mode === 'slave') {
 		$login = new Client(null, null, 'slave');
 
 		//Initthisdef uses the db to load the drivers. NO longer callable in slave.
 	//	$login->initThisDef();
 		$gbl->is_slave = true;
 		$gbl->is_master = false;
-		$rmt = unserialize(lfile_get_contents($sgbl->__path_slave_db));
+		$raw = lfile_get_contents($sgbl->__path_slave_db);
+		$rmt = is_string($raw) && $raw !== '' ? @unserialize($raw) : false;
+		if (!is_object($rmt) || !isset($rmt->password) || !is_string($rmt->password) || $rmt->password === '') {
+			print("slave-db missing or unreadable\n");
+			exit(1);
+		}
 		$login->password = $rmt->password;
 		$argv[1] = "Running as Slave";
-	} else if ($argv[1] === 'master') {
+	} else if ($mode === 'master') {
 		$login = new Client(null, null, 'admin');
 		$gbl->is_master = true;
 		$gbl->is_slave = false;
@@ -27,7 +34,7 @@ function lxserver_main()
 	} else {
 		print("Wrong arguments\n");
 
-		exit;
+		exit(1);
 	}
 
 	$login->cttype = 'admin';

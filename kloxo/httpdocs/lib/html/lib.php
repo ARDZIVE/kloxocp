@@ -142,11 +142,11 @@ function file_put_between_comments($username, $stlist, $endlist, $startstring, $
 		}
 	}
 
-	if (count($outlist) > 0) {
+	if (kcount($outlist) > 0) {
 		$outstring = implode("\n", $outlist);
 	}
 
-	if (count($afterlist) > 0) {
+	if (kcount($afterlist) > 0) {
 		$afterstring = implode("\n", $afterlist);
 	}
 
@@ -479,11 +479,15 @@ function slave_get_db_pass()
 
 function slave_get_driver($class)
 {
-//	global $login;
-
-//	$rmt = rl_exec_get('localhost', $login->syncserver, 'lfile_get_unserialize', array('../etc/slavedb/driver'));
-
 	$rmt = lfile_get_unserialize("../etc/slavedb/driver");
+
+	if (!is_object($rmt) || !isset($rmt->data) || !is_array($rmt->data)) {
+		return null;
+	}
+
+	if (!isset($rmt->data[$class])) {
+		return null;
+	}
 
 	return $rmt->data[$class];
 }
@@ -1057,21 +1061,20 @@ function get_double_hex($i)
 
 function merge_array_object_not_deleted($array, $object)
 {
-	$ret = null;
+	$ret = array();
 
 	if (is_array($array)) {
 		foreach ($array as $a) {
-			if ($a['nname'] !== $object->nname) {
+			if (!is_array($a) || !isset($a['nname'])) {
+				continue;
+			}
+			if (!is_object($object) || $a['nname'] !== $object->nname) {
 				$ret[] = $a;
 			}
 		}
-	} else {
-		if ($array['nname'] !== $object->nname) {
-			$ret[] = $array;
-		}
 	}
 
-	if ($object->isDeleted()) {
+	if (!is_object($object) || $object->isDeleted()) {
 		return $ret;
 	}
 
@@ -4194,18 +4197,64 @@ function getOsForServer($servername)
 
 	$res = $sq->getRowsWhere("nname = '$servername'", array('ostype'));
 
-	return $res[0]['ostype'];
+	if (is_array($res) && isset($res[0]['ostype']) && is_string($res[0]['ostype']) && $res[0]['ostype'] !== '') {
+		return $res[0]['ostype'];
+	}
+
+	return 'debian';
+}
+
+function kloxo_driver_class($class, $driverapp)
+{
+	if (!is_string($class) || $class === '' || !is_string($driverapp) || $driverapp === '') {
+		return null;
+	}
+
+	$driverapp = str_replace(array('-', '.'), '', $driverapp);
+	if ($driverapp === '') {
+		return null;
+	}
+
+	return "{$class}__$driverapp";
+}
+
+function kloxo_rl_driver($master, $syncserver, $class, $driverapp, $function, $arglist = null)
+{
+	$dclass = kloxo_driver_class($class, $driverapp);
+	if ($dclass === null) {
+		return array();
+	}
+
+	if ($arglist !== null && !is_array($arglist)) {
+		$arglist = array($arglist);
+	}
+
+	try {
+		$res = rl_exec_get($master, $syncserver, array($dclass, $function), $arglist);
+	} catch (Throwable $e) {
+		log_log("error", "kloxo_rl_driver {$dclass}::{$function}: " . $e->getMessage());
+		return array();
+	}
+
+	return $res;
 }
 
 function rl_exec_in_driver($parent, $class, $function, $arglist)
 {
 	global $gbl;
 
-	$syncserver = $parent->getSyncServerForChild($class);
-	$driverapp = $gbl->getSyncClass($parent->__masterserver, $syncserver, $class);
-	$res = rl_exec_get($parent->__masterserver, $syncserver, array("{$class}__$driverapp", $function), $arglist);
+	if (!is_object($parent) || !is_object($gbl)) {
+		return array();
+	}
 
-	return $res;
+	try {
+		$syncserver = $parent->getSyncServerForChild($class);
+		$driverapp = $gbl->getSyncClass($parent->__masterserver, $syncserver, $class);
+		return kloxo_rl_driver($parent->__masterserver, $syncserver, $class, $driverapp, $function, $arglist);
+	} catch (Throwable $e) {
+		log_log("error", "rl_exec_in_driver {$class}: " . $e->getMessage());
+		return array();
+	}
 }
 
 function vpopmail_get_path($domain)
@@ -4360,9 +4409,13 @@ function checkClusterDiskQuota()
 		$driverapp = $gbl->getSyncClass(null, $mc->nname, 'diskusage');
 
 		try {
-			$list = rl_exec_get(null, $mc->nname, array("diskusage__$driverapp", "getDiskUsage"));
+			$list = kloxo_rl_driver(null, $mc->nname, 'diskusage', $driverapp, 'getDiskUsage', null);
 		} catch (Exception $e) {
 			$mess .= "Failed to connect to Slave $mc->nname: {$e->getMessage()}\n";
+			continue;
+		}
+
+		if (!is_array($list)) {
 			continue;
 		}
 
@@ -5589,15 +5642,14 @@ function getRpmVersion($rpmname)
 
 function getRpmVersionFromYum($rpmname)
 {
+	$ver = array();
 	exec("yum list {$rpmname}|grep '{$rpmname}.'|awk '{print \$2}'|awk -F'-'  '{print \$1}'", $ver);
 
-	if (strpos($ver[0], 'Error:') !== false) {
-		$ret = '0.0.0';
-	} else {
-		$ret = $ver[0];
+	if (!isset($ver[0]) || !is_string($ver[0]) || strpos($ver[0], 'Error:') !== false) {
+		return '0.0.0';
 	}
 
-	return $ret;
+	return $ver[0];
 }
 
 function setRpmInstalled($rpmname)
@@ -8772,12 +8824,26 @@ function getRemoteIp()
 
 function isServiceExists($target)
 {
-	if ((file_exists("/etc/rc.d/init.d/{$target}")) ||
-			(file_exists("/usr/lib/systemd/system/{$target}.service"))) {
-		return true;
-	} else {
+	$target = (string) $target;
+	if ($target === '' || strpbrk($target, "/\\") !== false) {
 		return false;
 	}
+
+	$paths = array(
+		"/etc/rc.d/init.d/{$target}",
+		"/etc/init.d/{$target}",
+		"/usr/lib/systemd/system/{$target}.service",
+		"/lib/systemd/system/{$target}.service",
+		"/etc/systemd/system/{$target}.service",
+	);
+
+	foreach ($paths as $p) {
+		if (file_exists($p)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 function isServiceEnabled($target)

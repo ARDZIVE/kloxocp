@@ -24,16 +24,31 @@ class Driver extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$driverapp = $gbl->getSyncClass(null, null, 'fake');
+		$gbl->getSyncClass(null, null, 'fake');
 		
 		if (isLocalhost($parent->__masterserver)) {
 			$master = 'localhost';
 		} else {
 			$master = $parent->__masterserver;
 		}
-		
-		$sync = $gbl->driver[$master][$parent->syncserver];
-		
+
+		$server = is_object($parent) && isset($parent->syncserver) && $parent->syncserver !== ''
+			? $parent->syncserver : 'localhost';
+
+		if (!isset($gbl->driver) || !is_array($gbl->driver)
+			|| !isset($gbl->driver[$master]) || !is_array($gbl->driver[$master])
+		) {
+			$gbl->loaddriverappInfo($master);
+		}
+
+		if (isset($gbl->driver[$master][$server]) && is_object($gbl->driver[$master][$server])) {
+			return $gbl->driver[$master][$server];
+		}
+
+		$sync = new Driver($master, null, $server);
+		$sync->nname = $server;
+		$sync->driver_b = new driver_b(null, null, $server);
+
 		return $sync;
 	}
 
@@ -53,6 +68,14 @@ class Driver extends Lxdb
 
 	function createVlistDriver(&$vlist, $driver)
 	{
+		if (!is_array($driver)) {
+			return;
+		}
+
+		if (!isset($this->driver_b) || !is_object($this->driver_b)) {
+			$this->driver_b = new driver_b(null, null, $this->nname);
+		}
+
 		foreach($driver as $k => $v) {
 			$descr = get_classvar_description($k);
 			
@@ -60,17 +83,18 @@ class Driver extends Lxdb
 				continue;
 			}
 			
-			if (!is_array($v) && csb($v, "__v")) {
+			if (!is_array($v) && is_string($v) && csb($v, "__v")) {
 				continue;
 			}
 			
+			$field = "pg_$k";
+			$current = isset($this->driver_b->$field) ? $this->driver_b->$field : '';
+
 			if (is_array($driver[$k])) {
-				$v = "pg_$k";
 				$ar = implode(", ", $driver[$k]);
-				$vlist["driver_b_s_pg_$k"] = array('M', create_simpleObject(array('descr' => $descr, 'value' => "{$this->driver_b->$v} ($ar)")));
+				$vlist["driver_b_s_pg_$k"] = array('M', create_simpleObject(array('descr' => $descr, 'value' => "{$current} ($ar)")));
 			} else {
-				$v = "pg_$k";
-				$vlist["driver_b_s_pg_$k"] = array('M', create_simpleObject(array('descr' => $descr, 'value' => "{$this->driver_b->$v} ($driver[$k])")));
+				$vlist["driver_b_s_pg_$k"] = array('M', create_simpleObject(array('descr' => $descr, 'value' => "{$current} ($driver[$k])")));
 			}
 		}
 
@@ -81,9 +105,17 @@ class Driver extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$os = $this->getParentO()->ostype;
-	//	include_once "../file/driver/$os.inc";
-		include_once "../file/driver/rhel.inc";
+		$parent = $this->getParentO();
+		$os = (is_object($parent) && isset($parent->ostype) && $parent->ostype !== '')
+			? $parent->ostype : 'debian';
+		$inc = ($os === 'debian' || $os === 'ubuntu') ? 'debian.inc' : 'rhel.inc';
+		$incpath = "../file/driver/{$inc}";
+		if (is_file($incpath)) {
+			include_once $incpath;
+		}
+		if (!isset($driver) || !is_array($driver)) {
+			$driver = array();
+		}
 
 		$vlist = null;
 

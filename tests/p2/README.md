@@ -10,4 +10,6 @@ Covers first-party `php -l` (excluding PEAR/WebDAV, formmail, urlrewrite example
 replacement of `__autoload` with `spl_autoload_register`, boot-path `ereg*` removal in
 `includecore.php`, the extra-argument fix on `char_search_beg`, characterization of
 class loading and `DOCUMENT_ROOT` derivation, and `include.php` constructing `Sgbl` without
-a Throwable (`test_boot.php`). Does not open a browser or connect to MariaDB.
+a Throwable (`test_boot.php`). `test_multiserver.php` checks Servers add
+nname/password hashing and the master SSL listen address. Does not open a
+browser or connect to MariaDB.

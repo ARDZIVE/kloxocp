@@ -47,17 +47,21 @@ Regression: `tests/remote/` (object-injection gadget is not woken without creden
 and `remote_main()` (`frm_rmt`). Those are not this path.
 *JSON replacement (planned, not built):* drop PHP serialization from the backend protocol.
 Payload becomes a versioned JSON object with a schema (action, class, nname, argument list);
-validate before dispatch. Transport: Unix socket for same-host (P0.5), mutual TLS only if
-multi-server stays in scope. Do not add further `unserialize()` of network input.
+validate before dispatch. Transport: Unix socket for same-host (P0.5); slave TLS 7779 uses per-install
+self-signed keys (mutual TLS not built). Do not add further `unserialize()` of network input.
 
 **C2: Backend daemon is an unauthenticated, network-facing code runner. CLOSED for P0.5 defaults.**
 Was: `cexe/kloxo.c` bound `INADDR_ANY` with `listen(…, 500000)`, used `SSLv23_method()`,
 `verify_client = OFF`, unbounded receive, ignored `mkstemp()`, logged full payloads.
-*Closed by:* bind `INADDR_LOOPBACK`, listen backlog 128, `TLS_server_method` with TLS 1.2
-minimum, 1 MiB cap, `realloc` receive path, `mkstemp` checked, payload not logged. PHP
-`createSslStream()` binds `127.0.0.1` and requires `default.pem`. Missing keys fail closed.
+*Closed by:* bind `INADDR_LOOPBACK` for plaintext 7776 always, and for TLS 7779 on a
+master; listen backlog 128, `TLS_server_method` with TLS 1.2 minimum, 1 MiB cap,
+`realloc` receive path, `mkstemp` checked, payload not logged. PHP `createSslStream()`
+requires `default.pem` and binds `127.0.0.1` on a master. A slave (detected from
+`slave-db.db` / `kloxo.exe slave`) binds TLS 7779 on `INADDR_ANY` / `0.0.0.0` so the
+master panel can add the host. Missing keys fail closed.
 *Still open (later):* the daemon still executes PHP on received data; replace with an
-allow-listed privileged agent. Multi-server bind is an explicit later choice.
+allow-listed privileged agent. Mutual TLS is not built (`verify_client` remains off;
+keys are unique per install).
 
 **C3: Private keys committed to the repository. CLOSED.**
 Were: `init/backend.key`, `file/ssl/rootCA.key`, `file/ssl/default.key` (and matching certs),
@@ -200,5 +204,5 @@ characterization-test harness is the first port step.
 
 1. P2 first-party parse and `include.php` boot are done. P3 CLI skeleton (`kloxocp` status/doctor/snapshot/rollback) is done; apt packaging and `kloxocp update` are not. Next: remaining third-party runtime APIs, Debian packaging, or P4 postfix UI. Browser login is unverified. qmail stays until P4.
 2. A fresh Ubuntu 24.04 VM (root, 2-4 GB RAM) so that I can give you tested install steps and you can report errors back.
-3. Whether to keep multi-server (master/slave) in v1; dropping it would let the backend daemon be removed from the first release.
+3. **Answered:** keep multi-server in v1. Slave TLS 7779 is the only non-localhost bind; C1 envelope and the 1 MiB cap stay. Live two-host add is unverified.
 4. A logo and domain/GitHub name when you have them.

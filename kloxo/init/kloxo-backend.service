@@ -1,0 +1,17 @@
+[Unit]
+Description=Kloxo CP backend (lxserver)
+Documentation=https://kloxocp.invalid/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kloxo/httpdocs
+ExecStart=/opt/kloxo/init/kloxo-backend.sh
+Restart=on-failure
+RestartSec=5
+User=root
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

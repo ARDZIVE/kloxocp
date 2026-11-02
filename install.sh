@@ -9,8 +9,9 @@
 #
 # Does: pre-flight, clone (if needed), apt packages, /opt/kloxo layout, TLS keys,
 # lxphp.exe wrappers, kloxo-php systemd unit, pinned Hiawatha 12.4 build,
-# panel MariaDB schema via init-panel-db, phpMyAdmin under httpdocs/thirdparty.
-# Does not: Let's Encrypt, apt repo, kloxo-mail apply, verified browser login.
+# panel MariaDB schema via init-panel-db, phpMyAdmin under httpdocs/thirdparty,
+# kloxo-backend (lxserver). --slave writes slave-db.db and skips the panel UI.
+# Does not: Let's Encrypt, apt repo, kloxo-mail apply, verified two-host add.
 set -euo pipefail
 LOG="/dev/null"
 
@@ -25,6 +26,8 @@ FORCE=0
 DRY=0
 UPDATE=0
 WITH_MAIL=0
+INSTALL_TYPE="master"
+SLAVE_PASSWORD=""
 SRC=""
 ROOT="$KLOXO_ROOT_DEFAULT"
 
@@ -33,9 +36,13 @@ usage() {
 Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 
   sudo bash install.sh [--profile=core|full] [--yes] [--force]
+  sudo bash install.sh --slave --slave-password=SECRET
 
   --profile=core   php, nginx, mariadb, bind9 (default)
   --profile=full   core plus postfix, dovecot, rspamd, redis
+  --slave          backend-only host; no panel UI (Kloxo-MR slave)
+  --slave-password=SECRET
+                   password the master uses when adding this host
   --yes            non-interactive (assumed when stdin is not a TTY)
   --force          continue below 2 GB RAM / 10 GB disk
   --update         accepted; every run already git-fetches the clone
@@ -48,6 +55,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 
 Default panel login is admin/admin; the UI requires a password change
 after the first login. Override with KLOXO_ADMIN_PASSWORD (min 8 chars).
+Slave password: --slave-password= or KLOXO_SLAVE_PASSWORD (min 8 chars).
 
 One-line install on Ubuntu 24.04 or 26.x (root). Clones if needed; fetches origin/main and re-runs if the clone exists:
 
@@ -80,6 +88,25 @@ force_fcgi_tcp() {
     sed -i -E 's|^[[:space:]]*ConnectTo[[:space:]]*=.*|	ConnectTo = 127.0.0.1:39000|' "$ROOT/init/hiawatha.conf"
     sed -i 's/__fpmdisabled__//g' "$ROOT/init/hiawatha.conf"
   fi
+}
+
+print_slave_box() {
+  local host="$1" ip="$2" pass="$3"
+  local w=70 bar
+  bar="+$(printf '%0.s-' $(seq 1 $((w + 2))))+"
+  box() { printf '| %-*s |\n' "$w" "$1"; }
+  echo
+  echo "$bar"
+  box "Kloxo CP ${KCP_VERSION} slave is installed."
+  box ""
+  box "On the master panel: Servers -> Add, then:"
+  box "  IP or hostname : ${ip:-$host}"
+  box "  Password       : ${pass}"
+  box ""
+  box "Allow TCP 7779 from the master (TLS 1.2+). Port 7776 stays localhost."
+  box "This host has no panel UI on 7777."
+  echo "$bar"
+  echo
 }
 
 print_access_box() {
@@ -120,6 +147,8 @@ for a in "$@"; do
     --with-mail|--profile=full) PROFILE="full"; WITH_MAIL=1 ;;
     --profile=core) PROFILE="core"; WITH_MAIL=0 ;;
     --profile=*) die "unknown profile (use core or full)" ;;
+    --slave) INSTALL_TYPE="slave" ;;
+    --slave-password=*) INSTALL_TYPE="slave"; SLAVE_PASSWORD="${a#--slave-password=}" ;;
     --src=*) SRC="${a#--src=}" ;;
     --root=*) ROOT="${a#--root=}" ;;
     --branch=*) KLOXO_GIT_BRANCH="${a#--branch=}" ;;
@@ -161,6 +190,7 @@ plan: Kloxo CP ${KCP_VERSION}
   src     $SRC
   root    $ROOT
   profile $PROFILE
+  type    $INSTALL_TYPE
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
   exit 0
@@ -292,8 +322,10 @@ ln -sfn "$ROOT/init/php-cli.sh" /usr/bin/lxphp.exe
 ln -sfn "$ROOT/init/php-cli.sh" /usr/bin/lphp.exe
 ln -sfn "$ROOT/bin/kloxocp" /usr/local/sbin/kloxocp
 chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" \
+  "$ROOT/init/kloxo-backend.sh" \
   "$ROOT/bin/install/generate-tls-keys" \
   "$ROOT/bin/install/init-panel-db" \
+  "$ROOT/bin/install/init-slave" \
   "$ROOT/bin/install/install-hiawatha" \
   "$ROOT/bin/install/install-phpmyadmin" || true
 
@@ -312,6 +344,35 @@ install -d -m 0755 "$ROOT/init" "$ROOT/log" "$ROOT/session" "$ROOT/pid"
 if id -u lxlabs >/dev/null 2>&1; then
   chown lxlabs:lxlabs "$ROOT/log" "$ROOT/session" "$ROOT/pid" || true
 fi
+
+install_backend() {
+  chmod 0755 "$ROOT/init/kloxo-backend.sh" || true
+  install -m 0644 "$ROOT/init/kloxo-backend.service" /etc/systemd/system/kloxo-backend.service
+  systemctl daemon-reload
+  systemctl enable kloxo-backend >/dev/null 2>&1 || true
+  systemctl restart kloxo-backend || systemctl start kloxo-backend || true
+  wait_unit kloxo-backend || log "warn: kloxo-backend is not active"
+}
+
+if [[ "$INSTALL_TYPE" == "slave" ]]; then
+  slave_pw="${SLAVE_PASSWORD:-${KLOXO_SLAVE_PASSWORD:-}}"
+  if [[ -z "$slave_pw" ]]; then
+    die "slave install needs --slave-password= or KLOXO_SLAVE_PASSWORD"
+  fi
+  if [[ ${#slave_pw} -lt 8 ]]; then
+    die "slave password must be at least 8 characters"
+  fi
+  KLOXO_SLAVE_PASSWORD="$slave_pw" php "$ROOT/bin/install/init-slave" \
+    --root="$ROOT" --password-env=KLOXO_SLAVE_PASSWORD
+  systemctl enable --now nginx mariadb named 2>/dev/null \
+    || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
+  install_backend
+  host="$(hostname -f 2>/dev/null || hostname)"
+  ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  print_slave_box "$host" "$ip" "$slave_pw" | tee -a "$LOG"
+  exit 0
+fi
+
 php_fpm=""
 for p in /usr/sbin/php-fpm8.5 /usr/sbin/php-fpm8.4 /usr/sbin/php-fpm8.3 /usr/sbin/php-fpm; do
   if [[ -x "$p" ]]; then
@@ -436,6 +497,8 @@ if [[ -f "$SRC/tests/p2/test_boot.php" ]]; then
 fi
 
 php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
+
+install_backend
 
 host="$(hostname -f 2>/dev/null || hostname)"
 ip="$(hostname -I 2>/dev/null | awk '{print $1}')"

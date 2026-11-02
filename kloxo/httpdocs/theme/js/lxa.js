@@ -1,7 +1,33 @@
 
-function hide_a_div_box(nameid){
-crossobj= document.getElementById(nameid);
-crossobj.style.visibility="hidden";
+function kloxoHidePopup(id) {
+	var el = document.getElementById(id);
+	if (!el) {
+		return;
+	}
+	el.style.visibility = 'hidden';
+	el.style.display = 'none';
+}
+
+function kloxoShowPopup(id) {
+	var el = document.getElementById(id);
+	if (!el) {
+		return;
+	}
+	el.style.visibility = 'visible';
+	el.style.display = 'block';
+}
+
+function kloxoHideAllPopups() {
+	var nodes = document.querySelectorAll('.kloxo-modal, .kloxo-error-box, #showimage, #esmessage, #infomsg');
+	var i;
+	for (i = 0; i < nodes.length; i++) {
+		nodes[i].style.visibility = 'hidden';
+		nodes[i].style.display = 'none';
+	}
+}
+
+function hide_a_div_box(nameid) {
+	kloxoHidePopup(nameid);
 }
 
 function getRandomNum(lbound, ubound) {
@@ -29,14 +55,12 @@ function getRanPassword(length) {
 	return rc;
 }
 
-function keyPressHandler()
+function keyPressHandler(e)
 {
-	alert(window.event.keyCode);
-	if (kC == 27) {
-		alert('key');
-		document.getElementById('showimage').visibility = 'hidden';
-		alert(document.getElementById('showimage'));
-
+	e = e || window.event;
+	var key = e.keyCode || e.which;
+	if (key == 27) {
+		kloxoHideAllPopups();
 	}
 }
 
@@ -125,16 +149,15 @@ function toggleVisibilityByClass(className)
 function toggleVisibilityById(id)
 {
 	var el = document.getElementById(id);
+	if (!el) {
+		return;
+	}
 
-	// if ( el.style.visibility == 'visible') {
 	if (el.style.display != 'none') {
 		el.style.visibility = 'hidden';
-		//el.style.position = 'absolute';
 		el.style.display = 'none';
 	} else {
 		el.style.visibility = 'visible';
-		//el.style.position = 'relative';
-		// MR -- don't use 'inline' because trouble with simplicity skin
 		el.style.display = 'block';
 	}
 }

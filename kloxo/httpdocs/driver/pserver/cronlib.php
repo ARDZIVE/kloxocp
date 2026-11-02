@@ -151,15 +151,61 @@ class Cron extends Lxdb
 	
 	function createExtraVariables()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-		$this->__var_mailto = $this->getParentO()->cron_mailto;
-		$mydb = new Sqlite($this->__masterserver, "cron");
 		$parent = $this->getParentO();
-		$this->__var_cron_list = $mydb->getRowsWhere("username = '{$parent->username}'");
+		$this->__var_mailto = (is_object($parent) && isset($parent->cron_mailto))
+			? $parent->cron_mailto : '';
+		$username = '';
+		if (is_object($parent) && isset($parent->username) && is_string($parent->username)) {
+			$username = $parent->username;
+		} elseif (isset($this->username) && is_string($this->username)) {
+			$username = $this->username;
+		}
 
-		$mydb = new Sqlite($this->__masterserver, "uuser");
-		$userlist = $mydb->getRowsWhere("nname = '{$parent->username}'");
-		$this->__var_user_list = $userlist[0];
+		$this->__var_cron_list = array();
+		$this->__var_user_list = array();
+
+		if ($username === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $username)) {
+			return;
+		}
+
+		try {
+			$mydb = new Sqlite($this->__masterserver, "cron");
+			$rows = $mydb->getRowsWhere("username = '{$username}'");
+			$this->__var_cron_list = is_array($rows) ? $rows : array();
+
+			$mydb = new Sqlite($this->__masterserver, "uuser");
+			$userlist = $mydb->getRowsWhere("nname = '{$username}'");
+			$this->__var_user_list = (is_array($userlist) && isset($userlist[0]) && is_array($userlist[0]))
+				? $userlist[0] : array();
+		} catch (Throwable $e) {
+			log_log("error", "cron createExtraVariables: " . $e->getMessage());
+		}
+	}
+
+	static function rewriteCrontabForParent($parent)
+	{
+		if (!is_object($parent)) {
+			return;
+		}
+
+		try {
+			$list = $parent->getList('cron');
+		} catch (Throwable $e) {
+			return;
+		}
+
+		if (!is_array($list)) {
+			return;
+		}
+
+		foreach ($list as $c) {
+			if (!is_object($c)) {
+				continue;
+			}
+			$c->setUpdateSubaction('update');
+			$c->was();
+			return;
+		}
 	}
 
 	static function createListNlist($parent, $view)

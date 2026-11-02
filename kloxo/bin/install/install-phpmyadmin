@@ -1,18 +1,18 @@
 #!/bin/bash
 # Install phpMyAdmin under the panel WebsiteRoot so Hiawatha can serve it.
 #
-# Hiawatha returns 405 for a directory with no index file. The panel links to
-# /thirdparty/phpMyAdmin/ but the app was a CentOS RPM, not in this tree.
-#
-# Prefers the Ubuntu phpmyadmin package. Falls back to a pinned 5.2.3 english
-# tarball whose sha256 is fetched from files.phpmyadmin.net next to the file.
+# Hiawatha returns 405 for a directory with no index file, and it will not
+# follow Debian's vendor JS symlinks out of WebsiteRoot (jQuery 404 → login
+# form stays CSS-hidden). Use the pinned all-languages tarball so js/vendor
+# files are real files inside httpdocs. Apt phpmyadmin is a fallback only,
+# copied with dereferenced symlinks.
 #
 # Copyright (C) 2026 Kloxo CP contributors
 # GNU Affero General Public License v3. See LICENSE.txt.
 set -euo pipefail
 
 PMA_VERSION="5.2.3"
-PMA_TARBALL="phpMyAdmin-${PMA_VERSION}-english.tar.xz"
+PMA_TARBALL="phpMyAdmin-${PMA_VERSION}-all-languages.tar.xz"
 PMA_URL="https://files.phpmyadmin.net/phpMyAdmin/${PMA_VERSION}/${PMA_TARBALL}"
 PMA_SHA_URL="${PMA_URL}.sha256"
 
@@ -32,8 +32,9 @@ install-phpmyadmin: put phpMyAdmin at <root>/httpdocs/thirdparty/phpMyAdmin
   --help
 
 Hiawatha 405 on /thirdparty/phpMyAdmin/ means that directory has no index.php.
-This script installs the app and writes config.inc.php (cookie auth, generated
-blowfish secret). Do not commit the extracted tree.
+A login page that only shows the logo means js/vendor is missing or a symlink
+outside WebsiteRoot; this script reinstalls from the tarball in that case.
+Do not commit the extracted tree.
 EOF
 }
 
@@ -48,6 +49,21 @@ digest() {
   else
     die "need sha256sum or shasum"
   fi
+}
+
+# True when Hiawatha can serve the JS that unhides the cookie-auth form.
+vendor_js_ok() {
+  local dest="$1"
+  local f
+  for f in \
+    "$dest/js/vendor/jquery/jquery.min.js" \
+    "$dest/js/vendor/bootstrap/bootstrap.bundle.min.js"
+  do
+    if [[ -L "$f" || ! -f "$f" ]]; then
+      return 1
+    fi
+  done
+  return 0
 }
 
 for a in "$@"; do
@@ -71,8 +87,8 @@ if [[ "$DRY" -eq 1 ]]; then
   cat <<EOF
 plan: install phpMyAdmin ${PMA_VERSION}
   dest     $DEST
-  apt      phpmyadmin (preferred)
-  fallback $PMA_URL
+  primary  $PMA_URL
+  fallback apt phpmyadmin (dereferenced copy)
   force    $FORCE
 EOF
   exit 0
@@ -100,45 +116,55 @@ write_config() {
   fi
 }
 
-if [[ -f "$DEST/index.php" && "$FORCE" -eq 0 ]]; then
+if [[ "$FORCE" -eq 0 && -f "$DEST/index.php" ]] && vendor_js_ok "$DEST"; then
   log "phpMyAdmin already present at $DEST; writing config (pass --force to replace)"
   write_config "$DEST"
   log "phpMyAdmin ready: /thirdparty/phpMyAdmin/"
   exit 0
 fi
 
-apt-get install -y --no-install-recommends php-mysql php-mbstring php-xml php-curl php-zip || true
-echo 'phpmyadmin phpmyadmin/reconfigure-webserver multiselect' | debconf-set-selections
-echo 'phpmyadmin phpmyadmin/dbconfig-install boolean false' | debconf-set-selections
-if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends phpmyadmin; then
-  log "apt phpmyadmin not available; will try the pinned tarball"
+if [[ -f "$DEST/index.php" ]] && ! vendor_js_ok "$DEST"; then
+  log "phpMyAdmin vendor JS is missing or a symlink; reinstalling a self-contained copy"
 fi
 
+apt-get install -y --no-install-recommends php-mysql php-mbstring php-xml php-curl php-zip || true
+
 SRC=""
-if [[ -f /usr/share/phpmyadmin/index.php ]]; then
-  SRC=/usr/share/phpmyadmin
-else
-  mkdir -p /usr/local/src
-  tarball="/usr/local/src/$PMA_TARBALL"
-  log "downloading $PMA_URL"
-  curl -fsSL --retry 3 -o "$tarball" "$PMA_URL" || die "download failed"
-  curl -fsSL --retry 3 -o "$tarball.sha256" "$PMA_SHA_URL" || die "checksum download failed"
+mkdir -p /usr/local/src
+tarball="/usr/local/src/$PMA_TARBALL"
+log "downloading $PMA_URL"
+if curl -fsSL --retry 3 -o "$tarball" "$PMA_URL" \
+  && curl -fsSL --retry 3 -o "$tarball.sha256" "$PMA_SHA_URL"; then
   expect="$(awk '{print $1}' "$tarball.sha256")"
   [[ "$expect" =~ ^[a-fA-F0-9]{64}$ ]] || die "checksum file is not a sha256"
   got="$(digest "$tarball")"
   [[ "$got" == "$expect" ]] || die "sha256 mismatch ($got != $expect)"
-  extract="/usr/local/src/phpMyAdmin-${PMA_VERSION}-english"
+  extract="/usr/local/src/phpMyAdmin-${PMA_VERSION}-all-languages"
   rm -rf "$extract"
-  mkdir -p "$extract"
   tar -xJf "$tarball" -C /usr/local/src
   [[ -f "$extract/index.php" ]] || die "tarball did not contain index.php"
   SRC="$extract"
+else
+  log "tarball download failed; trying apt phpmyadmin with dereferenced copy"
+  echo 'phpmyadmin phpmyadmin/reconfigure-webserver multiselect' | debconf-set-selections
+  echo 'phpmyadmin phpmyadmin/dbconfig-install boolean false' | debconf-set-selections
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends phpmyadmin \
+    || die "download failed and apt phpmyadmin is not available"
+  [[ -f /usr/share/phpmyadmin/index.php ]] || die "apt phpmyadmin has no index.php"
+  SRC=/usr/share/phpmyadmin
 fi
 
 rm -rf "$DEST"
 mkdir -p "$(dirname "$DEST")"
-cp -a "$SRC" "$DEST"
+# -L: Debian vendor JS is a symlink into /usr/share/javascript; Hiawatha will
+# not serve those, so copy the real files into WebsiteRoot.
+if ! cp -aL "$SRC" "$DEST" 2>/dev/null; then
+  cp -a "$SRC" "$DEST"
+fi
 rm -rf "$DEST/setup"
+if ! vendor_js_ok "$DEST"; then
+  die "phpMyAdmin js/vendor/jquery.min.js is missing after install"
+fi
 write_config "$DEST"
 mkdir -p "$ROOT/session"
 if id -u lxlabs >/dev/null 2>&1; then

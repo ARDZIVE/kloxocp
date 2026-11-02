@@ -57,4 +57,14 @@ static function checkService($name)
 	return Service__Linux::checkService($name);
 }
 
+static function getServiceDetails($list)
+{
+	return Service__Linux::getServiceDetails($list);
+}
+
+static function checkServiceOn($service)
+{
+	return Service__Linux::checkServiceOn($service);
+}
+
 }

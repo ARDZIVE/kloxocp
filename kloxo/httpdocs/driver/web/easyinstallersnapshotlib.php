@@ -81,9 +81,12 @@ class easyinstallersnapshot extends lxclass
 
 		$res = rl_exec_in_driver($parent, 'easyinstallersnapshot', "getSnapList", array($path));
 
-		if (!$res) { return null; }
+		if (!is_array($res) || $res === array()) { return null; }
 
 		foreach($res as &$r) {
+			if (!is_array($r)) {
+				continue;
+			}
 			$r['parent_clname'] = $parent->getClName();
 		}
 

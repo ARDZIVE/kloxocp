@@ -128,11 +128,19 @@ class pserver__Linux extends lxDriverClass
 
 	static function parse_data($data)
 	{
+		$res = array();
+		if (!is_array($data)) {
+			return $res;
+		}
+
 		foreach ($data as $d) {
 			$d = trimSpaces($d);
 			$d = str_replace(":", "", $d);
 			$rval = explode(" ", $d);
-			$res[strtolower($rval[0])] = $rval[1];
+			if (!isset($rval[0]) || $rval[0] === '') {
+				continue;
+			}
+			$res[strtolower($rval[0])] = isset($rval[1]) ? $rval[1] : '0';
 		}
 		
 		return $res;
@@ -160,17 +168,23 @@ class pserver__Linux extends lxDriverClass
 		$res = self::parse_data($data);
 
 		$unit = 1024;
+		$memtotal = isset($res['memtotal']) ? (float) $res['memtotal'] : 0;
+		$memfree = isset($res['memfree']) ? (float) $res['memfree'] : 0;
+		$swaptotal = isset($res['swaptotal']) ? (float) $res['swaptotal'] : 0;
+		$swapfree = isset($res['swapfree']) ? (float) $res['swapfree'] : 0;
+		$buffers = isset($res['buffers']) ? (float) $res['buffers'] : 0;
+		$cached = isset($res['cached']) ? (float) $res['cached'] : 0;
 
-		$ret['priv_s_memory'] = $res['memtotal'] / $unit;
-		$ret['used_s_memory'] = ($res['memtotal'] - $res['memfree']) / $unit;
-		$ret['priv_s_swap'] = $res['swaptotal'] / $unit;
-		$ret['used_s_swap'] = ($res['swaptotal'] - $res['swapfree']) / $unit;
+		$ret['priv_s_memory'] = $memtotal / $unit;
+		$ret['used_s_memory'] = ($memtotal - $memfree) / $unit;
+		$ret['priv_s_swap'] = $swaptotal / $unit;
+		$ret['used_s_swap'] = ($swaptotal - $swapfree) / $unit;
 
-		$ret['used_s_membuffers'] = $res['buffers'] / $unit;
+		$ret['used_s_membuffers'] = $buffers / $unit;
 
-		$ret['used_s_memcached'] = $res['cached'] / $unit;
+		$ret['used_s_memcached'] = $cached / $unit;
 
-		$ret['used_s_realused'] = ($res['memtotal'] - $res['memfree'] - $res['buffers'] - $res['cached']) / $unit;
+		$ret['used_s_realused'] = ($memtotal - $memfree - $buffers - $cached) / $unit;
 
 		// This is a hack to show the actual non-kloxo memory on openvz.
 		if ($sgbl->isKloxo()) {
@@ -179,7 +193,7 @@ class pserver__Linux extends lxDriverClass
 		//	exec("grep envID /proc/self/status", $out);
 			exec("sh /script/virtual-info -t", $out);
 
-			if ($out[0] == 'container') {
+			if (isset($out[0]) && $out[0] == 'container') {
 				$ret['used_s_memory'] -= 20;
 			}
 		}
@@ -187,12 +201,18 @@ class pserver__Linux extends lxDriverClass
 		foreach ($ret as &$vvv) {
 			$vvv = round($vvv);
 		}
+		unset($vvv);
 
 		$path = "/proc/cpuinfo";
 
 		$data = lfile($path);
 
 		$processornum = 0;
+		$cpu = array();
+
+		if (!is_array($data)) {
+			$data = array();
+		}
 
 		foreach ($data as $v) {
 			if (!trim($v)) {
@@ -201,7 +221,7 @@ class pserver__Linux extends lxDriverClass
 			
 			$d = explode(':', $v);
 			$d[0] = trim($d[0]);
-			$d[1] = trim($d[1]);
+			$d[1] = isset($d[1]) ? trim($d[1]) : '';
 			
 			if ($d[0] === 'processor') {
 				$processornum = $d[1];

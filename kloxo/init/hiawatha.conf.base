@@ -73,7 +73,7 @@ UrlToolkit {
 Directory {
 	DirectoryID = static_file
 	Path = /
-	Extensions = css,eot,gif,htm,html,ico,jpeg,jpg,js,otf,pdf,png,ps,psd,svg,swf,ttf,txt,woff,woff2
+	Extensions = css,eot,gif,htm,html,ico,jpeg,jpg,js,json,map,mjs,otf,pdf,png,ps,psd,svg,swf,ttf,txt,woff,woff2
 	ExpirePeriod = 1 weeks
 }
 

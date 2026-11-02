@@ -50,42 +50,55 @@ class sshauthorizedkey__sync extends Lxdriverclass
 		$f = "/root/.ssh/{$username}.authorized_keys";
 
 		if (file_exists($f)) {
-			return file_get_contents($f);
-		} else {
-			return;
+			$c = file_get_contents($f);
+			return is_string($c) ? $c : '';
 		}
+
+		return '';
 	}
 
 	static function readProtoAuthorizedKey($username)
 	{
-		$s = "/root/{$username}.id.rsa";
-
-	//	lxshell_return("rm", "-f", "{$s}*");
-		exec("'rm' -f {$s}*");
-	
-		$r = randomString(10);
-
-		lxshell_return("ssh-keygen", "-t", "rsa", "-b", '4096', "-N", $r, "-f", $s);
-		// MR -- because php running under lxlabs, need change
-		lxshell_return("sed", "-i", "'s:lxlabs@:{$username}@:'", "{$s}.pub");
-
-		$f = "{$s}.pub";
-
-		if (lxfile_exists("{$f}2")) {
-			$s = file_get_contents("{$f}2");
-			$s = "\n{$s}\n";
-		//	lfile_put_contents($username, $f, $s, FILE_APPEND);
-			file_put_contents($f, $s);
-			lunlink("{$f}2");
+		if (!is_dir('/root') || !is_writable('/root')) {
+			return '';
 		}
 
-		return file_get_contents($f);
+		$s = "/root/{$username}.id.rsa";
+		foreach (glob("{$s}*") ?: array() as $old) {
+			if (is_file($old)) {
+				@unlink($old);
+			}
+		}
+
+		$r = randomString(10);
+		lxshell_return("ssh-keygen", "-t", "rsa", "-b", '4096', "-N", $r, "-f", $s);
+
+		$f = "{$s}.pub";
+		if (!is_file($f)) {
+			return '';
+		}
+
+		$pub = file_get_contents($f);
+		if (!is_string($pub) || $pub === '') {
+			return '';
+		}
+
+		if ($username !== '' && str_contains($pub, 'lxlabs@')) {
+			$pub = str_replace('lxlabs@', $username . '@', $pub);
+			file_put_contents($f, $pub);
+		}
+
+		return $pub;
 	}
 
 	function getCurrentAuthKey()
 	{
 		$res = self::getAuthorizedKey($this->main->username);
+		if (!is_array($res)) {
+			return array();
+		}
 
+		$output = array();
 		foreach($res as $k => $v) {
 			if ("{$this->main->syncserver}___{$v['nname']}" === $this->main->nname) {
 				continue;
@@ -122,9 +135,12 @@ class sshauthorizedkey__sync extends Lxdriverclass
 			$v = self::readAuthorizedKey($username);
 		}
 
-		if (!$v) { return; }
+		if (!$v) {
+			return array();
+		}
 
 		$list = explode("\n", $v);
+		$res = array();
 
 		foreach($list as $l) {
 			$l = trim($l);
@@ -133,14 +149,14 @@ class sshauthorizedkey__sync extends Lxdriverclass
 
 			$l = trimSpaces($l);
 			$vv = explode(" ", $l);
+			if (!isset($vv[1])) {
+				continue;
+			}
 
 			$r['nname'] = fix_nname_to_be_variable_without_lowercase($vv[1]);
 			$r['full_key'] = $l;
-		//	$r['key'] = substr($vv[1], 0, 50);
-		//	$r['key'] .= " .....";
 			$r['key'] = $vv[1];
-
-			$r['hostname'] = $vv[2];
+			$r['hostname'] = isset($vv[2]) ? $vv[2] : '';
 
 			$r['username'] = $username;
 			$r['type'] = $vv[0];

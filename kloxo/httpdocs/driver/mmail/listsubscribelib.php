@@ -59,7 +59,14 @@ class ListSubscribe extends Lxclass
 
 		// Creat the extra varibles.. That are normally stgored in the db.
 
-		if ($res) foreach ($res as &$__rt) {
+		if (!is_array($res)) {
+			return array();
+		}
+
+		foreach ($res as &$__rt) {
+			if (!is_array($__rt)) {
+				continue;
+			}
 			$__rt['nname'] = "{$__rt['address']}___{$parent->getClName()}";
 			$__rt['syncserver'] = $parent->syncserver;
 			$__rt['parent_clname'] = createParentName("mailinglist", $parent->nname);

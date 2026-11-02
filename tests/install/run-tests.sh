@@ -158,6 +158,18 @@ if grep -q 'KLOXO_BLOWFISH_SECRET' "$ROOT/kloxo/file/phpmyadmin/config.inc.php";
 else
   bad "phpMyAdmin config template has no committed blowfish secret"
 fi
+if grep -q "PmaAbsoluteUri" "$ROOT/kloxo/file/phpmyadmin/config.inc.php"; then
+  ok "phpMyAdmin config sets PmaAbsoluteUri for the panel path"
+else
+  bad "phpMyAdmin config sets PmaAbsoluteUri for the panel path"
+fi
+if grep -q 'vendor_js_ok' "$PMA" \
+  && grep -q 'all-languages.tar.xz' "$PMA" \
+  && grep -q 'cp -aL' "$PMA"; then
+  ok "install-phpmyadmin requires real vendor JS (not Debian symlinks)"
+else
+  bad "install-phpmyadmin requires real vendor JS (not Debian symlinks)"
+fi
 if grep -q 'pma_password' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php"; then
   bad "phpMyAdmin link does not put the DB password in the URL"
 else
@@ -311,7 +323,7 @@ if grep -q "syncserver = IF" "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 
 else
   bad "init-panel-db seeds admin syncserver=localhost"
 fi
-if grep -q 'function seedPserver' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function seedPhpini' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'php-fpm_event' "$ROOT/kloxo/bin/install/init-panel-db"; then
+if grep -q 'function seedPserver' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function seedPhpini' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'php-fpm_event' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q 'function seedServerftp' "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds pserver phpini serverweb"
 else
   bad "init-panel-db seeds pserver phpini serverweb"
@@ -366,10 +378,12 @@ if grep -q 'KloxoIpaddr::currentIpv4' "$ROOT/kloxo/httpdocs/driver/pserver/ipadd
 else
   bad "redhat ip driver reads ip(8) and refuses Ubuntu writes"
 fi
-if grep -q 'KloxoIpaddr::currentIpv4' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__debianlib.php"; then
-  ok "debian ip driver falls back to ip(8)"
+if grep -q 'KloxoIpaddr::currentIpv4' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__debianlib.php" \
+  && grep -q 'ipaddress::fixstatus' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__debianlib.php" \
+  && ! grep -q 'ipaddress::listSystemIps' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__debianlib.php"; then
+  ok "debian ip driver falls back to ip(8) and reread uses fixstatus"
 else
-  bad "debian ip driver falls back to ip(8)"
+  bad "debian ip driver falls back to ip(8) and reread uses fixstatus"
 fi
 if grep -q "syncserver ?: 'localhost'" "$ROOT/kloxo/httpdocs/lib/client/clientbaselib.php"; then
   ok "phpini alert uses localhost when syncserver is empty"
@@ -415,6 +429,26 @@ else
   bad "init-panel-db rewrites wide tables for MariaDB 11"
 fi
 check "init-panel-db --self-test" "${INITDB[@]}" --self-test
+if echo "$helpout" | grep -q -- '--slave' && grep -q 'init-slave' "$ROOT/install.sh" \
+  && grep -q 'kloxo-backend.service' "$ROOT/install.sh"; then
+  ok "install.sh --slave writes slave-db and starts kloxo-backend"
+else
+  bad "install.sh --slave writes slave-db and starts kloxo-backend"
+fi
+check "php -l init-slave" php -l "$ROOT/kloxo/bin/install/init-slave"
+check "init-slave --self-test" php "$ROOT/kloxo/bin/install/init-slave" --self-test
+if grep -q 'kloxo-backend.sh' "$ROOT/kloxo/init/kloxo-backend.service" \
+  && grep -q 'slave-db.db' "$ROOT/kloxo/init/kloxo-backend.sh"; then
+  ok "kloxo-backend unit detects slave-db"
+else
+  bad "kloxo-backend unit detects slave-db"
+fi
+inst_dry="$(bash "$ROOT/install.sh" --dry-run)"
+if echo "$inst_dry" | grep -q 'type    master'; then
+  ok "install.sh dry-run names install type"
+else
+  bad "install.sh dry-run names install type"
+fi
 
 echo
 echo "$PASS passed, $FAIL failed"

@@ -14,6 +14,16 @@ class serverftp extends lxdb
 
 	static $__acdesc_update = array("f", "", "update");
 
+	static function initThisObjectRule($parent, $class, $name = null)
+	{
+		return $parent->getClName();
+	}
+
+	function isSync()
+	{
+		return $this->dbaction === 'update';
+	}
+
 	function createExtraVariables() 
 	{ 
 		$this->setDefault();

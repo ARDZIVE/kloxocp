@@ -4192,14 +4192,14 @@ class HtmlLib
 
 		$n = 0;
 
-		if (!$obj_list) {
+		if (!is_array($obj_list) || $obj_list === array()) {
 			return $n;
 		}
 
 		$filter = $this->frm_filter;
 
 		if (!$filter && !$this->frm_searchstring) {
-			return count($obj_list);
+			return kcount($obj_list);
 		}
 
 		foreach ($obj_list as $o) {
@@ -4543,7 +4543,7 @@ class HtmlLib
 
 		$skindir = $login->getSkinDir();
 
-		$nlcount = count($name_list) + 1;
+		$nlcount = kcount($name_list) + 1;
 		$imgheadleft = $skindir . "/images/top_lt.gif";
 		$imgheadleft = $skindir . "/images/top_lt.gif";
 		$imgheadleft2 = $skindir . "/images/top_lt.gif";
@@ -5532,8 +5532,13 @@ class HtmlLib
 
 	function print_css_source($csource)
 	{
+		$href = $csource;
+		$file = getcwd() . '/' . ltrim((string) $csource, '/');
+		if (is_file($file)) {
+			$href .= (strpos($href, '?') === false ? '?' : '&') . 'v=' . (string) filemtime($file);
+		}
 ?>
-		<link href="<?= $csource ?>" rel="stylesheet" type="text/css">
+		<link href="<?= $href ?>" rel="stylesheet" type="text/css">
 <?php
 	}
 
@@ -5556,12 +5561,12 @@ class HtmlLib
 			window.histlist = new Menu('histlist', 210);
 <?php
 			
-			if (isset($gbl->__histlist)) {
+			if (isset($gbl->__histlist) && is_array($gbl->__histlist) && $gbl->__histlist !== array()) {
 				end($gbl->__histlist);
-				$this->print_pmenu('histlist', key($gbl->__histlist), null, null, true);
+				$this->print_pmenu('histlist', (string) key($gbl->__histlist), null, null, true);
 			
 				while (($val = prev($gbl->__histlist))) {
-					$this->print_pmenu('histlist', key($gbl->__histlist), null, null, true);
+					$this->print_pmenu('histlist', (string) key($gbl->__histlist), null, null, true);
 				}
 			
 				reset($gbl->__histlist);
@@ -5583,18 +5588,20 @@ class HtmlLib
 		<script>
 			document.onkeydown = function (e) {
 				e = e || window.event;
+				var key = e.keyCode || e.which;
 
-				if (e.keyCode == 27) {
-					var b = document.getElementById('showimage');
-
-					if (b) {
-						b.style.visibility = 'hidden';
-					}
-
-					var c = document.getElementById('esmessage');
-
-					if (c) {
-						c.style.visibility = 'hidden';
+				if (key == 27) {
+					if (typeof kloxoHideAllPopups === 'function') {
+						kloxoHideAllPopups();
+					} else {
+						var ids = ['showimage', 'kloxo-error-box', 'esmessage', 'infomsg'];
+						for (var i = 0; i < ids.length; i++) {
+							var b = document.getElementById(ids[i]);
+							if (b) {
+								b.style.visibility = 'hidden';
+								b.style.display = 'none';
+							}
+						}
 					}
 				}
 
@@ -7795,20 +7802,16 @@ class HtmlLib
 			$this->print_jscript_source($divpop_path);
 ?>
 
-			<div id="showimage" style="visibility: hidden; position: absolute; width: 320px; left: 0; top: 300px; right: 0; margin: 0 auto">
-				<div style="background-color: #48c; border: 1px solid #ddd; cursor: pointer" onMousedown="password_initializedrag(event)">
-					<div id="dragbar" style="padding: 2px; height: 18px">
-						<div style="float:left"><span style="color:#fff"><?= $login->getKeywordUc('password_box') ?>&nbsp;-&nbsp;<?= $login->getKeywordUc('press_esc_to_close') ?></span></div>
-						<div style="float:right"><a href="javascript://" onClick="password_hidebox('showimage')"><span style="color:#fff; padding:2px">&#215;</span></a></div>
+			<div id="showimage" class="kloxo-modal kloxo-password-box" style="visibility: hidden; display: none;">
+				<div style="background-color: #48c; border: 1px solid #ddd;">
+					<div class="kloxo-modal-bar" style="background-color:#48c; border-bottom:1px solid #ddd; color:#fff;" onmousedown="kloxoPopupDrag(event, 'showimage')">
+						<div class="kloxo-modal-title"><span style="color:#fff"><?= $login->getKeywordUc('password_box') ?>&nbsp;-&nbsp;<?= $login->getKeywordUc('press_esc_to_close') ?></span></div>
+						<a class="kloxo-modal-close" href="javascript:void(0)" onclick="password_hidebox('showimage'); return false;" title="Close"><span style="color:#fff; padding:2px">&#215;</span></a>
 					</div>
-
-					<!-- PUT YOUR CONTENT BETWEEN HERE -->
 					<div style="background-color: #fed; padding: 10px">
 						<div id="password_container"></div>
 					</div>
-					<!-- END YOUR CONTENT HERE -->
 				</div>
-
 			</div>
 			<input style="margin: 2px; border: 1px solid #aaa; background-color: #eee; width: 120px;" class=textbox type=button value="Generate Password" onclick="generatePass('<?= $form ?>', '<?= $variable->name ?>');" width="10">
 <?php
@@ -8641,7 +8644,7 @@ function uploadAbort(e) { // upload abort
 
 		if ($pinfo !== '') {
 ?>
-		<div id="infomsg" style="display: none; width: 600px; margin: 10px auto">
+		<div id="infomsg" class="kloxo-help-box" style="display: none; visibility: hidden; width: 600px; margin: 10px auto">
 			<div style="padding: 4px 0; margin: 0 10px;"><span style="background-color: #f88; padding: 4px 8px; font-weight: bold; color: #ffc"><?= $login->getKeywordUc('help') ?>: <?= $this->getTitleOnly($baselink) ?></span> <!-- <?= $info ?> --></div>
 			<div  style="padding: 0 10px; background-color: #cff; border: 1px solid #f88">
 <?php
@@ -8685,8 +8688,16 @@ function uploadAbort(e) { // upload abort
 
 		$pinfo = str_replace("[%_program_%]", $sgbl->__var_program_name, $pinfo);
 
-		if ($this->frm_o_o[0]['class'] === 'mailaccount') {
-			$pinfo = str_replace("[%_mailaccount_%]", $this->frm_o_o[0]['nname'], $pinfo);
+		$frm = (isset($this->frm_o_o) && is_array($this->frm_o_o)) ? $this->frm_o_o : array();
+		$frm0 = (isset($frm[0]) && is_array($frm[0])) ? $frm[0] : array();
+		$frm1 = (isset($frm[1]) && is_array($frm[1])) ? $frm[1] : array();
+		$class0 = isset($frm0['class']) ? $frm0['class'] : '';
+		$name0 = isset($frm0['nname']) ? $frm0['nname'] : '';
+		$class1 = isset($frm1['class']) ? $frm1['class'] : '';
+		$name1 = isset($frm1['nname']) ? $frm1['nname'] : '';
+
+		if ($class0 === 'mailaccount') {
+			$pinfo = str_replace("[%_mailaccount_%]", $name0, $pinfo);
 		} else {
 			$pinfo = str_replace("[%_mailaccount_%]", 'mailaccount@domain.com', $pinfo);
 		}
@@ -8695,16 +8706,16 @@ function uploadAbort(e) { // upload abort
 		$pinfo = str_replace("[%_loginas_%]", $login->nname, $pinfo);
 		$pinfo = str_replace("[%_programname_%]", 'Kloxo CP', $pinfo);
 
-		if ($this->frm_o_o[0]['class'] === 'domain') {
-			$pinfo = str_replace("[%_domain_%]", $this->frm_o_o[0]['nname'], $pinfo);
+		if ($class0 === 'domain') {
+			$pinfo = str_replace("[%_domain_%]", $name0, $pinfo);
 		} else {
 			$pinfo = str_replace("[%_domain_%]", 'domain.com', $pinfo);
 		}
 
-		if (isset($this->frm_o_o[0]['class']) && ($this->frm_o_o[0]['class'] === 'client')) {
-			$pinfo = str_replace("[%_client_%]", $this->frm_o_o[0]['nname'], $pinfo);
-		} elseif (isset($this->frm_o_o[1]['class']) && ($this->frm_o_o[1]['class'] === 'client')) {
-			$pinfo = str_replace("[%_client_%]", $this->frm_o_o[1]['nname'], $pinfo);
+		if ($class0 === 'client') {
+			$pinfo = str_replace("[%_client_%]", $name0, $pinfo);
+		} elseif ($class1 === 'client') {
+			$pinfo = str_replace("[%_client_%]", $name1, $pinfo);
 		} else {
 			$pinfo = str_replace("[%_client_%]", $login->nname, $pinfo);
 		}
@@ -8849,7 +8860,9 @@ function uploadAbort(e) { // upload abort
 
 			// In the status bar, you should print with mainframe. But in the main page, it should be simple url.
 			$pmess = $this->format_message($mess, $value, false);
-			$this->show_error_message($pmess, $message, $imgfile, $color, $style, $fontstyle);
+			if ($skin_name !== 'simplicity') {
+				$this->show_error_message($pmess, $message, $imgfile, $color, $style, $fontstyle);
+			}
 
 			$pmess = $this->format_message($mess, $value, true);
 			$pmess = substr($pmess, 0, 270);
@@ -8898,15 +8911,19 @@ function uploadAbort(e) { // upload abort
 
 		$this->print_jscript_source($divpop_path);
 
+		static $kloxo_error_box_n = 0;
+		$kloxo_error_box_n++;
+		$error_id = ($kloxo_error_box_n === 1) ? 'kloxo-error-box' : ('kloxo-error-box-' . $kloxo_error_box_n);
+
 ?>
 
-		<div id="showimage" style="visibility:visible;width:400px; position:absolute; top: 100px; left:0; right:0; margin: 0 auto;">
+		<div id="<?= $error_id ?>" class="kloxo-modal kloxo-error-box" role="alertdialog" aria-labelledby="<?= $error_id ?>-title" style="visibility:visible; display:block;">
 			<div style="<?= $style ?>">
-				<div id="dragbar" onmousedown="password_initializedrag(event)" style="background-color: #ec8; text-align: right; padding: 2px; height: 18px; border-bottom: 1px solid red; cursor: pointer">
-					<div style="float:left"><?= $error_box ?><?= $press_esc_to_close ?></div>
-					<div style="float:right"><a href="javascript:hide_a_div_box('showimage')"><!-- <img src="<?= $icondir ?>/close.gif"> -->&#215;</a></div>
+				<div class="kloxo-modal-bar" onmousedown="kloxoPopupDrag(event, '<?= $error_id ?>')">
+					<div class="kloxo-modal-title" id="<?= $error_id ?>-title"><?= $error_box ?><?= $press_esc_to_close ?></div>
+					<a class="kloxo-modal-close" href="javascript:void(0)" onclick="kloxoHidePopup('<?= $error_id ?>'); return false;" title="Close">&#215;</a>
 				</div>
-				<div style="padding: 10px"><div style='<?= $fontstyle ?>; padding: 10px'><!-- <img src="<?= $imgfile ?>"> --><?= $message ?> <?= $mess ?></div></div>
+				<div class="kloxo-modal-body" style='<?= $fontstyle ?>'><!-- <img src="<?= $imgfile ?>"> --><?= $message ?> <?= $mess ?></div>
 			</div>
 		</div>
 <?php
@@ -9309,7 +9326,7 @@ function uploadAbort(e) { // upload abort
 
 			if (isset($sgbl->__var_main_resource) && $sgbl->__var_main_resource) {
 				$cl = $object->getList($name);
-				$count = count($cl);
+				$count = kcount($cl);
 
 				$halfflag = false;
 			} else {
@@ -9719,8 +9736,6 @@ function uploadAbort(e) { // upload abort
 			}
 ?>
 			</div>
-
-			<div class="div_fixed_logo_right"><a href="https://kloxocp.invalid"><img src="/login/images/kloxo.png" height="40"/></a></div>
 <?php
 		}
 
@@ -9734,6 +9749,11 @@ function uploadAbort(e) { // upload abort
 
 			<div id="mmm" class="<?= $mmmclass ?>">
 <?php
+			if ($skin_name === 'simplicity') {
+?>
+			<div class="div_fixed_logo_right"><a href="https://kloxocp.invalid"><img src="/login/images/kloxo.png" height="40"/></a></div>
+<?php
+			}
 		}
 
 		return;
@@ -10150,7 +10170,7 @@ function uploadAbort(e) { // upload abort
 ?>
 		<table class="tbl_content_content">
 			<tr>
-				<td class="td_top_align">
+				<td class="td_top_align" style="width:100%;">
 <?php
 	}
 

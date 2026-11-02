@@ -68,10 +68,22 @@ function getstring($devname, $ipaddress, $network, $broadcast, $gateway , $netma
 static function listSystemIps($machinename)
 {
 	$result = self::getCurrentIps();
-	$res = ipaddress::listSystemIps($result);
-	foreach($res as $r) {
-		ipaddress::copyCertificate($r['devname'], $machinename);
+	$res = ipaddress::fixstatus($result);
+	if (!is_array($res)) {
+		return array();
 	}
+
+	foreach ($res as $r) {
+		if (!is_array($r) || !isset($r['devname']) || $r['devname'] === '') {
+			continue;
+		}
+		try {
+			ipaddress::copyCertificate($r['devname'], $machinename);
+		} catch (Throwable $e) {
+			log_log("error", "copyCertificate {$r['devname']}: " . $e->getMessage());
+		}
+	}
+
 	return $res;
 }
 

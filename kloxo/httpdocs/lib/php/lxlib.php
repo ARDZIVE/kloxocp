@@ -2180,14 +2180,34 @@ function createEncName($name)
 	return $name;
 }
 
+function kloxo_password_hash($plain)
+{
+	if (!is_string($plain) || $plain === '') {
+		return '';
+	}
+	if (defined('PASSWORD_ARGON2ID')) {
+		$h = password_hash($plain, PASSWORD_ARGON2ID);
+		if (is_string($h) && $h !== '') {
+			return $h;
+		}
+	}
+	$h = password_hash($plain, PASSWORD_DEFAULT);
+	if (is_string($h) && $h !== '') {
+		return $h;
+	}
+	return crypt($plain, '$1$'.randomString(8).'$');
+}
+
 function check_password($unenc, $enc)
 {
-	//Old Stuff Not reached
-	if (crypt($unenc, $enc) === $enc) {
-		return true;
+	if (!is_string($unenc) || !is_string($enc) || $unenc === '' || $enc === '') {
+		return false;
 	}
-
-	return false;
+	$info = function_exists('password_get_info') ? password_get_info($enc) : null;
+	if (is_array($info) && isset($info['algo']) && $info['algo'] !== 0 && $info['algo'] !== null) {
+		return password_verify($unenc, $enc);
+	}
+	return hash_equals($enc, (string)crypt($unenc, $enc));
 }
 /*
 	MR - this function trouble if running on php 7.0+
@@ -2973,7 +2993,10 @@ function kloxo_menu_title($url)
 	$fallback = is_string($url) ? $url : 'Item';
 	try {
 		if (isset($ghtml) && is_object($ghtml) && method_exists($ghtml, 'getTitleOnly')) {
+			$saved = isset($ghtml->frm_o_o) ? $ghtml->frm_o_o : null;
+			$ghtml->frm_o_o = array();
 			$t = $ghtml->getTitleOnly($url);
+			$ghtml->frm_o_o = $saved;
 			if (is_string($t) && $t !== '') {
 				return $t;
 			}
@@ -3245,8 +3268,11 @@ function init_slave($pass)
 	global $gbl, $sgbl, $login, $ghtml;
 
 	$rm = new Remote();
-	$rm->password = crypt($pass, '$1$'.randomString(8).'$');
+	$rm->password = kloxo_password_hash($pass);
 	lfile_put_contents($sgbl->__path_slave_db, serialize($rm));
+	if (function_exists('lxfile_generic_chmod')) {
+		lxfile_generic_chmod($sgbl->__path_slave_db, '0600');
+	}
 }
 
 function lx_socket_read($socket)

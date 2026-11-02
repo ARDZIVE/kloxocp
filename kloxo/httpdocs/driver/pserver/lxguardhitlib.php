@@ -173,11 +173,19 @@ class lxguardhitdisplay extends lxclass
 			return;
 		}
 
-		if (!$list) { return; }
+		if (!is_array($list) || $list === array()) {
+			return;
+		}
 
 		if ($list) {
 			foreach($list as $k => $v) {
+				if (!is_array($v)) {
+					continue;
+				}
 				foreach($v as $kk => $vv) {
+					if (!is_array($vv)) {
+						continue;
+					}
 					$l['nname'] = "{$k}___$kk";
 					$l['ddate'] = $kk;
 					$l['ipaddress'] = $k;
@@ -214,12 +222,15 @@ class lxguardhitdisplay extends lxclass
 		$res = $sq->rawQuery("SELECT ipaddress, access, count(*) FROM lxguardhit ".
 			"WHERE syncserver = '$server' GROUP BY ipaddress, access");
 
-		if (!$res) { return; }
+		if (!is_array($res) || $res === array()) {
+			return array();
+		}
 
 		foreach($res as $r) {
 			$total[$r['ipaddress']][$r['access']] = $r['count(*)'];
 		}
 
+		$ret = array();
 		foreach($total as $k => $t) {
 			$res['nname'] = $k;
 			$res['currentip_flag'] = 'null';

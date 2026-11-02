@@ -79,7 +79,7 @@ class Mailcontent extends Lxclass
 	{
 		$res = rl_exec_in_driver($parent, $class, "getMailContent", array($parent->nname));
 
-		return $res;
+		return is_array($res) ? $res : array();
 
 	}
 }

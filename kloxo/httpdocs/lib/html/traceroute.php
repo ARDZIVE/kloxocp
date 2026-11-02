@@ -69,7 +69,7 @@ class traceroute extends lxclass
 
 	function Net_Traceroute_Result($result, $sysname)
 	{
-		$this->_raw_data = $result;
+		$this->_raw_data = is_array($result) ? $result : array();
 		$this->_sysname  = $sysname;
 
 		$this->_parseResultLinux();
@@ -94,7 +94,7 @@ class traceroute extends lxclass
 
 	function _parseResultlinux()
 	{
-		$raw_data_len = count($this->_raw_data);
+		$raw_data_len = kcount($this->_raw_data);
 		$dataRow = 0;
 
 		while (empty($this->_raw_data[$dataRow]) && ($dataRow<$raw_data_len)) {
@@ -159,7 +159,7 @@ class traceroute extends lxclass
 	*/
 	function _parseResultwindows()
 	{
-		$raw_data_len = count($this->_raw_data);
+		$raw_data_len = kcount($this->_raw_data);
 		$dataRow = 0;
 
 		while (empty($this->_raw_data[$dataRow]) && ($dataRow<$raw_data_len)) {

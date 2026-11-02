@@ -62,7 +62,10 @@ class Uuser extends Lxclient
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->syncserver, 'uuser');
-		$res = rl_exec_get($parent->__masterserver, $parent->syncserver,  array("uuser__$driverapp", "getShellList"), null);
+		$res = kloxo_rl_driver($parent->__masterserver, $parent->syncserver, 'uuser', $driverapp, 'getShellList', null);
+		if (!is_array($res)) {
+			$res = array();
+		}
 		$vlist['nname'] = array('m', null);
 		$vlist['shell'] = array('s', $res);
 		$vlist['password'] = array('m', null);
@@ -84,7 +87,10 @@ class Uuser extends Lxclient
 		switch($subaction) {
 			case "shell_access":
 				$driverapp = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'uuser');
-				$res = rl_exec_get($this->__masterserver, $this->syncserver,  array("uuser__$driverapp", "getShellList"), null);
+				$res = kloxo_rl_driver($this->__masterserver, $this->syncserver, 'uuser', $driverapp, 'getShellList', null);
+				if (!is_array($res)) {
+					$res = array();
+				}
 
 				$vlist['nname'] = array('M', null);
 				$vlist['shell'] = array('s', $res);

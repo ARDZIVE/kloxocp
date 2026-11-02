@@ -51,9 +51,9 @@ class Package extends Lxclass
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'package');
-		$list = rl_exec_get($parent->__masterserver, $parent->__readserver,  array("package__$driverapp", "getPackages"), null);
+		$list = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'package', $driverapp, 'getPackages', null);
 
-		return $list;
+		return is_array($list) ? $list : array();
 	}
 }
 

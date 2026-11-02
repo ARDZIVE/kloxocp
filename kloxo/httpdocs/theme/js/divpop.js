@@ -4,93 +4,72 @@
 * This notice must stay intact for use
 ******************************************/
 
-var ie4=false
-var ns6=!!document.getElementById
+var kloxoDrag = { el: null, dx: 0, dy: 0 };
 
-//drag drop function for NS 4////
-/////////////////////////////////
-
-var dragswitch=0
-var nsx
-var nsy
-var nstemp
-
-function drag_dropns(name){
-return
-temp=eval(name)
-temp.captureEvents(Event.MOUSEDOWN | Event.MOUSEUP)
-temp.onmousedown=gons
-temp.onmousemove=dragns
-temp.onmouseup=stopns
+function kloxoPopupDrag(e, id) {
+	if (!e) {
+		return;
+	}
+	if (e.preventDefault) {
+		e.preventDefault();
+	}
+	var el = document.getElementById(id || 'showimage');
+	if (!el) {
+		return;
+	}
+	var r = el.getBoundingClientRect();
+	el.style.left = r.left + 'px';
+	el.style.top = r.top + 'px';
+	el.style.right = 'auto';
+	el.style.margin = '0';
+	el.style.transform = 'none';
+	kloxoDrag.el = el;
+	kloxoDrag.dx = e.clientX - r.left;
+	kloxoDrag.dy = e.clientY - r.top;
+	document.onmousemove = function (ev) {
+		if (!kloxoDrag.el || !ev) {
+			return false;
+		}
+		kloxoDrag.el.style.left = (ev.clientX - kloxoDrag.dx) + 'px';
+		kloxoDrag.el.style.top = (ev.clientY - kloxoDrag.dy) + 'px';
+		return false;
+	};
 }
 
-function gons(e){
-temp.captureEvents(Event.MOUSEMOVE)
-nsx=e.x
-nsy=e.y
-}
-function dragns(e){
-if (dragswitch==1){
-temp.moveBy(e.x-nsx,e.y-nsy)
-return false
-}
+function password_initializedrag(e) {
+	kloxoPopupDrag(e, 'showimage');
 }
 
-function stopns(){
-temp.releaseEvents(Event.MOUSEMOVE)
+document.onmouseup = function () {
+	kloxoDrag.el = null;
+	document.onmousemove = null;
+};
+
+function password_hidebox(nameid) {
+	if (typeof kloxoHidePopup === 'function') {
+		kloxoHidePopup(nameid);
+		return;
+	}
+	var crossobj = document.getElementById(nameid);
+	if (!crossobj) {
+		return;
+	}
+	crossobj.style.visibility = 'hidden';
+	crossobj.style.display = 'none';
 }
 
-//drag drop function for ie4+ and NS6////
-/////////////////////////////////
-
-
-function drag_drop(e){
-if (ie4&&dragapproved){
-crossobj.style.left=tempx+event.clientX-offsetx
-crossobj.style.top=tempy+event.clientY-offsety
-return false
+function password_showbox(fulltext) {
+	var box = document.getElementById('showimage');
+	var container = document.getElementById('password_container');
+	if (container) {
+		container.textContent = 'Password: ' + fulltext;
+	}
+	if (typeof kloxoShowPopup === 'function') {
+		kloxoShowPopup('showimage');
+		return;
+	}
+	if (box) {
+		box.style.visibility = 'visible';
+		box.style.display = 'block';
+	}
 }
-else if (ns6&&dragapproved){
-crossobj.style.left=tempx+e.clientX-offsetx+"px"
-crossobj.style.top=tempy+e.clientY-offsety+"px"
-return false
-}
-}
-
-function password_initializedrag(e){
-if (!e) { return; }
-crossobj=document.getElementById("showimage")
-if (!crossobj) { return; }
-var firedobj=e.target
-var topelement="html"
-while (firedobj && firedobj.tagName && firedobj.tagName!=topelement.toUpperCase() && firedobj.id!="dragbar"){
-firedobj=firedobj.parentNode
-}
-
-if (firedobj && firedobj.id=="dragbar"){
-offsetx=e.clientX
-offsety=e.clientY
-
-tempx=parseInt(crossobj.style.left)
-tempy=parseInt(crossobj.style.top)
-
-dragapproved=true
-document.onmousemove=drag_drop
-}
-}
-document.onmouseup=function(){ dragapproved=false }
-
-////drag drop functions end here//////
-
-function password_hidebox(nameid){
-crossobj= document.getElementById(nameid);
-crossobj.style.visibility="hidden";
-}
-
-function password_showbox(fulltext){
-crossobj=document.getElementById("showimage")
-crossobj.style.visibility="visible";
-/* document.getElementById('password_container').innerHTML = "Password: Press Escape to Close. \n<br> <br> <br> &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; " +  fulltext; */
-document.getElementById('password_container').innerHTML = "Password: " +  fulltext;
-}
-

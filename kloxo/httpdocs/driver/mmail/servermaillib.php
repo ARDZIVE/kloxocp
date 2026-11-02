@@ -155,7 +155,9 @@ class ServerMail extends lxdb
 				$vlist['queuelifetime'] = null;
 
 				if (!$this->smtp_instance) {
-					$this->smtp_instance = lfile_get_contents("/var/qmail/control/concurrencyincoming");
+					$smtp_instance_file = "/var/qmail/control/concurrencyincoming";
+					$this->smtp_instance = is_file($smtp_instance_file)
+						? lfile_get_contents($smtp_instance_file) : '';
 				}
 
 				$vlist['smtp_instance'] = null;
@@ -164,7 +166,9 @@ class ServerMail extends lxdb
 			//	$vlist['alt_smtp_sdyke_flag'] = null;
 
 				if (!$this->smtp_relay) {
-					$this->smtp_relay = lfile_get_contents("/var/qmail/control/smtproutes");
+					$smtp_relay_file = "/var/qmail/control/smtproutes";
+					$this->smtp_relay = is_file($smtp_relay_file)
+						? lfile_get_contents($smtp_relay_file) : '';
 				}
 
 				$vlist['smtp_relay'] = null;
@@ -203,7 +207,7 @@ class ServerMail extends lxdb
 					$file = "{$path}/spamdyke_rbl.txt";
 				}
 
-				$vlist['dns_blacklists'] = array("t", lfile_get_contents($file));
+				$vlist['dns_blacklists'] = array("t", is_file($file) ? (string) lfile_get_contents($file) : '');
 
 				$vlist['default_dns_blacklists_flag'] = null;
 
@@ -213,7 +217,7 @@ class ServerMail extends lxdb
 					$file = "{$path}/spamdyke_blacklist_headers.txt";
 				}
 
-				$vlist['blacklist_headers'] = array("t", lfile_get_contents($file));
+				$vlist['blacklist_headers'] = array("t", is_file($file) ? (string) lfile_get_contents($file) : '');
 
 				$vlist['default_blacklist_headers_flag'] = null;
 

@@ -49,6 +49,7 @@ $gl_class_array['spam__bogofilter'] = "driver/mmail/spam__bogofilterlib.php";
 $gl_class_array['spam__none'] = "driver/mmail/spam__nonelib.php";
 $gl_class_array['mailcontent__qmail'] = "driver/mmail/mailcontent__qmaillib.php";
 $gl_class_array['mailqueue__qmail'] = "driver/mmail/mailqueue__qmaillib.php";
+$gl_class_array['mailqueue__postfix'] = "driver/mmail/mailqueue__postfixlib.php";
 
 $gl_class_array['serverweb__nginx'] = "driver/web/serverweb__nginxlib.php";
 $gl_class_array['serverweb__none'] = "driver/web/serverweb__nonelib.php";

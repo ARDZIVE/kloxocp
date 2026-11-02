@@ -588,11 +588,61 @@ abstract class Dnsbase extends Lxdb
 
 	static function getIpaddressList($parent)
 	{
-		$db = new Sqlite($parent->__masterserver, 'ipaddress');
-		$res = $db->getTable(array('ipaddr'));
-		$res = get_namelist_from_arraylist($res, 'ipaddr');
+		$out = array();
+		$master = (is_object($parent) && isset($parent->__masterserver))
+			? $parent->__masterserver : null;
+		$res = array();
+		global $sgbl;
+		$passfile = (isset($sgbl) && is_object($sgbl) && isset($sgbl->__path_admin_pass))
+			? (string)$sgbl->__path_admin_pass : '';
+		if ($passfile !== '' && is_readable($passfile)
+			&& trim((string)@file_get_contents($passfile)) !== '') {
+			try {
+				$db = new Sqlite($master, 'ipaddress');
+				$got = $db->getTable(array('ipaddr'));
+				if (is_array($got)) {
+					$res = $got;
+				}
+			} catch (Throwable $e) {
+				$res = array();
+			}
+		}
 
-		return $res;
+		if (is_array($res)) {
+			foreach ($res as $row) {
+				if (!is_array($row) || !isset($row['ipaddr'])) {
+					continue;
+				}
+				$ip = trim((string)$row['ipaddr']);
+				if ($ip === '' || strpos($ip, '127.') === 0) {
+					continue;
+				}
+				$out[$ip] = $ip;
+			}
+		}
+
+		if ($out) {
+			return $out;
+		}
+
+		$ipfile = dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		if (is_file($ipfile)) {
+			include_once $ipfile;
+		}
+		if (class_exists('KloxoIpaddr', false)) {
+			foreach (KloxoIpaddr::currentIpv4() as $row) {
+				if (!is_array($row) || !isset($row['ipaddr'])) {
+					continue;
+				}
+				$ip = trim((string)$row['ipaddr']);
+				if ($ip === '') {
+					continue;
+				}
+				$out[$ip] = $ip;
+			}
+		}
+
+		return $out;
 	}
 
 	function updateform($subaction, $param)

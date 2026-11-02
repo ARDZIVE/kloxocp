@@ -24,7 +24,11 @@ class Component__rpm extends lxDriverClass
 	{
 		global $sgbl;
 
+		$t = array();
 		$files = glob("../etc/list/set.*.lst", GLOB_MARK);
+		if (!is_array($files)) {
+			return $t;
+		}
 
 		foreach ($files as $fk => $fv) {
 			$b = basename($fv);
@@ -83,6 +87,6 @@ class Component__rpm extends lxDriverClass
 				'type' => $type);
 		}
 
-		return $t;
+		return is_array($t) ? $t : array();
 	}
 }

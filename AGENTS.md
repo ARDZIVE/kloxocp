@@ -30,7 +30,21 @@ is no longer dropped by splash `flush()`/`ob_start()` or an
 uncaught PHP 8 `Error` after the header. Dashboard tiles and the
 simplicity top-bar items after Server (Security, Basic, Task,
 Help, Logout) no longer vanish on a missing action description.
-Status, Show/Hide and the clock stay on the top right. Home keeps
+Status, Show/Hide and the clock stay on the top right in one row,
+with Help/Logout immediately to their left. The green menu strip
+shrink-wraps Home…Task. Log/driver/php/backup/webserver show pages
+omit the left Find box. List/driver calls guard a missing
+Ubuntu driver so the page does not TypeError. Re Read IPaddress
+uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
+Directory Index list does not `count()` a missing `dirindexlist_a`.
+Cron Tasks Mail To does not need the C daemon on TCP 7776.
+DNS Template links list `dnstemplate`, not Backup/Restore.
+FTP Configure is `serverftp` under localhost, not Backup FTP Configuration.
+FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
+Admin Servers can add a remote host (hostname or IPv4 plus the slave password).
+`install.sh --slave` writes `slave-db.db` and starts `kloxo-backend` on TLS 7779
+(all interfaces); plaintext 7776 stays on localhost. Live two-host add is unverified.
+Home keeps
 Find / Information / Resource on the left and the dashboard tiles
 on the right.
 First-party `ereg*`/`split`
@@ -54,6 +68,7 @@ bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload (p
 bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
 bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)
 php kloxo/bin/install/init-panel-db --help
+php kloxo/bin/install/init-slave --help
 bash kloxo/bin/install/install-hiawatha --help
 bash tests/mail/run-tests.sh          # 73 mail checks (needs MariaDB root socket; disposable machine only)
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Postfix/Dovecot/Rspamd; see tests/mail/README.md)

@@ -413,17 +413,35 @@ function __ac_desc_show($object)
 		}
 	}
 
-	if (!$printed_message) {
+	$show_class = strtolower((string) $object->getClass());
+	$skip_find = array('llog', 'driver', 'phpini', 'lxbackup', 'serverweb', 'serverftp');
+	$show_find = !in_array($show_class, $skip_find, true);
+	$show_left = $show_find || $ilist || $object->createShowNote() || $rlist || $plist;
 ?>
 
-	<table class="div_home_page" style="width:100%; border:0; border-collapse:separate; border-spacing:15px 0; margin:10px 0;">
-		<tr>
-			<td class="div_home_left" style="width:240px; max-width:240px; vertical-align:top; padding:0;">
+	<table class="div_home_page" style="width:100%; table-layout:fixed; border:0; border-collapse:separate; border-spacing:12px 0; margin:10px 0;">
+		<colgroup>
 <?php
-			try {
-				$ghtml->print_find($object);
-			} catch (Throwable $e) {
-				log_log("error", "print_find: " . $e->getMessage());
+	if ($show_left) {
+?>
+			<col style="width:240px">
+<?php
+	}
+?>
+			<col>
+		</colgroup>
+		<tr>
+<?php
+	if ($show_left) {
+?>
+			<td class="div_home_left" style="width:240px; vertical-align:top; padding:0;">
+<?php
+			if ($show_find) {
+				try {
+					$ghtml->print_find($object);
+				} catch (Throwable $e) {
+					log_log("error", "print_find: " . $e->getMessage());
+				}
 			}
 
 			if ($ilist) {
@@ -459,11 +477,14 @@ function __ac_desc_show($object)
 			}
 ?>
 			</td>
+<?php
+	}
+?>
 			<td class="div_home_right" style="vertical-align:top; padding:0;">
 <?php
 			if (isset($nalist) && $nalist) {
 				try {
-					$ghtml->print_object_action_block($object, $nalist, 8);
+					$ghtml->print_object_action_block($object, $nalist, 6);
 				} catch (Throwable $e) {
 					log_log("error", "action block: " . $e->getMessage());
 				}
@@ -473,19 +494,6 @@ function __ac_desc_show($object)
 		</tr>
 	</table>
 <?php
-	} else {
-		if (isset($nalist) && $nalist) {
-			try {
-				$ghtml->print_object_action_block($object, $nalist, 8);
-			} catch (Throwable $e) {
-				log_log("error", "action block: " . $e->getMessage());
-			}
-?>
-
-			<br/>
-<?php
-		}
-	}
 
 	$object->showRawPrint($subaction);
 
@@ -830,16 +838,29 @@ function __ac_desc_list($object, $cname = null)
 
 	$ghtml->print_message();
 
-	$updatelist = exec_class_method($rclass, "createListUpdateForm", $object, $cname);
+	try {
+		$updatelist = exec_class_method($rclass, "createListUpdateForm", $object, $cname);
+	} catch (Throwable $e) {
+		log_log("error", "createListUpdateForm $rclass: " . $e->getMessage());
+		$updatelist = null;
+	}
 
 	if ($updatelist) {
 		foreach ($updatelist as $u) {
-			do_updateform($object, $u);
+			try {
+				do_updateform($object, $u);
+			} catch (Throwable $e) {
+				log_log("error", "do_updateform $rclass $u: " . $e->getMessage());
+			}
 		}
 	}
 
-	if (exec_class_method($rclass, "createListAddForm", $object, $cname)) {
-		do_addform($object, $cname);
+	try {
+		if (exec_class_method($rclass, "createListAddForm", $object, $cname)) {
+			do_addform($object, $cname);
+		}
+	} catch (Throwable $e) {
+		log_log("error", "createListAddForm $rclass: " . $e->getMessage());
 	}
 
 	make_show_all($object, $cname);
@@ -856,8 +877,12 @@ function __ac_desc_list($object, $cname = null)
 
 	$ghtml->print_information('pre', 'list', $cname, "", $pre);
 
-	if (exec_class_method($cname, "addListForm", $object, $cname)) {
-		$ghtml->printListAddForm($object, $cname);
+	try {
+		if (exec_class_method($cname, "addListForm", $object, $cname)) {
+			$ghtml->printListAddForm($object, $cname);
+		}
+	} catch (Throwable $e) {
+		log_log("error", "addListForm $cname: " . $e->getMessage());
 	}
 
 	do_search($object, $cname);

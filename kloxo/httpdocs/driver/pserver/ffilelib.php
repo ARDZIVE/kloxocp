@@ -1384,10 +1384,21 @@ class Ffile extends Lxclass
 
 		$duflag = $parent->duflag;
 
-		$list = rl_exec_get($parent->__masterserver, $parent->__readserver, array("coreFfile", "get_full_stat"), 
-			array($parent->__username_o, $parent->root, $fpathp, $duflag));
+		try {
+			$list = rl_exec_get($parent->__masterserver, $parent->__readserver, array("coreFfile", "get_full_stat"),
+				array($parent->__username_o, $parent->root, $fpathp, $duflag));
+		} catch (Throwable $e) {
+			return null;
+		}
 
-		foreach ((array)$list as $stat) {
+		if (!is_array($list)) {
+			return null;
+		}
+
+		foreach ($list as $stat) {
+			if (!is_array($stat) || !isset($stat['name'])) {
+				continue;
+			}
 			$file = basename($stat['name']);
 
 			if ($file === "") {

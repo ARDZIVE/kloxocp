@@ -107,9 +107,13 @@ class  Process extends Lxclass
 		global $gbl, $sgbl, $login, $ghtml; 
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'process');
-		$res = rl_exec_get($parent->__masterserver, $parent->__readserver,  array("process__$driverapp", "readProcessList"), null);
+		if (!$driverapp) {
+			$driverapp = 'linux';
+		}
 
-		return $res;
+		$res = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'process', $driverapp, 'readProcessList', null);
+
+		return is_array($res) ? $res : array();
 	}
 }
 

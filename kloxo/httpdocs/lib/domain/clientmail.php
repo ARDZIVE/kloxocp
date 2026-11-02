@@ -28,7 +28,13 @@ class clientmail extends lxclass {
 
 	static function initThisList($parent, $class)
 	{
-		$res = rl_exec_get(null, $parent->syncserver,  array("clientmail", "readtotallog"), array());
+		$sync = (is_object($parent) && isset($parent->syncserver) && $parent->syncserver !== '')
+			? $parent->syncserver : 'localhost';
+		try {
+			$res = rl_exec_get(null, $sync,  array("clientmail", "readtotallog"), array());
+		} catch (Throwable $e) {
+			return array();
+		}
 
 		return is_array($res) ? $res : array();
 	}
@@ -154,7 +160,10 @@ class clientmail extends lxclass {
 		}
 
 		$date = time() - 24 * 3600 * 2;
-		FindRightPosition($fp, $fsize = lxfile_size(self::mailLogPath()), $date, time(), array("mailtraffic", "getTimeFromOriginalQmailString"));
+		$pos = FindRightPosition($fp, $fsize = lxfile_size(self::mailLogPath()), $date, time(), array("mailtraffic", "getTimeFromOriginalQmailString"));
+		if ($pos === -1 || $pos === false) {
+			rewind($fp);
+		}
 
 		if (!is_resource($fp)) {
 			return $total;

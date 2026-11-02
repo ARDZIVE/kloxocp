@@ -202,10 +202,20 @@ class Ipaddress__Redhat extends LxDriverclass
 	//	exec("sh /script/fixweb --target=defaults");
 
 		$res = ipaddress::fixstatus($result);
+		if (!is_array($res)) {
+			return array();
+		}
 
 		foreach ($res as $r) {
-			if ($sgbl->isKloxo()) {
-				ipaddress::copyCertificate($r['devname'], $machinename);
+			if (!is_array($r) || !isset($r['devname']) || $r['devname'] === '') {
+				continue;
+			}
+			try {
+				if (is_object($sgbl) && $sgbl->isKloxo()) {
+					ipaddress::copyCertificate($r['devname'], $machinename);
+				}
+			} catch (Throwable $e) {
+				log_log("error", "copyCertificate {$r['devname']}: " . $e->getMessage());
 			}
 		}
 

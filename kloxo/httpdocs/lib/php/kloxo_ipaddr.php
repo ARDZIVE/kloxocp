@@ -40,9 +40,11 @@ final class KloxoIpaddr
      */
     public static function currentIpv4(): array
     {
+        $ip = self::ipBinary();
+
         return self::parseAddrShow(
-            self::run(['ip', '-4', '-o', 'addr', 'show']),
-            self::run(['ip', '-4', 'route', 'show', 'default'])
+            self::run([$ip, '-4', '-o', 'addr', 'show']),
+            self::run([$ip, '-4', 'route', 'show', 'default'])
         );
     }
 
@@ -139,6 +141,17 @@ final class KloxoIpaddr
         }
 
         return ['ostype' => $ostype, 'osversion' => $pretty];
+    }
+
+    private static function ipBinary(): string
+    {
+        foreach (['/usr/sbin/ip', '/sbin/ip', '/usr/bin/ip', '/bin/ip'] as $p) {
+            if (is_executable($p)) {
+                return $p;
+            }
+        }
+
+        return 'ip';
     }
 
     /** @param list<string> $cmd */

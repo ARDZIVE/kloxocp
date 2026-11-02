@@ -106,9 +106,9 @@ class PhpModule extends lxclass
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'phpmodule');
 
-		$res = rl_exec_get($parent->__masterserver, $parent->__readserver,  array("phpmodule__$driverapp", "getListDetail"), array($parent->syncserver));
+		$res = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'phpmodule', $driverapp, 'getListDetail', array($parent->syncserver));
 
-		return $res;
+		return is_array($res) ? $res : array();
 	}
 
 	function updateform($subaction, $param)

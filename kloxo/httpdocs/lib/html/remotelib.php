@@ -290,8 +290,17 @@ function remote_exec($machine, $cmd)
 		if (is_secondary_master()) {
 			throw new lxException($login->getThrow('on_secondary_master'), '', $machine);
 		}
-		if (os_isSelfSystemUser()) {
+		// Panel PHP-FPM is lxlabs, not root. Ubuntu never starts the C
+		// daemon on :7776, so localhost work must run in-process. Do not
+		// gate on posix uid: a failed getpwuid used to fall through to
+		// TCP and throw "No socket connect to server [localhost]".
+		try {
 			return do_local_action($cmd);
+		} catch (lxException $e) {
+			throw $e;
+		} catch (Throwable $e) {
+			log_log("error", "do_local_action: " . $e->getMessage());
+			throw new lxException($login->getThrow('could_not_connect_to_server'), '', $machine);
 		}
 	}
 
@@ -512,6 +521,24 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 
 }
 
+/**
+ * TLS 7779: loopback on a master; all interfaces on a slave so the master
+ * panel can reach this host. Plaintext 7776 stays on 127.0.0.1.
+ */
+function kloxo_ssl_listen_address()
+{
+	global $gbl, $sgbl;
+
+	$slave = false;
+	if (is_object($gbl) && !empty($gbl->is_slave)) {
+		$slave = true;
+	} elseif (is_object($sgbl) && method_exists($sgbl, 'is_this_slave') && $sgbl->is_this_slave()) {
+		$slave = true;
+	}
+
+	return $slave ? '0.0.0.0' : '127.0.0.1';
+}
+
 function createSslStream()
 {
 	global $gbl, $sgbl, $login, $ghtml;
@@ -540,10 +567,11 @@ function createSslStream()
 		$opts['ssl']['crypto_method'] = $crypto;
 	}
 	$ctx = stream_context_create($opts);
-	$sockr = stream_socket_server("ssl://127.0.0.1:{$sgbl->__var_remote_port}", $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $ctx);
+	$host = kloxo_ssl_listen_address();
+	$sockr = stream_socket_server("ssl://{$host}:{$sgbl->__var_remote_port}", $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $ctx);
 
 	if (!$sockr) {
-		die("Could not bind Remote address on 127.0.0.1: {$errstr}\n");
+		die("Could not bind Remote address on {$host}: {$errstr}\n");
 	}
 
 	return $sockr;

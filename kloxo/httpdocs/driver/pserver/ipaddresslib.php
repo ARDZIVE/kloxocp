@@ -701,25 +701,28 @@ class Ipaddress extends Lxdb
 
 	static function fixstatus($result)
 	{
-		$i = 0;
+		if (!is_array($result)) {
+			return array();
+		}
 
-		$result2 = null;
+		$result2 = array();
 
 		foreach ($result as $row) {
-			if ($row['ipaddr'] === '127.0.0.1') {
+			if (!is_array($row)) {
 				continue;
 			}
 
-			if ($row['devname'] === "lo") {
+			$ip = isset($row['ipaddr']) ? (string)$row['ipaddr'] : '';
+			$dev = isset($row['devname']) ? (string)$row['devname'] : '';
+
+			if ($ip === '' || $ip === '127.0.0.1' || str_starts_with($ip, '127.') || $dev === 'lo') {
 				continue;
 			}
 
-
-			if ($row['status'] === "yes") {
-				$row['status'] = "on";
-			} else {
-				$row['status'] = "off";
-			}
+			$st = isset($row['status']) ? strtolower((string)$row['status']) : '';
+			$row['status'] = ($st === 'yes' || $st === 'on') ? 'on' : 'off';
+			$row['ipaddr'] = $ip;
+			$row['devname'] = $dev;
 
 			$result2[] = $row;
 		}

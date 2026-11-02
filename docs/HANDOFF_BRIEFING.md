@@ -102,9 +102,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
    JSON replacement is planned, not built. Other unserialize-on-untrusted-input sites remain.
 9. **P0.4 closed:** web-console stub (no unserialize); Easy Installer disabled (no HTTP
    download/unpack); `set-kloxo-php` no longer writes NOPASSWD sudoers. Tests: `tests/security/`.
-10. **P0.5 closed for defaults:** daemon and PHP SSL listener bind localhost; TLS 1.2+; 1 MiB
-    input cap; missing keys fail closed (`generate-tls-keys`). Long-term allow-listed agent is
-    not built. Multi-server (non-localhost bind) is an explicit later choice.
+10. **P0.5 closed for defaults; multi-server bind is now explicit.** Daemon and PHP SSL
+    listener bind localhost on a master; TLS 1.2+; 1 MiB input cap; missing keys fail closed
+    (`generate-tls-keys`). A **slave** TLS listener on 7779 binds all interfaces; plaintext
+    7776 stays loopback. C1 envelope still required. Long-term allow-listed agent is not built.
 11. **P1 (web/DNS shrink) closed:** customer web is Nginx or none; webcache is none; DNS is
     none/BIND/PowerDNS. Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey,
     OpenLiteSpeed, and unused DNS (djbdns/nsd/mydns/yadifa/maradns) drivers and `file/` templates
@@ -143,8 +144,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Ubuntu is read from `ip -4 addr` (`lib/php/kloxo_ipaddr.php`); the panel
     does not write ifcfg or `/etc/network/interfaces`. `phpini` sync queries
     `php_type` (not `php-type`). PHP Used / PHP Branch lists apt php-fpm
-    (`kloxo_phpver.php`; the old scanner only saw `/opt/*m`). phpMyAdmin is not in the tree; `install-phpmyadmin`
-    installs it under `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).
+    (`kloxo_phpver.php`; the old scanner only saw `/opt/*m`).     phpMyAdmin is not in the tree; `install-phpmyadmin`
+    installs a self-contained 5.2.3 tarball under
+    `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise; Debian
+    vendor JS symlinks 404 and hide the login form).
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
     the hostname cell.     The Update screen (`lxupdate`) reads the local
@@ -161,10 +164,18 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     off). PHP Module Status lists Ubuntu
     `/etc/php/<ver>/mods-available` (plus leftover `/opt/*m` and
     `/etc/php.d`); enable/disable uses `phpenmod`/`phpdismod` on those
-    paths, not `.nonini` renames. Traceroute no longer throws
+    paths, not `.nonini` renames.     Traceroute no longer throws
     `traceroute_failed` when the Ubuntu binary is missing; it uses
     `traceroute`/`tracepath` with a validated host and an empty list on
-    failure. Server Information prefills description and FQDN
+    failure.     Localhost File Manager / Switch Program / Traceroute / Cron Tasks
+    no longer require the C daemon on TCP 7776 (`No socket connect to
+    server localhost`); `remote_exec` always runs `do_local_action` for
+    localhost (the C daemon is not started on Ubuntu). Mail To on Cron
+    Tasks does not sync the client/pserver through that socket; crontab
+    rewrite uses argument-array `/usr/bin/crontab -u` and skips a
+    missing job list. `slave_get_driver` is null-safe
+    when `slavedb/driver` is missing. Re-check those pages after
+    deploy. Server Information prefills description and FQDN
     (`localhost` / hostname). `init-panel-db` rewrites the 2014 dump
     for MariaDB 10.6+/11.8 (error 1118 row size > 8126 on
     `client`/`domain`/`web`): quota columns `varchar(32)`, other
@@ -228,12 +239,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     / `getTitleOnly` / `get_classvar_description` no longer
     TypeError on a missing `$desc[2]`, which cut the simplicity
     top bar after Server (Security, Basic, Task, Help, Logout)
-    and left the home tiles empty.     Help/Logout print first in
-    `menu.php`. Status, Show/Hide and the clock sit on the
+    and left the home tiles empty. Status, Show/Hide and the clock sit on the
     top-right of the simplicity bar (flex, white-on-blue; the
-    clock has a PHP time fallback). Home show is a two-column page
-    (Find / Information / Resource on the left, action tiles on the
-    right) matching the Kloxo-MR dashboard; a missing `priv` object
+    clock has a PHP time fallback). A missing `priv` object
     no longer aborts the Resource table before the tiles.
     Live HTTPS login as admin/admin on 37.59.173.71:7777 succeeded.
     Every page died in the Server menu at SSH Client because
@@ -241,11 +249,47 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `Lxclass` (PHP 8 fatal on autoload). Menu titles now go through
     `kloxo_menu_title`; Status/Show-Hide/time print before the left
     menu; `install.sh` fetches origin and rsyncs a non-symlink
-    `/opt/kloxo`.     Home is a two-column table (Find/Information/Resource left,
-    tiles right). Help/Logout print after the left menu so they sit
-    on the right of the green bar. getLastLogin still writes the
-    current IP when there is only one utmp row. Re-check the live
-    dashboard after pushing this tree and re-running install.
+    `/opt/kloxo`. Home is a two-column `table-layout:fixed` table
+    (Find/Information/Resource left, tiles right) even when a
+    `__v_message` banner is present. Help/Logout print after the
+    left menu as a separate group immediately left of Status.
+    Status, Show/Hide and the clock sit in one horizontal row.
+    The green bar is shrink-wrapped to Home…Task (no empty green).
+    getLastLogin writes Last Login IP (if a previous session exists),
+    then Current Login IP, then Last Login Time. The Kloxo logo is
+    inside `#mmm` (not `z-index:-9999`). The first-login password
+    form still sits above the tabs until admin/admin is changed.
+    Alert popups (`kloxo-error-box`) no longer share `id="showimage"`
+    with Generate Password, so Esc and Close hide the visible box.
+    `convert_message` does not index a missing `frm_o_o[0]`.
+    Theme CSS links include a filemtime query so a browser
+    cannot keep the old simplicity sheet after deploy.
+    Log Manager, Driver Configuration, PHP Configuration,
+    Backup/Restore and Webserver Configure no longer show the
+    left-column Find box. SSH authorized keys no longer call
+    `key()` on a missing list. Ubuntu Services uses
+    `Service__Debian::getServiceDetails`; Component Info has a
+    dpkg driver; Mail Queue reads Postfix `postqueue` when
+    present.     Switch Program loads debian.inc on Ubuntu and does
+    not index an empty yum version.     List and show pages share
+    `kloxo_rl_driver` / `setListFromArray` array guards and
+    `initThisList` / `initThisObject` Throwable catches so a
+    missing Ubuntu driver no longer TypeErrors the whole page.
+    Debian package driver is `aptget` (`package__aptget`).
+    Re Read IPaddress on Ubuntu uses `ipaddress::fixstatus` and
+    `KloxoIpaddr::currentIpv4()`; it no longer calls the missing
+    `ipaddress::listSystemIps`. Directory Index list does not
+    `count()` a missing `dirindexlist_a`.     Cron Tasks Mail To no
+    longer throws `No socket connect to server [localhost]`.
+    DNS Template menu and dashboard tiles list `dnstemplate` (not
+    `lxbackup`); opening the list no longer throws `no_ip_address`
+    when the IP table is empty.
+    FTP Configure (`serverftp`) is seeded as `pserver-localhost` and
+    does not sync through the C daemon on first show.
+    Re-check the live dashboard after pushing this tree and
+    re-running install. The live host still served the previous
+    CSS (`position:fixed` Message/Ticket overlaying Home, logo
+    `z-index:-9999`) until that deploy.
 
 ### Deliberately NOT changed (do not "fix" these blindly)
 
@@ -264,7 +308,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
 Critical (fix first):
 
 * **C1** **CLOSED** for `process_server_input()`: the unauthenticated `unserialize(base64_decode($total))` path is gone. Credentials are required in the `_._` envelope **before** the payload is unserialized (`remote_auth_gate.php`). Localhost uses the same envelope. Other unserialize-on-untrusted-input sites (~31, plus `process_in_master` / `remote_main`) remain until the JSON replacement.
-* **C2** **CLOSED for P0.5 defaults.** Daemon binds `INADDR_LOOPBACK`, `TLS_server_method` with TLS 1.2 minimum, 1 MiB message cap, no payload logging. PHP SSL listener binds `127.0.0.1`. Remaining: it still runs PHP on received data (replace with an allow-listed agent, P0.5 long-term); `verify_client` is still off (acceptable on localhost).
+* **C2** **CLOSED for P0.5 defaults; slave TLS 7779 is the multi-server exception.** Daemon binds `INADDR_LOOPBACK` except TLS 7779 on a slave (`INADDR_ANY`). `TLS_server_method` with TLS 1.2 minimum, 1 MiB message cap, no payload logging. PHP `kloxo_ssl_listen_address()` is `127.0.0.1` on a master and `0.0.0.0` on a slave. Plaintext 7776 stays loopback. Remaining: it still runs PHP on received data (replace with an allow-listed agent, P0.5 long-term); `verify_client` is still off (self-signed per-install keys).
 * **C3** **CLOSED.** Committed private keys and matching certs deleted. Unique keys are generated at install by `kloxo/bin/install/generate-tls-keys`. Old keys remain compromised anywhere they were copied.
 * **C4** **CLOSED.** Setuid helpers and sources deleted; Makefile and installer no longer set the setuid bit on `cexe/`. Qmail `vchkpw` setuid in `pscript/fixmail-all` remains until qmail is removed.
 * **C5** **CLOSED.** Easy Installer will not download or unpack software. `download_file()` refuses `http://`. Version and wordlist HTTP fetches are disabled.
@@ -324,7 +368,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
 2. **DONE.** Setuid helper sources, Makefile `chmod ug+s`, installer `chmod -R ug+s` on `cexe/`, and callers removed. *Accept:* no `chmod ug+s` commands in the tree (qmail `vchkpw` 4755 remains until qmail is removed).
 3. **DONE.** `process_server_input()` requires the credential envelope and verifies the password before `unserialize`. JSON replacement is documented in `remote_auth_gate.php` and `AUDIT_REPORT.md` (not built). *Accept:* gadget payloads without a valid envelope do not run `__wakeup`.
 4. **DONE.** web-console removed; Easy Installer disabled; sudoers NOPASSWD removed. *Accept:* no in-browser shell, no HTTP app fetch, no `NOPASSWD:/opt/kloxo`.
-5. **DONE for defaults.** Bind localhost, TLS 1.2+, 1 MiB cap, missing keys fail closed. Long term: replace with an allow-listed privileged agent (Unix socket, JSON, audit log).
+5. **DONE for defaults; slave TLS 7779 bind is in.** Bind localhost on a master, TLS 1.2+, 1 MiB cap, missing keys fail closed. Slave `install.sh --slave` writes `slave-db.db` and starts `kloxo-backend` with TLS 7779 on all interfaces. Long term: replace with an allow-listed privileged agent (Unix socket, JSON, audit log).
 
 ### P1: shrink the tree (phase 1b)
 1. **DONE for web/DNS.** Apache, Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`. Webcache: `none`. DNS: `none`, `bind`, `pdns`. Panel Hiawatha kept in `init/`. Default web driver is nginx. Tests: `tests/p1/`.
@@ -357,10 +401,12 @@ Work in this order. Keep every change small, tested and committed separately. Do
    argument-array `proc_open`, no shell strings. Tests: `tests/p3/` (20 checks, php-cli only).
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
-   or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`.
-   Default login is admin/admin with a forced password change after first
-   login. One-liner is in `README.md`. **UNVERIFIED on a real Ubuntu VM.** Does
-   not add a signed apt repo.
+   or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
+   and `kloxo-backend`. `--slave` writes `etc/conf/slave-db.db` (`init-slave`)
+   and skips the panel UI. Default login is admin/admin with a forced password
+   change after first login. One-liner is in `README.md`. **UNVERIFIED on a
+   real Ubuntu VM.** Does not add a signed apt repo. Live two-host add is
+   **UNVERIFIED**.
 3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →
    snapshot → apt → migrate → validate → health-check → auto-rollback), LVM/ZFS snapshots,
    panel-DB dump in the snapshot. `init-panel-db` / `install-hiawatha` exist
@@ -391,7 +437,7 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 
 ## 9. Open questions for the owner
 
-1. Is **multi-server** (master/slave) required in v1? Dropping it lets the legacy backend daemon be removed entirely from the first release.
+1. **Answered:** multi-server (master/slave) is required in v1. Slave TLS 7779 binds all interfaces; plaintext 7776 stays loopback; C1 envelope stays. Live two-machine add-server is **UNVERIFIED** until a second Ubuntu host is available.
 2. Repo/org name, domain, logo, and trademark check for "Kloxo CP".
 3. A **test server**: fresh Ubuntu 24.04 VM with root and a domain with controllable DNS (needed to verify install, updates and mail deliverability).
 4. Which PHP repository to use for additional PHP versions (Ubuntu ships 8.3 only); to be chosen and pinned.

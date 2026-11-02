@@ -738,6 +738,7 @@ html>body #quotausagebar span.last {
 	.div_home_page {
 		width: 100%;
 		max-width: 100%;
+		table-layout: fixed;
 		margin: 10px 0;
 		overflow: visible;
 		background-color: #fff;
@@ -840,11 +841,13 @@ html>body #quotausagebar span.last {
 		top: auto;
 		left: auto;
 		flex: 0 0 auto;
+		flex-shrink: 0;
 		order: 1;
-		z-index: 1001;
+		z-index: 2;
 		display: flex;
 		align-items: center;
 		white-space: nowrap;
+		gap: 2px;
 	}
 
 	.div_fixed_right {
@@ -852,12 +855,33 @@ html>body #quotausagebar span.last {
 		top: auto;
 		right: auto;
 		flex: 0 0 auto;
-		order: 3;
-		z-index: 1001;
+		flex-shrink: 0;
+		flex-direction: row;
+		flex-wrap: nowrap;
+		order: 4;
+		z-index: 2;
 		display: flex;
 		align-items: center;
 		white-space: nowrap;
-		margin-left: auto;
+		width: auto;
+		margin-left: 0;
+		gap: 2px;
+	}
+
+	.div_fixed_right a {
+		display: inline-flex;
+		align-items: center;
+		flex: 0 0 auto;
+	}
+
+	.div_fixed_right .div_header_message,
+	.div_fixed_right #div_status,
+	.div_fixed_right #div_showhide,
+	.div_fixed_right #clock_div {
+		display: inline-block;
+		float: none;
+		flex: 0 0 auto;
+		white-space: nowrap;
 	}
 
 	.div_fixed_logo_left {
@@ -875,17 +899,17 @@ html>body #quotausagebar span.last {
 	}
 
 	.div_fixed_logo_right {
-		position: fixed;
-		top: 40px;
-		right: 10px;
+		position: absolute;
+		top: 8px;
+		right: 8px;
 		background-color: #fff;
-		filter: alpha(opacity=60);
-		opacity: 0.6;
+		filter: alpha(opacity=80);
+		opacity: 0.8;
 		padding: 5px;
 		border-radius: 10px;
 		-moz-border-radius: 10px;
 		-webkit-border-radius: 10px;
-		z-index: -9999;
+		z-index: 5;
 	}
 
 	.div_fixed_top {
@@ -958,9 +982,58 @@ html>body #quotausagebar span.last {
 
 	.td_top_align {
 		vertical-align: top;
+		width: 100%;
 		border: 0;
 		padding: 0;
 		margin: 0;
+	}
+
+	.kloxo-modal {
+		position: fixed;
+		z-index: 10050;
+		top: 90px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 420px;
+		max-width: calc(100vw - 24px);
+		box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+	}
+
+	.kloxo-modal-bar {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		background-color: #ec8;
+		padding: 4px 8px;
+		min-height: 22px;
+		border-bottom: 1px solid #c66;
+		cursor: move;
+		box-sizing: border-box;
+	}
+
+	.kloxo-modal-title {
+		flex: 1 1 auto;
+		text-align: left;
+		font-weight: bold;
+	}
+
+	.kloxo-modal-close {
+		flex: 0 0 auto;
+		color: #400;
+		text-decoration: none;
+		font-size: 18px;
+		line-height: 1;
+		padding: 0 4px;
+	}
+
+	.kloxo-modal-body {
+		padding: 12px;
+		background-color: #fff;
+	}
+
+	.kloxo-help-box {
+		position: relative;
+		z-index: 2;
 	}
 
 	.div_display_die {

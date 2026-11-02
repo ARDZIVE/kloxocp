@@ -208,7 +208,8 @@
 	max-width: none;
 	min-width: 0;
 	order: 2;
-	flex: 1 1 auto;
+	flex: 0 0 auto;
+	flex-shrink: 0;
 	background-color: #16a085;
 	border: 0;
 	margin: 0 8px;
@@ -218,15 +219,15 @@
 	vertical-align: middle;
 	overflow: visible;
 	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
+	flex-wrap: nowrap;
+	justify-content: flex-start;
 	align-items: center;
 	box-sizing: border-box;
 }
 
 .div_menu_left {
 	float: none;
-	flex: 1 1 auto;
+	flex: 0 0 auto;
 	min-width: 0;
 	order: 1;
 	overflow: visible;
@@ -235,12 +236,27 @@
 .div_menu_right {
 	float: none;
 	flex: 0 0 auto;
-	order: 2;
+	flex-shrink: 0;
+	order: 3;
 	margin-left: auto;
 	overflow: visible;
+	background-color: #16a085;
+	min-height: 30px;
+	padding: 0 8px;
+	display: flex;
+	align-items: center;
+	white-space: nowrap;
+}
+
+.div_menu_right .menuTemplate2 {
+	flex-wrap: nowrap;
+	width: auto;
 }
 
 .div_header_message {
+	display: inline-block;
+	vertical-align: middle;
+	white-space: nowrap;
 	color: #fff;
 	margin: 2px;
 	padding: 3px;
@@ -249,6 +265,9 @@
 }
 
 .div_header_message_inactive {
+	display: inline-block;
+	vertical-align: middle;
+	white-space: nowrap;
 	color: #fff;
 	margin: 2px;
 	padding: 3px;

@@ -102,9 +102,9 @@ class Service extends Lxdb
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'service');
 
-		$list = rl_exec_get($parent->__masterserver, $parent->__readserver, array("service__$driverapp", 'getServiceList'), null);
+		$list = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'service', $driverapp, 'getServiceList', null);
 
-		if (!$list) {
+		if (!is_array($list) || $list === array()) {
 			$list = array('httpd', 'lxmail');
 		}
 
@@ -175,18 +175,24 @@ class Service extends Lxdb
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'service');
 		
 		if (!$driverapp) {
-			return;
+			return array();
 		}
 
 		$list = $sql->getRowsWhere("parent_clname = '{$parent->getClname()}'");
-		
-		foreach ($list as $l) {
-			$nlist[$l['servicename']] = $l;
+		if (!is_array($list)) {
+			$list = array();
 		}
 
-		$res = rl_exec_get($parent->__masterserver, $parent->__readserver, array("service__$driverapp", 'getServiceDetails'), array($nlist));
-	
-		return $res;
+		$nlist = array();
+		foreach ($list as $l) {
+			if (isset($l['servicename'])) {
+				$nlist[$l['servicename']] = $l;
+			}
+		}
+
+		$res = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'service', $driverapp, 'getServiceDetails', array($nlist));
+
+		return is_array($res) ? $res : array();
 	}
 }
 

@@ -73,9 +73,9 @@ class  Diskusage extends Lxclass
 		}
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->syncserver, 'diskusage');
-		$result = rl_exec_get($parent->__masterserver, $parent->syncserver,  array("diskusage__$driverapp", "getDiskUsage"), null);
+		$result = kloxo_rl_driver($parent->__masterserver, $parent->syncserver, 'diskusage', $driverapp, 'getDiskUsage', null);
 
-		return $result;
+		return is_array($result) ? $result : array();
 	}
 }
 

@@ -10,12 +10,14 @@
 declare(strict_types=1);
 
 $cfg['blowfish_secret'] = 'KLOXO_BLOWFISH_SECRET';
+$cfg['PmaAbsoluteUri'] = '/thirdparty/phpMyAdmin/';
 $cfg['DefaultLang'] = 'en';
 $cfg['AllowArbitraryServer'] = false;
 $cfg['CheckConfigurationPermissions'] = false;
 $cfg['TempDir'] = 'KLOXO_PMA_TEMP';
 $cfg['UploadDir'] = '';
 $cfg['SaveDir'] = '';
+$cfg['AllowThirdPartyFraming'] = false;
 
 $i = 1;
 $cfg['Servers'][$i]['auth_type'] = 'cookie';

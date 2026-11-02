@@ -395,9 +395,14 @@ alert(myobj.scrollTop);
 		global $gbl, $sgbl, $login, $ghtml; 
 
 		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'all_easyinstaller');
-		$res = exec_class_method("all_easyinstaller__$driverapp", "getListofApps");
+		$dclass = kloxo_driver_class('all_easyinstaller', $driverapp);
+		if ($dclass === null) {
+			return array();
+		}
 
-		return $res;
+		$res = exec_class_method($dclass, "getListofApps");
+
+		return is_array($res) ? $res : array();
 	}
 }
 

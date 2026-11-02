@@ -30,8 +30,8 @@ class Dnstemplate extends DnsBase
 	static function createListAlist($parent, $class)
 	{
 		$alist[] = "a=list&c=$class";
-	//	$alist['__v_dialog_add'] = "a=addform&c=$class";
-		
+		$alist[] = "a=addform&c=$class";
+
 		return $alist;
 	}
 
@@ -107,7 +107,18 @@ class Dnstemplate extends DnsBase
 
 	static function AddListForm($parent, $class)
 	{
-		return self::addform($parent, $class);
+		try {
+			$ips = Dnsbase::getIpaddressList($parent);
+			if (!is_array($ips) || count($ips) === 0) {
+				return null;
+			}
+
+			return self::addform($parent, $class);
+		} catch (Throwable $e) {
+			log_log('error', 'dnstemplate AddListForm: ' . $e->getMessage());
+
+			return null;
+		}
 	}
 
 	static function addform($parent, $class, $typetd = null)
@@ -115,13 +126,12 @@ class Dnstemplate extends DnsBase
 		global $login;
 
 		$res = Dnsbase::getIpaddressList($parent);
-		
+
 		if (!$res) {
 			lxshell_return("__path_php_path", "../bin/fixIpAddress.php");
+			$res = Dnsbase::getIpaddressList($parent);
 		}
-		
-		$res = Dnsbase::getIpaddressList($parent);
-		
+
 		if (!$res) {
 			throw new lxException($login->getThrow('no_ip_address'));
 		}

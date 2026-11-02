@@ -10,17 +10,19 @@ function os_isSelfSystemUser()
 
 function os_isSelfSystemOrLxlabsUser()
 {
-	$uid = posix_getuid();
+	foreach (array(posix_getuid(), posix_geteuid()) as $uid) {
+		if ($uid === 0) {
+			return true;
+		}
 
-	if ($uid === 0) {
-		return true;
+		$pwd = posix_getpwuid($uid);
+
+		if (is_array($pwd) && isset($pwd['name']) && $pwd['name'] === 'lxlabs') {
+			return true;
+		}
 	}
 
-	$pwd = posix_getpwuid($uid);
-
-	if ($pwd['name'] === 'lxlabs') {
-		return true;
-	}
+	return false;
 }
 
 function os_getUptime()

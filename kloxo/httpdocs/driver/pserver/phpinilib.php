@@ -70,10 +70,6 @@ class phpini extends lxdb
 
 	function getLocalList()
 	{
-		$server = $this->syncserver;
-		$server_phpini = unserialize(base64_decode(db_get_value("phpini", "pserver-{$server}",
-			"ser_phpini_flag_b")));
-
 		$list[] = 'display_error_flag';
 		$list[] = 'log_errors_flag';
 		$list[] = 'output_compression_flag';
@@ -265,7 +261,11 @@ class phpini extends lxdb
 				$this->initialValue('phpini_flag_b-phpfpm_type_flag', 'ondemand');
 				$vlist["phpini_flag_b-phpfpm_type_flag"] = array('s', self::getPhpfpmTypeList());
 			} else {
-				$vlist["phpini_flag_b-phpfpm_type_flag"] = array('s', array($this->phpini_flag_b->phpfpm_type_flag));
+				$cur = (isset($this->phpini_flag_b) && is_object($this->phpini_flag_b)
+					&& isset($this->phpini_flag_b->phpfpm_type_flag)
+					&& $this->phpini_flag_b->phpfpm_type_flag !== '')
+					? $this->phpini_flag_b->phpfpm_type_flag : 'ondemand';
+				$vlist["phpini_flag_b-phpfpm_type_flag"] = array('s', array($cur));
 			}
 
 		//	$vlist["phpini_flag_b-phpfpm_limit_extensions"] = array('t', self::getPhpfpmLimitExtensions());

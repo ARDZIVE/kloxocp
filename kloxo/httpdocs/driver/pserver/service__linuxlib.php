@@ -95,6 +95,74 @@ class Service__Linux extends Lxlclass
 		$v = trim(lxshell_output("runlevel"));
 		$v = explode(" ", $v);
 		
-		return $v[1];
+		return isset($v[1]) ? $v[1] : '3';
+	}
+
+	static function checkServiceOn($service)
+	{
+		exec("ps --no-headers -o comm 1", $servicetype);
+		if (isset($servicetype[0]) && $servicetype[0] === 'systemd') {
+			exec("systemctl list-unit-files --type=service", $units);
+			if (is_array($units)) {
+				foreach ($units as $line) {
+					if (strpos($line, $service) === 0 && strpos($line, 'enabled') !== false) {
+						return true;
+					}
+				}
+			}
+		}
+
+		$sysv = array();
+		exec("chkconfig --list 2>/dev/null", $sysv);
+		if (is_array($sysv)) {
+			foreach ($sysv as $line) {
+				if (strpos($line, $service) === 0 && strpos($line, ':on') !== false) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	static function getServiceDetails($list)
+	{
+		if (!is_array($list)) {
+			return array();
+		}
+
+		$ps = lxshell_output("ps", "ax");
+		if (!is_string($ps)) {
+			$ps = '';
+		}
+
+		foreach ($list as &$__l) {
+			$__l['install_state'] = 'dull';
+			$__l['state'] = 'off';
+			$__l['boot_state'] = 'off';
+
+			if (!isset($__l['servicename']) || !isServiceExists($__l['servicename'])) {
+				continue;
+			}
+
+			$__l['install_state'] = 'on';
+
+			if (self::checkServiceOn($__l['servicename'])) {
+				$__l['boot_state'] = 'on';
+			}
+
+			if (!empty($__l['grepstring']) && preg_match("/[\/ ]{$__l['grepstring']}/i", $ps)) {
+				$__l['state'] = 'on';
+			}
+
+			if ($__l['state'] === 'off') {
+				$out = array();
+				exec("pgrep ^{$__l['servicename']}", $out);
+				$__l['state'] = (is_array($out) && count($out) > 0) ? 'on' : 'off';
+			}
+		}
+		unset($__l);
+
+		return $list;
 	}
 }

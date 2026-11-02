@@ -868,19 +868,25 @@ abstract class Lxclient extends Lxdb
 
 	function getLastLogin(&$ilist)
 	{
-		$ilist[$this->getKeywordUc('info_currentloginip')] = getRemoteIp();
-
-		$sq = new Sqlite(null, 'utmp');
-		$res = $sq->rawQuery("select * from utmp where parent_clname = '{$this->getClName()}' order by (logintime + 0) DESC limit 2");
-
-		if (!is_array($res) || !isset($res[1])) {
-			return;
+		$url = "a=list&c=utmp";
+		$res = null;
+		try {
+			$sq = new Sqlite(null, 'utmp');
+			$res = $sq->rawQuery("select * from utmp where parent_clname = '{$this->getClName()}' order by (logintime + 0) DESC limit 2");
+		} catch (Throwable $e) {
+			log_log("error", "getLastLogin: " . $e->getMessage());
 		}
 
-		$url = "a=list&c=utmp";
-		$ilist[$this->getKeywordUc('info_lastloginip')] = "_lxinurl:$url:{$res[1]['ip_address']}:";
-		$date = @ date('Y-m-d H.i.s', $res[1]['logintime']);
-		$ilist[$this->getKeywordUc('info_lastlogintime')] = "_lxinurl:$url:$date:";
+		if (is_array($res) && isset($res[1]['ip_address'])) {
+			$ilist[$this->getKeywordUc('info_lastloginip')] = "_lxinurl:$url:{$res[1]['ip_address']}:";
+		}
+
+		$ilist[$this->getKeywordUc('info_currentloginip')] = getRemoteIp();
+
+		if (is_array($res) && isset($res[1]['logintime'])) {
+			$date = @ date('Y-m-d H.i.s', $res[1]['logintime']);
+			$ilist[$this->getKeywordUc('info_lastlogintime')] = "_lxinurl:$url:$date:";
+		}
 	}
 
 	function updatechange_plan($param)

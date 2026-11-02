@@ -102,10 +102,33 @@ if php "$HERE/test_menu_title.php"; then
 else
   bad "test_menu_title.php"
 fi
+if php "$HERE/test_server_pages.php"; then
+  ok "test_server_pages.php"
+else
+  bad "test_server_pages.php"
+fi
+if php "$HERE/test_multiserver.php"; then
+  ok "test_multiserver.php"
+else
+  bad "test_multiserver.php"
+fi
+if grep -F -q 'a=addform&c=$class' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
+  && grep -q 'nnameIsValid' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
+  && grep -q 'failedlist = array()' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php"; then
+  ok "Servers list can add a remote host"
+else
+  bad "Servers list can add a remote host"
+fi
 if sed -n '/final protected function initListIfUndef(/,/^	final function getUrlIdentity(/p' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php" | grep -q 'is_array($this->$list)'; then
   ok "initListIfUndef does not count() a null child list"
 else
   bad "initListIfUndef does not count() a null child list"
+fi
+if grep -q 'return is_array($v) ? $v : array();' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php" \
+  && grep -F -q '$count = kcount($res);' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php"; then
+  ok "getList/getVirtualList do not count() a null _a list"
+else
+  bad "getList/getVirtualList do not count() a null _a list"
 fi
 if [ -f "$ROOT/kloxo/httpdocs/login/index.php" ]; then
   ok "login/index.php shipped"
@@ -282,13 +305,29 @@ if grep -q 'id="div_status"' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default
 else
   bad "simplicity top-right bar prints Status, Show/Hide, and the time"
 fi
-if grep -A 12 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'display: flex' \
+if grep -A 16 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'display: flex' \
+  && grep -A 16 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'flex-direction: row' \
+  && grep -A 14 '.div_fixed_left' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'position: relative' \
   && grep -A 8 '.div_header_message_inactive' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" | grep -q 'color: #fff'; then
   ok "simplicity Status/Show-Hide/time stay visible on the top right"
 else
   bad "simplicity Status/Show-Hide/time stay visible on the top right"
 fi
+if grep -A 18 '.div_menu {' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" | grep -q 'flex: 0 0 auto' \
+  && grep -A 12 '.div_menu_right' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/css/menu.css" | grep -q 'order: 3' \
+  && grep -A 16 '.div_fixed_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'order: 4'; then
+  ok "green menu bar shrinks to the items; Help/Logout sit left of Status"
+else
+  bad "green menu bar shrinks to the items; Help/Logout sit left of Status"
+fi
+if grep -A 12 'function print_css_source' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'filemtime' \
+  && grep -q '?v=' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then
+  ok "theme CSS links bust the browser cache after an update"
+else
+  bad "theme CSS links bust the browser cache after an update"
+fi
 if grep -q '<table class="div_home_page"' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
+  && grep -q 'table-layout:fixed' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
   && grep -q 'div_home_left' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
   && grep -q 'div_home_right' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
   && grep -q 'print_object_action_block' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
@@ -296,8 +335,15 @@ if grep -q '<table class="div_home_page"' "$ROOT/kloxo/httpdocs/theme/coredispla
 else
   bad "home page keeps Find/Information/Resource beside the dashboard tiles"
 fi
-if grep -A 20 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | grep -q 'info_currentloginip' \
-  && grep -A 20 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | awk '/info_currentloginip/{c=1} /isset\(\$res\[1\]\)/ { if (c) ok=1 } END { exit !ok }'; then
+if awk '/id="mmm"/{m=NR} /div_fixed_logo_right/{l=NR} END {exit !(m && l && m<l)}' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -A 12 '.div_fixed_logo_right' "$ROOT/kloxo/httpdocs/theme/css/common.css" | grep -q 'z-index: 5'; then
+  ok "simplicity logo sits on the white panel instead of behind the background"
+else
+  bad "simplicity logo sits on the white panel instead of behind the background"
+fi
+if grep -A 25 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | grep -q 'info_currentloginip' \
+  && grep -A 25 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | grep -q 'getRemoteIp()' \
+  && ! grep -A 25 'function getLastLogin' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" | grep -q 'return;'; then
   ok "information table still shows current login on the first session"
 else
   bad "information table still shows current login on the first session"
@@ -487,6 +533,84 @@ if grep -q 'encodeURIComponent' "$ROOT/kloxo/httpdocs/theme/js/lxa.js"; then
   ok "password form encodes with encodeURIComponent"
 else
   bad "password form encodes with encodeURIComponent"
+fi
+if grep -q 'kloxo-error-box' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -q 'id="showimage"' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -q 'function kloxoHidePopup' "$ROOT/kloxo/httpdocs/theme/js/lxa.js" \
+  && grep -q 'function kloxoHideAllPopups' "$ROOT/kloxo/httpdocs/theme/js/lxa.js" \
+  && grep -q 'function kloxoPopupDrag' "$ROOT/kloxo/httpdocs/theme/js/divpop.js"; then
+  ok "error and generate-password popups use distinct ids and can be closed"
+else
+  bad "error and generate-password popups use distinct ids and can be closed"
+fi
+if grep -A 25 'function convert_message' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'is_array($this->frm_o_o)' \
+  && grep -A 12 'function toggleVisibilityById' "$ROOT/kloxo/httpdocs/theme/js/lxa.js" | grep -q 'if (!el)'; then
+  ok "popup message conversion and Help toggle survive missing objects"
+else
+  bad "popup message conversion and Help toggle survive missing objects"
+fi
+if awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q "skin_name !== 'simplicity'"; then
+  ok "simplicity Status tooltip does not print a second error popup"
+else
+  bad "simplicity Status tooltip does not print a second error popup"
+fi
+if grep -F -q 'reset($x)' "$ROOT/kloxo/httpdocs/driver/pserver/sshauthorizedkeylib.php" \
+  && grep -A 12 'static function getAuthorizedKey' "$ROOT/kloxo/httpdocs/driver/pserver/sshauthorizedkey__synclib.php" | grep -q 'return array()'; then
+  ok "SSH authorized keys addform does not call key() on a missing list"
+else
+  bad "SSH authorized keys addform does not call key() on a missing list"
+fi
+if grep -q 'function getServiceDetails' "$ROOT/kloxo/httpdocs/driver/pserver/service__debianlib.php" \
+  && grep -q 'component__deb' "$ROOT/kloxo/httpdocs/lib/html/driver_definecore.php" \
+  && grep -q 'mailqueue__postfix' "$ROOT/kloxo/httpdocs/lib/driver_define.php"; then
+  ok "Ubuntu services, component info, and postfix mail queue drivers are registered"
+else
+  bad "Ubuntu services, component info, and postfix mail queue drivers are registered"
+fi
+if grep -q 'function kloxo_driver_class' "$ROOT/kloxo/httpdocs/lib/html/lib.php" \
+  && grep -q 'function kloxo_rl_driver' "$ROOT/kloxo/httpdocs/lib/html/lib.php" \
+  && grep -F -q 'if (!is_array($result)' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php" \
+  && grep -q 'package__aptget' "$ROOT/kloxo/httpdocs/lib/html/driver_definecore.php" \
+  && grep -q 'aptget' "$ROOT/kloxo/file/driver/debian.inc" \
+  && grep -A 4 "initThisList', \$this, \$class" "$ROOT/kloxo/httpdocs/lib/php/lxclass.php" | grep -q 'catch (Throwable' \
+  && grep -q 'initThisObject {$class}' "$ROOT/kloxo/httpdocs/lib/php/lxclass.php"; then
+  ok "list/driver PHP 8 guards and Ubuntu apt package driver are present"
+else
+  bad "list/driver PHP 8 guards and Ubuntu apt package driver are present"
+fi
+if grep -A 20 'function remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'return do_local_action($cmd)' \
+  && grep -A 8 'function isSync' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php" | grep -q 'cron_mailto' \
+  && grep -A 12 'function syncCreateConf' "$ROOT/kloxo/httpdocs/driver/pserver/cron__linuxlib.php" | grep -q 'preg_match' \
+  && grep -q 'lxshell_return("/usr/bin/crontab"' "$ROOT/kloxo/httpdocs/driver/pserver/cron__linuxlib.php"; then
+  ok "Cron Tasks Mail To does not need the C daemon and crontab is argument-array"
+else
+  bad "Cron Tasks Mail To does not need the C daemon and crontab is argument-array"
+fi
+if grep -F -q '"driver/dns/dnstemplatelib.php"' "$ROOT/kloxo/httpdocs/lib/html/definecore.php" \
+  && grep -c 'frm_action=list&frm_o_cname=dnstemplate' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" | grep -q '[2-9]' \
+  && grep -A 6 'function AddListForm' "$ROOT/kloxo/httpdocs/driver/dns/dnstemplatelib.php" | grep -q 'return null' \
+  && grep -q 'clientquery;?>frm_o_cname=allowedip' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && ! grep -q 'frm_ocname=' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && ! grep -q 'c=phpmdule' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then
+  ok "DNS Template list is not Backup/Restore and menu hrefs keep their query strings"
+else
+  bad "DNS Template list is not Backup/Restore and menu hrefs keep their query strings"
+fi
+if grep -F -q 'frm_o_o[1][class]=serverftp' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && grep -A 8 'function isSync' "$ROOT/kloxo/httpdocs/driver/ftp/serverftplib.php" | grep -q "dbaction === 'update'" \
+  && grep -q "function seedServerftp" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "'serverftp'" "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
+  ok "FTP Configure show does not need the C daemon and is not backup ftp_conf"
+else
+  bad "FTP Configure show does not need the C daemon and is not backup ftp_conf"
+fi
+if grep -q 'localhostquery;?>frm_o_cname=ftpsession' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && grep -q 'serverquery;?>frm_o_cname=ftpsession' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && grep -q "stripos(\$command, 'pure-ftp')" "$ROOT/kloxo/httpdocs/driver/ftp/ftpsession__pureftplib.php" \
+  && grep -q '\$ret = array();' "$ROOT/kloxo/httpdocs/driver/ftp/ftpsession__pureftplib.php"; then
+  ok "FTP Sessions list is under pserver and getFtpList returns an array"
+else
+  bad "FTP Sessions list is under pserver and getFtpList returns an array"
 fi
 
 echo

@@ -348,8 +348,14 @@ abstract class Lxclass
 	static function switchDriver($class, $old, $new)
 	{
 		//MR -- must be change because problem with template-based web config
-		exec_class_method("{$class}__$old", "uninstallMe");
-		exec_class_method("{$class}__$new", "installMe");
+		$oldc = kloxo_driver_class($class, $old);
+		$newc = kloxo_driver_class($class, $new);
+		if ($oldc !== null) {
+			exec_class_method($oldc, "uninstallMe");
+		}
+		if ($newc !== null) {
+			exec_class_method($newc, "installMe");
+		}
 	}
 
 	function doCustomAction()
@@ -1074,13 +1080,19 @@ abstract class Lxclass
 			return 0;
 		}
 
-		$name = exec_class_method($class, 'initThisObjectRule', $this, $class);
+		try {
+			$name = exec_class_method($class, 'initThisObjectRule', $this, $class);
 
-		if ($name) {
-			$obj = new $class($this->__masterserver, $this->__readserver, $name);
-			$obj->get();
-		} else {
-			$obj = exec_class_method($class, 'initThisObject', $this, $class);
+			if ($name) {
+				$obj = new $class($this->__masterserver, $this->__readserver, $name);
+				$obj->get();
+			} else {
+				$obj = exec_class_method($class, 'initThisObject', $this, $class);
+			}
+		} catch (Throwable $e) {
+			log_log("error", "initThisObject {$class}: " . $e->getMessage());
+			$obj = null;
+			$name = null;
 		}
 
 		// If the object doesn't exist and is newly created, then assign it fully to the current guy.
@@ -1328,7 +1340,12 @@ abstract class Lxclass
 				dprint("Calling External Function to initialize {$class} list\n", 3);
 			}
 
-			$res = exec_class_method($rclass, 'initThisList', $this, $class);
+			try {
+				$res = exec_class_method($rclass, 'initThisList', $this, $class);
+			} catch (Throwable $e) {
+				log_log("error", "initThisList {$rclass}: " . $e->getMessage());
+				$res = array();
+			}
 		}
 
 		$this->setListFromArray($this->__masterserver, $this->__readserver, $class, $res);
@@ -1480,7 +1497,7 @@ abstract class Lxclass
 
 		$filtername = $this->getFilterVariableForThis($class);
 
-		if ($login->issetHpfilter($filtername)) {
+		if (is_object($login) && $login->issetHpfilter($filtername)) {
 			$filter = $login->getHPFilter($filtername);
 		}
 
@@ -1687,7 +1704,12 @@ abstract class Lxclass
 		//	print_time('getdb', 'GetResult');
 
 		} else {
-			$res = exec_class_method($rclass, 'initThisList', $this, $class);
+			try {
+				$res = exec_class_method($rclass, 'initThisList', $this, $class);
+			} catch (Throwable $e) {
+				log_log("error", "initThisList {$rclass}: " . $e->getMessage());
+				$res = array();
+			}
 			$countres = is_countable($res) ? count($res) : 0;
 		}
 
@@ -1756,11 +1778,14 @@ abstract class Lxclass
 			$this->$list = array();
 		}
 
-		if (!$result) {
+		if (!is_array($result) || $result === array()) {
 			return;
 		}
 
 		foreach ($result as $row) {
+			if (!is_array($row) || !isset($row['nname'])) {
+				continue;
+			}
 			$al[$row['nname']] = new $rclass($masterserver, $readserver, $row['nname']);
 
 			if ($force) {
@@ -2269,10 +2294,17 @@ abstract class Lxclass
 				}
 
 				$obj = new $class($this->__masterserver, $this->__readserver, $name);
-				$obj->setFromArray($res[0]);
+				if (is_array($res) && isset($res[0]) && is_array($res[0])) {
+					$obj->setFromArray($res[0]);
+				}
 				$this->{$list}[$name] = $obj;
 			} else {
-				$this->{$list}[$name] = exec_class_method($class, 'initThisObject', $this, $class, $name);
+				try {
+					$this->{$list}[$name] = exec_class_method($class, 'initThisObject', $this, $class, $name);
+				} catch (Throwable $e) {
+					log_log("error", "initThisObject {$class}: " . $e->getMessage());
+					$this->{$list}[$name] = new $class($this->__masterserver, $this->__readserver, $name);
+				}
 			}
 		} else {
 			$this->initListIfUndef($class);
@@ -2366,7 +2398,9 @@ abstract class Lxclass
 	final function getList($class)
 	{
 		if (cse($class, "_a")) {
-			return $this->$class;
+			$v = isset($this->$class) ? $this->$class : null;
+
+			return is_array($v) ? $v : array();
 		}
 
 		$this->checkForDescribed($class, "l");
@@ -2416,13 +2450,17 @@ abstract class Lxclass
 
 		$ifdb = exec_class_method($rclass, "canGetSingle");
 
-		$newres = null;
+		$newres = array();
 
 		if (!$ifdb) {
 			if (cse($class, "_a")) {
-				$res = $this->$class;
+				$res = isset($this->$class) ? $this->$class : array();
 			} else {
 				$res = $this->getList($class);
+			}
+
+			if (!is_array($res)) {
+				$res = array();
 			}
 
 			$filter = $this->getFilterForThis($class);
@@ -2469,7 +2507,7 @@ abstract class Lxclass
 				}
 			}
 
-			$count = count($res);
+			$count = kcount($res);
 
 			$n = 0;
 
@@ -2495,7 +2533,9 @@ abstract class Lxclass
 		$count = $this->initVirtualListIfUndef($class);
 
 		if (cse($class, "_a")) {
-			return $this->$class;
+			$v = isset($this->$class) ? $this->$class : array();
+
+			return is_array($v) ? $v : array();
 		}
 
 		// Setting the parent Forcibly.... Php screws up recursion.. 
@@ -5323,11 +5363,11 @@ abstract class Lxclass
 		//	if ($gbl) { $gbl->c_session->write(); }
 
 			$driverapp = $gbl->getSyncClass(null, $this->syncserver, $this->get__table());
-			$res = rl_exec_get($this->__masterserver, $this->syncserver, array("{$this->get__table()}__{$driverapp}", 
-				"execCommand"), array($this->iid, $this->ccenter_command));
+			$res = kloxo_rl_driver($this->__masterserver, $this->syncserver, $this->get__table(), $driverapp,
+				"execCommand", array($this->iid, $this->ccenter_command));
 
-			$this->ccenter_output = $res['output'];
-			$this->ccenter_error = $res['error'];
+			$this->ccenter_output = is_array($res) && isset($res['output']) ? $res['output'] : '';
+			$this->ccenter_error = is_array($res) && isset($res['error']) ? $res['error'] : '';
 		}
 
 		$vlist['ccenter_standard'] = array('s', array('--- Not Selected ---', 

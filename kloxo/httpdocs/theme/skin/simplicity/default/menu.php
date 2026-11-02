@@ -40,7 +40,7 @@ if (isset($ghtml->frm_o_o[0]['class']) && ($ghtml->frm_o_o[0]['class'] === 'clie
 if (isset($ghtml->frm_o_o[1]['class']) && ($ghtml->frm_o_o[1]['class'] === 'client')) {
 	$clientid2 = $ghtml->frm_o_o[1]['nname'];
 
-	$clientquery2 = "frm_o_o[0][class]=client&frm_o_o[1][nname]={$clientid}&";
+	$clientquery2 = "frm_o_o[1][class]=client&frm_o_o[1][nname]={$clientid2}&";
 } else {
 	$clientquery2 = "";
 }
@@ -74,17 +74,16 @@ if (($clientquery !== '') || ($syncserver !== 'localhost')) {
 <!-- 'BEGIN: Simplicity menu' -->
 <?php
 	if (file_exists(getcwd() . "/theme/skin/simplicity/default/css/custom.menu.css")) {
-?>
-
-<link rel="stylesheet" type="text/css" href="/theme/skin/simplicity/default/css/custom.menu.css"/>
-<?php
+		$menu_css = "/theme/skin/simplicity/default/css/custom.menu.css";
+		$menu_css_file = getcwd() . "/theme/skin/simplicity/default/css/custom.menu.css";
 	} else {
+		$menu_css = "/theme/skin/simplicity/default/css/menu.css";
+		$menu_css_file = getcwd() . "/theme/skin/simplicity/default/css/menu.css";
+	}
+	$menu_css_v = is_file($menu_css_file) ? ('?v=' . (string) filemtime($menu_css_file)) : '';
 ?>
 
-<link rel="stylesheet" type="text/css" href="/theme/skin/simplicity/default/css/menu.css"/>
-<?php
-	}
-?>
+<link rel="stylesheet" type="text/css" href="<?= $menu_css . $menu_css_v ?>"/>
 
 <div id="menu_div" class="div_menu shadow_all">
 <?php
@@ -391,7 +390,7 @@ if (strpos($loginas, "@") !== false) {
 <?php
 		}
 	} else {
-		if ($domainquery === '') {
+		if ($domainquery2 === '') {
 ?>
 					<div class="dropmenu">
 						&#x00bb;&nbsp;<a href="/display.php?frm_action=list&frm_o_o[0][class]=client&frm_o_o[0][nname]=<?=$clientid;?>&frm_o_cname=sslcert"><?=kloxo_menu_title("a=list&c=sslcert");?></a><br/>
@@ -400,13 +399,13 @@ if (strpos($loginas, "@") !== false) {
 		} else {
 ?>
 					<div class="dropmenu">
-						&#x00bb;&nbsp;<a href="/display.php?frm_action=list&frm_o_o[0][class]=client&frm_o_o[0][nname]=<?=$clientid;?>&frm_o_o[1][class]=domain&frm_o_o[1][nname]=<?=$domainid;?>&frm_o_o[1][class]=domain&frm_o_o[1][nname]=<?=$domainid2;?>&frm_o_o[2][class]=web&frm_o_cname=sslcert"><?=kloxo_menu_title("a=list&c=sslcert");?></a><br/>
+						&#x00bb;&nbsp;<a href="/display.php?frm_action=list&frm_o_o[0][class]=client&frm_o_o[0][nname]=<?=$clientid;?>&frm_o_o[1][class]=domain&frm_o_o[1][nname]=<?=$domainid2;?>&frm_o_o[2][class]=web&frm_o_cname=sslcert"><?=kloxo_menu_title("a=list&c=sslcert");?></a><br/>
 					</div>
 <?php
 		}
 	}
 ?>
-					<b><?=kloxo_menu_title("a=list&c=ipaddress");?></b>
+					<b><a href="/display.php?frm_action=list&frm_o_cname=ipaddress"><?=kloxo_menu_title("a=list&c=ipaddress");?></a></b>
 					<div class="dropmenu">
 <?php
 
@@ -437,7 +436,7 @@ if (strpos($loginas, "@") !== false) {
 
 	if ($login->isAdmin()) {
 ?>
-					<b><?=$login->getKeywordUc('dnstemplate');?></b>
+					<b><a href="/display.php?frm_action=list&frm_o_cname=dnstemplate"><?=$login->getKeywordUc('dnstemplate');?></a></b>
 					<div class="dropmenu">
 						&#x00bb;&nbsp;<a href="/display.php?frm_action=list&frm_o_cname=dnstemplate"><?=kloxo_menu_title("a=list&c=dnstemplate");?></a><br/>
 
@@ -462,7 +461,7 @@ if (strpos($loginas, "@") !== false) {
 <?php
 	}
 ?>
-					<b><?=$login->getKeywordUc('backuprestore');?></b>
+					<b><a href="/display.php?<?=$consumedlogin;?>frm_action=show&frm_o_o[0][class]=lxbackup"><?=$login->getKeywordUc('backuprestore');?></a></b>
 					<div class="dropmenu">
 <?php
 	if ($clientquery === "") {
@@ -515,7 +514,7 @@ if (strpos($loginas, "@") !== false) {
 	if ($clientquery === "") {
 ?>
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=update&frm_o_o[0][class]=domaindefault"><?=kloxo_menu_title("a=updateform&sa=update&o=domaindefault");?></a><br/>
-						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&frm_o_cname=ftpsession"><?=kloxo_menu_title("a=list&c=ftpsession");?></a><br/>
+						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$localhostquery;?>frm_o_cname=ftpsession"><?=kloxo_menu_title("a=list&c=ftpsession");?></a><br/>
 
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=shell_access"><?=kloxo_menu_title("a=updateform&sa=shell_access&o=client");?></a><br/>
 <?php
@@ -527,7 +526,7 @@ if (strpos($loginas, "@") !== false) {
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=update&<?=$clientquery;?>frm_o_o[1][class]=domaindefault"><?=$clientid;?></a><br/>
 						&#x00bb;&nbsp;<?=kloxo_menu_title("a=list&c=ftpsession");?>
 
-							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&frm_o_cname=ftpsession"><?=$loginas;?></a>
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$localhostquery;?>frm_o_cname=ftpsession"><?=$loginas;?></a>
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$clientquery;?>frm_o_cname=ftpsession"><?=$clientid;?></a><br/>
 
 						&#x00bb;&nbsp;<?=kloxo_menu_title("a=updateform&sa=shell_access&o=client");?>
@@ -603,11 +602,11 @@ if (strpos($loginas, "@") !== false) {
 						&#x00bb;&nbsp;<?=kloxo_menu_title("a=list&c=allowedip");?>
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&frm_o_cname=allowedip"><?=$loginas;?></a>
-							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$clientid;?>frm_o_cname=allowedip"><?=$clientid;?></a><br/>
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$clientquery;?>frm_o_cname=allowedip"><?=$clientid;?></a><br/>
 						&#x00bb;&nbsp;<?=kloxo_menu_title("a=list&c=blockedip");?>
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&frm_o_cname=blockedip"><?=$loginas;?></a>
-							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$clientid;?>frm_o_cname=blockedip"><?=$clientid;?></a><br/>
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$clientquery;?>frm_o_cname=blockedip"><?=$clientid;?></a><br/>
 
 <?php
 	}
@@ -682,7 +681,7 @@ if (strpos($loginas, "@") !== false) {
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=reboot&<?=$localhostquery;?>">localhost</a>
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=reboot&<?=$serverquery;?>"><?=$syncserver;?></a><br/>
-						&#x00bb;&nbsp;<?=kloxo_menu_title("a=updateform&sa=reboot&l[class]=pserver&l[nname]={$syncserver}");?>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=updateform&sa=poweroff&l[class]=pserver&l[nname]={$syncserver}");?>
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=poweroff&<?=$localhostquery;?>">localhost</a>
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=poweroff&<?=$serverquery;?>"><?=$syncserver;?></a><br/>
@@ -889,10 +888,10 @@ if (strpos($loginas, "@") !== false) {
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=show&<?=$localhostquery;?>frm_o_o[1][class]=serverftp">localhost</a>
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=show&<?=$serverquery;?>frm_o_o[1][class]=serverftp"><?=$syncserver;?></a><br/>
-						&#x00bb;&nbsp;<?=kloxo_menu_title("a=list&c=phpmdule");?>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=list&c=phpmodule");?>
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$localhostquery;?>frm_o_cname=phpmodule">localhost</a>
-							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$serverquery;?>frm_ocname=phpmodule"><?=$syncserver;?></a><br/>
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$serverquery;?>frm_o_cname=phpmodule"><?=$syncserver;?></a><br/>
 <?php
 		} else {
 ?>
@@ -940,7 +939,7 @@ if (strpos($loginas, "@") !== false) {
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=update&<?=$localhostquery;?>frm_o_o[1][class]=servermail">localhost</a>
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=update&<?=$serverquery;?>frm_o_o[1][class]=servermail"><?=$syncserver;?></a><br/>
-						&#x00bb;&nbsp;<?=kloxo_menu_title("a=updateform&sa=update&o=spamdyke");?>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=updateform&sa=spamdyke&o=servermail");?>
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=spamdyke&<?=$localhostquery;?>frm_o_o[1][class]=servermail">localhost</a>
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=spamdyke&<?=$serverquery;?>frm_o_o[1][class]=servermail"><?=$syncserver;?></a><br/>
@@ -956,6 +955,10 @@ if (strpos($loginas, "@") !== false) {
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$localhostquery;?>frm_o_cname=clientmail">localhost</a>
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$serverquery;?>frm_o_cname=clientmail"><?=$syncserver;?></a><br/>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=list&c=ftpsession");?>
+
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$localhostquery;?>frm_o_cname=ftpsession">localhost</a>
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$serverquery;?>frm_o_cname=ftpsession"><?=$syncserver;?></a><br/>
 
 <?php
 		} else {
@@ -965,6 +968,7 @@ if (strpos($loginas, "@") !== false) {
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$serverquery;?>frm_o_o[1][class]=servermail&frm_o_cname=mail_graylist_wlist_a"><?=kloxo_menu_title("a=list&c=mail_graylist_wlist_a");?></a><br/>
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$serverquery;?>frm_o_cname=mailqueue"><?=kloxo_menu_title("a=list&c=mailqueue");?></a><br/>
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$serverquery;?>frm_o_cname=clientmail"><?=kloxo_menu_title("a=list&c=clientmail");?></a><br/>
+						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$serverquery;?>frm_o_cname=ftpsession"><?=kloxo_menu_title("a=list&c=ftpsession");?></a><br/>
 <?php
 		}
 ?>
@@ -1046,13 +1050,13 @@ if (strpos($loginas, "@") !== false) {
 ?>
 						&#x00bb;&nbsp;<?=kloxo_menu_title("a=show&o=ffile");?>
 
-							&#x00bb;&nbsp;<a href="/display.php?frm_action=show&<?=$localhostquery;?>frm_o_o[1][class]=ffile&frm_o_o[1][nname]=">localhost</a>
-							&#x00bb;&nbsp;<a href="/display.php?frm_action=show&<?=$serverquery;?>frm_o_o[1][class]=ffile&frm_o_o[1][nname]="><?=$syncserver;?></a><br/>
+							&#x00bb;&nbsp;<a href="/display.php?frm_action=show&<?=$localhostquery;?>frm_o_o[1][class]=ffile&frm_o_o[1][nname]=/">localhost</a>
+							&#x00bb;&nbsp;<a href="/display.php?frm_action=show&<?=$serverquery;?>frm_o_o[1][class]=ffile&frm_o_o[1][nname]=/"><?=$syncserver;?></a><br/>
 
 <?php
 		} else {
 ?>
-						&#x00bb;&nbsp;<?=kloxo_menu_title("a=show&o=ffile");?>&nbsp;&#x00bb;&nbsp;<a href="/display.php?frm_action=show&<?=$serverquery;?>frm_o_o[1][class]=ffile&frm_o_o[1][nname]="><?=$syncserver;?></a><br/>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=show&o=ffile");?>&nbsp;&#x00bb;&nbsp;<a href="/display.php?frm_action=show&<?=$serverquery;?>frm_o_o[1][class]=ffile&frm_o_o[1][nname]=/"><?=$syncserver;?></a><br/>
 <?php
 		}
 	}
@@ -1157,13 +1161,13 @@ if (strpos($loginas, "@") !== false) {
 	log_log("error", "simplicity menu left: " . $e->getMessage());
 }
 ?>
+</div>
 <div class="div_menu_right">
 	<ul class="menuTemplate2 decor2_1">
 		<li><a title="<?=$login->getKeywordUc('click_here_for');?> <?=$login->getKeywordUc('help');?>" href="javascript://" onClick="toggleVisibilityById('infomsg');"><?=$login->getKeywordUc('help');?></a></li>
 		<li class="separator"></li>
 		<li><a title="<?=$login->getKeywordUc('click_here_for');?> <?=$login->getKeywordUc('logout');?>"  href="javascript:if (confirm('<?=$login->getKeywordUc('is_want_logout');?>')) { location = '/lib/php/logout.php'; }"><?=$login->getKeywordUc('logout');?></a></li>
 	</ul>
-</div>
 </div>
 <!-- 'END - Simplicity menu' -->
 

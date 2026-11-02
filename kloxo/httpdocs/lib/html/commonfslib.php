@@ -496,7 +496,10 @@ function lxfile_cp($src, $dst)
 function lxfile_stat($file, $duflag)
 {
 	$file = expand_real_root($file);
-	$list =  lstat($file);
+	$list = lstat($file);
+	if (!is_array($list)) {
+		return array('name' => $file, 'size' => 0, 'ttype' => 'file');
+	}
 	if (($duflag && is_dir($file)) || $file === ".trash") {
 		$list['size'] = lxfile_dirsize($file, true);
 	} else {
@@ -512,8 +515,13 @@ function get_file_type($file, &$stat)
 {
 	if (is_link($file)) {
 		$dst = readlink($file);
+		if ($dst === false || $dst === '') {
+			$stat['ttype'] = "brokenlink";
+			$stat['linkto'] = '';
+			return;
+		}
 
-		if (($dst[0] !== '/')) {
+		if ($dst[0] !== '/') {
 			$dst = dirname($file) . "/" . $dst;
 		}
 
@@ -588,10 +596,13 @@ function lxfile_dstat($dir, $duflag)
 	$dir = expand_real_root($dir);
 	$list = lscandir_without_dot($dir);
 
-	$ret = null;
+	$ret = array();
 
 	foreach($list as $l) {
 		$stat = lstat("$dir/$l");
+		if (!is_array($stat)) {
+			continue;
+		}
 		get_file_type("$dir/$l", $stat);
 
 		remove_unnecessary_stat($stat);

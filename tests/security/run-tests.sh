@@ -65,10 +65,24 @@ if grep -q 'INADDR_LOOPBACK' "$ROOT/kloxo/cexe/kloxo.c"; then
 else
   bad "kloxo.c binds loopback"
 fi
-if grep -q 'INADDR_ANY' "$ROOT/kloxo/cexe/kloxo.c"; then
-  bad "kloxo.c no longer binds INADDR_ANY"
+if grep -A 30 '^char tcp_create_socket' "$ROOT/kloxo/cexe/kloxo.c" | grep -q 's_port == 7779' \
+  && grep -A 30 '^char tcp_create_socket' "$ROOT/kloxo/cexe/kloxo.c" | grep -q 'INADDR_ANY' \
+  && grep -A 30 '^char tcp_create_socket' "$ROOT/kloxo/cexe/kloxo.c" | grep -q 'SLAVE'; then
+  ok "kloxo.c TLS 7779 binds INADDR_ANY only as slave"
 else
-  ok "kloxo.c no longer binds INADDR_ANY"
+  bad "kloxo.c TLS 7779 binds INADDR_ANY only as slave"
+fi
+if grep -q 'tcp://127.0.0.1' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php"; then
+  ok "PHP local listener binds 127.0.0.1"
+else
+  bad "PHP local listener binds 127.0.0.1"
+fi
+if grep -q 'function kloxo_ssl_listen_address' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" \
+  && grep -q "'0.0.0.0'" "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" \
+  && ! grep -q 'stream_socket_server("ssl://0.0.0.0' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php"; then
+  ok "PHP SSL listener binds 0.0.0.0 only via slave helper"
+else
+  bad "PHP SSL listener binds 0.0.0.0 only via slave helper"
 fi
 if grep -q 'MAX_BACKEND_MSG' "$ROOT/kloxo/cexe/kloxo.c"; then
   ok "kloxo.c has a message size limit"
@@ -84,16 +98,6 @@ if grep -q 'SSLv23_method' "$ROOT/kloxo/cexe/kloxo.c"; then
   bad "kloxo.c does not use SSLv23_method"
 else
   ok "kloxo.c does not use SSLv23_method"
-fi
-if grep -q 'ssl://127.0.0.1' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php"; then
-  ok "PHP SSL listener binds 127.0.0.1"
-else
-  bad "PHP SSL listener binds 127.0.0.1"
-fi
-if grep -q 'ssl://0.0.0.0' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php"; then
-  bad "PHP SSL listener no longer binds 0.0.0.0"
-else
-  ok "PHP SSL listener no longer binds 0.0.0.0"
 fi
 if grep -q 'tls_material_missing' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddresslib.php"; then
   ok "copyCertificate fails closed without keys"
