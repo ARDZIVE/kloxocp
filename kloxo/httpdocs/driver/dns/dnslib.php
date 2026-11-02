@@ -7,7 +7,7 @@ class Dns extends DnsBase
 	static $__desc_nname = array("", "", "domain_name", "a=show");
 	static $__desc_webipaddress = array("", "", "web_ipaddress");
 	static $__desc_mmailipaddress = array("", "", "mail_ipaddress");
-	static $__acdesc_show = array("", "", "manage_dns");
+	static $__acdesc_show = array("", "", "Manage DNS");
 	static $__acdesc_list = array("", "", "dns");
 	static $__table = 'dns';
 
@@ -43,38 +43,63 @@ class Dns extends DnsBase
 			return;
 		}
 
-		$db = new Sqlite($this->__masterserver, "dns");
-
-		$gen = $login->getObject('general')->generalmisc_b;
-
-		$serverlist = explode(",", $this->syncserver);
-		$list = null;
-
-		foreach ($serverlist as $server) {
-			$string = "syncserver LIKE '%$server%'";
-			$nlist = $db->getRowsWhere($string, array('nname'));
-			$dlistv = "__var_domainlist_$server";
-			$this->$dlistv = $nlist;
+		$addr = array();
+		$serverlist = explode(',', (string)($this->syncserver ?? ''));
+		try {
+			$db = new Sqlite($this->__masterserver ?? null, "dns");
+			foreach ($serverlist as $server) {
+				$server = trim((string)$server);
+				if ($server === '') {
+					continue;
+				}
+				$nlist = $db->getRowsWhere("syncserver LIKE '%$server%'", array('nname'));
+				$dlistv = "__var_domainlist_$server";
+				$this->$dlistv = is_array($nlist) ? $nlist : array();
+			}
+		} catch (Throwable $e) {
 		}
 
-		// FIXME: We should only get the addon domains for the domains configured on that particular server.
-		// IN the case of single server system, it is not a problem, since that means we will have to get all the domains.
-		// but in the case of distributed setup, we need to properly get only the add domains under the domains loaded above.
-		$dbaddon = new Sqlite(null, "addondomain");
-		$addr = $dbaddon->getTable(array('nname'));
+		try {
+			$dbaddon = new Sqlite(null, "addondomain");
+			$got = $dbaddon->getTable(array('nname'));
+			$addr = is_array($got) ? $got : array();
+		} catch (Throwable $e) {
+			$addr = array();
+		}
 
 		foreach ($serverlist as $server) {
+			$server = trim((string)$server);
+			if ($server === '') {
+				continue;
+			}
 			$dlistv = "__var_domainlist_$server";
-			$this->$dlistv = lx_array_merge(array($this->$dlistv, $addr));
+			$cur = (isset($this->$dlistv) && is_array($this->$dlistv)) ? $this->$dlistv : array();
+			$this->$dlistv = lx_array_merge(array($cur, $addr));
 		}
 
 		$this->fixDateSerial();
 
-		$this->__var_addonlist = $this->getParentO()->getList('addondomain');
+		$this->__var_addonlist = array();
+		try {
+			$parent = $this->getParentO();
+			if (is_object($parent) && method_exists($parent, 'getList')) {
+				$got = $parent->getList('addondomain');
+				if (is_array($got)) {
+					$this->__var_addonlist = $got;
+				}
+			}
+		} catch (Throwable $e) {
+			$this->__var_addonlist = array();
+		}
 
-		$mydb = new Sqlite(null, "ipaddress");
-		$string = "syncserver = '$this->syncserver'";
-		$this->__var_ipssllist = $mydb->getRowsWhere($string, array('ipaddr', 'nname'));
+		try {
+			$mydb = new Sqlite(null, "ipaddress");
+			$sync = str_replace("'", '', (string)($this->syncserver ?? ''));
+			$got = $mydb->getRowsWhere("syncserver = '$sync'", array('ipaddr', 'nname'));
+			$this->__var_ipssllist = is_array($got) ? $got : array();
+		} catch (Throwable $e) {
+			$this->__var_ipssllist = array();
+		}
 	}
 
 	function fixDateSerial()
@@ -149,11 +174,23 @@ class Dns extends DnsBase
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-	//	$revc = $login->getObject('general')->reversedns_b;
-		validate_domain_name($param['nname']);
+		if (!is_array($param)) {
+			$param = array();
+		}
+		validate_domain_name((string)($param['nname'] ?? ''));
 
-		$param['nameserver_f'] = $revc->primarydns;
-		$param['secnameserver_f'] = $revc->secondarydns;
+		$revc = null;
+		try {
+			$gen = (is_object($login) && method_exists($login, 'getObject'))
+				? $login->getObject('general') : null;
+			$revc = (is_object($gen) && isset($gen->reversedns_b)) ? $gen->reversedns_b : null;
+		} catch (Throwable $e) {
+			$revc = null;
+		}
+		$param['nameserver_f'] = (is_object($revc) && isset($revc->primarydns))
+			? $revc->primarydns : '';
+		$param['secnameserver_f'] = (is_object($revc) && isset($revc->secondarydns))
+			? $revc->secondarydns : '';
 
 		return $param;
 	}

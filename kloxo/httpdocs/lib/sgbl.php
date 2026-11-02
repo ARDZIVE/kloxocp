@@ -272,11 +272,16 @@ class Sgbl
 		$this->__var_service_desc['nginx'] = "Nginx Web Server";
 
 		$this->__var_service_desc['php-fpm'] = "Php Fastcgi Process Manager";
+		$this->__var_service_desc['kloxo-php'] = "Kloxo CP PHP-FPM";
 
 		$this->__var_service_desc['exim'] = "Exim Mail Server";
 		$this->__var_service_desc['exim4'] = "Exim Mail Server";
+		$this->__var_service_desc['postfix'] = "Postfix Mail Server";
 		$this->__var_service_desc['qmail'] = "Exim Mail Server";
 		$this->__var_service_desc['dovecot'] = "Dovecot Pop3/IMAP Server";
+		$this->__var_service_desc['rspamd'] = "Rspamd Spam Filter";
+		$this->__var_service_desc['mariadb'] = "MariaDB Database Server";
+		$this->__var_service_desc['hiawatha'] = "Hiawatha Web Server";
 
 		$this->__var_service_desc['named'] = "Bind Dns Server";
 		$this->__var_service_desc['bind9'] = "Bind Dns Server";

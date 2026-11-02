@@ -30,7 +30,7 @@ echo "$php_out" | grep -qx 'webcache=none' && ok "webcache is none" || bad "webc
 echo "$php_out" | grep -qx 'dns=none,bind,pdns' && ok "dns is none,bind,pdns" || bad "dns is none,bind,pdns" "$php_out"
 echo "$php_out" | grep -qx 'davuser=none' && ok "davuser is none" || bad "davuser is none" "$php_out"
 echo "$php_out" | grep -qx 'mmail=qmail' && ok "mmail still qmail" || bad "mmail still qmail" "$php_out"
-echo "$php_out" | grep -qx 'smtp=none,exim' && ok "smtp is none,exim" || bad "smtp is none,exim" "$php_out"
+echo "$php_out" | grep -qx 'smtp=none,exim,postfix' && ok "smtp is none,exim,postfix" || bad "smtp is none,exim,postfix" "$php_out"
 
 echo "== class map files exist and unused stacks unregistered"
 map_out="$(
@@ -57,7 +57,7 @@ foreach ($forbid as $c) {
 }
 $need = array("web__nginx","web__apache","web__none","serverweb__nginx","serverweb__apache","serverweb__none","webcache__none",
   "dns__bind","dns__pdns","dns__none","davuser__none","dirprotect__nginx","dirprotect__apache","dirprotect__none",
-  "webhandler__nginx","webmimetype__nginx","webhandler__apache","webmimetype__apache","smtp__exim","smtp__none");
+  "webhandler__nginx","webmimetype__nginx","webhandler__apache","webmimetype__apache","smtp__exim","smtp__postfix","smtp__none");
 $needmiss = 0;
 foreach ($need as $c) {
   if (!isset($gl_class_array[$c])) { fwrite(STDERR, "not registered $c\n"); $needmiss = 1; }
@@ -132,11 +132,21 @@ fi
 if ( cd "$ROOT/kloxo/file/driver" && php -r '
 $driver = array();
 include "debian.inc";
-exit((isset($driver["smtp"]) && $driver["smtp"] === array("none", "exim")) ? 0 : 1);
+exit((isset($driver["smtp"]) && $driver["smtp"] === array("none", "exim", "postfix")) ? 0 : 1);
 ' ); then
-  ok "debian.inc smtp is none,exim"
+  ok "debian.inc smtp is none,exim,postfix"
 else
-  bad "debian.inc smtp is none,exim"
+  bad "debian.inc smtp is none,exim,postfix"
+fi
+if grep -q "'pg_smtp' => 'exim'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db default smtp is exim"
+else
+  bad "init-panel-db default smtp is exim"
+fi
+if grep -q "\$a\['smtp'\] = \"exim\"" "$ROOT/kloxo/httpdocs/lib/html/linuxlib.php"; then
+  ok "slave default smtp is exim"
+else
+  bad "slave default smtp is exim"
 fi
 
 echo "== php -l on new stubs"
@@ -151,6 +161,11 @@ if php -l "$ROOT/kloxo/httpdocs/driver/mmail/smtp__eximlib.php" >/dev/null 2>&1;
   ok "php -l smtp__eximlib.php"
 else
   bad "php -l smtp__eximlib.php"
+fi
+if php -l "$ROOT/kloxo/httpdocs/driver/mmail/smtp__postfixlib.php" >/dev/null 2>&1; then
+  ok "php -l smtp__postfixlib.php"
+else
+  bad "php -l smtp__postfixlib.php"
 fi
 if php -l "$ROOT/kloxo/httpdocs/driver/web/web__apachelib.php" >/dev/null 2>&1; then
   ok "php -l web__apachelib.php"

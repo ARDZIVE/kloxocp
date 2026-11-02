@@ -1419,7 +1419,7 @@ STRIN;
 					$driver['pop3'] = array('none', 'dovecot');
 				}
 				if (!isset($driver['smtp'])) {
-					$driver['smtp'] = array('none', 'exim');
+					$driver['smtp'] = array('none', 'exim', 'postfix');
 				}
 
 				$vlist['web_driver'] = array('s', $driver['web']);

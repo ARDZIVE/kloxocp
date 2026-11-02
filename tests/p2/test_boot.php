@@ -113,6 +113,13 @@ if (class_exists('smtp__exim') && is_callable(array('smtp__exim', 'installMe'))
 } else {
 	bad('smtp__exim loads for switchprogram');
 }
+if (class_exists('smtp__postfix') && is_callable(array('smtp__postfix', 'installMe'))
+	&& is_callable(array('smtp__postfix', 'unitName'))
+	&& smtp__postfix::unitName() === 'postfix') {
+	ok('smtp__postfix loads for switchprogram');
+} else {
+	bad('smtp__postfix loads for switchprogram');
+}
 if (class_exists('web__none') && class_exists('web__nginx')) {
 	ok('web none/nginx drivers load');
 } else {

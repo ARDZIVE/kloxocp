@@ -4539,9 +4539,27 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login;
 
-		$col = $login->getSkinColor();
+		$col = 'EFE8E0';
+		try {
+			if (is_object($login) && method_exists($login, 'getSkinColor')) {
+				$got = $login->getSkinColor();
+				if (is_string($got) && $got !== '') {
+					$col = $got;
+				}
+			}
+		} catch (Throwable $e) {
+		}
 
-		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
+		$skin_name = 'simplicity';
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && isset($sp->skin_name) && $sp->skin_name !== '') {
+					$skin_name = $sp->skin_name;
+				}
+			}
+		} catch (Throwable $e) {
+		}
 
 		$view = null;
 
@@ -4655,7 +4673,7 @@ class HtmlLib
 			}
 		}
 
-		$pluraldesc = get_plural($classdesc[2]);
+		$pluraldesc = get_plural($classdesc2);
 
 		if ($login->issetHpFilter($filtername, 'pagenum')) {
 			$cgi_pagenum = $login->getHPFilter($filtername, 'pagenum');
@@ -4745,6 +4763,7 @@ class HtmlLib
 		if (!$sellist && !$this->isResourceClass($class) && !$gbl->__inside_ajax) {
 			$skip_search = strtolower((string)$class) !== 'ffile'
 				&& strtolower((string)$class) !== 'tickethistory'
+				&& strtolower((string)$class) !== 'dns_record_a'
 				&& (kloxo_skip_find_class($class)
 				|| (is_object($parent) && kloxo_skip_find_class($parent->getClass())));
 ?>
@@ -5079,7 +5098,7 @@ class HtmlLib
 			foreach ($name_list as $name => $width) {
 				try {
 					$this->printObjectElement($parent, $class, $classdesc, $obj, $name, $width, $descr, $colcount . "_" . $rowcount);
-				} catch (exception $e) {
+				} catch (Throwable $e) {
 					break;
 				}
 
@@ -5130,7 +5149,7 @@ class HtmlLib
 				} else {
 ?>
 
-						<div style="width: 100%; text-align: center"><b><?= $login->getKeywordUc('no') ?>&nbsp;<?= get_plural($classdesc[2]) ?>&nbsp;<?= $login->getKeywordUc('under') ?>&nbsp;<?= $parent->getId() ?></b></div>
+						<div style="width: 100%; text-align: center"><b><?= $login->getKeywordUc('no') ?>&nbsp;<?= get_plural($classdesc2) ?>&nbsp;<?= $login->getKeywordUc('under') ?>&nbsp;<?= $parent->getId() ?></b></div>
 <?php
 
 				}
@@ -5436,6 +5455,9 @@ class HtmlLib
 			$purl = $url->purl;
 			$target = $url->target;
 			$url = $url->url;
+		} elseif (is_string($url) && $url !== '' && strpos($url, 'display.php') === false
+			&& strpos($url, '?') === false) {
+			$url = $this->getFullUrl($url);
 		}
 
 		$ac_descr = $this->getActionDetails($url, $purl, $iconpath, $path, $post, $_t_file, $_t_name, $_t_image, $__t_identity);
@@ -5444,9 +5466,13 @@ class HtmlLib
 		$var = $_t_name;
 		$file = $_t_file;
 
-		$help = $this->get_full_help($descr['help']);
+		$help = $this->get_full_help(isset($descr['help']) ? $descr['help'] : '');
 
-		$name = $descr[2];
+		$name = isset($descr[2]) ? $descr[2] : (isset($descr['desc']) ? $descr['desc'] : '');
+		$labelUrl = is_string($purl) && $purl !== '' ? $purl : (is_string($url) ? $url : '');
+		if (function_exists('kloxo_content_tab_label')) {
+			$name = kloxo_content_tab_label($name, $labelUrl);
+		}
 		$form_name = str_replace(" ", "_", $file . "_" . $var);
 
 		$form_name = $this->createEncForm_name($form_name);
@@ -8696,9 +8722,13 @@ function uploadAbort(e) { // upload abort
 		}
 
 		$pinfo = $this->convert_message($pinfo);
+		if (!is_string($pinfo)) {
+			$pinfo = '';
+		}
 
 		$pinfo = explode("\n", $pinfo);
 		$skip = false;
+		$out = array();
 
 		foreach ($pinfo as $p) {
 			$p = trim($p);
@@ -8830,7 +8860,7 @@ function uploadAbort(e) { // upload abort
 		global $gbl, $sgbl, $login;
 
 		if (!is_string($pinfo) || $pinfo === '' || !is_object($login)) {
-			return $pinfo;
+			return is_string($pinfo) ? $pinfo : '';
 		}
 
 		$pinfo = str_replace("[%_program_%]", $sgbl->__var_program_name, $pinfo);
@@ -10206,6 +10236,7 @@ function uploadAbort(e) { // upload abort
 
 		if (strtolower((string)$class) !== 'ffile'
 			&& strtolower((string)$class) !== 'tickethistory'
+			&& strtolower((string)$class) !== 'dns_record_a'
 			&& (kloxo_skip_find_class($class)
 			|| (is_object($parent) && kloxo_skip_find_class($parent->getClass())))) {
 			return;

@@ -2103,6 +2103,27 @@ abstract class Lxclass
 		return $list;
 	}
 
+	function isRootClient()
+	{
+		if (isset($this->cttype) && ($this->cttype === 'admin' || $this->cttype === 'superadmin')) {
+			return true;
+		}
+		try {
+			if (method_exists($this, 'isAdmin') && $this->isAdmin()) {
+				return true;
+			}
+		} catch (Throwable $e) {
+		}
+		$table = '';
+		try {
+			$table = (string) $this->get__table();
+		} catch (Throwable $e) {
+		}
+		$nname = isset($this->nname) ? (string) $this->nname : '';
+
+		return ($table === 'client' && ($nname === 'admin' || $this->getClName() === 'client-admin'));
+	}
+
 	function getTrueParentO()
 	{
 	//	dprint("Class: . " . $this->get__table() . "\n");
@@ -2118,12 +2139,12 @@ abstract class Lxclass
 			return $this->__true_parent_o;
 		}
 
-		if (!$this->parent_clname) {
-			print("Critical internal error. There is no parent_clname for {$this->getClname()}\n");
-			exit;
-
-			return $this->getParentO();
+		if ($this->isRootClient()) {
 			return null;
+		}
+
+		if (!$this->parent_clname) {
+			return $this->getParentO();
 		}
 
 		list ($pclass, $pname) = getParentNameAndClass($this->parent_clname);
@@ -2151,7 +2172,7 @@ abstract class Lxclass
 			return $this->__parent_o;
 		}
 
-		if (isset($this->cttype) && ($this->cttype === 'admin' || $this->cttype === 'superadmin')) {
+		if ($this->isRootClient()) {
 			return null;
 		}
 
@@ -2467,7 +2488,25 @@ abstract class Lxclass
 				$res = array();
 			}
 
+			foreach ($res as $k => $r) {
+				if (!is_object($r)) {
+					unset($res[$k]);
+				}
+			}
+
 			$filter = $this->getFilterForThis($class);
+			if (!is_array($filter)) {
+				$filter = array();
+			}
+			if (!isset($filter['pagesize']) || !(int)$filter['pagesize']) {
+				$filter['pagesize'] = (int) exec_class_method($rclass, 'perPage');
+				if (!$filter['pagesize']) {
+					$filter['pagesize'] = 20;
+				}
+			}
+			if (!isset($filter['pagenum']) || !(int)$filter['pagenum']) {
+				$filter['pagenum'] = 1;
+			}
 			$filtername = $this->getFilterVariableForThis($class);
 
 			if (isset($filter['sortby'])) {
@@ -2494,11 +2533,7 @@ abstract class Lxclass
 			$var = exec_class_method($rclass, 'searchVar');
 
 			foreach ((array)$res as $k => $r) {
-				if (!$r) {
-					continue;
-				}
-
-				if (!$r->isDisplay()) {
+				if (!is_object($r) || !method_exists($r, 'isDisplay') || !$r->isDisplay()) {
 					unset($res[$k]);
 
 					continue;
@@ -3124,6 +3159,10 @@ abstract class Lxclass
 
 	function _compare($a, $b)
 	{
+		if (!is_object($a) || !is_object($b)) {
+			return 0;
+		}
+
 		$variable = $this->__sortby;
 
 		$success = ($this->__sortdir === "desc") ? -1 : 1;
@@ -3645,9 +3684,15 @@ abstract class Lxclass
 				}
 
 				if (cse($key, "_a")) {
-					if ($value) {
+					if (!is_array($value)) {
+						$value = array();
+					} else {
 						foreach ($value as $k => $v) {
-							$value[$k]->__parent_o = $this;
+							if (is_object($v)) {
+								$v->__parent_o = $this;
+							} else {
+								unset($value[$k]);
+							}
 						}
 					}
 				}
@@ -3789,23 +3834,196 @@ abstract class Lxclass
 
 	function changeOwnerSpecific() { }
 
+	function changeOwnerForm()
+	{
+		$nnlist = $this->changeOwnerCandidateList();
+		if ($nnlist === array()) {
+			$nnlist = $this->changeOwnerFallbackList();
+		}
+		$this->parent_name_change = $this->changeOwnerCurrentName();
+		$vlist['parent_name_change'] = array('s', $nnlist);
+
+		return $vlist;
+	}
+
+	function changeOwnerCurrentName()
+	{
+		try {
+			if (isset($this->parent_clname) && is_string($this->parent_clname) && $this->parent_clname !== '') {
+				$n = (string) $this->getParentName();
+				if ($n !== '') {
+					return $n;
+				}
+			}
+		} catch (Throwable $e) {
+		}
+		try {
+			$p = $this->getParentO();
+			if (is_object($p) && isset($p->nname) && is_string($p->nname) && $p->nname !== '') {
+				return $p->nname;
+			}
+		} catch (Throwable $e) {
+		}
+
+		return '';
+	}
+
+	function changeOwnerFallbackList()
+	{
+		global $login;
+
+		$out = array();
+		$cur = $this->changeOwnerCurrentName();
+		if ($cur !== '') {
+			$out[$cur] = $cur;
+		}
+		if (is_object($login) && isset($login->nname) && is_string($login->nname) && $login->nname !== '') {
+			$out[$login->nname] = $login->nname;
+		}
+		if ($out === array()) {
+			$out['admin'] = 'admin';
+		}
+
+		return $out;
+	}
+
+	function changeOwnerCandidateList()
+	{
+		$down = null;
+		try {
+			$down = $this->getParentO();
+		} catch (Throwable $e) {
+			$down = null;
+		}
+		if (!is_object($down)) {
+			return $this->changeOwnerFallbackList();
+		}
+
+		$up = null;
+		try {
+			if (method_exists($down, 'isGt') && $down->isGt('admin')) {
+				$up = method_exists($down, 'getParentO') ? $down->getParentO() : null;
+			}
+			if (method_exists($down, 'isLogin') && $down->isLogin()) {
+				$up = null;
+			}
+		} catch (Throwable $e) {
+			$up = null;
+		}
+
+		$list = array('up' => array(), 'top' => array(), 'down' => array());
+		try {
+			if (is_object($up) && !(method_exists($down, 'isLogin') && $down->isLogin())
+				&& method_exists($up, 'getList')) {
+				$got = $up->getList('client');
+				if (is_array($got)) {
+					$list['up'] = $got;
+				}
+				$top = method_exists($up, 'getParentO') ? $up->getParentO() : null;
+				if (is_object($top) && !(method_exists($up, 'isLogin') && $up->isLogin())
+					&& method_exists($top, 'getList')) {
+					$got = $top->getList('client');
+					if (is_array($got)) {
+						$list['top'] = $got;
+					}
+				}
+			}
+		} catch (Throwable $e) {
+		}
+
+		try {
+			if (method_exists($down, 'isLte') && $down->isLte('reseller') && method_exists($down, 'getList')) {
+				$got = $down->getList('client');
+				if (is_array($got)) {
+					$list['down'] = $got;
+				}
+				foreach (array('up', 'top', 'down') as $v) {
+					if (!is_array($list[$v])) {
+						continue;
+					}
+					foreach ($list[$v] as $kk => $vv) {
+						if (!is_object($vv)) {
+							unset($list[$v][$kk]);
+							continue;
+						}
+						$ct = isset($vv->cttype) ? (string) $vv->cttype : '';
+						if ($ct !== '' && $this->isLte($ct)) {
+							unset($list[$v][$kk]);
+						}
+					}
+				}
+			}
+		} catch (Throwable $e) {
+		}
+
+		$nlist = array(
+			'up' => get_namelist_from_objectlist($list['up']),
+			'top' => get_namelist_from_objectlist($list['top']),
+			'down' => get_namelist_from_objectlist($list['down']),
+		);
+		foreach (array('up' => $up, 'down' => $down) as $k => $v) {
+			if (!is_object($v) || !isset($v->nname) || !is_string($v->nname) || $v->nname === '') {
+				continue;
+			}
+			$ct = isset($v->cttype) ? (string) $v->cttype : '';
+			$ok = true;
+			try {
+				$ok = ($ct === '' || $this->isGt($ct));
+			} catch (Throwable $e) {
+				$ok = true;
+			}
+			if ($ok) {
+				$nlist[$k][] = $v->nname;
+			}
+		}
+
+		$out = array();
+		foreach (lx_array_merge($nlist) as $n) {
+			if (!is_string($n) && !is_numeric($n)) {
+				continue;
+			}
+			$n = (string) $n;
+			if ($n === '') {
+				continue;
+			}
+			$out[$n] = $n;
+		}
+
+		return $out !== array() ? $out : $this->changeOwnerFallbackList();
+	}
+
 	function updateChangeOwner($param)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$rparent['up'] = $this->getParentO()->getParentO();
-
-		if ($rparent['up']) {
-			$rparent['top'] = $rparent['up']->getParentO();
+		$down = null;
+		try {
+			$down = $this->getParentO();
+		} catch (Throwable $e) {
+			$down = null;
 		}
-
-		$rparent['down'] = $this->getParentO();
-
-		if ($rparent['down']->isLogin()) {
+		$rparent['down'] = is_object($down) ? $down : null;
+		$rparent['up'] = null;
+		$rparent['top'] = null;
+		if (is_object($down) && method_exists($down, 'getParentO')) {
+			try {
+				$rparent['up'] = $down->getParentO();
+			} catch (Throwable $e) {
+				$rparent['up'] = null;
+			}
+		}
+		if (is_object($rparent['up']) && method_exists($rparent['up'], 'getParentO')) {
+			try {
+				$rparent['top'] = $rparent['up']->getParentO();
+			} catch (Throwable $e) {
+				$rparent['top'] = null;
+			}
+		}
+		if (is_object($down) && method_exists($down, 'isLogin') && $down->isLogin()) {
 			$rparent['up'] = null;
 		}
 
-		$newparent = getFromAny($rparent, 'client', $param['parent_name_change']);
+		$newparent = getFromAny($rparent, 'client', $param['parent_name_change'] ?? '');
 
 		// Get the objectlist BEFORE you change the parent.
 
@@ -3834,62 +4052,12 @@ abstract class Lxclass
 
 		switch ($subaction) {
 			case "changeowner":
-				//hacks... islogin should be changed to isabovelogin...
-				$rparent['down'] = $this->getParentO();
-				$rparent['up'] = null;
-
-				if ($rparent['down']->isGt('admin')) {
-					$rparent['up'] = $rparent['down']->getParentO();
+				try {
+					return $this->changeOwnerForm();
+				} catch (Throwable $e) {
+					$vlist['parent_name_change'] = array('s', $this->changeOwnerFallbackList());
+					return $vlist;
 				}
-
-				$list['up'] = null;
-				$list['top'] = null;
-
-				if ($rparent['down']->isLogin()) {
-					$rparent['up'] = null;
-				}
-
-				if ($rparent['up'] && !$rparent['down']->isLogin()) {
-					dprintr($rparent['down']->nname);
-					$list['up'] = $rparent['up']->getList('client');
-					$rparent['top'] = $rparent['up']->getParentO();
-
-					if ($rparent['top'] && !$rparent['up']->isLogin()) {
-						$list['top'] = $rparent['top']->getList('client');
-					}
-				}
-
-				if ($rparent['down']->isLte('reseller')) {
-					$list['down'] = $rparent['down']->getList('client');
-					foreach (array('up', 'top', 'down') as $v) {
-						foreach ((array)$list[$v] as $kk => $vv) {
-							if ($this->isLte($vv->cttype)) {
-								unset($list[$v][$kk]);
-							}
-						}
-					}
-				}
-
-				$nlist['up'] = get_namelist_from_objectlist($list['up']);
-				$nlist['top'] = get_namelist_from_objectlist($list['top']);
-				$nlist['down'] = get_namelist_from_objectlist($list['down']);
-
-				foreach ($rparent as $k => $v) {
-					if ($rparent[$k]) {
-						if ($this->isGt($v->cttype)) {
-							$nlist[$k][] = $rparent[$k]->nname;
-						}
-					}
-				}
-
-			//	dprintr($nlist['down']);
-
-				$nnlist = lx_array_merge($nlist);
-				$nnlist = array_unique($nnlist);
-				$this->parent_name_change = $this->getParentName();
-				$vlist['parent_name_change'] = array('s', $nnlist);
-
-				return $vlist;
 
 			case "changenname":
 				$vlist['nname'] = null;
@@ -4261,7 +4429,14 @@ abstract class Lxclass
 			}
 
 			if ($this->isExceptionForSelflist()) {
-				$nob = $ob->getObject($this->getClass());
+				try {
+					$nob = $ob->getObject($this->getClass());
+				} catch (Throwable $e) {
+					continue;
+				}
+				if (!is_object($nob)) {
+					continue;
+				}
 			} else if ($this->is__table('phpini')) {
 				try {
 					$nob = $ob->getObject($this->getClass());

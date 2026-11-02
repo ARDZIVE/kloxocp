@@ -13,6 +13,7 @@
 # site PHP-FPM 5.6 / 7.4 / latest (install-site-php; default latest),
 # PowerDNS packaged and prepared (disabled; BIND stays default on 53),
 # Apache packaged and prepared (disabled; Nginx stays default on 80/443),
+# Postfix packaged and left disabled (Exim stays the default MTA on --profile=full),
 # kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
 # and skips the panel UI.
 # Does not: Let's Encrypt, signed kloxocp apt repo, kloxo-mail apply, verified two-host add.
@@ -43,7 +44,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
   sudo bash install.sh --slave --slave-password=SECRET
 
   --profile=core   php, nginx (default), mariadb, bind9; apache2/pdns packaged, disabled
-  --profile=full   core plus exim4-daemon-heavy, dovecot, rspamd, redis
+  --profile=full   core plus exim4-daemon-heavy (default MTA), postfix (disabled), dovecot, rspamd, redis
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
                    password the master uses when adding this host
@@ -198,6 +199,7 @@ plan: Kloxo CP ${KCP_VERSION}
   sitephp 5.6, 7.4, latest (install-site-php; default latest)
   dns     bind9 enabled (default); pdns-server prepared and disabled
   web     nginx enabled (default); apache2 prepared and disabled
+  smtp    exim4 default (--profile=full); postfix packaged and disabled
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
   exit 0
@@ -246,14 +248,15 @@ log "Kloxo CP ${KCP_VERSION} install starting $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 log "host=$(hostname -f 2>/dev/null || hostname) os=${os_pretty} profile=${PROFILE}"
 
 # apt postinst starts packaged daemons. pdns would fail (no gmysql yet, and
-# BIND owns port 53) and apache2 would race Nginx on 80/443. policy-rc.d 101
-# skips those starts without failing the package; a runtime mask covers
-# postinst that calls systemctl directly. BIND and Nginx still start.
+# BIND owns port 53), apache2 would race Nginx on 80/443, and postfix would
+# race Exim on 25. policy-rc.d 101 skips those starts without failing the
+# package; a runtime mask covers postinst that calls systemctl directly.
+# BIND, Nginx, and Exim still start.
 KLOXO_POLICY_RC=/usr/sbin/policy-rc.d
 KLOXO_POLICY_PREV=/usr/sbin/policy-rc.d.kloxo-prev
 KLOXO_POLICY_OWNED=0
 hold_standby_units() {
-  log "holding pdns and apache2 until Switch Program selects them"
+  log "holding pdns, apache2, and postfix until Switch Program selects them"
   if [[ -e "$KLOXO_POLICY_RC" ]] && ! grep -q 'Temporary Kloxo CP policy' "$KLOXO_POLICY_RC" 2>/dev/null; then
     if [[ ! -e "$KLOXO_POLICY_PREV" ]]; then
       mv "$KLOXO_POLICY_RC" "$KLOXO_POLICY_PREV"
@@ -261,9 +264,9 @@ hold_standby_units() {
   fi
   cat > "$KLOXO_POLICY_RC" <<'EOF'
 #!/bin/sh
-# Temporary Kloxo CP policy during install. BIND and Nginx stay the listeners.
+# Temporary Kloxo CP policy during install. BIND, Nginx, and Exim stay the listeners.
 case "${1:-}" in
-  pdns|pdns.service|pdns-server|apache2|apache2.service)
+  pdns|pdns.service|pdns-server|apache2|apache2.service|postfix|postfix.service)
     exit 101
     ;;
 esac
@@ -274,15 +277,15 @@ exit 0
 EOF
   chmod 0755 "$KLOXO_POLICY_RC"
   KLOXO_POLICY_OWNED=1
-  systemctl mask --runtime pdns.service apache2.service >/dev/null 2>&1 \
-    || systemctl mask pdns.service apache2.service >/dev/null 2>&1 \
+  systemctl mask --runtime pdns.service apache2.service postfix.service >/dev/null 2>&1 \
+    || systemctl mask pdns.service apache2.service postfix.service >/dev/null 2>&1 \
     || true
 }
 release_standby_units() {
-  systemctl unmask --runtime pdns.service apache2.service >/dev/null 2>&1 || true
-  systemctl unmask pdns.service apache2.service >/dev/null 2>&1 || true
-  systemctl reset-failed pdns apache2 >/dev/null 2>&1 || true
-  systemctl disable --now pdns apache2 >/dev/null 2>&1 || true
+  systemctl unmask --runtime pdns.service apache2.service postfix.service >/dev/null 2>&1 || true
+  systemctl unmask pdns.service apache2.service postfix.service >/dev/null 2>&1 || true
+  systemctl reset-failed pdns apache2 postfix >/dev/null 2>&1 || true
+  systemctl disable --now pdns apache2 postfix >/dev/null 2>&1 || true
   if [[ "${KLOXO_POLICY_OWNED:-0}" -eq 1 ]]; then
     rm -f "$KLOXO_POLICY_RC"
     if [[ -e "$KLOXO_POLICY_PREV" ]]; then
@@ -303,8 +306,10 @@ apt-get install -y ca-certificates git curl openssl rsync \
 if [[ "$WITH_MAIL" -eq 1 ]]; then
   echo "exim4-config exim4/dc_eximconfigconfigtype select none" | debconf-set-selections
   echo "exim4-config exim4/dc_use_split_config boolean false" | debconf-set-selections
+  echo "postfix postfix/main_mailer_type select Internet Site" | debconf-set-selections
+  echo "postfix postfix/mailname string $(hostname -f 2>/dev/null || hostname || echo localhost)" | debconf-set-selections
   systemctl disable --now postfix >/dev/null 2>&1 || true
-  apt-get install -y exim4-daemon-heavy \
+  apt-get install -y exim4-daemon-heavy postfix \
     dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
     dovecot-mysql dovecot-sieve dovecot-managesieved \
     rspamd redis-server
@@ -422,9 +427,10 @@ wait_mariadb() {
 enable_default_stack() {
   systemctl enable --now nginx mariadb named 2>/dev/null \
     || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
-  systemctl reset-failed pdns apache2 2>/dev/null || true
+  systemctl reset-failed pdns apache2 postfix 2>/dev/null || true
   systemctl disable --now pdns 2>/dev/null || true
   systemctl disable --now apache2 2>/dev/null || true
+  systemctl disable --now postfix 2>/dev/null || true
 }
 
 prepare_apache() {

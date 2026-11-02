@@ -222,9 +222,22 @@ function __ac_desc_show($object)
 	$aalist = array();
 	$acalist = array();
 
-	$clist = $object->createShowClist($subaction);
+	$clist = array();
+	try {
+		$clist = $object->createShowClist($subaction);
+	} catch (Throwable $e) {
+		log_log("error", "createShowClist: " . $e->getMessage());
+	}
+	if (!is_array($clist)) {
+		$clist = array();
+	}
 
-	$sclist = $object->createShowSclist();
+	$sclist = null;
+	try {
+		$sclist = $object->createShowSclist();
+	} catch (Throwable $e) {
+		log_log("error", "createShowSclist: " . $e->getMessage());
+	}
 
 	if ($sclist) {
 		do_select_list($object, $sclist);
@@ -235,7 +248,11 @@ function __ac_desc_show($object)
 	$cname = $object->getClass();
 	$extra = $object->getExtraId();
 
-	$ghtml->print_information('pre', 'show', $cname, $extra, "");
+	try {
+		$ghtml->print_information('pre', 'show', $cname, $extra, "");
+	} catch (Throwable $e) {
+		log_log("error", "print_information pre: " . $e->getMessage());
+	}
 
 	try {
 		$ilist = $object->createShowInfolist($subaction);
@@ -363,7 +380,12 @@ function __ac_desc_show($object)
 	}
 
 	if (!$subaction && !$printed_message) {
-		$object->createShowActionList($acalist);
+		try {
+			$object->createShowActionList($acalist);
+		} catch (Throwable $e) {
+			log_log("error", "createShowActionList: " . $e->getMessage());
+			$acalist = array();
+		}
 
 		if ($acalist) {
 			array_splice($aalist, 1, 0, $acalist);
@@ -408,7 +430,13 @@ function __ac_desc_show($object)
 	$show_class = strtolower((string) $object->getClass());
 	$show_table = strtolower((string) $object->get__table());
 	$show_find = !kloxo_skip_find_class($show_class) && !kloxo_skip_find_class($show_table);
-	$show_left = $show_find || $ilist || $object->createShowNote() || $rlist || $plist;
+	$show_note = false;
+	try {
+		$show_note = (bool) $object->createShowNote();
+	} catch (Throwable $e) {
+		log_log("error", "createShowNote: " . $e->getMessage());
+	}
+	$show_left = $show_find || $ilist || $show_note || $rlist || $plist;
 ?>
 
 	<table class="div_home_page" style="width:100%; table-layout:fixed; border:0; border-collapse:separate; border-spacing:12px 0; margin:10px 0;">
@@ -444,7 +472,7 @@ function __ac_desc_show($object)
 				}
 			}
 
-			if ($object->createShowNote()) {
+			if ($show_note) {
 				try {
 					$ghtml->print_note($object);
 				} catch (Throwable $e) {
@@ -527,8 +555,14 @@ function __ac_desc_show($object)
 	}
 
 	foreach ((array)$clist as $k => $v) {
-		make_show_all($object, $k);
-		do_list_class($object, $k);
+		try {
+			make_show_all($object, $k);
+			do_list_class($object, $k);
+		} catch (Throwable $e) {
+			log_log("error", "do_list_class $k: " . $e->getMessage());
+			echo '<div style="padding:16px">Could not display this list: '
+				. htmlspecialchars($e->getMessage(), ENT_QUOTES) . '</div>';
+		}
 	}
 
 	$ghtml->print_information('post', 'show', $cname, $subaction, "");
@@ -705,6 +739,29 @@ function kloxo_print_object_property_tabs($object)
 		&& $prlist['property'] === array()
 		&& class_exists('pserver') && is_callable(array('pserver', 'switchProgramPropertyTabs'))) {
 		$prlist['property'] = pserver::switchProgramPropertyTabs();
+	}
+
+	if (kloxo_object_is_backup_page($object)
+		&& class_exists('lxbackup') && is_callable(array('lxbackup', 'backupPropertyTabs'))) {
+		$tabs = lxbackup::backupPropertyTabs();
+		if ($class === 'ffile' && is_array($tabs)) {
+			foreach ($tabs as $k => $v) {
+				if (is_string($v) && $v !== '' && !str_starts_with($v, 'goback=')) {
+					$tabs[$k] = 'goback=1&' . $v;
+				}
+			}
+		}
+		$prlist['property'] = $tabs;
+	}
+
+	if ($class === 'dns' && $prlist['property'] === array()
+		&& class_exists('Dnsbase') && is_callable(array('Dnsbase', 'dnsPropertyTabs'))) {
+		$prlist['property'] = Dnsbase::dnsPropertyTabs();
+	}
+
+	if ($class === 'serverftp' && $prlist['property'] === array()
+		&& class_exists('serverftp') && is_callable(array('serverftp', 'ftpPropertyTabs'))) {
+		$prlist['property'] = serverftp::ftpPropertyTabs();
 	}
 
 	if (!$prlist['property'] && $class !== 'phpini') {
@@ -1325,11 +1382,19 @@ function do_updateform($object, $subaction)
 			$post = $vlist['__m_message_post'];
 		}
 
-		$ghtml->print_information('pre', 'updateform', $class, $subaction, $pre);
+		try {
+			$ghtml->print_information('pre', 'updateform', $class, $subaction, $pre);
+		} catch (Throwable $e) {
+			log_log("error", "print_information pre: " . $e->getMessage());
+		}
 
 		$ghtml->xml_print_page($string);
 
-		$ghtml->print_information('post', 'updateform', $class, $subaction, $post);
+		try {
+			$ghtml->print_information('post', 'updateform', $class, $subaction, $post);
+		} catch (Throwable $e) {
+			log_log("error", "print_information post: " . $e->getMessage());
+		}
 	}
 }
 
@@ -1653,10 +1718,13 @@ function create_xml($object, $stuff, $ret)
 			}
 
 			if (csa($v[0], 's')) {
-				if (!$v[1]) {
+				if (!isset($v[1]) || $v[1] === null || $v[1] === false || $v[1] === '') {
 					$list = exec_class_method($dclass, "getSelectList", $object, $dk);
 				} else {
 					$list = $v[1];
+				}
+				if (!is_array($list)) {
+					$list = array();
 				}
 
 				$string[] = $ghtml->object_variable_select($stuff, $k, $list);

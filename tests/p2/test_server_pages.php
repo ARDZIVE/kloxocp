@@ -92,10 +92,16 @@ try {
 	$svcClientList = $e->getMessage();
 }
 $svcNames = array();
+$svcAllInstalled = is_array($svcList);
 if (is_array($svcList)) {
 	foreach ($svcList as $row) {
-		if (is_array($row) && isset($row['nname'])) {
-			$svcNames[$row['nname']] = true;
+		if (!is_array($row) || !isset($row['nname'])) {
+			$svcAllInstalled = false;
+			continue;
+		}
+		$svcNames[$row['nname']] = true;
+		if (($row['install_state'] ?? '') !== 'on') {
+			$svcAllInstalled = false;
 		}
 	}
 }
@@ -105,21 +111,51 @@ $svcDummy->servicename = 'pdns';
 $svcDummy->state = 'off';
 $svcDummy->dbaction = 'clean';
 $svcDummy->updateStart(array());
+$svcFiltered = Service::onlyInstalledRows(array(
+	array('nname' => 'nginx___localhost', 'install_state' => 'on', 'state' => 'on'),
+	array('nname' => 'pdns___localhost', 'install_state' => 'dull', 'state' => 'off'),
+	array('nname' => 'apache2___localhost', 'install_state' => 'on', 'state' => 'off'),
+));
+$svcMissing = Service__Linux::getServiceDetails(array(
+	'missing' => array(
+		'servicename' => 'kloxo-no-such-unit-xyz',
+		'grepstring' => 'kloxo-no-such-unit-xyz',
+	),
+));
+$svcBindCands = Service__Linux::unitCandidates('bind9');
+$svcMariaCands = Service__Linux::unitCandidates('mariadb');
 if (Service::canGetSingle()
 	&& $svcParsed === array('pdns', 'localhost')
 	&& is_object($svcObj) && ($svcObj->nname ?? '') === 'pdns___localhost'
 	&& ($svcObj->servicename ?? '') === 'pdns'
-	&& is_array($svcList) && isset($svcNames['pdns___localhost'])
+	&& is_array($svcList) && $svcAllInstalled
 	&& is_array($svcClientList)
 	&& in_array('pdns', Service::defaultServiceList(), true)
+	&& in_array('postfix', Service::defaultServiceList(), true)
 	&& Service__Linux::unitName('pdns-server') === 'pdns'
 	&& $svcDummy->subaction === 'start'
 	&& str_contains($debSrc, "lxshell_return('systemctl', \$act, \$unit)")
-	&& str_contains($debSrc, "case 'start':")) {
-	ok('Services start/stop load pdns___localhost and use systemctl');
+	&& str_contains($debSrc, "case 'start':")
+	&& count($svcFiltered) === 2
+	&& ($svcFiltered[0]['nname'] ?? '') === 'nginx___localhost'
+	&& ($svcFiltered[1]['nname'] ?? '') === 'apache2___localhost'
+	&& is_array($svcMissing) && ($svcMissing['missing']['install_state'] ?? '') === 'dull'
+	&& ($svcMissing['missing']['state'] ?? '') === 'off'
+	&& in_array('named', $svcBindCands, true) && in_array('bind9', $svcBindCands, true)
+	&& in_array('mysql', $svcMariaCands, true) && in_array('mariadb', $svcMariaCands, true)
+	&& Service__Linux::checkService('') === 'off'
+	&& Service__Linux::isSafeUnit('php8.3-fpm')
+	&& !Service__Linux::isSafeUnit('php-fpm; rm -rf /')
+	&& str_contains((string)file_get_contents($doc . '/driver/pserver/service__linuxlib.php'), 'function resolveInstalledUnit')
+	&& str_contains((string)file_get_contents($doc . '/driver/pserver/service__linuxlib.php'), 'ActiveState')) {
+	ok('Services list only installed units and read systemd ActiveState');
 } else {
-	bad('Services start/stop load pdns___localhost and use systemctl',
-		$svcObjErr !== '' ? $svcObjErr : (is_string($svcListErr) ? $svcListErr : ''));
+	bad('Services list only installed units and read systemd ActiveState',
+		$svcObjErr !== '' ? $svcObjErr : (is_string($svcListErr) ? $svcListErr : (
+			'list=' . (is_array($svcList) ? (string)count($svcList) : 'no')
+			. ' installed=' . ($svcAllInstalled ? 'yes' : 'no')
+			. ' missing=' . var_export($svcMissing['missing']['install_state'] ?? null, true)
+		)));
 }
 
 $psSrc = (string) file_get_contents($doc . '/driver/pserver/pserver__linuxlib.php');
@@ -265,7 +301,7 @@ if (class_exists('KloxoComponent')) {
 		}
 	}
 	if (isset($names['nginx'], $names['apache2'], $names['bind9'], $names['pdns-server'],
-		$names['mariadb-server'], $names['exim4'], $names['dovecot-core'], $names['rspamd'],
+		$names['mariadb-server'], $names['exim4'], $names['postfix'], $names['dovecot-core'], $names['rspamd'],
 		$names['hiawatha'], $names['php8.3-cli'], $names['php5.6-cli'], $names['php7.4-fpm'])) {
 		ok('Component catalog lists the Ubuntu stack');
 	} else {
@@ -380,10 +416,11 @@ try {
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
 	&& str_contains($src, "'sshconfig', 'lxguard', 'sshclient', 'ffile', 'ticket', 'notification'")
+	&& str_contains($src, "'lxupdate', 'dns', 'dns_record_a', 'web'")
 	&& str_contains($src, "'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist'")) {
-	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification show pages');
+	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns show pages');
 } else {
-	bad('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification show pages');
+	bad('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns show pages');
 }
 if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('lxguard')
@@ -392,11 +429,15 @@ if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('lxguardwhitelist')
 	&& kloxo_skip_find_class('ticket')
 	&& kloxo_skip_find_class('notification')
+	&& kloxo_skip_find_class('lxupdate')
+	&& kloxo_skip_find_class('dns')
+	&& kloxo_skip_find_class('dns_record_a')
+	&& kloxo_skip_find_class('web')
 	&& !kloxo_skip_find_class('tickethistory')
 	&& !kloxo_skip_find_class('client')) {
-	ok('LxGuard, HelpDesk ticket and Notification pages skip the Find input');
+	ok('LxGuard, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
 } else {
-	bad('LxGuard, HelpDesk ticket and Notification pages skip the Find input');
+	bad('LxGuard, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
 }
 
 $welcomeDefault = Notification::defaultWelcomeMessage();
@@ -900,9 +941,90 @@ try {
 	} else {
 		bad('DNS template show still offers add-record tabs without a loaded parent', $rightErr);
 	}
+
+	$zone = new Dns(null, 'localhost', 'example.com');
+	$zone->nname = 'example.com';
+	$zone->parent_clname = '';
+	$zoneTabs = array('property' => array());
+	$zone->createShowPropertyList($zoneTabs);
+	$zoneClist = $zone->createShowClist(null);
+	$zoneShow = kloxo_content_tab_label('', 'display.php?frm_action=show&frm_o_o[0][class]=dns&frm_o_o[0][nname]=example.com');
+	$zoneNs = kloxo_content_tab_label('Add NS', 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=ns');
+	$zoneA = kloxo_content_tab_label('', 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=a');
+	$zoneRebuild = kloxo_content_tab_label('Update_rebuild', 'a=updateform&sa=rebuild');
+	$zoneParam = kloxo_content_tab_label('general_settings', 'a=updateform&sa=parameter');
+	$recForm = dns_record_a::addform($zone, 'dns_record_a', array('var' => 'ttype', 'val' => 'cname'));
+	$rec = new dns_record_a(null, null, 'caa_letsencrypt.org');
+	$rec->ttype = 'caa';
+	$recDisp = $rec->display('param');
+	$zoneSrc = (string) file_get_contents($doc . '/driver/dns/dnslib.php');
+	$baseSrcNow = (string) file_get_contents($doc . '/driver/dns/dnsbaselib.php');
+	$zoneProps = $zoneTabs['property'] ?? array();
+	if (($zoneProps[0] ?? '') === 'a=show'
+		&& in_array('a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=ns', $zoneProps, true)
+		&& in_array('a=updateform&sa=parameter', $zoneProps, true)
+		&& array_key_exists('dns_record_a', is_array($zoneClist) ? $zoneClist : array())
+		&& $zoneShow === 'Manage DNS'
+		&& $zoneNs === 'NS'
+		&& $zoneA === 'A'
+		&& $zoneRebuild === 'Rebuild'
+		&& $zoneParam === 'General Settings'
+		&& is_array($recForm) && isset($recForm['variable']['hostname'])
+		&& is_string($recDisp)
+		&& str_contains($zoneSrc, 'function createExtraVariables')
+		&& str_contains($baseSrcNow, 'function dnsPropertyTabs')) {
+		ok('Manage DNS page tabs are labelled Manage DNS, NS, A, Rebuild, General Settings');
+	} else {
+		bad('Manage DNS page tabs are labelled Manage DNS, NS, A, Rebuild, General Settings',
+			'show=' . $zoneShow . ' ns=' . $zoneNs . ' a=' . $zoneA
+				. ' rebuild=' . $zoneRebuild . ' param=' . $zoneParam
+				. ' props=' . implode(',', array_map('strval', $zoneProps)));
+	}
 	$login = $prevDnsLogin;
 } catch (Throwable $e) {
 	bad('DNS template addform/add/createDefaultTemplate complete without TypeError', $e->getMessage());
+}
+
+try {
+	global $login;
+	$prevZoneLogin = $login;
+	$admin = new Client(null, 'localhost', 'admin');
+	$admin->nname = 'admin';
+	$admin->cttype = 'admin';
+	$login = $admin;
+	$zone = new Dns(null, 'localhost', 'example.com');
+	$zone->nname = 'example.com';
+	$zone->parent_clname = 'domain-example.com';
+	$zone->dbaction = 'clean';
+	$rec = new dns_record_a(null, null, 'a___base__');
+	$rec->ttype = 'a';
+	$rec->hostname = '__base__';
+	$rec->param = '127.0.0.1';
+	$zone->dns_record_a = array(
+		'a___base__' => $rec,
+		'junk' => 'not-an-object',
+	);
+	$alist = array();
+	$zone->createShowAlist($alist);
+	$count = 0;
+	$list = $zone->getVirtualList('dns_record_a', $count);
+	$coreSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+	$baseSrcFix = (string) file_get_contents($doc . '/driver/dns/dnsbaselib.php');
+	if ($zone->dbaction === 'clean'
+		&& is_array($list) && isset($list['a___base__']) && is_object($list['a___base__'])
+		&& !isset($list['junk'])
+		&& str_contains($coreSrc, 'do_list_class $k')
+		&& str_contains($baseSrcFix, 'Show must not dirty the zone')
+		&& !str_contains($baseSrcFix, '$this->write();')) {
+		ok('Manage DNS show lists records without writing the zone');
+	} else {
+		bad('Manage DNS show lists records without writing the zone',
+			'dbaction=' . (string)$zone->dbaction
+				. ' rows=' . (is_array($list) ? implode(',', array_keys($list)) : 'none'));
+	}
+	$login = $prevZoneLogin;
+} catch (Throwable $e) {
+	bad('Manage DNS show lists records without writing the zone', $e->getMessage());
 }
 
 $ghtml = class_exists('HtmlLib') ? new HtmlLib() : null;
@@ -1000,8 +1122,26 @@ if (class_exists('serverftp') && is_callable(array('serverftp', 'initThisObjectR
 	} catch (Throwable $e) {
 		bad('FTP Configure show does not sync a missing serverftp row', $e->getMessage());
 	}
+	$ftpShowTab = kloxo_content_tab_label('FTP_config',
+		'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=serverftp');
+	$ftpUpdateTab = kloxo_content_tab_label('Update_update',
+		'a=updateform&sa=update&o=serverftp');
+	$ftpTabs = serverftp::ftpPropertyTabs();
+	$ftpProps = array('property' => array());
+	$ftp->createShowPropertyList($ftpProps);
+	if ($ftpShowTab === 'FTP Configure'
+		&& $ftpUpdateTab === 'FTP Configure'
+		&& is_array($ftpTabs) && ($ftpTabs[0] ?? '') === 'a=show'
+		&& ($ftpProps['property'][0] ?? '') === 'a=show') {
+		ok('FTP Configure page tab is labelled FTP Configure');
+	} else {
+		bad('FTP Configure page tab is labelled FTP Configure',
+			'show=' . $ftpShowTab . ' update=' . $ftpUpdateTab
+				. ' tabs=' . (is_array($ftpTabs) ? implode(',', $ftpTabs) : 'no'));
+	}
 } else {
 	bad('FTP Configure show does not sync a missing serverftp row', 'class missing');
+	bad('FTP Configure page tab is labelled FTP Configure', 'class missing');
 }
 
 $ps = new pserver(null, null, 'localhost');
@@ -1145,6 +1285,113 @@ if (is_string($perm) && $perm !== ''
 	ok('File Manager list columns and toolbar search match Kloxo-MR');
 } else {
 	bad('File Manager list columns and toolbar search match Kloxo-MR', isset($nlist['error']) ? $nlist['error'] : '');
+}
+
+$fmTabs = array(
+	kloxo_content_tab_label('Update_perm', 'a=updateform&sa=perm'),
+	kloxo_content_tab_label('Update_own', 'a=updateform&sa=own'),
+	kloxo_content_tab_label('Update_diskspace', 'a=update&sa=diskspace'),
+	kloxo_content_tab_label('Update_upload', 'a=updateform&sa=upload'),
+	kloxo_content_tab_label('Update_thumbnail', 'a=updateForm&sa=thumbnail'),
+);
+$fmTools = array(
+	kloxo_content_tab_label('Update_toggle_dot', 'a=update&sa=toggle_dot'),
+	kloxo_content_tab_label('Update_newdir', 'a=updateform&sa=newdir'),
+	kloxo_content_tab_label('Update_newfile', 'a=updateform&sa=newfile'),
+	kloxo_content_tab_label('Update_copy', 'a=update&sa=copy'),
+	kloxo_content_tab_label('Update_cut', 'a=update&sa=cut'),
+	kloxo_content_tab_label('Update_paste_inactive', 'a=update&sa=paste_inactive'),
+	kloxo_content_tab_label('Update_filedelete', 'a=update&sa=filedelete'),
+	kloxo_content_tab_label('Update_filerealdelete', 'a=update&sa=filerealdelete'),
+	kloxo_content_tab_label('Update_zip_file', 'a=update&sa=zip_file'),
+	kloxo_content_tab_label('', '/display.php?frm_action=refresh&frm_o_cname=ffile'),
+);
+$fmShow = kloxo_content_tab_label('home', 'display.php?frm_action=show&frm_o_o[0][class]=ffile&frm_o_o[0][nname]=/');
+$kw = (string) file_get_contents($doc . '/lang/en-us/langkeywordlib.php');
+$admin = new Client(null, 'localhost', 'admin');
+$admin->nname = 'admin';
+$admin->cttype = 'admin';
+$admin->parent_clname = '';
+$trueParent = 'threw';
+try {
+	$trueParent = $admin->getTrueParentO();
+} catch (Throwable $e) {
+	$trueParent = $e->getMessage();
+}
+if ($fmTabs === array('Permissions', 'Ownership', 'Disk Usage', 'Upload', 'Thumbnail')
+	&& $fmTools === array('T Hidden', 'New dir', 'New file', 'Copy', 'Cut', 'Paste', 'Trash', 'Remove', 'Zip', 'Refresh')
+	&& $fmShow === 'File Manager'
+	&& str_contains($htmlsrc, 'kloxo_content_tab_label')
+	&& str_contains($kw, '$__keyword["showall"]')
+	&& $trueParent === null) {
+	ok('File Manager tabs and toolbar use Kloxo-MR labels');
+} else {
+	bad('File Manager tabs and toolbar use Kloxo-MR labels',
+		'tabs=' . implode(',', $fmTabs) . ' tools=' . implode(',', $fmTools)
+			. ' show=' . $fmShow . ' parent=' . var_export($trueParent, true));
+}
+
+$bak = new lxbackup(null, 'localhost', 'admin');
+$bakTabs = array('property' => array());
+$bak->createShowPropertyList($bakTabs);
+$bakFull = 'display.php?frm_action=show&frm_o_o[0][class]=client&frm_o_o[0][nname]=admin&frm_o_o[1][class]=lxbackup&frm_o_o[1][nname]=client-admin';
+$bakFullFtp = 'display.php?frm_action=updateform&frm_subaction=ftp_conf&frm_o_o[0][class]=lxbackup&frm_o_o[0][nname]=admin';
+$bakFullSched = '/display.php?frm_action=updateform&frm_subaction=schedule_conf&frm_o_o%5B0%5D%5Bclass%5D=lxbackup';
+$bakShow = kloxo_content_tab_label('lxbackup', $bakFull);
+$bakFtp = kloxo_content_tab_label('Update_ftp_conf', 'a=updateform&sa=ftp_conf');
+$bakFtpFull = kloxo_content_tab_label('Update _ftp_conf', $bakFullFtp);
+$bakSched = kloxo_content_tab_label('schedule_configuration', 'a=updateform&sa=schedule_conf');
+$bakSchedFull = kloxo_content_tab_label('', $bakFullSched);
+$bakNow = kloxo_content_tab_label('backup_now', 'a=updateform&sa=backup');
+$bakFile = kloxo_content_tab_label('restore_from_file', 'a=updateform&sa=restore_from_file');
+$bakFtpRest = kloxo_content_tab_label('', 'a=updateform&sa=restore_from_ftp');
+$bakBrowse = kloxo_content_tab_label('file', $bakFull . '&frm_o_o[2][class]=ffile&frm_o_o[2][nname]=/');
+$bakUpload = kloxo_content_tab_label('upload', $bakFull . '&frm_action=updateform&frm_subaction=upload&frm_o_o[2][class]=ffile&frm_o_o[2][nname]=/');
+$bakFf = new Ffile(null, 'localhost', '/home/kloxo/client/admin/__backup/', '/', 'lxlabs');
+$bakFf->nname = '/';
+$bakFf->root = '/home/kloxo/client/admin/__backup/';
+$bakFf->base = '/';
+$bakFf->__parent_o = $bak;
+$bakFfTabs = array('property' => array());
+try {
+	$bakFf->createShowPropertyList($bakFfTabs);
+} catch (Throwable $e) {
+	$bakFfTabs = array('property' => array('error' => $e->getMessage()));
+}
+$bakSrc = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
+$bakLib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+$bakProp = $bakTabs['property'] ?? array();
+$bakFfProp = $bakFfTabs['property'] ?? array();
+$bakFfHas = is_array($bakFfProp)
+	&& in_array('goback=1&a=show', $bakFfProp, true)
+	&& in_array('goback=1&a=updateform&sa=ftp_conf', $bakFfProp, true);
+if (($bakProp[0] ?? '') === 'a=show'
+	&& ($bakProp[1] ?? '') === 'a=updateform&sa=ftp_conf'
+	&& ($bakProp['__var_backupschedule_flag'] ?? '') === 'a=updateform&sa=schedule_conf'
+	&& $bakShow === 'Backup / Restore'
+	&& $bakFtp === 'FTP Configuration'
+	&& $bakFtpFull === 'FTP Configuration'
+	&& $bakSched === 'Schedule Configuration'
+	&& $bakSchedFull === 'Schedule Configuration'
+	&& $bakNow === 'Backup Now'
+	&& $bakFile === 'Restore From File'
+	&& $bakFtpRest === 'Restore From FTP'
+	&& $bakBrowse === 'File Manager'
+	&& $bakUpload === 'Upload'
+	&& $bakFfHas
+	&& kloxo_object_is_backup_page($bak)
+	&& kloxo_object_is_backup_page($bakFf)
+	&& str_contains($bakSrc, 'function backupPropertyTabs')
+	&& str_contains($bakSrc, 'Backup / Restore')
+	&& str_contains($bakLib, 'function kloxo_backup_page_tab_label')) {
+	ok('Backup/Restore page tabs are labelled Backup / Restore, FTP Configuration, Schedule Configuration');
+} else {
+	bad('Backup/Restore page tabs are labelled Backup / Restore, FTP Configuration, Schedule Configuration',
+		'show=' . $bakShow . ' ftp=' . $bakFtp . '/' . $bakFtpFull . ' sched=' . $bakSched . '/' . $bakSchedFull
+			. ' now=' . $bakNow . ' file=' . $bakFile . ' restftp=' . $bakFtpRest
+			. ' browse=' . $bakBrowse . ' upload=' . $bakUpload
+			. ' props=' . implode(',', array_map('strval', $bakProp))
+			. ' ff=' . implode(',', array_map('strval', $bakFfProp)));
 }
 
 $cff = (string)file_get_contents($doc . '/lib/php/coreffilelib.php');
@@ -1994,6 +2241,179 @@ if (function_exists('check_if_port_on')
 	ok('check_if_port_on rejects empty and unsafe watchdog port strings');
 } else {
 	bad('check_if_port_on rejects empty and unsafe watchdog port strings');
+}
+
+$sslSrc = (string)file_get_contents($doc . '/driver/pserver/sslcertlib.php');
+$webSrc = (string)file_get_contents($doc . '/driver/web/weblib.php');
+try {
+	$sslListUrl = 'display.php?frm_action=list&frm_o_o[0][class]=domain&frm_o_o[0][nname]=aklor.com&frm_o_o[1][class]=web&frm_o_cname=sslcert';
+	$sslShowTab = kloxo_content_tab_label('ssl_certificate', $sslListUrl);
+	$sslFileTab = kloxo_content_tab_label('Add ssl_file', 'a=addform&c=sslcert&dta[var]=upload&dta[val]=file');
+	$sslTextTab = kloxo_content_tab_label('', 'a=addform&c=sslcert&dta[var]=upload&dta[val]=text');
+	$sslLeTab = kloxo_content_tab_label('ssl_letsencrypt', 'a=addform&c=sslcert&dta[var]=upload&dta[val]=letsencrypt');
+	$sslLinkTab = kloxo_content_tab_label('Add SSL Link', 'a=addform&c=sslcert&dta[var]=upload&dta[val]=link');
+	$web = new Web(null, 'localhost', 'aklor.com');
+	$web->nname = 'aklor.com';
+	$web->customer_name = 'aklorcom';
+	$sslTabs = Sslcert::createListAlist($web, 'sslcert');
+	$sslForm = Sslcert::addform($web, 'sslcert', array('var' => 'upload', 'val' => 'letsencrypt'));
+	$sslFileForm = Sslcert::addform($web, 'sslcert', array('var' => 'upload', 'val' => 'file'));
+	$sslNullForm = Sslcert::addform(null, 'sslcert', null);
+	$sslEmptyLink = Sslcert::getSSLParentList('aklor.com');
+	$sslCert = new Sslcert(null, 'localhost', 'aklor.com');
+	$sslCert->nname = 'aklor.com';
+	$sslParse = $sslCert->getCRTParse();
+	$sslUsers = $sslCert->getUserList();
+	$sslNlist = Sslcert::createListNlist($web, null);
+	$sslSwitch = $web->getSelfList();
+	if ($sslShowTab === 'SSL Certificates'
+		&& $sslFileTab === 'Add SSL File'
+		&& $sslTextTab === 'Add SSL Text'
+		&& $sslLeTab === "Add Let's Encrypt"
+		&& $sslLinkTab === 'Add SSL Link'
+		&& is_array($sslTabs)
+		&& ($sslTabs[0] ?? '') === 'a=list&c=sslcert'
+		&& in_array('a=addform&c=sslcert&dta[var]=upload&dta[val]=file', $sslTabs, true)
+		&& in_array('a=addform&c=sslcert&dta[var]=upload&dta[val]=text', $sslTabs, true)
+		&& in_array('a=addform&c=sslcert&dta[var]=upload&dta[val]=letsencrypt', $sslTabs, true)
+		&& in_array('a=addform&c=sslcert&dta[var]=upload&dta[val]=link', $sslTabs, true)
+		&& is_array($sslForm) && isset($sslForm['variable']['ssl_data_b_s_subjectAltName_r'])
+		&& is_array($sslFileForm) && array_key_exists('ssl_key_file_f', $sslFileForm['variable'])
+		&& is_array($sslNullForm) && isset($sslNullForm['variable'])
+		&& is_array($sslEmptyLink)
+		&& $sslParse === '-'
+		&& is_array($sslUsers)
+		&& isset($sslNlist['username']) && isset($sslNlist['nname'])
+		&& isset($sslNlist['add_type']) && isset($sslNlist['parent_domain'])
+		&& isset($sslNlist['syncserver'])
+		&& is_array($sslSwitch) && isset($sslSwitch['aklor.com'])
+		&& str_contains($sslSrc, 'function sslPropertyTabs')
+		&& str_contains($webSrc, 'function domainWebSwitchList')) {
+		ok('SSL Certificates list tabs, Switch To Another and addform load without TypeError');
+	} else {
+		bad('SSL Certificates list tabs, Switch To Another and addform load without TypeError',
+			'show=' . $sslShowTab . ' file=' . $sslFileTab . ' text=' . $sslTextTab
+				. ' le=' . $sslLeTab . ' link=' . $sslLinkTab
+				. ' tabs=' . (is_array($sslTabs) ? implode(',', $sslTabs) : 'no')
+				. ' switch=' . (is_array($sslSwitch) ? implode(',', array_keys($sslSwitch)) : 'no'));
+	}
+} catch (Throwable $e) {
+	bad('SSL Certificates list tabs, Switch To Another and addform load without TypeError', $e->getMessage());
+}
+
+$lxclassSrc = (string) file_get_contents($doc . '/lib/php/lxclass.php');
+$webSrcPi = (string) file_get_contents($doc . '/driver/web/weblib.php');
+$domSrcPi = (string) file_get_contents($doc . '/lib/domain/domainlib.php');
+$adminPi = new Client(null, 'localhost', 'admin');
+$adminPi->nname = 'admin';
+$adminPi->cttype = 'client';
+$adminPi->parent_clname = '';
+ob_start();
+$tpPi = 'threw';
+$gpPi = 'threw';
+try {
+	$tpPi = $adminPi->getTrueParentO();
+	$gpPi = $adminPi->getParentO();
+} catch (Throwable $e) {
+	$tpPi = $e->getMessage();
+}
+$fatalPi = ob_get_clean();
+$webPi = new Web(null, 'localhost', 'example.com');
+$webPi->nname = 'example.com';
+$webPi->php_selected = 'php';
+$htmlPi = '';
+$piErr = '';
+ob_start();
+try {
+	$webPi->showRawPrint('phpinfo');
+	$htmlPi = ob_get_clean();
+} catch (Throwable $e) {
+	ob_end_clean();
+	$piErr = $e->getMessage();
+}
+$tabPi = kloxo_content_tab_label('phpinfo', 'n=web&a=show&sa=phpinfo');
+$tabPiUpdate = kloxo_content_tab_label('phpinfo', 'n=web&a=update&sa=phpinfo');
+if ($tpPi === null
+	&& $gpPi === null
+	&& $adminPi->isRootClient()
+	&& !str_contains($fatalPi, 'Critical internal error')
+	&& !str_contains($lxclassSrc, 'Critical internal error')
+	&& str_contains($lxclassSrc, 'function isRootClient')
+	&& str_contains($domSrcPi, 'n=web&a=show&sa=phpinfo')
+	&& !str_contains($domSrcPi, 'n=web&a=update&sa=phpinfo')
+	&& str_contains($webSrcPi, 'function phpInfoText')
+	&& str_contains($webSrcPi, 'proc_open')
+	&& str_contains($webSrcPi, "a=show&sa=phpinfo")
+	&& !str_contains($webSrcPi, '__kloxo/phpinfo.php')
+	&& $tabPi === 'PHPinfo'
+	&& $tabPiUpdate === 'PHPinfo'
+	&& kloxo_skip_find_class('web')
+	&& $piErr === ''
+	&& str_contains($htmlPi, '<pre')
+	&& str_contains($htmlPi, 'Site PHP')
+	&& !str_contains($htmlPi, 'Critical internal error')) {
+	ok('Client PHPinfo shows site php -i instead of parent_clname fatal');
+} else {
+	bad('Client PHPinfo shows site php -i instead of parent_clname fatal',
+		'tp=' . var_export($tpPi, true) . ' gp=' . var_export($gpPi, true)
+			. ' tab=' . $tabPi . ' err=' . $piErr
+			. ' html=' . substr(trim(preg_replace('/\s+/', ' ', $htmlPi)), 0, 180)
+			. ' fatal=' . substr($fatalPi, 0, 80));
+}
+
+$coErr = '';
+$coForm = null;
+$coDom = null;
+$coTab = kloxo_content_tab_label('change_owner', 'a=updateform&sa=changeowner');
+$coMsg = is_object($ghtml) ? $ghtml->convert_message(null) : 'no-ghtml';
+$lxclassCo = (string) file_get_contents($doc . '/lib/php/lxclass.php');
+$htmlCo = (string) file_get_contents($doc . '/theme/htmllib.php');
+$coAdmin = $adminPi;
+$coAdmin->cttype = 'admin';
+$coAdmin->parent_clname = '';
+$coAdmin->__parent_o = null;
+try {
+	$coCli = new Client(null, 'localhost', 'aklorcom');
+	$coCli->nname = 'aklorcom';
+	$coCli->cttype = 'customer';
+	$coCli->parent_clname = 'client-admin';
+	$coCli->__parent_o = $coAdmin;
+	$coForm = $coCli->updateform('changeowner', array());
+} catch (Throwable $e) {
+	$coErr = $e->getMessage();
+}
+try {
+	$coD = new domain(null, 'localhost', 'aklor.com');
+	$coD->nname = 'aklor.com';
+	$coD->cttype = 'domain';
+	$coD->parent_clname = 'client-aklorcom';
+	$coD->__parent_o = isset($coCli) && is_object($coCli) ? $coCli : $coAdmin;
+	$coDom = $coD->updateform('changeowner', array());
+} catch (Throwable $e) {
+	if ($coErr === '') {
+		$coErr = $e->getMessage();
+	}
+}
+$coList = (is_array($coForm) && isset($coForm['parent_name_change'][1])
+	&& is_array($coForm['parent_name_change'][1])) ? $coForm['parent_name_change'][1] : array();
+$coDomList = (is_array($coDom) && isset($coDom['parent_name_change'][1])
+	&& is_array($coDom['parent_name_change'][1])) ? $coDom['parent_name_change'][1] : array();
+if ($coErr === ''
+	&& is_array($coForm) && ($coForm['parent_name_change'][0] ?? '') === 's'
+	&& $coList !== array()
+	&& (isset($coList['admin']) || in_array('admin', $coList, true))
+	&& is_array($coDom) && ($coDom['parent_name_change'][0] ?? '') === 's'
+	&& $coDomList !== array()
+	&& $coTab === 'Change Owner'
+	&& $coMsg === ''
+	&& str_contains($lxclassCo, 'function changeOwnerForm')
+	&& str_contains($htmlCo, "return is_string(\$pinfo) ? \$pinfo : '';")) {
+	ok('Change Owner form loads without parent_clname TypeError');
+} else {
+	bad('Change Owner form loads without parent_clname TypeError',
+		'err=' . $coErr . ' tab=' . $coTab . ' msg=' . var_export($coMsg, true)
+			. ' form=' . var_export($coForm, true)
+			. ' dom=' . var_export($coDom, true));
 }
 
 echo "$pass passed, $fail failed\n";

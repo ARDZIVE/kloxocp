@@ -831,6 +831,7 @@ function validate_hostname_name($name, $bypass = null)
 {
 	global $login;
 
+	$name = (string)$name;
 	if (!preg_match('/^([0-9a-z_]{1,1}[0-9a-z\_\-\.]{0,126}[0-9a-z]{0,1})$/i', $name) && $name != "__base__") {
 		throw new lxException($login->getThrow('invalid_subdomain'), '', $name);
 	}

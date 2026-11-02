@@ -1633,6 +1633,7 @@ function kloxo_skip_find_class($class)
 	static $skip = array(
 		'llog', 'driver', 'phpini', 'lxbackup', 'serverweb', 'serverftp',
 		'sshconfig', 'lxguard', 'sshclient', 'ffile', 'ticket', 'notification',
+		'lxupdate', 'dns', 'dns_record_a', 'web',
 		'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist', 'lxguardhit',
 	);
 
@@ -3085,9 +3086,351 @@ function kloxo_url_subaction($url)
 	return '';
 }
 
+function kloxo_url_action($url)
+{
+	if (!is_string($url) || $url === '') {
+		return '';
+	}
+	$q = $url;
+	$qpos = strpos($q, '?');
+	if ($qpos !== false) {
+		$q = substr($q, $qpos + 1);
+	}
+	$p = array();
+	parse_str($q, $p);
+	if (isset($p['frm_action']) && is_string($p['frm_action']) && $p['frm_action'] !== '') {
+		return strtolower($p['frm_action']);
+	}
+	if (isset($p['a']) && is_string($p['a']) && $p['a'] !== '') {
+		return strtolower($p['a']);
+	}
+
+	return '';
+}
+
+function kloxo_url_dttype_val($url)
+{
+	if (!is_string($url) || $url === '') {
+		return '';
+	}
+	$q = $url;
+	$qpos = strpos($q, '?');
+	if ($qpos !== false) {
+		$q = substr($q, $qpos + 1);
+	}
+	$p = array();
+	parse_str($q, $p);
+	if (isset($p['frm_dttype']['val']) && is_string($p['frm_dttype']['val']) && $p['frm_dttype']['val'] !== '') {
+		return strtolower($p['frm_dttype']['val']);
+	}
+	if (isset($p['dta']['val']) && is_string($p['dta']['val']) && $p['dta']['val'] !== '') {
+		return strtolower($p['dta']['val']);
+	}
+
+	return '';
+}
+
+function kloxo_url_has_dns($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	if (preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\bo|\bc)=dns(?:&|$)/i', $url) === 1) {
+		return true;
+	}
+
+	return (bool) preg_match('/(?:\[class\]|\bcname|\bo)=dns(?:&|$)/i', $url);
+}
+
+function kloxo_url_has_sslcert($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	if (preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\bo|\bc)=sslcert(?:&|$)/i', $url) === 1) {
+		return true;
+	}
+
+	return str_contains($url, '[class]=sslcert') || str_contains($url, 'cname=sslcert');
+}
+
+function kloxo_ssl_upload_label($val)
+{
+	static $map = array(
+		'file' => 'Add SSL File',
+		'text' => 'Add SSL Text',
+		'letsencrypt' => "Add Let's Encrypt",
+		'startapi' => 'Add StartAPI',
+		'link' => 'Add SSL Link',
+	);
+	$v = strtolower(trim((string)$val));
+
+	return isset($map[$v]) ? $map[$v] : '';
+}
+
+function kloxo_dns_record_type_label($val)
+{
+	static $map = array(
+		'ns' => 'NS',
+		'a' => 'A',
+		'aaaa' => 'AAAA',
+		'cname' => 'CNAME',
+		'fcname' => 'FCNAME',
+		'mx' => 'MX',
+		'txt' => 'TXT',
+		'caa' => 'CAA',
+		'srv' => 'SRV',
+	);
+	$v = strtolower(trim((string)$val));
+
+	return isset($map[$v]) ? $map[$v] : '';
+}
+
+function kloxo_url_has_ffile($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	if (preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\bc)=ffile(?:&|$)/i', $url) === 1) {
+		return true;
+	}
+
+	return str_contains($url, '[class]=ffile') || str_contains($url, 'cname=ffile');
+}
+
+function kloxo_url_has_serverftp($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	if (preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\bo|\bc)=serverftp(?:&|$)/i', $url) === 1) {
+		return true;
+	}
+
+	return str_contains($url, '[class]=serverftp') || str_contains($url, 'cname=serverftp')
+		|| str_contains($url, 'o=serverftp');
+}
+
+function kloxo_url_has_lxbackup($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	$url = urldecode($url);
+	if (preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\bo|\bc)=lxbackup(?:&|$)/i', $url) === 1) {
+		return true;
+	}
+
+	return str_contains($url, '[class]=lxbackup') || str_contains($url, 'cname=lxbackup')
+		|| str_contains($url, 'o=lxbackup');
+}
+
+function kloxo_object_is_backup_page($object)
+{
+	if (!is_object($object)) {
+		return false;
+	}
+	$c = '';
+	try {
+		$c = strtolower((string) $object->getClass());
+	} catch (Throwable $e) {
+		return false;
+	}
+	if ($c === 'lxbackup') {
+		return true;
+	}
+	if ($c !== 'ffile') {
+		return false;
+	}
+	try {
+		$p = method_exists($object, 'getParentO') ? $object->getParentO() : null;
+		if (is_object($p) && method_exists($p, 'getClass')
+			&& strtolower((string) $p->getClass()) === 'lxbackup') {
+			return true;
+		}
+	} catch (Throwable $e) {
+	}
+	$root = isset($object->root) ? (string) $object->root : '';
+	$base = isset($object->base) ? (string) $object->base : '';
+
+	return ($base === '__backup' || basename(rtrim($root, '/')) === '__backup');
+}
+
+function kloxo_backup_action_label($sa)
+{
+	static $map = array(
+		'ftp_conf' => 'FTP Configuration',
+		'schedule_conf' => 'Schedule Configuration',
+		'backup' => 'Backup Now',
+		'restore' => 'Restore',
+		'restore_from_file' => 'Restore From File',
+		'restore_from_ftp' => 'Restore From FTP',
+	);
+
+	return (is_string($sa) && isset($map[$sa])) ? $map[$sa] : '';
+}
+
+function kloxo_backup_page_tab_label($str, $url)
+{
+	$url = is_string($url) ? urldecode($url) : '';
+	$str = is_string($str) ? $str : '';
+	$sa = kloxo_url_subaction($url);
+	$act = kloxo_url_action($url);
+	$isBackupUrl = kloxo_url_has_lxbackup($url);
+	static $backupStr = array(
+		'backup' => true,
+		'Backup' => true,
+		'Backup / Restore' => true,
+		'lxbackup' => true,
+		'Lxbackup' => true,
+		'ftp_conf' => true,
+		'ftp_configuration' => true,
+		'FTP Configuration' => true,
+		'Update_ftp_conf' => true,
+		'Update _ftp_conf' => true,
+		'schedule_conf' => true,
+		'schedule_configuration' => true,
+		'Schedule Configuration' => true,
+		'Update_schedule_conf' => true,
+		'Update _schedule_conf' => true,
+	);
+	if (!$isBackupUrl && !isset($backupStr[$str]) && $sa !== 'ftp_conf' && $sa !== 'schedule_conf') {
+		return '';
+	}
+	$isFfile = kloxo_url_has_ffile($url);
+	if ($isFfile && ($sa === 'upload' || $sa === 'upload_s')) {
+		return 'Upload';
+	}
+	if ($isFfile && ($act === 'show' || $act === '' || $sa === '')) {
+		return 'File Manager';
+	}
+	if ($sa === 'ftp_conf' || $str === 'ftp_conf' || $str === 'ftp_configuration'
+		|| $str === 'Update_ftp_conf' || $str === 'Update _ftp_conf' || $str === 'FTP_config') {
+		return 'FTP Configuration';
+	}
+	if ($sa === 'schedule_conf' || $str === 'schedule_conf' || $str === 'schedule_configuration'
+		|| $str === 'Update_schedule_conf' || $str === 'Update _schedule_conf') {
+		return 'Schedule Configuration';
+	}
+	if ($sa === 'restore_from_file' || $str === 'restore_from_file') {
+		return 'Restore From File';
+	}
+	if ($sa === 'restore_from_ftp' || $str === 'restore_from_ftp') {
+		return 'Restore From FTP';
+	}
+	if ($sa === 'backup' && $act !== 'show' && $act !== '') {
+		return 'Backup Now';
+	}
+	if ($isBackupUrl && !$isFfile && ($act === 'show' || $act === '') && ($sa === '' || $sa === 'show')) {
+		return 'Backup / Restore';
+	}
+	if (isset($backupStr[$str]) && ($sa === '' || $act === 'show' || $act === '')
+		&& $sa !== 'ftp_conf' && $sa !== 'schedule_conf') {
+		return 'Backup / Restore';
+	}
+
+	return kloxo_backup_action_label($sa);
+}
+
+function kloxo_ffile_action_label($sa)
+{
+	static $map = array(
+		'perm' => 'Permissions',
+		'own' => 'Ownership',
+		'diskspace' => 'Disk Usage',
+		'upload' => 'Upload',
+		'upload_s' => 'Upload',
+		'thumbnail' => 'Thumbnail',
+		'rename' => 'Rename',
+		'toggle_dot' => 'T Hidden',
+		'newdir' => 'New dir',
+		'newfile' => 'New file',
+		'copy' => 'Copy',
+		'cut' => 'Cut',
+		'paste' => 'Paste',
+		'paste_inactive' => 'Paste',
+		'filedelete' => 'Trash',
+		'filerealdelete' => 'Remove',
+		'zip_file' => 'Zip',
+		'unzip' => 'Unzip',
+		'download' => 'Download',
+		'convert_image' => 'Convert Format',
+		'content' => 'Contents',
+		'archive' => 'Browse Archive',
+		'zipextract' => 'Extract Archive',
+		'go_home' => 'Home',
+		'go_up' => 'Up',
+		'restore_trash' => 'Restore',
+		'clear_trash' => 'Clear',
+		'download_from_url' => 'Upload From Url',
+		'download_from_http' => 'Upload (http)',
+		'download_from_ftp' => 'Upload (ftp)',
+		'backupftpupload' => 'FTP Upload',
+		'fancyedit' => 'Html Edit',
+	);
+
+	return (is_string($sa) && isset($map[$sa])) ? $map[$sa] : '';
+}
+
 function kloxo_content_tab_label($str, $url = '')
 {
-	$sa = kloxo_url_subaction(is_string($url) ? $url : '');
+	$url = is_string($url) ? urldecode($url) : '';
+	$bkPage = kloxo_backup_page_tab_label(is_string($str) ? $str : '', $url);
+	if ($bkPage !== '') {
+		return $bkPage;
+	}
+	$sa = kloxo_url_subaction($url);
+	$ff = kloxo_ffile_action_label($sa);
+	if ($ff !== '') {
+		return $ff;
+	}
+	$bk = kloxo_backup_action_label($sa);
+	if ($bk !== '') {
+		return $bk;
+	}
+	$urlStr = $url;
+	$dt = kloxo_url_dttype_val($urlStr);
+	$dnsDt = kloxo_dns_record_type_label($dt);
+	if ($dnsDt !== '') {
+		return $dnsDt;
+	}
+	$sslTab = kloxo_ssl_upload_label($dt);
+	if ($sslTab !== '' && kloxo_url_has_sslcert($urlStr)) {
+		return $sslTab;
+	}
+	$isFfile = kloxo_url_has_ffile($urlStr);
+	if ($isFfile && $sa === 'edit') {
+		return 'Edit';
+	}
+	$act = kloxo_url_action($urlStr);
+	if ($isFfile && ($act === 'show' || $act === '')) {
+		return 'File Manager';
+	}
+	if (kloxo_url_has_lxbackup($urlStr) && !$isFfile
+		&& ($act === 'show' || $act === '')) {
+		return 'Backup / Restore';
+	}
+	if (kloxo_url_has_dns($urlStr) && !$isFfile
+		&& ($act === 'show' || $act === '')) {
+		return 'Manage DNS';
+	}
+	if (kloxo_url_has_sslcert($urlStr) && !$isFfile
+		&& ($act === 'list' || $act === 'show' || $act === '')) {
+		return 'SSL Certificates';
+	}
+	if (kloxo_url_has_serverftp($urlStr) && !$isFfile
+		&& ($act === 'show' || $act === 'list' || $act === '' || $act === 'updateform' || $act === 'update')) {
+		return 'FTP Configure';
+	}
+	if ($sa === 'rebuild') {
+		return 'Rebuild';
+	}
+	if ($sa === 'parameter') {
+		return 'General Settings';
+	}
+	if ($act === 'refresh' || $act === 'hardrefresh') {
+		return 'Refresh';
+	}
 	if ($sa === 'switchprogram') {
 		return 'Switch Program';
 	}
@@ -3099,6 +3442,12 @@ function kloxo_content_tab_label($str, $url = '')
 	}
 	if ($sa === 'extraedit') {
 		return 'Advanced PHP Configure';
+	}
+	if ($sa === 'phpinfo') {
+		return 'PHPinfo';
+	}
+	if ($sa === 'changeowner') {
+		return 'Change Owner';
 	}
 	if (!is_string($str) || $str === '') {
 		if ($sa === 'edit') {
@@ -3117,11 +3466,123 @@ function kloxo_content_tab_label($str, $url = '')
 		|| $str === 'Update _switchprogram' || strcasecmp($str, 'switch program') === 0) {
 		return 'Switch Program';
 	}
+	if ($str === 'FTP_config' || $str === 'ftp_config' || $str === 'FTP_Config'
+		|| $str === 'ftpconfigure' || $str === 'Ftp_config'
+		|| strcasecmp($str, 'ftp configure') === 0) {
+		return 'FTP Configure';
+	}
+	static $ffileKeys = array(
+		'change_permissions' => 'Permissions',
+		'change_ownership' => 'Ownership',
+		'disk_usage' => 'Disk Usage',
+		't_hidden' => 'T Hidden',
+		'newdir' => 'New dir',
+		'newfile' => 'New file',
+		'file_manager' => 'File Manager',
+		'Update_perm' => 'Permissions',
+		'Update_own' => 'Ownership',
+		'Update_diskspace' => 'Disk Usage',
+		'Update_upload' => 'Upload',
+		'Update_thumbnail' => 'Thumbnail',
+		'Update_toggle_dot' => 'T Hidden',
+		'Update_newdir' => 'New dir',
+		'Update_newfile' => 'New file',
+		'Update_copy' => 'Copy',
+		'Update_cut' => 'Cut',
+		'Update_paste' => 'Paste',
+		'Update_paste_inactive' => 'Paste',
+		'Update_filedelete' => 'Trash',
+		'Update_filerealdelete' => 'Remove',
+		'Update_zip_file' => 'Zip',
+		'Update _perm' => 'Permissions',
+		'Update _own' => 'Ownership',
+		'Update _diskspace' => 'Disk Usage',
+		'Update _upload' => 'Upload',
+		'Update _thumbnail' => 'Thumbnail',
+		'Update _toggle_dot' => 'T Hidden',
+		'Update _newdir' => 'New dir',
+		'Update _newfile' => 'New file',
+		'Update _copy' => 'Copy',
+		'Update _cut' => 'Cut',
+		'Update _paste' => 'Paste',
+		'Update _paste_inactive' => 'Paste',
+		'Update _filedelete' => 'Trash',
+		'Update _filerealdelete' => 'Remove',
+		'Update _zip_file' => 'Zip',
+	);
+	if (isset($ffileKeys[$str])) {
+		return $ffileKeys[$str];
+	}
+	static $backupKeys = array(
+		'backup' => 'Backup / Restore',
+		'backup_now' => 'Backup Now',
+		'ftp_configuration' => 'FTP Configuration',
+		'schedule_configuration' => 'Schedule Configuration',
+		'restore_from_file' => 'Restore From File',
+		'restore_from_ftp' => 'Restore From FTP',
+		'Update_ftp_conf' => 'FTP Configuration',
+		'Update_schedule_conf' => 'Schedule Configuration',
+		'Update_backup' => 'Backup Now',
+		'Update_restore' => 'Restore',
+		'Update_restore_from_file' => 'Restore From File',
+		'Update_restore_from_ftp' => 'Restore From FTP',
+		'Update _ftp_conf' => 'FTP Configuration',
+		'Update _schedule_conf' => 'Schedule Configuration',
+		'Update _backup' => 'Backup Now',
+		'Update _restore' => 'Restore',
+		'Update _restore_from_file' => 'Restore From File',
+		'Update _restore_from_ftp' => 'Restore From FTP',
+	);
+	if (isset($backupKeys[$str])) {
+		return $backupKeys[$str];
+	}
+	if (preg_match('/^add\s+(ns|a|aaaa|cname|fcname|mx|txt|caa|srv)$/i', $str, $m) === 1) {
+		$typed = kloxo_dns_record_type_label($m[1]);
+		if ($typed !== '') {
+			return $typed;
+		}
+	}
+	static $dnsKeys = array(
+		'manage_dns' => 'Manage DNS',
+		'Manage DNS' => 'Manage DNS',
+		'general_settings' => 'General Settings',
+		'General Settings' => 'General Settings',
+		'rebuild' => 'Rebuild',
+		'Rebuild' => 'Rebuild',
+		'Update_rebuild' => 'Rebuild',
+		'Update_parameter' => 'General Settings',
+		'Update _rebuild' => 'Rebuild',
+		'Update _parameter' => 'General Settings',
+	);
+	if (isset($dnsKeys[$str])) {
+		return $dnsKeys[$str];
+	}
 	if ($str === 'PHP_config' || $str === 'php_configuration' || $str === 'php_config') {
 		return 'PHP Configure';
 	}
 	if ($str === 'advanced_PHP_config' || $str === 'Extraedit' || $str === 'extraedit') {
 		return 'Advanced PHP Configure';
+	}
+	static $sslKeys = array(
+		'ssl_certificate' => 'SSL Certificates',
+		'ssl_certificates' => 'SSL Certificates',
+		'SSL Certificate' => 'SSL Certificates',
+		'SSL Certificates' => 'SSL Certificates',
+		'ssl_file' => 'Add SSL File',
+		'Add ssl_file' => 'Add SSL File',
+		'Add SSL File' => 'Add SSL File',
+		'ssl_text' => 'Add SSL Text',
+		'Add ssl_text' => 'Add SSL Text',
+		'Add SSL Text' => 'Add SSL Text',
+		'ssl_letsencrypt' => "Add Let's Encrypt",
+		'Add ssl_letsencrypt' => "Add Let's Encrypt",
+		"Add Let's Encrypt" => "Add Let's Encrypt",
+		'ssl_link' => 'Add SSL Link',
+		'Add ssl_link' => 'Add SSL Link',
+		'Add SSL Link' => 'Add SSL Link',
+	);
+	if (isset($sslKeys[$str])) {
+		return $sslKeys[$str];
 	}
 
 	return $str;

@@ -250,7 +250,10 @@ class Service extends Lxdb
 			$ob->description = $svc;
 			$ob->boot_state = 'off';
 			$ob->state = 'off';
-			$ob->install_state = (function_exists('isServiceExists') && isServiceExists($svc)) ? 'on' : 'dull';
+			$installed = class_exists('Service__Linux')
+				? (Service__Linux::resolveInstalledUnit($svc) !== '')
+				: (function_exists('isServiceExists') && isServiceExists($svc));
+			$ob->install_state = $installed ? 'on' : 'dull';
 			$ob->dbaction = 'clean';
 		}
 
@@ -260,9 +263,61 @@ class Service extends Lxdb
 	static function defaultServiceList()
 	{
 		return array(
-			'nginx', 'apache2', 'bind9', 'pdns', 'exim4', 'dovecot',
-			'rspamd', 'mariadb', 'php-fpm', 'hiawatha',
+			'nginx', 'apache2', 'bind9', 'pdns', 'exim4', 'postfix', 'dovecot',
+			'rspamd', 'mariadb', 'php-fpm', 'kloxo-php', 'hiawatha', 'pure-ftpd',
 		);
+	}
+
+	static function catalogServiceNames()
+	{
+		$names = self::defaultServiceList();
+		$php = class_exists('Service__Linux') ? Service__Linux::phpFpmUnitNames() : array();
+		if (is_array($php) && $php !== array()) {
+			$names = array_values(array_filter($names, function ($n) {
+				return $n !== 'php-fpm';
+			}));
+			foreach ($php as $u) {
+				if (is_string($u) && $u !== '' && !in_array($u, $names, true)) {
+					$names[] = $u;
+				}
+			}
+		}
+
+		return $names;
+	}
+
+	static function serviceDescription($svc)
+	{
+		global $sgbl;
+
+		$svc = (string) $svc;
+		if (isset($sgbl) && is_object($sgbl) && isset($sgbl->__var_service_desc[$svc])
+			&& is_string($sgbl->__var_service_desc[$svc]) && $sgbl->__var_service_desc[$svc] !== '') {
+			return $sgbl->__var_service_desc[$svc];
+		}
+		if (preg_match('/^php[0-9.]+-fpm$/', $svc) === 1) {
+			return 'Php Fastcgi Process Manager';
+		}
+
+		return $svc;
+	}
+
+	static function onlyInstalledRows($rows)
+	{
+		$out = array();
+		if (!is_array($rows)) {
+			return $out;
+		}
+		foreach ($rows as $row) {
+			if (!is_array($row)) {
+				continue;
+			}
+			if (isset($row['install_state']) && $row['install_state'] === 'on') {
+				$out[] = $row;
+			}
+		}
+
+		return $out;
 	}
 
 	static function initThisList($parent, $class)
@@ -304,7 +359,7 @@ class Service extends Lxdb
 			$nlist[$l['servicename']] = $l;
 		}
 
-		foreach (self::defaultServiceList() as $svc) {
+		foreach (self::catalogServiceNames() as $svc) {
 			if (isset($nlist[$svc])) {
 				continue;
 			}
@@ -313,8 +368,9 @@ class Service extends Lxdb
 				'servicename' => $svc,
 				'syncserver' => $server,
 				'parent_clname' => $pcl,
-				'description' => $svc,
-				'grepstring' => $svc,
+				'description' => self::serviceDescription($svc),
+				'grepstring' => class_exists('Service__Linux')
+					? Service__Linux::unitName($svc) : $svc,
 				'boot_state' => 'off',
 				'state' => 'off',
 				'install_state' => 'dull',
@@ -330,21 +386,26 @@ class Service extends Lxdb
 			$driverapp = null;
 		}
 
-		if (!$driverapp) {
-			return array_values($nlist);
+		$probed = $nlist;
+		if ($driverapp) {
+			try {
+				$res = kloxo_rl_driver($master, $read, 'service', $driverapp, 'getServiceDetails', array($nlist));
+				if (is_array($res) && $res !== array()) {
+					$probed = $res;
+				}
+			} catch (Throwable $e) {
+				$probed = $nlist;
+			}
+		}
+		if (!is_array($probed) || $probed === array()) {
+			try {
+				$probed = Service__Linux::getServiceDetails($nlist);
+			} catch (Throwable $e) {
+				$probed = $nlist;
+			}
 		}
 
-		try {
-			$res = kloxo_rl_driver($master, $read, 'service', $driverapp, 'getServiceDetails', array($nlist));
-		} catch (Throwable $e) {
-			return array_values($nlist);
-		}
-
-		if (is_array($res) && $res !== array()) {
-			return array_values($res);
-		}
-
-		return array_values($nlist);
+		return self::onlyInstalledRows(array_values(is_array($probed) ? $probed : array()));
 	}
 }
 

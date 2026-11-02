@@ -451,10 +451,16 @@ class Web extends Lxdb
 		$this->__var_dirprotect = $this->getList("dirprotect");
 
 		if (!$this->isDeleted()) {
-			if ($this->getParentO()) {
-				$parent = $this->getParentO()->getParentO();
+			$parent = null;
+			try {
+				$po = $this->getParentO();
+				if (is_object($po) && method_exists($po, 'getParentO')) {
+					$parent = $po->getParentO();
+				}
+			} catch (Throwable $e) {
+				$parent = null;
 			}
-			if ($parent) {
+			if (is_object($parent) && isset($parent->disable_url)) {
 				$this->__var_disable_url = $parent->disable_url;
 			}
 		}
@@ -487,10 +493,30 @@ class Web extends Lxdb
 		$mydb = new Sqlite(null, 'ipaddress');
 		$this->__var_ipssllist = $mydb->getRowsWhere($string, array('ipaddr', 'nname'));
 
-		$this->__var_addonlist = $this->getTrueParentO()->getList('addondomain');
+		$this->__var_addonlist = array();
+		try {
+			$tp = $this->getTrueParentO();
+			if (is_object($tp) && method_exists($tp, 'getList')) {
+				$got = $tp->getList('addondomain');
+				if (is_array($got)) {
+					$this->__var_addonlist = $got;
+				}
+			}
+		} catch (Throwable $e) {
+			$this->__var_addonlist = array();
+		}
 
 		if (!isset($this->__var_sysuserpassword)) {
-			$this->__var_sysuserpassword['realpass'] = $this->getParentO()->realpass;
+			$rp = '';
+			try {
+				$po = $this->getParentO();
+				if (is_object($po) && isset($po->realpass)) {
+					$rp = $po->realpass;
+				}
+			} catch (Throwable $e) {
+				$rp = '';
+			}
+			$this->__var_sysuserpassword['realpass'] = $rp;
 		}
 
 		$dipdb = new Sqlite(null, "domainipaddress");
@@ -510,8 +536,19 @@ class Web extends Lxdb
 		}
 
 		if ($this->dbaction === 'add') {
-			$this->__var_parent_contactemail = $this->getTrueParentO()->getTrueParentO()->contactemail;
-			$this->__var_clientname = $this->getTrueParentO()->getTrueParentO()->nname;
+			$this->__var_parent_contactemail = '';
+			$this->__var_clientname = '';
+			try {
+				$tp = $this->getTrueParentO();
+				$gp = (is_object($tp) && method_exists($tp, 'getTrueParentO'))
+					? $tp->getTrueParentO() : null;
+				if (is_object($gp)) {
+					$this->__var_parent_contactemail = isset($gp->contactemail)
+						? (string) $gp->contactemail : '';
+					$this->__var_clientname = isset($gp->nname) ? (string) $gp->nname : '';
+				}
+			} catch (Throwable $e) {
+			}
 		}
 
 		$this->__var_vdomain_list = $mydb->getRowsWhere($string, array('nname', 'ipaddress'));
@@ -1038,13 +1075,72 @@ class Web extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$ar['ip_address'] = $gbl->c_session->ip_address;
-		$ar['session'] = $gbl->c_session->tsessionid;
-		rl_exec_get(null, $this->syncserver, array("web", "createSession"), array($ar));
-		$servar = base64_encode(serialize($ar));
-		$gbl->__this_window_url = "http://$this->nname/__kloxo/phpinfo.php?session=$servar";
+		$gbl->__this_redirect = $ghtml->getFullUrl('a=show&sa=phpinfo');
 
 		return null;
+	}
+
+	function phpInfoBinary()
+	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		$want = isset($this->php_selected) ? (string) $this->php_selected : '';
+		if ($want === '' || str_contains(strtolower($want), 'php used') || str_starts_with($want, '--')) {
+			$want = KloxoPhpver::activeId();
+		}
+		$fallback = '';
+		foreach (KloxoPhpver::installed() as $row) {
+			$bin = isset($row['bin']) ? (string) $row['bin'] : '';
+			if ($bin === '' || !is_executable($bin)) {
+				continue;
+			}
+			if ($fallback === '') {
+				$fallback = $bin;
+			}
+			if (($row['id'] ?? '') === $want) {
+				return $bin;
+			}
+		}
+		if ($fallback !== '') {
+			return $fallback;
+		}
+
+		return (defined('PHP_BINARY') && PHP_BINARY !== '' && is_executable(PHP_BINARY))
+			? PHP_BINARY : '/usr/bin/php';
+	}
+
+	function phpInfoText()
+	{
+		$bin = $this->phpInfoBinary();
+		if ($bin === '' || !is_executable($bin)) {
+			return 'PHP binary not found.';
+		}
+		$p = @proc_open(
+			array($bin, '-d', 'display_errors=0', '-i'),
+			array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
+			$pipes
+		);
+		if (!is_resource($p)) {
+			return 'Could not run phpinfo.';
+		}
+		$out = stream_get_contents($pipes[1]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		proc_close($p);
+
+		return is_string($out) && $out !== '' ? $out : 'phpinfo produced no output.';
+	}
+
+	function showRawPrint($subaction = null)
+	{
+		if ($subaction !== 'phpinfo') {
+			return;
+		}
+		$bin = htmlspecialchars($this->phpInfoBinary(), ENT_QUOTES);
+		$text = htmlspecialchars($this->phpInfoText(), ENT_QUOTES);
+		echo '<div style="padding:12px 16px 24px;text-align:left">';
+		echo '<p style="margin:0 0 8px">Site PHP: <code>' . $bin . '</code></p>';
+		echo '<pre style="margin:0;white-space:pre-wrap;font-size:12px;line-height:1.35">'
+			. $text . '</pre></div>';
 	}
 
 	static function createSession($ar)
@@ -1052,6 +1148,98 @@ class Web extends Lxdb
 		$tsess['name'] = $ar['session'];
 		$tsess['ip_address'] = $ar['ip_address'];
 		lfile_put_serialize("/home/kloxo/httpd/script/sess_{$tsess['name']}", $tsess);
+	}
+
+	function getSelfList()
+	{
+		try {
+			$list = parent::getSelfList();
+			if (is_array($list) && $list !== array()) {
+				$out = array();
+				foreach ($list as $k => $w) {
+					if (is_object($w)) {
+						$n = (isset($w->nname) && is_string($w->nname) && $w->nname !== '')
+							? $w->nname : (string)$k;
+						$out[$n] = $w;
+					}
+				}
+				if ($out !== array()) {
+					return $out;
+				}
+			}
+		} catch (Throwable $e) {
+			log_log("error", "web getSelfList parent: " . $e->getMessage());
+		}
+
+		return self::domainWebSwitchList($this);
+	}
+
+	static function domainWebSwitchList($current = null)
+	{
+		global $gbl, $login;
+
+		$out = array();
+		$holder = null;
+		if (isset($gbl->__self_list_parent) && is_object($gbl->__self_list_parent)) {
+			$holder = $gbl->__self_list_parent;
+		}
+		if (!is_object($holder) && is_object($current) && method_exists($current, 'getParentO')) {
+			try {
+				$domain = $current->getParentO();
+				if (is_object($domain) && method_exists($domain, 'getParentO')) {
+					try {
+						$holder = $domain->getParentO();
+					} catch (Throwable $e) {
+						$holder = null;
+					}
+				}
+				if (!is_object($holder)) {
+					$holder = $domain;
+				}
+			} catch (Throwable $e) {
+				$holder = null;
+			}
+		}
+		if (!is_object($holder) && is_object($login) && method_exists($login, 'getList')) {
+			$holder = $login;
+		}
+		if (is_object($holder) && method_exists($holder, 'getList')) {
+			try {
+				$domains = $holder->getList('domain');
+				if (is_array($domains)) {
+					foreach ($domains as $k => $dom) {
+						if (!is_object($dom)) {
+							continue;
+						}
+						$w = null;
+						try {
+							if (method_exists($dom, 'getObject')) {
+								$w = $dom->getObject('web');
+							}
+						} catch (Throwable $e) {
+							$w = null;
+						}
+						if (!is_object($w) && isset($dom->nname) && is_string($dom->nname)
+							&& $dom->nname !== '') {
+							$w = new Web(null, isset($dom->syncserver) ? $dom->syncserver : null, $dom->nname);
+							$w->nname = $dom->nname;
+						}
+						if (is_object($w)) {
+							$n = (isset($w->nname) && is_string($w->nname) && $w->nname !== '')
+								? $w->nname : (string)$k;
+							$out[$n] = $w;
+						}
+					}
+				}
+			} catch (Throwable $e) {
+			}
+		}
+		if ($out === array() && is_object($current) && isset($current->nname)
+			&& is_string($current->nname) && $current->nname !== '') {
+			$out[$current->nname] = $current;
+		}
+
+		return $out !== array() ? $out : null;
 	}
 
 	function createShowPropertyList(&$alist)
@@ -1063,6 +1251,9 @@ class Web extends Lxdb
 	//	$alist['property'][] = 'goback=1&a=show&sa=config';
 
 		switch ($ghtml->frm_subaction) {
+			case 'phpinfo':
+				$alist['property'][] = "a=show&sa=phpinfo";
+				break;
 			case 'stats_protect':
 				$alist['property'][] = "a=updateform&sa=stats_protect";
 				break;
@@ -1153,8 +1344,7 @@ class Web extends Lxdb
 	//	$alist[] = "a=updateForm&sa=ipaddress";
 
 	//	$alist['__title_script'] = 'script';
-		$alist[] = create_simpleObject(array('url' => "http://nname/__kloxo/phpinfo.php", 
-				'purl' => 'a=updateform&sa=phpinfo', 'target' => "target='_blank'"));
+		$alist[] = "a=show&sa=phpinfo";
 
 	//	$alist[] = "a=show&o=phpini";
 	//	$alist[] = "a=updateform&sa=lighty_rewrite";
@@ -1376,6 +1566,12 @@ class Web extends Lxdb
 		$driverapp = $gbl->getSyncClass(null, $this->__readserver, 'web');
 
 		switch ($subaction) {
+			case "phpinfo":
+				$gbl->__this_redirect = $ghtml->getFullUrl('a=show&sa=phpinfo');
+				$vlist['__v_button'] = array();
+
+				return $vlist;
+
 			case "run_stats":
 				$vlist['confirm_f'] = array('M', "");
 				$vlist['__v_updateall_button'] = array();

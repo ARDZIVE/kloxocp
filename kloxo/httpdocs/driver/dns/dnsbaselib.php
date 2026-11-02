@@ -104,11 +104,19 @@ class dns_record_a extends LxDnsClass
 			}
 
 			if ($this->ttype === 'caa') {
-				return "{$this->flag} {$this->tag} \"{$this->param}\"";
+				$flag = isset($this->flag) ? (string)$this->flag : '';
+				$tag = isset($this->tag) ? (string)$this->tag : '';
+				$pval = isset($this->param) ? (string)$this->param : '';
+
+				return "{$flag} {$tag} \"{$pval}\"";
 			}
 
 			if ($this->ttype === 'srv') {
-				return "{$this->weight} {$this->port} \"{$this->param}\"";
+				$weight = isset($this->weight) ? (string)$this->weight : '';
+				$port = isset($this->port) ? (string)$this->port : '';
+				$pval = isset($this->param) ? (string)$this->param : '';
+
+				return "{$weight} {$port} \"{$pval}\"";
 			}
 
 		/*
@@ -164,12 +172,14 @@ class dns_record_a extends LxDnsClass
 			$param = array();
 		}
 		$ttype = (string)($param['ttype'] ?? '');
+		$param['hostname'] = (string)($param['hostname'] ?? '');
 		if ($ttype === 'mx') {
 			// Validates domain
-			validate_domain_name($param['param']);
+			validate_domain_name((string)($param['param'] ?? ''));
 
 			$param['nname'] = "{$ttype}_{$param['priority']}";
-			$param['hostname'] = $parent->nname;
+			$param['hostname'] = (is_object($parent) && isset($parent->nname))
+				? (string)$parent->nname : '';
 		} elseif ($ttype === 'ns') {
 			// MR -- make possible to 'delegate' subdomain to other server!
 
@@ -180,7 +190,9 @@ class dns_record_a extends LxDnsClass
 
 			$a_record_match = false;
 
-			foreach ((array)($parent->dns_record_a ?? array()) as $d) {
+			$records = (is_object($parent) && isset($parent->dns_record_a))
+				? $parent->dns_record_a : array();
+			foreach ((array)$records as $d) {
 				if (!is_object($d)) {
 					continue;
 				}
@@ -231,7 +243,7 @@ class dns_record_a extends LxDnsClass
 		} elseif ($ttype === 'txt') {
 			// Validates hostname subdomain
 
-			$val = $param['hostname'];
+			$val = (string)($param['hostname'] ?? '');
 
 			// MR -- handle hostname like _domainkey and _dmarc
 			if ((strpos($val, '_', 0) !== false)) {
@@ -244,7 +256,7 @@ class dns_record_a extends LxDnsClass
 		} elseif ($ttype === 'caa') {
 			// Validates hostname subdomain
 
-			$val =  str_replace('.__base__', '', $param['hostname']);
+			$val =  str_replace('.__base__', '', (string)($param['hostname'] ?? ''));
 
 			validate_hostname_name($val);
 
@@ -252,7 +264,7 @@ class dns_record_a extends LxDnsClass
 
 			$param['nname'] = "{$ttype}_{$param['param']}";
 		} elseif ($ttype === 'srv') {
-			$val = $param['hostname'];
+			$val = (string)($param['hostname'] ?? '');
 
 			// MR -- handle hostname like _domainkey and _dmarc
 			if ((strpos($val, '_', 0) !== false)) {
@@ -272,6 +284,7 @@ class dns_record_a extends LxDnsClass
 	static function addform($parent, $class, $typetd = null)
 	{
 		$typetdVal = (is_array($typetd) && isset($typetd['val'])) ? (string)$typetd['val'] : '';
+		$base = (is_object($parent) && isset($parent->nname)) ? (string)$parent->nname : '';
 		if ($typetdVal === 'ns') {
 			// MR -- add hostname entry to make possible to 'delegate' to other server!
 			$vlist['hostname'] = array('m', array('value'=> '__base__'));
@@ -280,13 +293,13 @@ class dns_record_a extends LxDnsClass
 			$vlist['priority'] = array('s', array('5', '10', '20', '30', '40', '50', '60', '70', '80', '90', '100'));
 			$vlist['param'] = array('m', array('posttext' => "."));
 		} elseif ($typetdVal === 'cname') {
-			$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
-			$vlist['param'] = array('m', array('posttext' => ".$parent->nname."));
+			$vlist['hostname'] = array('m', array('posttext' => ".$base."));
+			$vlist['param'] = array('m', array('posttext' => ".$base."));
 		} elseif ($typetdVal === 'fcname') {
-			$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
+			$vlist['hostname'] = array('m', array('posttext' => ".$base."));
 			$vlist['param'] = array('m', array('posttext' => "."));
 		} elseif ($typetdVal === 'txt') {
-			$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
+			$vlist['hostname'] = array('m', array('posttext' => ".$base."));
 			$vlist['param'] = array('t', "");
 		} elseif ($typetdVal === 'caa') {
 			$vlist['hostname'] = array('m', array('value'=> '__base__'));
@@ -294,13 +307,13 @@ class dns_record_a extends LxDnsClass
 			$vlist['tag'] = array('s', array('issue', 'issuewild', 'iodef'));
 			$vlist['param'] = array('m', array('value'=> 'letsencrypt.org'));
 		} elseif ($typetdVal === 'srv') {
-			$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
+			$vlist['hostname'] = array('m', array('posttext' => ".$base."));
 			$vlist['priority'] = array('s', array('0', '5', '10', '20', '30', '40', '50', '60', '70', '80', '90', '100'));
 			$vlist['weight'] = array('s', array('0', '5', '10', '20', '30', '40', '50', '60', '70', '80', '90', '100'));
 			$vlist['port'] = null;
 			$vlist['param'] = null;
 		} else {
-		//	$vlist['hostname'] = array('m', array('posttext' => ".$parent->nname."));
+		//	$vlist['hostname'] = array('m', array('posttext' => ".$base."));
 			$vlist['hostname'] = null;
 			$vlist['param'] = null;
 		}
@@ -349,9 +362,9 @@ abstract class Dnsbase extends Lxdb
 	static $__desc_secnameserver_f = array("", "", "secondary_DNS");
 	static $__desc_soanameserver = array("", "", "SOA_nameserver");
 	static $__desc_hostmaster = array("", "", "hostmaster_email");
-	static $__acdesc_update_parameter = array("", "", "general_settings");
+	static $__acdesc_update_parameter = array("", "", "General Settings");
 	static $__acdesc_update_switchdnsserver = array("", "", "switch_server");
-	static $__acdesc_update_rebuild = array("", "", "rebuild");
+	static $__acdesc_update_rebuild = array("", "", "Rebuild");
 
 	static function normalizeNsName($name)
 	{
@@ -650,29 +663,36 @@ abstract class Dnsbase extends Lxdb
 		return ($parent->getClName() === $this->parent_clname);
 	}
 
+	static function dnsPropertyTabs($withRebuild = true)
+	{
+		$tabs = array('a=show');
+		if ($withRebuild) {
+			$tabs[] = 'a=updateform&sa=rebuild';
+		}
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=ns';
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=a';
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=aaaa';
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=cname';
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=fcname';
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=mx';
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=txt';
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=caa';
+		$tabs[] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=srv';
+		$tabs[] = 'a=updateform&sa=parameter';
+
+		return $tabs;
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
 		if ($this->isRightParent()) {
-			$alist['property'][] = "a=show";
-
-			if (!cse($this->get__table(), "template") && $sgbl->isKloxo()) {
-				$alist['property'][] = "a=updateform&sa=rebuild";
+			$rebuild = !cse($this->get__table(), "template")
+				&& (!isset($sgbl) || !is_object($sgbl) || $sgbl->isKloxo());
+			foreach (self::dnsPropertyTabs($rebuild) as $tab) {
+				$alist['property'][] = $tab;
 			}
-
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=ns';
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=a';
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=aaaa';
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=cname';
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=fcname';
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=mx';
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=txt';
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=caa';
-			$alist['property'][] = 'a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=srv';
-			$alist['property'][] = 'a=updateform&sa=parameter';
-
-		//	$alist[] = 'a=updateform&sa=parameter';
 		}
 	}
 
@@ -682,19 +702,19 @@ abstract class Dnsbase extends Lxdb
 			return;
 		}
 
+		$clname = $this->getClName();
 		foreach ($this->dns_record_a as $d) {
 			if (!is_object($d)) {
 				continue;
 			}
-			if (isset($d->parent_clname)) {
-				return;
+			if (isset($d->parent_clname) && $d->parent_clname !== '') {
+				continue;
 			}
 
-			$d->parent_clname = $this->getClName();
+			$d->parent_clname = $clname;
 		}
-
-		$this->setUpdateSubaction();
-		$this->write();
+		// Show must not dirty the zone: setUpdateSubaction/write here made
+		// login->was() sync DNS after every Manage DNS click.
 	}
 
 	function createShowAlist(&$alist, $subaction = null)

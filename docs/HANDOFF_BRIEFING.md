@@ -112,9 +112,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     none/BIND/PowerDNS. BIND is the **default** (`pg_dns=bind`, bind9 enabled). PowerDNS is
     apt-installed and prepared (`install-pdns`: MariaDB schema, `/etc/powerdns/pdns.d/zz-kloxo-gmysql.conf`)
     with the `pdns` unit **disabled** until Switch Program selects it (stops bind9, starts pdns;
-    only one listener on port 53). `install.sh` uses a temporary `policy-rc.d` (exit 101) plus a
-    runtime systemd mask so apt postinst cannot start `pdns` (no gmysql yet; BIND owns 53) or
-    `apache2` (Nginx owns 80/443). Nginx is the **default** web (`pg_web=nginx`, nginx enabled).
+    only one listener on port 53).     `install.sh` uses a temporary `policy-rc.d` (exit 101) plus a
+    runtime systemd mask so apt postinst cannot start `pdns` (no gmysql yet; BIND owns 53),
+    `apache2` (Nginx owns 80/443), or `postfix` (Exim owns 25). Nginx is the **default** web (`pg_web=nginx`, nginx enabled).
     Apache 2.4 is apt-installed and prepared (`install-apache`: PHP-FPM via `proxy_fcgi`,
     `/etc/apache2/conf-available/zz-kloxo.conf`) with the `apache2` unit **disabled** until
     Switch Program selects it (stops nginx, starts apache2; only one listener on 80/443).
@@ -183,7 +183,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
     the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026110201**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
-    it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
+    it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
     `bin/update.php` (`kloxocp update` is still not built). Autoload loads
     `*_none` drivers (`dns__none`, `web__none`); Switch Program no longer
@@ -219,7 +219,17 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `do_local_action` if that socket is down. File Manager listing
     skips unreadable entries, treats `/` as a directory, and the list
     toolbar keeps the Kloxo-MR search box (the left Find column stays
-    hidden). `init-panel-db` seeds `/home/admin`. Mail To on Cron
+    hidden). Content tabs and toolbar commands use human labels
+    (File Manager, Permissions, Ownership, Disk Usage, Upload,
+    Thumbnail; T Hidden, New dir, New file, Copy, Cut, Paste, Trash,
+    Remove, Zip, Refresh, Show All), not `Update_perm`. Admin
+    `getTrueParentO` / `getParentO` treat `client-admin` as root
+    (`isRootClient`: cttype admin, `isAdmin()`, or client nname
+    `admin`) and never print `no parent_clname`. Client PHPinfo is
+    in-panel `n=web&a=show&sa=phpinfo` (`php -i` of the site PHP
+    via argument-array `proc_open`); old `a=update&sa=phpinfo`
+    redirects there. Live PHPinfo after deploy is **UNVERIFIED**.
+    `init-panel-db` seeds `/home/admin`. Mail To on Cron
     Tasks does not sync the client/pserver through that socket; crontab
     rewrite uses argument-array `/usr/bin/crontab -u` and skips a
     missing job list. `slave_get_driver` is null-safe
@@ -324,8 +334,30 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     cannot keep the old simplicity sheet after deploy.
     Log Manager, Driver Configuration, PHP Configuration,
     Backup/Restore, Webserver Configure, SSH Configure, LxGuard,
-    SSH Terminal, File Manager, HelpDesk ticket show and Notification
-    no longer show the left-column Find box. HelpDesk ticket show puts Switch To Another
+    SSH Terminal, File Manager, HelpDesk ticket show, Notification,
+    Update, client Manage DNS, and client PHPinfo no longer show the left-column Find box.
+    Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
+    **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,
+    **General Settings**. Manage DNS show fills missing `parent_clname` in
+    memory only (no `write()` / `setUpdateSubaction`), so `login->was()`
+    does not sync the zone after a GET. Record lists skip non-objects;
+    `do_list_class` on show is try/caught. Live Manage DNS after deploy is **UNVERIFIED**.
+    Client PHPinfo (`n=web&a=show&sa=phpinfo`) prints site `php -i`
+    in the beige PHPinfo tab; `Web::createExtraVariables` is null-safe
+    when the true parent is the admin client. Live PHPinfo after deploy is **UNVERIFIED**.
+    Change Owner (`a=updateform&sa=changeowner`) lists candidate clients
+    without calling methods on a null parent; `getList` failures fall
+    back to the current parent / login; `Lxclient::updateform` no longer
+    loads `general` before the switch (that `getObject` TypeError hid
+    the form); `convert_message` returns `''` (not null) so
+    `print_information` does not `explode()` a null help string. Live
+    Change Owner after deploy is **UNVERIFIED**. SSL Certificates under a web/domain lists
+    beige tabs **SSL Certificates**, **Add SSL File**, **Add SSL Text**,
+    **Add Let's Encrypt**, **Add SSL Link**; Switch To Another uses sibling
+    domains (`web::getSelfList` / `domainWebSwitchList`); columns are User Name,
+    Certificate Name, Add Type, Parent Domain, Syncserver. Addform / parse /
+    parent-username no longer TypeError on PHP 8. Live SSL Certificates after
+    deploy is **UNVERIFIED**. HelpDesk ticket show puts Switch To Another
     at the top (sibling ticket ids) and keeps Ticket / Add Reply /
     Escalate plus the inline Add Reply form (State, Text Reason) and
     Replies list (Changed By, Text Reason, Date, State). The replies
@@ -362,17 +394,22 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     parent state or notify failure. `init-panel-db` seeds HelpDesk
     category Welcome and ticket 1 (Created By Kloxo, Subject
     Welcome to Kloxo, date = install time). SSH authorized keys no longer call
-    `key()` on a missing list. Ubuntu Services uses
+    `key()` on a missing list.     Ubuntu Services uses
     `Service__Debian::getServiceDetails` and `systemctl` for
     start/stop/restart; a missing `pdns___localhost` row no longer
     blanks the page (`Service::canGetSingle` + `initThisObject`).
+    The Services list omits units that are not installed and reads
+    running/boot state from systemd `ActiveState` / `UnitFileState`
+    (bind9→named, mariadb→mariadbd, php-fpm→phpX.Y-fpm). Live Services
+    after deploy is **UNVERIFIED**.
     Component Info has a
     dpkg driver; Mail Queue reads Exim `exim -bp` when
     present.     Switch Program loads debian.inc on Ubuntu and does
-    not index an empty yum version. SMTP choices are `none` and
-    `exim` (the old qmail-toaster label is gone). `smtp__exim` enables
-    `exim4` and stops Postfix; hosted mail is the Exim + Dovecot +
-    Rspamd stack in `kloxo-mail`.     List and show pages share
+    not index an empty yum version.     SMTP choices are `none`, `exim` (default, `pg_smtp=exim`) and
+    `postfix` (the old qmail-toaster label is gone). `smtp__exim` enables
+    `exim4` and stops Postfix; `smtp__postfix` enables Postfix and stops
+    Exim. Postfix is packaged and left disabled until selected. Hosted mail
+    is the Exim + Dovecot + Rspamd stack in `kloxo-mail`.     List and show pages share
     `kloxo_rl_driver` / `setListFromArray` array guards and
     `initThisList` / `initThisObject` Throwable catches so a
     missing Ubuntu driver no longer TypeErrors the whole page.
@@ -405,7 +442,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `dns_record_a`. Opening a template without a loaded parent still
     shows the add-record tabs. Live template-create after deploy is
     **UNVERIFIED**.
-    FTP Configure (`serverftp`) is seeded as `pserver-localhost` and
+    FTP Configure (`serverftp`) beige tab is labelled **FTP Configure**
+    (`serverftp::ftpPropertyTabs`). Live FTP Configure after deploy is
+    **UNVERIFIED**. FTP Configure (`serverftp`) is seeded as `pserver-localhost` and
     does not sync through the C daemon on first show.
     Re-check the live dashboard after pushing this tree and
     re-running install. The live host still served the previous
@@ -521,6 +560,11 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `systemctl --no-block` (full path) instead of `system("reboot")`.
    Reboot/Poweroff content tabs use capitalized labels (`pserver::rebootPropertyTabs`).
    Switch Program content tab is labelled **Switch Program**.
+   Backup / Restore content tabs are labelled **Backup / Restore**,
+   **FTP Configuration**, **Schedule Configuration**, **File Manager**,
+   **Upload** (`lxbackup::backupPropertyTabs`, `kloxo_backup_page_tab_label`).
+   File Manager under a backup keeps those five tabs (parent `lxbackup`
+   or `__backup` root). Live Backup / Restore after re-install is **UNVERIFIED**.
    Live reboot from the UI is **UNVERIFIED**. Notification Welcome Message
    For New Accounts defaults to the %name%/%password% hosting welcome text
    (`Notification::defaultWelcomeMessage`, `file/welcome.txt`). Live

@@ -17,8 +17,10 @@ treating the Exim path as live-verified.
 | Antivirus (optional "full" profile) | ClamAV through Rspamd | |
 | Webmail (not included yet) | Roundcube | |
 
-Switch Program SMTP is `none` / `exim`. `smtp__exim` enables the `exim4` unit and
-stops Postfix if it is still installed.
+Switch Program SMTP is `none` / `exim` (default) / `postfix`. `smtp__exim`
+enables the `exim4` unit and stops Postfix. `smtp__postfix` enables Postfix
+and stops Exim. The Postfix unit stays disabled until selected. Hosted-mail
+templates stay Exim (`kloxo-mail`); there is no `file/mail/postfix` tree.
 
 ### Why this stack
 
@@ -36,7 +38,7 @@ stops Postfix if it is still installed.
 | Option | Verdict |
 |---|---|
 | qmail-toaster / vpopmail (current Kloxo) | Unmaintained, awkward to secure and extend. Replaced. |
-| Postfix | Previous Kloxo CP default; replaced by owner decision. Templates removed. |
+| Postfix | Selectable in Switch Program; unit disabled until chosen. Hosted-mail templates stay Exim. |
 | Stalwart (all-in-one, Rust) | Promising, but much younger; I would revisit it once it has a long production record. |
 | Docker suites (mailcow, Mailu) | Complete products, but they want to own the whole server and cannot be driven by a hosting panel. |
 

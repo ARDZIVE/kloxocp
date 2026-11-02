@@ -622,6 +622,23 @@ if grep -q "'pg_web' => 'nginx'" "$ROOT/kloxo/bin/install/init-panel-db"; then
 else
   bad "init-panel-db seeds pg_web=nginx"
 fi
+if grep -q "'pg_smtp' => 'exim'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds pg_smtp=exim"
+else
+  bad "init-panel-db seeds pg_smtp=exim"
+fi
+if grep -q 'apt-get install -y exim4-daemon-heavy postfix' "$ROOT/install.sh" \
+  && grep -q 'disable --now postfix' "$ROOT/install.sh" \
+  && grep -q 'postfix|postfix.service' "$ROOT/install.sh"; then
+  ok "install.sh packages postfix and leaves it disabled"
+else
+  bad "install.sh packages postfix and leaves it disabled"
+fi
+if grep -E 'enable --now postfix' "$ROOT/install.sh"; then
+  bad "install.sh does not enable postfix at boot"
+else
+  ok "install.sh does not enable postfix at boot"
+fi
 if echo "$inst_dry" | grep -q 'nginx enabled'; then
   ok "install.sh dry-run names Nginx default and apache2 prepared"
 else

@@ -12,6 +12,10 @@ class Service__Debian extends lxDriverClass
 	function unitName()
 	{
 		$svc = isset($this->main->servicename) ? (string) $this->main->servicename : '';
+		$resolved = Service__Linux::resolveInstalledUnit($svc);
+		if ($resolved !== '') {
+			return $resolved;
+		}
 
 		return Service__Linux::unitName($svc);
 	}

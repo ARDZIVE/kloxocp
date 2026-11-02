@@ -2,8 +2,8 @@
 
 class serverftp extends lxdb
 {
-	static $__desc = array("", "",  "FTP_config");
-	static $__acdesc_show = array("", "",  "FTP_config");
+	static $__desc = array("", "",  "FTP Configure");
+	static $__acdesc_show = array("", "",  "FTP Configure");
 
 	static $__desc_enable_anon_ftp = array("f", "", "enable_anonymous_ftp");
 	static $__desc_highport = array("", "", "high_port_for_passive_ftp");
@@ -13,6 +13,7 @@ class serverftp extends lxdb
 	static $__desc_enable_tls = array("f", "", "enable_tls");
 
 	static $__acdesc_update = array("f", "", "update");
+	static $__acdesc_update_update = array("", "", "FTP Configure");
 
 	static function initThisObjectRule($parent, $class, $name = null)
 	{
@@ -22,6 +23,38 @@ class serverftp extends lxdb
 	function isSync()
 	{
 		return $this->dbaction === 'update';
+	}
+
+	static function ftpPropertyTabs()
+	{
+		return array(
+			'a=show',
+		);
+	}
+
+	function createShowPropertyList(&$alist)
+	{
+		$alist['property'] = self::ftpPropertyTabs();
+
+		return $alist;
+	}
+
+	function getSelfList()
+	{
+		try {
+			$list = parent::getSelfList();
+			if (is_array($list) && $list !== array()) {
+				return $list;
+			}
+		} catch (Throwable $e) {
+			log_log("error", "serverftp getSelfList parent: " . $e->getMessage());
+		}
+
+		if (class_exists('pserver') && is_callable(array('pserver', 'adminServerSwitchList'))) {
+			return pserver::adminServerSwitchList($this);
+		}
+
+		return null;
 	}
 
 	function createExtraVariables() 

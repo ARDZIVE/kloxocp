@@ -34,8 +34,9 @@ panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and
 redirected; otherwise the MySQL logon form is shown (panel admin may
 leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
-exim4, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
-on/off from dpkg. SMTP `none` / `exim` (hosted mail is Exim via `kloxo-mail`;
+exim4, postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
+on/off from dpkg. SMTP `none` / `exim` (default, `pg_smtp=exim`) / `postfix`
+(packaged, unit disabled until selected; hosted mail is Exim via `kloxo-mail`;
 qmail-toaster is no longer the selectable MTA). PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `count(null)` after login. Admin reboot/poweroff uses `systemctl --no-block`
@@ -66,15 +67,19 @@ fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Con
 Advanced PHP Configure tabs (`phpini::phpiniPropertyTabs`; extraedit does
 not fall back to client/pserver tabs). Nested `phpini_flag_b-*` form
 fields resolve without a TypeError when the flag class has no `$__desc`. Watchdog under localhost lists the Kloxo-MR eight services
-(add form + Switch To Another; mail uses `__driver_mail`). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification show pages
-omit the left Find box. HelpDesk ticket show has Switch To Another
+(add form + Switch To Another; mail uses `__driver_mail`). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
+omit the left Find box. Manage DNS beige tabs are Manage DNS, Rebuild, NS, A, AAAA, CNAME, FCNAME, MX, TXT, CAA, SRV, General Settings; show lists `dns_record_a` without `write()`/`setUpdateSubaction` (template records often lack `parent_clname`; dirtying the zone made `login->was()` sync DNS and bounce Home). Live Manage DNS after deploy is UNVERIFIED. Client PHPinfo is web `a=show&sa=phpinfo` (site `php -i` via argument-array `proc_open`); `getTrueParentO`/`getParentO` treat `client-admin` as root (`isRootClient`) and never print `no parent_clname`. Live PHPinfo after deploy is UNVERIFIED. Change Owner (`a=updateform&sa=changeowner`) builds a client select without calling methods on a missing parent; `Lxclient::updateform` does not load `general` first; help text does not explode a null string. Live Change Owner after deploy is UNVERIFIED. SSL Certificates under a domain has beige tabs SSL Certificates, Add SSL File, Add SSL Text, Add Let's Encrypt, Add SSL Link, Switch To Another of sibling domains, and columns User Name, Certificate Name, Add Type, Parent Domain, Syncserver (list toolbar search stays). HelpDesk ticket show has Switch To Another
 (sibling ticket ids), Ticket / Add Reply / Escalate, inline Add Reply
 (State, Text Reason), and Replies Under N (Changed By, Text Reason,
 Date, State); the replies toolbar search stays. Escalate is Switch To
 Another plus a confirmation Update (no extra fields). File Manager keeps the list toolbar search (T Hidden,
 New dir, Copy/Cut/Paste, columns Size/Name/Modified/Owner/Permissions) like
 Kloxo-MR; listing uses kloxo-backend on loopback 7776 when the panel is not
-root, with in-process fallback. LxGuard show has Switch To Another (pserver list, at least localhost)
+root, with in-process fallback. File Manager beige tabs are File Manager,
+Permissions, Ownership, Disk Usage, Upload, Thumbnail. Backup / Restore
+beige tabs are Backup / Restore, FTP Configuration, Schedule Configuration,
+File Manager, Upload (`kloxo_backup_page_tab_label`; File Manager under a
+backup keeps those five tabs). LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend
@@ -90,7 +95,11 @@ secondary `ns2`. Adding a DNS template does not throw `no_ip_address` on an empt
 (live `ip -4 addr` is used; IPs are typed when that list is empty), does not run `fixIpAddress.php`,
 qualifies a blank or short nameserver to `ns1.<template>.dnst`, and writes default NS/A/MX records into
 `dns_record_a`. Secondary NS is validated separately from primary.
-FTP Configure is `serverftp` under localhost, not Backup FTP Configuration.
+FTP Configure is `serverftp` under localhost, not Backup FTP Configuration;
+the beige tab is labelled **FTP Configure**.
+The Services list shows only installed units (`install_state=on`); running
+and boot status come from systemd `ActiveState` / `UnitFileState`
+(aliases: bind9/named, mariadb/mysqld, phpX.Y-fpm).
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
 Mails Per Client lists under the selected pserver and shows Switch To Another.
 Admin Servers can add a remote host (hostname or IPv4 plus the slave password)

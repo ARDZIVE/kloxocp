@@ -1104,7 +1104,7 @@ TXT;
             'pg_hostdeny' => 'linux',
             'pg_dns' => 'bind',
             'pg_pop3' => 'none',
-            'pg_smtp' => 'none',
+            'pg_smtp' => 'exim',
             'pg_spam' => 'none',
             'pg_mailinglist' => 'ezmlm',
             'pg_ffile' => 'linux',

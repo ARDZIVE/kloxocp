@@ -540,7 +540,11 @@ abstract class Lxclient extends Lxdb
 			return $dir;
 		}
 		
-		$sp = $this->getSpecialObject('sp_specialplay');
+		$sp = null;
+		try {
+			$sp = $this->getSpecialObject('sp_specialplay');
+		} catch (Throwable $e) {
+		}
 		$name = (is_object($sp) && !empty($sp->skin_name)) ? (string) $sp->skin_name : 'simplicity';
 		$color = (is_object($sp) && !empty($sp->skin_color)) ? (string) $sp->skin_color : 'default';
 		$dir = "/theme/skin/{$name}/{$color}/";
@@ -800,8 +804,6 @@ abstract class Lxclient extends Lxdb
 	function updateform($subaction, $param)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
-
-		$gen = $login->getObject('general')->generalmisc_b;
 
 		switch ($subaction) {
 			case "dialogsize":

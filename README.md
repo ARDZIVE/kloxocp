@@ -40,7 +40,7 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it |
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
-| Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` or `exim`. Content tab labelled **Switch Program**. |
+| Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` / **exim** (default) / `postfix` (disabled until selected). Content tab labelled **Switch Program**. |
 | Database | MariaDB (panel DB `kloxo`; mail DB is separate) |
 | SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `root`@`127.0.0.1`) |
 | Billing | None |
@@ -55,14 +55,24 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Screen | Behaviour |
 |---|---|
 | SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
-| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP `none` / `exim`. |
+| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP **exim**. Postfix is selectable and stays disabled until chosen. |
+| Backup / Restore | Tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. File Manager under a backup keeps those five tabs. |
+| File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
+| FTP Configure | Under localhost (not Backup FTP Configuration). One beige tab labelled **FTP Configure**. |
 | PHP Configure | Tabs **PHP Configure** and **Advanced PHP Configure**. |
+| PHPinfo | In-panel **PHPinfo** tab (site `php -i` of the PHP selected for that domain). |
+| Change Owner | Client select of candidate owners; does not die on a missing parent. |
+| SSL Certificates | Under a domain: **SSL Certificates**, **Add SSL File**, **Add SSL Text**, **Add Let's Encrypt**, **Add SSL Link**; Switch To Another of sibling domains. |
+| Manage DNS | Tabs **Manage DNS**, **Rebuild**, **NS**, **A**, **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**, **General Settings**. No left Find box. Show does not rewrite the zone. |
+| DNS Templates | Add form on the list tab (name `default`, ns1/ns2). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
-| Update | **10.1-2026110201**, note **Kloxo fork by Hampik TALATINIAN**. `kloxocp update` is not built (exits 2). |
+| Update | **10.1-2026110201**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
+| Services | Lists only installed units; running/boot from systemd `ActiveState` / `UnitFileState`. |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
-| HelpDesk | A Welcome ticket is seeded on install. |
-| Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
+| LxGuard | Switch To Another across servers; Connections / Raw Connections / White List. No left Find box. |
+| HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
+| Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |
 
 ## Goals
@@ -137,9 +147,11 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 7. Builds pinned **Hiawatha 12.4** (`install-hiawatha`) **before** the database
    schema, then starts `kloxo-web` on 7777/7778.
 8. Enables Nginx, MariaDB, and BIND. Prepares Apache (`install-apache`) and
-   PowerDNS (`install-pdns`) and leaves those units **disabled**.
+   PowerDNS (`install-pdns`) and leaves those units **disabled**. `--profile=full`
+   installs Exim (default MTA) and Postfix (unit stays **disabled** until
+   Switch Program selects it).
 9. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
-   `localhost` driver with `dns` = `bind` and `web` = `nginx`, simplicity appearance,
+   `localhost` driver with `dns` = `bind`, `web` = `nginx`, and `smtp` = `exim`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
 10. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
 11. Installs customer-site PHP-FPM **5.6** (5.6.40), **7.4** (7.4.33), and
@@ -289,11 +301,11 @@ apt install -y \
 ```
 
 Mail packages (only with `--profile=full` / `--with-mail`; does **not**
-configure Exim):
+configure Exim). Postfix is packaged and left **disabled**:
 
 ```
 apt install -y \
-  exim4-daemon-heavy \
+  exim4-daemon-heavy postfix \
   dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
   dovecot-mysql dovecot-sieve dovecot-managesieved \
   rspamd redis-server
@@ -501,10 +513,12 @@ working panel; re-run `init-panel-db`.
 
 Hosted mail is **Exim** (SMTP) + **Dovecot** (IMAP/POP3/LMTP) + **Rspamd**
 + a dedicated MariaDB database. Switch Program SMTP is `none` / `exim`
-(the content tab is labelled **Switch Program**); `exim` enables Ubuntu
-`exim4` (and stops Postfix if it is still installed). qmail-toaster is not
-the selectable MTA. P4 will wire the panel mail screens to `kloxo-mail`.
-qmail remains in the tree until those drivers exist.
+(default) / `postfix` (the content tab is labelled **Switch Program**);
+`exim` enables Ubuntu `exim4` and stops Postfix; `postfix` enables Postfix
+and stops Exim. The Postfix unit stays disabled until selected. Hosted-mail
+templates stay Exim (`kloxo-mail`). qmail-toaster is not the selectable MTA.
+P4 will wire the panel mail screens to `kloxo-mail`. qmail remains in the
+tree until those drivers exist.
 
 On a **disposable** machine only (`tests/mail/README.md`): live tests rewrite
 `/etc/exim4`, `/etc/dovecot`, `/etc/rspamd/local.d`.

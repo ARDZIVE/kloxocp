@@ -716,11 +716,20 @@ if grep -q "exim/exim4.conf" "$ROOT/kloxo/bin/mail/kloxo-mail" \
   && test -f "$ROOT/kloxo/file/mail/exim/exim4.conf" \
   && ! test -f "$ROOT/kloxo/file/mail/postfix/main.cf" \
   && grep -q 'exim4-daemon-heavy' "$ROOT/install.sh" \
-  && grep -F -q "['name' => 'exim4'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \
-  && ! grep -F -q "['name' => 'postfix'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php"; then
-  ok "hosted mail templates, installer, and Component Info are Exim"
+  && grep -F -q "['name' => 'exim4'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php"; then
+  ok "hosted mail templates and installer stay Exim"
 else
-  bad "hosted mail templates, installer, and Component Info are Exim"
+  bad "hosted mail templates and installer stay Exim"
+fi
+if grep -F -q "['name' => 'postfix'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \
+  && grep -q 'smtp__postfix' "$ROOT/kloxo/httpdocs/lib/driver_define.php" \
+  && grep -q 'array("none", "exim", "postfix")' "$ROOT/kloxo/file/driver/debian.inc" \
+  && grep -q "'pg_smtp' => 'exim'" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'disable --now postfix' "$ROOT/install.sh" \
+  && ! grep -E 'enable --now postfix' "$ROOT/install.sh"; then
+  ok "Switch Program SMTP lists postfix; default remains exim"
+else
+  bad "Switch Program SMTP lists postfix; default remains exim"
 fi
 if grep -q 'KloxoComponent' "$ROOT/kloxo/httpdocs/driver/pserver/component__deblib.php" \
   && grep -q 'mariadb-server' "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \

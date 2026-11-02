@@ -29,12 +29,13 @@ class lxbackup extends Lxdb
 	static $__desc_no_local_copy_flag = array("f", "", "dont_keep_a_local_copy");
 	static $__desc_backupextra_stopvpsflag = array('f', "", "stop_vps_while_backup_snapshot", "");
 
-	static $__acdesc_update_backup = array("", "", "backup_now");
-	static $__acdesc_update_restore = array("", "", "restore");
-	static $__acdesc_update_ftp_conf = array("", "", "ftp_configuration");
-	static $__acdesc_update_schedule_conf = array("", "", "schedule_configuration");
-	static $__acdesc_update_restore_from_file = array("", "", "restore_from_file");
-	static $__acdesc_update_restore_from_ftp = array("", "", "restore_from_ftp");
+	static $__acdesc_show = array("", "", "Backup / Restore");
+	static $__acdesc_update_backup = array("", "", "Backup Now");
+	static $__acdesc_update_restore = array("", "", "Restore");
+	static $__acdesc_update_ftp_conf = array("", "", "FTP Configuration");
+	static $__acdesc_update_schedule_conf = array("", "", "Schedule Configuration");
+	static $__acdesc_update_restore_from_file = array("", "", "Restore From File");
+	static $__acdesc_update_restore_from_ftp = array("", "", "Restore From FTP");
 
 	function getFfileFromVirtualList($name)
 	{
@@ -372,17 +373,24 @@ class lxbackup extends Lxdb
 		return $vlist;
 	}
 
+	static function backupPropertyTabs()
+	{
+		return array(
+			'a=show',
+			'a=updateform&sa=ftp_conf',
+			'__var_backupschedule_flag' => 'a=updateform&sa=schedule_conf',
+			'a=show&l[class]=ffile&l[nname]=/',
+			'l[class]=ffile&l[nname]=/&a=updateform&sa=upload',
+		);
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		$alist['property'][] = 'a=show';
-
-	//	$alist[] = 'a=updateform&sa=backup';
 		$alist['property'][] = 'a=updateform&sa=ftp_conf';
-
 		$alist['property']['__var_backupschedule_flag'] = 'a=updateform&sa=schedule_conf';
 		$alist['property'][] = 'a=show&l[class]=ffile&l[nname]=/';
 		$alist['property'][] = "l[class]=ffile&l[nname]=/&a=updateform&sa=upload";
-	// 	$alist['property'][] = "l[class]=ffile&l[nname]=/&a=updateform&sa=backupftpupload";
 
 		return $alist;
 	}

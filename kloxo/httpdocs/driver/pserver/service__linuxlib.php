@@ -69,14 +69,28 @@ class Service__Linux extends Lxlclass
 
 		$nval['exim4'] = 'exim4';
 		$nval['exim'] = 'exim';
+		$nval['postfix'] = 'postfix';
 	//	$nval['courier-imap'] = 'courier';
 	//	$nval['spamassassin'] = 'spamassassin';
 	//	$nval['dovecot'] = 'dovecot';
+
+		$nval['pure-ftpd'] = 'pure-ftpd';
+		$nval['kloxo-php'] = 'kloxo-php';
 
 		$nval['iptables'] = "iptables";
 		$nval['firewalld'] = "firewalld";
 
 		return $nval;
+	}
+
+	static function isSafeUnit($name)
+	{
+		return is_string($name) && $name !== '' && preg_match('/^[A-Za-z0-9_.:@+-]+$/', $name) === 1;
+	}
+
+	static function hasSystemd()
+	{
+		return is_dir('/run/systemd/system');
 	}
 
 	static function unitName($servicename)
@@ -90,27 +104,171 @@ class Service__Linux extends Lxlclass
 		return $servicename;
 	}
 
+	static function phpFpmUnitNames()
+	{
+		$out = array();
+		foreach (array('/lib/systemd/system', '/usr/lib/systemd/system', '/etc/systemd/system') as $dir) {
+			$found = @glob($dir . '/php*-fpm.service');
+			if (!is_array($found)) {
+				continue;
+			}
+			foreach ($found as $f) {
+				$base = basename((string)$f, '.service');
+				if (self::isSafeUnit($base) && !in_array($base, $out, true)) {
+					$out[] = $base;
+				}
+			}
+		}
+		sort($out, SORT_NATURAL);
+
+		return $out;
+	}
+
+	static function unitCandidates($servicename)
+	{
+		$name = self::unitName($servicename);
+		$map = array(
+			'php-fpm' => array('php-fpm'),
+			'bind9' => array('bind9', 'named'),
+			'named' => array('named', 'bind9'),
+			'httpd' => array('httpd', 'apache2'),
+			'apache2' => array('apache2', 'httpd'),
+			'mariadb' => array('mariadb', 'mysql', 'mysqld'),
+			'mysql' => array('mysql', 'mariadb', 'mysqld'),
+			'mysqld' => array('mysqld', 'mariadb', 'mysql'),
+			'pdns' => array('pdns', 'pdns-server'),
+			'pdns-server' => array('pdns', 'pdns-server'),
+			'exim4' => array('exim4', 'exim'),
+			'exim' => array('exim', 'exim4'),
+			'postfix' => array('postfix'),
+			'pure-ftpd' => array('pure-ftpd', 'pure-ftpd-mysql'),
+		);
+		$cands = isset($map[$name]) ? $map[$name] : array($name);
+		if ($name === 'php-fpm' || preg_match('/^php[0-9.]+-fpm$/', $name) === 1) {
+			$cands = array_merge($cands, self::phpFpmUnitNames());
+		}
+
+		$out = array();
+		foreach ($cands as $u) {
+			if (self::isSafeUnit($u) && !in_array($u, $out, true)) {
+				$out[] = $u;
+			}
+		}
+
+		return $out;
+	}
+
+	static function systemdShow($unit, $prop)
+	{
+		if (!self::hasSystemd() || !self::isSafeUnit($unit) || !self::isSafeUnit($prop)) {
+			return '';
+		}
+		try {
+			$out = lxshell_output('systemctl', 'show', '-p', $prop, '--value', $unit);
+		} catch (Throwable $e) {
+			return '';
+		}
+
+		return is_string($out) ? trim($out) : '';
+	}
+
+	static function unitIsInstalled($unit)
+	{
+		if (!self::isSafeUnit($unit)) {
+			return false;
+		}
+		if (function_exists('isServiceExists') && isServiceExists($unit)) {
+			return true;
+		}
+		$load = self::systemdShow($unit, 'LoadState');
+
+		return $load === 'loaded' || $load === 'masked';
+	}
+
+	static function resolveInstalledUnit($servicename)
+	{
+		$installed = array();
+		foreach (self::unitCandidates($servicename) as $u) {
+			if (self::unitIsInstalled($u)) {
+				$installed[] = $u;
+			}
+		}
+		if ($installed === array()) {
+			return '';
+		}
+		foreach ($installed as $u) {
+			if (self::systemdShow($u, 'ActiveState') === 'active') {
+				return $u;
+			}
+		}
+
+		return $installed[count($installed) - 1];
+	}
+
+	static function bootStateOn($unit)
+	{
+		$en = self::systemdShow($unit, 'UnitFileState');
+
+		return in_array($en, array(
+			'enabled', 'enabled-runtime', 'static', 'indirect', 'generated', 'alias',
+		), true);
+	}
+
 	static function checkService($name)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-	/*
-		if ($name === 'qmail') {
-			$ret = lxshell_return("qmailctl", "stat");
-		} else {
-			$ret = lxshell_return("service". $name, "status");
+		$unit = self::resolveInstalledUnit($name);
+		if ($unit === '') {
+			$unit = self::isSafeUnit((string)$name) ? (string)$name : '';
 		}
-	*/
-		exec("pgrep ^{$name}", $out);
+		if ($unit === '') {
+			return 'off';
+		}
+		if (self::hasSystemd()) {
+			return self::systemdShow($unit, 'ActiveState') === 'active' ? 'on' : 'off';
+		}
 
-	//	$state = ($ret) ? "off" : "on";
-		$state = (count($out) > 0) ? "off" : "on";
+		return self::processIsRunning($unit) ? 'on' : 'off';
+	}
 
-		return $state;
+	static function processIsRunning($name)
+	{
+		if (!self::isSafeUnit($name)) {
+			return false;
+		}
+		$names = array($name);
+		$alias = array(
+			'mariadb' => array('mariadbd', 'mysqld'),
+			'mysql' => array('mysqld', 'mariadbd'),
+			'mysqld' => array('mysqld', 'mariadbd'),
+			'bind9' => array('named'),
+			'named' => array('named'),
+			'pdns' => array('pdns_server'),
+			'apache2' => array('apache2', 'httpd'),
+			'exim4' => array('exim4', 'exim'),
+		);
+		if (isset($alias[$name])) {
+			$names = array_merge($names, $alias[$name]);
+		}
+		foreach ($names as $n) {
+			if (!self::isSafeUnit($n)) {
+				continue;
+			}
+			try {
+				$out = lxshell_output('pgrep', '-x', $n);
+			} catch (Throwable $e) {
+				$out = '';
+			}
+			if (is_string($out) && trim($out) !== '') {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	static function getRunLevel()
 	{
-		$v = trim(lxshell_output("runlevel"));
+		$v = trim((string) lxshell_output("runlevel"));
 		$v = explode(" ", $v);
 		
 		return isset($v[1]) ? $v[1] : '3';
@@ -118,26 +276,24 @@ class Service__Linux extends Lxlclass
 
 	static function checkServiceOn($service)
 	{
-		exec("ps --no-headers -o comm 1", $servicetype);
-		if (isset($servicetype[0]) && $servicetype[0] === 'systemd') {
-			exec("systemctl list-unit-files --type=service", $units);
-			if (is_array($units)) {
-				foreach ($units as $line) {
-					if (strpos($line, $service) === 0 && strpos($line, 'enabled') !== false) {
-						return true;
-					}
-				}
-			}
+		$unit = self::resolveInstalledUnit($service);
+		if ($unit === '') {
+			$unit = self::isSafeUnit((string)$service) ? (string)$service : '';
+		}
+		if ($unit === '') {
+			return false;
+		}
+		if (self::hasSystemd()) {
+			return self::bootStateOn($unit);
 		}
 
-		$sysv = array();
-		exec("chkconfig --list 2>/dev/null", $sysv);
-		if (is_array($sysv)) {
-			foreach ($sysv as $line) {
-				if (strpos($line, $service) === 0 && strpos($line, ':on') !== false) {
-					return true;
-				}
-			}
+		try {
+			$sysv = lxshell_output('chkconfig', '--list', $unit);
+		} catch (Throwable $e) {
+			$sysv = '';
+		}
+		if (is_string($sysv) && $sysv !== '' && strpos($sysv, ':on') !== false) {
+			return true;
 		}
 
 		return false;
@@ -149,34 +305,28 @@ class Service__Linux extends Lxlclass
 			return array();
 		}
 
-		$ps = lxshell_output("ps", "ax");
-		if (!is_string($ps)) {
-			$ps = '';
-		}
-
 		foreach ($list as &$__l) {
+			if (!is_array($__l)) {
+				continue;
+			}
 			$__l['install_state'] = 'dull';
 			$__l['state'] = 'off';
 			$__l['boot_state'] = 'off';
 
-			if (!isset($__l['servicename']) || !isServiceExists($__l['servicename'])) {
+			$svc = isset($__l['servicename']) ? (string)$__l['servicename'] : '';
+			$unit = self::resolveInstalledUnit($svc);
+			if ($unit === '') {
 				continue;
 			}
 
 			$__l['install_state'] = 'on';
-
-			if (self::checkServiceOn($__l['servicename'])) {
-				$__l['boot_state'] = 'on';
-			}
-
-			if (!empty($__l['grepstring']) && preg_match("/[\/ ]{$__l['grepstring']}/i", $ps)) {
-				$__l['state'] = 'on';
-			}
-
-			if ($__l['state'] === 'off') {
-				$out = array();
-				exec("pgrep ^{$__l['servicename']}", $out);
-				$__l['state'] = (is_array($out) && count($out) > 0) ? 'on' : 'off';
+			if (self::hasSystemd()) {
+				$__l['state'] = self::systemdShow($unit, 'ActiveState') === 'active' ? 'on' : 'off';
+				$__l['boot_state'] = self::bootStateOn($unit) ? 'on' : 'off';
+			} else {
+				$__l['boot_state'] = self::checkServiceOn($unit) ? 'on' : 'off';
+				$grep = isset($__l['grepstring']) ? (string)$__l['grepstring'] : $unit;
+				$__l['state'] = (self::processIsRunning($unit) || self::processIsRunning($grep)) ? 'on' : 'off';
 			}
 		}
 		unset($__l);

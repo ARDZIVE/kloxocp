@@ -119,6 +119,7 @@ $__keyword["ssl"] = "SSL";
 
 $__keyword["update_all"] = "Click Here to Update all objects";
 $__keyword["click_to_show"] = "Click to Show";
+$__keyword["showall"] = "Show All";
 $__keyword["click_on_showall_to_hide"] = "(Click on show-all to hide)";
 $__keyword["click_on_showall_to_see_all_objects"] = "Click on show all to see all objects";
 $__keyword["click_here"] = "Click here";

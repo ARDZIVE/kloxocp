@@ -66,6 +66,9 @@ $__description["rebuild"] = array("Rebuild");
 $__description["DNS"] = array("DNS");
 $__description["domain_name"] = array("Domain Name");
 $__description["manage_dns"] = array("Manage DNS");
+$__description["Manage DNS"] = array("Manage DNS");
+$__description["General Settings"] = array("General Settings");
+$__description["Rebuild"] = array("Rebuild");
 
 // Added Kloxo CP Version 6.1.6
 $__description["SRV"] = array("SRV");
@@ -245,6 +248,13 @@ $__description["upload_files_to_remote_server"] = array("Upload Files To Remote 
 $__description["dont_keep_a_local_copy"] = array("Dont Keep A Local Copy");
 $__description["stop_vps_while_backup_snapshot"] = array("Stop VPS While Backup Snapshot (recommended)");
 $__description["backup_now"] = array("Backup Now");
+$__description["Backup / Restore"] = array("Backup / Restore");
+$__description["Backup Now"] = array("Backup Now");
+$__description["FTP Configuration"] = array("FTP Configuration");
+$__description["Schedule Configuration"] = array("Schedule Configuration");
+$__description["Restore From File"] = array("Restore From File");
+$__description["Restore From FTP"] = array("Restore From FTP");
+$__description["Restore"] = array("Restore");
 $__description["ftp_configuration"] = array("FTP Configuration");
 $__description["schedule_configuration"] = array("Schedule Configuration");
 $__description["restore_from_file"] = array("Restore From File");

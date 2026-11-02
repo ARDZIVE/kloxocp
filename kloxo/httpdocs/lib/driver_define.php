@@ -72,5 +72,6 @@ $gl_class_array['pop3__none'] = "driver/mmail/pop3__nonelib.php";
 
 $gl_class_array['smtp__qmail'] = "driver/mmail/smtp__qmaillib.php";
 $gl_class_array['smtp__exim'] = "driver/mmail/smtp__eximlib.php";
+$gl_class_array['smtp__postfix'] = "driver/mmail/smtp__postfixlib.php";
 $gl_class_array['smtp__none'] = "driver/mmail/smtp__nonelib.php";
 

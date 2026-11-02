@@ -997,11 +997,30 @@ class Ffile extends Lxclass
 			return null;
 		}
 
-		if ($this->base === "__backup" || basename($this->root) === "__backup") {
-			$this->getParentO()->createShowPropertyList($alist);
-			
-			foreach ($alist['property'] as &$__a) {
-				$__a = "goback=1&$__a";
+		$backupParent = false;
+		try {
+			$po = $this->getParentO();
+			$backupParent = is_object($po) && method_exists($po, 'isClass') && $po->isClass('lxbackup');
+		} catch (Throwable $e) {
+			$backupParent = false;
+		}
+		$rootBase = basename(rtrim((string) $this->root, '/'));
+		if ($backupParent || $this->base === "__backup" || $rootBase === "__backup") {
+			if (class_exists('lxbackup') && is_callable(array('lxbackup', 'backupPropertyTabs'))) {
+				$alist['property'] = lxbackup::backupPropertyTabs();
+			} else {
+				$po = $this->getParentO();
+				if (is_object($po) && method_exists($po, 'createShowPropertyList')) {
+					$po->createShowPropertyList($alist);
+				}
+			}
+			if (isset($alist['property']) && is_array($alist['property'])) {
+				foreach ($alist['property'] as &$__a) {
+					if (is_string($__a) && $__a !== '' && !str_starts_with($__a, 'goback=')) {
+						$__a = "goback=1&$__a";
+					}
+				}
+				unset($__a);
 			}
 
 			return $alist;
