@@ -231,6 +231,22 @@ if grep -q 'initialValuesBasic()' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib
 else
   bad "phpini forms apply initialValuesBasic and keep PHP Configure / Advanced tabs"
 fi
+if grep -q 'function lxguardPropertyTabs' "$ROOT/kloxo/httpdocs/driver/pserver/lxguardlib.php" \
+  && grep -q 'function kloxo_url_has_lxguard' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q "return 'LxGuard'" "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q 'lxguard::lxguardPropertyTabs()' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
+  ok "LxGuard page first tab is labelled LxGuard"
+else
+  bad "LxGuard page first tab is labelled LxGuard"
+fi
+if grep -q 'function sshconfigPropertyTabs' "$ROOT/kloxo/httpdocs/driver/pserver/sshconfiglib.php" \
+  && grep -q 'function kloxo_url_has_sshconfig' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q "return 'SSH Configure'" "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q 'sshconfig::sshconfigPropertyTabs()' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
+  ok "SSH Configure page tab is labelled SSH Configure"
+else
+  bad "SSH Configure page tab is labelled SSH Configure"
+fi
 if grep -q 'function ensureAdminResourcePriv' "$ROOT/kloxo/httpdocs/lib/client/lxclient.php" && grep -q "easyinstaller" "$ROOT/kloxo/httpdocs/lib/php/lxclass.php"; then
   ok "admin resource plan defaults unlimited; easyinstaller off"
 else

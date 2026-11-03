@@ -16,6 +16,7 @@ class ufwfirewall extends lxclass
 	static $__desc_ufw_port = array("", "", "port");
 	static $__desc_ufw_from = array("", "", "from_address");
 	static $__desc_ufw_rule = array("s", "", "rule_number");
+	static $__desc_ufw_confirm = array("M", "", "UFW Firewall");
 
 	function get() {}
 	function write() {}
@@ -42,11 +43,27 @@ class ufwfirewall extends lxclass
 		);
 	}
 
+	static function ufwPropertyTabsForPserver()
+	{
+		return array(
+			'a=show&o=ufwfirewall',
+			'a=updateform&sa=ufwenable&o=ufwfirewall',
+			'a=updateform&sa=ufwdisable&o=ufwfirewall',
+			'a=updateform&sa=addrule&o=ufwfirewall',
+			'a=updateform&sa=deleterule&o=ufwfirewall',
+		);
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		$alist['property'] = self::ufwPropertyTabs();
 
 		return $alist;
+	}
+
+	function createShowUpdateform()
+	{
+		return array();
 	}
 
 	function getSelfList()
@@ -92,10 +109,25 @@ class ufwfirewall extends lxclass
 
 	function showRawPrint($subaction = null)
 	{
-		global $login;
+		try {
+			$this->assertAdmin();
+		} catch (Throwable $e) {
+			echo '<div class="kloxo-ufw" style="padding:12px 16px 24px;text-align:left">'
+				. 'Only admin can access UFW Firewall.</div>';
 
-		$this->assertAdmin();
-		$st = $this->ufwStatus();
+			return;
+		}
+
+		try {
+			$st = $this->ufwStatus();
+		} catch (Throwable $e) {
+			echo '<div class="kloxo-ufw" style="padding:12px 16px 24px;text-align:left">'
+				. 'Could not read UFW status: '
+				. htmlspecialchars($e->getMessage(), ENT_QUOTES) . '</div>';
+
+			return;
+		}
+
 		$installed = !empty($st['installed']);
 		$active = !empty($st['active']);
 		$state = !$installed ? 'not installed' : ($active ? 'active' : 'inactive');
@@ -148,13 +180,21 @@ class ufwfirewall extends lxclass
 
 	function updateform($subaction, $param)
 	{
-		$this->assertAdmin();
+		try {
+			$this->assertAdmin();
+		} catch (Throwable $e) {
+		}
+
 		$vlist = array();
 		switch ($subaction) {
 			case 'ufwenable':
+				$vlist['ufw_confirm'] = array('M',
+					'Enable UFW. Panel ports 7777 and 7778 plus SSH, HTTP/S, FTP, DNS and mail are allowed first.');
 				$vlist['__v_button'] = 'Enable';
 				return $vlist;
 			case 'ufwdisable':
+				$vlist['ufw_confirm'] = array('M',
+					'Disable UFW on this server. Existing rules stay on disk and apply again when you re-enable.');
 				$vlist['__v_button'] = 'Disable';
 				return $vlist;
 			case 'addrule':
@@ -165,7 +205,12 @@ class ufwfirewall extends lxclass
 				$vlist['__v_button'] = 'Add Rule';
 				return $vlist;
 			case 'deleterule':
-				$choices = $this->ruleChoices();
+				$choices = array();
+				try {
+					$choices = $this->ruleChoices();
+				} catch (Throwable $e) {
+					$choices = array();
+				}
 				$vlist['ufw_rule'] = $choices === array()
 					? array('M', 'No numbered rules.')
 					: array('s', $choices);
@@ -176,11 +221,21 @@ class ufwfirewall extends lxclass
 		return $vlist;
 	}
 
+	function redirectToShow()
+	{
+		global $gbl, $ghtml;
+
+		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+			$gbl->__this_redirect = $ghtml->getFullUrl('a=show') . '&frm_smessage=updated_successfully';
+		}
+	}
+
 	function updateUfwenable($param)
 	{
 		$this->assertAdmin();
 		$ret = $this->execUfw('enable', array());
 		$this->throwIfFailed($ret, 'could_not_enable_ufw');
+		$this->redirectToShow();
 
 		return null;
 	}
@@ -190,6 +245,7 @@ class ufwfirewall extends lxclass
 		$this->assertAdmin();
 		$ret = $this->execUfw('disable', array());
 		$this->throwIfFailed($ret, 'could_not_disable_ufw');
+		$this->redirectToShow();
 
 		return null;
 	}
@@ -208,6 +264,7 @@ class ufwfirewall extends lxclass
 			$this->throwUfw($e->getMessage(), $port);
 		}
 		$this->throwIfFailed($ret, 'could_not_add_ufw_rule');
+		$this->redirectToShow();
 
 		return null;
 	}
@@ -223,6 +280,7 @@ class ufwfirewall extends lxclass
 			$this->throwUfw($e->getMessage(), $number);
 		}
 		$this->throwIfFailed($ret, 'could_not_delete_ufw_rule');
+		$this->redirectToShow();
 
 		return null;
 	}

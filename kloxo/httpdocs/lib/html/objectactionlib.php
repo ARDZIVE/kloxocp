@@ -460,8 +460,13 @@ function do_desc_update($object, $subaction, $param)
 
 	$object->preUpdate($subaction, $param);
 
-	$parent = $object->getParentO();
-	$qparent = $parent;
+	$parent = null;
+	try {
+		$parent = $object->getParentO();
+	} catch (Throwable $e) {
+		$parent = null;
+	}
+	$qparent = is_object($parent) ? $parent : $object;
 
 	$update_func = "update$subaction";
 

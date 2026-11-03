@@ -341,6 +341,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Backup/Restore, Webserver Configure, SSH Configure, LxGuard,
     SSH Terminal, File Manager, HelpDesk ticket show, Notification,
     Update, client Manage DNS, and client PHPinfo no longer show the left-column Find box.
+    SSH Configure has one beige tab labelled **SSH Configure** (not Home).
     Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
     **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,
     **General Settings**. Manage DNS show fills missing `parent_clname` in
@@ -369,13 +370,16 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     toolbar search stays. Escalate is a confirmation page (Switch To
     Another, Escalate for N, Update; no extra fields) and no longer
     TypeErrors through Lxclient::updateform. Live HelpDesk ticket
-    show/escalate after deploy is **UNVERIFIED**. LxGuard show (and its
+    show/escalate after deploy is **UNVERIFIED**. LxGuard first beige tab is
+    **LxGuard** (not Home). LxGuard show (and its
     Connections / Raw Connections / White List tabs) has Switch To Another
     across pservers (`lxguard::getSelfList` via `pserver::adminServerSwitchList`,
     at least `localhost`). LxGuard list tabs omit the Find/search input too.
     Security has a **UFW Firewall** tile and top-bar item (`a=show&o=ufwfirewall`,
     label **UFW Firewall**). Beige tabs are UFW Firewall, Enable, Disable,
-    Add Rule, Delete Rule. `KloxoUfw` runs `ufw` with argument-array `proc_open`
+    Add Rule, Delete Rule (`ufwPropertyTabs` is forced; parent Home fallback
+    is skipped; Enable/Disable have a confirm field; Add Rule / Delete Rule
+    forms load; submit redirects to UFW show). `KloxoUfw` runs `ufw` with argument-array `proc_open`
     (status/enable/disable/allow/deny/delete). Enable first allows panel
     7777/7778 plus SSH, HTTP/S, FTP, DNS and mail; deny/delete of the last
     panel-port allow is refused. `install.sh` apt-installs `ufw` and leaves
@@ -596,7 +600,8 @@ Work in this order. Keep every change small, tested and committed separately. Do
    and `kloxo-backend`. `--slave` writes `etc/conf/slave-db.db` (`init-slave`)
    and skips the panel UI. Default login is admin/admin with a forced password
    change after first login. One-liner in `README.md` downloads `install.sh`
-   from GitHub `main` then runs it. **UNVERIFIED on a
+   from GitHub `main` to `/tmp` then runs that file (not `curl | bash`).
+   **UNVERIFIED on a
    real Ubuntu VM.** Does not add a signed apt repo. Live two-host add is
    **UNVERIFIED**.
 3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →

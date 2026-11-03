@@ -355,6 +355,18 @@ class pserver extends pservercore {
 				"a=show&o=phpini",
 				"a=updateform&sa=extraedit&o=phpini",
 			);
+		} elseif ($sa === 'ufwenable' || $sa === 'ufwdisable'
+			|| $sa === 'addrule' || $sa === 'deleterule') {
+			$alist['property'] = class_exists('ufwfirewall')
+				&& is_callable(array('ufwfirewall', 'ufwPropertyTabsForPserver'))
+				? ufwfirewall::ufwPropertyTabsForPserver()
+				: array(
+					'a=show&o=ufwfirewall',
+					'a=updateform&sa=ufwenable&o=ufwfirewall',
+					'a=updateform&sa=ufwdisable&o=ufwfirewall',
+					'a=updateform&sa=addrule&o=ufwfirewall',
+					'a=updateform&sa=deleterule&o=ufwfirewall',
+				);
 		} elseif ($sa === 'timezone') {
 			$alist['property'][] = "a=updateform&sa=timezone";
 	//	} elseif ($sa === 'update') {

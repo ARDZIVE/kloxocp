@@ -34,7 +34,10 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash.
 Starts Nginx, BIND, webcache on **8080**, and webproxy on **30080**.
-A 2 GB VPS that fails the RAM/disk floor can add `--force` at the end.
+Packages `ufw` and leaves it **inactive** (enable later from Security →
+**UFW Firewall**; that first allows 7777/7778). Apache and PowerDNS are
+packaged and stay disabled. A 2 GB VPS that fails the RAM/disk floor can
+add `--force` at the end.
 
 ```
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
@@ -79,6 +82,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Backup / Restore | Tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. File Manager under a backup keeps those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
 | FTP Configure | Under localhost (not Backup FTP Configuration). One beige tab labelled **FTP Configure**. |
+| SSH Configure | Under localhost. One beige tab labelled **SSH Configure** (not Home). |
 | PHP Configure | Tabs **PHP Configure** and **Advanced PHP Configure**. Heading uses the parent name. Extraedit stays on those tabs (not client/pserver). |
 | PHPinfo | In-panel **PHPinfo** tab (site `php -i` of the PHP selected for that domain). |
 | Change Owner | Client select of candidate owners; does not die on a missing parent. |
@@ -90,8 +94,8 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Services | Lists only installed units; running/boot from systemd `ActiveState` / `UnitFileState`. Includes `kloxo-webcache` and `kloxo-webproxy` after install. |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
-| LxGuard | Switch To Another across servers; Connections / Raw Connections / White List. No left Find box. |
-| UFW Firewall | Security-section button. Status, Enable, Disable, Add Rule, Delete Rule. Enable first allows 7777/7778. No left Find box. Live UFW after deploy is unverified. |
+| LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
+| UFW Firewall | Security-section button. Beige tabs **UFW Firewall**, **Enable**, **Disable**, **Add Rule**, **Delete Rule**. Enable first allows 7777/7778. Submit stays on UFW show. `ufw` is packaged inactive. No left Find box. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |
@@ -119,7 +123,8 @@ the Change Password modal is required (Esc/Close cannot skip it).
 runs it. That script clones the tree if needed, or fetches `origin/main`
 and hard-resets when `/usr/local/src/kloxo-cp` is already a git clone.
 Safe to repeat after a failed install or to pick up GitHub `main`
-(local edits in that clone are discarded):
+(local edits in that clone are discarded). Same command as the box at
+the top of this file:
 
 ```
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
@@ -587,6 +592,7 @@ php kloxo/bin/install/generate-tls-keys --help
 php kloxo/bin/install/init-panel-db --help
 php kloxo/bin/install/install-pdns --help
 php kloxo/bin/install/install-apache --help
+php kloxo/bin/install/install-webfront --help
 bash kloxo/bin/install/install-hiawatha --help
 php kloxo/bin/mail/kloxo-mail help
 php kloxo/bin/kloxocp help

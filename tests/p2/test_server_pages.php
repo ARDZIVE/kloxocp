@@ -1254,6 +1254,26 @@ try {
 	bad('SSH Configure reads sshd_config without a shell pipeline', $e->getMessage());
 }
 
+$sshHomeTab = kloxo_content_tab_label('Home',
+	'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=sshconfig');
+$sshShowTab = kloxo_content_tab_label('SSH_config', 'a=show&o=sshconfig');
+$sshTabs = class_exists('sshconfig') && is_callable(array('sshconfig', 'sshconfigPropertyTabs'))
+	? sshconfig::sshconfigPropertyTabs() : array();
+$sshProps = array('property' => array());
+if (method_exists($cfg, 'createShowPropertyList')) {
+	$cfg->createShowPropertyList($sshProps);
+}
+if ($sshHomeTab === 'SSH Configure'
+	&& $sshShowTab === 'SSH Configure'
+	&& function_exists('kloxo_url_has_sshconfig') && kloxo_url_has_sshconfig('a=show&o=sshconfig')
+	&& is_array($sshTabs) && ($sshTabs[0] ?? '') === 'a=show'
+	&& ($sshProps['property'][0] ?? '') === 'a=show') {
+	ok('SSH Configure page tab is labelled SSH Configure');
+} else {
+	bad('SSH Configure page tab is labelled SSH Configure',
+		'home=' . (string) $sshHomeTab . ' show=' . (string) $sshShowTab);
+}
+
 $stat = coreFfile::createFfileVariables(array('uid' => 1, 'gid' => 1));
 $emptyStat = coreFfile::createFfileVariables(null);
 if (is_array($stat) && isset($stat['other_username']) && is_array($emptyStat)) {
@@ -2016,8 +2036,17 @@ $lgSwitchOk = is_array($lgSwitch) && isset($lgSwitch['localhost'])
 	&& (string) $lgSwitch['localhost']->getId() === 'localhost';
 $lgFormOk = is_array($lgForm) && array_key_exists('disablehit', $lgForm)
 	&& array_key_exists('configure_flag', $lgForm);
+$lgHomeTab = kloxo_content_tab_label('Home',
+	'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=lxguard');
+$lgShowTab = kloxo_content_tab_label('Lxguard', 'a=show&o=lxguard');
+$lgHitTab = kloxo_content_tab_label('connection', 'a=list&c=lxguardhitdisplay');
 if ($lgSwitchOk && $lgTabOk && $lgFormOk && str_contains($lgSrc, 'function getSelfList')
-	&& str_contains($lgSrc, 'adminServerSwitchList')) {
+	&& str_contains($lgSrc, 'adminServerSwitchList')
+	&& $lgHomeTab === 'LxGuard'
+	&& $lgShowTab === 'LxGuard'
+	&& $lgHitTab !== 'LxGuard'
+	&& function_exists('kloxo_url_has_lxguard') && kloxo_url_has_lxguard('a=show&o=lxguard')
+	&& !kloxo_url_has_lxguard('a=list&c=lxguardhitdisplay')) {
 	ok('LxGuard show has Switch To Another and Kloxo-MR tabs');
 } else {
 	bad('LxGuard show has Switch To Another and Kloxo-MR tabs',
@@ -2457,6 +2486,8 @@ $ufwMenu = (string) file_get_contents($doc . '/theme/skin/simplicity/default/men
 $ufwKw = (string) file_get_contents($doc . '/lang/en-us/langkeywordlib.php');
 $ufwShowTab = kloxo_content_tab_label('UFW Firewall',
 	'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=ufwfirewall');
+$ufwHomeTab = kloxo_content_tab_label('Home',
+	'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=ufwfirewall');
 $ufwEnTab = kloxo_content_tab_label('Update_ufwenable', 'a=updateform&sa=ufwenable&o=ufwfirewall');
 $ufwDisTab = kloxo_content_tab_label('Update _ufwdisable',
 	'display.php?frm_action=updateform&frm_subaction=ufwdisable&frm_o_o[1][class]=ufwfirewall');
@@ -2470,12 +2501,20 @@ $ufw->syncserver = 'localhost';
 $ufw->__parent_o = $ufwParent;
 $ufwTabs = array('property' => array());
 $ufw->createShowPropertyList($ufwTabs);
+$ufwForced = ufwfirewall::ufwPropertyTabs();
+$ufwPserverTabs = ufwfirewall::ufwPropertyTabsForPserver();
 $ufwSwitch = null;
 $ufwForm = null;
+$ufwEnForm = null;
+$ufwDisForm = null;
+$ufwDelForm = null;
 $ufwErr = '';
 try {
 	$ufwSwitch = $ufw->getSelfList();
 	$ufwForm = $ufw->updateform('addrule', array());
+	$ufwEnForm = $ufw->updateform('ufwenable', array());
+	$ufwDisForm = $ufw->updateform('ufwdisable', array());
+	$ufwDelForm = $ufw->updateform('deleterule', array());
 } catch (Throwable $e) {
 	$ufwErr = $e->getMessage();
 }
@@ -2485,30 +2524,62 @@ $ufwTabOk = is_array($ufwTabs['property'] ?? null)
 	&& in_array('a=updateform&sa=ufwdisable', $ufwTabs['property'], true)
 	&& in_array('a=updateform&sa=addrule', $ufwTabs['property'], true)
 	&& in_array('a=updateform&sa=deleterule', $ufwTabs['property'], true);
+$ufwForcedOk = is_array($ufwForced) && $ufwForced === $ufwTabs['property'];
+$ufwPserverTabOk = is_array($ufwPserverTabs)
+	&& in_array('a=show&o=ufwfirewall', $ufwPserverTabs, true)
+	&& in_array('a=updateform&sa=ufwenable&o=ufwfirewall', $ufwPserverTabs, true)
+	&& in_array('a=updateform&sa=addrule&o=ufwfirewall', $ufwPserverTabs, true)
+	&& in_array('a=updateform&sa=deleterule&o=ufwfirewall', $ufwPserverTabs, true);
 $ufwSwitchOk = is_array($ufwSwitch) && isset($ufwSwitch['localhost'])
 	&& is_object($ufwSwitch['localhost']) && method_exists($ufwSwitch['localhost'], 'getId');
 $ufwFormOk = is_array($ufwForm) && array_key_exists('ufw_action', $ufwForm)
-	&& array_key_exists('ufw_port', $ufwForm);
+	&& array_key_exists('ufw_port', $ufwForm)
+	&& array_key_exists('ufw_proto', $ufwForm)
+	&& array_key_exists('ufw_from', $ufwForm)
+	&& ($ufwForm['__v_button'] ?? '') === 'Add Rule';
+$ufwEnOk = is_array($ufwEnForm) && array_key_exists('ufw_confirm', $ufwEnForm)
+	&& ($ufwEnForm['__v_button'] ?? '') === 'Enable';
+$ufwDisOk = is_array($ufwDisForm) && array_key_exists('ufw_confirm', $ufwDisForm)
+	&& ($ufwDisForm['__v_button'] ?? '') === 'Disable';
+$ufwDelOk = is_array($ufwDelForm) && array_key_exists('ufw_rule', $ufwDelForm);
+$ufwCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$ufwCoreOk = str_contains($ufwCore, 'ufwfirewall::ufwPropertyTabs()')
+	&& str_contains($ufwCore, "\$class !== 'ufwfirewall'")
+	&& str_contains($ufwCore, "\$class !== 'ufwfirewall'");
+$ufwSkipOk = str_contains($ufwCore, "\$class !== 'lxbackup' && \$class !== 'ufwfirewall'");
 if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
+	&& str_contains($ufwPserver, 'ufwPropertyTabsForPserver')
 	&& str_contains($ufwPserver, '__title_security')
 	&& str_contains($ufwSrc, 'UFW Firewall')
+	&& str_contains($ufwSrc, 'function redirectToShow')
+	&& str_contains($ufwSrc, 'function ufwPropertyTabsForPserver')
 	&& str_contains($ufwMenu, 'frm_o_o[1][class]=ufwfirewall')
 	&& str_contains($ufwKw, '"UFW Firewall"')
 	&& $ufwShowTab === 'UFW Firewall'
+	&& $ufwHomeTab === 'UFW Firewall'
 	&& $ufwEnTab === 'Enable'
 	&& $ufwDisTab === 'Disable'
 	&& $ufwAddTab === 'Add Rule'
 	&& $ufwDelTab === 'Delete Rule'
-	&& $ufwTabOk && $ufwSwitchOk && $ufwFormOk
+	&& $ufwTabOk && $ufwForcedOk && $ufwPserverTabOk && $ufwSwitchOk
+	&& $ufwFormOk && $ufwEnOk && $ufwDisOk && $ufwDelOk
+	&& $ufwCoreOk && $ufwSkipOk
 	&& $ufw->isSync() === false
 	&& str_contains($ufwSrc, 'function getSelfList')) {
 	ok('Security section has a UFW Firewall button and page tabs');
 } else {
 	bad('Security section has a UFW Firewall button and page tabs',
 		'err=' . $ufwErr
-			. ' show=' . $ufwShowTab . ' en=' . $ufwEnTab . ' dis=' . $ufwDisTab
+			. ' show=' . $ufwShowTab . ' home=' . $ufwHomeTab
+			. ' en=' . $ufwEnTab . ' dis=' . $ufwDisTab
 			. ' add=' . $ufwAddTab . ' del=' . $ufwDelTab
-			. ' tabs=' . implode(',', (array) ($ufwTabs['property'] ?? array())));
+			. ' tabs=' . implode(',', (array) ($ufwTabs['property'] ?? array()))
+			. ' forms=' . ($ufwFormOk ? 'add' : 'noadd')
+			. ($ufwEnOk ? 'en' : 'noen')
+			. ($ufwDisOk ? 'dis' : 'nodis')
+			. ($ufwDelOk ? 'del' : 'nodel')
+			. ' core=' . ($ufwCoreOk ? 'ok' : 'no')
+			. ' skip=' . ($ufwSkipOk ? 'ok' : 'no'));
 }
 $login = $ufwPrevLogin;
 

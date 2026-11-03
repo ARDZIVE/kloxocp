@@ -2,8 +2,8 @@
 
 class sshconfig extends lxdb
 {
-	static $__desc = array("", "",  "SSH_config");
-	static $__acdesc_show = array("", "",  "SSH_config");
+	static $__desc = array("", "",  "SSH Configure");
+	static $__acdesc_show = array("", "",  "SSH Configure");
 	static $__desc_ssh_port = array("", "",  "SSH_port");
 	static $__desc_without_password_flag = array("f", "",  "do_not_allow_password_based_access_to_root");
 	static $__desc_disable_password_flag = array("f", "",  "completely_disable_password_based_access");
@@ -11,7 +11,28 @@ class sshconfig extends lxdb
 
 	static $__desc_password = array("", "",  "password");
 
-	static function initThisObjectRule($parent, $class, $name = null) { return $parent->nname; }
+	static function initThisObjectRule($parent, $class, $name = null)
+	{
+		if (is_object($parent) && isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+			return $parent->nname;
+		}
+
+		return 'localhost';
+	}
+
+	static function sshconfigPropertyTabs()
+	{
+		return array(
+			'a=show',
+		);
+	}
+
+	function createShowPropertyList(&$alist)
+	{
+		$alist['property'] = self::sshconfigPropertyTabs();
+
+		return $alist;
+	}
 
 	function createShowUpdateform()
 	{

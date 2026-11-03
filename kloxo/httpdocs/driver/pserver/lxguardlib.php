@@ -2,12 +2,12 @@
 
 class lxguard extends lxdb 
 {
-	static $__desc = array("", "",  "lxguard");
+	static $__desc = array("", "",  "LxGuard");
 	static $__desc_nname = array("", "",  "lxguard");
 	static $__desc_disablehit = array("", "",  "disable_when_this_many_wrong_attempts");
 	static $__desc_configure_flag = array("f", "",  "i_have_read_about_lxguard_and_understands_what_it_does");
 	static $__acdesc_update_update = array("", "",  "update");
-	static $__acdesc_show = array("", "",  "Lxguard");
+	static $__acdesc_show = array("", "",  "LxGuard");
 	static $__acdesc_update_whitelist = array("", "",  "whitelist");
 	static $__acdesc_update_remove = array("", "",  "remove");
 	static $__desc_lxguardwhitelist_l = array("d", "",  "");
@@ -60,14 +60,19 @@ class lxguard extends lxdb
 		return $out !== array() ? $out : null;
 	}
 
-	function createShowPropertyList(&$alist)
+	static function lxguardPropertyTabs()
 	{
-		$alist['property'] = array(
+		return array(
 			'a=show',
 			'a=list&c=lxguardhitdisplay',
 			'a=list&c=rawlxguardhit',
 			'a=list&c=lxguardwhitelist',
 		);
+	}
+
+	function createShowPropertyList(&$alist)
+	{
+		$alist['property'] = self::lxguardPropertyTabs();
 
 		return $alist;
 	}

@@ -729,7 +729,23 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = phpini::phpiniPropertyTabs();
 	}
 
+	if ($class === 'sshconfig' && class_exists('sshconfig') && is_callable(array('sshconfig', 'sshconfigPropertyTabs'))) {
+		$prlist['property'] = sshconfig::sshconfigPropertyTabs();
+	}
+
+	if ($class === 'lxguard' && class_exists('lxguard') && is_callable(array('lxguard', 'lxguardPropertyTabs'))) {
+		$prlist['property'] = lxguard::lxguardPropertyTabs();
+	}
+
 	$sa = (is_object($ghtml) && is_string($ghtml->frm_subaction)) ? $ghtml->frm_subaction : '';
+	$ufwSa = in_array($sa, array('ufwenable', 'ufwdisable', 'addrule', 'deleterule'), true);
+	if ($class === 'ufwfirewall' && class_exists('ufwfirewall')
+		&& is_callable(array('ufwfirewall', 'ufwPropertyTabs'))) {
+		$prlist['property'] = ufwfirewall::ufwPropertyTabs();
+	} elseif ($class === 'pserver' && $ufwSa && class_exists('ufwfirewall')
+		&& is_callable(array('ufwfirewall', 'ufwPropertyTabsForPserver'))) {
+		$prlist['property'] = ufwfirewall::ufwPropertyTabsForPserver();
+	}
 	if ($class === 'pserver' && ($sa === 'reboot' || $sa === 'poweroff')
 		&& $prlist['property'] === array()
 		&& class_exists('pserver') && is_callable(array('pserver', 'rebootPropertyTabs'))) {
@@ -765,7 +781,8 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = serverftp::ftpPropertyTabs();
 	}
 
-	if (!$prlist['property'] && $class !== 'phpini') {
+	if (!$prlist['property'] && $class !== 'phpini' && $class !== 'sshconfig'
+		&& $class !== 'lxguard' && $class !== 'ufwfirewall') {
 		$parent = (is_object($object) && method_exists($object, 'getParentO'))
 			? $object->getParentO() : null;
 		if (is_object($parent) && method_exists($parent, 'createShowPropertyList')) {
@@ -1203,7 +1220,7 @@ function do_update($object, $subaction, $list)
 
 	$oldvlist = $object->updateform($subaction, $param);
 
-	if ($class !== 'lxbackup') {
+	if ($class !== 'lxbackup' && $class !== 'ufwfirewall') {
 		security_check($oldvlist, $param);
 	}
 
@@ -1242,7 +1259,15 @@ function __ac_desc_UpdateForm($object)
 
 	$ghtml->print_content_begin();
 
-	$object->showRawPrint();
+	try {
+		$object->showRawPrint();
+	} catch (lxException $e) {
+		throw $e;
+	} catch (Throwable $e) {
+		log_log("error", "showRawPrint: " . $e->getMessage());
+		echo '<div style="padding:16px">Could not display this page: '
+			. htmlspecialchars($e->getMessage(), ENT_QUOTES) . '</div>';
+	}
 
 	$ghtml->print_message();
 

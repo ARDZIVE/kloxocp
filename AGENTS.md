@@ -69,9 +69,9 @@ Advanced PHP Configure tabs (`phpini::phpiniPropertyTabs`; extraedit does
 not fall back to client/pserver tabs). Nested `phpini_flag_b-*` form
 fields resolve without a TypeError when the flag class has no `$__desc`.
 Heading uses the parent name (`admin`, not `client-admin`). Parent/login
-guards keep both forms loadable when the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with beige tabs UFW Firewall, Enable, Disable, Add Rule, Delete Rule; argument-array `ufw` (`KloxoUfw`); enable first allows 7777/7778; last panel-port allow cannot be deleted. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
+guards keep both forms loadable when the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with beige tabs UFW Firewall, Enable, Disable, Add Rule, Delete Rule (forced `ufwPropertyTabs`, no parent Home fallback); Enable/Disable/Add Rule/Delete Rule forms load and submit then stay on UFW show; argument-array `ufw` (`KloxoUfw`); enable first allows 7777/7778; last panel-port allow cannot be deleted. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
 (add form + Switch To Another; mail uses `__driver_mail`; webcache 8080
-and webproxy 30080 are nginx frontends started by `install-webfront`). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
+and webproxy 30080 are nginx frontends started by `install-webfront`). SSH Configure beige tab is **SSH Configure** (not Home). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
 omit the left Find box. Manage DNS beige tabs are Manage DNS, Rebuild, NS, A, AAAA, CNAME, FCNAME, MX, TXT, CAA, SRV, General Settings; show lists `dns_record_a` without `write()`/`setUpdateSubaction` (template records often lack `parent_clname`; dirtying the zone made `login->was()` sync DNS and bounce Home). Live Manage DNS after deploy is UNVERIFIED. Client PHPinfo is web `a=show&sa=phpinfo` (site `php -i` via argument-array `proc_open`); `getTrueParentO`/`getParentO` treat `client-admin` as root (`isRootClient`) and never print `no parent_clname`. Live PHPinfo after deploy is UNVERIFIED. Change Owner (`a=updateform&sa=changeowner`) builds a client select without calling methods on a missing parent; `Lxclient::updateform` does not load `general` first; help text does not explode a null string. Live Change Owner after deploy is UNVERIFIED. SSL Certificates under a domain has beige tabs SSL Certificates, Add SSL File, Add SSL Text, Add Let's Encrypt, Add SSL Link, Switch To Another of sibling domains, and columns User Name, Certificate Name, Add Type, Parent Domain, Syncserver (list toolbar search stays). HelpDesk ticket show has Switch To Another
 (sibling ticket ids), Ticket / Add Reply / Escalate, inline Add Reply
 (State, Text Reason), and Replies Under N (Changed By, Text Reason,
@@ -83,7 +83,7 @@ root, with in-process fallback. File Manager beige tabs are File Manager,
 Permissions, Ownership, Disk Usage, Upload, Thumbnail. Backup / Restore
 beige tabs are Backup / Restore, FTP Configuration, Schedule Configuration,
 File Manager, Upload (`kloxo_backup_page_tab_label`; File Manager under a
-backup keeps those five tabs). LxGuard show has Switch To Another (pserver list, at least localhost)
+backup keeps those five tabs). LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend

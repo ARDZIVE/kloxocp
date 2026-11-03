@@ -3198,6 +3198,30 @@ function kloxo_url_has_ffile($url)
 	return str_contains($url, '[class]=ffile') || str_contains($url, 'cname=ffile');
 }
 
+function kloxo_url_has_lxguard($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	$url = urldecode($url);
+
+	return preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\[class\]|\bo|\bc)=lxguard(?:&|$)/i', $url) === 1;
+}
+
+function kloxo_url_has_sshconfig($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	$url = urldecode($url);
+	if (preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\bo|\bc)=sshconfig(?:&|$)/i', $url) === 1) {
+		return true;
+	}
+
+	return str_contains($url, '[class]=sshconfig') || str_contains($url, 'cname=sshconfig')
+		|| str_contains($url, 'o=sshconfig');
+}
+
 function kloxo_url_has_serverftp($url)
 {
 	if (!is_string($url) || $url === '') {
@@ -3463,6 +3487,14 @@ function kloxo_content_tab_label($str, $url = '')
 		&& ($act === 'show' || $act === 'list' || $act === '' || $act === 'updateform' || $act === 'update')) {
 		return 'FTP Configure';
 	}
+	if (kloxo_url_has_sshconfig($urlStr) && !$isFfile
+		&& ($act === 'show' || $act === 'list' || $act === '' || $act === 'updateform' || $act === 'update')) {
+		return 'SSH Configure';
+	}
+	if (kloxo_url_has_lxguard($urlStr) && !$isFfile
+		&& ($act === 'show' || $act === '' || $act === 'updateform' || $act === 'update')) {
+		return 'LxGuard';
+	}
 	if (kloxo_url_has_phpini($urlStr) && !$isFfile) {
 		if ($sa === 'extraedit') {
 			return 'Advanced PHP Configure';
@@ -3476,7 +3508,8 @@ function kloxo_content_tab_label($str, $url = '')
 		if ($ufwTab !== '') {
 			return $ufwTab;
 		}
-		if ($act === 'show' || $act === '') {
+		if ($act === 'show' || $act === '' || $act === 'updateform' || $act === 'update'
+			|| $str === 'Home') {
 			return 'UFW Firewall';
 		}
 	}
@@ -3630,6 +3663,13 @@ function kloxo_content_tab_label($str, $url = '')
 	);
 	if (isset($dnsKeys[$str])) {
 		return $dnsKeys[$str];
+	}
+	if ($str === 'SSH_config' || $str === 'ssh_config' || $str === 'SSH Configure'
+		|| $str === 'sshconfig' || $str === 'Sshconfig') {
+		return 'SSH Configure';
+	}
+	if ($str === 'Lxguard' || $str === 'lxguard' || $str === 'LxGuard') {
+		return 'LxGuard';
 	}
 	if ($str === 'PHP_config' || $str === 'php_configuration' || $str === 'php_config'
 		|| $str === 'PHP_configuration' || $str === 'configure_php' || $str === 'PHP Configure') {
