@@ -469,27 +469,59 @@ class Mmail extends Lxdb
 	}
 
 
+	/**
+	 * Known webmails that Kloxo CP can ship or install under
+	 * /home/kloxo/httpd/webmail/ (Kloxo-MR set; Horde/T-Dah dropped).
+	 *
+	 * @return list<string>
+	 */
+	static function getAvailableWebmailProgList()
+	{
+		return array(
+			'afterlogic',
+			'rainloop',
+			'roundcube',
+			'roundcube-mobile',
+			'squirrelmail',
+			'telaen',
+		);
+	}
+
+	/**
+	 * Installed webmail dirs under httpd/webmail plus the available catalog,
+	 * so General Settings / domain Webmail Application always list choices.
+	 *
+	 * @return list<string>
+	 */
 	static function getWebmailProgList()
 	{
+		$skip = array('img' => true, 'images' => true, 'disabled' => true);
+		$installed = array();
 		$plist = lscandir_without_dot_or_underscore("__path_kloxo_httpd_root/webmail");
-
-		foreach ($plist as $k => $v) {
-			if ($v === 'img') {
-				unset($plist[$k]);
-			}
-
-			if ($v === 'images') {
-				unset($plist[$k]);
-			}
-
-			if ($v === 'disabled') {
-				unset($plist[$k]);
-			}
-
-			if (!lis_dir("__path_kloxo_httpd_root/webmail/$v")) {
-				unset($plist[$k]);
-			}
+		if (!is_array($plist)) {
+			$plist = array();
 		}
+
+		foreach ($plist as $v) {
+			if (!is_string($v) || $v === '' || isset($skip[$v])) {
+				continue;
+			}
+			if (!lis_dir("__path_kloxo_httpd_root/webmail/$v")) {
+				continue;
+			}
+			$installed[] = $v;
+		}
+
+		// Ubuntu/debian package layouts (optional; still selectable as roundcube).
+		if (lis_dir('/usr/share/roundcube') || lis_dir('/var/lib/roundcube')) {
+			$installed[] = 'roundcube';
+		}
+
+		$plist = array_values(array_unique(array_merge(
+			self::getAvailableWebmailProgList(),
+			$installed
+		)));
+		sort($plist, SORT_STRING);
 
 		return $plist;
 	}

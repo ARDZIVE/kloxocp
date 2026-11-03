@@ -25,7 +25,7 @@ class lxbackup extends Lxdb
 	static $__desc_rm_last_number_v_5 = array("", "", "keep_this_many_backups_on_the_server");
 	static $__desc_dont_verify_ftp_f = array("f", "", "dont_verify_ftp_credentials");
 	static $__desc_temp_f = array("", "", "");
-	static $__desc_upload_to_ftp = array("f", "", "upload_files_to_remote_server_");
+	static $__desc_upload_to_ftp = array("f", "", "upload_files_to_remote_server");
 	static $__desc_no_local_copy_flag = array("f", "", "dont_keep_a_local_copy");
 	static $__desc_backupextra_stopvpsflag = array('f', "", "stop_vps_while_backup_snapshot", "");
 
@@ -84,9 +84,14 @@ class lxbackup extends Lxdb
 	{
 		global $login;
 
-		$parent = $this->getParentO();
-
-		if (!$parent->priv->isOn('backup_flag')) {
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
+		if (is_object($parent) && isset($parent->priv) && is_object($parent->priv)
+			&& method_exists($parent->priv, 'isOn') && !$parent->priv->isOn('backup_flag')) {
 			throw new lxException($login->getThrow('no_permission_to_backup'));
 		}
 
@@ -194,19 +199,28 @@ class lxbackup extends Lxdb
 	{
 		global $gbl, $sgbl, $login;
 
-		$parent = $this->getParentO();
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
 
 		$tree = createTreeObject('name', null, null, null, null, null, null);
-		$gbl->__var_restore_tree = $tree;
+		if (is_object($gbl)) {
+			$gbl->__var_restore_tree = $tree;
+		}
 
 		if ($this->rm_username) {
 			$this->rm_username = fix_meta_character($this->rm_username);
 
 		}
 
+		$vlist = array();
 		switch ($subaction) {
 			case "backup":
-				if (trim($this->ftp_server)) {
+				$ftp = isset($this->ftp_server) ? trim((string) $this->ftp_server) : '';
+				if ($ftp !== '') {
 					$vlist['ftp_server'] = array('M', null);
 					$vlist['rm_username'] = array('M', null);
 				//	$vlist['rm_password'] = array('M', '***');
@@ -222,11 +236,13 @@ class lxbackup extends Lxdb
 					}
 				}
 			*/
-				$this->backupstage = fix_nname_to_be_variable($this->backupstage);
+				$this->backupstage = fix_nname_to_be_variable(isset($this->backupstage) ? $this->backupstage : '');
 				$vlist['backupstage'] = array('M', null);
 				$vlist['backup_to_file_f'] = null;
 
-				$parent->backupExtraVar($vlist);
+				if (is_object($parent) && method_exists($parent, 'backupExtraVar')) {
+					$parent->backupExtraVar($vlist);
+				}
 
 				$vlist['__v_button'] = 'Backup Now';
 
@@ -281,34 +297,41 @@ class lxbackup extends Lxdb
 				break;
 
 			case "schedule_conf":
-				if ($parent->isSimpleBackup()) {
-					$sched = array('disabled', 'weekly', 'monthly');
-				} else {
-					$sched = array('disabled', 'daily', 'weekly', 'monthly');
-				}
+				$simple = is_object($parent) && method_exists($parent, 'isSimpleBackup')
+					&& $parent->isSimpleBackup();
+				$sched = $simple
+					? array('disabled', 'weekly', 'monthly')
+					: array('disabled', 'daily', 'weekly', 'monthly');
 
 				if (!$this->backupschedule_type) {
 					$this->backupschedule_type = 'disabled';
 				}
 
-				if ($this->priv->isOn('backupschedule_flag')) {
+				$canSched = isset($this->priv) && is_object($this->priv)
+					&& method_exists($this->priv, 'isOn') && $this->priv->isOn('backupschedule_flag');
+				if ($canSched) {
 					$vlist['backupschedule_type'] = array('s', $sched);
 				} else {
 					$vlist['backupschedule_type'] = array('M', 'Disabled');
 				}
 
 				$time = range(0, 23);
-
-				if ($login->isAdmin()) {
+				$isAdmin = is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin();
+				if ($isAdmin) {
 					$vlist['backupschedule_time'] = array('s', $time);
 				} else {
 					$vlist['backupschedule_time'] = array('M', null);
 				}
 
-				if ($parent->nname === 'admin') {
+				$parentName = (is_object($parent) && isset($parent->nname))
+					? (string) $parent->nname : '';
+				if ($parentName === 'admin' || $parentName === '') {
 					$this->setDefaultValue('backupschedule_time', 6);
 				} else {
 					$this->setDefaultValue('backupschedule_time', 18);
+				}
+				if (!isset($this->rm_last_number) || $this->rm_last_number === '' || $this->rm_last_number === null) {
+					$this->setDefaultValue('rm_last_number', 5);
 				}
 
 				$vlist['rm_last_number'] = null;
@@ -332,8 +355,10 @@ class lxbackup extends Lxdb
 				break;
 
 			case "restore_from_ftp":
-				if (!$this->ftp_server) {
+				$ftp = isset($this->ftp_server) ? trim((string) $this->ftp_server) : '';
+				if ($ftp === '') {
 					$vlist['ftp_server'] = array("M", "Ftp Server is Not Set");
+					$vlist['__v_button'] = 'Update';
 					break;
 				}
 			/*
@@ -375,6 +400,7 @@ class lxbackup extends Lxdb
 
 	static function backupPropertyTabs()
 	{
+		// Exactly five beige tabs (Kloxo-MR Backup / Restore page).
 		return array(
 			'a=show',
 			'a=updateform&sa=ftp_conf',
@@ -386,11 +412,7 @@ class lxbackup extends Lxdb
 
 	function createShowPropertyList(&$alist)
 	{
-		$alist['property'][] = 'a=show';
-		$alist['property'][] = 'a=updateform&sa=ftp_conf';
-		$alist['property']['__var_backupschedule_flag'] = 'a=updateform&sa=schedule_conf';
-		$alist['property'][] = 'a=show&l[class]=ffile&l[nname]=/';
-		$alist['property'][] = "l[class]=ffile&l[nname]=/&a=updateform&sa=upload";
+		$alist['property'] = self::backupPropertyTabs();
 
 		return $alist;
 	}

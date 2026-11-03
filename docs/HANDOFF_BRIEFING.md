@@ -189,12 +189,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `*_none` drivers (`dns__none`, `web__none`); Switch Program no longer
     TypeErrors on those classes. Client mail counts read
     `/var/log/mail.log` (Ubuntu) or `/var/log/maillog` and do not call
-    `feof(false)` when the file is missing. PHP Configure (`phpini` show)
-    and Advanced PHP Configure (`sa=extraedit`) always share the two
+    `feof(false)` when the file is missing.     PHP Configure (`phpini` show)
+    and Advanced PHP Configure (`sa=extraedit`) always share exactly two
     beige-header tabs labelled **PHP Configure** and **Advanced PHP Configure**
-    (`a=show` / `a=updateform&sa=extraedit`); phpini
-    never falls back to client/pserver tabs (`kloxo_print_object_property_tabs`
-    always uses `phpiniPropertyTabs`). extraedit no longer dies in
+    (`a=show` / `a=updateform&sa=extraedit`); no parent Home/Domain tabs on
+    either page (`kloxo_print_object_property_tabs` forces `phpiniPropertyTabs`
+    / `phpiniPropertyTabsForParent`; parent fallback skipped for phpini URLs).
+    extraedit no longer dies in
     `getSelfList`, a missing parent, or a missing panel DB password; nested
     `phpini_flag_b-*` field descriptions no longer TypeError; heading uses the
     parent name (`admin`, not `client-admin`); a client session path is
@@ -375,14 +376,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Connections / Raw Connections / White List tabs) has Switch To Another
     across pservers (`lxguard::getSelfList` via `pserver::adminServerSwitchList`,
     at least `localhost`). LxGuard list tabs omit the Find/search input too.
-    Security has a **UFW Firewall** tile and top-bar item (`a=show&o=ufwfirewall`,
-    label **UFW Firewall**). Beige tabs are UFW Firewall, Enable, Disable,
-    Add Rule, Delete Rule (`ufwPropertyTabs` is forced; parent Home fallback
-    is skipped; Enable/Disable have a confirm field; Add Rule / Delete Rule
-    forms load; submit redirects to UFW show). `KloxoUfw` runs `ufw` with argument-array `proc_open`
-    (status/enable/disable/allow/deny/delete). Enable first allows panel
-    7777/7778 plus SSH, HTTP/S, FTP, DNS and mail; deny/delete of the last
-    panel-port allow is refused. `install.sh` apt-installs `ufw` and leaves
+    Security has a **UFW Firewall** tile and top-bar item (`a=show&o=ufwfirewall`).
+    Exactly one beige tab **UFW Firewall**; status, default incoming/outgoing,
+    Enable, Disable, Add Rule and Delete Rule all live on that show page
+    (`createShowUpdateform`; `ufwPropertyTabs` forced to `a=show`). `KloxoUfw`
+    runs `ufw` with argument-array `proc_open`
+    (status/enable/disable/setDefaults/allow/deny/delete). Enable first allows
+    panel 7777/7778 plus SSH, HTTP/S, FTP, DNS and mail; deny/delete of the
+    last panel-port allow is refused. `install.sh` apt-installs `ufw` and leaves
     it inactive. No left Find box. Live UFW after deploy is
     **UNVERIFIED**. SSH Terminal is admin-only (pserver
     child, not client home) and shows a WebConsole-like black terminal
@@ -561,7 +562,16 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `ip -4 addr` (`kloxo_ipaddr.php`); `php-type` SQL is `php_type`. Admin
    Servers list seeds `localhost` (`ensureLocalhostServer`). Install also
    seeds a `driver` row for `localhost` (`dns` = `bind`, `web` = `nginx`) and
-   `generalmisc_b`. Home show no longer fatals on a null `used` object,
+   `generalmisc_b`, Login Message
+   (`<p> Welcome to <%programname%>  </p>…`), and
+   `etc/flag/enablecronforall.flg` (Enable Cron For All Users checked by
+   default). General Settings content tab is labelled **General Settings**.
+   Webmail System Default dropdown lists installed
+   `/home/kloxo/httpd/webmail/*` dirs plus available Afterlogic, Rainloop,
+   Roundcube, Roundcube-mobile, Squirrelmail, Telaen
+   (`Mmail::getWebmailProgList`). Live webmail install on Ubuntu is
+   **UNVERIFIED**.
+   Home show no longer fatals on a null `used` object,
    missing driver row, or admin `getParentO()`. Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
    opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
@@ -577,11 +587,12 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `systemctl --no-block` (full path) instead of `system("reboot")`.
    Reboot/Poweroff content tabs use capitalized labels (`pserver::rebootPropertyTabs`).
    Switch Program content tab is labelled **Switch Program**.
-   Backup / Restore content tabs are labelled **Backup / Restore**,
+   Backup / Restore has exactly five content tabs **Backup / Restore**,
    **FTP Configuration**, **Schedule Configuration**, **File Manager**,
-   **Upload** (`lxbackup::backupPropertyTabs`, `kloxo_backup_page_tab_label`).
-   File Manager under a backup keeps those five tabs (parent `lxbackup`
-   or `__backup` root). Live Backup / Restore after re-install is **UNVERIFIED**.
+   **Upload** (`lxbackup::backupPropertyTabs` forced). Show page sections:
+   Backup Now, Restore From File, Restore From FTP. FTP/Schedule forms match
+   Kloxo-MR (parent guards). File Manager / Upload under a backup keep those
+   five tabs. Live Backup / Restore after re-install is **UNVERIFIED**.
    Live reboot from the UI is **UNVERIFIED**. Notification Welcome Message
    For New Accounts defaults to the %name%/%password% hosting welcome text
    (`Notification::defaultWelcomeMessage`, `file/welcome.txt`). Live

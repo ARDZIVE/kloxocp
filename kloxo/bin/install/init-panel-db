@@ -966,6 +966,11 @@ TXT;
         ];
     }
 
+    public static function defaultLoginMessage(): string
+    {
+        return '<p> Welcome to <%programname%>  </p><p>Use a valid username and password to gain access to the console. </p>';
+    }
+
     public static function generalmiscBlob(): string
     {
         return self::serializeObjectBlob('generalmisc_b', self::generalmiscDefaults());
@@ -1163,22 +1168,45 @@ TXT;
     private function seedGeneral(PDO $pdo): void
     {
         $blob = self::generalmiscBlob();
+        $loginPre = self::defaultLoginMessage();
         $n = (int)$pdo->query("SELECT COUNT(*) FROM general WHERE nname = 'admin'")->fetchColumn();
         if ($n === 0) {
             $stmt = $pdo->prepare(
-                "INSERT INTO general (nname, parent_clname, parent_cmlist, ser_generalmisc_b)
-                 VALUES ('admin', '', '', ?)"
+                "INSERT INTO general (nname, parent_clname, parent_cmlist, ser_generalmisc_b, login_pre)
+                 VALUES ('admin', '', '', ?, ?)"
             );
-            $stmt->execute([$blob]);
-            return;
+            $stmt->execute([$blob, $loginPre]);
+        } else {
+            $cur = $pdo->query("SELECT ser_generalmisc_b FROM general WHERE nname = 'admin'")->fetchColumn();
+            $raw = is_string($cur) ? (string)base64_decode($cur, true) : '';
+            if ($cur === null || $cur === '' || !str_contains($raw, 'disableeasyinstaller')) {
+                $stmt = $pdo->prepare(
+                    "UPDATE general SET ser_generalmisc_b = ? WHERE nname = 'admin'"
+                );
+                $stmt->execute([$blob]);
+            }
+            $lp = $pdo->query("SELECT login_pre FROM general WHERE nname = 'admin'")->fetchColumn();
+            if ($lp === null || $lp === '') {
+                $stmt = $pdo->prepare(
+                    "UPDATE general SET login_pre = ? WHERE nname = 'admin'"
+                );
+                $stmt->execute([$loginPre]);
+            }
         }
-        $cur = $pdo->query("SELECT ser_generalmisc_b FROM general WHERE nname = 'admin'")->fetchColumn();
-        $raw = is_string($cur) ? (string)base64_decode($cur, true) : '';
-        if ($cur === null || $cur === '' || !str_contains($raw, 'disableeasyinstaller')) {
-            $stmt = $pdo->prepare(
-                "UPDATE general SET ser_generalmisc_b = ? WHERE nname = 'admin'"
-            );
-            $stmt->execute([$blob]);
+        $this->seedEnableCronForAllFlag();
+    }
+
+    private function seedEnableCronForAllFlag(): void
+    {
+        $dir = $this->root . '/etc/flag';
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new IpdbException('Cannot create ' . $dir);
+        }
+        $flag = $dir . '/enablecronforall.flg';
+        if (!is_file($flag)) {
+            if (@file_put_contents($flag, '') === false) {
+                throw new IpdbException('Cannot write ' . $flag);
+            }
         }
     }
 

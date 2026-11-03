@@ -380,7 +380,7 @@ elif [[ -d "$ROOT/httpdocs" && -d "$ROOT/bin" ]]; then
 else
   die "$ROOT exists and is not a Kloxo program root"
 fi
-mkdir -p "$ROOT/etc/conf" "$ROOT/pid" "$ROOT/log"
+mkdir -p "$ROOT/etc/conf" "$ROOT/etc/flag" "$ROOT/pid" "$ROOT/log"
 
 if ! id -u lxlabs >/dev/null 2>&1; then
   useradd --system --home /home/kloxo --shell /usr/sbin/nologin --user-group lxlabs

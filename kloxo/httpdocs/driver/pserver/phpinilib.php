@@ -261,8 +261,18 @@ class phpini extends lxdb
 		);
 	}
 
+	/** Tabs when the current object is pserver/client (needs o=phpini). */
+	static function phpiniPropertyTabsForParent()
+	{
+		return array(
+			'a=show&o=phpini',
+			'a=updateform&sa=extraedit&o=phpini',
+		);
+	}
+
 	function createShowPropertyList(&$alist)
 	{
+		// Exactly two tabs: never merge parent Home / Domain / etc.
 		$alist['property'] = self::phpiniPropertyTabs();
 
 		return $alist;

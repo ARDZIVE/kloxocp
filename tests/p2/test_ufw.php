@@ -109,11 +109,20 @@ try {
 } catch (InvalidArgumentException $e) {
 	$badAct = $e->getMessage() === 'invalid_ufw_action';
 }
-if ($badPort && $badFrom && $badAct && KloxoUfw::validatePort('80:90') === '80:90'
-	&& KloxoUfw::validateFrom('') === '' && KloxoUfw::validateFrom('any') === '') {
-	ok('validation rejects bad port, from, and action');
+$badDef = false;
+try {
+	KloxoUfw::validateDefaultPolicy('drop');
+} catch (InvalidArgumentException $e) {
+	$badDef = $e->getMessage() === 'invalid_ufw_default';
+}
+if ($badPort && $badFrom && $badAct && $badDef && KloxoUfw::validatePort('80:90') === '80:90'
+	&& KloxoUfw::validateFrom('') === '' && KloxoUfw::validateFrom('any') === ''
+	&& KloxoUfw::validateDefaultPolicy('deny') === 'deny'
+	&& KloxoUfw::validateDefaultPolicy('allow') === 'allow'
+	&& KloxoUfw::validateDefaultPolicy('reject') === 'reject') {
+	ok('validation rejects bad port, from, action, and default policy');
 } else {
-	bad('validation rejects bad port, from, and action');
+	bad('validation rejects bad port, from, action, and default policy');
 }
 
 if (KloxoUfw::canDeleteRule($st['rules'], 3) === true
@@ -132,7 +141,8 @@ if (str_contains($src, 'declare(strict_types=1)')
 	&& str_contains($src, 'proc_open')
 	&& !preg_match('/\bshell_exec\b|\bsystem\s*\(|\bexec\s*\(|`ufw /', $src)
 	&& str_contains($src, '--force')
-	&& str_contains($src, '7777')) {
+	&& str_contains($src, '7777')
+	&& str_contains($src, 'function setDefaults')) {
 	ok('KloxoUfw uses argument-array proc_open and no shell strings');
 } else {
 	bad('KloxoUfw uses argument-array proc_open and no shell strings');

@@ -4002,7 +4002,9 @@ function createrows($list)
 
 function initDbLoginPre()
 {
-	$log_pre = "<p> Welcome to <%programname%>  </p><p>Use a valid username and password to gain access to the console. </p> ";
+	$log_pre = class_exists('General') && is_callable(array('General', 'defaultLoginMessage'))
+		? General::defaultLoginMessage()
+		: "<p> Welcome to <%programname%>  </p><p>Use a valid username and password to gain access to the console. </p>";
 	db_set_default('general', 'login_pre', $log_pre);
 }
 

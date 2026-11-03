@@ -386,6 +386,37 @@ final class KloxoUfw
         return ['ok' => true, 'out' => $out];
     }
 
+    public static function validateDefaultPolicy(string $policy): string
+    {
+        $p = strtolower(trim($policy));
+        if ($p !== 'allow' && $p !== 'deny' && $p !== 'reject') {
+            throw new InvalidArgumentException('invalid_ufw_default');
+        }
+
+        return $p;
+    }
+
+    /**
+     * @return array{ok:bool, out:string, error?:string}
+     */
+    public static function setDefaults(string $incoming, string $outgoing): array
+    {
+        if (!self::isInstalled()) {
+            return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
+        }
+        $incoming = self::validateDefaultPolicy($incoming);
+        $outgoing = self::validateDefaultPolicy($outgoing);
+        $bin = self::ufwBinary();
+        $in = self::run([$bin, 'default', $incoming, 'incoming']);
+        $outDone = self::run([$bin, 'default', $outgoing, 'outgoing']);
+        $out = $in['out'] . $in['err'] . $outDone['out'] . $outDone['err'];
+        if ($in['code'] !== 0 || $outDone['code'] !== 0) {
+            return ['ok' => false, 'out' => $out, 'error' => 'ufw_default_failed'];
+        }
+
+        return ['ok' => true, 'out' => $out];
+    }
+
     /**
      * @param list<string> $cmd
      * @return array{code:int, out:string, err:string}

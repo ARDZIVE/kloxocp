@@ -460,13 +460,17 @@ function do_desc_update($object, $subaction, $param)
 
 	$object->preUpdate($subaction, $param);
 
+	// Same as historical $qparent = $parent: root clients and a failed
+	// getParentO leave null. check_priv already returns on !is_object($parent).
+	// Do not fall back to $object (that would treat the child as its own quota parent).
 	$parent = null;
 	try {
 		$parent = $object->getParentO();
 	} catch (Throwable $e) {
+		log_log("error", "do_desc_update getParentO: " . $e->getMessage());
 		$parent = null;
 	}
-	$qparent = is_object($parent) ? $parent : $object;
+	$qparent = is_object($parent) ? $parent : null;
 
 	$update_func = "update$subaction";
 

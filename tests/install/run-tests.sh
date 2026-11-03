@@ -424,6 +424,15 @@ if grep -q 'function generalmiscBlob' "$ROOT/kloxo/bin/install/init-panel-db" &&
 else
   bad "init-panel-db seeds generalmisc_b"
 fi
+if grep -q 'function defaultLoginMessage' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -Fq 'Welcome to <%programname%>' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'login_pre' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'enablecronforall.flg' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'seedEnableCronForAllFlag' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds login_pre and enablecronforall.flg"
+else
+  bad "init-panel-db seeds login_pre and enablecronforall.flg"
+fi
 if grep -q 'function seedHelpdesk' "$ROOT/kloxo/bin/install/init-panel-db" \
   && grep -q 'Welcome to Kloxo' "$ROOT/kloxo/bin/install/init-panel-db" \
   && grep -q 'pserver-Kloxo' "$ROOT/kloxo/bin/install/init-panel-db" \

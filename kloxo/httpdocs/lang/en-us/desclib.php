@@ -235,7 +235,7 @@ $__description["directory"] = array("Directory");
 $__description["upload_type"] = array("Upload Type");
 $__description["allow_schedule_backup"] = array("Allow Schedule Backup");
 $__description["schedule_backup"] = array("Schedule Backup");
-$__description["schedule_backup_time"] = array("Time to Backup");
+$__description["schedule_backup_time"] = array("Time To Backup");
 $__description["backup_from_file"] = array("Backup From File");
 $__description["filename_on_the_ftp_server"] = array("Filename On The FTP Server");
 $__description["backup_file_initial_string"] = array("Backup File Initial String");
@@ -906,10 +906,13 @@ $__description["UFW Firewall"] = array("UFW Firewall");
 $__description["ufwfirewall"] = array("UFW Firewall");
 $__description["Enable"] = array("Enable");
 $__description["Disable"] = array("Disable");
+$__description["Default Policies"] = array("Default Policies");
 $__description["Add Rule"] = array("Add Rule");
 $__description["Delete Rule"] = array("Delete Rule");
 $__description["protocol"] = array("Protocol");
 $__description["rule_number"] = array("Rule Number");
+$__description["default_incoming"] = array("Default Incoming");
+$__description["default_outgoing"] = array("Default Outgoing");
 $__description["disable_when_this_many_wrong_attempts"] = array("Disable When This Many Wrong Attempts");
 $__description["i_have_read_about_lxguard_and_understands_what_it_does"] = array("I Have Read About LxGuard And Understands What It Does");
 $__description["Lxguard"] = array("LxGuard");
@@ -1451,7 +1454,7 @@ $__description["smtp_relay"] = array("SMTP relay");
 $__description["scavenge_sendmail"] = array("Send mail when scavenge completes");
 
 $__description["disable_notify"] = array("Disable notify");
-$__description["enable_cronforall"] = array("Enable cron for all users");
+$__description["enable_cronforall"] = array("Enable Cron For All Users");
 
 $__description["date_timezone"] = array("Timezone");
 

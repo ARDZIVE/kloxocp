@@ -44,7 +44,13 @@ reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 (or `/sbin/reboot`) instead of `system("reboot")`. `getAdminDbPass` throws `lxException` (not generic
 `Exception`); Sqlite/do_remote_exec/import/superadmin wrap a missing `kloxo.pass`. Install seeds a `localhost` driver row and
 `generalmisc_b` so the home page does not fatal on a missing driver or
-null `used`. Panel FPM hides PHP errors (`log/php.err`). The middle column
+null `used`. General Settings tab is labelled **General Settings**;
+install seeds Login Message
+`<p> Welcome to <%programname%>  </p><p>Use a valid username and password to gain access to the console. </p>`
+and `etc/flag/enablecronforall.flg` so Enable Cron For All Users is checked
+by default. Webmail System Default lists installed dirs under
+`httpd/webmail` plus available Afterlogic/Rainloop/Roundcube/Squirrelmail/Telaen
+(`Mmail::getWebmailProgList`). Panel FPM hides PHP errors (`log/php.err`). The middle column
 is no longer dropped by splash `flush()`/`ob_start()` or an
 uncaught PHP 8 `Error` after the header. Dashboard tiles and the
 simplicity top-bar items after Server (Security, Basic, Task,
@@ -64,12 +70,12 @@ Pagespeed) load without the panel DB; Multiple PHP Install queues
 `install-site-php` for the selected `phpX.Y` ids so they appear on
 Multiple PHP Remove; Apache optimize writes
 `kloxo-optimize.conf`; PHP Type on Ubuntu is proxy_fcgi + mpm_event/worker;
-fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share the PHP Configure /
-Advanced PHP Configure tabs (`phpini::phpiniPropertyTabs`; extraedit does
-not fall back to client/pserver tabs). Nested `phpini_flag_b-*` form
+fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share exactly two beige tabs
+(**PHP Configure** / **Advanced PHP Configure**; `phpiniPropertyTabs`, forced; no parent Home/Domain
+tabs on either page; different links `a=show` and `a=updateform&sa=extraedit`). Nested `phpini_flag_b-*` form
 fields resolve without a TypeError when the flag class has no `$__desc`.
 Heading uses the parent name (`admin`, not `client-admin`). Parent/login
-guards keep both forms loadable when the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with beige tabs UFW Firewall, Enable, Disable, Add Rule, Delete Rule (forced `ufwPropertyTabs`, no parent Home fallback); Enable/Disable/Add Rule/Delete Rule forms load and submit then stay on UFW show; argument-array `ufw` (`KloxoUfw`); enable first allows 7777/7778; last panel-port allow cannot be deleted. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
+guards keep both forms loadable when the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with exactly one beige tab **UFW Firewall**; status, default incoming/outgoing, Enable/Disable, Add Rule and Delete Rule are all on that show page (`createShowUpdateform`); argument-array `ufw` (`KloxoUfw`); enable first allows 7777/7778; last panel-port allow cannot be deleted. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
 (add form + Switch To Another; mail uses `__driver_mail`; webcache 8080
 and webproxy 30080 are nginx frontends started by `install-webfront`). SSH Configure beige tab is **SSH Configure** (not Home). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
 omit the left Find box. Manage DNS beige tabs are Manage DNS, Rebuild, NS, A, AAAA, CNAME, FCNAME, MX, TXT, CAA, SRV, General Settings; show lists `dns_record_a` without `write()`/`setUpdateSubaction` (template records often lack `parent_clname`; dirtying the zone made `login->was()` sync DNS and bounce Home). Live Manage DNS after deploy is UNVERIFIED. Client PHPinfo is web `a=show&sa=phpinfo` (site `php -i` via argument-array `proc_open`); `getTrueParentO`/`getParentO` treat `client-admin` as root (`isRootClient`) and never print `no parent_clname`. Live PHPinfo after deploy is UNVERIFIED. Change Owner (`a=updateform&sa=changeowner`) builds a client select without calling methods on a missing parent; `Lxclient::updateform` does not load `general` first; help text does not explode a null string. Live Change Owner after deploy is UNVERIFIED. SSL Certificates under a domain has beige tabs SSL Certificates, Add SSL File, Add SSL Text, Add Let's Encrypt, Add SSL Link, Switch To Another of sibling domains, and columns User Name, Certificate Name, Add Type, Parent Domain, Syncserver (list toolbar search stays). HelpDesk ticket show has Switch To Another
@@ -80,10 +86,11 @@ Another plus a confirmation Update (no extra fields). File Manager keeps the lis
 New dir, Copy/Cut/Paste, columns Size/Name/Modified/Owner/Permissions) like
 Kloxo-MR; listing uses kloxo-backend on loopback 7776 when the panel is not
 root, with in-process fallback. File Manager beige tabs are File Manager,
-Permissions, Ownership, Disk Usage, Upload, Thumbnail. Backup / Restore
-beige tabs are Backup / Restore, FTP Configuration, Schedule Configuration,
-File Manager, Upload (`kloxo_backup_page_tab_label`; File Manager under a
-backup keeps those five tabs). LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
+Permissions, Ownership, Disk Usage, Upload, Thumbnail. Backup / Restore has exactly five beige tabs
+(**Backup / Restore**, **FTP Configuration**, **Schedule Configuration**,
+**File Manager**, **Upload**): show has Backup Now / Restore From File /
+Restore From FTP; FTP and Schedule forms match Kloxo-MR; File Manager and
+Upload under backup keep those five tabs (`backupPropertyTabs` forced). LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend

@@ -167,6 +167,18 @@ class General extends Lxdb
 	static $__acdesc_show = array("", "", "Configuration");
 	static $__desc_dns_slave_list = array("", "", "slaves_the_dns_entries_are_synced_on");
 
+	static function defaultLoginMessage()
+	{
+		return "<p> Welcome to <%programname%>  </p><p>Use a valid username and password to gain access to the console. </p>";
+	}
+
+	static function generalPropertyTabs()
+	{
+		return array(
+			'a=updateform&sa=generalsetting',
+		);
+	}
+
 //Lists
 
 	function createExtraVariables()
@@ -222,18 +234,16 @@ class General extends Lxdb
 			$alist['property'][] = 'goback=1&a=list&c=centralbackupserver';
 			$alist['property'][] = 'goback=1&a=addform&c=centralbackupserver';
 			$alist['property'][] = 'a=updateform&sa=browsebackup';
-		}
-	/*
-		if ($ghtml->frm_subaction === 'reversedns') {
-			$alist['property'][] = 'goback=1&a=list&c=reversedns';
-			$alist['property'][] = 'a=updateform&sa=reversedns';
 
-			if ($sgbl->isHyperVM()) {
-				$alist['property'][] = 'goback=1&a=list&c=all_dns';
-				$alist['property'][] = 'goback=1&a=list&c=all_reversedns';
-			}
+			return $alist;
 		}
-	*/
+
+		if ($ghtml->frm_subaction === 'generalsetting') {
+			$alist['property'] = self::generalPropertyTabs();
+
+			return $alist;
+		}
+
 		return $alist;
 	}
 
@@ -511,15 +521,14 @@ class General extends Lxdb
 
 				$vlist['generalmisc_b-htmltitle'] = null;
 				$vlist['generalmisc_b-ticket_url'] = null;
+
+				$this->setDefaultValue('login_pre', self::defaultLoginMessage());
 				$vlist['login_pre'] = null;
 
-				$this->enable_cronforall = null;
-
+				$cronFlag = "../etc/flag/enablecronforall.flg";
+				// Install seeds enablecronforall.flg so this is checked by default.
+				$this->enable_cronforall = file_exists($cronFlag) ? 'on' : 'off';
 				$vlist['enable_cronforall'] = array('f', array('on', 'off'));
-
-				if (file_exists("../etc/flag/enablecronforall.flg")) {
-					$this->setDefaultValue('enable_cronforall', 'on');
-				}
 
 				break;
 

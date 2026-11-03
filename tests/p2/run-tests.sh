@@ -226,7 +226,9 @@ if grep -q 'initialValuesBasic()' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib
   && grep -q "a=updateform&sa=extraedit" "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" \
   && grep -q 'phpiniCanReadPanelDb' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" \
   && grep -q 'function kloxo_url_has_phpini' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
-  && grep -q 'phpini::phpiniPropertyTabs()' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
+  && grep -q 'function phpiniPropertyTabsForParent' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" \
+  && grep -q 'phpini::phpiniPropertyTabs()' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php" \
+  && grep -q 'phpiniPropertyTabsForParent' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
   ok "phpini forms apply initialValuesBasic and keep PHP Configure / Advanced tabs"
 else
   bad "phpini forms apply initialValuesBasic and keep PHP Configure / Advanced tabs"

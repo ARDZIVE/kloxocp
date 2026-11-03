@@ -351,22 +351,19 @@ class pserver extends pservercore {
 		if ($sa === 'commandcenter') {
 			$alist['property'][] = "a=updateform&sa=commandcenter";
 		} elseif ($sa === 'extraedit') {
-			$alist['property'] = array(
-				"a=show&o=phpini",
-				"a=updateform&sa=extraedit&o=phpini",
-			);
-		} elseif ($sa === 'ufwenable' || $sa === 'ufwdisable'
+			$alist['property'] = class_exists('phpini')
+				&& is_callable(array('phpini', 'phpiniPropertyTabsForParent'))
+				? phpini::phpiniPropertyTabsForParent()
+				: array(
+					'a=show&o=phpini',
+					'a=updateform&sa=extraedit&o=phpini',
+				);
+		} elseif ($sa === 'ufwenable' || $sa === 'ufwdisable' || $sa === 'ufwdefaults'
 			|| $sa === 'addrule' || $sa === 'deleterule') {
 			$alist['property'] = class_exists('ufwfirewall')
 				&& is_callable(array('ufwfirewall', 'ufwPropertyTabsForPserver'))
 				? ufwfirewall::ufwPropertyTabsForPserver()
-				: array(
-					'a=show&o=ufwfirewall',
-					'a=updateform&sa=ufwenable&o=ufwfirewall',
-					'a=updateform&sa=ufwdisable&o=ufwfirewall',
-					'a=updateform&sa=addrule&o=ufwfirewall',
-					'a=updateform&sa=deleterule&o=ufwfirewall',
-				);
+				: array('a=show&o=ufwfirewall');
 		} elseif ($sa === 'timezone') {
 			$alist['property'][] = "a=updateform&sa=timezone";
 	//	} elseif ($sa === 'update') {

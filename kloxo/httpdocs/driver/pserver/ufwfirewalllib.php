@@ -9,6 +9,7 @@ class ufwfirewall extends lxclass
 	static $__acdesc_show = array("", "", "UFW Firewall");
 	static $__acdesc_update_ufwenable = array("", "", "Enable");
 	static $__acdesc_update_ufwdisable = array("", "", "Disable");
+	static $__acdesc_update_ufwdefaults = array("", "", "Default Policies");
 	static $__acdesc_update_addrule = array("", "", "Add Rule");
 	static $__acdesc_update_deleterule = array("", "", "Delete Rule");
 	static $__desc_ufw_action = array("s", "", "action");
@@ -16,6 +17,8 @@ class ufwfirewall extends lxclass
 	static $__desc_ufw_port = array("", "", "port");
 	static $__desc_ufw_from = array("", "", "from_address");
 	static $__desc_ufw_rule = array("s", "", "rule_number");
+	static $__desc_ufw_default_in = array("s", "", "default_incoming");
+	static $__desc_ufw_default_out = array("s", "", "default_outgoing");
 	static $__desc_ufw_confirm = array("M", "", "UFW Firewall");
 
 	function get() {}
@@ -32,14 +35,11 @@ class ufwfirewall extends lxclass
 			? $parent->nname : 'localhost';
 	}
 
+	/** Exactly one beige tab: UFW Firewall (all controls live on show). */
 	static function ufwPropertyTabs()
 	{
 		return array(
 			'a=show',
-			'a=updateform&sa=ufwenable',
-			'a=updateform&sa=ufwdisable',
-			'a=updateform&sa=addrule',
-			'a=updateform&sa=deleterule',
 		);
 	}
 
@@ -47,10 +47,6 @@ class ufwfirewall extends lxclass
 	{
 		return array(
 			'a=show&o=ufwfirewall',
-			'a=updateform&sa=ufwenable&o=ufwfirewall',
-			'a=updateform&sa=ufwdisable&o=ufwfirewall',
-			'a=updateform&sa=addrule&o=ufwfirewall',
-			'a=updateform&sa=deleterule&o=ufwfirewall',
 		);
 	}
 
@@ -63,7 +59,13 @@ class ufwfirewall extends lxclass
 
 	function createShowUpdateform()
 	{
-		return array();
+		return array(
+			'ufwenable' => null,
+			'ufwdisable' => null,
+			'ufwdefaults' => null,
+			'addrule' => null,
+			'deleterule' => null,
+		);
 	}
 
 	function getSelfList()
@@ -145,14 +147,16 @@ class ufwfirewall extends lxclass
 		$eRaw = htmlspecialchars($raw, ENT_QUOTES);
 
 		echo '<div class="kloxo-ufw" style="padding:12px 16px 24px;text-align:left">';
-		echo '<p style="margin:0 0 8px"><b>UFW Firewall</b> is <code>' . $eState . '</code>.';
-		echo ' Default incoming: <code>' . $eIn . '</code>. Default outgoing: <code>' . $eOut . '</code>.</p>';
+		echo '<p style="margin:0 0 8px"><b>Status:</b> <code>' . $eState . '</code>.';
+		echo ' <b>Default incoming:</b> <code>' . $eIn . '</code>.';
+		echo ' <b>Default outgoing:</b> <code>' . $eOut . '</code>.</p>';
 		if ($err !== '' && $err !== 'ufw_not_installed') {
 			echo '<p style="margin:0 0 8px">Last error: <code>' . $eErr . '</code></p>';
 		}
 		if (!$installed) {
 			echo '<p style="margin:0 0 8px">Install the <code>ufw</code> package on this Ubuntu host, then reopen this page. Enabling UFW first allows panel ports 7777 and 7778.</p>';
 		}
+		echo '<p style="margin:8px 0 4px"><b>Rules</b></p>';
 		echo '<table cellspacing="0" cellpadding="4" style="border-collapse:collapse;min-width:60%">';
 		echo '<tr><th align="left">#</th><th align="left">To</th><th align="left">Action</th><th align="left">From</th></tr>';
 		if ($rules === array()) {
@@ -185,6 +189,7 @@ class ufwfirewall extends lxclass
 		} catch (Throwable $e) {
 		}
 
+		$policies = array('allow' => 'allow', 'deny' => 'deny', 'reject' => 'reject');
 		$vlist = array();
 		switch ($subaction) {
 			case 'ufwenable':
@@ -196,6 +201,29 @@ class ufwfirewall extends lxclass
 				$vlist['ufw_confirm'] = array('M',
 					'Disable UFW on this server. Existing rules stay on disk and apply again when you re-enable.');
 				$vlist['__v_button'] = 'Disable';
+				return $vlist;
+			case 'ufwdefaults':
+				$st = array();
+				try {
+					$st = $this->ufwStatus();
+				} catch (Throwable $e) {
+					$st = array();
+				}
+				$in = (isset($st['default_in']) && is_string($st['default_in']) && $st['default_in'] !== '')
+					? $st['default_in'] : 'deny';
+				$out = (isset($st['default_out']) && is_string($st['default_out']) && $st['default_out'] !== '')
+					? $st['default_out'] : 'allow';
+				if (!isset($policies[$in])) {
+					$in = 'deny';
+				}
+				if (!isset($policies[$out])) {
+					$out = 'allow';
+				}
+				$this->ufw_default_in = $in;
+				$this->ufw_default_out = $out;
+				$vlist['ufw_default_in'] = array('s', $policies);
+				$vlist['ufw_default_out'] = array('s', $policies);
+				$vlist['__v_button'] = 'Update Defaults';
 				return $vlist;
 			case 'addrule':
 				$vlist['ufw_action'] = array('s', array('allow' => 'allow', 'deny' => 'deny'));
@@ -225,9 +253,35 @@ class ufwfirewall extends lxclass
 	{
 		global $gbl, $ghtml;
 
-		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
-			$gbl->__this_redirect = $ghtml->getFullUrl('a=show') . '&frm_smessage=updated_successfully';
+		if (!is_object($gbl)) {
+			return;
 		}
+
+		$tail = '&frm_smessage=updated_successfully';
+		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+			try {
+				$url = $ghtml->getFullUrl('a=show');
+				if (is_string($url) && $url !== '') {
+					$gbl->__this_redirect = $url . $tail;
+
+					return;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+
+		$host = 'localhost';
+		if (method_exists($this, 'syncServerName')) {
+			$got = $this->syncServerName();
+			if (is_string($got) && $got !== '') {
+				$host = $got;
+			}
+		}
+		$gbl->__this_redirect = '/display.php?frm_action=show'
+			. '&frm_o_o[0][class]=pserver'
+			. '&frm_o_o[0][nname]=' . rawurlencode($host)
+			. '&frm_o_o[1][class]=ufwfirewall'
+			. $tail;
 	}
 
 	function updateUfwenable($param)
@@ -245,6 +299,23 @@ class ufwfirewall extends lxclass
 		$this->assertAdmin();
 		$ret = $this->execUfw('disable', array());
 		$this->throwIfFailed($ret, 'could_not_disable_ufw');
+		$this->redirectToShow();
+
+		return null;
+	}
+
+	function updateUfwdefaults($param)
+	{
+		$this->assertAdmin();
+		$p = is_array($param) ? $param : array();
+		$incoming = isset($p['ufw_default_in']) ? (string) $p['ufw_default_in'] : '';
+		$outgoing = isset($p['ufw_default_out']) ? (string) $p['ufw_default_out'] : '';
+		try {
+			$ret = $this->execUfw('setDefaults', array($incoming, $outgoing));
+		} catch (InvalidArgumentException $e) {
+			$this->throwUfw($e->getMessage());
+		}
+		$this->throwIfFailed($ret, 'could_not_set_ufw_defaults');
 		$this->redirectToShow();
 
 		return null;

@@ -107,8 +107,8 @@ $__information['lxguardwhitelist_addform__pre'] = "<p>It is recommended that you
 	"<p>Manually entering the IP is bound to lead to spelling mistakes, and you will be left confused.</p>".
 	"<p>If you are entering your IP here, please double check that it is correct.</p>";
 
-$__information['login_pre'] = "<p>Welcome to Kloxo CP</p>".
-	"<p>Use a valid username and password to gain access to the console.</p>";
+$__information['login_pre'] = "<p> Welcome to <%programname%>  </p>".
+	"<p>Use a valid username and password to gain access to the console. </p>";
 
 $__information['tickethistory_addform__pre'] = "<p>You can use &#91quote&#93 &#91/quote &#93 to quote some text, which will shown properly formatted.</p>".
 	"<p>You can also use &#91code&#93 &#91/code&#93 for code snippets, and &#91b&#93 &#91/b&#93 for bold.</p>";
@@ -171,10 +171,11 @@ $__information['general_updateform_selfbackupconfig_pre'] = "<p>This is primaril
 	"If an ftp account is configured here, the file will be uploaded to the machine.</p>".
 	"<p>This is mainly useful in large cluster setup where the failure of master can have much larger impacts.</p>";
 
-$__information['ufwfirewall_show__pre'] = "<p>UFW is Ubuntu's host firewall. Enable first allows panel ports <b>7777</b> and <b>7778</b> plus SSH, HTTP/S, FTP, DNS and mail so the panel stays reachable.</p>";
-$__information['ufwfirewall_updateform_ufwenable_pre'] = "<p>Enable UFW. This first allows TCP 7777/7778 (panel), 22, 80, 443, 21, 25, 465, 587, 993, 995 and DNS 53, then runs <code>ufw --force enable</code>. Do not enable until you can still reach this page.</p>";
+$__information['ufwfirewall_show__pre'] = "<p>UFW is Ubuntu's host firewall. This page shows status, default incoming/outgoing, and rules. Enable first allows panel ports <b>7777</b> and <b>7778</b> plus SSH, HTTP/S, FTP, DNS and mail. Deny of panel ports and deleting the last panel-port allow are refused.</p>";
+$__information['ufwfirewall_updateform_ufwenable_pre'] = "<p>Enable UFW. This first allows TCP 7777/7778 (panel), 22, 80, 443, 21, 25, 465, 587, 993, 995 and DNS 53, then runs <code>ufw --force enable</code>.</p>";
 $__information['ufwfirewall_updateform_ufwdisable_pre'] = "<p>Disable UFW on this server. Existing rules stay on disk and apply again when you re-enable.</p>";
-$__information['ufwfirewall_updateform_addrule_pre'] = "<p>Add an allow or deny rule. Port is a number or range (80:90). From address may be blank (any), an IPv4 address, or IPv4/CIDR. Deny of panel ports 7777/7778 is refused.</p>";
+$__information['ufwfirewall_updateform_ufwdefaults_pre'] = "<p>Set UFW default policies for incoming and outgoing traffic (allow, deny, or reject).</p>";
+$__information['ufwfirewall_updateform_addrule_pre'] = "<p>Add an allow or deny rule. Port is a number or range (80:90). From address may be blank (any), an IPv4 address, or IPv4/CIDR.</p>";
 $__information['ufwfirewall_updateform_deleterule_pre'] = "<p>Delete a numbered UFW rule. The last allow for panel ports 7777/7778 cannot be deleted.</p>";
 
 $__information['lxguard_updateform_update_pre'] = "<p>Lxguard protects you against brute force attacks by monitoring the ssh and ftp log messages, ".

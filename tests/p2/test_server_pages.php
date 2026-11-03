@@ -1266,6 +1266,7 @@ if (method_exists($cfg, 'createShowPropertyList')) {
 if ($sshHomeTab === 'SSH Configure'
 	&& $sshShowTab === 'SSH Configure'
 	&& function_exists('kloxo_url_has_sshconfig') && kloxo_url_has_sshconfig('a=show&o=sshconfig')
+	&& kloxo_url_has_sshconfig('display.php?frm_o_o%5B1%5D%5Bclass%5D=sshconfig')
 	&& is_array($sshTabs) && ($sshTabs[0] ?? '') === 'a=show'
 	&& ($sshProps['property'][0] ?? '') === 'a=show') {
 	ok('SSH Configure page tab is labelled SSH Configure');
@@ -1360,8 +1361,13 @@ if ($fmTabs === array('Permissions', 'Ownership', 'Disk Usage', 'Upload', 'Thumb
 }
 
 $bak = new lxbackup(null, 'localhost', 'admin');
+$bak->nname = 'client-admin';
+$bak->ftp_server = '';
+$bak->backupstage = '';
+$bak->restorestage = '';
 $bakTabs = array('property' => array());
 $bak->createShowPropertyList($bakTabs);
+$bakForced = lxbackup::backupPropertyTabs();
 $bakFull = 'display.php?frm_action=show&frm_o_o[0][class]=client&frm_o_o[0][nname]=admin&frm_o_o[1][class]=lxbackup&frm_o_o[1][nname]=client-admin';
 $bakFullFtp = 'display.php?frm_action=updateform&frm_subaction=ftp_conf&frm_o_o[0][class]=lxbackup&frm_o_o[0][nname]=admin';
 $bakFullSched = '/display.php?frm_action=updateform&frm_subaction=schedule_conf&frm_o_o%5B0%5D%5Bclass%5D=lxbackup';
@@ -1386,16 +1392,65 @@ try {
 } catch (Throwable $e) {
 	$bakFfTabs = array('property' => array('error' => $e->getMessage()));
 }
+$bakForms = array();
+$bakFormErr = '';
+foreach (array('backup', 'restore_from_file', 'restore_from_ftp', 'ftp_conf', 'schedule_conf') as $bakSa) {
+	try {
+		$bakForms[$bakSa] = $bak->updateform($bakSa, array());
+	} catch (Throwable $e) {
+		$bakFormErr .= $bakSa . ':' . $e->getMessage() . ';';
+		$bakForms[$bakSa] = null;
+	}
+}
+$bakShowForms = $bak->createShowUpdateform();
+$bakUploadMulti = null;
+try {
+	$bakUploadMulti = $bakFf->getMultiUpload('upload');
+} catch (Throwable $e) {
+	$bakFormErr .= 'upload:' . $e->getMessage() . ';';
+}
 $bakSrc = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
 $bakLib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+$bakCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $bakProp = $bakTabs['property'] ?? array();
 $bakFfProp = $bakFfTabs['property'] ?? array();
 $bakFfHas = is_array($bakFfProp)
 	&& in_array('goback=1&a=show', $bakFfProp, true)
-	&& in_array('goback=1&a=updateform&sa=ftp_conf', $bakFfProp, true);
+	&& in_array('goback=1&a=updateform&sa=ftp_conf', $bakFfProp, true)
+	&& in_array('goback=1&a=show&l[class]=ffile&l[nname]=/', $bakFfProp, true);
+$bakTabCount = is_array($bakForced) ? count($bakForced) : 0;
+$bakFormOk = is_array($bakForms['backup'] ?? null)
+	&& array_key_exists('upload_to_ftp', $bakForms['backup'])
+	&& array_key_exists('backup_to_file_f', $bakForms['backup'])
+	&& ($bakForms['backup']['__v_button'] ?? '') === 'Backup Now'
+	&& is_array($bakForms['restore_from_file'] ?? null)
+	&& array_key_exists('backup_from_file_f', $bakForms['restore_from_file'])
+	&& ($bakForms['restore_from_file']['__v_button'] ?? '') === 'Start Restore Process'
+	&& is_array($bakForms['restore_from_ftp'] ?? null)
+	&& array_key_exists('ftp_server', $bakForms['restore_from_ftp'])
+	&& ($bakForms['restore_from_ftp']['__v_button'] ?? '') === 'Update'
+	&& is_array($bakForms['ftp_conf'] ?? null)
+	&& array_key_exists('ftp_server', $bakForms['ftp_conf'])
+	&& array_key_exists('rm_username', $bakForms['ftp_conf'])
+	&& array_key_exists('upload_to_ftp', $bakForms['ftp_conf'])
+	&& is_array($bakForms['schedule_conf'] ?? null)
+	&& array_key_exists('backupschedule_type', $bakForms['schedule_conf'])
+	&& array_key_exists('backupschedule_time', $bakForms['schedule_conf'])
+	&& array_key_exists('rm_last_number', $bakForms['schedule_conf'])
+	&& is_array($bakShowForms)
+	&& array_key_exists('backup', $bakShowForms)
+	&& array_key_exists('restore_from_file', $bakShowForms)
+	&& array_key_exists('restore_from_ftp', $bakShowForms)
+	&& is_array($bakUploadMulti)
+	&& $bakUploadMulti === array('upload_s', 'download_from_http', 'download_from_ftp')
+	&& $bakFormErr === '';
 if (($bakProp[0] ?? '') === 'a=show'
 	&& ($bakProp[1] ?? '') === 'a=updateform&sa=ftp_conf'
 	&& ($bakProp['__var_backupschedule_flag'] ?? '') === 'a=updateform&sa=schedule_conf'
+	&& ($bakProp[2] ?? '') === 'a=show&l[class]=ffile&l[nname]=/'
+	&& ($bakProp[3] ?? '') === 'l[class]=ffile&l[nname]=/&a=updateform&sa=upload'
+	&& $bakTabCount === 5
+	&& $bakForced === $bakProp
 	&& $bakShow === 'Backup / Restore'
 	&& $bakFtp === 'FTP Configuration'
 	&& $bakFtpFull === 'FTP Configuration'
@@ -1407,11 +1462,14 @@ if (($bakProp[0] ?? '') === 'a=show'
 	&& $bakBrowse === 'File Manager'
 	&& $bakUpload === 'Upload'
 	&& $bakFfHas
+	&& $bakFormOk
 	&& kloxo_object_is_backup_page($bak)
 	&& kloxo_object_is_backup_page($bakFf)
 	&& str_contains($bakSrc, 'function backupPropertyTabs')
+	&& str_contains($bakSrc, "\$alist['property'] = self::backupPropertyTabs()")
 	&& str_contains($bakSrc, 'Backup / Restore')
-	&& str_contains($bakLib, 'function kloxo_backup_page_tab_label')) {
+	&& str_contains($bakLib, 'function kloxo_backup_page_tab_label')
+	&& str_contains($bakCore, 'backupPropertyTabs()')) {
 	ok('Backup/Restore page tabs are labelled Backup / Restore, FTP Configuration, Schedule Configuration');
 } else {
 	bad('Backup/Restore page tabs are labelled Backup / Restore, FTP Configuration, Schedule Configuration',
@@ -1419,7 +1477,9 @@ if (($bakProp[0] ?? '') === 'a=show'
 			. ' now=' . $bakNow . ' file=' . $bakFile . ' restftp=' . $bakFtpRest
 			. ' browse=' . $bakBrowse . ' upload=' . $bakUpload
 			. ' props=' . implode(',', array_map('strval', $bakProp))
-			. ' ff=' . implode(',', array_map('strval', $bakFfProp)));
+			. ' ff=' . implode(',', array_map('strval', $bakFfProp))
+			. ' formErr=' . $bakFormErr
+			. ' formOk=' . ($bakFormOk ? '1' : '0'));
 }
 
 $cff = (string)file_get_contents($doc . '/lib/php/coreffilelib.php');
@@ -2046,7 +2106,12 @@ if ($lgSwitchOk && $lgTabOk && $lgFormOk && str_contains($lgSrc, 'function getSe
 	&& $lgShowTab === 'LxGuard'
 	&& $lgHitTab !== 'LxGuard'
 	&& function_exists('kloxo_url_has_lxguard') && kloxo_url_has_lxguard('a=show&o=lxguard')
-	&& !kloxo_url_has_lxguard('a=list&c=lxguardhitdisplay')) {
+	&& kloxo_url_has_lxguard('display.php?frm_o_o%5B1%5D%5Bclass%5D=lxguard')
+	&& !kloxo_url_has_lxguard('a=list&c=lxguardhitdisplay')
+	&& function_exists('kloxo_url_has_ffile')
+	&& kloxo_url_has_ffile('display.php?frm_o_o%5B1%5D%5Bclass%5D=ffile')
+	&& function_exists('kloxo_url_has_serverftp')
+	&& kloxo_url_has_serverftp('display.php?frm_o_o%5B1%5D%5Bclass%5D=serverftp')) {
 	ok('LxGuard show has Switch To Another and Kloxo-MR tabs');
 } else {
 	bad('LxGuard show has Switch To Another and Kloxo-MR tabs',
@@ -2143,13 +2208,26 @@ try {
 }
 $login = $prevLogin3;
 $sharedTabs = phpini::phpiniPropertyTabs();
+$parentTabs = phpini::phpiniPropertyTabsForParent();
+$phpHomeTab = kloxo_content_tab_label('Home',
+	'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=phpini');
+$phpAdvHome = kloxo_content_tab_label('Home',
+	'display.php?frm_action=updateform&frm_subaction=extraedit&frm_o_o[1][class]=phpini');
+$ufSrcPhp = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $tabOk = is_array($tabs['property'] ?? null)
-	&& in_array('a=show', $tabs['property'], true)
-	&& in_array('a=updateform&sa=extraedit', $tabs['property'], true)
+	&& count($tabs['property']) === 2
+	&& ($tabs['property'][0] ?? '') === 'a=show'
+	&& ($tabs['property'][1] ?? '') === 'a=updateform&sa=extraedit'
 	&& is_array($tabRet) && ($tabRet['property'] ?? null) === $tabs['property']
-	&& is_array($sharedTabs)
-	&& in_array('a=show', $sharedTabs, true)
-	&& in_array('a=updateform&sa=extraedit', $sharedTabs, true)
+	&& is_array($sharedTabs) && count($sharedTabs) === 2
+	&& $sharedTabs === $tabs['property']
+	&& is_array($parentTabs) && count($parentTabs) === 2
+	&& ($parentTabs[0] ?? '') === 'a=show&o=phpini'
+	&& ($parentTabs[1] ?? '') === 'a=updateform&sa=extraedit&o=phpini'
+	&& $phpHomeTab === 'PHP Configure'
+	&& $phpAdvHome === 'Advanced PHP Configure'
+	&& str_contains($ufSrcPhp, 'phpiniPropertyTabsForParent')
+	&& str_contains($ufSrcPhp, 'kloxo_url_has_phpini')
 	&& method_exists($ini, 'getSelfList')
 	&& is_array($flagDesc) && isset($flagDesc[0]) && $flagDesc[0] === 'f'
 	&& $flagDescErr === '';
@@ -2488,11 +2566,6 @@ $ufwShowTab = kloxo_content_tab_label('UFW Firewall',
 	'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=ufwfirewall');
 $ufwHomeTab = kloxo_content_tab_label('Home',
 	'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=ufwfirewall');
-$ufwEnTab = kloxo_content_tab_label('Update_ufwenable', 'a=updateform&sa=ufwenable&o=ufwfirewall');
-$ufwDisTab = kloxo_content_tab_label('Update _ufwdisable',
-	'display.php?frm_action=updateform&frm_subaction=ufwdisable&frm_o_o[1][class]=ufwfirewall');
-$ufwAddTab = kloxo_content_tab_label('', 'a=updateform&sa=addrule&o=ufwfirewall');
-$ufwDelTab = kloxo_content_tab_label('Update_deleterule', 'a=updateform&sa=deleterule&o=ufwfirewall');
 $ufwParent = new pserver(null, 'localhost', 'localhost');
 $ufwParent->nname = 'localhost';
 $ufw = new ufwfirewall(null, 'localhost', 'localhost');
@@ -2503,10 +2576,12 @@ $ufwTabs = array('property' => array());
 $ufw->createShowPropertyList($ufwTabs);
 $ufwForced = ufwfirewall::ufwPropertyTabs();
 $ufwPserverTabs = ufwfirewall::ufwPropertyTabsForPserver();
+$ufwShowForms = method_exists($ufw, 'createShowUpdateform') ? $ufw->createShowUpdateform() : array();
 $ufwSwitch = null;
 $ufwForm = null;
 $ufwEnForm = null;
 $ufwDisForm = null;
+$ufwDefForm = null;
 $ufwDelForm = null;
 $ufwErr = '';
 try {
@@ -2514,22 +2589,25 @@ try {
 	$ufwForm = $ufw->updateform('addrule', array());
 	$ufwEnForm = $ufw->updateform('ufwenable', array());
 	$ufwDisForm = $ufw->updateform('ufwdisable', array());
+	$ufwDefForm = $ufw->updateform('ufwdefaults', array());
 	$ufwDelForm = $ufw->updateform('deleterule', array());
 } catch (Throwable $e) {
 	$ufwErr = $e->getMessage();
 }
 $ufwTabOk = is_array($ufwTabs['property'] ?? null)
-	&& in_array('a=show', $ufwTabs['property'], true)
-	&& in_array('a=updateform&sa=ufwenable', $ufwTabs['property'], true)
-	&& in_array('a=updateform&sa=ufwdisable', $ufwTabs['property'], true)
-	&& in_array('a=updateform&sa=addrule', $ufwTabs['property'], true)
-	&& in_array('a=updateform&sa=deleterule', $ufwTabs['property'], true);
-$ufwForcedOk = is_array($ufwForced) && $ufwForced === $ufwTabs['property'];
+	&& count($ufwTabs['property']) === 1
+	&& ($ufwTabs['property'][0] ?? '') === 'a=show';
+$ufwForcedOk = is_array($ufwForced) && $ufwForced === array('a=show')
+	&& $ufwForced === $ufwTabs['property'];
 $ufwPserverTabOk = is_array($ufwPserverTabs)
-	&& in_array('a=show&o=ufwfirewall', $ufwPserverTabs, true)
-	&& in_array('a=updateform&sa=ufwenable&o=ufwfirewall', $ufwPserverTabs, true)
-	&& in_array('a=updateform&sa=addrule&o=ufwfirewall', $ufwPserverTabs, true)
-	&& in_array('a=updateform&sa=deleterule&o=ufwfirewall', $ufwPserverTabs, true);
+	&& count($ufwPserverTabs) === 1
+	&& ($ufwPserverTabs[0] ?? '') === 'a=show&o=ufwfirewall';
+$ufwShowFormsOk = is_array($ufwShowForms)
+	&& array_key_exists('ufwenable', $ufwShowForms)
+	&& array_key_exists('ufwdisable', $ufwShowForms)
+	&& array_key_exists('ufwdefaults', $ufwShowForms)
+	&& array_key_exists('addrule', $ufwShowForms)
+	&& array_key_exists('deleterule', $ufwShowForms);
 $ufwSwitchOk = is_array($ufwSwitch) && isset($ufwSwitch['localhost'])
 	&& is_object($ufwSwitch['localhost']) && method_exists($ufwSwitch['localhost'], 'getId');
 $ufwFormOk = is_array($ufwForm) && array_key_exists('ufw_action', $ufwForm)
@@ -2541,47 +2619,181 @@ $ufwEnOk = is_array($ufwEnForm) && array_key_exists('ufw_confirm', $ufwEnForm)
 	&& ($ufwEnForm['__v_button'] ?? '') === 'Enable';
 $ufwDisOk = is_array($ufwDisForm) && array_key_exists('ufw_confirm', $ufwDisForm)
 	&& ($ufwDisForm['__v_button'] ?? '') === 'Disable';
+$ufwDefOk = is_array($ufwDefForm) && array_key_exists('ufw_default_in', $ufwDefForm)
+	&& array_key_exists('ufw_default_out', $ufwDefForm)
+	&& ($ufwDefForm['__v_button'] ?? '') === 'Update Defaults';
 $ufwDelOk = is_array($ufwDelForm) && array_key_exists('ufw_rule', $ufwDelForm);
 $ufwCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $ufwCoreOk = str_contains($ufwCore, 'ufwfirewall::ufwPropertyTabs()')
 	&& str_contains($ufwCore, "\$class !== 'ufwfirewall'")
 	&& str_contains($ufwCore, "\$class !== 'ufwfirewall'");
 $ufwSkipOk = str_contains($ufwCore, "\$class !== 'lxbackup' && \$class !== 'ufwfirewall'");
+$ufwPrevGhtml = $ghtml ?? null;
+$ghtml = null;
+if (!isset($gbl) || !is_object($gbl)) {
+	$gbl = new stdClass();
+}
+$gbl->__this_redirect = null;
+$ufw->redirectToShow();
+$ufwRedirect = isset($gbl->__this_redirect) ? (string) $gbl->__this_redirect : '';
+$ghtml = $ufwPrevGhtml;
+$ufwRedirectOk = str_contains($ufwRedirect, 'frm_action=show')
+	&& str_contains($ufwRedirect, 'ufwfirewall')
+	&& str_contains($ufwRedirect, 'updated_successfully');
+$ufwActionSrc = (string) file_get_contents($doc . '/lib/html/objectactionlib.php');
+$ufwParentOk = str_contains($ufwActionSrc, '$qparent = is_object($parent) ? $parent : null')
+	&& str_contains($ufwActionSrc, 'Do not fall back to $object')
+	&& str_contains($ufwActionSrc, 'if (!is_object($parent))');
 if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 	&& str_contains($ufwPserver, 'ufwPropertyTabsForPserver')
 	&& str_contains($ufwPserver, '__title_security')
 	&& str_contains($ufwSrc, 'UFW Firewall')
 	&& str_contains($ufwSrc, 'function redirectToShow')
 	&& str_contains($ufwSrc, 'function ufwPropertyTabsForPserver')
+	&& str_contains($ufwSrc, 'ufwdefaults')
 	&& str_contains($ufwMenu, 'frm_o_o[1][class]=ufwfirewall')
 	&& str_contains($ufwKw, '"UFW Firewall"')
 	&& $ufwShowTab === 'UFW Firewall'
 	&& $ufwHomeTab === 'UFW Firewall'
-	&& $ufwEnTab === 'Enable'
-	&& $ufwDisTab === 'Disable'
-	&& $ufwAddTab === 'Add Rule'
-	&& $ufwDelTab === 'Delete Rule'
-	&& $ufwTabOk && $ufwForcedOk && $ufwPserverTabOk && $ufwSwitchOk
-	&& $ufwFormOk && $ufwEnOk && $ufwDisOk && $ufwDelOk
-	&& $ufwCoreOk && $ufwSkipOk
+	&& $ufwTabOk && $ufwForcedOk && $ufwPserverTabOk && $ufwShowFormsOk && $ufwSwitchOk
+	&& $ufwFormOk && $ufwEnOk && $ufwDisOk && $ufwDefOk && $ufwDelOk
+	&& $ufwCoreOk && $ufwSkipOk && $ufwRedirectOk && $ufwParentOk
 	&& $ufw->isSync() === false
 	&& str_contains($ufwSrc, 'function getSelfList')) {
-	ok('Security section has a UFW Firewall button and page tabs');
+	ok('Security UFW Firewall is a single tab with status, defaults, enable/disable and rules');
 } else {
-	bad('Security section has a UFW Firewall button and page tabs',
+	bad('Security UFW Firewall is a single tab with status, defaults, enable/disable and rules',
 		'err=' . $ufwErr
 			. ' show=' . $ufwShowTab . ' home=' . $ufwHomeTab
-			. ' en=' . $ufwEnTab . ' dis=' . $ufwDisTab
-			. ' add=' . $ufwAddTab . ' del=' . $ufwDelTab
 			. ' tabs=' . implode(',', (array) ($ufwTabs['property'] ?? array()))
-			. ' forms=' . ($ufwFormOk ? 'add' : 'noadd')
-			. ($ufwEnOk ? 'en' : 'noen')
-			. ($ufwDisOk ? 'dis' : 'nodis')
-			. ($ufwDelOk ? 'del' : 'nodel')
+			. ' forms=' . implode(',', array_keys((array) $ufwShowForms))
+			. ' add=' . ($ufwFormOk ? 'ok' : 'no')
+			. ' en=' . ($ufwEnOk ? 'ok' : 'no')
+			. ' dis=' . ($ufwDisOk ? 'ok' : 'no')
+			. ' def=' . ($ufwDefOk ? 'ok' : 'no')
+			. ' del=' . ($ufwDelOk ? 'ok' : 'no')
 			. ' core=' . ($ufwCoreOk ? 'ok' : 'no')
 			. ' skip=' . ($ufwSkipOk ? 'ok' : 'no'));
 }
 $login = $ufwPrevLogin;
+
+$genTab = function_exists('kloxo_content_tab_label')
+	? kloxo_content_tab_label('General Settings', 'a=updateform&sa=generalsetting&o=general')
+	: '';
+$genTabSa = function_exists('kloxo_content_tab_label')
+	? kloxo_content_tab_label('', 'a=updateform&sa=generalsetting')
+	: '';
+$genTabUgly = function_exists('kloxo_content_tab_label')
+	? kloxo_content_tab_label('Update_generalsetting', 'a=updateform&sa=generalsetting')
+	: '';
+$genTabs = class_exists('General') && is_callable(array('General', 'generalPropertyTabs'))
+	? General::generalPropertyTabs() : array();
+$genLogin = class_exists('General') && is_callable(array('General', 'defaultLoginMessage'))
+	? General::defaultLoginMessage() : '';
+$genObj = class_exists('General') ? new General(null, null, 'admin') : null;
+$genFormOk = false;
+$genCronOn = false;
+$genLoginOk = false;
+$genPropOk = false;
+$genFormErr = '';
+$genFlagPath = $root . '/etc/flag/enablecronforall.flg';
+$genFlagExisted = is_file($genFlagPath);
+if (is_object($genObj) && method_exists($genObj, 'updateform')) {
+	try {
+		global $ghtml, $sgbl, $login;
+		if (!is_object($ghtml)) {
+			$ghtml = class_exists('HtmlLib') ? new HtmlLib() : null;
+		}
+		if (is_object($ghtml)) {
+			$ghtml->frm_subaction = 'generalsetting';
+		}
+		if (!isset($genObj->generalmisc_b) || !is_object($genObj->generalmisc_b)) {
+			$genObj->generalmisc_b = class_exists('generalmisc_b')
+				? new generalmisc_b(null, null, 'general') : (object) array();
+		}
+		@mkdir(dirname($genFlagPath), 0755, true);
+		if (!$genFlagExisted) {
+			@file_put_contents($genFlagPath, '');
+		}
+		$genObj->login_pre = '';
+		$vlist = $genObj->updateform('generalsetting', array());
+		$genFormOk = is_array($vlist) && array_key_exists('login_pre', $vlist)
+			&& array_key_exists('enable_cronforall', $vlist);
+		$genCronOn = isset($genObj->enable_cronforall) && $genObj->enable_cronforall === 'on';
+		$genLoginOk = isset($genObj->login_pre) && is_string($genObj->login_pre)
+			&& str_contains($genObj->login_pre, '<%programname%>')
+			&& str_contains($genObj->login_pre, 'Use a valid username and password');
+		$props = array('property' => array());
+		$genObj->createShowPropertyList($props);
+		$genPropOk = is_array($props['property'] ?? null)
+			&& ($props['property'][0] ?? '') === 'a=updateform&sa=generalsetting';
+	} catch (Throwable $e) {
+		$genFormOk = false;
+		$genFormErr = $e->getMessage();
+	}
+	if (!$genFlagExisted && is_file($genFlagPath)) {
+		@unlink($genFlagPath);
+	}
+}
+$genDesc = @file_get_contents(__DIR__ . '/../../kloxo/httpdocs/lang/en-us/desclib.php');
+$genDescOk = is_string($genDesc) && str_contains($genDesc, 'Enable Cron For All Users');
+$genSeedSrc = @file_get_contents(__DIR__ . '/../../kloxo/bin/install/init-panel-db');
+$genSeedOk = is_string($genSeedSrc) && str_contains($genSeedSrc, 'enablecronforall.flg')
+	&& str_contains($genSeedSrc, 'defaultLoginMessage');
+if ($genTab === 'General Settings' && $genTabSa === 'General Settings'
+	&& $genTabUgly === 'General Settings'
+	&& is_array($genTabs) && ($genTabs[0] ?? '') === 'a=updateform&sa=generalsetting'
+	&& is_string($genLogin) && str_contains($genLogin, '<%programname%>')
+	&& $genFormOk && $genCronOn && $genLoginOk && $genPropOk && $genDescOk && $genSeedOk) {
+	ok('General Settings tab, cron default on, and login message default');
+} else {
+	bad('General Settings tab, cron default on, and login message default',
+		'tab=' . $genTab . ' sa=' . $genTabSa . ' ugly=' . $genTabUgly
+			. ' cron=' . ($genCronOn ? 'on' : 'off')
+			. ' login=' . ($genLoginOk ? 'ok' : 'no')
+			. ' form=' . ($genFormOk ? 'ok' : 'no')
+			. ' prop=' . ($genPropOk ? 'ok' : 'no')
+			. ' seed=' . ($genSeedOk ? 'ok' : 'no')
+			. ' err=' . $genFormErr);
+}
+
+$wmAvail = class_exists('Mmail') && is_callable(array('Mmail', 'getAvailableWebmailProgList'))
+	? Mmail::getAvailableWebmailProgList() : array();
+$wmList = class_exists('Mmail') && is_callable(array('Mmail', 'getWebmailProgList'))
+	? Mmail::getWebmailProgList() : array();
+$wmNeed = array('afterlogic', 'rainloop', 'roundcube', 'squirrelmail', 'telaen');
+$wmOk = is_array($wmAvail) && is_array($wmList);
+foreach ($wmNeed as $w) {
+	if (!in_array($w, $wmAvail, true) || !in_array($w, $wmList, true)) {
+		$wmOk = false;
+		break;
+	}
+}
+$wmFormList = array();
+if (is_object($genObj) && method_exists($genObj, 'updateform') && $genFormOk) {
+	try {
+		if (isset($ghtml) && is_object($ghtml)) {
+			$ghtml->frm_subaction = 'generalsetting';
+		}
+		$wmV = $genObj->updateform('generalsetting', array());
+		$wmFormList = (isset($wmV['generalmisc_b-webmail_system_default'][1])
+			&& is_array($wmV['generalmisc_b-webmail_system_default'][1]))
+			? $wmV['generalmisc_b-webmail_system_default'][1] : array();
+	} catch (Throwable $e) {
+		$wmFormList = array();
+	}
+}
+$wmFormOk = in_array('--chooser--', $wmFormList, true)
+	&& in_array('roundcube', $wmFormList, true)
+	&& in_array('rainloop', $wmFormList, true)
+	&& in_array('afterlogic', $wmFormList, true);
+if ($wmOk && $wmFormOk) {
+	ok('General Settings Webmail System Default lists installed and available webmails');
+} else {
+	bad('General Settings Webmail System Default lists installed and available webmails',
+		'list=' . implode(',', (array) $wmList)
+			. ' form=' . implode(',', (array) $wmFormList));
+}
 
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

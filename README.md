@@ -29,27 +29,28 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 > (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md` (intended
 > production installer), and `docs/MAIL_DESIGN.md` (mail stack).
 
-## Install (Ubuntu 24.04 or 26.x, as root)
+## Installation command (Ubuntu 24.04 or 26.x, as root)
+
+```
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+```
+
+Low-RAM / small-disk VPS (add `--force`):
+
+```
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
+```
 
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash.
 Starts Nginx, BIND, webcache on **8080**, and webproxy on **30080**.
 Packages `ufw` and leaves it **inactive** (enable later from Security →
 **UFW Firewall**; that first allows 7777/7778). Apache and PowerDNS are
-packaged and stay disabled. A 2 GB VPS that fails the RAM/disk floor can
-add `--force` at the end.
-
-```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
-```
-
-```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
-```
+packaged and stay disabled.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
-self-signed certificate. Change that password on first login. Details
-and flags are under [Installation](#installation).
+self-signed certificate. Change that password on first login. Flags and
+details are under [Installation](#installation).
 
 ## Stack
 
@@ -79,11 +80,11 @@ the Change Password modal is required (Esc/Close cannot skip it).
 |---|---|
 | SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
 | Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP **exim**. Postfix is selectable and stays disabled until chosen. |
-| Backup / Restore | Tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. File Manager under a backup keeps those five tabs. |
+| Backup / Restore | Exactly five tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. Show page: Backup Now, Restore From File, Restore From FTP. File Manager / Upload under a backup keep those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
 | FTP Configure | Under localhost (not Backup FTP Configuration). One beige tab labelled **FTP Configure**. |
 | SSH Configure | Under localhost. One beige tab labelled **SSH Configure** (not Home). |
-| PHP Configure | Tabs **PHP Configure** and **Advanced PHP Configure**. Heading uses the parent name. Extraedit stays on those tabs (not client/pserver). |
+| PHP Configure | Exactly two tabs **PHP Configure** and **Advanced PHP Configure** (different links; no parent Home/Domain tabs on either page). Heading uses the parent name. |
 | PHPinfo | In-panel **PHPinfo** tab (site `php -i` of the PHP selected for that domain). |
 | Change Owner | Client select of candidate owners; does not die on a missing parent. |
 | SSL Certificates | Under a domain: **SSL Certificates**, **Add SSL File**, **Add SSL Text**, **Add Let's Encrypt**, **Add SSL Link**; Switch To Another of sibling domains. |
@@ -95,7 +96,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
-| UFW Firewall | Security-section button. Beige tabs **UFW Firewall**, **Enable**, **Disable**, **Add Rule**, **Delete Rule**. Enable first allows 7777/7778. Submit stays on UFW show. `ufw` is packaged inactive. No left Find box. Live UFW after deploy is unverified. |
+| UFW Firewall | Security-section button. One beige tab **UFW Firewall** with status, default incoming/outgoing, Enable/Disable, Add Rule and Delete Rule on that page. Enable first allows 7777/7778. `ufw` is packaged inactive. No left Find box. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |
@@ -118,17 +119,20 @@ the Change Password modal is required (Esc/Close cannot skip it).
 
 ## Installation
 
-**Ubuntu 24.04 or 26.x, one line (as root).** Downloads the current
-`install.sh` from GitHub `main` (https://github.com/ARDZIVE/kloxocp) and
-runs it. That script clones the tree if needed, or fetches `origin/main`
-and hard-resets when `/usr/local/src/kloxo-cp` is already a git clone.
-Safe to repeat after a failed install or to pick up GitHub `main`
-(local edits in that clone are discarded). Same command as the box at
-the top of this file:
+### Installation command
+
+**Ubuntu 24.04 or 26.x, as root** (same command as at the top of this file):
 
 ```
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
+
+Downloads the current `install.sh` from GitHub `main`
+(https://github.com/ARDZIVE/kloxocp) and runs it. That script clones the
+tree if needed, or fetches `origin/main` and hard-resets when
+`/usr/local/src/kloxo-cp` is already a git clone. Safe to repeat after a
+failed install or to pick up GitHub `main` (local edits in that clone are
+discarded).
 
 A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:
@@ -288,7 +292,8 @@ run Hiawatha, the systemd units, or the live mail tests.
 **Does:** unpack the tree under `/opt/kloxo`, generate unique TLS keys, point `lxphp.exe`
 at distro PHP 8, create runtime directories, install OS packages, build pinned
 Hiawatha 12.4, load the panel MariaDB schema (`init-panel-db`: admin,
-`localhost` server and driver, appearance, `generalmisc_b`), install phpMyAdmin,
+`localhost` server and driver, appearance, `generalmisc_b`, Login Message, and
+`enablecronforall.flg`), install phpMyAdmin,
 prepare Apache and PowerDNS without starting them, start `kloxo-php` /
 `kloxo-web` / `kloxo-backend`, optionally apt-install mail packages
 (`--profile=full`), and confirm `include.php` loads.

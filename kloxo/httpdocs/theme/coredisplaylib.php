@@ -725,8 +725,32 @@ function kloxo_print_object_property_tabs($object)
 	$class = (is_object($object) && method_exists($object, 'getClass'))
 		? $object->getClass() : '';
 
+	$sa = (is_object($ghtml) && is_string($ghtml->frm_subaction)) ? $ghtml->frm_subaction : '';
+	$urlHint = '';
+	if (is_object($ghtml) && method_exists($ghtml, 'get_get_from_current_post')) {
+		try {
+			$got = $ghtml->get_get_from_current_post(null);
+			$urlHint = is_string($got) ? ('display.php?' . $got) : '';
+		} catch (Throwable $e) {
+			$urlHint = '';
+		}
+	}
+	$phpiniUrl = $urlHint !== '' && function_exists('kloxo_url_has_phpini')
+		&& kloxo_url_has_phpini($urlHint);
+	$phpiniSa = ($sa === 'extraedit' || $sa === 'edit');
+	// PHP Configure / Advanced PHP Configure: exactly two tabs on both pages.
 	if ($class === 'phpini' && class_exists('phpini') && is_callable(array('phpini', 'phpiniPropertyTabs'))) {
 		$prlist['property'] = phpini::phpiniPropertyTabs();
+	} elseif (($phpiniUrl || $phpiniSa) && ($class === 'pserver' || $class === 'client')
+		&& class_exists('phpini') && is_callable(array('phpini', 'phpiniPropertyTabsForParent'))) {
+		$prlist['property'] = phpini::phpiniPropertyTabsForParent();
+	} elseif ($phpiniUrl && class_exists('phpini') && is_callable(array('phpini', 'phpiniPropertyTabs'))) {
+		$prlist['property'] = phpini::phpiniPropertyTabs();
+	}
+
+	if ($class === 'general' && ($sa === 'generalsetting' || $sa === '')
+		&& class_exists('General') && is_callable(array('General', 'generalPropertyTabs'))) {
+		$prlist['property'] = General::generalPropertyTabs();
 	}
 
 	if ($class === 'sshconfig' && class_exists('sshconfig') && is_callable(array('sshconfig', 'sshconfigPropertyTabs'))) {
@@ -737,8 +761,7 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = lxguard::lxguardPropertyTabs();
 	}
 
-	$sa = (is_object($ghtml) && is_string($ghtml->frm_subaction)) ? $ghtml->frm_subaction : '';
-	$ufwSa = in_array($sa, array('ufwenable', 'ufwdisable', 'addrule', 'deleterule'), true);
+	$ufwSa = in_array($sa, array('ufwenable', 'ufwdisable', 'ufwdefaults', 'addrule', 'deleterule'), true);
 	if ($class === 'ufwfirewall' && class_exists('ufwfirewall')
 		&& is_callable(array('ufwfirewall', 'ufwPropertyTabs'))) {
 		$prlist['property'] = ufwfirewall::ufwPropertyTabs();
@@ -758,10 +781,14 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = pserver::switchProgramPropertyTabs();
 	}
 
-	if (kloxo_object_is_backup_page($object)
+	$isBackupPage = function_exists('kloxo_object_is_backup_page') && kloxo_object_is_backup_page($object);
+	$backupUrl = $urlHint !== '' && function_exists('kloxo_url_has_lxbackup')
+		&& kloxo_url_has_lxbackup($urlHint);
+	if (($isBackupPage || $backupUrl || $class === 'lxbackup')
 		&& class_exists('lxbackup') && is_callable(array('lxbackup', 'backupPropertyTabs'))) {
 		$tabs = lxbackup::backupPropertyTabs();
-		if ($class === 'ffile' && is_array($tabs)) {
+		if (($class === 'ffile' || ($backupUrl && function_exists('kloxo_url_has_ffile')
+				&& kloxo_url_has_ffile($urlHint))) && is_array($tabs)) {
 			foreach ($tabs as $k => $v) {
 				if (is_string($v) && $v !== '' && !str_starts_with($v, 'goback=')) {
 					$tabs[$k] = 'goback=1&' . $v;
@@ -781,8 +808,11 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = serverftp::ftpPropertyTabs();
 	}
 
-	if (!$prlist['property'] && $class !== 'phpini' && $class !== 'sshconfig'
-		&& $class !== 'lxguard' && $class !== 'ufwfirewall') {
+	$generalForced = ($class === 'general' && ($sa === 'generalsetting' || $sa === ''));
+	if (!$prlist['property'] && $class !== 'phpini' && !$phpiniUrl && $class !== 'sshconfig'
+		&& $class !== 'lxguard' && $class !== 'ufwfirewall'
+		&& $class !== 'lxbackup' && !$isBackupPage && !$backupUrl
+		&& !$generalForced) {
 		$parent = (is_object($object) && method_exists($object, 'getParentO'))
 			? $object->getParentO() : null;
 		if (is_object($parent) && method_exists($parent, 'createShowPropertyList')) {
@@ -812,9 +842,7 @@ function showParentProperty($object)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$nalist[] = "a=show";
-	$object->createShowPropertyList($nalist);
-	$ghtml->print_tab_block($nalist);
+	kloxo_print_object_property_tabs($object);
 }
 
 function do_select_list($object, $sclist)

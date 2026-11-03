@@ -142,10 +142,13 @@ class Client extends ClientBase
 		}
 
 		if ($ghtml->frm_subaction === 'extraedit') {
-			$alist['property'] = array(
-				"a=show&o=phpini",
-				"a=updateform&sa=extraedit&o=phpini",
-			);
+			$alist['property'] = class_exists('phpini')
+				&& is_callable(array('phpini', 'phpiniPropertyTabsForParent'))
+				? phpini::phpiniPropertyTabsForParent()
+				: array(
+					'a=show&o=phpini',
+					'a=updateform&sa=extraedit&o=phpini',
+				);
 
 			return $alist;
 		}
