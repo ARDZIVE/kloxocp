@@ -444,7 +444,9 @@ fi
 if grep -q 'function seedWatchdog' "$ROOT/kloxo/bin/install/init-panel-db" \
   && grep -q 'function watchdogDefaults' "$ROOT/kloxo/bin/install/init-panel-db" \
   && grep -q "'php-fpm'" "$ROOT/kloxo/bin/install/init-panel-db" \
-  && grep -q "'__driver_mail'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  && grep -q "'__driver_mail'" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "'__driver_webcache'" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "'__driver_webproxy'" "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds Watchdog defaults for localhost"
 else
   bad "init-panel-db seeds Watchdog defaults for localhost"
@@ -617,6 +619,25 @@ if grep -E 'enable --now apache2' "$ROOT/install.sh"; then
 else
   ok "install.sh does not enable apache2 at boot"
 fi
+WEBFRONT="$ROOT/kloxo/bin/install/install-webfront"
+check "php -l install-webfront" php -l "$WEBFRONT"
+check "install-webfront --help" php "$WEBFRONT" --help
+check "install-webfront --dry-run" php "$WEBFRONT" --dry-run --root="$ROOT/kloxo"
+fails "install-webfront root with .. rejected" php "$WEBFRONT" --root="$ROOT/kloxo/../kloxo"
+if grep -q 'install-webfront' "$ROOT/install.sh" \
+  && grep -q 'kloxo-webcache :8080' "$ROOT/install.sh" \
+  && grep -q 'listen 8080' "$ROOT/kloxo/file/webfront/webcache.conf" \
+  && grep -q 'listen 30080' "$ROOT/kloxo/file/webfront/webproxy.conf" \
+  && grep -q 'Description=Kloxo CP webcache' "$ROOT/kloxo/init/kloxo-webcache.service" \
+  && grep -q 'Description=Kloxo CP webproxy' "$ROOT/kloxo/init/kloxo-webproxy.service" \
+  && grep -q 'systemctl restart kloxo-webcache' "$ROOT/kloxo/pscript/restart-webcache" \
+  && grep -q 'systemctl restart kloxo-webproxy' "$ROOT/kloxo/pscript/restart-webproxy" \
+  && ! grep -E 'varnish|squid|trafficserver' "$ROOT/kloxo/file/webfront/webcache.conf" \
+  && ! grep -E 'varnish|squid|trafficserver' "$ROOT/kloxo/file/webfront/webproxy.conf"; then
+  ok "install.sh starts nginx webcache:8080 and webproxy:30080"
+else
+  bad "install.sh starts nginx webcache:8080 and webproxy:30080"
+fi
 if grep -q "'pg_web' => 'nginx'" "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds pg_web=nginx"
 else
@@ -626,6 +647,12 @@ if grep -q "'pg_smtp' => 'exim'" "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds pg_smtp=exim"
 else
   bad "init-panel-db seeds pg_smtp=exim"
+fi
+if grep -q 'iproute2 ufw' "$ROOT/install.sh" \
+  && ! grep -E 'ufw enable|enable --now ufw' "$ROOT/install.sh"; then
+  ok "install.sh packages ufw and leaves it inactive"
+else
+  bad "install.sh packages ufw and leaves it inactive"
 fi
 if grep -q 'apt-get install -y exim4-daemon-heavy postfix' "$ROOT/install.sh" \
   && grep -q 'disable --now postfix' "$ROOT/install.sh" \

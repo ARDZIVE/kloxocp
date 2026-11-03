@@ -1,0 +1,18 @@
+[Unit]
+Description=Kloxo CP webproxy (nginx on 30080)
+Documentation=https://kloxocp.invalid/
+After=network.target nginx.service
+Wants=nginx.service
+
+[Service]
+Type=forking
+PIDFile=/run/kloxo-webproxy.pid
+ExecStartPre=/usr/sbin/nginx -t -c /opt/kloxo/etc/webfront/webproxy.conf
+ExecStart=/usr/sbin/nginx -c /opt/kloxo/etc/webfront/webproxy.conf
+ExecReload=/usr/sbin/nginx -c /opt/kloxo/etc/webfront/webproxy.conf -s reload
+ExecStop=/usr/sbin/nginx -c /opt/kloxo/etc/webfront/webproxy.conf -s quit
+Restart=on-failure
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

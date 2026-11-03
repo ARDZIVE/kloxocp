@@ -1,0 +1,254 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * install-webfront: start webcache (8080) and webproxy (30080) with nginx.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3. See LICENSE.txt.
+ *
+ * Does not restore Varnish, Squid, or ATS. Each unit is a dedicated nginx
+ * process that proxies to 127.0.0.1:80. Configs are rendered, checked with
+ * nginx -t, installed atomically, and rolled back on failure.
+ *
+ * Standalone: no legacy panel includes. PHP 8.3, argument-array proc_open,
+ * no shell strings.
+ *
+ * Usage:
+ *   install-webfront --root=DIR [--dry-run] [--force]
+ */
+
+const IWEBFRONT_VERSION = '0.1.0';
+
+final class IwebfrontException extends RuntimeException
+{
+}
+
+final class Proc
+{
+    /** @param list<string> $cmd */
+    public static function run(array $cmd, ?string $stdin = null): array
+    {
+        $p = @proc_open($cmd, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (!is_resource($p)) {
+            return [127, '', 'cannot execute ' . ($cmd[0] ?? '')];
+        }
+        if ($stdin !== null) {
+            fwrite($pipes[0], $stdin);
+        }
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]);
+        $err = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return [proc_close($p), (string)$out, (string)$err];
+    }
+
+    public static function exists(string $bin): bool
+    {
+        foreach (explode(':', (string)getenv('PATH') . ':/usr/sbin:/usr/bin:/bin') as $d) {
+            if ($d !== '' && is_executable($d . '/' . $bin)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+final class App
+{
+    /** @var array<string,string|true> */
+    private array $opt = [];
+    private string $root = '/opt/kloxo';
+
+    public function run(array $argv): int
+    {
+        array_shift($argv);
+        foreach ($argv as $a) {
+            if ($a === '--help' || $a === '-h') {
+                return $this->help();
+            }
+            if ($a === '--version') {
+                echo 'install-webfront ' . IWEBFRONT_VERSION . "\n";
+                return 0;
+            }
+            if ($a === '--dry-run') {
+                $this->opt['dry-run'] = true;
+                continue;
+            }
+            if ($a === '--force') {
+                $this->opt['force'] = true;
+                continue;
+            }
+            if (str_starts_with($a, '--') && str_contains($a, '=')) {
+                [$k, $v] = explode('=', substr($a, 2), 2);
+                $this->opt[$k] = $v;
+                continue;
+            }
+            throw new IwebfrontException("Unknown argument: $a");
+        }
+        $this->root = $this->optRoot();
+        if (isset($this->opt['dry-run'])) {
+            echo "plan: install-webfront {$this->root}\n";
+            echo "  webcache nginx listen 8080 (kloxo-webcache.service)\n";
+            echo "  webproxy nginx listen 30080 (kloxo-webproxy.service)\n";
+            echo "  conf     /opt/kloxo/etc/webfront/{webcache,webproxy}.conf\n";
+            echo "  backend  127.0.0.1:80 (no varnish, no squid, no ATS)\n";
+            return 0;
+        }
+
+        return $this->install();
+    }
+
+    private function help(): int
+    {
+        echo <<<TXT
+install-webfront 0.1.0: start Watchdog webcache (8080) and webproxy (30080)
+
+  install-webfront --root=DIR [--force]
+  install-webfront --dry-run --root=DIR
+  install-webfront --help
+
+Renders isolated nginx configs, validates with nginx -t, installs
+kloxo-webcache and kloxo-webproxy, and enables them. Does not install
+Varnish, Squid, or ATS. Upstream is 127.0.0.1:80.
+
+TXT;
+        return 0;
+    }
+
+    private function optRoot(): string
+    {
+        $root = isset($this->opt['root']) && $this->opt['root'] !== true
+            ? (string)$this->opt['root'] : (string)(getenv('KLOXO_ROOT') ?: '/opt/kloxo');
+        if ($root === '' || str_contains($root, "\0") || str_contains($root, '..')) {
+            throw new IwebfrontException('Invalid --root');
+        }
+
+        return rtrim($root, '/');
+    }
+
+    private function install(): int
+    {
+        if (!Proc::exists('nginx')) {
+            throw new IwebfrontException('nginx is not installed');
+        }
+        $this->prepareDirs();
+        $this->installConf('webcache');
+        $this->installConf('webproxy');
+        $this->installUnit('kloxo-webcache');
+        $this->installUnit('kloxo-webproxy');
+        if (Proc::exists('systemctl')) {
+            Proc::run(['systemctl', 'daemon-reload']);
+            foreach (array('kloxo-webcache', 'kloxo-webproxy') as $unit) {
+                Proc::run(['systemctl', 'enable', $unit]);
+                [$rc, $out, $err] = Proc::run(['systemctl', 'restart', $unit]);
+                if ($rc !== 0) {
+                    [$rc, $out, $err] = Proc::run(['systemctl', 'start', $unit]);
+                }
+                if ($rc !== 0) {
+                    throw new IwebfrontException($unit . ' failed: ' . trim($err . ' ' . $out));
+                }
+            }
+        }
+        echo "webcache (8080) and webproxy (30080) are enabled\n";
+        return 0;
+    }
+
+    private function prepareDirs(): void
+    {
+        foreach (array(
+            $this->root . '/etc/webfront',
+            '/var/log/kloxo',
+            '/var/cache/kloxo-webcache',
+        ) as $d) {
+            if (!is_dir($d) && !mkdir($d, 0755, true) && !is_dir($d)) {
+                throw new IwebfrontException("Cannot create $d");
+            }
+        }
+        if (function_exists('posix_getpwnam')) {
+            $pw = posix_getpwnam('www-data');
+            if (is_array($pw) && isset($pw['uid'], $pw['gid'])) {
+                @chown('/var/cache/kloxo-webcache', (int)$pw['uid']);
+                @chgrp('/var/cache/kloxo-webcache', (int)$pw['gid']);
+                @chown('/var/log/kloxo', (int)$pw['uid']);
+                @chgrp('/var/log/kloxo', (int)$pw['gid']);
+            }
+        }
+    }
+
+    private function installConf(string $name): void
+    {
+        if ($name !== 'webcache' && $name !== 'webproxy') {
+            throw new IwebfrontException('Invalid frontend name');
+        }
+        $src = $this->root . '/file/webfront/' . $name . '.conf';
+        if (!is_file($src)) {
+            throw new IwebfrontException("missing $src");
+        }
+        $body = file_get_contents($src);
+        if (!is_string($body) || $body === '') {
+            throw new IwebfrontException("empty $src");
+        }
+        $dst = $this->root . '/etc/webfront/' . $name . '.conf';
+        $tmp = $dst . '.tmp.' . getmypid();
+        $prev = is_file($dst) ? (string)file_get_contents($dst) : null;
+        if (file_put_contents($tmp, $body) === false) {
+            throw new IwebfrontException("Cannot write $tmp");
+        }
+        chmod($tmp, 0644);
+        [$rc, $out, $err] = Proc::run(['nginx', '-t', '-c', $tmp]);
+        if ($rc !== 0) {
+            @unlink($tmp);
+            throw new IwebfrontException("nginx -t $name failed: " . trim($err . ' ' . $out));
+        }
+        if (!rename($tmp, $dst)) {
+            @unlink($tmp);
+            throw new IwebfrontException("Cannot install $dst");
+        }
+        [$rc, $out, $err] = Proc::run(['nginx', '-t', '-c', $dst]);
+        if ($rc !== 0) {
+            if ($prev !== null) {
+                file_put_contents($dst, $prev);
+            } else {
+                @unlink($dst);
+            }
+            throw new IwebfrontException("nginx -t $name after install failed: " . trim($err . ' ' . $out));
+        }
+    }
+
+    private function installUnit(string $name): void
+    {
+        if ($name !== 'kloxo-webcache' && $name !== 'kloxo-webproxy') {
+            throw new IwebfrontException('Invalid unit');
+        }
+        $src = $this->root . '/init/' . $name . '.service';
+        if (!is_file($src)) {
+            throw new IwebfrontException("missing $src");
+        }
+        $dst = '/etc/systemd/system/' . $name . '.service';
+        $body = file_get_contents($src);
+        if (!is_string($body) || $body === '') {
+            throw new IwebfrontException("empty $src");
+        }
+        $tmp = $dst . '.tmp.' . getmypid();
+        if (file_put_contents($tmp, $body) === false) {
+            throw new IwebfrontException("Cannot write $tmp");
+        }
+        chmod($tmp, 0644);
+        if (!rename($tmp, $dst)) {
+            @unlink($tmp);
+            throw new IwebfrontException("Cannot install $dst");
+        }
+    }
+}
+
+try {
+    exit((new App())->run($argv));
+} catch (IwebfrontException $e) {
+    fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+    exit(1);
+}

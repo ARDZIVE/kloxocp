@@ -14,6 +14,8 @@
 # PowerDNS packaged and prepared (disabled; BIND stays default on 53),
 # Apache packaged and prepared (disabled; Nginx stays default on 80/443),
 # Postfix packaged and left disabled (Exim stays the default MTA on --profile=full),
+# ufw packaged and left inactive (enable from Security → UFW Firewall),
+# webcache (8080) and webproxy (30080) as nginx frontends (install-webfront),
 # kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
 # and skips the panel UI.
 # Does not: Let's Encrypt, signed kloxocp apt repo, kloxo-mail apply, verified two-host add.
@@ -43,7 +45,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
   sudo bash install.sh [--profile=core|full] [--yes] [--force]
   sudo bash install.sh --slave --slave-password=SECRET
 
-  --profile=core   php, nginx (default), mariadb, bind9; apache2/pdns packaged, disabled
+  --profile=core   php, nginx (default), mariadb, bind9, ufw (inactive), webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
   --profile=full   core plus exim4-daemon-heavy (default MTA), postfix (disabled), dovecot, rspamd, redis
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
@@ -199,6 +201,7 @@ plan: Kloxo CP ${KCP_VERSION}
   sitephp 5.6, 7.4, latest (install-site-php; default latest)
   dns     bind9 enabled (default); pdns-server prepared and disabled
   web     nginx enabled (default); apache2 prepared and disabled
+  cache   kloxo-webcache :8080 and kloxo-webproxy :30080 (nginx; no varnish/squid)
   smtp    exim4 default (--profile=full); postfix packaged and disabled
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
@@ -441,6 +444,13 @@ prepare_apache() {
   systemctl enable --now nginx 2>/dev/null || true
 }
 
+prepare_webfront() {
+  chmod 0755 "$ROOT/bin/install/install-webfront" \
+    "$ROOT/pscript/restart-webcache" "$ROOT/pscript/restart-webproxy" || true
+  php "$ROOT/bin/install/install-webfront" --root="$ROOT" \
+    || log "warn: install-webfront failed; webcache/webproxy stay down"
+}
+
 prepare_pdns() {
   chmod 0755 "$ROOT/bin/install/install-pdns" || true
   if ! wait_mariadb; then
@@ -472,6 +482,7 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
     --root="$ROOT" --password-env=KLOXO_SLAVE_PASSWORD
   enable_default_stack
   prepare_apache
+  prepare_webfront
   prepare_pdns
   log "installing site PHP 5.6, 7.4, and latest (default) on this slave"
   if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
@@ -517,6 +528,7 @@ bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"
 
 enable_default_stack
 prepare_apache
+prepare_webfront
 
 if ! wait_mariadb; then
   die "MariaDB is not accepting unix_socket logins as root"

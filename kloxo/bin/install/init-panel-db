@@ -860,8 +860,8 @@ TXT;
             ['mail', '25', '__driver_mail', 'on'],
             ['mysql', 'pgrep ^mysql', '__driver_mysql', 'on'],
             ['php-fpm', 'pgrep ^php-fpm', '__driver_php-fpm', 'on'],
-            ['webcache', '8080', '__driver_web', 'off'],
-            ['webproxy', '30080', '__driver_web', 'off'],
+            ['webcache', '8080', '__driver_webcache', 'on'],
+            ['webproxy', '30080', '__driver_webproxy', 'on'],
             ['web', '80', '__driver_web', 'on'],
         ];
     }
@@ -877,6 +877,12 @@ TXT;
             $nname = $service . '___localhost';
             $n = (int)$pdo->query('SELECT COUNT(*) FROM watchdog WHERE nname = ' . $pdo->quote($nname))->fetchColumn();
             if ($n > 0) {
+                if ($service === 'webcache' || $service === 'webproxy') {
+                    $upd = $pdo->prepare(
+                        'UPDATE watchdog SET port = ?, action = ?, status = ? WHERE nname = ? AND added_by_system = ?'
+                    );
+                    $upd->execute([$port, $action, $status, $nname, 'on']);
+                }
                 continue;
             }
             $stmt->execute([$nname, $service, $port, $action, $status]);

@@ -47,6 +47,10 @@ class Service__Linux extends Lxlclass
 	//	$nval['openlitespeed'] = 'lsws';
 	//	$nval['monkey'] = 'monkey';
 
+		$nval['kloxo-webcache'] = 'kloxo-webcache';
+		$nval['kloxo-webproxy'] = 'kloxo-webproxy';
+		$nval['webcache'] = 'kloxo-webcache';
+		$nval['webproxy'] = 'kloxo-webproxy';
 		$nval['varnish'] = 'varnish';
 		$nval['squid'] = 'squid';
 		$nval['trafficserver'] = 'trafficserver';

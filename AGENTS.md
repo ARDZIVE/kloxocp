@@ -17,7 +17,8 @@ present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`te
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
-the README one-liner downloads `install.sh` from GitHub `main`, then that script
+`ufw` is packaged and left inactive; the README one-liner downloads `install.sh`
+from GitHub `main`, then that script
 fetches `origin/main` and hard-resets when the clone already exists;
 `kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
 change after first login (required Change Password modal with the form
@@ -69,7 +70,8 @@ not fall back to client/pserver tabs). Nested `phpini_flag_b-*` form
 fields resolve without a TypeError when the flag class has no `$__desc`.
 Heading uses the parent name (`admin`, not `client-admin`). Parent/login
 guards keep both forms loadable when the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with beige tabs UFW Firewall, Enable, Disable, Add Rule, Delete Rule; argument-array `ufw` (`KloxoUfw`); enable first allows 7777/7778; last panel-port allow cannot be deleted. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
-(add form + Switch To Another; mail uses `__driver_mail`). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
+(add form + Switch To Another; mail uses `__driver_mail`; webcache 8080
+and webproxy 30080 are nginx frontends started by `install-webfront`). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
 omit the left Find box. Manage DNS beige tabs are Manage DNS, Rebuild, NS, A, AAAA, CNAME, FCNAME, MX, TXT, CAA, SRV, General Settings; show lists `dns_record_a` without `write()`/`setUpdateSubaction` (template records often lack `parent_clname`; dirtying the zone made `login->was()` sync DNS and bounce Home). Live Manage DNS after deploy is UNVERIFIED. Client PHPinfo is web `a=show&sa=phpinfo` (site `php -i` via argument-array `proc_open`); `getTrueParentO`/`getParentO` treat `client-admin` as root (`isRootClient`) and never print `no parent_clname`. Live PHPinfo after deploy is UNVERIFIED. Change Owner (`a=updateform&sa=changeowner`) builds a client select without calling methods on a missing parent; `Lxclient::updateform` does not load `general` first; help text does not explode a null string. Live Change Owner after deploy is UNVERIFIED. SSL Certificates under a domain has beige tabs SSL Certificates, Add SSL File, Add SSL Text, Add Let's Encrypt, Add SSL Link, Switch To Another of sibling domains, and columns User Name, Certificate Name, Add Type, Parent Domain, Syncserver (list toolbar search stays). HelpDesk ticket show has Switch To Another
 (sibling ticket ids), Ticket / Add Reply / Escalate, inline Add Reply
 (State, Text Reason), and Replies Under N (Changed By, Text Reason,
@@ -140,6 +142,7 @@ php kloxo/bin/install/init-panel-db --help
 php kloxo/bin/install/init-slave --help
 php kloxo/bin/install/install-pdns --help
 php kloxo/bin/install/install-apache --help
+php kloxo/bin/install/install-webfront --help
 bash kloxo/bin/install/install-hiawatha --help
 bash tests/mail/run-tests.sh          # mail checks (needs MariaDB root socket; disposable machine only)
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Exim/Dovecot/Rspamd; see tests/mail/README.md)

@@ -29,6 +29,25 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 > (security and PHP 8), `docs/INSTALL_AND_UPDATE_DESIGN.md` (intended
 > production installer), and `docs/MAIL_DESIGN.md` (mail stack).
 
+## Install (Ubuntu 24.04 or 26.x, as root)
+
+Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
+clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash.
+Starts Nginx, BIND, webcache on **8080**, and webproxy on **30080**.
+A 2 GB VPS that fails the RAM/disk floor can add `--force` at the end.
+
+```
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+```
+
+```
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
+```
+
+When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
+self-signed certificate. Change that password on first login. Details
+and flags are under [Installation](#installation).
+
 ## Stack
 
 | Role | Choice |
@@ -37,6 +56,7 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 | Panel UI web server | Hiawatha 12.4 (panel only; source-built, not an apt package) |
 | Panel PHP | Distro PHP-FPM as user `lxlabs` on `127.0.0.1:39000` |
 | Customer websites | **Nginx + PHP-FPM** default; Apache 2.4 + PHP-FPM (`proxy_fcgi`, no mod_php) packaged and selectable |
+| Webcache / webproxy | nginx frontends `kloxo-webcache` **:8080** and `kloxo-webproxy` **:30080** (to `127.0.0.1:80`; not Varnish/Squid) |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it |
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
@@ -59,7 +79,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Backup / Restore | Tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. File Manager under a backup keeps those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
 | FTP Configure | Under localhost (not Backup FTP Configuration). One beige tab labelled **FTP Configure**. |
-| PHP Configure | Tabs **PHP Configure** and **Advanced PHP Configure**. Heading uses the parent name. |
+| PHP Configure | Tabs **PHP Configure** and **Advanced PHP Configure**. Heading uses the parent name. Extraedit stays on those tabs (not client/pserver). |
 | PHPinfo | In-panel **PHPinfo** tab (site `php -i` of the PHP selected for that domain). |
 | Change Owner | Client select of candidate owners; does not die on a missing parent. |
 | SSL Certificates | Under a domain: **SSL Certificates**, **Add SSL File**, **Add SSL Text**, **Add Let's Encrypt**, **Add SSL Link**; Switch To Another of sibling domains. |
@@ -67,7 +87,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | DNS Templates | Add form on the list tab (name `default`, ns1/ns2). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
 | Update | **10.1-2026110201**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
-| Services | Lists only installed units; running/boot from systemd `ActiveState` / `UnitFileState`. |
+| Services | Lists only installed units; running/boot from systemd `ActiveState` / `UnitFileState`. Includes `kloxo-webcache` and `kloxo-webproxy` after install. |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | Switch To Another across servers; Connections / Raw Connections / White List. No left Find box. |
@@ -75,6 +95,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |
+| Watchdog | Eight services. webcache (8080) and webproxy (30080) are nginx frontends to port 80 (`kloxo-webcache` / `kloxo-webproxy`), not Varnish/Squid. |
 
 ## Goals
 
@@ -122,7 +143,8 @@ When it finishes, the installer prints a box with the panel URL
 (`https://<ip>:7777/`), username `admin`, and password `admin`. Accept the
 self-signed certificate. The first screen after login is the password-change
 form; the home dashboard appears after that password is changed. If the page
-does not load, allow TCP 7777 (and 7778) in the host firewall.
+does not load, allow TCP 7777 (and 7778) in the host firewall. Watchdog
+webcache and webproxy listen on **8080** and **30080**.
 
 ### What `install.sh` does
 
@@ -132,9 +154,10 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    unless you pass `--force`.
 2. Installs the **core** apt set: `php-cli` `php-fpm` `php-mysql` `php-xml`
    `php-mbstring` `php-curl`, MariaDB, Nginx, BIND 9, `iproute2`, and the
-   compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`).
-   Also packages `pdns-server` and `apache2` but does not let apt start them
-   (BIND stays on 53, Nginx on 80/443).
+   compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`),
+   and `ufw` (left inactive; enable from Security → **UFW Firewall**, which
+   first allows 7777/7778). Also packages `pdns-server` and `apache2` but does
+   not let apt start them (BIND stays on 53, Nginx on 80/443).
 3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
    If it is already a git clone, fetches `origin/main` and `reset --hard` first. If `/opt/kloxo`
    is a real directory (not a symlink to the clone), copies `httpdocs` /
@@ -147,10 +170,11 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 6. Starts panel PHP-FPM (`kloxo-php`) as **`lxlabs`** on `127.0.0.1:39000`.
 7. Builds pinned **Hiawatha 12.4** (`install-hiawatha`) **before** the database
    schema, then starts `kloxo-web` on 7777/7778.
-8. Enables Nginx, MariaDB, and BIND. Prepares Apache (`install-apache`) and
-   PowerDNS (`install-pdns`) and leaves those units **disabled**. `--profile=full`
-   installs Exim (default MTA) and Postfix (unit stays **disabled** until
-   Switch Program selects it).
+8. Enables Nginx, MariaDB, and BIND. Starts webcache on **8080** and webproxy
+   on **30080** (`install-webfront`; dedicated nginx processes, not Varnish or
+   Squid). Prepares Apache (`install-apache`) and PowerDNS (`install-pdns`) and
+   leaves those units **disabled**. `--profile=full` installs Exim (default MTA)
+   and Postfix (unit stays **disabled** until Switch Program selects it).
 9. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
    `localhost` driver with `dns` = `bind`, `web` = `nginx`, and `smtp` = `exim`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
@@ -184,7 +208,7 @@ sudo bash install.sh --update              # accepted; every run already git-fet
 sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
 sudo bash install.sh --profile=full        # also apt-install exim4-daemon-heavy, dovecot, rspamd, redis
 sudo bash install.sh --with-mail           # same as --profile=full
-sudo bash install.sh --profile=core        # default: php, nginx, mariadb, bind9; apache2/pdns packaged, disabled
+sudo bash install.sh --profile=core        # default: php, nginx, mariadb, bind9, ufw (inactive), webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
 sudo bash install.sh --dry-run             # print repo/src/root/profile and exit
 sudo bash install.sh --src=/path           # clone location (default /usr/local/src/kloxo-cp)
 sudo bash install.sh --root=/opt/kloxo     # program root
@@ -297,6 +321,7 @@ apt install -y \
   bind9 \
   pdns-server pdns-backend-mysql \
   iproute2 \
+  ufw \
   ca-certificates git curl openssl \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 ```
@@ -317,9 +342,12 @@ builds pinned 12.4. Redis is a mail-stack dependency, not a core panel package.
 `pdns-server` is installed and left **disabled**; BIND stays on port 53 until
 Switch Program selects PowerDNS. `apache2` is installed and left **disabled**;
 Nginx stays on 80/443 until Switch Program selects Apache (PHP-FPM via
-`proxy_fcgi`, not mod_php). During apt, `install.sh` tells `invoke-rc.d` not
-to start those two units (they have no backend yet, and would fight BIND /
-Nginx for the ports).
+`proxy_fcgi`, not mod_php). `ufw` is installed and left **inactive**; the
+Security → **UFW Firewall** page enables it (7777/7778 first). After Nginx
+starts, `install-webfront` enables **kloxo-webcache** (8080) and
+**kloxo-webproxy** (30080). During apt,
+`install.sh` tells `invoke-rc.d` not to start pdns and apache2 (they have no
+backend yet, and would fight BIND / Nginx for the ports).
 
 ### 3. Place the tree at `/opt/kloxo`
 
@@ -595,6 +623,7 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/install/install-hiawatha   pinned Hiawatha 12.4 source build
   bin/install/install-pdns       PowerDNS schema + gmysql snippet (unit stays disabled)
   bin/install/install-apache     Apache 2.4 PHP-FPM vhosts (unit stays disabled)
+  bin/install/install-webfront   nginx webcache :8080 and webproxy :30080
   bin/install/install-phpmyadmin phpMyAdmin under httpdocs/thirdparty
   bin/install/install-site-php   site PHP-FPM 5.6 / 7.4 / latest
 install.sh        Ubuntu 24.04 / 26.x bootstrap (clone + apt + layout + TLS)

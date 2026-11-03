@@ -1,0 +1,7 @@
+#!/bin/sh
+# Restart Kloxo CP webcache (nginx listen 8080). Accepts --force.
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl restart kloxo-webcache
+else
+	service kloxo-webcache restart
+fi

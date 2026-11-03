@@ -92,8 +92,8 @@ class watchdog extends lxdb
 			array('mail', '25', '__driver_mail', 'on'),
 			array('mysql', 'pgrep ^mysql', '__driver_mysql', 'on'),
 			array('php-fpm', 'pgrep ^php-fpm', '__driver_php-fpm', 'on'),
-			array('webcache', '8080', '__driver_web', 'off'),
-			array('webproxy', '30080', '__driver_web', 'off'),
+			array('webcache', '8080', '__driver_webcache', 'on'),
+			array('webproxy', '30080', '__driver_webproxy', 'on'),
 			array('web', '80', '__driver_web', 'on'),
 		);
 	}

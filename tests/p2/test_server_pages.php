@@ -2249,6 +2249,8 @@ if (is_array($wdForm) && ($wdForm['action'] ?? '') === 'add'
 	&& is_array($wdNlist) && isset($wdNlist['status'], $wdNlist['servicename'], $wdNlist['port'], $wdNlist['action'])
 	&& count($wdDefaults) === 8
 	&& $wdNames === array('dns', 'ftp', 'mail', 'mysql', 'php-fpm', 'webcache', 'webproxy', 'web')
+	&& ($wdDefaults[5][2] ?? '') === '__driver_webcache' && ($wdDefaults[5][3] ?? '') === 'on'
+	&& ($wdDefaults[6][2] ?? '') === '__driver_webproxy' && ($wdDefaults[6][3] ?? '') === 'on'
 	&& ($wdAdd['syncserver'] ?? '') === 'localhost'
 	&& str_contains($wdSrc, 'foreach (self::defaultWatchdogList()')
 	&& str_contains($wdSync, 'lxshell_return')

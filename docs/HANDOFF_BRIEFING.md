@@ -203,7 +203,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (`login/images/kloxo.png`), not Kloxo-MR. Live logo after deploy is
     **UNVERIFIED**. Watchdog list matches Kloxo-MR (Switch To Another,
     add form, eight default services); mail action is `__driver_mail`
-    (Exim) not qmail. Live Watchdog after deploy is **UNVERIFIED**.
+    (Exim) not qmail. webcache (`8080`, `__driver_webcache`) and webproxy
+    (`30080`, `__driver_webproxy`) are nginx frontends to `127.0.0.1:80`
+    (`install-webfront`; no Varnish/Squid/ATS) and seed as on.
+    Live Watchdog after deploy is **UNVERIFIED**.
     PHP config forms apply the
     usual defaults (120s / 128M / 32M / disable_functions) when the
     stored `phpini` blob only has a session path. Admin Resource Plan
@@ -375,7 +378,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Add Rule, Delete Rule. `KloxoUfw` runs `ufw` with argument-array `proc_open`
     (status/enable/disable/allow/deny/delete). Enable first allows panel
     7777/7778 plus SSH, HTTP/S, FTP, DNS and mail; deny/delete of the last
-    panel-port allow is refused. No left Find box. Live UFW after deploy is
+    panel-port allow is refused. `install.sh` apt-installs `ufw` and leaves
+    it inactive. No left Find box. Live UFW after deploy is
     **UNVERIFIED**. SSH Terminal is admin-only (pserver
     child, not client home) and shows a WebConsole-like black terminal
     (`Switch To Another`, `root@host #` prompt, command form). Panel FPM

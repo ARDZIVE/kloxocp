@@ -9,7 +9,7 @@ else
 	list_phpfpm=($(chkconfig --list|grep ':on'|grep ^'php'|grep '\-fpm'|awk '{print $1}'|tr '\n' ' '))
 fi
 
-list_web=(varnish trafficserver squid spawn-fcgi memcached lighttpd nginx hiawatha httpd apache2 htcacheclean)
+list_web=(kloxo-webcache kloxo-webproxy spawn-fcgi memcached nginx hiawatha httpd apache2 htcacheclean)
 list_web=("${list_phpfpm[@]}" "${list_web[@]}")
 
 list_mysql=(mysql mysqld mariadb)
