@@ -543,6 +543,9 @@ function __ac_desc_show($object)
 			do_updateform($object, $k);
 		} catch (Throwable $e) {
 			log_log("error", "do_updateform $k: " . $e->getMessage());
+			if (is_object($object) && method_exists($object, 'getClass') && $object->getClass() === 'phpini') {
+				print('<div class="div_content" style="padding:16px">The requested form could not be loaded.</div>');
+			}
 		}
 	}
 
@@ -722,10 +725,8 @@ function kloxo_print_object_property_tabs($object)
 	$class = (is_object($object) && method_exists($object, 'getClass'))
 		? $object->getClass() : '';
 
-	if ($class === 'phpini' && $prlist['property'] === array()) {
-		$prlist['property'] = class_exists('phpini') && is_callable(array('phpini', 'phpiniPropertyTabs'))
-			? phpini::phpiniPropertyTabs()
-			: array('a=show', 'a=updateform&sa=extraedit');
+	if ($class === 'phpini' && class_exists('phpini') && is_callable(array('phpini', 'phpiniPropertyTabs'))) {
+		$prlist['property'] = phpini::phpiniPropertyTabs();
 	}
 
 	$sa = (is_object($ghtml) && is_string($ghtml->frm_subaction)) ? $ghtml->frm_subaction : '';
@@ -1276,7 +1277,12 @@ function do_updateform($object, $subaction)
 	global $gbl, $sgbl, $login, $ghtml;
 
 	$class = lget_class($object);
-	$parent = $object->getParentO();
+	$parent = null;
+	try {
+		$parent = $object->getParentO();
+	} catch (Throwable $e) {
+		log_log("error", "do_updateform getParentO: " . $e->getMessage());
+	}
 	$qparent = is_object($parent) ? $parent : $object;
 	$_tsubaction = null;
 

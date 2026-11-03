@@ -143,6 +143,11 @@ if php "$HERE/test_server_pages.php"; then
 else
   bad "test_server_pages.php"
 fi
+if php "$HERE/test_ufw.php"; then
+  ok "test_ufw.php"
+else
+  bad "test_ufw.php"
+fi
 if php "$HERE/test_multiserver.php"; then
   ok "test_multiserver.php"
 else
@@ -219,7 +224,9 @@ else
 fi
 if grep -q 'initialValuesBasic()' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" && grep -q 'function initPhpIni' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" \
   && grep -q "a=updateform&sa=extraedit" "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" \
-  && grep -q 'phpiniCanReadPanelDb' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php"; then
+  && grep -q 'phpiniCanReadPanelDb' "$ROOT/kloxo/httpdocs/driver/pserver/phpinilib.php" \
+  && grep -q 'function kloxo_url_has_phpini' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q 'phpini::phpiniPropertyTabs()' "$ROOT/kloxo/httpdocs/theme/coredisplaylib.php"; then
   ok "phpini forms apply initialValuesBasic and keep PHP Configure / Advanced tabs"
 else
   bad "phpini forms apply initialValuesBasic and keep PHP Configure / Advanced tabs"
@@ -335,6 +342,18 @@ if grep -q 'only_admin_can_access' "$ROOT/kloxo/httpdocs/driver/pserver/sshclien
   ok "SSH Terminal is admin-only and is not on client home"
 else
   bad "SSH Terminal is admin-only and is not on client home"
+fi
+if grep -q 'a=show&o=ufwfirewall' "$ROOT/kloxo/httpdocs/driver/pserver/pserverlib.php" \
+  && grep -F -q 'frm_o_o[1][class]=ufwfirewall' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
+  && grep -q '"UFW Firewall"' "$ROOT/kloxo/httpdocs/lang/en-us/langkeywordlib.php" \
+  && grep -q 'function kloxo_url_has_ufwfirewall' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q "'ufwfirewall'" "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q 'class KloxoUfw' "$ROOT/kloxo/httpdocs/lib/php/kloxo_ufw.php" \
+  && grep -q 'class ufwfirewall' "$ROOT/kloxo/httpdocs/driver/pserver/ufwfirewalllib.php" \
+  && grep -q 'ufwfirewall' "$ROOT/kloxo/httpdocs/lib/html/definecore.php"; then
+  ok "Security section has a UFW Firewall button"
+else
+  bad "Security section has a UFW Firewall button"
 fi
 if grep -q 'function kloxo_implode' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
   && grep -q 'function kloxo_list_from' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \

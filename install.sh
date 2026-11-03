@@ -300,7 +300,7 @@ hold_standby_units
 apt-get update -y
 apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
-  mariadb-server nginx apache2 bind9 pdns-server pdns-backend-mysql iproute2 \
+  mariadb-server nginx apache2 bind9 pdns-server pdns-backend-mysql iproute2 ufw \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then

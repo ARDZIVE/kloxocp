@@ -7697,11 +7697,39 @@ class HtmlLib
 
 		$frmvalidcount = -1;
 
-		$skincolor = $login->getSkinColor();
-		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
+		$skincolor = 'aaa';
+		$skin_name = 'simplicity';
+		try {
+			if (is_object($login) && method_exists($login, 'getSkinColor')) {
+				$sc = $login->getSkinColor();
+				if (is_string($sc) && $sc !== '') {
+					$skincolor = $sc;
+				}
+			}
+		} catch (Throwable $e) {
+		}
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && isset($sp->skin_name) && is_string($sp->skin_name) && $sp->skin_name !== '') {
+					$skin_name = $sp->skin_name;
+				}
+			}
+		} catch (Throwable $e) {
+		}
 
 		if ($skin_name === 'simplicity') {
-			$wait_text = "document.getElementById('div_status').style.color='#fff';document.getElementById('div_status').innerHTML='&nbsp;{$login->getKeywordUc('wait')}&nbsp;';";
+			$wait = 'Wait';
+			try {
+				if (is_object($login) && method_exists($login, 'getKeywordUc')) {
+					$kw = $login->getKeywordUc('wait');
+					if (is_string($kw) && $kw !== '') {
+						$wait = $kw;
+					}
+				}
+			} catch (Throwable $e) {
+			}
+			$wait_text = "document.getElementById('div_status').style.color='#fff';document.getElementById('div_status').innerHTML='&nbsp;{$wait}&nbsp;';";
 		} else {
 			$wait_text = "";
 		}
@@ -8694,7 +8722,16 @@ function uploadAbort(e) { // upload abort
 		global $gbl, $sgbl, $login, $ghtml;
 		global $g_language_mes;
 
-		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
+		$skin_name = 'simplicity';
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && isset($sp->skin_name) && is_string($sp->skin_name) && $sp->skin_name !== '') {
+					$skin_name = $sp->skin_name;
+				}
+			}
+		} catch (Throwable $e) {
+		}
 
 		$pinfo = null;
 	/*

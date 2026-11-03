@@ -266,10 +266,17 @@ $phpExtraOnly = $ghtml->getTitleOnly('a=updateform&sa=extraedit');
 $ghtml = $prevHtmlPhp;
 $phpTabSrc = (string) file_get_contents($doc . '/theme/tab_simplicity.php');
 $phpDescSrc = (string) file_get_contents($doc . '/lang/en-us/desclib.php');
+$phpShowUrl = kloxo_content_tab_label('',
+	'display.php?frm_action=show&frm_o_o[0][class]=phpini');
+$phpExtraUrl = kloxo_content_tab_label('Update _extraedit',
+	'a=updateform&sa=extraedit&o=phpini');
 if (is_array($phpShowTitle) && ($phpShowTitle[2] ?? '') === 'PHP Configure'
 	&& is_array($phpEditTitle) && ($phpEditTitle[2] ?? '') === 'PHP Configure'
 	&& is_array($phpExtraTitle) && ($phpExtraTitle[2] ?? '') === 'Advanced PHP Configure'
 	&& $phpExtraOnly === 'Advanced PHP Configure'
+	&& $phpShowUrl === 'PHP Configure'
+	&& $phpExtraUrl === 'Advanced PHP Configure'
+	&& function_exists('kloxo_url_has_phpini') && kloxo_url_has_phpini('a=show&o=phpini')
 	&& str_contains($phpTabSrc, 'kloxo_content_tab_label')
 	&& str_contains($lxlibSrc, "return 'PHP Configure'")
 	&& str_contains($lxlibSrc, "return 'Advanced PHP Configure'")
@@ -415,7 +422,7 @@ try {
 
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
-	&& str_contains($src, "'sshconfig', 'lxguard', 'sshclient', 'ffile', 'ticket', 'notification'")
+	&& str_contains($src, "'sshconfig', 'lxguard', 'ufwfirewall', 'sshclient', 'ffile', 'ticket', 'notification'")
 	&& str_contains($src, "'lxupdate', 'dns', 'dns_record_a', 'web'")
 	&& str_contains($src, "'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist'")) {
 	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns show pages');
@@ -424,6 +431,7 @@ if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
 }
 if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('lxguard')
+	&& kloxo_skip_find_class('ufwfirewall')
 	&& kloxo_skip_find_class('lxguardhitdisplay')
 	&& kloxo_skip_find_class('rawlxguardhit')
 	&& kloxo_skip_find_class('lxguardwhitelist')
@@ -435,9 +443,9 @@ if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('web')
 	&& !kloxo_skip_find_class('tickethistory')
 	&& !kloxo_skip_find_class('client')) {
-	ok('LxGuard, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
+	ok('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
 } else {
-	bad('LxGuard, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
+	bad('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
 }
 
 $welcomeDefault = Notification::defaultWelcomeMessage();
@@ -2163,11 +2171,29 @@ $tz = is_array($edit) && isset($edit['phpini_flag_b-date_timezone_flag'][1])
 	? $edit['phpini_flag_b-date_timezone_flag'][1] : array();
 $fpm = is_array($edit) && isset($edit['phpini_flag_b-phpfpm_type_flag'][1])
 	? $edit['phpini_flag_b-phpfpm_type_flag'][1] : array();
+$phpId = '';
+$phpRule = '';
+$phpParent = '';
+$phpAdminList = null;
+try {
+	$phpId = $ini->getId();
+	$phpRule = (string) phpini::initThisObjectRule(null, 'phpini');
+	$orphan = new phpini(null, 'localhost', 'client-admin');
+	$orphan->nname = 'client-admin';
+	$phpParent = $orphan->phpiniParentClass();
+	$phpAdminList = $orphan->getAdminList();
+} catch (Throwable $e) {
+	$editErr = $editErr !== '' ? $editErr : $e->getMessage();
+}
 if ($tabOk && $editOk && $extraOk
 	&& $sessionPath === '/home/kloxo/client/admin/session'
 	&& is_array($tz) && $tz !== array()
 	&& is_array($fpm) && in_array('static', $fpm, true)
-	&& is_array($extra) && !array_key_exists('phpini_flag_b-display_error_flag', $extra)) {
+	&& is_array($extra) && !array_key_exists('phpini_flag_b-display_error_flag', $extra)
+	&& $phpId === 'admin'
+	&& $phpRule === 'client-admin'
+	&& $phpParent === ''
+	&& is_array($phpAdminList)) {
 	ok('PHP Configure and Advanced PHP Configure share tabs and Kloxo-MR fields');
 } else {
 	$detail = $editErr !== '' ? $editErr : ($extraErr !== '' ? $extraErr
@@ -2415,6 +2441,74 @@ if ($coErr === ''
 			. ' form=' . var_export($coForm, true)
 			. ' dom=' . var_export($coDom, true));
 }
+
+$ufwPrevLogin = isset($login) ? $login : null;
+$login = new class {
+	public $nname = 'admin';
+	public $cttype = 'admin';
+	public function isAdmin() { return true; }
+	public function getThrow($k) { return (string) $k; }
+};
+$ufwSrc = (string) file_get_contents($doc . '/driver/pserver/ufwfirewalllib.php');
+$ufwPserver = (string) file_get_contents($doc . '/driver/pserver/pserverlib.php');
+$ufwMenu = (string) file_get_contents($doc . '/theme/skin/simplicity/default/menu.php');
+$ufwKw = (string) file_get_contents($doc . '/lang/en-us/langkeywordlib.php');
+$ufwShowTab = kloxo_content_tab_label('UFW Firewall',
+	'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=ufwfirewall');
+$ufwEnTab = kloxo_content_tab_label('Update_ufwenable', 'a=updateform&sa=ufwenable&o=ufwfirewall');
+$ufwDisTab = kloxo_content_tab_label('Update _ufwdisable',
+	'display.php?frm_action=updateform&frm_subaction=ufwdisable&frm_o_o[1][class]=ufwfirewall');
+$ufwAddTab = kloxo_content_tab_label('', 'a=updateform&sa=addrule&o=ufwfirewall');
+$ufwDelTab = kloxo_content_tab_label('Update_deleterule', 'a=updateform&sa=deleterule&o=ufwfirewall');
+$ufwParent = new pserver(null, 'localhost', 'localhost');
+$ufwParent->nname = 'localhost';
+$ufw = new ufwfirewall(null, 'localhost', 'localhost');
+$ufw->nname = 'localhost';
+$ufw->syncserver = 'localhost';
+$ufw->__parent_o = $ufwParent;
+$ufwTabs = array('property' => array());
+$ufw->createShowPropertyList($ufwTabs);
+$ufwSwitch = null;
+$ufwForm = null;
+$ufwErr = '';
+try {
+	$ufwSwitch = $ufw->getSelfList();
+	$ufwForm = $ufw->updateform('addrule', array());
+} catch (Throwable $e) {
+	$ufwErr = $e->getMessage();
+}
+$ufwTabOk = is_array($ufwTabs['property'] ?? null)
+	&& in_array('a=show', $ufwTabs['property'], true)
+	&& in_array('a=updateform&sa=ufwenable', $ufwTabs['property'], true)
+	&& in_array('a=updateform&sa=ufwdisable', $ufwTabs['property'], true)
+	&& in_array('a=updateform&sa=addrule', $ufwTabs['property'], true)
+	&& in_array('a=updateform&sa=deleterule', $ufwTabs['property'], true);
+$ufwSwitchOk = is_array($ufwSwitch) && isset($ufwSwitch['localhost'])
+	&& is_object($ufwSwitch['localhost']) && method_exists($ufwSwitch['localhost'], 'getId');
+$ufwFormOk = is_array($ufwForm) && array_key_exists('ufw_action', $ufwForm)
+	&& array_key_exists('ufw_port', $ufwForm);
+if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
+	&& str_contains($ufwPserver, '__title_security')
+	&& str_contains($ufwSrc, 'UFW Firewall')
+	&& str_contains($ufwMenu, 'frm_o_o[1][class]=ufwfirewall')
+	&& str_contains($ufwKw, '"UFW Firewall"')
+	&& $ufwShowTab === 'UFW Firewall'
+	&& $ufwEnTab === 'Enable'
+	&& $ufwDisTab === 'Disable'
+	&& $ufwAddTab === 'Add Rule'
+	&& $ufwDelTab === 'Delete Rule'
+	&& $ufwTabOk && $ufwSwitchOk && $ufwFormOk
+	&& $ufw->isSync() === false
+	&& str_contains($ufwSrc, 'function getSelfList')) {
+	ok('Security section has a UFW Firewall button and page tabs');
+} else {
+	bad('Security section has a UFW Firewall button and page tabs',
+		'err=' . $ufwErr
+			. ' show=' . $ufwShowTab . ' en=' . $ufwEnTab . ' dis=' . $ufwDisTab
+			. ' add=' . $ufwAddTab . ' del=' . $ufwDelTab
+			. ' tabs=' . implode(',', (array) ($ufwTabs['property'] ?? array())));
+}
+$login = $ufwPrevLogin;
 
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

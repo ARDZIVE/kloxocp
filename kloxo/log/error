@@ -225,3 +225,28 @@
 21:04 Nov/02/2026: notifyObjects: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
 21:04 Nov/02/2026: localhost backend: Call to undefined method stdClass::isSuperClient()
 21:04 Nov/02/2026: web getSelfList parent: Call to undefined method stdClass::getSpecialObject()
+03:44 Nov/03/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
+03:44 Nov/03/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
+03:44 Nov/03/2026: initThisObject sp_childspecialplay: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:44 Nov/03/2026: notifyObjects: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:44 Nov/03/2026: localhost backend: Call to undefined method stdClass::isSuperClient()
+03:44 Nov/03/2026: web getSelfList parent: Call to undefined method stdClass::getSpecialObject()
+03:44 Nov/03/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
+03:44 Nov/03/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
+03:44 Nov/03/2026: initThisObject sp_childspecialplay: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:44 Nov/03/2026: notifyObjects: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:44 Nov/03/2026: localhost backend: Call to undefined method stdClass::isSuperClient()
+03:44 Nov/03/2026: web getSelfList parent: Call to undefined method stdClass::getSpecialObject()
+03:54 Nov/03/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
+03:54 Nov/03/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
+03:54 Nov/03/2026: initThisObject sp_childspecialplay: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:54 Nov/03/2026: notifyObjects: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:54 Nov/03/2026: localhost backend: Call to undefined method stdClass::isSuperClient()
+03:54 Nov/03/2026: web getSelfList parent: Call to undefined method stdClass::getSpecialObject()
+03:54 Nov/03/2026: createShowInfoList: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:54 Nov/03/2026: pserver getSelfList parent: Call to a member function getSpecialObject() on null
+03:54 Nov/03/2026: ticket escalate history: Call to undefined method stdClass::isSuperadmin()
+03:54 Nov/03/2026: initThisObject sp_childspecialplay: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:54 Nov/03/2026: notifyObjects: Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user).
+03:54 Nov/03/2026: localhost backend: Call to undefined method stdClass::isSuperClient()
+03:54 Nov/03/2026: web getSelfList parent: Call to undefined method stdClass::getSpecialObject()

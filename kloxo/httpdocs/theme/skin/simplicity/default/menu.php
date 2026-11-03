@@ -820,6 +820,22 @@ if (strpos($loginas, "@") !== false) {
 <?php
 		}
 ?>					</div>
+					<b><?=$login->getKeywordUc('ufwfirewall');?></b>
+					<div class="dropmenu">
+<?php
+		if ((check_if_many_server()) && ($syncserver !== 'localhost')) {
+?>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=show&o=ufwfirewall");?>
+
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=show&<?=$localhostquery;?>frm_o_o[1][class]=ufwfirewall">localhost</a>
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=show&<?=$serverquery;?>frm_o_o[1][class]=ufwfirewall"><?=$syncserver;?></a><br/>
+<?php
+		} else {
+?>
+						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=show&<?=$serverquery;?>frm_o_o[1][class]=ufwfirewall"><?=kloxo_menu_title("a=show&o=ufwfirewall");?></a><br/>
+<?php
+		}
+?>					</div>
 				</div>
 				<div class='left'>
 					<b><?=$login->getKeywordUc('other');?></b>

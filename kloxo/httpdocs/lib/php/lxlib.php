@@ -1632,7 +1632,7 @@ function kloxo_skip_find_class($class)
 	$c = strtolower((string)$class);
 	static $skip = array(
 		'llog', 'driver', 'phpini', 'lxbackup', 'serverweb', 'serverftp',
-		'sshconfig', 'lxguard', 'sshclient', 'ffile', 'ticket', 'notification',
+		'sshconfig', 'lxguard', 'ufwfirewall', 'sshclient', 'ffile', 'ticket', 'notification',
 		'lxupdate', 'dns', 'dns_record_a', 'web',
 		'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist', 'lxguardhit',
 	);
@@ -3211,6 +3211,47 @@ function kloxo_url_has_serverftp($url)
 		|| str_contains($url, 'o=serverftp');
 }
 
+function kloxo_url_has_phpini($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	$url = urldecode($url);
+	if (preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\bo|\bc)=phpini(?:&|$)/i', $url) === 1) {
+		return true;
+	}
+
+	return str_contains($url, '[class]=phpini') || str_contains($url, 'cname=phpini')
+		|| str_contains($url, 'o=phpini');
+}
+
+function kloxo_url_has_ufwfirewall($url)
+{
+	if (!is_string($url) || $url === '') {
+		return false;
+	}
+	$url = urldecode($url);
+	if (preg_match('/(?:frm_o_o\[\d+\]\[class\]|l\[class\]|frm_o_cname|\bo|\bc)=ufwfirewall(?:&|$)/i', $url) === 1) {
+		return true;
+	}
+
+	return str_contains($url, '[class]=ufwfirewall') || str_contains($url, 'cname=ufwfirewall')
+		|| str_contains($url, 'o=ufwfirewall');
+}
+
+function kloxo_ufw_action_label($sa)
+{
+	static $map = array(
+		'ufwenable' => 'Enable',
+		'ufwdisable' => 'Disable',
+		'addrule' => 'Add Rule',
+		'deleterule' => 'Delete Rule',
+	);
+	$s = strtolower(trim((string) $sa));
+
+	return isset($map[$s]) ? $map[$s] : '';
+}
+
 function kloxo_url_has_lxbackup($url)
 {
 	if (!is_string($url) || $url === '') {
@@ -3422,6 +3463,23 @@ function kloxo_content_tab_label($str, $url = '')
 		&& ($act === 'show' || $act === 'list' || $act === '' || $act === 'updateform' || $act === 'update')) {
 		return 'FTP Configure';
 	}
+	if (kloxo_url_has_phpini($urlStr) && !$isFfile) {
+		if ($sa === 'extraedit') {
+			return 'Advanced PHP Configure';
+		}
+		if ($act === 'show' || $act === '' || $sa === 'edit') {
+			return 'PHP Configure';
+		}
+	}
+	if (kloxo_url_has_ufwfirewall($urlStr) && !$isFfile) {
+		$ufwTab = kloxo_ufw_action_label($sa);
+		if ($ufwTab !== '') {
+			return $ufwTab;
+		}
+		if ($act === 'show' || $act === '') {
+			return 'UFW Firewall';
+		}
+	}
 	if ($sa === 'rebuild') {
 		return 'Rebuild';
 	}
@@ -3455,6 +3513,22 @@ function kloxo_content_tab_label($str, $url = '')
 		}
 
 		return $sa !== '' ? ucfirst($sa) : '';
+	}
+	if ($str === 'UFW Firewall' || $str === 'ufwfirewall' || $str === 'ufw_firewall'
+		|| strcasecmp($str, 'ufw firewall') === 0) {
+		return 'UFW Firewall';
+	}
+	if ($str === 'Update_ufwenable' || $str === 'Update _ufwenable' || $str === 'ufwenable') {
+		return 'Enable';
+	}
+	if ($str === 'Update_ufwdisable' || $str === 'Update _ufwdisable' || $str === 'ufwdisable') {
+		return 'Disable';
+	}
+	if ($str === 'Update_addrule' || $str === 'Update _addrule') {
+		return 'Add Rule';
+	}
+	if ($str === 'Update_deleterule' || $str === 'Update _deleterule') {
+		return 'Delete Rule';
 	}
 	if ($str === 'reboot') {
 		return 'Reboot';
@@ -3557,10 +3631,13 @@ function kloxo_content_tab_label($str, $url = '')
 	if (isset($dnsKeys[$str])) {
 		return $dnsKeys[$str];
 	}
-	if ($str === 'PHP_config' || $str === 'php_configuration' || $str === 'php_config') {
+	if ($str === 'PHP_config' || $str === 'php_configuration' || $str === 'php_config'
+		|| $str === 'PHP_configuration' || $str === 'configure_php' || $str === 'PHP Configure') {
 		return 'PHP Configure';
 	}
-	if ($str === 'advanced_PHP_config' || $str === 'Extraedit' || $str === 'extraedit') {
+	if ($str === 'advanced_PHP_config' || $str === 'Extraedit' || $str === 'extraedit'
+		|| $str === 'Update_extraedit' || $str === 'Update _extraedit'
+		|| $str === 'Advanced PHP Configure') {
 		return 'Advanced PHP Configure';
 	}
 	static $sslKeys = array(

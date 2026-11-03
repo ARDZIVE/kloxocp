@@ -89,6 +89,7 @@ $__keyword["maintenance"] = "Maintenance";
 $__keyword["show"] = "Show";
 
 $__keyword["lxguard"] = "LxGuard";
+$__keyword["ufwfirewall"] = "UFW Firewall";
 
 $__keyword["php"] = "PHP";
 $__keyword["web"] = "Web";

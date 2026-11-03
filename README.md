@@ -59,7 +59,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Backup / Restore | Tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. File Manager under a backup keeps those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
 | FTP Configure | Under localhost (not Backup FTP Configuration). One beige tab labelled **FTP Configure**. |
-| PHP Configure | Tabs **PHP Configure** and **Advanced PHP Configure**. |
+| PHP Configure | Tabs **PHP Configure** and **Advanced PHP Configure**. Heading uses the parent name. |
 | PHPinfo | In-panel **PHPinfo** tab (site `php -i` of the PHP selected for that domain). |
 | Change Owner | Client select of candidate owners; does not die on a missing parent. |
 | SSL Certificates | Under a domain: **SSL Certificates**, **Add SSL File**, **Add SSL Text**, **Add Let's Encrypt**, **Add SSL Link**; Switch To Another of sibling domains. |
@@ -71,6 +71,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | Switch To Another across servers; Connections / Raw Connections / White List. No left Find box. |
+| UFW Firewall | Security-section button. Status, Enable, Disable, Add Rule, Delete Rule. Enable first allows 7777/7778. No left Find box. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |

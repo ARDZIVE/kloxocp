@@ -171,6 +171,12 @@ $__information['general_updateform_selfbackupconfig_pre'] = "<p>This is primaril
 	"If an ftp account is configured here, the file will be uploaded to the machine.</p>".
 	"<p>This is mainly useful in large cluster setup where the failure of master can have much larger impacts.</p>";
 
+$__information['ufwfirewall_show__pre'] = "<p>UFW is Ubuntu's host firewall. Enable first allows panel ports <b>7777</b> and <b>7778</b> plus SSH, HTTP/S, FTP, DNS and mail so the panel stays reachable.</p>";
+$__information['ufwfirewall_updateform_ufwenable_pre'] = "<p>Enable UFW. This first allows TCP 7777/7778 (panel), 22, 80, 443, 21, 25, 465, 587, 993, 995 and DNS 53, then runs <code>ufw --force enable</code>. Do not enable until you can still reach this page.</p>";
+$__information['ufwfirewall_updateform_ufwdisable_pre'] = "<p>Disable UFW on this server. Existing rules stay on disk and apply again when you re-enable.</p>";
+$__information['ufwfirewall_updateform_addrule_pre'] = "<p>Add an allow or deny rule. Port is a number or range (80:90). From address may be blank (any), an IPv4 address, or IPv4/CIDR. Deny of panel ports 7777/7778 is refused.</p>";
+$__information['ufwfirewall_updateform_deleterule_pre'] = "<p>Delete a numbered UFW rule. The last allow for panel ports 7777/7778 cannot be deleted.</p>";
+
 $__information['lxguard_updateform_update_pre'] = "<p>Lxguard protects you against brute force attacks by monitoring the ssh and ftp log messages, ".
 	"and blocking ipaddresses that have too many failed attempts at logging into the server.</p>".
 	"<p>Lxguard is <b>default turned on</b>, and will automatically block hosts, and <b>cannot be turned off</b>.</p>".

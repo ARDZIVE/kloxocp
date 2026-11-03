@@ -66,7 +66,9 @@ Multiple PHP Remove; Apache optimize writes
 fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share the PHP Configure /
 Advanced PHP Configure tabs (`phpini::phpiniPropertyTabs`; extraedit does
 not fall back to client/pserver tabs). Nested `phpini_flag_b-*` form
-fields resolve without a TypeError when the flag class has no `$__desc`. Watchdog under localhost lists the Kloxo-MR eight services
+fields resolve without a TypeError when the flag class has no `$__desc`.
+Heading uses the parent name (`admin`, not `client-admin`). Parent/login
+guards keep both forms loadable when the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with beige tabs UFW Firewall, Enable, Disable, Add Rule, Delete Rule; argument-array `ufw` (`KloxoUfw`); enable first allows 7777/7778; last panel-port allow cannot be deleted. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
 (add form + Switch To Another; mail uses `__driver_mail`). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
 omit the left Find box. Manage DNS beige tabs are Manage DNS, Rebuild, NS, A, AAAA, CNAME, FCNAME, MX, TXT, CAA, SRV, General Settings; show lists `dns_record_a` without `write()`/`setUpdateSubaction` (template records often lack `parent_clname`; dirtying the zone made `login->was()` sync DNS and bounce Home). Live Manage DNS after deploy is UNVERIFIED. Client PHPinfo is web `a=show&sa=phpinfo` (site `php -i` via argument-array `proc_open`); `getTrueParentO`/`getParentO` treat `client-admin` as root (`isRootClient`) and never print `no parent_clname`. Live PHPinfo after deploy is UNVERIFIED. Change Owner (`a=updateform&sa=changeowner`) builds a client select without calling methods on a missing parent; `Lxclient::updateform` does not load `general` first; help text does not explode a null string. Live Change Owner after deploy is UNVERIFIED. SSL Certificates under a domain has beige tabs SSL Certificates, Add SSL File, Add SSL Text, Add Let's Encrypt, Add SSL Link, Switch To Another of sibling domains, and columns User Name, Certificate Name, Add Type, Parent Domain, Syncserver (list toolbar search stays). HelpDesk ticket show has Switch To Another
 (sibling ticket ids), Ticket / Add Reply / Escalate, inline Add Reply
@@ -131,7 +133,7 @@ php kloxo/bin/install/generate-tls-keys --help
 bash tests/remote/run-tests.sh        # C1 auth-before-unserialize checks (php-cli only)
 bash tests/security/run-tests.sh      # P0.4/P0.5 source invariants (php-cli only)
 bash tests/p1/run-tests.sh            # P1 stack-shrink source invariants (php-cli only)
-bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload (php-cli only)
+bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload + UFW (php-cli only)
 bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
 bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)
 php kloxo/bin/install/init-panel-db --help

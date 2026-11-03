@@ -149,6 +149,7 @@ class pservercore extends Lxclient
 	static $__desc_llog_o = array('d', '', '', '');
 	static $__desc_sshclient_o = array('d', '', '', 'ssh_client');
 	static $__desc_sshconfig_o = array('d', '', '', '');
+	static $__desc_ufwfirewall_o = array('d', '', '', '');
 
 	static $__desc_phpmodule_l = array("v", "", "virtual");
 

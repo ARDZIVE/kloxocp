@@ -60,7 +60,46 @@ class phpini extends lxdb
 
 	static function initThisObjectRule($parent, $class, $name = null)
 	{
-		return $parent->getClName();
+		if (is_object($parent) && method_exists($parent, 'getClName')) {
+			try {
+				$n = $parent->getClName();
+				if (is_string($n) && $n !== '') {
+					return $n;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+		if (is_object($parent) && isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+			$cls = method_exists($parent, 'getClass') ? $parent->getClass() : 'client';
+
+			return $cls . '-' . $parent->nname;
+		}
+
+		return 'client-admin';
+	}
+
+	function getId()
+	{
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
+		if (is_object($parent) && isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+			return $parent->nname;
+		}
+		$n = isset($this->nname) ? (string) $this->nname : '';
+		foreach (array('client-', 'pserver-', 'web-') as $pfx) {
+			if (str_starts_with($n, $pfx)) {
+				$rest = substr($n, strlen($pfx));
+				if ($rest !== '') {
+					return $rest;
+				}
+			}
+		}
+
+		return $n !== '' ? $n : 'phpini';
 	}
 
 	function getInheritedList()
@@ -112,7 +151,8 @@ class phpini extends lxdb
 
 		$list = null;
 
-		if (!$login->isAdmin()) {
+		$isAdmin = isset($login) && is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin();
+		if (!$isAdmin) {
 			$list[] = 'disable_functions';
 			$list[] = 'max_execution_time_flag';
 			$list[] = 'max_input_time_flag';
@@ -137,9 +177,14 @@ class phpini extends lxdb
 
 	function phpiniParentClass()
 	{
-		$parent = $this->getParentO();
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
 
-		return is_object($parent) ? $parent->getClass() : '';
+		return (is_object($parent) && method_exists($parent, 'getClass')) ? $parent->getClass() : '';
 	}
 
 	function phpiniCanReadPanelDb()
@@ -167,7 +212,12 @@ class phpini extends lxdb
 		}
 
 		$parentClass = $this->phpiniParentClass();
-		$parent = $this->getParentO();
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
 
 		if ($parentClass !== '' && $parentClass !== 'pserver' && $this->phpiniCanReadPanelDb()) {
 			try {
@@ -241,8 +291,13 @@ class phpini extends lxdb
 		// We need to write because the fixphpini reads everything from the database.
 		$this->write();
 
-		$parent = $this->getParentO();
-		if (is_object($parent) && $parent->getClass() === 'pserver') {
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
+		if (is_object($parent) && method_exists($parent, 'getClass') && $parent->getClass() === 'pserver') {
 			$server = isset($parent->nname) ? (string) $parent->nname : '';
 			if ($server !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $server)) {
 				exec("sh /script/fixphp --server={$server}");

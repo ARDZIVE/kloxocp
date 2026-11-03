@@ -193,9 +193,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     and Advanced PHP Configure (`sa=extraedit`) always share the two
     beige-header tabs labelled **PHP Configure** and **Advanced PHP Configure**
     (`a=show` / `a=updateform&sa=extraedit`); phpini
-    never falls back to client/pserver tabs. extraedit no longer dies in
-    `getSelfList` or a missing panel DB password, nested `phpini_flag_b-*`
-    field descriptions no longer TypeError, and a client session path is
+    never falls back to client/pserver tabs (`kloxo_print_object_property_tabs`
+    always uses `phpiniPropertyTabs`). extraedit no longer dies in
+    `getSelfList`, a missing parent, or a missing panel DB password; nested
+    `phpini_flag_b-*` field descriptions no longer TypeError; heading uses the
+    parent name (`admin`, not `client-admin`); a client session path is
     `/home/kloxo/client/{user}/session`. Live PHP Configure after deploy
     is **UNVERIFIED**. The panel top-right logo is the Kloxo CP wordmark
     (`login/images/kloxo.png`), not Kloxo-MR. Live logo after deploy is
@@ -367,7 +369,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     show/escalate after deploy is **UNVERIFIED**. LxGuard show (and its
     Connections / Raw Connections / White List tabs) has Switch To Another
     across pservers (`lxguard::getSelfList` via `pserver::adminServerSwitchList`,
-    at least `localhost`). LxGuard list tabs omit the Find/search input too. SSH Terminal is admin-only (pserver
+    at least `localhost`). LxGuard list tabs omit the Find/search input too.
+    Security has a **UFW Firewall** tile and top-bar item (`a=show&o=ufwfirewall`,
+    label **UFW Firewall**). Beige tabs are UFW Firewall, Enable, Disable,
+    Add Rule, Delete Rule. `KloxoUfw` runs `ufw` with argument-array `proc_open`
+    (status/enable/disable/allow/deny/delete). Enable first allows panel
+    7777/7778 plus SSH, HTTP/S, FTP, DNS and mail; deny/delete of the last
+    panel-port allow is refused. No left Find box. Live UFW after deploy is
+    **UNVERIFIED**. SSH Terminal is admin-only (pserver
     child, not client home) and shows a WebConsole-like black terminal
     (`Switch To Another`, `root@host #` prompt, command form). Panel FPM
     sends commands to `kloxo-backend` (root on loopback 7776) then

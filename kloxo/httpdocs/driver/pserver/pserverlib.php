@@ -19,6 +19,7 @@ class pserver extends pservercore {
 	static $__desc_phpini_o = array("db", "", "");
 	static $__desc_serverweb_o = array("db", "", "");
 	static $__desc_lxguard_o = array("db", "", "");
+	static $__desc_ufwfirewall_o = array("d", "", "");
 	static $__desc_phpmodule_l = array("", "", "");
 
 	Function display($var)
@@ -408,6 +409,7 @@ class pserver extends pservercore {
 		$alist[] = "a=show&o=sshconfig";
 		$alist[] = "a=list&c=watchdog";
 		$alist[] = "a=show&o=lxguard";
+		$alist[] = "a=show&o=ufwfirewall";
 		$alist[] = "a=list&c=hostdeny";
 		$alist[] = "a=list&c=sshauthorizedkey";
 
