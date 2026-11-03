@@ -2576,7 +2576,7 @@ $ufwTabs = array('property' => array());
 $ufw->createShowPropertyList($ufwTabs);
 $ufwForced = ufwfirewall::ufwPropertyTabs();
 $ufwPserverTabs = ufwfirewall::ufwPropertyTabsForPserver();
-$ufwShowForms = method_exists($ufw, 'createShowUpdateform') ? $ufw->createShowUpdateform() : array();
+$ufwShowForms = method_exists($ufw, 'createShowUpdateform') ? $ufw->createShowUpdateform() : null;
 $ufwSwitch = null;
 $ufwForm = null;
 $ufwEnForm = null;
@@ -2602,12 +2602,17 @@ $ufwForcedOk = is_array($ufwForced) && $ufwForced === array('a=show')
 $ufwPserverTabOk = is_array($ufwPserverTabs)
 	&& count($ufwPserverTabs) === 1
 	&& ($ufwPserverTabs[0] ?? '') === 'a=show&o=ufwfirewall';
-$ufwShowFormsOk = is_array($ufwShowForms)
-	&& array_key_exists('ufwenable', $ufwShowForms)
-	&& array_key_exists('ufwdisable', $ufwShowForms)
-	&& array_key_exists('ufwdefaults', $ufwShowForms)
-	&& array_key_exists('addrule', $ufwShowForms)
-	&& array_key_exists('deleterule', $ufwShowForms);
+$ufwShowFormsOk = is_array($ufwShowForms) && $ufwShowForms === array();
+$ufwUiOk = str_contains($ufwSrc, 'Firewall Rules')
+	&& str_contains($ufwSrc, 'Add Rule')
+	&& str_contains($ufwSrc, 'Default Policies')
+	&& str_contains($ufwSrc, 'printFormOpen')
+	&& str_contains($ufwSrc, 'Enable Firewall')
+	&& str_contains($ufwSrc, 'Disable Firewall')
+	&& str_contains($ufwSrc, 'splitPorts')
+	&& !str_contains($ufwSrc, 'Default incoming:')
+	&& !str_contains($ufwSrc, 'No numbered rules.')
+	&& !str_contains($ufwSrc, '\$eRaw');
 $ufwSwitchOk = is_array($ufwSwitch) && isset($ufwSwitch['localhost'])
 	&& is_object($ufwSwitch['localhost']) && method_exists($ufwSwitch['localhost'], 'getId');
 $ufwFormOk = is_array($ufwForm) && array_key_exists('ufw_action', $ufwForm)
@@ -2655,18 +2660,19 @@ if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 	&& str_contains($ufwKw, '"UFW Firewall"')
 	&& $ufwShowTab === 'UFW Firewall'
 	&& $ufwHomeTab === 'UFW Firewall'
-	&& $ufwTabOk && $ufwForcedOk && $ufwPserverTabOk && $ufwShowFormsOk && $ufwSwitchOk
+	&& $ufwTabOk && $ufwForcedOk && $ufwPserverTabOk && $ufwShowFormsOk && $ufwUiOk && $ufwSwitchOk
 	&& $ufwFormOk && $ufwEnOk && $ufwDisOk && $ufwDefOk && $ufwDelOk
 	&& $ufwCoreOk && $ufwSkipOk && $ufwRedirectOk && $ufwParentOk
 	&& $ufw->isSync() === false
 	&& str_contains($ufwSrc, 'function getSelfList')) {
-	ok('Security UFW Firewall is a single tab with status, defaults, enable/disable and rules');
+	ok('Security UFW Firewall is a Hestia-style single page for status, defaults and rules');
 } else {
-	bad('Security UFW Firewall is a single tab with status, defaults, enable/disable and rules',
+	bad('Security UFW Firewall is a Hestia-style single page for status, defaults and rules',
 		'err=' . $ufwErr
 			. ' show=' . $ufwShowTab . ' home=' . $ufwHomeTab
 			. ' tabs=' . implode(',', (array) ($ufwTabs['property'] ?? array()))
-			. ' forms=' . implode(',', array_keys((array) $ufwShowForms))
+			. ' ui=' . ($ufwUiOk ? 'ok' : 'no')
+			. ' emptyForms=' . ($ufwShowFormsOk ? 'ok' : 'no')
 			. ' add=' . ($ufwFormOk ? 'ok' : 'no')
 			. ' en=' . ($ufwEnOk ? 'ok' : 'no')
 			. ' dis=' . ($ufwDisOk ? 'ok' : 'no')

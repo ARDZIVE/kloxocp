@@ -96,7 +96,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
-| UFW Firewall | Security-section button. One beige tab **UFW Firewall** with status, default incoming/outgoing, Enable/Disable, Add Rule and Delete Rule on that page. Enable first allows 7777/7778. `ufw` is packaged inactive. No left Find box. Live UFW after deploy is unverified. |
+| UFW Firewall | Security-section button. One beige tab **UFW Firewall** (Hestia-style): status Enable/Disable, default incoming/outgoing, rules table with per-row Delete, inline Add Rule (action/protocol/port/IP; lists and ranges). Enable first allows 7777/7778. `ufw` packaged inactive. No left Find box. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |

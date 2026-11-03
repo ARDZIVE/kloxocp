@@ -377,10 +377,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     across pservers (`lxguard::getSelfList` via `pserver::adminServerSwitchList`,
     at least `localhost`). LxGuard list tabs omit the Find/search input too.
     Security has a **UFW Firewall** tile and top-bar item (`a=show&o=ufwfirewall`).
-    Exactly one beige tab **UFW Firewall**; status, default incoming/outgoing,
-    Enable, Disable, Add Rule and Delete Rule all live on that show page
-    (`createShowUpdateform`; `ufwPropertyTabs` forced to `a=show`). `KloxoUfw`
-    runs `ufw` with argument-array `proc_open`
+    Exactly one beige tab **UFW Firewall** with a Hestia-style show page:
+    status badge + Enable/Disable, default incoming/outgoing, rules table
+    (Action/Protocol/Port/IP + per-row Delete), inline Add Rule (port lists
+    `80,443` and ranges `80-82`). `ufwPropertyTabs` forced to `a=show`.
+    `KloxoUfw` runs `ufw` with argument-array `proc_open`
     (status/enable/disable/setDefaults/allow/deny/delete). Enable first allows
     panel 7777/7778 plus SSH, HTTP/S, FTP, DNS and mail; deny/delete of the
     last panel-port allow is refused. `install.sh` apt-installs `ufw` and leaves

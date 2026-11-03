@@ -115,7 +115,16 @@ try {
 } catch (InvalidArgumentException $e) {
 	$badDef = $e->getMessage() === 'invalid_ufw_default';
 }
-if ($badPort && $badFrom && $badAct && $badDef && KloxoUfw::validatePort('80:90') === '80:90'
+$splitOk = false;
+try {
+	$splitOk = KloxoUfw::splitPorts('80,443,8080') === array('80', '443', '8080')
+		&& KloxoUfw::validatePort('80-82') === '80:82'
+		&& KloxoUfw::parseRuleTo('443/tcp') === array('port' => '443', 'proto' => 'tcp');
+} catch (Throwable $e) {
+	$splitOk = false;
+}
+if ($badPort && $badFrom && $badAct && $badDef && $splitOk
+	&& KloxoUfw::validatePort('80:90') === '80:90'
 	&& KloxoUfw::validateFrom('') === '' && KloxoUfw::validateFrom('any') === ''
 	&& KloxoUfw::validateDefaultPolicy('deny') === 'deny'
 	&& KloxoUfw::validateDefaultPolicy('allow') === 'allow'

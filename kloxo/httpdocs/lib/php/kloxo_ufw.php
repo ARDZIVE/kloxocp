@@ -68,7 +68,11 @@ final class KloxoUfw
 
     public static function validatePort(string $port): string
     {
-        $port = trim($port);
+        $port = trim(str_replace(' ', '', $port));
+        // Hestia-style range 80-90 → UFW 80:90
+        if (preg_match('/^(\d+)-(\d+)$/', $port, $m) === 1) {
+            $port = $m[1] . ':' . $m[2];
+        }
         if (preg_match('/^\d+$/', $port) === 1) {
             $n = (int) $port;
             if ($n < 1 || $n > 65535) {
@@ -88,6 +92,48 @@ final class KloxoUfw
         }
 
         throw new InvalidArgumentException('invalid_ufw_port');
+    }
+
+    /**
+     * Split a Hestia-style port field (80,443,8080 or 80-82) into UFW ports.
+     *
+     * @return list<string>
+     */
+    public static function splitPorts(string $ports): array
+    {
+        $ports = trim($ports);
+        if ($ports === '' || $ports === '0') {
+            throw new InvalidArgumentException('invalid_ufw_port');
+        }
+        $parts = preg_split('/\s*,\s*/', $ports) ?: [];
+        $out = [];
+        foreach ($parts as $p) {
+            if (!is_string($p) || trim($p) === '') {
+                continue;
+            }
+            $out[] = self::validatePort($p);
+        }
+        if ($out === []) {
+            throw new InvalidArgumentException('invalid_ufw_port');
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * @return array{port:string, proto:string}
+     */
+    public static function parseRuleTo(string $to): array
+    {
+        $to = trim($to);
+        if (preg_match('/^(\d+(?::\d+)?)\/(tcp|udp)$/i', $to, $m) === 1) {
+            return ['port' => $m[1], 'proto' => strtolower($m[2])];
+        }
+        if (preg_match('/^(tcp|udp)\/(\d+(?::\d+)?)$/i', $to, $m) === 1) {
+            return ['port' => $m[2], 'proto' => strtolower($m[1])];
+        }
+
+        return ['port' => $to, 'proto' => ''];
     }
 
     public static function validateFrom(string $from): string
