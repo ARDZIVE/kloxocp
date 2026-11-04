@@ -473,6 +473,60 @@ final class KloxoUfw
         return ['ok' => true, 'out' => $out];
     }
 
+    /**
+     * Replace a numbered rule: delete then add. Refuses removing the last
+     * panel-port allow unless the replacement still allows that panel port.
+     *
+     * @return array{ok:bool, out:string, error?:string}
+     */
+    public static function editRule(
+        string $number,
+        string $action,
+        string $proto,
+        string $port,
+        string $from = ''
+    ): array {
+        if (!self::isInstalled()) {
+            return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
+        }
+        $n = self::validateRuleNumber($number);
+        // Validate new rule first (deny panel, bad ports, etc.).
+        self::addRuleArgv($action, $proto, $port, $from);
+        $st = self::status();
+        $target = null;
+        foreach ($st['rules'] as $r) {
+            if ((int) $r['number'] === $n) {
+                $target = $r;
+                break;
+            }
+        }
+        if ($target === null) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
+        $portNorm = self::validatePort($port);
+        $keepsPanel = self::ruleIsAllow(['action' => self::validateAction($action)])
+            && self::portTouchesPanel($portNorm);
+        if (!self::canDeleteRule($st['rules'], $n) && !$keepsPanel) {
+            throw new InvalidArgumentException('cannot_delete_panel_port');
+        }
+        $del = self::run([self::ufwBinary(), '--force', 'delete', (string) $n]);
+        $out = $del['out'] . $del['err'];
+        if ($del['code'] !== 0) {
+            return ['ok' => false, 'out' => $out, 'error' => 'ufw_editrule_failed'];
+        }
+        $add = self::addRule($action, $proto, $port, $from);
+        $out .= (string) ($add['out'] ?? '');
+        if (empty($add['ok'])) {
+            return [
+                'ok' => false,
+                'out' => $out,
+                'error' => isset($add['error']) ? (string) $add['error'] : 'ufw_editrule_failed',
+            ];
+        }
+
+        return ['ok' => true, 'out' => $out];
+    }
+
     public static function validateDefaultPolicy(string $policy): string
     {
         $p = strtolower(trim($policy));

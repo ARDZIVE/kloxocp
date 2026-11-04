@@ -3186,12 +3186,16 @@ $ufwErr = '';
 try {
 	$ufwSwitch = $ufw->getSelfList();
 	$ufwForm = $ufw->updateform('addrule', array());
+	$ufwEditForm = $ufw->updateform('editrule', array());
 	$ufwEnForm = $ufw->updateform('ufwenable', array());
 	$ufwDisForm = $ufw->updateform('ufwdisable', array());
 	$ufwDefForm = $ufw->updateform('ufwdefaults', array());
 	$ufwDelForm = $ufw->updateform('deleterule', array());
 } catch (Throwable $e) {
 	$ufwErr = $e->getMessage();
+}
+if (!isset($ufwEditForm)) {
+	$ufwEditForm = null;
 }
 $ufwTabOk = is_array($ufwTabs['property'] ?? null)
 	&& count($ufwTabs['property']) === 1
@@ -3216,7 +3220,12 @@ $ufwUiOk = str_contains($ufwSrc, 'Port Rules')
 	&& str_contains($ufwSrc, 'formtablerow0')
 	&& str_contains($ufwSrc, 'mediumtableheader')
 	&& str_contains($ufwSrc, 'Family')
-	&& str_contains($ufwSrc, "\$ipv6 ? 'IPv6' : 'IPv4'")
+	&& str_contains($ufwSrc, 'Actions')
+	&& str_contains($ufwSrc, 'frm_ufw_filter')
+	&& str_contains($ufwSrc, 'frm_ufw_edit')
+	&& str_contains($ufwSrc, 'function updateEditrule')
+	&& str_contains($ufwSrc, 'delete.gif')
+	&& str_contains($ufwSrc, 'updateform_edit.gif')
 	&& !str_contains($ufwSrc, 'Default incoming:')
 	&& !str_contains($ufwSrc, 'No numbered rules.')
 	&& !str_contains($ufwSrc, 'background:#e8e8e8')
@@ -3228,6 +3237,10 @@ $ufwFormOk = is_array($ufwForm) && array_key_exists('ufw_action', $ufwForm)
 	&& array_key_exists('ufw_proto', $ufwForm)
 	&& array_key_exists('ufw_from', $ufwForm)
 	&& ($ufwForm['__v_button'] ?? '') === 'Add Rule';
+$ufwEditOk = is_array($ufwEditForm) && array_key_exists('ufw_rule', $ufwEditForm)
+	&& array_key_exists('ufw_action', $ufwEditForm)
+	&& array_key_exists('ufw_port', $ufwEditForm)
+	&& ($ufwEditForm['__v_button'] ?? '') === 'Update Rule';
 $ufwEnOk = is_array($ufwEnForm) && array_key_exists('ufw_confirm', $ufwEnForm)
 	&& ($ufwEnForm['__v_button'] ?? '') === 'Enable';
 $ufwDisOk = is_array($ufwDisForm) && array_key_exists('ufw_confirm', $ufwDisForm)
@@ -3274,11 +3287,12 @@ if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 	&& $ufwShowTab === 'UFW Firewall'
 	&& $ufwHomeTab === 'UFW Firewall'
 	&& $ufwTabOk && $ufwForcedOk && $ufwPserverTabOk && $ufwShowFormsOk && $ufwUiOk && $ufwSwitchOk
-	&& $ufwFormOk && $ufwEnOk && $ufwDisOk && $ufwDefOk && $ufwDelOk
+	&& $ufwFormOk && $ufwEditOk && $ufwEnOk && $ufwDisOk && $ufwDefOk && $ufwDelOk
 	&& $ufwCoreOk && $ufwSkipOk && $ufwRedirectOk && $ufwParentOk
 	&& $ufwIconOk
 	&& $ufw->isSync() === false
-	&& str_contains($ufwSrc, 'function getSelfList')) {
+	&& str_contains($ufwSrc, 'function getSelfList')
+	&& str_contains($ufwSrc, 'function filterRules')) {
 	ok('Security UFW Firewall manages status, defaults and numbered port rules');
 } else {
 	bad('Security UFW Firewall manages status, defaults and numbered port rules',
@@ -3289,6 +3303,7 @@ if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 			. ' icon=' . ($ufwIconOk ? 'ok' : 'no')
 			. ' emptyForms=' . ($ufwShowFormsOk ? 'ok' : 'no')
 			. ' add=' . ($ufwFormOk ? 'ok' : 'no')
+			. ' edit=' . ($ufwEditOk ? 'ok' : 'no')
 			. ' en=' . ($ufwEnOk ? 'ok' : 'no')
 			. ' dis=' . ($ufwDisOk ? 'ok' : 'no')
 			. ' def=' . ($ufwDefOk ? 'ok' : 'no')

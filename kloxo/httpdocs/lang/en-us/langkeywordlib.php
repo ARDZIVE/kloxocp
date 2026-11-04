@@ -261,6 +261,7 @@ $__throw["could_not_enable_ufw"] = "Could not enable UFW";
 $__throw["could_not_disable_ufw"] = "Could not disable UFW";
 $__throw["could_not_set_ufw_defaults"] = "Could not set UFW defaults";
 $__throw["could_not_add_ufw_rule"] = "Could not add UFW rule";
+$__throw["could_not_edit_ufw_rule"] = "Could not edit UFW rule";
 $__throw["could_not_delete_ufw_rule"] = "Could not delete UFW rule";
 $__throw["invalid_ufw_action"] = "Invalid UFW action";
 $__throw["invalid_ufw_proto"] = "Invalid UFW protocol";
