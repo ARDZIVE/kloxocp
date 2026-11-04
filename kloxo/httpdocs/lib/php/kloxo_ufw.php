@@ -222,7 +222,7 @@ final class KloxoUfw
     }
 
     /**
-     * @return array{active:bool, installed:bool, default_in:string, default_out:string, raw:string, rules:list<array{number:int,to:string,action:string,from:string}>}
+     * @return array{active:bool, installed:bool, default_in:string, default_out:string, raw:string, rules:list<array{number:int,to:string,action:string,from:string,ipv6:bool}>}
      */
     public static function parseStatus(string $verbose, string $numbered = ''): array
     {
@@ -250,7 +250,10 @@ final class KloxoUfw
     }
 
     /**
-     * @return list<array{number:int,to:string,action:string,from:string}>
+     * UFW with IPv6 enabled lists each allow twice (IPv4 then IPv6) with
+     * distinct rule numbers. Keep ipv6 so the UI does not look duplicated.
+     *
+     * @return list<array{number:int,to:string,action:string,from:string,ipv6:bool}>
      */
     public static function parseNumbered(string $text): array
     {
@@ -270,17 +273,21 @@ final class KloxoUfw
             ) !== 1) {
                 continue;
             }
-            $to = trim(preg_replace('/\s*\(v6\)\s*$/i', '', trim($m[2])) ?? trim($m[2]));
+            $toRaw = trim($m[2]);
+            $fromRaw = trim($m[5]);
+            $ipv6 = (bool) preg_match('/\(v6\)/i', $toRaw . ' ' . $fromRaw);
+            $to = trim(preg_replace('/\s*\(v6\)\s*$/i', '', $toRaw) ?? $toRaw);
             $action = strtoupper(trim($m[3]));
             if (isset($m[4]) && is_string($m[4]) && $m[4] !== '') {
                 $action .= ' ' . strtoupper($m[4]);
             }
-            $from = trim(preg_replace('/\s*\(v6\)\s*$/i', '', trim($m[5])) ?? trim($m[5]));
+            $from = trim(preg_replace('/\s*\(v6\)\s*$/i', '', $fromRaw) ?? $fromRaw);
             $out[] = [
                 'number' => (int) $m[1],
                 'to' => $to,
                 'action' => $action,
                 'from' => $from,
+                'ipv6' => $ipv6,
             ];
         }
 
@@ -382,7 +389,8 @@ final class KloxoUfw
             $p = self::run([$bin, 'allow', $port . '/tcp']);
             $out .= $p['out'] . $p['err'];
         }
-        foreach ([['53', 'tcp'], ['53', 'udp'], ['21', 'tcp']] as $pair) {
+        // DNS only here — TCP 21 is already in protectedTcpPorts().
+        foreach ([['53', 'tcp'], ['53', 'udp']] as $pair) {
             $p = self::run([$bin, 'allow', $pair[0] . '/' . $pair[1]]);
             $out .= $p['out'] . $p['err'];
         }

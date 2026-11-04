@@ -192,7 +192,7 @@ class ufwfirewall extends lxclass
 
 		echo '<br/>';
 		echo '<table class="tableheader" cellpadding="0" cellspacing="0" border="0" width="100%">';
-		echo '<tr class="mediumtableheader"><td class="col" colspan="6">'
+		echo '<tr class="mediumtableheader"><td class="col" colspan="7">'
 			. '<span class="tableheadtext">Port Rules</span> '
 			. '<span class="searchtext">(' . (int) $nRules . ')</span></td></tr>';
 		echo '<tr class="tablerow2">'
@@ -200,11 +200,13 @@ class ufwfirewall extends lxclass
 			. '<td class="col"><span class="tableheadtext">Action</span></td>'
 			. '<td class="col"><span class="tableheadtext">Protocol</span></td>'
 			. '<td class="col"><span class="tableheadtext">Port</span></td>'
+			. '<td class="col"><span class="tableheadtext">Family</span></td>'
 			. '<td class="col"><span class="tableheadtext">From</span></td>'
 			. '<td class="col" align="center"><span class="tableheadtext">Delete</span></td></tr>';
 		if ($rules === array()) {
-			echo '<tr class="tablerow0"><td class="col messagetext" colspan="6">No port rules yet. Add one below '
-				. '(rules apply when the firewall is active).</td></tr>';
+			echo '<tr class="tablerow0"><td class="col messagetext" colspan="7">No port rules yet. Add one below '
+				. '(rules apply when the firewall is active). With IPv6 enabled, UFW lists each '
+				. 'port twice (IPv4 and IPv6) with different rule numbers.</td></tr>';
 		} else {
 			$i = 0;
 			foreach ($rules as $r) {
@@ -217,6 +219,7 @@ class ufwfirewall extends lxclass
 				$to = isset($r['to']) ? (string) $r['to'] : '';
 				$actRaw = isset($r['action']) ? (string) $r['action'] : '';
 				$from = isset($r['from']) ? (string) $r['from'] : '';
+				$ipv6 = !empty($r['ipv6']);
 				$parsed = KloxoUfw::parseRuleTo($to);
 				$port = $parsed['port'] !== '' ? $parsed['port'] : $to;
 				$proto = $parsed['proto'] !== '' ? strtoupper($parsed['proto']) : 'any';
@@ -237,13 +240,16 @@ class ufwfirewall extends lxclass
 				} catch (Throwable $e) {
 					$canDel = true;
 				}
+				$fromLabel = $from !== '' ? $from : 'Anywhere';
+				$family = $ipv6 ? 'IPv6' : 'IPv4';
 				echo '<tr class="' . $rowClass . '">';
 				echo '<td class="col tablerowdetail0">' . htmlspecialchars($n, ENT_QUOTES) . '</td>';
 				echo '<td class="col tablerowdetail0">' . htmlspecialchars($actLabel, ENT_QUOTES) . '</td>';
 				echo '<td class="col tablerowdetail0">' . htmlspecialchars($proto, ENT_QUOTES) . '</td>';
 				echo '<td class="col tablerowdetail0">' . htmlspecialchars($port, ENT_QUOTES) . '</td>';
+				echo '<td class="col tablerowdetail0">' . htmlspecialchars($family, ENT_QUOTES) . '</td>';
 				echo '<td class="col tablerowdetail0">'
-					. htmlspecialchars($from !== '' ? $from : 'Anywhere', ENT_QUOTES) . '</td>';
+					. htmlspecialchars($fromLabel, ENT_QUOTES) . '</td>';
 				echo '<td class="col" align="center">';
 				if ($canDel) {
 					$this->printFormOpen('deleterule');
@@ -571,7 +577,8 @@ class ufwfirewall extends lxclass
 			$to = isset($r['to']) ? (string) $r['to'] : '';
 			$act = isset($r['action']) ? (string) $r['action'] : '';
 			$from = isset($r['from']) ? (string) $r['from'] : '';
-			$out[$n] = trim($n . ' ' . $to . ' ' . $act . ' ' . $from);
+			$fam = !empty($r['ipv6']) ? 'IPv6' : 'IPv4';
+			$out[$n] = trim($n . ' ' . $to . ' ' . $act . ' ' . $from . ' ' . $fam);
 		}
 
 		return $out;

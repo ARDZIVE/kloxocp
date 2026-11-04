@@ -422,12 +422,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     tab. Port management: Enable/Disable, default policies, numbered rules
     (ALLOW/DENY/REJECT add; per-row delete; lists `80,443`, ranges `80-82`).
     Fields/buttons use theme `textbox` / `submitbutton` / `tableheader` /
-    `tablerow*` / `formtablerow0` (no custom grey inline chrome).
-    `KloxoUfw` is loaded from `include.php` and runs as root via
+    `tablerow*` / `formtablerow0` (no custom grey inline chrome). Port Rules
+    show a **Family** column (IPv4/IPv6): with IPv6 on, UFW stores each allow
+    twice under different rule numbers; the UI used to strip `(v6)` and look
+    doubled. `KloxoUfw` is loaded from `include.php` and runs as root via
     kloxo-backend when the panel is not root (no silent non-root fallback).
     Enable allows panel 7777/7778 plus SSH, HTTP/S, FTP, DNS, mail, IMAP/POP,
     webcache 8080 and webproxy 30080; deny/reject of panel ports and deleting
-    the last panel allow are refused. Numbered parse accepts `(v6)` lines.
+    the last panel allow are refused. Numbered parse keeps an `ipv6` flag.
     `install.sh` packages `ufw` inactive. No left Find box. Live UFW after
     deploy is **UNVERIFIED**. SSH Terminal is admin-only (pserver
     child, not client home) and shows a WebConsole-like black terminal

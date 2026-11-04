@@ -47,10 +47,40 @@ if ($st['active'] === true && $st['default_in'] === 'deny' && $st['default_out']
 	&& count($st['rules']) === 4 && $st['rules'][0]['number'] === 1
 	&& $st['rules'][1]['to'] === '7777/tcp'
 	&& $st['rules'][3]['to'] === '443/tcp'
-	&& $st['rules'][3]['from'] === 'Anywhere') {
+	&& $st['rules'][3]['from'] === 'Anywhere'
+	&& empty($st['rules'][0]['ipv6'])
+	&& !empty($st['rules'][3]['ipv6'])) {
 	ok('parseStatus reads active, defaults, and numbered rules');
 } else {
 	bad('parseStatus reads active, defaults, and numbered rules', var_export($st, true));
+}
+
+// Dual-stack: UFW repeats each allow for IPv6 with a new number; Family must differ.
+$dual = <<<'TXT'
+Status: active
+
+     To                         Action      From
+     --                         ------      ----
+[ 1] 22/tcp                     ALLOW IN    Anywhere
+[ 2] 22/tcp (v6)                ALLOW IN    Anywhere (v6)
+TXT;
+$dualRules = KloxoUfw::parseNumbered($dual);
+if (count($dualRules) === 2
+	&& $dualRules[0]['number'] === 1 && $dualRules[1]['number'] === 2
+	&& $dualRules[0]['to'] === '22/tcp' && $dualRules[1]['to'] === '22/tcp'
+	&& empty($dualRules[0]['ipv6']) && !empty($dualRules[1]['ipv6'])) {
+	ok('parseNumbered keeps IPv4/IPv6 pair as two rules with ipv6 flag');
+} else {
+	bad('parseNumbered keeps IPv4/IPv6 pair as two rules with ipv6 flag', var_export($dualRules, true));
+}
+
+$ufwUi = (string) file_get_contents($root . '/kloxo/httpdocs/driver/pserver/ufwfirewalllib.php');
+if (str_contains($ufwUi, 'Family')
+	&& str_contains($ufwUi, "\$ipv6 ? 'IPv6' : 'IPv4'")
+	&& str_contains($ufwUi, "colspan=\"7\"")) {
+	ok('UFW Port Rules table shows Family IPv4/IPv6');
+} else {
+	bad('UFW Port Rules table shows Family IPv4/IPv6');
 }
 
 $off = KloxoUfw::parseStatus("Status: inactive\nDefault: deny (incoming), allow (outgoing)");
