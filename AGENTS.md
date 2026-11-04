@@ -52,6 +52,7 @@ reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `Exception`); Sqlite/do_remote_exec/import/superadmin wrap a missing `kloxo.pass`. Install seeds a `localhost` driver row and
 `generalmisc_b` so the home page does not fatal on a missing driver or
 null `used`. General Settings tab is labelled **General Settings**;
+Client Processing Logs (`domaindefault`) beige tab is **Client Processing Logs**;
 install seeds Login Message
 `<p> Welcome to <%programname%>  </p><p>Use a valid username and password to gain access to the console. </p>`
 and `etc/flag/enablecronforall.flg` so Enable Cron For All Users is checked
@@ -79,13 +80,18 @@ Multiple PHP Remove; Apache optimize writes
 `kloxo-optimize.conf`; PHP Type on Ubuntu is proxy_fcgi + mpm_event/worker;
 fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share exactly two beige tabs
 (**PHP Configure** / **Advanced PHP Configure**; `phpiniPropertyTabs`, forced; no parent Home/Domain
-tabs on either page; different links `a=show` and `a=updateform&sa=extraedit`). Nested `phpini_flag_b-*` form
+tabs on either page; different links `a=show` and `a=updateform&sa=extraedit`).
+`kloxo_menu_title` must not assign `$ghtml->frm_o_o`; `getFullUrl` falls back to
+`__http_vars` so tabs keep the object path (no bare Home tab). Nested `phpini_flag_b-*` form
 fields resolve without a TypeError when the flag class has no `$__desc`.
 Heading uses the phpini nname (`client-admin`). Output Compression is a text
 value (`off`), not a checkbox; defaults match Kloxo-MR (execution 600, input
 180, post/upload 1024M, allow_url_include on, PHP-fpm Type static, extensions
-`.php .php3 .php4 .php5`). Parent/login guards keep both forms loadable when
-the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with exactly one beige tab **UFW Firewall**: enable/disable, default policies, numbered port rules (add ALLOW/DENY/REJECT, delete); ports accept lists/ranges; `KloxoUfw` runs as root via kloxo-backend (`include.php` loads it); enable first allows panel 7777/7778 plus SSH/web/FTP/DNS/mail/webcache; deny/reject of panel ports and deleting the last panel allow are refused. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
+`.php .php3 .php4 .php5`). Advanced fields match the screenshot (Sendmail From,
+Enable Dl, Output Buffering, Allow URL FOpen/Include, Register Argc Argv,
+Disable Functions, times/limits, File Uploads, CGI Force Redirect). Parent/login
+guards keep both forms loadable when the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`; font icon WebHostingHub
+`firewall`/`f021`, collage `ufwfirewall_*.gif`) with exactly one beige tab **UFW Firewall**: enable/disable, default policies, numbered port rules (add ALLOW/DENY/REJECT, delete); ports accept lists/ranges; fields/buttons use theme `textbox` / `submitbutton` / `tableheader` classes; `KloxoUfw` runs as root via kloxo-backend (`include.php` loads it); enable first allows panel 7777/7778 plus SSH/web/FTP/DNS/mail/webcache; deny/reject of panel ports and deleting the last panel allow are refused. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
 (add form + Switch To Another; mail uses `__driver_mail`; webcache 8080
 and webproxy 30080 are nginx frontends started by `install-webfront`). SSH Configure beige tab is **SSH Configure** (not Home). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
 omit the left Find box. Manage DNS beige tabs are Manage DNS, Rebuild, NS, A, AAAA, CNAME, FCNAME, MX, TXT, CAA, SRV, General Settings; show lists `dns_record_a` without `write()`/`setUpdateSubaction` (template records often lack `parent_clname`; dirtying the zone made `login->was()` sync DNS and bounce Home). Live Manage DNS after deploy is UNVERIFIED. Client PHPinfo is web `a=show&sa=phpinfo` (site `php -i` via argument-array `proc_open`); `getTrueParentO`/`getParentO` treat `client-admin` as root (`isRootClient`) and never print `no parent_clname`. Live PHPinfo after deploy is UNVERIFIED. Change Owner (`a=updateform&sa=changeowner`) builds a client select without calling methods on a missing parent; `Lxclient::updateform` does not load `general` first; help text does not explode a null string. Live Change Owner after deploy is UNVERIFIED. SSL Certificates under a domain has beige tabs SSL Certificates, Add SSL File, Add SSL Text, Add Let's Encrypt, Add SSL Link, Switch To Another of sibling domains, and columns User Name, Certificate Name, Add Type, Parent Domain, Syncserver (list toolbar search stays). HelpDesk ticket show has Switch To Another
@@ -96,11 +102,40 @@ Another plus a confirmation Update (no extra fields). File Manager keeps the lis
 New dir, Copy/Cut/Paste, columns Size/Name/Modified/Owner/Permissions) like
 Kloxo-MR; listing uses kloxo-backend on loopback 7776 when the panel is not
 root, with in-process fallback. File Manager beige tabs are File Manager,
-Permissions, Ownership, Disk Usage, Upload, Thumbnail. Backup / Restore has exactly five beige tabs
-(**Backup / Restore**, **FTP Configuration**, **Schedule Configuration**,
+Permissions, Ownership, Disk Usage, Upload, Thumbnail. On show the first
+tab is **File Manager** (selected; not Home) with the list toolbar and
+columns (T/Size/File Name/Modified/Owner/Permissions/Rename/Download).
+Clicking **Permissions** keeps the ffile path, selects that tab, and shows
+the Kloxo-MR Change Permissions form (User/Group/Others matrix, Totals,
+Target All, Change Permssions Recursively, Change). Clicking **Ownership**
+keeps the path, selects that tab, and shows Change Ownership (Current,
+User/Group selects, Change Ownership Recursively, Change; web user is
+`www-data` on Ubuntu). Clicking **Disk Usage** goes to `a=show&sa=diskspace`
+(selected) and lists files with Size plus **% Of Tot**. Clicking **Upload**
+keeps the path, selects that tab, and shows three forms (local Upload with
+overwrite warning + progress, Upload (http), Upload (ftp)). Clicking
+**Thumbnail** uses lowercase `a=updateform&sa=thumbnail` (selected) with
+Width/Height default `20` and Update. Live File Manager after deploy needs a
+tree with the getFullUrl path fallback. Backup / Restore has exactly five beige tabs
+(**Backup / Restore** selected on show, **FTP Configuration**, **Schedule Configuration**,
 **File Manager**, **Upload**): show has Backup Now / Restore From File /
-Restore From FTP; FTP and Schedule forms match Kloxo-MR; File Manager and
-Upload under backup keep those five tabs (`backupPropertyTabs` forced). LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
+Restore From FTP; clicking **FTP Configuration** keeps the lxbackup path and
+selects that tab (FTP Server, Username, Password, Directory, Upload Files To
+Remote Server, Upload Type `ftp`, Dont Keep A Local Copy, Dont Verify FTP
+Credentials, Update / Updateall). Clicking **Schedule Configuration** keeps the
+path and selects that tab (Schedule Backup select default `disabled`, Time To
+Backup default `6` for admin, Keep This Many Backups On The Server default `5`,
+Update / Updateall; schedule privilege uses `checkButton`, tab always listed).
+File Manager under backup keeps those five tabs with **File Manager** selected
+(`goback=1` so Backup / Restore is not also selected): Address
+`(Backup / Restore: …) /`, toolbar T Hidden / Remove / Copy (+ Refresh/search/
+Showall), columns T / Size / File Name / Modified / Owner / Permissions / Rename /
+Download. Clicking **Upload** keeps lxbackup+ffile path with **Upload** selected
+(`goback=1`): three sections Upload / Upload (http) / Upload (ftp) (local file
+with overwrite warning + progress upload, URL + overwrite, FTP Server/Username/
+Password/File Name + overwrite). Bare Home tab label maps to **Backup / Restore**
+when current object is lxbackup (same frm_o_o path fix as PHP Configure). Live
+Backup FTP/Schedule/File Manager/Upload after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend
@@ -108,11 +143,14 @@ home) and shows a WebConsole-like black terminal as root via kloxo-backend
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.
+Traceroute parses both `traceroute` and `tracepath` output; response times
+show three decimal places and unreachable hops (`no reply` / `*`) show as `*`
+(not `no`). Live Traceroute after deploy is UNVERIFIED.
 Cron Tasks Mail To does not need the C daemon on TCP 7776.
 DNS Template links list `dnstemplate`, not Backup/Restore.
 The DNS Templates list has the add form on that tab; there is no separate
-Add this template tab. The add form prefills name `default`, primary `ns1`,
-secondary `ns2`. Adding a DNS template does not throw `no_ip_address` on an empty IP table
+Add this template tab. The add form leaves DNS Template Name, Primary DNS
+and Secondary DNS empty. Adding a DNS template does not throw `no_ip_address` on an empty IP table
 (live `ip -4 addr` is used; IPs are typed when that list is empty), does not run `fixIpAddress.php`,
 qualifies a blank or short nameserver to `ns1.<template>.dnst`, and writes default NS/A/MX records into
 `dns_record_a`. Secondary NS is validated separately from primary.
@@ -120,7 +158,13 @@ FTP Configure is `serverftp` under localhost, not Backup FTP Configuration;
 the beige tab is labelled **FTP Configure**.
 The Services list shows only installed units (`install_state=on`); running
 and boot status come from systemd `ActiveState` / `UnitFileState`
-(aliases: bind9/named, mariadb/mysqld, phpX.Y-fpm).
+(aliases: bind9/named, mariadb/mysqld, phpX.Y-fpm). Duplicate RHEL/Debian
+names collapse to one row (`apache2` not `httpd`, `bind9` not `named`,
+`mariadb` not `mysqld`). Service start/stop/restart/enable/disable uses
+absolute `systemctl` via argument-array `proc_open` (`Service__Linux::systemctlRun`);
+driver includes use `__DIR__`. Live Services actions after deploy are UNVERIFIED.
+`httpd` and `apache2` are the same Apache daemon (RHEL vs Debian unit name);
+`named` and `bind9` are the same BIND daemon.
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
 Mails Per Client lists under the selected pserver and shows Switch To Another.
 Admin Servers can add a remote host (hostname or IPv4 plus the slave password)
@@ -141,6 +185,16 @@ admin/admin against the live panel succeeded; every page still died
 in the Server menu at the SSH Client title until `kloxo_menu_title`
 and `install.sh` git-pull/rsync. Re-run install after pulling this
 tree, then re-check Home.
+Mail Server Settings under localhost has exactly three beige tabs (**Mail Server
+Settings** selected on `sa=update`, **Spamdyke**, **Whitelist IPs**), Switch To
+Another (pserver list), and the Kloxo-MR update form (My Name, Enable Spamdyke,
+Enable Domainkey/DKIM, Enable Virus Scan, Max Mail Attachment Size default
+41943040, Queue Life Time 604800, Max SMTP Instances 50, SMTP Relay, Send Limit
+30000, Update). Clicking **Spamdyke** keeps the servermail path and selects that
+tab (Greet Delay, max recipients 150, graylisting, RDNS/MX reject flags, DNS RBL
+Servers textarea, Blacklist Headers, Update). Clicking **Whitelist IPs** selects
+that tab and lists `mail_graylist_wlist_a` (add Whitelist IP + list column). Live
+Mail Server Settings after deploy is UNVERIFIED.
 Next: remaining P2 runtime, Debian packaging, or P4 exim UI. See briefing
 section 7.
 

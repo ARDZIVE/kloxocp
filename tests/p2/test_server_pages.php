@@ -134,8 +134,9 @@ if (Service::canGetSingle()
 	&& in_array('postfix', Service::defaultServiceList(), true)
 	&& Service__Linux::unitName('pdns-server') === 'pdns'
 	&& $svcDummy->subaction === 'start'
-	&& str_contains($debSrc, "lxshell_return('systemctl', \$act, \$unit)")
+	&& str_contains($debSrc, 'Service__Linux::systemctlRun')
 	&& str_contains($debSrc, "case 'start':")
+	&& str_contains($debSrc, "include_once __DIR__")
 	&& count($svcFiltered) === 2
 	&& ($svcFiltered[0]['nname'] ?? '') === 'nginx___localhost'
 	&& ($svcFiltered[1]['nname'] ?? '') === 'apache2___localhost'
@@ -143,10 +144,13 @@ if (Service::canGetSingle()
 	&& ($svcMissing['missing']['state'] ?? '') === 'off'
 	&& in_array('named', $svcBindCands, true) && in_array('bind9', $svcBindCands, true)
 	&& in_array('mysql', $svcMariaCands, true) && in_array('mariadb', $svcMariaCands, true)
+	&& Service__Linux::preferredServiceName('httpd') === 'apache2'
+	&& Service__Linux::preferredServiceName('named') === 'bind9'
 	&& Service__Linux::checkService('') === 'off'
 	&& Service__Linux::isSafeUnit('php8.3-fpm')
 	&& !Service__Linux::isSafeUnit('php-fpm; rm -rf /')
 	&& str_contains((string)file_get_contents($doc . '/driver/pserver/service__linuxlib.php'), 'function resolveInstalledUnit')
+	&& str_contains((string)file_get_contents($doc . '/driver/pserver/service__linuxlib.php'), 'function systemctlRun')
 	&& str_contains((string)file_get_contents($doc . '/driver/pserver/service__linuxlib.php'), 'ActiveState')) {
 	ok('Services list only installed units and read systemd ActiveState');
 } else {
@@ -156,6 +160,27 @@ if (Service::canGetSingle()
 			. ' installed=' . ($svcAllInstalled ? 'yes' : 'no')
 			. ' missing=' . var_export($svcMissing['missing']['install_state'] ?? null, true)
 		)));
+}
+
+$svcAliasProbe = Service__Linux::getServiceDetails(array(
+	'httpd' => array('servicename' => 'httpd', 'nname' => 'httpd___localhost'),
+	'apache2' => array('servicename' => 'apache2', 'nname' => 'apache2___localhost'),
+	'named' => array('servicename' => 'named', 'nname' => 'named___localhost'),
+	'bind9' => array('servicename' => 'bind9', 'nname' => 'bind9___localhost'),
+));
+$httpdOn = ($svcAliasProbe['httpd']['install_state'] ?? '') === 'on';
+$apacheOn = ($svcAliasProbe['apache2']['install_state'] ?? '') === 'on';
+$namedOn = ($svcAliasProbe['named']['install_state'] ?? '') === 'on';
+$bindOn = ($svcAliasProbe['bind9']['install_state'] ?? '') === 'on';
+// On machines without those units both stay dull; when one family is installed, only the preferred name is on.
+$aliasOk = !($httpdOn && $apacheOn) && !($namedOn && $bindOn)
+	&& (!$httpdOn || !$apacheOn || $apacheOn)
+	&& (Service__Linux::systemctlBin() === '' || is_string(Service__Linux::systemctlBin()));
+if ($aliasOk) {
+	ok('Services list collapses httpd/apache2 and named/bind9 aliases');
+} else {
+	bad('Services list collapses httpd/apache2 and named/bind9 aliases',
+		"httpd={$httpdOn} apache2={$apacheOn} named={$namedOn} bind9={$bindOn}");
 }
 
 $psSrc = (string) file_get_contents($doc . '/driver/pserver/pserver__linuxlib.php');
@@ -270,16 +295,26 @@ $phpShowUrl = kloxo_content_tab_label('',
 	'display.php?frm_action=show&frm_o_o[0][class]=phpini');
 $phpExtraUrl = kloxo_content_tab_label('Update _extraedit',
 	'a=updateform&sa=extraedit&o=phpini');
+$phpHomeViaObj = 'Home';
+$prevGblPhp = $gbl ?? null;
+if (!isset($gbl) || !is_object($gbl)) {
+	$gbl = new stdClass();
+}
+$gbl->__c_object = new phpini(null, 'localhost', 'client-admin');
+$phpHomeViaObj = kloxo_content_tab_label('Home', 'display.php?frm_action=show');
+$gbl = $prevGblPhp;
 if (is_array($phpShowTitle) && ($phpShowTitle[2] ?? '') === 'PHP Configure'
 	&& is_array($phpEditTitle) && ($phpEditTitle[2] ?? '') === 'PHP Configure'
 	&& is_array($phpExtraTitle) && ($phpExtraTitle[2] ?? '') === 'Advanced PHP Configure'
 	&& $phpExtraOnly === 'Advanced PHP Configure'
 	&& $phpShowUrl === 'PHP Configure'
 	&& $phpExtraUrl === 'Advanced PHP Configure'
+	&& $phpHomeViaObj === 'PHP Configure'
 	&& function_exists('kloxo_url_has_phpini') && kloxo_url_has_phpini('a=show&o=phpini')
 	&& str_contains($phpTabSrc, 'kloxo_content_tab_label')
 	&& str_contains($lxlibSrc, "return 'PHP Configure'")
 	&& str_contains($lxlibSrc, "return 'Advanced PHP Configure'")
+	&& str_contains($lxlibSrc, 'Do not assign $ghtml->frm_o_o')
 	&& str_contains($phpDescSrc, '$__description["PHP Configure"]')
 	&& str_contains($phpDescSrc, '$__description["Advanced PHP Configure"]')) {
 	ok('PHP Configure page tabs are labelled PHP Configure and Advanced PHP Configure');
@@ -287,7 +322,8 @@ if (is_array($phpShowTitle) && ($phpShowTitle[2] ?? '') === 'PHP Configure'
 	bad('PHP Configure page tabs are labelled PHP Configure and Advanced PHP Configure',
 		'showTitle=' . (is_array($phpShowTitle) ? (string) ($phpShowTitle[2] ?? '') : 'none')
 			. ' extraTitle=' . (is_array($phpExtraTitle) ? (string) ($phpExtraTitle[2] ?? '') : 'none')
-			. ' extraOnly=' . (string) $phpExtraOnly);
+			. ' extraOnly=' . (string) $phpExtraOnly
+			. ' homeObj=' . (string) $phpHomeViaObj);
 }
 
 if (class_exists('Component__deb')) {
@@ -423,7 +459,7 @@ try {
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
 	&& str_contains($src, "'sshconfig', 'lxguard', 'ufwfirewall', 'sshclient', 'ffile', 'ticket', 'notification'")
-	&& str_contains($src, "'lxupdate', 'dns', 'dns_record_a', 'web'")
+	&& str_contains($src, "'lxupdate', 'dns', 'dns_record_a', 'web', 'servermail', 'mail_graylist_wlist_a'")
 	&& str_contains($src, "'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist'")) {
 	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns show pages');
 } else {
@@ -865,12 +901,15 @@ try {
 	$nnameVal = $vars['nname'] ?? null;
 	$nsVal = $vars['nameserver_f'] ?? null;
 	$secVal = $vars['secnameserver_f'] ?? null;
-	if (is_array($nnameVal) && ($nnameVal[1]['value'] ?? '') === 'default'
-		&& is_array($nsVal) && ($nsVal[1]['value'] ?? '') === 'ns1'
-		&& is_array($secVal) && ($secVal[1]['value'] ?? '') === 'ns2') {
-		ok('DNS template addform prefills default, ns1 and ns2');
+	if (is_array($nnameVal) && ($nnameVal[1]['value'] ?? 'x') === ''
+		&& is_array($nsVal) && ($nsVal[1]['value'] ?? 'x') === ''
+		&& is_array($secVal) && ($secVal[1]['value'] ?? 'x') === '') {
+		ok('DNS template addform leaves name and nameservers empty');
 	} else {
-		bad('DNS template addform prefills default, ns1 and ns2');
+		bad('DNS template addform leaves name and nameservers empty',
+			'nname=' . var_export($nnameVal, true)
+				. ' ns=' . var_export($nsVal, true)
+				. ' sec=' . var_export($secVal, true));
 	}
 	$webip = $vars['webipaddress'] ?? null;
 	if ($webip === null || (is_array($webip) && ($webip[0] ?? '') === 's' && is_array($webip[1] ?? null) && $webip[1] !== array())) {
@@ -1319,9 +1358,9 @@ if (is_string($perm) && $perm !== ''
 $fmTabs = array(
 	kloxo_content_tab_label('Update_perm', 'a=updateform&sa=perm'),
 	kloxo_content_tab_label('Update_own', 'a=updateform&sa=own'),
-	kloxo_content_tab_label('Update_diskspace', 'a=update&sa=diskspace'),
+	kloxo_content_tab_label('Update_diskspace', 'a=show&sa=diskspace'),
 	kloxo_content_tab_label('Update_upload', 'a=updateform&sa=upload'),
-	kloxo_content_tab_label('Update_thumbnail', 'a=updateForm&sa=thumbnail'),
+	kloxo_content_tab_label('Update_thumbnail', 'a=updateform&sa=thumbnail'),
 );
 $fmTools = array(
 	kloxo_content_tab_label('Update_toggle_dot', 'a=update&sa=toggle_dot'),
@@ -1360,11 +1399,289 @@ if ($fmTabs === array('Permissions', 'Ownership', 'Disk Usage', 'Upload', 'Thumb
 			. ' show=' . $fmShow . ' parent=' . var_export($trueParent, true));
 }
 
+$fmPrevGhtml = $ghtml ?? null;
+$fmPrevGbl = $gbl ?? null;
+try {
+	$ghtml = new HtmlLib();
+	$ghtml->__http_vars = array(
+		'frm_action' => 'show',
+		'frm_o_o' => array(
+			array('class' => 'client', 'nname' => 'admin'),
+			array('class' => 'ffile', 'nname' => '/'),
+		),
+	);
+	$ghtml->frm_o_o = null;
+	$fmPermUrl = $ghtml->getFullUrl('a=updateform&sa=perm');
+	$fmShowUrl = $ghtml->getFullUrl('a=show');
+	$fmOwnUrl = $ghtml->getFullUrl('a=updateform&sa=own');
+	$curShow = 'display.php?' . $ghtml->get_get_from_current_post(null);
+	$showTabSelect = $ghtml->compare_urls($curShow, is_string($fmShowUrl) ? $fmShowUrl : '');
+	$permOnShow = $ghtml->compare_urls($curShow, is_string($fmPermUrl) ? $fmPermUrl : '');
+	if (!isset($gbl) || !is_object($gbl)) {
+		$gbl = new stdClass();
+	}
+	$gbl->__c_object = $ff;
+	$fmHomeBare = kloxo_content_tab_label('Home', '/display.php?frm_action=show');
+	$fmHomeFull = kloxo_content_tab_label('Home', is_string($fmShowUrl) ? $fmShowUrl : '');
+	$ghtml->__http_vars['frm_action'] = 'updateform';
+	$ghtml->__http_vars['frm_subaction'] = 'perm';
+	$ghtml->__http_vars['frm_o_o'] = array(
+		array('class' => 'client', 'nname' => 'admin'),
+		array('class' => 'ffile', 'nname' => '/'),
+	);
+	unset($ghtml->frm_o_o);
+	$curPerm = 'display.php?' . $ghtml->get_get_from_current_post(null);
+	$permSelect = $ghtml->compare_urls($curPerm, is_string($fmPermUrl) ? $fmPermUrl : '');
+	$showSelect = $ghtml->compare_urls($curPerm, is_string($fmShowUrl) ? $fmShowUrl : '');
+	$ffParent = new Client(null, 'localhost', 'admin');
+	$ffParent->nname = 'admin';
+	$ffParent->cttype = 'admin';
+	$ff->__parent_o = $ffParent;
+	$ffProps = array('property' => array());
+	$ff->createShowPropertyList($ffProps);
+	$permVars = $ff->updateform('perm', array());
+	$fmBlist = Ffile::createListBlist($ff, 'ffile');
+	$kwSrc = (string) file_get_contents($doc . '/lang/en-us/langkeywordlib.php');
+	$fmFirstOk = is_string($fmShowUrl) && str_contains($fmShowUrl, 'ffile')
+		&& $showTabSelect === true && $permOnShow === false
+		&& ($ffProps['property'][0] ?? '') === 'a=show'
+		&& $fmHomeBare === 'File Manager'
+		&& $fmHomeFull === 'File Manager'
+		&& kloxo_content_tab_label('home', $fmShowUrl) === 'File Manager'
+		&& is_array($fmBlist)
+		&& count(array_filter($fmBlist, static function ($b) {
+			return is_array($b) && is_string($b[0] ?? null)
+				&& (str_contains($b[0], 'sa=paste') || str_contains($b[0], 'sa=toggle_dot')
+					|| str_contains($b[0], 'sa=newdir') || str_contains($b[0], 'sa=copy'));
+		})) >= 4;
+	$fmPermOk = is_string($fmPermUrl) && str_contains($fmPermUrl, 'frm_subaction=perm')
+		&& str_contains($fmPermUrl, 'ffile')
+		&& str_contains($fmOwnUrl, 'ffile')
+		&& $permSelect === true && $showSelect === false
+		&& is_array($ffProps['property'] ?? null)
+		&& in_array('a=updateform&sa=perm', $ffProps['property'], true)
+		&& is_array($permVars) && array_key_exists('file_permission_f', $permVars)
+		&& array_key_exists('target_f', $permVars)
+		&& array_key_exists('recursive_f', $permVars)
+		&& str_contains($htmlsrc, 'function print_file_permissions')
+		&& str_contains($htmlsrc, 'sendchmod')
+		&& str_contains($htmlsrc, 'frm_ffile_c_target_f')
+		&& str_contains($htmlsrc, 'permissions_recursively')
+		&& str_contains($kwSrc, 'Change Permissions')
+		&& str_contains($kwSrc, 'Change Permssions Recursively')
+		&& kloxo_content_tab_label('Update_perm', $fmPermUrl) === 'Permissions';
+	if ($fmFirstOk) {
+		ok('File Manager first tab is File Manager and selected on show');
+	} else {
+		bad('File Manager first tab is File Manager and selected on show',
+			'showUrl=' . (is_string($fmShowUrl) ? $fmShowUrl : 'none')
+				. ' select=' . ($showTabSelect ? 'yes' : 'no')
+				. ' homeBare=' . (string) $fmHomeBare
+				. ' homeFull=' . (string) $fmHomeFull);
+	}
+	if ($fmPermOk) {
+		ok('File Manager Permissions tab keeps path, selects, and matches Kloxo-MR form');
+	} else {
+		bad('File Manager Permissions tab keeps path, selects, and matches Kloxo-MR form',
+			'permUrl=' . (is_string($fmPermUrl) ? $fmPermUrl : 'none')
+				. ' select=' . ($permSelect ? 'yes' : 'no')
+				. ' showSelect=' . ($showSelect ? 'yes' : 'no'));
+	}
+
+	$ghtml->__http_vars['frm_action'] = 'updateform';
+	$ghtml->__http_vars['frm_subaction'] = 'own';
+	$ghtml->__http_vars['frm_o_o'] = array(
+		array('class' => 'client', 'nname' => 'admin'),
+		array('class' => 'ffile', 'nname' => '/'),
+	);
+	unset($ghtml->frm_o_o);
+	$curOwn = 'display.php?' . $ghtml->get_get_from_current_post(null);
+	$ownSelect = $ghtml->compare_urls($curOwn, is_string($fmOwnUrl) ? $fmOwnUrl : '');
+	$showOnOwn = $ghtml->compare_urls($curOwn, is_string($fmShowUrl) ? $fmShowUrl : '');
+	$ownVars = $ff->updateform('own', array());
+	$fmOwnOk = is_string($fmOwnUrl) && str_contains($fmOwnUrl, 'frm_subaction=own')
+		&& str_contains($fmOwnUrl, 'ffile')
+		&& $ownSelect === true && $showOnOwn === false
+		&& in_array('a=updateform&sa=own', $ffProps['property'], true)
+		&& is_array($ownVars) && array_key_exists('file_ownership_f', $ownVars)
+		&& array_key_exists('user_f', $ownVars)
+		&& array_key_exists('group_f', $ownVars)
+		&& array_key_exists('recursive_f', $ownVars)
+		&& str_contains($htmlsrc, 'function print_file_ownership')
+		&& str_contains($htmlsrc, 'sendchown')
+		&& str_contains($htmlsrc, 'ownership_current')
+		&& str_contains($htmlsrc, 'frm_ffile_c_user_f')
+		&& str_contains($htmlsrc, 'frm_ffile_c_group_f')
+		&& str_contains($htmlsrc, 'ownership_recursively')
+		&& str_contains($kwSrc, 'Change Ownership')
+		&& str_contains($kwSrc, 'Change Ownership Recursively')
+		&& kloxo_content_tab_label('Update_own', $fmOwnUrl) === 'Ownership';
+	if ($fmOwnOk) {
+		ok('File Manager Ownership tab keeps path, selects, and matches Kloxo-MR form');
+	} else {
+		bad('File Manager Ownership tab keeps path, selects, and matches Kloxo-MR form',
+			'ownUrl=' . (is_string($fmOwnUrl) ? $fmOwnUrl : 'none')
+				. ' select=' . ($ownSelect ? 'yes' : 'no')
+				. ' showSelect=' . ($showOnOwn ? 'yes' : 'no'));
+	}
+
+	$fmDuUrl = $ghtml->getFullUrl('a=show&sa=diskspace');
+	$ghtml->__http_vars['frm_action'] = 'show';
+	$ghtml->__http_vars['frm_subaction'] = 'diskspace';
+	$ghtml->__http_vars['frm_o_o'] = array(
+		array('class' => 'client', 'nname' => 'admin'),
+		array('class' => 'ffile', 'nname' => '/'),
+	);
+	unset($ghtml->frm_o_o);
+	$curDu = 'display.php?' . $ghtml->get_get_from_current_post(null);
+	$duSelect = $ghtml->compare_urls($curDu, is_string($fmDuUrl) ? $fmDuUrl : '');
+	$showOnDu = $ghtml->compare_urls($curDu, is_string($fmShowUrl) ? $fmShowUrl : '');
+	$ff->duflag = true;
+	$duNlist = Ffile::createListNlist($ff, null);
+	$ff->duflag = false;
+	$plainNlist = Ffile::createListNlist($ff, null);
+	$fmSrc = (string) file_get_contents($doc . '/driver/pserver/ffilelib.php');
+	$fmDuOk = is_string($fmDuUrl) && str_contains($fmDuUrl, 'frm_subaction=diskspace')
+		&& str_contains($fmDuUrl, 'ffile')
+		&& $duSelect === true && $showOnDu === false
+		&& in_array('a=show&sa=diskspace', $ffProps['property'], true)
+		&& !in_array('a=update&sa=diskspace', $ffProps['property'], true)
+		&& is_array($duNlist) && array_key_exists('sizeper', $duNlist)
+		&& array_key_exists('size', $duNlist)
+		&& is_array($plainNlist) && !array_key_exists('sizeper', $plainNlist)
+		&& str_contains($fmSrc, 'a=show&sa=diskspace')
+		&& str_contains($fmSrc, "frm_subaction === 'diskspace'")
+		&& kloxo_content_tab_label('Update_diskspace', $fmDuUrl) === 'Disk Usage'
+		&& kloxo_content_tab_label('Disk Usage', $fmDuUrl) === 'Disk Usage'
+		&& kloxo_content_tab_label('home', $fmDuUrl) === 'Disk Usage';
+	if ($fmDuOk) {
+		ok('File Manager Disk Usage tab keeps path, selects, and shows % Of Tot');
+	} else {
+		bad('File Manager Disk Usage tab keeps path, selects, and shows % Of Tot',
+			'duUrl=' . (is_string($fmDuUrl) ? $fmDuUrl : 'none')
+				. ' select=' . ($duSelect ? 'yes' : 'no')
+				. ' showSelect=' . ($showOnDu ? 'yes' : 'no')
+				. ' nlist=' . implode(',', array_keys(is_array($duNlist) ? $duNlist : array())));
+	}
+
+	$fmUpUrl = $ghtml->getFullUrl('a=updateform&sa=upload');
+	$ghtml->__http_vars['frm_action'] = 'updateform';
+	$ghtml->__http_vars['frm_subaction'] = 'upload';
+	$ghtml->__http_vars['frm_o_o'] = array(
+		array('class' => 'client', 'nname' => 'admin'),
+		array('class' => 'ffile', 'nname' => '/'),
+	);
+	unset($ghtml->frm_o_o);
+	$curUp = 'display.php?' . $ghtml->get_get_from_current_post(null);
+	$upSelect = $ghtml->compare_urls($curUp, is_string($fmUpUrl) ? $fmUpUrl : '');
+	$showOnUp = $ghtml->compare_urls($curUp, is_string($fmShowUrl) ? $fmShowUrl : '');
+	$upMulti = $ff->getMultiUpload('upload');
+	$upLocal = $ff->updateform('upload_s', array());
+	$upHttp = $ff->updateform('download_from_http', array());
+	$upFtp = $ff->updateform('download_from_ftp', array());
+	$fmUpOk = is_string($fmUpUrl) && str_contains($fmUpUrl, 'frm_subaction=upload')
+		&& str_contains($fmUpUrl, 'ffile')
+		&& $upSelect === true && $showOnUp === false
+		&& in_array('a=updateform&sa=upload', $ffProps['property'], true)
+		&& $upMulti === array('upload_s', 'download_from_http', 'download_from_ftp')
+		&& is_array($upLocal) && array_key_exists('upload_overwrite_f', $upLocal)
+		&& array_key_exists('upload_file_f', $upLocal)
+		&& ($upLocal['__v_button'] ?? '') === 'Upload'
+		&& is_array($upHttp) && array_key_exists('download_url_f', $upHttp)
+		&& array_key_exists('download_overwrite_f', $upHttp)
+		&& ($upHttp['__v_button'] ?? '') === 'Upload'
+		&& is_array($upFtp) && array_key_exists('download_ftp_f', $upFtp)
+		&& array_key_exists('download_username_f', $upFtp)
+		&& array_key_exists('download_password_f', $upFtp)
+		&& array_key_exists('download_ftp_file_f', $upFtp)
+		&& array_key_exists('download_overwrite_f', $upFtp)
+		&& ($upFtp['__v_button'] ?? '') === 'Upload'
+		&& str_contains($fmSrc, 'function getMultiUpload')
+		&& kloxo_content_tab_label('Update_upload', $fmUpUrl) === 'Upload'
+		&& kloxo_content_tab_label('Update_upload_s', 'a=updateform&sa=upload_s') === 'Upload'
+		&& kloxo_content_tab_label('Update_download_from_http', 'a=updateform&sa=download_from_http') === 'Upload (http)'
+		&& kloxo_content_tab_label('Update_download_from_ftp', 'a=updateform&sa=download_from_ftp') === 'Upload (ftp)';
+	if ($fmUpOk) {
+		ok('File Manager Upload tab keeps path, selects, and shows three upload forms');
+	} else {
+		bad('File Manager Upload tab keeps path, selects, and shows three upload forms',
+			'upUrl=' . (is_string($fmUpUrl) ? $fmUpUrl : 'none')
+				. ' select=' . ($upSelect ? 'yes' : 'no')
+				. ' multi=' . (is_array($upMulti) ? implode(',', $upMulti) : 'none'));
+	}
+
+	$fmThUrl = $ghtml->getFullUrl('a=updateform&sa=thumbnail');
+	$fmThBad = $ghtml->getFullUrl('a=updateForm&sa=thumbnail');
+	$ghtml->__http_vars['frm_action'] = 'updateform';
+	$ghtml->__http_vars['frm_subaction'] = 'thumbnail';
+	$ghtml->__http_vars['frm_o_o'] = array(
+		array('class' => 'client', 'nname' => 'admin'),
+		array('class' => 'ffile', 'nname' => '/'),
+	);
+	unset($ghtml->frm_o_o);
+	$curTh = 'display.php?' . $ghtml->get_get_from_current_post(null);
+	$thSelect = $ghtml->compare_urls($curTh, is_string($fmThUrl) ? $fmThUrl : '');
+	$thBadSelect = $ghtml->compare_urls($curTh, is_string($fmThBad) ? $fmThBad : '');
+	$showOnTh = $ghtml->compare_urls($curTh, is_string($fmShowUrl) ? $fmShowUrl : '');
+	$thVars = $ff->updateform('thumbnail', array());
+	$fmThOk = is_string($fmThUrl) && str_contains($fmThUrl, 'frm_subaction=thumbnail')
+		&& str_contains($fmThUrl, 'frm_action=updateform')
+		&& str_contains($fmThUrl, 'ffile')
+		&& $thSelect === true && $thBadSelect === false && $showOnTh === false
+		&& in_array('a=updateform&sa=thumbnail', $ffProps['property'], true)
+		&& !in_array('a=updateForm&sa=thumbnail', $ffProps['property'], true)
+		&& is_array($thVars) && array_key_exists('image_width', $thVars)
+		&& array_key_exists('image_height', $thVars)
+		&& ($thVars['__v_button'] ?? '') === 'Update'
+		&& ($ff->image_width ?? '') === '20'
+		&& ($ff->image_height ?? '') === '20'
+		&& kloxo_content_tab_label('Update_thumbnail', $fmThUrl) === 'Thumbnail'
+		&& kloxo_content_tab_label('thumbnail', $fmThUrl) === 'Thumbnail';
+	if ($fmThOk) {
+		ok('File Manager Thumbnail tab keeps path, selects, and shows Width/Height 20');
+	} else {
+		bad('File Manager Thumbnail tab keeps path, selects, and shows Width/Height 20',
+			'thUrl=' . (is_string($fmThUrl) ? $fmThUrl : 'none')
+				. ' select=' . ($thSelect ? 'yes' : 'no')
+				. ' badSelect=' . ($thBadSelect ? 'yes' : 'no')
+				. ' w=' . (string) ($ff->image_width ?? '')
+				. ' h=' . (string) ($ff->image_height ?? ''));
+	}
+} catch (Throwable $e) {
+	bad('File Manager first tab is File Manager and selected on show',
+		$e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+	bad('File Manager Permissions tab keeps path, selects, and matches Kloxo-MR form',
+		$e->getMessage());
+	bad('File Manager Ownership tab keeps path, selects, and matches Kloxo-MR form',
+		$e->getMessage());
+	bad('File Manager Disk Usage tab keeps path, selects, and shows % Of Tot',
+		$e->getMessage());
+	bad('File Manager Upload tab keeps path, selects, and shows three upload forms',
+		$e->getMessage());
+	bad('File Manager Thumbnail tab keeps path, selects, and shows Width/Height 20',
+		$e->getMessage());
+}
+if ($fmPrevGhtml !== null) {
+	$ghtml = $fmPrevGhtml;
+}
+if ($fmPrevGbl !== null) {
+	$gbl = $fmPrevGbl;
+}
+
+$bakPrevLogin = $login ?? null;
+$login = new Client(null, 'localhost', 'admin');
+$login->nname = 'admin';
+$login->cttype = 'admin';
+$GLOBALS['login'] = $login;
 $bak = new lxbackup(null, 'localhost', 'admin');
 $bak->nname = 'client-admin';
 $bak->ftp_server = '';
 $bak->backupstage = '';
 $bak->restorestage = '';
+$bakParent = new Client(null, 'localhost', 'admin');
+$bakParent->nname = 'admin';
+$bakParent->cttype = 'admin';
+$bak->__parent_o = $bakParent;
 $bakTabs = array('property' => array());
 $bak->createShowPropertyList($bakTabs);
 $bakForced = lxbackup::backupPropertyTabs();
@@ -1372,6 +1689,14 @@ $bakFull = 'display.php?frm_action=show&frm_o_o[0][class]=client&frm_o_o[0][nnam
 $bakFullFtp = 'display.php?frm_action=updateform&frm_subaction=ftp_conf&frm_o_o[0][class]=lxbackup&frm_o_o[0][nname]=admin';
 $bakFullSched = '/display.php?frm_action=updateform&frm_subaction=schedule_conf&frm_o_o%5B0%5D%5Bclass%5D=lxbackup';
 $bakShow = kloxo_content_tab_label('lxbackup', $bakFull);
+$bakHomeBare = 'Home';
+$prevGblBak = $gbl ?? null;
+if (!isset($gbl) || !is_object($gbl)) {
+	$gbl = new stdClass();
+}
+$gbl->__c_object = $bak;
+$bakHomeBare = kloxo_content_tab_label('Home', 'display.php?frm_action=show');
+$gbl = $prevGblBak;
 $bakFtp = kloxo_content_tab_label('Update_ftp_conf', 'a=updateform&sa=ftp_conf');
 $bakFtpFull = kloxo_content_tab_label('Update _ftp_conf', $bakFullFtp);
 $bakSched = kloxo_content_tab_label('schedule_configuration', 'a=updateform&sa=schedule_conf');
@@ -1404,11 +1729,40 @@ foreach (array('backup', 'restore_from_file', 'restore_from_ftp', 'ftp_conf', 's
 }
 $bakShowForms = $bak->createShowUpdateform();
 $bakUploadMulti = null;
+$bakUploadForms = array();
 try {
 	$bakUploadMulti = $bakFf->getMultiUpload('upload');
+	foreach ((array) $bakUploadMulti as $bakUpSa) {
+		$bakUploadForms[$bakUpSa] = $bakFf->updateform($bakUpSa, array());
+	}
 } catch (Throwable $e) {
 	$bakFormErr .= 'upload:' . $e->getMessage() . ';';
 }
+$bakUpLocal = $bakUploadForms['upload_s'] ?? null;
+$bakUpHttp = $bakUploadForms['download_from_http'] ?? null;
+$bakUpFtp = $bakUploadForms['download_from_ftp'] ?? null;
+$bakUpFormsOk = is_array($bakUpLocal)
+	&& array_key_exists('upload_overwrite_f', $bakUpLocal)
+	&& is_array($bakUpLocal['upload_overwrite_f'] ?? null)
+	&& ($bakUpLocal['upload_overwrite_f'][0] ?? '') === 'W'
+	&& is_string($bakUpLocal['upload_overwrite_f'][1] ?? null)
+	&& str_contains((string) $bakUpLocal['upload_overwrite_f'][1], 'WARNING: Existing file will be overwritten')
+	&& array_key_exists('upload_file_f', $bakUpLocal)
+	&& ($bakUpLocal['__v_button'] ?? '') === 'Upload'
+	&& is_array($bakUpHttp)
+	&& array_key_exists('download_url_f', $bakUpHttp)
+	&& array_key_exists('download_overwrite_f', $bakUpHttp)
+	&& ($bakUpHttp['__v_button'] ?? '') === 'Upload'
+	&& is_array($bakUpFtp)
+	&& array_key_exists('download_ftp_f', $bakUpFtp)
+	&& array_key_exists('download_username_f', $bakUpFtp)
+	&& array_key_exists('download_password_f', $bakUpFtp)
+	&& array_key_exists('download_ftp_file_f', $bakUpFtp)
+	&& array_key_exists('download_overwrite_f', $bakUpFtp)
+	&& ($bakUpFtp['__v_button'] ?? '') === 'Upload'
+	&& kloxo_content_tab_label('Update_upload_s', 'a=updateform&sa=upload_s') === 'Upload'
+	&& kloxo_content_tab_label('Update_download_from_http', 'a=updateform&sa=download_from_http') === 'Upload (http)'
+	&& kloxo_content_tab_label('Update_download_from_ftp', 'a=updateform&sa=download_from_ftp') === 'Upload (ftp)';
 $bakSrc = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
 $bakLib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 $bakCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
@@ -1417,7 +1771,27 @@ $bakFfProp = $bakFfTabs['property'] ?? array();
 $bakFfHas = is_array($bakFfProp)
 	&& in_array('goback=1&a=show', $bakFfProp, true)
 	&& in_array('goback=1&a=updateform&sa=ftp_conf', $bakFfProp, true)
-	&& in_array('goback=1&a=show&l[class]=ffile&l[nname]=/', $bakFfProp, true);
+	&& in_array('goback=1&a=updateform&sa=schedule_conf', $bakFfProp, true)
+	&& in_array('goback=1&a=show&l[class]=ffile&l[nname]=/', $bakFfProp, true)
+	&& in_array('goback=1&l[class]=ffile&l[nname]=/&a=updateform&sa=upload', $bakFfProp, true);
+$bakFfBlist = array();
+$bakFfBlistErr = '';
+try {
+	$bakFfBlist = Ffile::createListBlist($bakFf, 'ffile');
+} catch (Throwable $e) {
+	$bakFfBlistErr = $e->getMessage();
+}
+$bakFfTools = array();
+foreach ((array) $bakFfBlist as $bakFfBtn) {
+	$bakFfUrl = is_array($bakFfBtn) ? ($bakFfBtn[0] ?? '') : $bakFfBtn;
+	$bakFfTools[] = kloxo_content_tab_label('', is_string($bakFfUrl) ? $bakFfUrl : '');
+}
+$bakFfNlist = array();
+try {
+	$bakFfNlist = Ffile::createListNlist($bakFf, null);
+} catch (Throwable $e) {
+	$bakFfNlist = array('error' => $e->getMessage());
+}
 $bakTabCount = is_array($bakForced) ? count($bakForced) : 0;
 $bakFormOk = is_array($bakForms['backup'] ?? null)
 	&& array_key_exists('upload_to_ftp', $bakForms['backup'])
@@ -1443,15 +1817,20 @@ $bakFormOk = is_array($bakForms['backup'] ?? null)
 	&& array_key_exists('restore_from_ftp', $bakShowForms)
 	&& is_array($bakUploadMulti)
 	&& $bakUploadMulti === array('upload_s', 'download_from_http', 'download_from_ftp')
+	&& $bakUpFormsOk
 	&& $bakFormErr === '';
+$bakSchedForm = $bakForms['schedule_conf'] ?? null;
+$bakSchedType = is_array($bakSchedForm) ? ($bakSchedForm['backupschedule_type'] ?? null) : null;
+$bakSchedTime = is_array($bakSchedForm) ? ($bakSchedForm['backupschedule_time'] ?? null) : null;
 if (($bakProp[0] ?? '') === 'a=show'
 	&& ($bakProp[1] ?? '') === 'a=updateform&sa=ftp_conf'
-	&& ($bakProp['__var_backupschedule_flag'] ?? '') === 'a=updateform&sa=schedule_conf'
-	&& ($bakProp[2] ?? '') === 'a=show&l[class]=ffile&l[nname]=/'
-	&& ($bakProp[3] ?? '') === 'l[class]=ffile&l[nname]=/&a=updateform&sa=upload'
+	&& ($bakProp[2] ?? '') === 'a=updateform&sa=schedule_conf'
+	&& ($bakProp[3] ?? '') === 'a=show&l[class]=ffile&l[nname]=/'
+	&& ($bakProp[4] ?? '') === 'l[class]=ffile&l[nname]=/&a=updateform&sa=upload'
 	&& $bakTabCount === 5
 	&& $bakForced === $bakProp
 	&& $bakShow === 'Backup / Restore'
+	&& $bakHomeBare === 'Backup / Restore'
 	&& $bakFtp === 'FTP Configuration'
 	&& $bakFtpFull === 'FTP Configuration'
 	&& $bakSched === 'Schedule Configuration'
@@ -1462,25 +1841,72 @@ if (($bakProp[0] ?? '') === 'a=show'
 	&& $bakBrowse === 'File Manager'
 	&& $bakUpload === 'Upload'
 	&& $bakFfHas
+	&& $bakFfBlistErr === ''
+	&& $bakFfTools === array('T Hidden', 'Remove', 'Copy')
+	&& is_array($bakFfNlist)
+	&& array_keys($bakFfNlist) === array(
+		'ttype', 'size', 'nname', 'mtime', 'other_username', 'mode', 'pvrename', 'pvdownload')
 	&& $bakFormOk
+	&& is_array($bakForms['ftp_conf'] ?? null)
+	&& array_key_exists('ftp_server', $bakForms['ftp_conf'])
+	&& array_key_exists('rm_username', $bakForms['ftp_conf'])
+	&& array_key_exists('rm_password', $bakForms['ftp_conf'])
+	&& array_key_exists('rm_directory', $bakForms['ftp_conf'])
+	&& array_key_exists('upload_to_ftp', $bakForms['ftp_conf'])
+	&& array_key_exists('upload_type', $bakForms['ftp_conf'])
+	&& ($bakForms['ftp_conf']['upload_type'][0] ?? '') === 'M'
+	&& ($bakForms['ftp_conf']['upload_type'][1] ?? '') === 'ftp'
+	&& array_key_exists('no_local_copy_flag', $bakForms['ftp_conf'])
+	&& array_key_exists('dont_verify_ftp_f', $bakForms['ftp_conf'])
+	&& array_key_exists('__v_updateall_button', $bakForms['ftp_conf'])
+	&& is_array($bakSchedType) && ($bakSchedType[0] ?? '') === 's'
+	&& is_array($bakSchedType[1] ?? null)
+	&& in_array('disabled', $bakSchedType[1], true)
+	&& in_array('daily', $bakSchedType[1], true)
+	&& ($bak->backupschedule_type ?? '') === 'disabled'
+	&& is_array($bakSchedTime) && ($bakSchedTime[0] ?? '') === 's'
+	&& is_array($bakSchedTime[1] ?? null) && in_array(6, $bakSchedTime[1], true)
+	&& (int) ($bak->backupschedule_time ?? -1) === 6
+	&& (int) ($bak->rm_last_number ?? -1) === 5
+	&& array_key_exists('__v_updateall_button', (array) $bakSchedForm)
 	&& kloxo_object_is_backup_page($bak)
 	&& kloxo_object_is_backup_page($bakFf)
 	&& str_contains($bakSrc, 'function backupPropertyTabs')
 	&& str_contains($bakSrc, "\$alist['property'] = self::backupPropertyTabs()")
 	&& str_contains($bakSrc, 'Backup / Restore')
+	&& str_contains($bakSrc, "case \"ftp_conf\"")
+	&& str_contains($bakSrc, "case \"schedule_conf\"")
+	&& str_contains($bakSrc, "checkButton('backupschedule_flag')")
+	&& !str_contains($bakSrc, "'__var_backupschedule_flag'")
 	&& str_contains($bakLib, 'function kloxo_backup_page_tab_label')
+	&& str_contains($bakLib, "\$cur === 'lxbackup'")
 	&& str_contains($bakCore, 'backupPropertyTabs()')) {
 	ok('Backup/Restore page tabs are labelled Backup / Restore, FTP Configuration, Schedule Configuration');
 } else {
 	bad('Backup/Restore page tabs are labelled Backup / Restore, FTP Configuration, Schedule Configuration',
-		'show=' . $bakShow . ' ftp=' . $bakFtp . '/' . $bakFtpFull . ' sched=' . $bakSched . '/' . $bakSchedFull
+		'show=' . $bakShow . ' homeBare=' . $bakHomeBare
+			. ' ftp=' . $bakFtp . '/' . $bakFtpFull . ' sched=' . $bakSched . '/' . $bakSchedFull
 			. ' now=' . $bakNow . ' file=' . $bakFile . ' restftp=' . $bakFtpRest
 			. ' browse=' . $bakBrowse . ' upload=' . $bakUpload
 			. ' props=' . implode(',', array_map('strval', $bakProp))
 			. ' ff=' . implode(',', array_map('strval', $bakFfProp))
 			. ' formErr=' . $bakFormErr
-			. ' formOk=' . ($bakFormOk ? '1' : '0'));
+			. ' formOk=' . ($bakFormOk ? '1' : '0')
+			. ' ftpKeys=' . implode(',', array_keys((array) ($bakForms['ftp_conf'] ?? array())))
+			. ' schedType=' . json_encode($bakSchedType)
+			. ' defaults=' . (string) ($bak->backupschedule_type ?? '')
+				. '/' . (string) ($bak->backupschedule_time ?? '')
+				. '/' . (string) ($bak->rm_last_number ?? '')
+			. ' fmTools=' . implode(',', $bakFfTools)
+			. ' fmCols=' . implode(',', array_keys((array) $bakFfNlist))
+			. ' fmBlistErr=' . $bakFfBlistErr
+			. ' upOk=' . ($bakUpFormsOk ? '1' : '0')
+			. ' upLocal=' . implode(',', array_keys((array) $bakUpLocal))
+			. ' upHttp=' . implode(',', array_keys((array) $bakUpHttp))
+			. ' upFtp=' . implode(',', array_keys((array) $bakUpFtp)));
 }
+$login = $bakPrevLogin;
+$GLOBALS['login'] = $bakPrevLogin;
 
 $cff = (string)file_get_contents($doc . '/lib/php/coreffilelib.php');
 $missing = array('no');
@@ -2635,8 +3061,14 @@ $ufwUiOk = str_contains($ufwSrc, 'Port Rules')
 	&& str_contains($ufwSrc, 'ufwdisable')
 	&& str_contains($ufwSrc, 'splitPorts')
 	&& str_contains($ufwSrc, 'ufw_backend_failed')
+	&& str_contains($ufwSrc, 'class="textbox"')
+	&& str_contains($ufwSrc, 'class="submitbutton"')
+	&& str_contains($ufwSrc, 'class="tableheader"')
+	&& str_contains($ufwSrc, 'formtablerow0')
+	&& str_contains($ufwSrc, 'mediumtableheader')
 	&& !str_contains($ufwSrc, 'Default incoming:')
 	&& !str_contains($ufwSrc, 'No numbered rules.')
+	&& !str_contains($ufwSrc, 'background:#e8e8e8')
 	&& !str_contains($ufwSrc, '\$eRaw');
 $ufwSwitchOk = is_array($ufwSwitch) && isset($ufwSwitch['localhost'])
 	&& is_object($ufwSwitch['localhost']) && method_exists($ufwSwitch['localhost'], 'getId');
@@ -2674,6 +3106,11 @@ $ufwActionSrc = (string) file_get_contents($doc . '/lib/html/objectactionlib.php
 $ufwParentOk = str_contains($ufwActionSrc, '$qparent = is_object($parent) ? $parent : null')
 	&& str_contains($ufwActionSrc, 'Do not fall back to $object')
 	&& str_contains($ufwActionSrc, 'if (!is_object($parent))');
+$htmlSrcUfw = (string) file_get_contents($doc . '/theme/htmllib.php');
+$ufwIconOk = str_contains($htmlSrcUfw, "\$a[0] === 'ufwfirewall'")
+	&& str_contains($htmlSrcUfw, '"f021"')
+	&& is_file($doc . '/theme/icon/collage/ufwfirewall_list.gif')
+	&& is_file($doc . '/theme/icon/collage/ufwfirewall_show.gif');
 if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 	&& str_contains($ufwPserver, 'ufwPropertyTabsForPserver')
 	&& str_contains($ufwPserver, '__title_security')
@@ -2688,6 +3125,7 @@ if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 	&& $ufwTabOk && $ufwForcedOk && $ufwPserverTabOk && $ufwShowFormsOk && $ufwUiOk && $ufwSwitchOk
 	&& $ufwFormOk && $ufwEnOk && $ufwDisOk && $ufwDefOk && $ufwDelOk
 	&& $ufwCoreOk && $ufwSkipOk && $ufwRedirectOk && $ufwParentOk
+	&& $ufwIconOk
 	&& $ufw->isSync() === false
 	&& str_contains($ufwSrc, 'function getSelfList')) {
 	ok('Security UFW Firewall manages status, defaults and numbered port rules');
@@ -2697,6 +3135,7 @@ if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 			. ' show=' . $ufwShowTab . ' home=' . $ufwHomeTab
 			. ' tabs=' . implode(',', (array) ($ufwTabs['property'] ?? array()))
 			. ' ui=' . ($ufwUiOk ? 'ok' : 'no')
+			. ' icon=' . ($ufwIconOk ? 'ok' : 'no')
 			. ' emptyForms=' . ($ufwShowFormsOk ? 'ok' : 'no')
 			. ' add=' . ($ufwFormOk ? 'ok' : 'no')
 			. ' en=' . ($ufwEnOk ? 'ok' : 'no')
@@ -2825,6 +3264,195 @@ if ($wmOk && $wmFormOk) {
 		'list=' . implode(',', (array) $wmList)
 			. ' form=' . implode(',', (array) $wmFormList));
 }
+
+$smPrevLogin = $login ?? null;
+$login = new Client(null, 'localhost', 'admin');
+$login->nname = 'admin';
+$login->cttype = 'admin';
+$GLOBALS['login'] = $login;
+$sm = new ServerMail(null, 'localhost', 'localhost');
+$sm->nname = 'localhost';
+$smTabs = array('property' => array());
+$sm->createShowPropertyList($smTabs);
+$smForced = ServerMail::servermailPropertyTabs();
+$smFull = 'display.php?frm_action=updateform&frm_subaction=update'
+	. '&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=servermail';
+$smSpamUrl = 'display.php?frm_action=updateform&frm_subaction=spamdyke'
+	. '&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=servermail';
+$smWhiteUrl = 'display.php?frm_action=list&frm_o_cname=mail_graylist_wlist_a'
+	. '&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=servermail';
+$smShow = kloxo_content_tab_label('server_mail_settings', $smFull);
+$smHomeBare = 'Home';
+$prevGblSm = $gbl ?? null;
+if (!isset($gbl) || !is_object($gbl)) {
+	$gbl = new stdClass();
+}
+$gbl->__c_object = $sm;
+$smHomeBare = kloxo_content_tab_label('Home', 'display.php?frm_action=show');
+$gbl = $prevGblSm;
+$smSpam = kloxo_content_tab_label('Update_spamdyke', $smSpamUrl);
+$smWhite = kloxo_content_tab_label('whitelist_ip', $smWhiteUrl);
+$smForm = null;
+$smSpamForm = null;
+$smFormErr = '';
+try {
+	$smForm = $sm->updateform('update', array());
+	$smSpamForm = $sm->updateform('spamdyke', array());
+} catch (Throwable $e) {
+	$smFormErr = $e->getMessage();
+}
+$smSpamFormOk = is_array($smSpamForm)
+	&& array_key_exists('greet_delay', $smSpamForm)
+	&& array_key_exists('max_rcpnts', $smSpamForm)
+	&& array_key_exists('graylist_flag', $smSpamForm)
+	&& array_key_exists('graylist_min_secs', $smSpamForm)
+	&& array_key_exists('graylist_max_secs', $smSpamForm)
+	&& array_key_exists('reject_empty_rdns_flag', $smSpamForm)
+	&& array_key_exists('reject_ip_in_cc_rdns_flag', $smSpamForm)
+	&& array_key_exists('reject_missing_sender_mx_flag', $smSpamForm)
+	&& array_key_exists('reject_unresolvable_rdns_flag', $smSpamForm)
+	&& array_key_exists('dns_blacklists', $smSpamForm)
+	&& is_array($smSpamForm['dns_blacklists'] ?? null)
+	&& ($smSpamForm['dns_blacklists'][0] ?? '') === 't'
+	&& str_contains((string) ($smSpamForm['dns_blacklists'][1] ?? ''), 'zen.spamhaus.org')
+	&& array_key_exists('default_dns_blacklists_flag', $smSpamForm)
+	&& array_key_exists('blacklist_headers', $smSpamForm)
+	&& is_array($smSpamForm['blacklist_headers'] ?? null)
+	&& ($smSpamForm['blacklist_headers'][0] ?? '') === 't'
+	&& array_key_exists('default_blacklist_headers_flag', $smSpamForm)
+	&& (string) ($sm->greet_delay ?? '') === '1'
+	&& (string) ($sm->max_rcpnts ?? '') === '150'
+	&& (string) ($sm->graylist_min_secs ?? '') === '300'
+	&& (string) ($sm->graylist_max_secs ?? '') === '1814400';
+$smSpamSelect = false;
+$smWhiteSelect = false;
+$smWhiteListOk = false;
+if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl') && method_exists($ghtml, 'compare_urls')) {
+	$ghtml->__http_vars = array(
+		'frm_action' => 'updateform',
+		'frm_subaction' => 'update',
+		'frm_o_o' => array(
+			array('class' => 'pserver', 'nname' => 'localhost'),
+			array('class' => 'servermail'),
+		),
+	);
+	$ghtml->frm_o_o = null;
+	$smSpamHref = $ghtml->getFullUrl('a=updateform&sa=spamdyke');
+	$smWhiteHref = $ghtml->getFullUrl('a=list&c=mail_graylist_wlist_a');
+	$ghtml->__http_vars['frm_subaction'] = 'spamdyke';
+	$smCur = 'display.php?' . $ghtml->get_get_from_current_post(null);
+	$smHits = 0;
+	$smHitLab = '';
+	foreach (ServerMail::servermailPropertyTabs() as $smTab) {
+		$tu = $ghtml->getFullUrl($smTab);
+		if ($ghtml->compare_urls($smCur, $tu)) {
+			$smHits++;
+			$smHitLab = kloxo_content_tab_label('', $tu);
+		}
+	}
+	$smSpamSelect = $smHits === 1 && $smHitLab === 'Spamdyke'
+		&& is_string($smSpamHref) && str_contains($smSpamHref, 'spamdyke');
+
+	$ghtml->__http_vars['frm_action'] = 'list';
+	unset($ghtml->__http_vars['frm_subaction']);
+	$ghtml->__http_vars['frm_o_cname'] = 'mail_graylist_wlist_a';
+	$smCur = 'display.php?' . $ghtml->get_get_from_current_post(null);
+	$smHits = 0;
+	$smHitLab = '';
+	foreach (ServerMail::servermailPropertyTabs() as $smTab) {
+		$tu = $ghtml->getFullUrl($smTab);
+		if ($ghtml->compare_urls($smCur, $tu)) {
+			$smHits++;
+			$smHitLab = kloxo_content_tab_label('', $tu);
+		}
+	}
+	$smWhiteSelect = $smHits === 1 && $smHitLab === 'Whitelist IPs'
+		&& is_string($smWhiteHref) && str_contains($smWhiteHref, 'mail_graylist_wlist_a');
+}
+$smSrc = (string) file_get_contents($doc . '/driver/mmail/servermaillib.php');
+$smCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$smLib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+try {
+	$smWhiteNlist = mail_graylist_wlist_a::createListNlist($sm, null);
+	$smWhiteAdd = mail_graylist_wlist_a::addform($sm, 'mail_graylist_wlist_a');
+	$smWhiteListOk = mail_graylist_wlist_a::createListAddForm($sm, 'mail_graylist_wlist_a') === true
+		&& is_array($smWhiteNlist) && array_key_exists('nname', $smWhiteNlist)
+		&& is_array($smWhiteAdd) && ($smWhiteAdd['action'] ?? '') === 'add'
+		&& array_key_exists('nname', (array) ($smWhiteAdd['variable'] ?? array()))
+		&& str_contains($smSrc, "\$__desc_mail_graylist_wlist_a")
+		&& str_contains($smSrc, 'function createListNlist');
+} catch (Throwable $e) {
+	$smWhiteListOk = false;
+}
+$smProp = $smTabs['property'] ?? array();
+$smFormOk = is_array($smForm)
+	&& array_key_exists('myname', $smForm)
+	&& array_key_exists('spamdyke_flag', $smForm)
+	&& array_key_exists('domainkey_flag', $smForm)
+	&& array_key_exists('virus_scan_flag', $smForm)
+	&& array_key_exists('max_size', $smForm)
+	&& array_key_exists('queuelifetime', $smForm)
+	&& array_key_exists('smtp_instance', $smForm)
+	&& array_key_exists('smtp_relay', $smForm)
+	&& array_key_exists('send_limit', $smForm)
+	&& (string) ($sm->max_size ?? '') === '41943040'
+	&& (string) ($sm->queuelifetime ?? '') === '604800'
+	&& (string) ($sm->smtp_instance ?? '') === '50'
+	&& (string) ($sm->send_limit ?? '') === '30000'
+	&& ($sm->virus_scan_flag ?? '') === 'off';
+$selfList = null;
+try {
+	$selfList = $sm->getSelfList();
+} catch (Throwable $e) {
+	$selfList = null;
+}
+if (($smProp[0] ?? '') === 'a=updateform&sa=update'
+	&& ($smProp[1] ?? '') === 'a=updateform&sa=spamdyke'
+	&& ($smProp[2] ?? '') === 'a=list&c=mail_graylist_wlist_a'
+	&& $smForced === $smProp
+	&& $smShow === 'Mail Server Settings'
+	&& $smHomeBare === 'Mail Server Settings'
+	&& $smSpam === 'Spamdyke'
+	&& $smWhite === 'Whitelist IPs'
+	&& $smFormOk
+	&& $smSpamFormOk
+	&& $smSpamSelect
+	&& $smWhiteSelect
+	&& $smWhiteListOk
+	&& $smFormErr === ''
+	&& is_array($selfList) && isset($selfList['localhost'])
+	&& kloxo_skip_find_class('servermail')
+	&& kloxo_skip_find_class('mail_graylist_wlist_a')
+	&& kloxo_url_has_servermail($smFull)
+	&& str_contains($smSrc, 'function servermailPropertyTabs')
+	&& str_contains($smSrc, 'function applySpamdykeDefaults')
+	&& str_contains($smSrc, "\$alist['property'] = self::servermailPropertyTabs()")
+	&& str_contains($smCore, 'servermailPropertyTabs()')
+	&& str_contains($smLib, 'function kloxo_servermail_page_tab_label')
+	&& str_contains($smLib, "\$cur === 'servermail'")) {
+	ok('Mail Server Settings first tab and Kloxo-MR form fields');
+} else {
+	bad('Mail Server Settings first tab and Kloxo-MR form fields',
+		'show=' . $smShow . ' home=' . $smHomeBare
+			. ' spam=' . $smSpam . ' white=' . $smWhite
+			. ' props=' . implode(',', array_map('strval', (array) $smProp))
+			. ' formErr=' . $smFormErr
+			. ' formOk=' . ($smFormOk ? '1' : '0')
+			. ' spamFormOk=' . ($smSpamFormOk ? '1' : '0')
+			. ' spamSelect=' . ($smSpamSelect ? '1' : '0')
+			. ' whiteSelect=' . ($smWhiteSelect ? '1' : '0')
+			. ' whiteList=' . ($smWhiteListOk ? '1' : '0')
+			. ' keys=' . implode(',', array_keys((array) $smForm))
+			. ' spamKeys=' . implode(',', array_keys((array) $smSpamForm))
+			. ' defaults=' . (string) ($sm->max_size ?? '')
+				. '/' . (string) ($sm->queuelifetime ?? '')
+				. '/' . (string) ($sm->smtp_instance ?? '')
+				. '/' . (string) ($sm->send_limit ?? '')
+			. ' spamDef=' . (string) ($sm->greet_delay ?? '')
+				. '/' . (string) ($sm->max_rcpnts ?? ''));
+}
+$login = $smPrevLogin;
+$GLOBALS['login'] = $smPrevLogin;
 
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

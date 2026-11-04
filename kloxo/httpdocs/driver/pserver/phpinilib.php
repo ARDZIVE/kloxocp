@@ -500,8 +500,14 @@ class phpini extends lxdb
 		$this->initialValue('max_input_vars_flag', '3000');
 
 		if (is_link("/etc/localtime")) {
-			$c = str_replace("/usr/share/zoneinfo/", "", readlink("/etc/localtime"));
-			$this->initialValue('date_timezone_flag', $c);
+			$c = (string) readlink("/etc/localtime");
+			foreach (array('/usr/share/zoneinfo/', '/var/db/timezone/zoneinfo/') as $pref) {
+				if (str_starts_with($c, $pref)) {
+					$c = substr($c, strlen($pref));
+					break;
+				}
+			}
+			$this->initialValue('date_timezone_flag', $c !== '' ? $c : 'Europe/London');
 		} else {
 			$this->initialValue('date_timezone_flag', 'Europe/London');
 		}

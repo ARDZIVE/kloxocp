@@ -94,7 +94,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Change Owner | Client select of candidate owners; does not die on a missing parent. |
 | SSL Certificates | Under a domain: **SSL Certificates**, **Add SSL File**, **Add SSL Text**, **Add Let's Encrypt**, **Add SSL Link**; Switch To Another of sibling domains. |
 | Manage DNS | Tabs **Manage DNS**, **Rebuild**, **NS**, **A**, **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**, **General Settings**. No left Find box. Show does not rewrite the zone. |
-| DNS Templates | Add form on the list tab (name `default`, ns1/ns2). No separate Add this template tab. |
+| DNS Templates | Add form on the list tab (name/primary/secondary empty). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
 | Update | **10.1-2026110201**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
 | Services | Lists only installed units; running/boot from systemd `ActiveState` / `UnitFileState`. Includes `kloxo-webcache` and `kloxo-webproxy` after install. |

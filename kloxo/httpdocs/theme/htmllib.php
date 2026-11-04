@@ -2224,25 +2224,22 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login;
 
-		$ffile->getPermissions($perm);
-
-		if ($perm[0] === '') {
-			$user = 0;
-		} else {
-			$user = $perm[0];
+		$perm = '';
+		if (is_object($ffile) && method_exists($ffile, 'getPermissions')) {
+			try {
+				$ffile->getPermissions($perm);
+			} catch (Throwable $e) {
+				$perm = '';
+			}
+		}
+		$perm = is_scalar($perm) ? (string) $perm : '';
+		while (strlen($perm) < 3) {
+			$perm = '0' . $perm;
 		}
 
-		if ($perm[1] === '') {
-			$group = 0;
-		} else {
-			$group = $perm[1];
-		}
-
-		if ($perm[2] === '') {
-			$other = 0;
-		} else {
-			$other = $perm[2];
-		}
+		$user = ($perm[0] === '') ? 0 : $perm[0];
+		$group = ($perm[1] === '') ? 0 : $perm[1];
+		$other = ($perm[2] === '') ? 0 : $perm[2];
 
 		$imgheadleft = $login->getSkinDir() . '/images/top_lt.gif';
 		$imgheadright = $login->getSkinDir() . '/images/top_rt.gif';
@@ -2393,13 +2390,29 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login;
 
-		$imgheadleft = $login->getSkinDir() . '/images/top_lt.gif';
-		$imgheadright = $login->getSkinDir() . '/images/top_rt.gif';
-		$imgheadbg = $login->getSkinDir() . 'top_bg.gif';
-		$imgtopline = $login->getSkinDir() . '/images/top_line.gif';
-		$tablerow_head = $login->getSkinDir() . '/images/tablerow_head.gif';
-
-		$img_url = $this->get_expand_url();
+		$current = (is_object($ffile) && isset($ffile->other_username) && is_scalar($ffile->other_username))
+			? (string) $ffile->other_username : '';
+		$user = (is_object($ffile) && isset($ffile->__username_o) && is_scalar($ffile->__username_o))
+			? (string) $ffile->__username_o : '';
+		$isDir = is_object($ffile) && isset($ffile->ttype) && $ffile->ttype === 'directory';
+		$isAdmin = is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin();
+		$confirm = (is_object($login) && method_exists($login, 'getKeywordUC'))
+			? $login->getKeywordUC('ownership_confirm') : 'Do You Really want to set this ownership Recursively?';
+		$title = (is_object($login) && method_exists($login, 'getKeywordUC'))
+			? $login->getKeywordUC('ownership_change') : 'Change Ownership';
+		$lblCurrent = (is_object($login) && method_exists($login, 'getKeywordUC'))
+			? $login->getKeywordUC('ownership_current') : 'Current';
+		$lblUser = (is_object($login) && method_exists($login, 'getKeywordUC'))
+			? $login->getKeywordUC('ownership_user') : 'User';
+		$lblGroup = (is_object($login) && method_exists($login, 'getKeywordUC'))
+			? $login->getKeywordUC('ownership_group') : 'Group';
+		$lblRecurse = (is_object($login) && method_exists($login, 'getKeywordUC'))
+			? $login->getKeywordUC('ownership_recursively') : 'Change Ownership Recursively';
+		$webUser = (is_file('/etc/os-release') && is_readable('/etc/os-release')
+			&& str_contains((string) @file_get_contents('/etc/os-release'), 'Ubuntu'))
+			? 'www-data' : 'apache';
+		$oo = (isset($this->__http_vars['frm_o_o']) && is_array($this->__http_vars['frm_o_o']))
+			? $this->__http_vars['frm_o_o'] : array();
 ?>
 
 		<script>
@@ -2408,8 +2421,7 @@ class HtmlLib
 				b.frm_ffile_c_group_f.value = a.frm_ffile_c_group_f.value;
 
 				if (typeof a.frm_ffile_c_recursive_f != 'undefined') {
-			//	if (a.frm_ffile_c_recursive_f.checked) {
-					if (confirm("<?=$login->getKeywordUC('ownership_confirm');?>")) {
+					if (confirm(<?= json_encode($confirm) ?>)) {
 						b.frm_ffile_c_recursive_f.value = 'on';
 					} else {
 						b.frm_ffile_c_recursive_f.value = 'off';
@@ -2426,7 +2438,7 @@ class HtmlLib
 			<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
 			<input type="hidden" name="frm_ffile_c_file_ownership_f">
 <?php
-		$post['frm_o_o'] = $this->__http_vars['frm_o_o'];
+		$post['frm_o_o'] = $oo;
 		$this->print_input_vars($post);
 ?>
 			<input type="hidden" id="frm_ffile_c_user_f" name="frm_ffile_c_user_f" value="">
@@ -2439,7 +2451,7 @@ class HtmlLib
 <div style="padding:0px; border:1px solid #eee; background-color: #def; width: 330px; margin: 0 auto;">
 	<table cellpadding="10" cellspacing="5" border="0" width="100%" style="background-color:#efead8;">
 		<tr>
-			<td nowrap width="100%" align="center"><?=$login->getKeywordUC('ownership_change');?></td>
+			<td nowrap width="100%" align="center"><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></td>
 		</tr>
 	</table>
 	<form name="chown" method="get" action="/display.php" accept-charset="utf-8">
@@ -2448,23 +2460,32 @@ class HtmlLib
 				<td colspan="4" height="4">&nbsp;</td>
 			</tr>
 			<tr>
-				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_current');?>:</td>
-				<td colspan="3"><?=$ffile->other_username;?></td>
+				<td colspan="1">&nbsp;&nbsp;<?= htmlspecialchars($lblCurrent, ENT_QUOTES, 'UTF-8') ?>:</td>
+				<td colspan="3"><?= htmlspecialchars($current, ENT_QUOTES, 'UTF-8') ?></td>
 			</tr>
 			<tr>
 				<td colspan="4" height="4">&nbsp;</td>
 			</tr>
 			<tr>
-				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_user');?>:</td>
+				<td colspan="1">&nbsp;&nbsp;<?= htmlspecialchars($lblUser, ENT_QUOTES, 'UTF-8') ?>:</td>
 				<td colspan="3"><select name="frm_ffile_c_user_f">
-						<option SELECTED value="<?=$ffile->__username_o;?>"><?=$ffile->__username_o;?></option>
+						<option SELECTED value="<?= htmlspecialchars($user, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($user, ENT_QUOTES, 'UTF-8') ?></option>
+<?php
+		if ($webUser !== '' && $webUser !== $user) {
+?>
+						<option value="<?= htmlspecialchars($webUser, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($webUser, ENT_QUOTES, 'UTF-8') ?></option>
+<?php
+		}
+		if ($webUser !== 'apache' && $user !== 'apache') {
+?>
 						<option value="apache">apache</option>
 <?php
-	if ($login->isAdmin()) {
+		}
+		if ($isAdmin && $user !== 'root') {
 ?>
 						<option value="root">root</option>
 <?php
-	}
+		}
 ?>
 					</select>
 				</td>
@@ -2473,28 +2494,37 @@ class HtmlLib
 				<td colspan="4" height="4">&nbsp;</td>
 			</tr>
 			<tr>
-				<td colspan="1">&nbsp;&nbsp;<?=$login->getKeywordUC('ownership_group');?>:</td>
+				<td colspan="1">&nbsp;&nbsp;<?= htmlspecialchars($lblGroup, ENT_QUOTES, 'UTF-8') ?>:</td>
 				<td colspan="3"><select name="frm_ffile_c_group_f">
-						<option SELECTED value="<?=$ffile->__username_o;?>"><?=$ffile->__username_o;?></option>
+						<option SELECTED value="<?= htmlspecialchars($user, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($user, ENT_QUOTES, 'UTF-8') ?></option>
+<?php
+		if ($webUser !== '' && $webUser !== $user) {
+?>
+						<option value="<?= htmlspecialchars($webUser, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($webUser, ENT_QUOTES, 'UTF-8') ?></option>
+<?php
+		}
+		if ($webUser !== 'apache' && $user !== 'apache') {
+?>
 						<option value="apache">apache</option>
 <?php
-	if ($login->isAdmin()) {
+		}
+		if ($isAdmin && $user !== 'root') {
 ?>
 						<option value="root">root</option>
 <?php
-	}
+		}
 ?>
 					</select>
 				</td>
 			</tr>
 <?php
-	if ($ffile->ttype === 'directory') {
+	if ($isDir) {
 ?>
 			<tr>
 				<td colspan="4" height="4">&nbsp;</td>
 			</tr>
 			<tr>
-				<td colspan="4">&nbsp;&nbsp;<input type="checkbox" name="frm_ffile_c_recursive_f">&nbsp;<?=$login->getKeywordUC('ownership_recursively');?></td>
+				<td colspan="4">&nbsp;&nbsp;<input type="checkbox" name="frm_ffile_c_recursive_f">&nbsp;<?= htmlspecialchars($lblRecurse, ENT_QUOTES, 'UTF-8') ?></td>
 			</tr>
 <?php
 	}
@@ -3594,6 +3624,51 @@ class HtmlLib
 		return "?frm_action=show&$str";
 	}
 
+	function pathArrayFromCurrentObject()
+	{
+		global $gbl;
+
+		if (!isset($gbl) || !is_object($gbl) || !isset($gbl->__c_object) || !is_object($gbl->__c_object)) {
+			return array();
+		}
+
+		$obj = $gbl->__c_object;
+		$chain = array($obj);
+		$guard = 0;
+		$parent = method_exists($obj, 'getParentO') ? $obj->getParentO() : null;
+		while (is_object($parent) && $guard < 20) {
+			$guard++;
+			$chain[] = $parent;
+			if (method_exists($parent, 'isAdmin') && $parent->isAdmin()) {
+				break;
+			}
+			$parent = method_exists($parent, 'getParentO') ? $parent->getParentO() : null;
+		}
+
+		$chain = array_reverse($chain);
+		$path = array();
+		foreach ($chain as $o) {
+			if (!is_object($o) || !method_exists($o, 'getClass')) {
+				continue;
+			}
+			try {
+				$class = strtolower((string) $o->getClass());
+			} catch (Throwable $e) {
+				continue;
+			}
+			if ($class === '') {
+				continue;
+			}
+			$entry = array('class' => $class);
+			if (isset($o->nname) && is_scalar($o->nname)) {
+				$entry['nname'] = (string) $o->nname;
+			}
+			$path[] = $entry;
+		}
+
+		return $path;
+	}
+
 	function getFullUrl($url, $p = "default")
 	{
 		if (is_array($url) || $this->is_special_url($url) || csb($url, "?") || csa($url, "display.php")) {
@@ -3604,6 +3679,22 @@ class HtmlLib
 
 		if ($p === "default") {
 			$p = $this->frm_o_o;
+			// Real property left null/empty (e.g. old kloxo_menu_title) must not
+			// drop the object path — content tabs need frm_o_o for labels/selection.
+			if ((!is_array($p) || $p === array())
+				&& isset($this->__http_vars['frm_o_o'])
+				&& is_array($this->__http_vars['frm_o_o'])
+				&& $this->__http_vars['frm_o_o'] !== array()) {
+				$p = $this->__http_vars['frm_o_o'];
+			}
+			// Last resort: rebuild from the page object (File Manager Permissions
+			// and siblings must keep client+ffile in the tab href).
+			if ((!is_array($p) || $p === array()) && method_exists($this, 'pathArrayFromCurrentObject')) {
+				$fromObj = $this->pathArrayFromCurrentObject();
+				if (is_array($fromObj) && $fromObj !== array()) {
+					$p = $fromObj;
+				}
+			}
 		}
 
 		if (!is_array($p)) {
@@ -6792,6 +6883,9 @@ class HtmlLib
 					$x = "f67f";
 				} elseif ($a[0] === 'lxguard') {
 					$x = "f02e";
+				} elseif ($a[0] === 'ufwfirewall') {
+					// WebHostingHub glyph "firewall" (distinct from LxGuard shield f02e).
+					$x = "f021";
 				} elseif ($a[0] === 'driver') {
 					$x = "f09a";
 				} elseif (strpos($a[0], 'server') !== false) {

@@ -738,7 +738,9 @@ if grep -q 'function getServiceDetails' "$ROOT/kloxo/httpdocs/driver/pserver/ser
   && grep -q 'mailqueue__exim' "$ROOT/kloxo/httpdocs/lib/driver_define.php" \
   && grep -q "function updateStart" "$ROOT/kloxo/httpdocs/driver/pserver/servicelib.php" \
   && grep -q "canGetSingle" "$ROOT/kloxo/httpdocs/driver/pserver/servicelib.php" \
-  && grep -q "lxshell_return('systemctl'" "$ROOT/kloxo/httpdocs/driver/pserver/service__debianlib.php"; then
+  && grep -q 'Service__Linux::systemctlRun' "$ROOT/kloxo/httpdocs/driver/pserver/service__debianlib.php" \
+  && grep -q 'function systemctlRun' "$ROOT/kloxo/httpdocs/driver/pserver/service__linuxlib.php" \
+  && grep -q "include_once __DIR__" "$ROOT/kloxo/httpdocs/driver/pserver/service__debianlib.php"; then
   ok "Ubuntu services, component info, and Exim mail queue drivers are registered"
 else
   bad "Ubuntu services, component info, and Exim mail queue drivers are registered"

@@ -1139,3 +1139,29 @@ html>body #quotausagebar span.last {
 		background-color: #fff;
 		border: 1px solid #ddd;
 	}
+
+	/* UFW Firewall page: reuse theme form/table/button classes */
+	.kloxo-ufw {
+		padding: 8px 12px 20px;
+		text-align: left;
+	}
+
+	.kloxo-ufw .textbox {
+		font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
+		font-size: 9pt;
+		font-weight: normal;
+		color: #000000;
+		background-color: #FFFFFF;
+	}
+
+	.kloxo-ufw .submitbutton {
+		font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
+		font-size: 9pt;
+		font-weight: bold;
+		color: #000000;
+		background-color: #FFFFFF;
+	}
+
+	.kloxo-ufw table.tableheader {
+		margin-bottom: 10px;
+	}

@@ -1,6 +1,6 @@
 <?php
 
-include_once "driver/pserver/service__linuxlib.php";
+include_once __DIR__ . '/service__linuxlib.php';
 
 class Service__Debian extends lxDriverClass
 {
@@ -23,7 +23,7 @@ class Service__Debian extends lxDriverClass
 	function systemctl($act)
 	{
 		$unit = $this->unitName();
-		if ($unit === '' || !preg_match('/^[A-Za-z0-9_.:@+-]+$/', $unit)) {
+		if ($unit === '' || !Service__Linux::isSafeUnit($unit)) {
 			return;
 		}
 		if ($unit === 'hiawatha' && ($act === 'stop' || $act === 'disable')) {
@@ -33,7 +33,7 @@ class Service__Debian extends lxDriverClass
 			return;
 		}
 
-		lxshell_return('systemctl', $act, $unit);
+		Service__Linux::systemctlRun($act, $unit);
 	}
 
 	function dbactionUpdate($subaction)

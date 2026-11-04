@@ -1633,7 +1633,7 @@ function kloxo_skip_find_class($class)
 	static $skip = array(
 		'llog', 'driver', 'phpini', 'lxbackup', 'serverweb', 'serverftp',
 		'sshconfig', 'lxguard', 'ufwfirewall', 'sshclient', 'ffile', 'ticket', 'notification',
-		'lxupdate', 'dns', 'dns_record_a', 'web',
+		'lxupdate', 'dns', 'dns_record_a', 'web', 'servermail', 'mail_graylist_wlist_a',
 		'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist', 'lxguardhit',
 	);
 
@@ -3215,6 +3215,55 @@ function kloxo_url_has_ufwfirewall($url)
 	return kloxo_url_has_object_class($url, 'ufwfirewall');
 }
 
+function kloxo_url_has_servermail($url)
+{
+	return kloxo_url_has_object_class($url, 'servermail')
+		|| kloxo_url_has_object_class($url, 'mail_graylist_wlist_a');
+}
+
+function kloxo_servermail_page_tab_label($str, $url)
+{
+	$url = is_string($url) ? urldecode($url) : '';
+	$str = is_string($str) ? $str : '';
+	$sa = kloxo_url_subaction($url);
+	$act = kloxo_url_action($url);
+	$isMail = kloxo_url_has_servermail($url);
+	$isGray = strpos($url, 'mail_graylist_wlist_a') !== false;
+	static $mailStr = array(
+		'server_mail_settings' => true,
+		'Mail Server Settings' => true,
+		'servermail' => true,
+		'Servermail' => true,
+		'spamdyke' => true,
+		'Spamdyke' => true,
+		'whitelist_ip' => true,
+		'whitelist_ips' => true,
+		'Whitelist IPs' => true,
+		'Whitelist IP' => true,
+		'mail_graylist_wlist_a' => true,
+		'Update_spamdyke' => true,
+		'Update _spamdyke' => true,
+	);
+	if (!$isMail && !$isGray && !isset($mailStr[$str])) {
+		return '';
+	}
+	if ($isGray || $str === 'whitelist_ip' || $str === 'whitelist_ips'
+		|| $str === 'Whitelist IPs' || $str === 'Whitelist IP'
+		|| $str === 'mail_graylist_wlist_a') {
+		return 'Whitelist IPs';
+	}
+	if ($sa === 'spamdyke' || $str === 'spamdyke' || $str === 'Spamdyke'
+		|| $str === 'Update_spamdyke' || $str === 'Update _spamdyke') {
+		return 'Spamdyke';
+	}
+	if ($isMail || $str === 'server_mail_settings' || $str === 'Mail Server Settings'
+		|| $str === 'servermail' || $str === 'Servermail') {
+		return 'Mail Server Settings';
+	}
+
+	return '';
+}
+
 function kloxo_ufw_action_label($sa)
 {
 	// Form section titles on the single UFW Firewall show page (not beige tabs).
@@ -3385,6 +3434,10 @@ function kloxo_ffile_action_label($sa)
 function kloxo_content_tab_label($str, $url = '')
 {
 	$url = is_string($url) ? urldecode($url) : '';
+	$mailPage = kloxo_servermail_page_tab_label(is_string($str) ? $str : '', $url);
+	if ($mailPage !== '') {
+		return $mailPage;
+	}
 	$bkPage = kloxo_backup_page_tab_label(is_string($str) ? $str : '', $url);
 	if ($bkPage !== '') {
 		return $bkPage;
@@ -3413,6 +3466,9 @@ function kloxo_content_tab_label($str, $url = '')
 		return 'Edit';
 	}
 	$act = kloxo_url_action($urlStr);
+	if ($isFfile && $sa === 'diskspace') {
+		return 'Disk Usage';
+	}
 	if ($isFfile && ($act === 'show' || $act === '')) {
 		return 'File Manager';
 	}
@@ -3619,6 +3675,17 @@ function kloxo_content_tab_label($str, $url = '')
 	if ($str === 'Lxguard' || $str === 'lxguard' || $str === 'LxGuard') {
 		return 'LxGuard';
 	}
+	if ($str === 'domain_defaults' || $str === 'Client Processed Logs'
+		|| $str === 'Client Processing Logs'
+		|| strcasecmp($str, 'client processed logs') === 0
+		|| strcasecmp($str, 'client processing logs') === 0) {
+		return 'Client Processing Logs';
+	}
+	if (kloxo_url_has_object_class($urlStr, 'domaindefault') && !$isFfile
+		&& ($act === 'updateform' || $act === 'update' || $act === 'show' || $act === ''
+			|| $str === 'Home' || $str === 'Show')) {
+		return 'Client Processing Logs';
+	}
 	if ($str === 'PHP_config' || $str === 'php_configuration' || $str === 'php_config'
 		|| $str === 'PHP_configuration' || $str === 'configure_php' || $str === 'PHP Configure') {
 		return 'PHP Configure';
@@ -3627,6 +3694,32 @@ function kloxo_content_tab_label($str, $url = '')
 		|| $str === 'Update_extraedit' || $str === 'Update _extraedit'
 		|| $str === 'Advanced PHP Configure') {
 		return 'Advanced PHP Configure';
+	}
+	// Bare a=show after a bad menu_title left no object in the tab URL: use current object.
+	if (($str === 'Home' || $str === 'Show') && ($act === 'show' || $act === '') && $sa === ''
+		&& $urlStr !== '' && !preg_match('/\[class\]=/', $urlStr)
+		&& isset($GLOBALS['gbl']) && is_object($GLOBALS['gbl'])
+		&& isset($GLOBALS['gbl']->__c_object) && is_object($GLOBALS['gbl']->__c_object)
+		&& method_exists($GLOBALS['gbl']->__c_object, 'getClass')) {
+		try {
+			$cur = strtolower((string) $GLOBALS['gbl']->__c_object->getClass());
+			if ($cur === 'phpini') {
+				return 'PHP Configure';
+			}
+			if ($cur === 'lxbackup') {
+				return 'Backup / Restore';
+			}
+			if ($cur === 'servermail') {
+				return 'Mail Server Settings';
+			}
+			if ($cur === 'domaindefault') {
+				return 'Client Processing Logs';
+			}
+			if ($cur === 'ffile') {
+				return 'File Manager';
+			}
+		} catch (Throwable $e) {
+		}
 	}
 	static $sslKeys = array(
 		'ssl_certificate' => 'SSL Certificates',
@@ -3660,10 +3753,34 @@ function kloxo_menu_title($url)
 	$fallback = is_string($url) ? $url : 'Item';
 	try {
 		if (isset($ghtml) && is_object($ghtml) && method_exists($ghtml, 'getTitleOnly')) {
-			$saved = isset($ghtml->frm_o_o) ? $ghtml->frm_o_o : null;
-			$ghtml->frm_o_o = array();
-			$t = $ghtml->getTitleOnly($url);
-			$ghtml->frm_o_o = $saved;
+			// Do not assign $ghtml->frm_o_o: that creates a real property and
+			// permanently shadows __get/__http_vars, so content tabs lose the
+			// object path (PHP Configure becomes "Home" with a bare a=show URL).
+			$savedHttp = null;
+			$clearedHttp = false;
+			if (isset($ghtml->__http_vars) && is_array($ghtml->__http_vars)
+				&& array_key_exists('frm_o_o', $ghtml->__http_vars)) {
+				$savedHttp = $ghtml->__http_vars['frm_o_o'];
+				$ghtml->__http_vars['frm_o_o'] = array();
+				$clearedHttp = true;
+			}
+			$hadProp = array_key_exists('frm_o_o', get_object_vars($ghtml));
+			$savedProp = $hadProp ? $ghtml->frm_o_o : null;
+			if ($hadProp) {
+				unset($ghtml->frm_o_o);
+			}
+			try {
+				$t = $ghtml->getTitleOnly($url);
+			} finally {
+				if ($clearedHttp) {
+					$ghtml->__http_vars['frm_o_o'] = $savedHttp;
+				}
+				if ($hadProp) {
+					$ghtml->frm_o_o = $savedProp;
+				} elseif (array_key_exists('frm_o_o', get_object_vars($ghtml))) {
+					unset($ghtml->frm_o_o);
+				}
+			}
 			if (is_string($t) && $t !== '') {
 				return $t;
 			}

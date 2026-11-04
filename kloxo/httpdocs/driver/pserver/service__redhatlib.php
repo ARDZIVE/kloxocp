@@ -1,6 +1,6 @@
 <?php
 
-include_once "driver/pserver/service__linuxlib.php";
+include_once __DIR__ . '/service__linuxlib.php';
 
 class Service__Redhat extends lxDriverClass
 {

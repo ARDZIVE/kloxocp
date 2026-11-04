@@ -297,6 +297,7 @@ class lxbackup extends Lxdb
 				break;
 
 			case "schedule_conf":
+				// Kloxo-MR: Schedule Backup select, Time To Backup, keep-count, Updateall.
 				$simple = is_object($parent) && method_exists($parent, 'isSimpleBackup')
 					&& $parent->isSimpleBackup();
 				$sched = $simple
@@ -307,9 +308,8 @@ class lxbackup extends Lxdb
 					$this->backupschedule_type = 'disabled';
 				}
 
-				$canSched = isset($this->priv) && is_object($this->priv)
-					&& method_exists($this->priv, 'isOn') && $this->priv->isOn('backupschedule_flag');
-				if ($canSched) {
+				// Same rule as checkButton: missing priv allows; flag off shows Disabled.
+				if ($this->checkButton('backupschedule_flag')) {
 					$vlist['backupschedule_type'] = array('s', $sched);
 				} else {
 					$vlist['backupschedule_type'] = array('M', 'Disabled');
@@ -401,10 +401,11 @@ class lxbackup extends Lxdb
 	static function backupPropertyTabs()
 	{
 		// Exactly five beige tabs (Kloxo-MR Backup / Restore page).
+		// Schedule is always listed (privilege gates the Schedule Backup select, not the tab).
 		return array(
 			'a=show',
 			'a=updateform&sa=ftp_conf',
-			'__var_backupschedule_flag' => 'a=updateform&sa=schedule_conf',
+			'a=updateform&sa=schedule_conf',
 			'a=show&l[class]=ffile&l[nname]=/',
 			'l[class]=ffile&l[nname]=/&a=updateform&sa=upload',
 		);

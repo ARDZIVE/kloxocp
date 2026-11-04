@@ -472,7 +472,11 @@ class Ffile extends Lxclass
 
 		$gbl->setSessionV("ffile_duflag", true);
 		$gbl->__no_debug_redirect = true;
-		$gbl->__this_redirect = $this->getCurDirUrl();
+		// Land on show&sa=diskspace so the Disk Usage tab stays selected
+		// and createListNlist can show the % Of Tot column.
+		$url = "a=show&sa=diskspace&l[class]=ffile&l[nname]=" . $this->nname;
+		$gbl->__this_redirect = (is_object($ghtml) && method_exists($ghtml, 'getFullUrl'))
+			? $ghtml->getFullUrl($url) : $this->getCurDirUrl();
 
 		return null;
 	}
@@ -788,6 +792,7 @@ class Ffile extends Lxclass
 				$this->image_height = '20';
 				$vlist['image_width'] = null;
 				$vlist['image_height'] = null;
+				$vlist['__v_button'] = 'Update';
 
 				break;
 
@@ -891,7 +896,18 @@ class Ffile extends Lxclass
 
 			case "upload_s":	
 				// MR -- overwrite not work for upload with progress bar
-				$vlist['upload_overwrite_f'] = array('W', $login->getKeywordUc('upload_overwrite_warning'));
+				$warn = 'WARNING: Existing file will be overwritten by uploaded file';
+				if (is_object($login) && method_exists($login, 'getKeywordUc')) {
+					try {
+						$kw = $login->getKeywordUc('upload_overwrite_warning');
+						if (is_string($kw) && $kw !== '' && $kw !== 'Upload_overwrite_warning') {
+							$warn = $kw;
+						}
+					} catch (Throwable $e) {
+						// keep default warning text
+					}
+				}
+				$vlist['upload_overwrite_f'] = array('W', $warn);
 				$vlist['upload_file_f'] = null;
 				$vlist['__v_button'] = "Upload";
 				break;
@@ -1033,8 +1049,9 @@ class Ffile extends Lxclass
 			return $alist;
 		}
 
-		if ($this->getParentO()->isClass('mailinglist')) {
-			$this->getParentO()->createShowPropertyList($alist);
+		$parentO = $this->getParentO();
+		if (is_object($parentO) && method_exists($parentO, 'isClass') && $parentO->isClass('mailinglist')) {
+			$parentO->createShowPropertyList($alist);
 			
 			foreach ($alist['property'] as &$__a) {
 				if (is_object($__a)) {
@@ -1060,22 +1077,23 @@ class Ffile extends Lxclass
 			if (!$this->is_dir()) {
 				$alist['property'][] = "a=update&sa=download";
 			} else {
-				$alist['property'][] = "a=update&sa=diskspace";
+				$alist['property'][] = "a=show&sa=diskspace";
 			}
 
 			return $alist;
 		}
 
 		if ($this->is_dir()) {
-			$alist['property'][] = "a=update&sa=diskspace";
+			$alist['property'][] = "a=show&sa=diskspace";
 			$alist['property'][] = "a=updateform&sa=upload";
-			$alist['property'][] = "a=updateForm&sa=thumbnail";
+			// Lowercase updateform so compare_urls selects Thumbnail.
+			$alist['property'][] = "a=updateform&sa=thumbnail";
 		} else {
 			if ($this->is_image()) {
-				$alist['property'][] = "a=updateForm&sa=convert_image";
+				$alist['property'][] = "a=updateform&sa=convert_image";
 			} else if (!$this->is_zip()) {
-				$alist['property'][] = "a=updateForm&sa=edit";
-				$alist['property'][] = "a=updateForm&sa=fancyedit";
+				$alist['property'][] = "a=updateform&sa=edit";
+				$alist['property'][] = "a=updateform&sa=fancyedit";
 			}
 
 			$alist['property'][] = "a=update&sa=download";
@@ -1493,6 +1511,11 @@ class Ffile extends Lxclass
 			? $gbl->getSessionV('ffile_duflag') : false;
 		if (is_object($gbl) && method_exists($gbl, 'setSessionV')) {
 			$gbl->setSessionV('ffile_duflag', false);
+		}
+		// Disk Usage tab is a=show&sa=diskspace: enable % Of Tot for that view.
+		if (!$this->duflag && is_object($ghtml)
+			&& isset($ghtml->frm_subaction) && $ghtml->frm_subaction === 'diskspace') {
+			$this->duflag = true;
 		}
 		$this->numlines = $numlines;
 		try {

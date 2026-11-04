@@ -244,7 +244,7 @@ $__description["last_backup_status"] = array("Last Backup Status");
 $__description["last_restore_status"] = array("Last Restore Status");
 $__description["keep_this_many_backups_on_the_server"] = array("Keep This Many Backups On The Server");
 $__description["dont_verify_ftp_credentials"] = array("Dont Verify FTP Credentials");
-$__description["upload_files_to_remote_server"] = array("Upload Files To Remote Server ");
+$__description["upload_files_to_remote_server"] = array("Upload Files To Remote Server");
 $__description["dont_keep_a_local_copy"] = array("Dont Keep A Local Copy");
 $__description["stop_vps_while_backup_snapshot"] = array("Stop VPS While Backup Snapshot (recommended)");
 $__description["backup_now"] = array("Backup Now");
@@ -819,6 +819,7 @@ $__description["resolv_entries"] = array("Resolv Entries (space Separated)");
 $__description["exclusive_ipaddress"] = array("Exclusive IPaddress");
 $__description["client"] = array("Client");
 $__description["whitelist_ip"] = array("Whitelist IP");
+$__description["whitelist_ips"] = array("Whitelist IPs");
 $__description["server_wide_mail_configuration"] = array("Server Wide Mail Configuration");
 $__description["queue_life_time"] = array("Queue Life Time (in seconds)");
 $__description["my_name"] = array("My Name (Domain Name)");
@@ -838,15 +839,15 @@ $__description["maximum_recipients"] = array("Maximum number of recipients");
 $__description["enable_graylisting"] = array("Enable Graylisting");
 $__description["graylist_min_secs"] = array("Graylist entry minimum lifetime");
 $__description["graylist_max_secs"] = array("Graylist entry maximum lifetime");
-$__description["reject_empty_rdns"] = array("Reject servers without rDNS names");
-$__description["reject_ip_in_cc_rdns"] = array("Reject servers with IP address in rDNS names");
-$__description["reject_missing_sender_mx"] = array("Reject messages from server without MX records");
-$__description["reject_unresolvable_rdns"] = array("Reject servers with rDNS names not resolving to IP");
-$__description["dns_blacklists"] = array("DNS RBL servers");
-$__description["enable_default_dns_blacklists"] = array("Enable default DNS RBL servers");
+$__description["reject_empty_rdns"] = array("Reject Servers Without RDNS Names");
+$__description["reject_ip_in_cc_rdns"] = array("Reject Servers With IP Address In RDNS Names");
+$__description["reject_missing_sender_mx"] = array("Reject Messages From Server Without MX Records");
+$__description["reject_unresolvable_rdns"] = array("Reject Servers With RDNS Names Not Resolving To IP");
+$__description["dns_blacklists"] = array("DNS RBL Servers");
+$__description["enable_default_dns_blacklists"] = array("Enable Default DNS RBL Servers");
 
-$__description["blacklist_headers"] = array("Blacklist headers");
-$__description["enable_default_blacklist_headers"] = array("Enable default Blacklist headers");
+$__description["blacklist_headers"] = array("Blacklist Headers");
+$__description["enable_default_blacklist_headers"] = array("Enable Default Blacklist Headers");
 
 $__description["FTP_config"] = array("FTP Configure");
 $__description["enable_anonymous_ftp"] = array("Enable Anonymous FTP");
@@ -1041,7 +1042,7 @@ $__description["directory_index"] = array("Directory Index");
 $__description["directory_index_list"] = array("Directory Index List");
 $__description["domain_default"] = array("Domain Default");
 // $__description["domain_defaults"] = array("Processed Logs");
-$__description["domain_defaults"] = array("Client Processed Logs");
+$__description["domain_defaults"] = array("Client Processing Logs");
 $__description["remove_processed_logs"] = array("Remove Processed Logs");
 $__description["mail_forward"] = array("Mail Forward");
 $__description["forward_address"] = array("Forward Address");
@@ -1449,7 +1450,7 @@ $__description["multiple_php_remove"] = array("Multiple PHP Remove");
 
 $__description["max_input_vars"] = array("Max Input Vars");
 
-$__description["smtp_relay"] = array("SMTP relay");
+$__description["smtp_relay"] = array("SMTP Relay");
 
 $__description["scavenge_sendmail"] = array("Send mail when scavenge completes");
 

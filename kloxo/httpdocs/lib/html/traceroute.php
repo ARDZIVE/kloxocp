@@ -12,6 +12,61 @@ class traceroute extends lxclass
 	function write() {}
 	function get() {}
 
+	function display($var)
+	{
+		if ($var === 'ip') {
+			return self::formatHopIp(isset($this->ip) ? $this->ip : null);
+		}
+
+		if ($var === 'responsetimes') {
+			$ip = self::formatHopIp(isset($this->ip) ? $this->ip : null);
+			if ($ip === '*') {
+				return '*';
+			}
+
+			return self::formatHopTime(isset($this->responsetimes) ? $this->responsetimes : null);
+		}
+
+		return parent::display($var);
+	}
+
+	/**
+	 * Unreachable hops (traceroute "*", tracepath "no reply") show as "*".
+	 *
+	 * @param mixed $ip
+	 */
+	static function formatHopIp($ip)
+	{
+		if ($ip === null || $ip === false) {
+			return '*';
+		}
+		$s = trim((string) $ip);
+		if ($s === '' || $s === '*' || strcasecmp($s, 'no') === 0
+			|| preg_match('/^no\s+reply$/i', $s) === 1) {
+			return '*';
+		}
+
+		return $s;
+	}
+
+	/**
+	 * Response time as three decimal places, or "*" when missing/unreachable.
+	 *
+	 * @param mixed $time
+	 */
+	static function formatHopTime($time)
+	{
+		if ($time === null || $time === false || $time === '' || $time === '*' || $time === -1
+			|| (is_string($time) && strcasecmp(trim($time), 'no') === 0)) {
+			return '*';
+		}
+		if (!is_numeric($time)) {
+			return '*';
+		}
+
+		return number_format((float) $time, 3, '.', '');
+	}
+
 	static function createListAlist($parent, $class)
 	{
 		$alist[] = "a=list&c=$class";
@@ -28,6 +83,11 @@ class traceroute extends lxclass
 	}
 
 	function isSelect() { return false; }
+
+	function hasDriverClass()
+	{
+		return false;
+	}
 
 	static function perPage() { return 5000; }
 	static function initThisListRule($parent, $class) { return null; }
@@ -94,58 +154,104 @@ class traceroute extends lxclass
 
 	function _parseResultlinux()
 	{
-		$raw_data_len = kcount($this->_raw_data);
-		$dataRow = 0;
-
-		while (empty($this->_raw_data[$dataRow]) && ($dataRow<$raw_data_len)) {
-			$dataRow++;
-		}
-
-		$tempparts        = explode(' ', $this->_raw_data[$dataRow]);
-		$this->_target_ip = trim($tempparts[3], ' (),');
-		$this->_ttl       = (int) $tempparts[4];
-		$dataRow++;
-
-		while (empty($this->_raw_data[$dataRow]) && ($dataRow<$raw_data_len)) {
-			$dataRow++;
-		}
-
 		$hops = array();
+		$n = 0;
+		$this->_target_ip = '';
+		$this->_ttl = 0;
 
-		while (($dataRow < $raw_data_len) && !empty($this->_raw_data[$dataRow])) {
-			$hop = array();
-			$parts = explode('  ', substr($this->_raw_data[$dataRow], 4));
-
-			/* if we can find a next hop it's name/ip will be here */
-			if (count($parts) > 0) {
-				/* get machine/ip */
-				$machineparts = explode(' ', $parts[0]);
-				if (count($machineparts) > 1) {
-					$hop['machine'] = $machineparts[0];
-					$hop['ip']      = trim($machineparts[1], ' ()');
-				} else {
-					$hop['ip'] = $machineparts[0];
-				}
-
-				array_shift($parts);
+		foreach ((array) $this->_raw_data as $rawLine) {
+			if (!is_string($rawLine)) {
+				continue;
+			}
+			$line = trim($rawLine);
+			if ($line === '') {
+				continue;
 			}
 
-			$responsetimes = array();
-
-			for($timeidx = 0; $timeidx < count($parts); $timeidx++) {
-				$temppart=explode(' ', $parts[$timeidx]);
-
-				if ($temppart[0] == "*") {
-					$responsetimes[] = -1; // unreachable
-				} else {
-					$responsetimes[] = (float) $temppart[0];
+			if (stripos($line, 'traceroute to ') === 0) {
+				if (preg_match('/\(([^)]+)\)/', $line, $tm)) {
+					$this->_target_ip = $tm[1];
 				}
+				if (preg_match('/(\d+)\s+hops?\s+max/i', $line, $tm)) {
+					$this->_ttl = (int) $tm[1];
+				}
+				continue;
 			}
 
-			$hop['responsetimes'] = $responsetimes[0];
-			$dataRow++;
-			$hop['nname'] = $dataRow;
-			$hops[$dataRow] = $hop;
+			if (stripos($line, 'tracepath') === 0
+				|| strpos($line, 'pmtu') !== false
+				|| strpos($line, '[LOCALHOST]') !== false) {
+				continue;
+			}
+
+			// tracepath: "1: 1.2.3.4  0.456ms" / "2: no reply"
+			if (preg_match('/^(\d+)\??:\s+(.+)$/', $line, $m) === 1) {
+				$rest = trim($m[2]);
+				$n++;
+				if (preg_match('/^no\s+reply/i', $rest) === 1 || $rest === '*') {
+					$hops[$n] = array(
+						'ip' => '*',
+						'responsetimes' => -1,
+						'nname' => (string) $n,
+					);
+					continue;
+				}
+				if (preg_match('/^(\S+)\s+([\d.]+)\s*ms/i', $rest, $tm) === 1) {
+					$hops[$n] = array(
+						'ip' => $tm[1],
+						'responsetimes' => (float) $tm[2],
+						'nname' => (string) $n,
+					);
+					continue;
+				}
+				$hops[$n] = array(
+					'ip' => '*',
+					'responsetimes' => -1,
+					'nname' => (string) $n,
+				);
+				continue;
+			}
+
+			// classic traceroute: "1  1.2.3.4  0.456 ms" / "2  *"
+			if (preg_match('/^(\d+)\s+(.+)$/', $line, $m) !== 1) {
+				continue;
+			}
+			$rest = trim($m[2]);
+			$n++;
+			if ($rest === '*' || preg_match('/^\*(\s|$)/', $rest) === 1
+				|| preg_match('/^no\s+reply/i', $rest) === 1) {
+				$hops[$n] = array(
+					'ip' => '*',
+					'responsetimes' => -1,
+					'nname' => (string) $n,
+				);
+				continue;
+			}
+
+			$ip = '';
+			$time = null;
+			if (preg_match('/^(?:(\S+)\s+)?\(?([\d.a-fA-F:]+)\)?\s+([\d.]+)\s*ms/i', $rest, $tm) === 1) {
+				$ip = $tm[2];
+				$time = (float) $tm[3];
+			} elseif (preg_match('/^([\d.a-fA-F:]+)\s+([\d.]+)\s*ms/i', $rest, $tm) === 1) {
+				$ip = $tm[1];
+				$time = (float) $tm[2];
+			}
+
+			if ($ip === '') {
+				$hops[$n] = array(
+					'ip' => '*',
+					'responsetimes' => -1,
+					'nname' => (string) $n,
+				);
+				continue;
+			}
+
+			$hops[$n] = array(
+				'ip' => $ip,
+				'responsetimes' => $time === null ? -1 : $time,
+				'nname' => (string) $n,
+			);
 		}
 
 		$this->_hops = $hops;

@@ -137,7 +137,7 @@ class Dnstemplate extends DnsBase
 			$res = array();
 		}
 
-		$vlist['nname'] = array('m', array('value' => 'default'));
+		$vlist['nname'] = array('m', array('value' => ''));
 		if ($res !== array()) {
 			$vlist['webipaddress'] = array('s', $res);
 			$vlist['mmailipaddress'] = array('s', $res);
@@ -146,8 +146,8 @@ class Dnstemplate extends DnsBase
 			$vlist['mmailipaddress'] = null;
 			$vlist['__m_message_pre'] = 'no_ip_address';
 		}
-		$vlist['nameserver_f'] = array('m', array('value' => 'ns1'));
-		$vlist['secnameserver_f'] = array('m', array('value' => 'ns2'));
+		$vlist['nameserver_f'] = array('m', array('value' => ''));
+		$vlist['secnameserver_f'] = array('m', array('value' => ''));
 		$ret['action'] = 'add';
 		$ret['variable'] = $vlist;
 

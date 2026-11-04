@@ -195,6 +195,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (`a=show` / `a=updateform&sa=extraedit`); no parent Home/Domain tabs on
     either page (`kloxo_print_object_property_tabs` forces `phpiniPropertyTabs`
     / `phpiniPropertyTabsForParent`; parent fallback skipped for phpini URLs).
+    `kloxo_menu_title` must not assign `$ghtml->frm_o_o` (that shadowed
+    `__http_vars` and made the first tab read **Home** with a bare `a=show`).
     extraedit no longer dies in
     `getSelfList`, a missing parent, or a missing panel DB password; nested
     `phpini_flag_b-*` field descriptions no longer TypeError; heading uses the
@@ -221,7 +223,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     paths, not `.nonini` renames.     Traceroute no longer throws
     `traceroute_failed` when the Ubuntu binary is missing; it uses
     `traceroute`/`tracepath` with a validated host and an empty list on
-    failure.     Localhost File Manager / Switch Program / Traceroute / Cron Tasks
+    failure. It parses both formats (including tracepath `no reply` and
+    `0.456ms`), shows response times with three decimals, and shows `*`
+    for unreachable hops (not `no`). Live after deploy is UNVERIFIED.
+    Services list collapses httpd/apache2 and named/bind9 to one preferred
+    row; start/stop/restart/boot toggles call absolute systemctl (no bare
+    PATH lookup / relative driver include). Live Services actions UNVERIFIED.
+    Localhost File Manager / Switch Program / Traceroute / Cron Tasks
     no longer die with `No socket connect to server localhost`. Panel
     FPM is `lxlabs`; `remote_exec` sends privileged work to
     `kloxo-backend` on loopback 7776 (root) and falls back to
@@ -231,7 +239,18 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     hidden). Content tabs and toolbar commands use human labels
     (File Manager, Permissions, Ownership, Disk Usage, Upload,
     Thumbnail; T Hidden, New dir, New file, Copy, Cut, Paste, Trash,
-    Remove, Zip, Refresh, Show All), not `Update_perm`. Admin
+    Remove, Zip, Refresh, Show All), not `Update_perm`. On show the first
+    tab is **File Manager** (selected, not Home) with the file list.
+    Clicking **Permissions** keeps the ffile path and shows Change
+    Permissions (User/Group/Others, Totals, Target, recursive, Change).
+    Clicking **Ownership** keeps the path and shows Change Ownership
+    (Current, User/Group, recursive, Change; `www-data` on Ubuntu).
+    Clicking **Disk Usage** uses `a=show&sa=diskspace` (tab selected)
+    and shows the file list with Size and **% Of Tot**.     Clicking **Upload**
+    keeps the path and shows local/http/ftp upload forms. Clicking
+    **Thumbnail** uses `a=updateform&sa=thumbnail` (selected; not
+    mixed-case `updateForm`) with Width/Height default 20 and Update.
+    Admin
     `getTrueParentO` / `getParentO` treat `client-admin` as root
     (`isRootClient`: cttype admin, `isAdmin()`, or client nname
     `admin`) and never print `no parent_clname`. Client PHPinfo is
@@ -390,6 +409,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Security has a **UFW Firewall** tile (`a=show&o=ufwfirewall`), one beige
     tab. Port management: Enable/Disable, default policies, numbered rules
     (ALLOW/DENY/REJECT add; per-row delete; lists `80,443`, ranges `80-82`).
+    Fields/buttons use theme `textbox` / `submitbutton` / `tableheader` /
+    `tablerow*` / `formtablerow0` (no custom grey inline chrome).
     `KloxoUfw` is loaded from `include.php` and runs as root via
     kloxo-backend when the panel is not root (no silent non-root fallback).
     Enable allows panel 7777/7778 plus SSH, HTTP/S, FTP, DNS, mail, IMAP/POP,
@@ -462,8 +483,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     DNS Template menu and dashboard tiles list `dnstemplate` (not
     `lxbackup`); opening the list no longer throws `no_ip_address`
     when the IP table is empty.     The list tab keeps the add form;
-    there is no separate Add this template tab. The add form prefills
-    name `default`, `ns1` and `ns2`. Adding a template uses live Ubuntu
+    there is no separate Add this template tab. The add form leaves DNS
+    Template Name, Primary DNS and Secondary DNS empty. Adding a template
+    uses live Ubuntu
     IPs (or a typed IP when that list is empty), does not run
     `fixIpAddress.php`, strips a duplicate `.dnst` suffix, qualifies a
     blank/short nameserver to `ns1.<template>.dnst`, validates primary
@@ -577,6 +599,8 @@ Work in this order. Keep every change small, tested and committed separately. Do
    (`<p> Welcome to <%programname%>  </p>…`), and
    `etc/flag/enablecronforall.flg` (Enable Cron For All Users checked by
    default). General Settings content tab is labelled **General Settings**.
+   Client Processing Logs (`domaindefault`) beige tab is **Client Processing
+   Logs** (not “Client Processed Logs”).
    Webmail System Default dropdown lists installed
    `/home/kloxo/httpd/webmail/*` dirs plus available Afterlogic, Rainloop,
    Roundcube, Roundcube-mobile, Squirrelmail, Telaen
@@ -601,9 +625,29 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Backup / Restore has exactly five content tabs **Backup / Restore**,
    **FTP Configuration**, **Schedule Configuration**, **File Manager**,
    **Upload** (`lxbackup::backupPropertyTabs` forced). Show page sections:
-   Backup Now, Restore From File, Restore From FTP. FTP/Schedule forms match
-   Kloxo-MR (parent guards). File Manager / Upload under a backup keep those
-   five tabs. Live Backup / Restore after re-install is **UNVERIFIED**.
+   Backup Now, Restore From File, Restore From FTP. Clicking **FTP Configuration**
+   or **Schedule Configuration** keeps `frm_o_o` lxbackup path (`getFullUrl` falls
+   back to `__http_vars`) so the tab is selected. FTP form matches Kloxo-MR
+   (FTP Server / Username / Password / Directory / upload flags / Upload Type
+   `ftp` / Updateall). Schedule form matches Kloxo-MR (Schedule Backup select,
+   Time To Backup, keep-count default 5, Updateall; always listed as a tab;
+   `checkButton('backupschedule_flag')` for the select). Clicking **File Manager**
+   keeps lxbackup+ffile path with `goback=1` tab hrefs so only File Manager is
+   selected; list toolbar is T Hidden / Remove / Copy and columns match Kloxo-MR.
+   Clicking **Upload** selects that tab and shows the three Kloxo-MR multi-upload
+   forms (local overwrite warning + file, HTTP URL, FTP credentials/file). Live
+   Backup / Restore after re-install is **UNVERIFIED**.
+   Mail Server Settings has exactly three content tabs **Mail Server Settings**
+   (selected on `sa=update`), **Spamdyke**, **Whitelist IPs**
+   (`ServerMail::servermailPropertyTabs` forced); Switch To Another via
+   `getSelfList`; update form matches Kloxo-MR field set and defaults
+   (attachment 41943040, queue 604800, SMTP instances 50, send limit 30000).
+   Clicking **Spamdyke** selects that tab; form matches Kloxo-MR (greet delay,
+   recipients 150, graylist, RDNS/MX rejects, DNS RBL + blacklist header
+   textareas). Clicking **Whitelist IPs** selects that tab; add/list of
+   `mail_graylist_wlist_a` (Whitelist IP field/column). Live Mail Server
+   Settings after re-install is **UNVERIFIED** (backend still reads some qmail
+   control paths until P4 Exim UI).
    Live reboot from the UI is **UNVERIFIED**. Notification Welcome Message
    For New Accounts defaults to the %name%/%password% hosting welcome text
    (`Notification::defaultWelcomeMessage`, `file/welcome.txt`). Live
@@ -689,3 +733,4 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 * "Start Debian packaging (`debian/`) and a private apt repo so `kloxocp update` has packages to orchestrate."
 * "Add characterization tests, then continue the PHP 8.3 port of remaining runtime (`split`/`ereg*` in third-party trees, `create.php` Ubuntu)."
 * "Start P4 mail UI drivers: thin `*__exim` wrappers around `kloxo-mail`, then drop qmail."
+* "Re-check live Mail Server Settings tabs/form after deploy (UI tabs/labels/defaults match Kloxo-MR; backend still partly qmail-path)."

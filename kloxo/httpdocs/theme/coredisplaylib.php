@@ -808,10 +808,26 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = serverftp::ftpPropertyTabs();
 	}
 
+	$mailUrl = $urlHint !== '' && function_exists('kloxo_url_has_servermail')
+		&& kloxo_url_has_servermail($urlHint);
+	if (($class === 'servermail' || $class === 'mail_graylist_wlist_a' || $mailUrl)
+		&& class_exists('ServerMail') && is_callable(array('ServerMail', 'servermailPropertyTabs'))) {
+		$tabs = ServerMail::servermailPropertyTabs();
+		if ($class === 'mail_graylist_wlist_a' && is_array($tabs)) {
+			foreach ($tabs as $k => $v) {
+				if (is_string($v) && $v !== '' && !str_starts_with($v, 'goback=')) {
+					$tabs[$k] = 'goback=1&' . $v;
+				}
+			}
+		}
+		$prlist['property'] = $tabs;
+	}
+
 	$generalForced = ($class === 'general' && ($sa === 'generalsetting' || $sa === ''));
 	if (!$prlist['property'] && $class !== 'phpini' && !$phpiniUrl && $class !== 'sshconfig'
 		&& $class !== 'lxguard' && $class !== 'ufwfirewall'
 		&& $class !== 'lxbackup' && !$isBackupPage && !$backupUrl
+		&& $class !== 'servermail' && $class !== 'mail_graylist_wlist_a' && !$mailUrl
 		&& !$generalForced) {
 		$parent = (is_object($object) && method_exists($object, 'getParentO'))
 			? $object->getParentO() : null;

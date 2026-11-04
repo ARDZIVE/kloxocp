@@ -105,11 +105,14 @@ class ufwfirewall extends lxclass
 
 	function showRawPrint($subaction = null)
 	{
+		$fieldStyle = 'border: 1px solid #aaa; margin: 2px; padding: 2px';
+		$selectStyle = $fieldStyle . '; width: 120px';
+		$textStyle = $fieldStyle . '; width: 160px';
+
 		try {
 			$this->assertAdmin();
 		} catch (Throwable $e) {
-			echo '<div class="kloxo-ufw" style="padding:12px 16px 24px;text-align:left">'
-				. 'Only admin can access UFW Firewall.</div>';
+			echo '<div class="kloxo-ufw"><p class="messagetext">Only admin can access UFW Firewall.</p></div>';
 
 			return;
 		}
@@ -117,9 +120,8 @@ class ufwfirewall extends lxclass
 		try {
 			$st = $this->ufwStatus();
 		} catch (Throwable $e) {
-			echo '<div class="kloxo-ufw" style="padding:12px 16px 24px;text-align:left">'
-				. 'Could not read UFW status: '
-				. htmlspecialchars($e->getMessage(), ENT_QUOTES) . '</div>';
+			echo '<div class="kloxo-ufw"><p class="messagetext">Could not read UFW status: '
+				. htmlspecialchars($e->getMessage(), ENT_QUOTES) . '</p></div>';
 
 			return;
 		}
@@ -142,10 +144,10 @@ class ufwfirewall extends lxclass
 		$nRules = count($rules);
 		$statusText = !$installed ? 'not installed' : ($active ? 'active' : 'inactive');
 
-		echo '<div class="kloxo-ufw" style="padding:12px 16px 28px;text-align:left">';
-		echo '<table cellpadding="6" cellspacing="0" width="100%" style="border-collapse:collapse;margin:0 0 14px">';
-		echo '<tr style="background:#f0f0f0"><td colspan="2"><b>Firewall status:</b> '
-			. htmlspecialchars($statusText, ENT_QUOTES) . '</td><td align="right">';
+		echo '<div class="kloxo-ufw">';
+		echo '<table class="tableheader" cellpadding="0" cellspacing="0" border="0" width="100%">';
+		echo '<tr class="tablerow0"><td class="col"><span class="tableheadtext">Firewall status:</span> '
+			. htmlspecialchars($statusText, ENT_QUOTES) . '</td><td class="col" align="right">';
 		if ($installed) {
 			if (!$active) {
 				$this->printActionForm('ufwenable', 'Enable',
@@ -158,43 +160,50 @@ class ufwfirewall extends lxclass
 		echo '</td></tr></table>';
 
 		if ($err !== '' && $err !== 'ufw_not_installed') {
-			echo '<p style="margin:0 0 12px;color:#c00">Error: '
+			echo '<p class="messagetext formtablerow2">Error: '
 				. htmlspecialchars($err, ENT_QUOTES) . '</p>';
 		}
 		if (!$installed) {
-			echo '<p>Install the <code>ufw</code> package on this Ubuntu host, then reopen this page.</p>';
+			echo '<p class="messagetext">Install the <code>ufw</code> package on this Ubuntu host, then reopen this page.</p>';
 			echo '</div>';
 
 			return;
 		}
 
-		echo '<table cellpadding="6" cellspacing="0" width="100%" style="border-collapse:collapse;margin:0 0 18px;'
-			. 'border:1px solid #ccc">';
-		echo '<tr style="background:#e8e8e8"><td colspan="3"><b>Default Policies</b></td></tr>';
-		echo '<tr><td colspan="3">';
+		echo '<table class="tableheader" cellpadding="0" cellspacing="0" border="0" width="100%">';
+		echo '<tr class="mediumtableheader"><td class="col" colspan="3">'
+			. '<span class="tableheadtext">Default Policies</span></td></tr>';
+		echo '<tr class="formtablerow0"><td class="col" colspan="3">';
 		$this->printFormOpen('ufwdefaults');
-		echo 'Incoming: <select name="frm_ufwfirewall_c_ufw_default_in">';
+		echo '<span class="searchtext">Incoming:</span> '
+			. '<select class="textbox" style="' . $selectStyle . '" name="frm_ufwfirewall_c_ufw_default_in">';
 		foreach ($policies as $p) {
 			$sel = ($p === $defIn) ? ' selected' : '';
 			echo '<option value="' . $p . '"' . $sel . '>' . $p . '</option>';
 		}
-		echo '</select> &nbsp; Outgoing: <select name="frm_ufwfirewall_c_ufw_default_out">';
+		echo '</select> &nbsp; <span class="searchtext">Outgoing:</span> '
+			. '<select class="textbox" style="' . $selectStyle . '" name="frm_ufwfirewall_c_ufw_default_out">';
 		foreach ($policies as $p) {
 			$sel = ($p === $defOut) ? ' selected' : '';
 			echo '<option value="' . $p . '"' . $sel . '>' . $p . '</option>';
 		}
-		echo '</select> &nbsp; <input type="submit" value="Save Defaults" class="submitbutton">';
+		echo '</select> &nbsp; <input type="submit" class="submitbutton" value="&nbsp;&nbsp;Save Defaults&nbsp;&nbsp;">';
 		echo '</form></td></tr></table>';
 
-		echo '<table cellpadding="6" cellspacing="0" width="100%" style="border-collapse:collapse;margin:0 0 18px;'
-			. 'border:1px solid #ccc">';
-		echo '<tr style="background:#e8e8e8"><td colspan="6"><b>Port Rules</b>'
-			. ' <span style="font-weight:normal;color:#666">(' . (int) $nRules . ')</span></td></tr>';
-		echo '<tr style="background:#f5f5f5">'
-			. '<th align="left">#</th><th align="left">Action</th><th align="left">Protocol</th>'
-			. '<th align="left">Port</th><th align="left">From</th><th align="center">Delete</th></tr>';
+		echo '<br/>';
+		echo '<table class="tableheader" cellpadding="0" cellspacing="0" border="0" width="100%">';
+		echo '<tr class="mediumtableheader"><td class="col" colspan="6">'
+			. '<span class="tableheadtext">Port Rules</span> '
+			. '<span class="searchtext">(' . (int) $nRules . ')</span></td></tr>';
+		echo '<tr class="tablerow2">'
+			. '<td class="col"><span class="tableheadtext">#</span></td>'
+			. '<td class="col"><span class="tableheadtext">Action</span></td>'
+			. '<td class="col"><span class="tableheadtext">Protocol</span></td>'
+			. '<td class="col"><span class="tableheadtext">Port</span></td>'
+			. '<td class="col"><span class="tableheadtext">From</span></td>'
+			. '<td class="col" align="center"><span class="tableheadtext">Delete</span></td></tr>';
 		if ($rules === array()) {
-			echo '<tr><td colspan="6" style="color:#666">No port rules yet. Add one below '
+			echo '<tr class="tablerow0"><td class="col messagetext" colspan="6">No port rules yet. Add one below '
 				. '(rules apply when the firewall is active).</td></tr>';
 		} else {
 			$i = 0;
@@ -203,7 +212,7 @@ class ufwfirewall extends lxclass
 					continue;
 				}
 				$i++;
-				$bg = ($i % 2 === 0) ? '#fafafa' : '#fff';
+				$rowClass = ($i % 2 === 0) ? 'tablerow1' : 'tablerow0';
 				$n = (string) $r['number'];
 				$to = isset($r['to']) ? (string) $r['to'] : '';
 				$actRaw = isset($r['action']) ? (string) $r['action'] : '';
@@ -228,51 +237,58 @@ class ufwfirewall extends lxclass
 				} catch (Throwable $e) {
 					$canDel = true;
 				}
-				echo '<tr style="background:' . $bg . '">';
-				echo '<td>' . htmlspecialchars($n, ENT_QUOTES) . '</td>';
-				echo '<td>' . htmlspecialchars($actLabel, ENT_QUOTES) . '</td>';
-				echo '<td>' . htmlspecialchars($proto, ENT_QUOTES) . '</td>';
-				echo '<td>' . htmlspecialchars($port, ENT_QUOTES) . '</td>';
-				echo '<td>' . htmlspecialchars($from !== '' ? $from : 'Anywhere', ENT_QUOTES) . '</td>';
-				echo '<td align="center">';
+				echo '<tr class="' . $rowClass . '">';
+				echo '<td class="col tablerowdetail0">' . htmlspecialchars($n, ENT_QUOTES) . '</td>';
+				echo '<td class="col tablerowdetail0">' . htmlspecialchars($actLabel, ENT_QUOTES) . '</td>';
+				echo '<td class="col tablerowdetail0">' . htmlspecialchars($proto, ENT_QUOTES) . '</td>';
+				echo '<td class="col tablerowdetail0">' . htmlspecialchars($port, ENT_QUOTES) . '</td>';
+				echo '<td class="col tablerowdetail0">'
+					. htmlspecialchars($from !== '' ? $from : 'Anywhere', ENT_QUOTES) . '</td>';
+				echo '<td class="col" align="center">';
 				if ($canDel) {
 					$this->printFormOpen('deleterule');
 					echo '<input type="hidden" name="frm_ufwfirewall_c_ufw_rule" value="'
 						. htmlspecialchars($n, ENT_QUOTES) . '">';
-					echo '<input type="submit" value="Delete" class="submitbutton"'
+					echo '<input type="submit" class="submitbutton" value="&nbsp;&nbsp;Delete&nbsp;&nbsp;"'
 						. ' onclick="return confirm(' . htmlspecialchars(
 							json_encode('Delete rule #' . $n . '?'),
 							ENT_QUOTES
 						) . ')">';
 					echo '</form>';
 				} else {
-					echo '<span title="Last allow for panel port 7777/7778">Protected</span>';
+					echo '<span class="searchtext" title="Last allow for panel port 7777/7778">Protected</span>';
 				}
 				echo '</td></tr>';
 			}
 		}
 		echo '</table>';
 
-		echo '<table cellpadding="6" cellspacing="0" width="100%" style="border-collapse:collapse;'
-			. 'border:1px solid #ccc">';
-		echo '<tr style="background:#e8e8e8"><td colspan="2"><b>Add Port Rule</b></td></tr>';
-		echo '<tr><td colspan="2">';
+		echo '<br/>';
+		echo '<table class="tableheader" cellpadding="0" cellspacing="0" border="0" width="100%">';
+		echo '<tr class="mediumtableheader"><td class="col" colspan="5">'
+			. '<span class="tableheadtext">Add Port Rule</span></td></tr>';
+		echo '<tr class="formtablerow0"><td class="col" colspan="5">';
 		$this->printFormOpen('addrule');
-		echo '<table cellpadding="4" cellspacing="0"><tr>';
-		echo '<td>Action<br><select name="frm_ufwfirewall_c_ufw_action">'
+		echo '<table cellpadding="0" cellspacing="0" border="0"><tr>';
+		echo '<td class="col"><span class="searchtext">Action</span><br>'
+			. '<select class="textbox" style="' . $selectStyle . '" name="frm_ufwfirewall_c_ufw_action">'
 			. '<option value="allow">ALLOW</option>'
 			. '<option value="deny">DENY</option>'
 			. '<option value="reject">REJECT</option></select></td>';
-		echo '<td>Protocol<br><select name="frm_ufwfirewall_c_ufw_proto">'
+		echo '<td class="col"><span class="searchtext">Protocol</span><br>'
+			. '<select class="textbox" style="' . $selectStyle . '" name="frm_ufwfirewall_c_ufw_proto">'
 			. '<option value="tcp">TCP</option>'
 			. '<option value="udp">UDP</option></select></td>';
-		echo '<td>Port<br><input type="text" name="frm_ufwfirewall_c_ufw_port" size="18"'
+		echo '<td class="col"><span class="searchtext">Port</span><br>'
+			. '<input type="text" class="textbox" style="' . $textStyle . '" name="frm_ufwfirewall_c_ufw_port"'
 			. ' placeholder="80 or 80-82 or 80,443" required></td>';
-		echo '<td>From IP<br><input type="text" name="frm_ufwfirewall_c_ufw_from" size="18"'
+		echo '<td class="col"><span class="searchtext">From IP</span><br>'
+			. '<input type="text" class="textbox" style="' . $textStyle . '" name="frm_ufwfirewall_c_ufw_from"'
 			. ' placeholder="blank = anywhere"></td>';
-		echo '<td style="vertical-align:bottom"><input type="submit" value="Add" class="submitbutton"></td>';
+		echo '<td class="col" style="vertical-align:bottom">'
+			. '<input type="submit" class="submitbutton" value="&nbsp;&nbsp;Add&nbsp;&nbsp;"></td>';
 		echo '</tr></table>';
-		echo '<div style="margin-top:8px;color:#666;font-size:12px">'
+		echo '<div class="messagetext" style="margin-top:8px">'
 			. 'Port: single (<code>443</code>), range (<code>80-82</code>), or list (<code>80,443</code>). '
 			. 'Blank From = anywhere. Deny/reject of panel ports <b>7777</b>/<b>7778</b> is refused. '
 			. 'Enable first allows panel, SSH, HTTP/S, FTP, DNS, mail and webcache/webproxy ports.'
@@ -282,17 +298,12 @@ class ufwfirewall extends lxclass
 		echo '</div>';
 	}
 
-	function printActionForm($subaction, $label, $confirm, $color = null)
+	function printActionForm($subaction, $label, $confirm)
 	{
 		$this->printFormOpen($subaction);
 		echo '<input type="hidden" name="frm_ufwfirewall_c_ufw_confirm" value="on">';
-		$style = '';
-		if (is_string($color) && $color !== '') {
-			$c = htmlspecialchars($color, ENT_QUOTES);
-			$style = ' style="background:' . $c . ';color:#fff;border-color:' . $c . '"';
-		}
-		echo '<input type="submit" value="' . htmlspecialchars($label, ENT_QUOTES) . '" class="submitbutton"'
-			. $style
+		echo '<input type="submit" class="submitbutton" value="&nbsp;&nbsp;'
+			. htmlspecialchars((string) $label, ENT_QUOTES) . '&nbsp;&nbsp;"'
 			. ' onclick="return confirm(' . htmlspecialchars(json_encode($confirm), ENT_QUOTES) . ')">';
 		echo '</form>';
 	}

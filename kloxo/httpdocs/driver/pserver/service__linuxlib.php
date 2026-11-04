@@ -97,6 +97,56 @@ class Service__Linux extends Lxlclass
 		return is_dir('/run/systemd/system');
 	}
 
+	/** Absolute systemctl binary, or empty if missing. */
+	static function systemctlBin()
+	{
+		foreach (array('/bin/systemctl', '/usr/bin/systemctl') as $bin) {
+			if (is_executable($bin)) {
+				return $bin;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Run systemctl with an argument array (no shell string).
+	 *
+	 * @return int process exit code, or -1 on failure
+	 */
+	static function systemctlRun($act, $unit)
+	{
+		$bin = self::systemctlBin();
+		$act = (string) $act;
+		$unit = (string) $unit;
+		if ($bin === '' || !self::isSafeUnit($unit)
+			|| !in_array($act, array('start', 'stop', 'restart', 'enable', 'disable'), true)) {
+			return -1;
+		}
+		try {
+			$p = @proc_open(array($bin, $act, $unit), array(
+				0 => array('file', '/dev/null', 'r'),
+				1 => array('pipe', 'w'),
+				2 => array('pipe', 'w'),
+			), $pipes);
+		} catch (Throwable $e) {
+			return -1;
+		}
+		if ($p === false || $p === null) {
+			return -1;
+		}
+		if (isset($pipes[1]) && is_resource($pipes[1])) {
+			stream_get_contents($pipes[1]);
+			fclose($pipes[1]);
+		}
+		if (isset($pipes[2]) && is_resource($pipes[2])) {
+			stream_get_contents($pipes[2]);
+			fclose($pipes[2]);
+		}
+
+		return (int) proc_close($p);
+	}
+
 	static function unitName($servicename)
 	{
 		$servicename = (string) $servicename;
@@ -107,6 +157,31 @@ class Service__Linux extends Lxlclass
 
 		return $servicename;
 	}
+
+	/**
+	 * Preferred panel name for a systemd unit (Debian/Ubuntu names).
+	 * Collapses RHEL aliases (httpd/named/mysqld) onto one list row.
+	 */
+	static function preferredServiceName($name)
+	{
+		$name = (string) $name;
+		$map = array(
+			'httpd' => 'apache2',
+			'apache2' => 'apache2',
+			'named' => 'bind9',
+			'bind9' => 'bind9',
+			'mysqld' => 'mariadb',
+			'mysql' => 'mariadb',
+			'mariadb' => 'mariadb',
+			'pdns-server' => 'pdns',
+			'pdns' => 'pdns',
+			'exim' => 'exim4',
+			'exim4' => 'exim4',
+		);
+
+		return isset($map[$name]) ? $map[$name] : $name;
+	}
+
 
 	static function phpFpmUnitNames()
 	{
@@ -167,11 +242,32 @@ class Service__Linux extends Lxlclass
 		if (!self::hasSystemd() || !self::isSafeUnit($unit) || !self::isSafeUnit($prop)) {
 			return '';
 		}
+		$bin = self::systemctlBin();
+		if ($bin === '') {
+			return '';
+		}
 		try {
-			$out = lxshell_output('systemctl', 'show', '-p', $prop, '--value', $unit);
+			$p = @proc_open(array($bin, 'show', '-p', $prop, '--value', $unit), array(
+				0 => array('file', '/dev/null', 'r'),
+				1 => array('pipe', 'w'),
+				2 => array('pipe', 'w'),
+			), $pipes);
 		} catch (Throwable $e) {
 			return '';
 		}
+		if ($p === false || $p === null) {
+			return '';
+		}
+		$out = '';
+		if (isset($pipes[1]) && is_resource($pipes[1])) {
+			$out = stream_get_contents($pipes[1]);
+			fclose($pipes[1]);
+		}
+		if (isset($pipes[2]) && is_resource($pipes[2])) {
+			stream_get_contents($pipes[2]);
+			fclose($pipes[2]);
+		}
+		proc_close($p);
 
 		return is_string($out) ? trim($out) : '';
 	}
@@ -309,7 +405,9 @@ class Service__Linux extends Lxlclass
 			return array();
 		}
 
-		foreach ($list as &$__l) {
+		$byUnit = array();
+
+		foreach ($list as $key => &$__l) {
 			if (!is_array($__l)) {
 				continue;
 			}
@@ -317,10 +415,26 @@ class Service__Linux extends Lxlclass
 			$__l['state'] = 'off';
 			$__l['boot_state'] = 'off';
 
-			$svc = isset($__l['servicename']) ? (string)$__l['servicename'] : '';
+			$svc = isset($__l['servicename']) ? (string) $__l['servicename'] : '';
 			$unit = self::resolveInstalledUnit($svc);
 			if ($unit === '') {
 				continue;
+			}
+
+			$prefer = self::preferredServiceName($unit);
+			if (isset($byUnit[$unit])) {
+				$prevKey = $byUnit[$unit];
+				$prevSvc = isset($list[$prevKey]['servicename']) ? (string) $list[$prevKey]['servicename'] : '';
+				if ($svc === $prefer && $prevSvc !== $prefer) {
+					$list[$prevKey]['install_state'] = 'dull';
+					$list[$prevKey]['state'] = 'off';
+					$list[$prevKey]['boot_state'] = 'off';
+					$byUnit[$unit] = $key;
+				} else {
+					continue;
+				}
+			} else {
+				$byUnit[$unit] = $key;
 			}
 
 			$__l['install_state'] = 'on';
@@ -329,7 +443,7 @@ class Service__Linux extends Lxlclass
 				$__l['boot_state'] = self::bootStateOn($unit) ? 'on' : 'off';
 			} else {
 				$__l['boot_state'] = self::checkServiceOn($unit) ? 'on' : 'off';
-				$grep = isset($__l['grepstring']) ? (string)$__l['grepstring'] : $unit;
+				$grep = isset($__l['grepstring']) ? (string) $__l['grepstring'] : $unit;
 				$__l['state'] = (self::processIsRunning($unit) || self::processIsRunning($grep)) ? 'on' : 'off';
 			}
 		}
