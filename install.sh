@@ -1,7 +1,13 @@
 #!/bin/bash
 # Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
-# One line (downloads this script from GitHub main, then clones or fetches origin/main):
+# Install (downloads this script from GitHub main, then clones or fetches origin/main):
+#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
+#   apt-get update
+#   apt-get install -y ca-certificates curl
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
+#   bash /tmp/kloxocp-install.sh'
+# One line:
 #   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 #
 # Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
@@ -27,7 +33,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026110201"
+KCP_VERSION="10.1-2026110401"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -67,12 +73,21 @@ Default panel login is admin/admin; the UI requires a password change
 after the first login. Override with KLOXO_ADMIN_PASSWORD (min 8 chars).
 Slave password: --slave-password= or KLOXO_SLAVE_PASSWORD (min 8 chars).
 
-One-line install on Ubuntu 24.04 or 26.x (root). Downloads this script from GitHub main, then clones or fetches origin/main:
+Install on Ubuntu 24.04 or 26.x (root). Downloads this script from GitHub main,
+then clones or fetches origin/main:
+
+  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y ca-certificates curl
+  curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
+  bash /tmp/kloxocp-install.sh'
+
+One line:
 
   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 
 Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
-This tree is NOT production-safe.
+This tree is NOT production-safe. Version ${KCP_VERSION}.
 EOF
 }
 

@@ -10,14 +10,14 @@ Public git remote: https://github.com/ARDZIVE/kloxocp.git (`main`).
 
 | What | Value |
 |---|---|
-| **Kloxo CP** (this fork) | **10.1-2026110201** |
-| `kloxo/bin/kloxoversion` | **10.1-2026110201** |
+| **Kloxo CP** (this fork) | **10.1-2026110401** |
+| `kloxo/bin/kloxoversion` | **10.1-2026110401** |
 | Upstream base | Kloxo-MR `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` |
 
-`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110201**.
+`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110401**.
 The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
-> **Status: 10.1-2026110201, NOT FOR PRODUCTION.**
+> **Status: 10.1-2026110401, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. Phase-1a security items (C1–C5) are
 > closed, first-party PHP parses and loads on PHP 8, and `install.sh` can
 > bootstrap a panel, but the legacy PHP is still PHP 5-era in behaviour.
@@ -31,18 +31,39 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
 ## Installation command (Ubuntu 24.04 or 26.x, as root)
 
+**Recommended (current `main`, version 10.1-2026110401):**
+
+```bash
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y ca-certificates curl
+curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
+bash /tmp/kloxocp-install.sh'
 ```
+
+One line (same steps):
+
+```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 Low-RAM / small-disk VPS (add `--force`):
 
-```
+```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
+Panel-only host (skip Exim/Dovecot/Rspamd packages):
+
+```bash
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=core'
+```
+
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
-clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash.
+clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
+(`curl | bash` breaks apt stdin). Re-run the same command to refresh an
+existing clone to current `main`.
+
 Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
 **redis-server**, and Ubuntu **universe** enabled when needed. Postfix is
 **not** installed with Exim (both conflict on `mail-transport-agent`); Switch
@@ -51,7 +72,7 @@ install bogofilter, SpamAssassin, or sqlite (panel DB is MariaDB; spam is Rspamd
 Starts Nginx, BIND, Redis, Pure-FTPd, webcache on **8080**, and webproxy on
 **30080**. Packages `ufw` and leaves it **inactive** (enable later from
 Security → **UFW Firewall**; that first allows 7777/7778). Apache and PowerDNS
-are packaged and stay disabled. Use `--profile=core` to skip mail packages.
+are packaged and stay disabled.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
 self-signed certificate. Change that password on first login. Flags and
@@ -96,8 +117,9 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Manage DNS | Tabs **Manage DNS**, **Rebuild**, **NS**, **A**, **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**, **General Settings**. No left Find box. Show does not rewrite the zone. |
 | DNS Templates | Add form on the list tab (name/primary/secondary empty). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
-| Update | **10.1-2026110201**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
-| Services | Lists only installed units; running/boot from systemd `ActiveState` / `UnitFileState`. Includes `kloxo-webcache` and `kloxo-webproxy` after install. |
+| Update | **10.1-2026110401**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
+| Services | Lists only installed units; running/boot from systemd. RHEL/Debian aliases collapse to one row (`apache2` not `httpd`, `bind9` not `named`, `mariadb` not `mysqld`). Sb / State / start / stop / restart call absolute `systemctl`. Includes `kloxo-webcache` and `kloxo-webproxy`. Live actions after deploy are unverified. |
+| Traceroute | Parses `traceroute` and `tracepath`. Response times show three decimals; unreachable hops show `*` (not `no`). |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
@@ -126,9 +148,19 @@ the Change Password modal is required (Esc/Close cannot skip it).
 
 ### Installation command
 
-**Ubuntu 24.04 or 26.x, as root** (same command as at the top of this file):
+**Ubuntu 24.04 or 26.x, as root** (same as [Installation command](#installation-command-ubuntu-2404-or-26x-as-root) above):
 
+```bash
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y ca-certificates curl
+curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
+bash /tmp/kloxocp-install.sh'
 ```
+
+One-line form:
+
+```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
@@ -144,7 +176,7 @@ packages.
 A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:
 
-```
+```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
