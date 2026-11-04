@@ -10,14 +10,14 @@ Public git remote: https://github.com/ARDZIVE/kloxocp.git (`main`).
 
 | What | Value |
 |---|---|
-| **Kloxo CP** (this fork) | **10.1-2026110402** |
-| `kloxo/bin/kloxoversion` | **10.1-2026110402** |
+| **Kloxo CP** (this fork) | **10.1-2026110403** |
+| `kloxo/bin/kloxoversion` | **10.1-2026110403** |
 | Upstream base | Kloxo-MR `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` |
 
-`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110402**.
+`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110403**.
 The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
-> **Status: 10.1-2026110402, NOT FOR PRODUCTION.**
+> **Status: 10.1-2026110403, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. Phase-1a security items (C1–C5) are
 > closed, first-party PHP parses and loads on PHP 8, and `install.sh` can
 > bootstrap a panel, but the legacy PHP is still PHP 5-era in behaviour.
@@ -31,7 +31,7 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
 ## Installation command (Ubuntu 24.04 or 26.x, as root)
 
-**Recommended (current `main`, version 10.1-2026110402):**
+**Recommended (current `main`, version 10.1-2026110403):**
 
 ```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
@@ -62,8 +62,9 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get i
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
 (`curl | bash` breaks apt stdin). Re-run the same command to refresh an
-existing clone to current `main` (includes Services hardening, MariaDB-default
-SQL, ImageMagick for File Manager Thumbnail).
+existing clone to current `main` (**10.1-2026110403**: Services icon
+start/stop/restart via `systemctl`, Multiple PHP Install job under
+`$ROOT/log/`, MariaDB-default SQL, ImageMagick for File Manager Thumbnail).
 
 Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
 **redis-server**, **imagemagick**, and Ubuntu **universe** enabled when needed.
@@ -90,7 +91,7 @@ details are under [Installation](#installation).
 | Panel PHP | Distro PHP-FPM as user `lxlabs` on `127.0.0.1:39000` |
 | Customer websites | **Nginx + PHP-FPM** default; Apache 2.4 + PHP-FPM (`proxy_fcgi`, no mod_php) packaged and selectable |
 | Webcache / webproxy | nginx frontends `kloxo-webcache` **:8080** and `kloxo-webproxy` **:30080** (to `127.0.0.1:80`; not Varnish/Squid) |
-| Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it |
+| Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it. Multiple PHP Install queues under `$ROOT/log/`. |
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
 | Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
@@ -120,8 +121,8 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Manage DNS | Tabs **Manage DNS**, **Rebuild**, **NS**, **A**, **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**, **General Settings**. No left Find box. Show does not rewrite the zone. |
 | DNS Templates | Add form on the list tab (name/primary/secondary empty). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
-| Update | **10.1-2026110402**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
-| Services | Lists only installed units; running/boot from systemd. RHEL/Debian aliases collapse to one row (`apache2` not `httpd`, `bind9` not `named`). Default SQL is **MariaDB** (started at install); `mysql`/`mysqld` are not shown as a second installed row while MariaDB is present. A separate MySQL package stays stopped until started here. Sb / State / start / stop / restart use `systemctl --no-block`. Stop/restart of MariaDB and panel units is refused. If every page shows `No such file or directory`, run `systemctl start mariadb`. |
+| Update | **10.1-2026110403**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
+| Services | Lists only installed units; running/boot from systemd. RHEL/Debian aliases collapse to one row (`apache2` not `httpd`, `bind9` not `named`). Default SQL is **MariaDB** (started at install); `mysql`/`mysqld` are not shown as a second installed row while MariaDB is present. A separate MySQL package stays stopped until started here. Columns **Start** / **Stop** / **Restart**; icon clicks run `systemctl --no-block` immediately. Stop/restart of MariaDB and panel units is refused (icons stay visible; Sb/State view-only for those). If every page shows `No such file or directory`, run `systemctl start mariadb`. |
 | Traceroute | Parses `traceroute` and `tracepath`. Response times show three decimals; unreachable hops show `*` (not `no`). |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
@@ -129,7 +130,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | UFW Firewall | Security-section button. One beige tab: enable/disable, defaults, numbered port rules (ALLOW/DENY/REJECT; lists/ranges). Runs as root via kloxo-backend. Enable first allows 7777/7778 and common service ports. `ufw` packaged inactive. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
-| Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |
+| Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |
 | Watchdog | Eight services. webcache (8080) and webproxy (30080) are nginx frontends to port 80 (`kloxo-webcache` / `kloxo-webproxy`), not Varnish/Squid. |
 
 ## Goals

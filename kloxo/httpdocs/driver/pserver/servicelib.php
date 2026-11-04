@@ -1,5 +1,7 @@
 <?php
 
+include_once __DIR__ . '/service__linuxlib.php';
+
 class Service extends Lxdb
 {
 	static $__desc = array("", "", "service");
@@ -36,9 +38,56 @@ class Service extends Lxdb
 
 	function update($subaction, $param)
 	{
+		if (!is_array($param)) {
+			$param = array();
+		}
 		$param['non_f'] = 'hello';
-		
+
 		return $param;
+	}
+
+	/**
+	 * Icon actions (start/stop/restart/Sb/State) have no form fields.
+	 * Return an empty vlist so do_update's security_check does not treat the
+	 * request as accessing unsettable variables.
+	 */
+	function updateform($subaction, $param)
+	{
+		switch ((string) $subaction) {
+			case 'start':
+			case 'stop':
+			case 'restart':
+			case 'toggle_state':
+			case 'toggle_boot_state':
+				return array('non_f' => array('h', null));
+		}
+
+		return parent::updateform($subaction, $param);
+	}
+
+	/**
+	 * Run systemctl now for icon clicks. List children can miss login->was()
+	 * sync; clearing subaction afterwards lets write() persist state without a
+	 * second systemctl. If the driver is not loaded in this process (tests or
+	 * missing pg_service), fall back to setUpdateSubaction for was()/rl_exec.
+	 */
+	function runServiceControl($subaction)
+	{
+		$this->createSyncClass();
+		$drv = (isset($this->driverApp) && is_object($this->driverApp))
+			? get_class($this->driverApp) : '';
+		if ($drv === '' || strcasecmp($drv, 'LxaClass') === 0) {
+			$this->setUpdateSubaction($subaction);
+
+			return;
+		}
+		$this->subaction = $subaction;
+		if ($this->dbaction === 'clean') {
+			$this->dbaction = 'update';
+		}
+		$this->syncToSystem();
+		// State/boot flags still need write(); skip a second sync in was().
+		$this->subaction = null;
 	}
 
 	static function createListAlist($parent, $class)
@@ -84,7 +133,8 @@ class Service extends Lxdb
 		}
 
 		$svc = isset($this->servicename) ? (string) $this->servicename : '';
-		$protected = class_exists('Service__Linux', false) && Service__Linux::isProtectedUnit($svc);
+		// service__linuxlib.php is included above; always evaluate protection.
+		$protected = Service__Linux::isProtectedUnit($svc);
 		// Keep Start/Stop/Restart icons for every installed row (blank cells look broken).
 		// Sb / State stay view-only for panel-critical units; Stop/Restart still refuse
 		// in updateStop/updateRestart via assertMayControl.
@@ -100,13 +150,11 @@ class Service extends Lxdb
 		global $login;
 
 		$svc = isset($this->servicename) ? (string) $this->servicename : '';
-		$unit = class_exists('Service__Linux', false)
-			? Service__Linux::resolveInstalledUnit($svc)
-			: $svc;
+		$unit = Service__Linux::resolveInstalledUnit($svc);
 		if ($unit === '') {
 			$unit = $svc;
 		}
-		if (!class_exists('Service__Linux', false) || Service__Linux::mayControlUnit($unit, (string) $act)) {
+		if (Service__Linux::mayControlUnit($unit, (string) $act)) {
 			return;
 		}
 		$msg = (is_object($login) && method_exists($login, 'getThrow'))
@@ -175,7 +223,7 @@ class Service extends Lxdb
 		$next = $this->isOn('state') ? 'off' : 'on';
 		$this->assertMayControl($next === 'on' ? 'start' : 'stop');
 		$this->state = $next;
-		$this->setUpdateSubaction('toggle_state');
+		$this->runServiceControl('toggle_state');
 
 		return null;
 	}
@@ -185,7 +233,7 @@ class Service extends Lxdb
 		$next = $this->isOn('boot_state') ? 'off' : 'on';
 		$this->assertMayControl($next === 'on' ? 'enable' : 'disable');
 		$this->boot_state = $next;
-		$this->setUpdateSubaction('toggle_boot_state');
+		$this->runServiceControl('toggle_boot_state');
 
 		return null;
 	}
@@ -194,7 +242,7 @@ class Service extends Lxdb
 	{
 		$this->assertMayControl('start');
 		$this->state = 'on';
-		$this->setUpdateSubaction('start');
+		$this->runServiceControl('start');
 
 		return null;
 	}
@@ -203,7 +251,7 @@ class Service extends Lxdb
 	{
 		$this->assertMayControl('stop');
 		$this->state = 'off';
-		$this->setUpdateSubaction('stop');
+		$this->runServiceControl('stop');
 
 		return null;
 	}
@@ -211,7 +259,7 @@ class Service extends Lxdb
 	function updateRestart($param)
 	{
 		$this->assertMayControl('restart');
-		$this->setUpdateSubaction('restart');
+		$this->runServiceControl('restart');
 
 		return null;
 	}

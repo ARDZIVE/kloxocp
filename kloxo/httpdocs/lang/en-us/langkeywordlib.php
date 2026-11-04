@@ -340,6 +340,7 @@ $__throw["no_ip_address_matching_webserver"] = "No IPAddress matching Webserver"
 $__throw["no_parent_object"] = "No parent object";
 $__throw["not_owner_of_parent_object"] = "Not owner of parent object";
 $__throw["could_not_change_superadmin_pass"] = "Could not change superadmin pass";
+$__throw["could_not_execute"] = "Could not execute the requested command";
 $__throw["could_not_execute_reboot"] = "Could not reboot or power off the server (systemctl/reboot not found)";
 $__throw["no_object_under_current_user"] = "No object under current user";
 

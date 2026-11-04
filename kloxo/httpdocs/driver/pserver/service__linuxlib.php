@@ -101,7 +101,7 @@ class Service__Linux extends Lxlclass
 	static function protectedUnits()
 	{
 		return array(
-			'mariadb', 'mysql', 'mysqld',
+			'mariadb', 'mysql', 'mysqld', 'mariadbd',
 			'kloxo-php', 'kloxo-web', 'kloxo-backend', 'kloxo-wrap', 'hiawatha',
 		);
 	}

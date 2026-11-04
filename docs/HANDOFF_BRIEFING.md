@@ -181,7 +181,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026110402**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026110403**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -228,12 +228,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     for unreachable hops (not `no`). Live after deploy is UNVERIFIED.
     Services list collapses httpd/apache2 and named/bind9 to one preferred
     row; start/stop/restart/boot use absolute `systemctl --no-block` with pipe
-    timeouts. Column headers are Start / Stop / Restart (not three "Service").
-    Stop/disable/restart of mariadb / kloxo-php / kloxo-web / kloxo-backend /
-    hiawatha is refused on click while those icons stay visible (blank cells
-    looked like missing icons); Sb/State toggles are view-only for them
-    (stopping MariaDB blanks the UI with socket "No such file or directory").
-    Live Services actions UNVERIFIED.
+    timeouts via `Service::runServiceControl` on the icon click (so list
+    children are not skipped by `login->was()`). Column headers are Start /
+    Stop / Restart. Stop/disable/restart of mariadb / kloxo-php / kloxo-web /
+    kloxo-backend / hiawatha is refused on click while those icons stay visible;
+    Sb/State toggles are view-only for them (stopping MariaDB blanks the UI with
+    socket "No such file or directory"). `Service__Linux` is always loaded with
+    the Service class so protection cannot be skipped. Live Services actions
+    UNVERIFIED.
     File Manager Thumbnail/resize checks `/usr/bin/convert` (or `magick`),
     not CentOS `rpm -q ImageMagick`; `install.sh` packages `imagemagick`.
     Default SQL is MariaDB (`enable --now mariadb`); mysqld/mysql alias rows

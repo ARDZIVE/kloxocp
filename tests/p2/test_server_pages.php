@@ -251,12 +251,20 @@ $svcCritIcons = $svcCrit->isAction('button_start_f')
 $svcBtnLabels = Service::$__desc_button_start_f[2] === 'start'
 	&& Service::$__desc_button_stop_f[2] === 'stop'
 	&& Service::$__desc_button_restart_f[2] === 'restart';
-if ($protOk && $svcCritStopBlocked && $svcCritIcons && $svcBtnLabels) {
+$svcSrc = (string) file_get_contents($doc . '/driver/pserver/servicelib.php');
+$svcIconPath = str_contains($svcSrc, 'function runServiceControl')
+	&& str_contains($svcSrc, "include_once __DIR__ . '/service__linuxlib.php'")
+	&& str_contains($svcSrc, "case 'start':")
+	&& str_contains($svcSrc, "case 'toggle_boot_state':")
+	&& is_array($svcCrit->updateform('start', array()))
+	&& isset($svcCrit->updateform('stop', array())['non_f']);
+if ($protOk && $svcCritStopBlocked && $svcCritIcons && $svcBtnLabels && $svcIconPath) {
 	ok('Services refuse stop/restart of MariaDB and panel units; systemctl uses --no-block');
 } else {
 	bad('Services refuse stop/restart of MariaDB and panel units; systemctl uses --no-block',
 		'prot=' . ($protOk ? 'yes' : 'no') . ' stopBlocked=' . ($svcCritStopBlocked ? 'yes' : 'no')
-		. ' icons=' . ($svcCritIcons ? 'yes' : 'no') . ' labels=' . ($svcBtnLabels ? 'yes' : 'no'));
+		. ' icons=' . ($svcCritIcons ? 'yes' : 'no') . ' labels=' . ($svcBtnLabels ? 'yes' : 'no')
+		. ' iconPath=' . ($svcIconPath ? 'yes' : 'no'));
 }
 
 $psSrc = (string) file_get_contents($doc . '/driver/pserver/pserver__linuxlib.php');
