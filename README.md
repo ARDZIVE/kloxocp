@@ -32,24 +32,26 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 ## Installation command (Ubuntu 24.04 or 26.x, as root)
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 Low-RAM / small-disk VPS (add `--force`):
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full --force'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash.
-`--profile=full` installs Exim (default MTA), Dovecot, Rspamd, and
-Postfix (unit stays **disabled** until Switch Program selects it). Core always
-packages **pure-ftpd** and **redis-server** (Rspamd Bayes). It does **not**
-install bogofilter, SpamAssassin, or sqlite (panel DB is MariaDB; spam is Rspamd). Starts Nginx, BIND, webcache on
-**8080**, and webproxy on **30080**. Packages `ufw` and leaves it **inactive**
-(enable later from Security → **UFW Firewall**; that first allows 7777/7778).
-Apache and PowerDNS are packaged and stay disabled.
+Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
+**redis-server**, and Ubuntu **universe** enabled when needed. Postfix is
+**not** installed with Exim (both conflict on `mail-transport-agent`); Switch
+Program `smtp=postfix` removes Exim and installs Postfix. It does **not**
+install bogofilter, SpamAssassin, or sqlite (panel DB is MariaDB; spam is Rspamd).
+Starts Nginx, BIND, Redis, Pure-FTPd, webcache on **8080**, and webproxy on
+**30080**. Packages `ufw` and leaves it **inactive** (enable later from
+Security → **UFW Firewall**; that first allows 7777/7778). Apache and PowerDNS
+are packaged and stay disabled. Use `--profile=core` to skip mail packages.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
 self-signed certificate. Change that password on first login. Flags and
@@ -67,7 +69,7 @@ details are under [Installation](#installation).
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it |
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
-| Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` / **exim** (default) / `postfix` (disabled until selected). Content tab labelled **Switch Program**. |
+| Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
 | Database | MariaDB (panel DB `kloxo`; mail DB is separate) |
 | SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `root`@`127.0.0.1`) |
 | Billing | None |
@@ -82,7 +84,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Screen | Behaviour |
 |---|---|
 | SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
-| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP **exim**. Postfix is selectable and stays disabled until chosen. |
+| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP **exim**. Postfix is selectable and apt-swaps with Exim. |
 | Backup / Restore | Exactly five tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. Show page: Backup Now, Restore From File, Restore From FTP. File Manager / Upload under a backup keep those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
 | FTP Configure | Under localhost (not Backup FTP Configuration). One beige tab labelled **FTP Configure**. |
@@ -127,22 +129,23 @@ the Change Password modal is required (Esc/Close cannot skip it).
 **Ubuntu 24.04 or 26.x, as root** (same command as at the top of this file):
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 Downloads the current `install.sh` from GitHub `main`
-(https://github.com/ARDZIVE/kloxocp) and runs it with `--profile=full` (Exim,
-Dovecot, Rspamd, Postfix packaged disabled; Redis is already in core). That script clones the
-tree if needed, or fetches `origin/main` and hard-resets when
-`/usr/local/src/kloxo-cp` is already a git clone. Safe to repeat after a
-failed install or to pick up GitHub `main` (local edits in that clone are
-discarded). Use `--profile=core` for a panel without mail packages.
+(https://github.com/ARDZIVE/kloxocp) and runs it (default **full**: Exim,
+Dovecot, Rspamd; Postfix not co-installed; Redis and Pure-FTPd enabled).
+That script clones the tree if needed, or fetches `origin/main` and
+hard-resets when `/usr/local/src/kloxo-cp` is already a git clone. Safe to
+repeat after a failed install or to pick up GitHub `main` (local edits in
+that clone are discarded). Use `--profile=core` for a panel without mail
+packages.
 
 A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full --force'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
@@ -189,7 +192,8 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    on **30080** (`install-webfront`; dedicated nginx processes, not Varnish or
    Squid). Prepares Apache (`install-apache`) and PowerDNS (`install-pdns`) and
    leaves those units **disabled**. `--profile=full` installs Exim (default MTA)
-   and Postfix (unit stays **disabled** until Switch Program selects it).
+   only — Postfix conflicts with Exim on `mail-transport-agent` and is
+   apt-installed when Switch Program selects `smtp=postfix`.
 9. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
    `localhost` driver with `dns` = `bind`, `web` = `nginx`, and `smtp` = `exim`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
@@ -221,9 +225,10 @@ does not run a browser login.
 sudo bash install.sh
 sudo bash install.sh --update              # accepted; every run already git-fetches the clone
 sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
-sudo bash install.sh --profile=full        # also apt-install exim4-daemon-heavy, postfix (disabled), dovecot, rspamd
+sudo bash install.sh                       # default --profile=full (Exim, Dovecot, Rspamd; no Postfix)
 sudo bash install.sh --with-mail           # same as --profile=full
-sudo bash install.sh --profile=core        # php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive), webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
+sudo bash install.sh --profile=full        # explicit full
+sudo bash install.sh --profile=core        # php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive); no mail MTAs
 sudo bash install.sh --dry-run             # print repo/src/root/profile and exit
 sudo bash install.sh --src=/path           # clone location (default /usr/local/src/kloxo-cp)
 sudo bash install.sh --root=/opt/kloxo     # program root
@@ -345,11 +350,13 @@ apt install -y \
 ```
 
 Mail packages (only with `--profile=full` / `--with-mail`; does **not**
-configure Exim). Postfix is packaged and left **disabled**:
+configure Exim). Do **not** apt-install Postfix here — it Conflicts with
+Exim via `mail-transport-agent`. Switch Program `smtp=postfix` removes Exim
+and installs Postfix.
 
 ```
 apt install -y \
-  exim4-daemon-heavy postfix \
+  exim4-daemon-heavy \
   dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
   dovecot-mysql dovecot-sieve dovecot-managesieved \
   rspamd
@@ -561,8 +568,8 @@ working panel; re-run `init-panel-db`.
 Hosted mail is **Exim** (SMTP) + **Dovecot** (IMAP/POP3/LMTP) + **Rspamd**
 + a dedicated MariaDB database. Switch Program SMTP is `none` / `exim`
 (default) / `postfix` (the content tab is labelled **Switch Program**);
-`exim` enables Ubuntu `exim4` and stops Postfix; `postfix` enables Postfix
-and stops Exim. The Postfix unit stays disabled until selected. Hosted-mail
+`exim` apt-installs `exim4-daemon-heavy` and removes Postfix; `postfix`
+apt-installs Postfix and removes Exim (they cannot co-exist). Hosted-mail
 templates stay Exim (`kloxo-mail`). qmail-toaster is not the selectable MTA.
 P4 will wire the panel mail screens to `kloxo-mail`. qmail remains in the
 tree until those drivers exist.

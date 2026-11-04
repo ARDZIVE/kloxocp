@@ -95,26 +95,33 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full'"
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'"
 if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
   ok "README and install.sh share the same one-liner"
 else
   bad "README and install.sh share the same one-liner"
 fi
-if echo "$ONELINER" | grep -q 'curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh' \
+if echo "$ONELINER" | grep -q 'curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh' \
   && echo "$ONELINER" | grep -q '/tmp/kloxocp-install.sh' \
-  && echo "$ONELINER" | grep -q 'bash /tmp/kloxocp-install.sh --profile=full' \
-  && ! echo "$ONELINER" | grep -q 'curl | bash'; then
+  && echo "$ONELINER" | grep -q 'bash /tmp/kloxocp-install.sh' \
+  && ! echo "$ONELINER" | grep -q 'curl | bash' \
+  && ! grep -q 'github.com/ARDZIVE/kloxocp/raw/' "$ROOT/README.md" \
+  && ! grep -q 'github.com/ARDZIVE/kloxocp/raw/' "$ROOT/install.sh"; then
   ok "one-liner downloads install.sh then runs the file"
 else
   bad "one-liner downloads install.sh then runs the file"
 fi
 if grep -q 'pure-ftpd redis-server iproute2 ufw' "$ROOT/install.sh" \
+  && grep -q 'PROFILE="full"' "$ROOT/install.sh" \
+  && grep -q 'WITH_MAIL=1' "$ROOT/install.sh" \
+  && grep -q 'ensure_ubuntu_universe' "$ROOT/install.sh" \
+  && grep -q 'enable --now redis-server' "$ROOT/install.sh" \
+  && grep -q 'enable --now pure-ftpd' "$ROOT/install.sh" \
   && ! grep -E 'apt-get install -y.*(bogofilter|spamassassin|sqlite3)' "$ROOT/install.sh" \
   && ! grep -E '^[[:space:]]*apt-get install -y.*(php-sqlite|sqlite3)' "$ROOT/install.sh"; then
-  ok "install.sh packages pure-ftpd and redis-server; skips bogofilter/spamassassin/sqlite"
+  ok "install.sh defaults to full; packages pure-ftpd/redis; enables universe"
 else
-  bad "install.sh packages pure-ftpd and redis-server; skips bogofilter/spamassassin/sqlite"
+  bad "install.sh defaults to full; packages pure-ftpd/redis; enables universe"
 fi
 if grep -q 'print_access_box' "$ROOT/install.sh" && grep -q 'Username' "$ROOT/install.sh" && grep -q 'first login' "$ROOT/install.sh"; then
   ok "installer prints a login access box"
@@ -670,17 +677,23 @@ if grep -q 'iproute2 ufw' "$ROOT/install.sh" \
 else
   bad "install.sh packages ufw and leaves it inactive"
 fi
-if grep -q 'apt-get install -y exim4-daemon-heavy postfix' "$ROOT/install.sh" \
-  && grep -q 'disable --now postfix' "$ROOT/install.sh" \
-  && grep -q 'postfix|postfix.service' "$ROOT/install.sh"; then
-  ok "install.sh packages postfix and leaves it disabled"
+if grep -q 'apt-get install -y exim4-daemon-heavy' "$ROOT/install.sh" \
+  && ! grep -E 'apt-get install -y.*\bpostfix\b' "$ROOT/install.sh" \
+  && grep -q 'mail-transport-agent' "$ROOT/install.sh"; then
+  ok "install.sh installs Exim only (no Postfix co-install)"
 else
-  bad "install.sh packages postfix and leaves it disabled"
+  bad "install.sh installs Exim only (no Postfix co-install)"
 fi
 if grep -E 'enable --now postfix' "$ROOT/install.sh"; then
   bad "install.sh does not enable postfix at boot"
 else
   ok "install.sh does not enable postfix at boot"
+fi
+if grep -q "apt-get', 'install', '-y', 'postfix'" "$ROOT/kloxo/httpdocs/driver/mmail/smtp__postfixlib.php" \
+  && grep -q "apt-get', 'remove', '-y', 'postfix'" "$ROOT/kloxo/httpdocs/driver/mmail/smtp__eximlib.php"; then
+  ok "Switch Program smtp swaps Exim/Postfix packages"
+else
+  bad "Switch Program smtp swaps Exim/Postfix packages"
 fi
 if echo "$inst_dry" | grep -q 'nginx enabled'; then
   ok "install.sh dry-run names Nginx default and apache2 prepared"

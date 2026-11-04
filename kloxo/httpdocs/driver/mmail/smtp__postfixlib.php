@@ -17,6 +17,10 @@ class Smtp__postfix extends lxDriverClass
 			lxshell_return('systemctl', 'stop', 'exim4');
 			lxshell_return('systemctl', 'disable', 'exim4');
 		}
+		// Ubuntu: Exim and Postfix conflict on mail-transport-agent.
+		lxshell_return('apt-get', 'remove', '-y', 'exim4-daemon-heavy', 'exim4-base', 'exim4-config');
+		lxshell_return('apt-get', 'install', '-y', 'postfix');
+		lxshell_return('systemctl', 'unmask', 'postfix');
 		lxshell_return('systemctl', 'enable', 'postfix');
 		lxshell_return('systemctl', 'start', 'postfix');
 	}

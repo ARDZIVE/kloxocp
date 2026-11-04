@@ -17,9 +17,12 @@ present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`te
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
-`ufw`, `pure-ftpd`, and `redis-server` are packaged (`ufw` left inactive);
-the README one-liner downloads `install.sh` from GitHub `main` and runs
-`--profile=full` (Exim, Dovecot, Rspamd; Postfix packaged disabled;
+`ufw`, `pure-ftpd`, and `redis-server` are packaged (`ufw` left inactive;
+Redis and Pure-FTPd enabled); install defaults to `--profile=full`. The
+README one-liner downloads `install.sh` from
+`raw.githubusercontent.com/.../main/install.sh` (Exim, Dovecot, Rspamd;
+Postfix not co-installed with Exim (Switch Program apt-swaps);
+Ubuntu universe enabled when needed;
 no bogofilter/SpamAssassin/sqlite), then that script
 fetches `origin/main` and hard-resets when the clone already exists;
 `kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
@@ -41,7 +44,7 @@ leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, n
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
 pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim` (default, `pg_smtp=exim`) / `postfix`
-(packaged, unit disabled until selected; hosted mail is Exim via `kloxo-mail`;
+(apt-swaps with Exim on select; hosted mail is Exim via `kloxo-mail`;
 qmail-toaster is no longer the selectable MTA). PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `count(null)` after login. Admin reboot/poweroff uses `systemctl --no-block`

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 class Smtp__exim extends lxDriverClass
 {
@@ -17,6 +18,8 @@ class Smtp__exim extends lxDriverClass
 	{
 		lxshell_return('systemctl', 'stop', 'postfix');
 		lxshell_return('systemctl', 'disable', 'postfix');
+		lxshell_return('apt-get', 'remove', '-y', 'postfix');
+		lxshell_return('apt-get', 'install', '-y', 'exim4-daemon-heavy');
 		$unit = self::unitName();
 		lxshell_return('systemctl', 'enable', $unit);
 		lxshell_return('systemctl', 'start', $unit);

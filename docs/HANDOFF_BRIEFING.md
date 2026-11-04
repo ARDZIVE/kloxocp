@@ -256,13 +256,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `Type=notify` (falls back to `Type=simple`), and `php-fpm -t`
     before enable. A successful install prints a boxed login message
     (URL, admin/admin, change password, firewall 7777). The README
-    one-liner downloads `install.sh` from GitHub `main` to `/tmp` and runs
-    `--profile=full` (Exim + Dovecot + Rspamd; Postfix packaged disabled;
-    core always packages `pure-ftpd` and `redis-server`; no bogofilter/
-    SpamAssassin/sqlite apt packages — panel DB is MariaDB), then that script
-    clones if
-    `/usr/local/src/kloxo-cp` is missing, or fetches `origin/main` and
-    `reset --hard` when that clone already exists.
+    one-liner downloads `install.sh` from
+    `raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh` (default
+    profile **full**: Exim + Dovecot + Rspamd; Postfix not co-installed (apt-swap on Switch);
+    `pure-ftpd` and `redis-server` enabled; Ubuntu universe enabled when
+    needed; no bogofilter/SpamAssassin/sqlite — panel DB is MariaDB), then
+    that script clones if `/usr/local/src/kloxo-cp` is missing, or fetches
+    `origin/main` and `reset --hard` when that clone already exists.
     Hiawatha 12.4 needs a writable work dir (`/opt/kloxo/var/hiawatha`
     for new builds; also `/usr/local/var/lib/hiawatha/upload` for the
     current binary) or `kloxo-web` exits 1. Panel PHP is FastCGI on
@@ -435,9 +435,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     dpkg driver; Mail Queue reads Exim `exim -bp` when
     present.     Switch Program loads debian.inc on Ubuntu and does
     not index an empty yum version.     SMTP choices are `none`, `exim` (default, `pg_smtp=exim`) and
-    `postfix` (the old qmail-toaster label is gone). `smtp__exim` enables
-    `exim4` and stops Postfix; `smtp__postfix` enables Postfix and stops
-    Exim. Postfix is packaged and left disabled until selected. Hosted mail
+    `postfix` (the old qmail-toaster label is gone). `smtp__exim` apt-installs
+    `exim4-daemon-heavy` and removes Postfix; `smtp__postfix` apt-installs
+    Postfix and removes Exim (mail-transport-agent conflict). Hosted mail
     is the Exim + Dovecot + Rspamd stack in `kloxo-mail`.     List and show pages share
     `kloxo_rl_driver` / `setListFromArray` array guards and
     `initThisList` / `initThisObject` Throwable catches so a
