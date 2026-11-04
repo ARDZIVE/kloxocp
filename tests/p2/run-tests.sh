@@ -717,12 +717,15 @@ if grep -A 40 'static function addform' "$ROOT/kloxo/httpdocs/lib/domain/domainl
 else
   bad "admin Domains add form has owner/docroot/SSL/PHP flags and no longer throws without a DNS template"
 fi
-if awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q "skin_name === 'simplicity'" \
-  && awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'print_inline_alert' \
-  && awk '/function print_message/,/^	function show_error_message/' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'isSimplicitySkin'; then
-  ok "simplicity Status tooltip does not print a second error popup"
+if grep -q '\$peek = (\$skin_name === '\''simplicity'\'')' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -q 'print_inline_alert' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -q 'function isSimplicitySkin' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
+  && grep -q 'kloxoStatusToastPinned' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php" \
+  && grep -q 'kloxo-status-toast-open' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php" \
+  && grep -q 'kloxo-inline-info' "$ROOT/kloxo/httpdocs/theme/css/common.css"; then
+  ok "simplicity Status toast peeks without consuming; content shows inline alerts"
 else
-  bad "simplicity Status tooltip does not print a second error popup"
+  bad "simplicity Status toast peeks without consuming; content shows inline alerts"
 fi
 if grep -F -q 'reset($x)' "$ROOT/kloxo/httpdocs/driver/pserver/sshauthorizedkeylib.php" \
   && grep -A 12 'static function getAuthorizedKey' "$ROOT/kloxo/httpdocs/driver/pserver/sshauthorizedkey__synclib.php" | grep -q 'return array()'; then

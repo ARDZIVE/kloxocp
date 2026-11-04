@@ -39,12 +39,15 @@ Status: active
 [ 1] 22/tcp                     ALLOW IN    Anywhere
 [ 2] 7777/tcp                   ALLOW IN    Anywhere
 [ 3] 80/tcp                     DENY IN     1.2.3.4
+[ 4] 443/tcp (v6)               ALLOW IN    Anywhere (v6)
 TXT;
 
 $st = KloxoUfw::parseStatus($sample, $numbered);
 if ($st['active'] === true && $st['default_in'] === 'deny' && $st['default_out'] === 'allow'
-	&& count($st['rules']) === 3 && $st['rules'][0]['number'] === 1
-	&& $st['rules'][1]['to'] === '7777/tcp') {
+	&& count($st['rules']) === 4 && $st['rules'][0]['number'] === 1
+	&& $st['rules'][1]['to'] === '7777/tcp'
+	&& $st['rules'][3]['to'] === '443/tcp'
+	&& $st['rules'][3]['from'] === 'Anywhere') {
 	ok('parseStatus reads active, defaults, and numbered rules');
 } else {
 	bad('parseStatus reads active, defaults, and numbered rules', var_export($st, true));
@@ -80,15 +83,27 @@ try {
 }
 
 $denyPanel = false;
+$rejectPanel = false;
 try {
 	KloxoUfw::addRuleArgv('deny', 'tcp', '7777', '');
 } catch (InvalidArgumentException $e) {
 	$denyPanel = $e->getMessage() === 'cannot_deny_panel_port';
 }
-if ($denyPanel) {
-	ok('deny of panel port 7777 is refused');
+try {
+	KloxoUfw::addRuleArgv('reject', 'tcp', '7778', '');
+} catch (InvalidArgumentException $e) {
+	$rejectPanel = $e->getMessage() === 'cannot_deny_panel_port';
+}
+$rejectArgv = null;
+try {
+	$rejectArgv = KloxoUfw::addRuleArgv('reject', 'tcp', '25', '');
+} catch (Throwable $e) {
+	$rejectArgv = null;
+}
+if ($denyPanel && $rejectPanel && $rejectArgv === array('reject', '25/tcp')) {
+	ok('deny/reject of panel ports refused; reject other ports allowed');
 } else {
-	bad('deny of panel port 7777 is refused');
+	bad('deny/reject of panel ports refused; reject other ports allowed');
 }
 
 $badPort = false;
@@ -139,22 +154,27 @@ if (KloxoUfw::canDeleteRule($st['rules'], 3) === true
 	&& KloxoUfw::canDeleteRule($st['rules'], 9) === false
 	&& in_array(7777, KloxoUfw::protectedTcpPorts(), true)
 	&& in_array(7778, KloxoUfw::protectedTcpPorts(), true)
-	&& KloxoUfw::isPanelPort(7777) && !KloxoUfw::isPanelPort(22)) {
-	ok('last allow for panel 7777 cannot be deleted');
+	&& in_array(8080, KloxoUfw::protectedTcpPorts(), true)
+	&& in_array(110, KloxoUfw::protectedTcpPorts(), true)
+	&& KloxoUfw::isPanelPort(7777) && !KloxoUfw::isPanelPort(22)
+	&& method_exists('KloxoUfw', 'ensureProtectedPorts')) {
+	ok('last allow for panel 7777 cannot be deleted; protected ports cover hosting stack');
 } else {
-	bad('last allow for panel 7777 cannot be deleted');
+	bad('last allow for panel 7777 cannot be deleted; protected ports cover hosting stack');
 }
 
 $src = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/kloxo_ufw.php');
+$inc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/include.php');
 if (str_contains($src, 'declare(strict_types=1)')
 	&& str_contains($src, 'proc_open')
 	&& !preg_match('/\bshell_exec\b|\bsystem\s*\(|\bexec\s*\(|`ufw /', $src)
 	&& str_contains($src, '--force')
 	&& str_contains($src, '7777')
-	&& str_contains($src, 'function setDefaults')) {
-	ok('KloxoUfw uses argument-array proc_open and no shell strings');
+	&& str_contains($src, 'function setDefaults')
+	&& str_contains($inc, 'kloxo_ufw.php')) {
+	ok('KloxoUfw uses argument-array proc_open and is loaded for the backend');
 } else {
-	bad('KloxoUfw uses argument-array proc_open and no shell strings');
+	bad('KloxoUfw uses argument-array proc_open and is loaded for the backend');
 }
 
 echo "$pass passed, $fail failed\n";

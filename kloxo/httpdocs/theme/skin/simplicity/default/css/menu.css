@@ -276,12 +276,27 @@
 }
 
 .div_header_message_status {
-	width: 240px;
-	padding: 10px;
+	width: 260px;
+	max-width: calc(100vw - 24px);
+	padding: 10px 12px;
 	color: #FFFFFF;
 	background-color: #9834db;
 	position: absolute;
-	z-index: 1000;
-	top: 35px;right: 5px;
-	border: 1px solid #888
+	z-index: 10060;
+	top: 100%;
+	right: 0;
+	margin-top: 4px;
+	border: 1px solid #888;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+	box-sizing: border-box;
+	white-space: normal;
+	word-break: break-word;
+}
+
+.div_fixed_right {
+	position: relative;
+}
+
+.div_header_message_status.kloxo-status-toast-open {
+	display: block;
 }

@@ -95,7 +95,7 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'"
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full'"
 if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
   ok "README and install.sh share the same one-liner"
 else
@@ -103,11 +103,18 @@ else
 fi
 if echo "$ONELINER" | grep -q 'curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh' \
   && echo "$ONELINER" | grep -q '/tmp/kloxocp-install.sh' \
-  && echo "$ONELINER" | grep -q 'bash /tmp/kloxocp-install.sh' \
+  && echo "$ONELINER" | grep -q 'bash /tmp/kloxocp-install.sh --profile=full' \
   && ! echo "$ONELINER" | grep -q 'curl | bash'; then
   ok "one-liner downloads install.sh then runs the file"
 else
   bad "one-liner downloads install.sh then runs the file"
+fi
+if grep -q 'pure-ftpd redis-server iproute2 ufw' "$ROOT/install.sh" \
+  && ! grep -E 'apt-get install -y.*(bogofilter|spamassassin|sqlite3)' "$ROOT/install.sh" \
+  && ! grep -E '^[[:space:]]*apt-get install -y.*(php-sqlite|sqlite3)' "$ROOT/install.sh"; then
+  ok "install.sh packages pure-ftpd and redis-server; skips bogofilter/spamassassin/sqlite"
+else
+  bad "install.sh packages pure-ftpd and redis-server; skips bogofilter/spamassassin/sqlite"
 fi
 if grep -q 'print_access_box' "$ROOT/install.sh" && grep -q 'Username' "$ROOT/install.sh" && grep -q 'first login' "$ROOT/install.sh"; then
   ok "installer prints a login access box"

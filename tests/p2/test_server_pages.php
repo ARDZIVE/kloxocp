@@ -2297,7 +2297,7 @@ if ($tabOk && $editOk && $extraOk
 	&& is_array($tz) && $tz !== array()
 	&& is_array($fpm) && in_array('static', $fpm, true)
 	&& is_array($extra) && !array_key_exists('phpini_flag_b-display_error_flag', $extra)
-	&& $phpId === 'admin'
+	&& $phpId === 'client-admin'
 	&& $phpRule === 'client-admin'
 	&& $phpParent === ''
 	&& is_array($phpAdminList)) {
@@ -2316,6 +2316,30 @@ if ($tabOk && $editOk && $extraOk
 $syncSrc = (string) file_get_contents($doc . '/driver/pserver/phpini__synclib.php');
 $ufSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $iniSrc = (string) file_get_contents($doc . '/driver/pserver/phpinilib.php');
+$phpDescSrc2 = (string) file_get_contents($doc . '/lang/en-us/desclib.php');
+$outCompDesc = get_classvar_description('phpini_flag_b', 'output_compression_flag');
+$flags = (isset($ini->phpini_flag_b) && is_object($ini->phpini_flag_b)) ? $ini->phpini_flag_b : null;
+$shotOk = is_array($outCompDesc) && ($outCompDesc[0] ?? 'f') === ''
+	&& str_contains($phpDescSrc2, '$__description["phpfpm_type"] = array("PHP-fpm Type")')
+	&& is_object($flags)
+	&& (string) ($flags->output_compression_flag ?? '') === 'off'
+	&& (string) ($flags->max_execution_time_flag ?? '') === '600'
+	&& (string) ($flags->max_input_time_flag ?? '') === '180'
+	&& (string) ($flags->post_max_size_flag ?? '') === '1024M'
+	&& (string) ($flags->upload_max_filesize ?? '') === '1024M'
+	&& (string) ($flags->allow_url_include_flag ?? '') === 'on'
+	&& (string) ($flags->phpfpm_type_flag ?? '') === 'static'
+	&& (string) ($flags->phpfpm_limit_extensions ?? '') === '.php .php3 .php4 .php5'
+	&& is_array($edit) && isset($edit['phpini_flag_b-output_compression_flag'])
+	&& ($edit['phpini_flag_b-output_compression_flag'][0] ?? '') === 'M';
+if ($shotOk) {
+	ok('PHP Configure fields match Kloxo-MR screenshot defaults and Output Compression text');
+} else {
+	bad('PHP Configure fields match Kloxo-MR screenshot defaults and Output Compression text',
+		'outComp=' . (is_array($outCompDesc) ? ($outCompDesc[0] ?? '?') : 'none')
+		. ' exec=' . (is_object($flags) ? (string) ($flags->max_execution_time_flag ?? '') : '')
+		. ' ext=' . (is_object($flags) ? (string) ($flags->phpfpm_limit_extensions ?? '') : ''));
+}
 if (str_contains($syncSrc, '//	lxfile_unix_chmod($fcgid_target, "0755")')
 	&& !preg_match('/^\s*lxfile_unix_chmod\(\$fcgid_target/m', $syncSrc)
 	&& str_contains($ufSrc, 'getSelfList: ')
@@ -2603,13 +2627,14 @@ $ufwPserverTabOk = is_array($ufwPserverTabs)
 	&& count($ufwPserverTabs) === 1
 	&& ($ufwPserverTabs[0] ?? '') === 'a=show&o=ufwfirewall';
 $ufwShowFormsOk = is_array($ufwShowForms) && $ufwShowForms === array();
-$ufwUiOk = str_contains($ufwSrc, 'Firewall Rules')
-	&& str_contains($ufwSrc, 'Add Rule')
+$ufwUiOk = str_contains($ufwSrc, 'Port Rules')
+	&& str_contains($ufwSrc, 'Add Port Rule')
 	&& str_contains($ufwSrc, 'Default Policies')
 	&& str_contains($ufwSrc, 'printFormOpen')
-	&& str_contains($ufwSrc, 'Enable Firewall')
-	&& str_contains($ufwSrc, 'Disable Firewall')
+	&& str_contains($ufwSrc, 'ufwenable')
+	&& str_contains($ufwSrc, 'ufwdisable')
 	&& str_contains($ufwSrc, 'splitPorts')
+	&& str_contains($ufwSrc, 'ufw_backend_failed')
 	&& !str_contains($ufwSrc, 'Default incoming:')
 	&& !str_contains($ufwSrc, 'No numbered rules.')
 	&& !str_contains($ufwSrc, '\$eRaw');
@@ -2665,9 +2690,9 @@ if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 	&& $ufwCoreOk && $ufwSkipOk && $ufwRedirectOk && $ufwParentOk
 	&& $ufw->isSync() === false
 	&& str_contains($ufwSrc, 'function getSelfList')) {
-	ok('Security UFW Firewall is a Hestia-style single page for status, defaults and rules');
+	ok('Security UFW Firewall manages status, defaults and numbered port rules');
 } else {
-	bad('Security UFW Firewall is a Hestia-style single page for status, defaults and rules',
+	bad('Security UFW Firewall manages status, defaults and numbered port rules',
 		'err=' . $ufwErr
 			. ' show=' . $ufwShowTab . ' home=' . $ufwHomeTab
 			. ' tabs=' . implode(',', (array) ($ufwTabs['property'] ?? array()))

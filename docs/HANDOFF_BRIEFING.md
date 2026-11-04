@@ -198,7 +198,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     extraedit no longer dies in
     `getSelfList`, a missing parent, or a missing panel DB password; nested
     `phpini_flag_b-*` field descriptions no longer TypeError; heading uses the
-    parent name (`admin`, not `client-admin`); a client session path is
+    phpini nname (`client-admin`); Output Compression is a text value (`off`),
+    not a checkbox; defaults match Kloxo-MR screenshots (execution 600, input
+    180, post/upload 1024M, allow_url_include on, PHP-fpm Type static,
+    extensions `.php .php3 .php4 .php5`); a client session path is
     `/home/kloxo/client/{user}/session`. Live PHP Configure after deploy
     is **UNVERIFIED**. The panel top-right logo is the Kloxo CP wordmark
     (`login/images/kloxo.png`), not Kloxo-MR. Live logo after deploy is
@@ -209,7 +212,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (`install-webfront`; no Varnish/Squid/ATS) and seed as on.
     Live Watchdog after deploy is **UNVERIFIED**.
     PHP config forms apply the
-    usual defaults (120s / 128M / 32M / disable_functions) when the
+    usual defaults (600s / 128M / 1024M / disable_functions) when the
     stored `phpini` blob only has a session path. Admin Resource Plan
     add form uses unlimited quotas and flags on (Easy Installer stays
     off). PHP Module Status lists Ubuntu
@@ -253,9 +256,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `Type=notify` (falls back to `Type=simple`), and `php-fpm -t`
     before enable. A successful install prints a boxed login message
     (URL, admin/admin, change password, firewall 7777). The README
-    one-liner downloads `install.sh` from GitHub `main` to `/tmp`, then
-    that script clones if `/usr/local/src/kloxo-cp` is missing, or
-    fetches `origin/main` and `reset --hard` when that clone already exists.
+    one-liner downloads `install.sh` from GitHub `main` to `/tmp` and runs
+    `--profile=full` (Exim + Dovecot + Rspamd; Postfix packaged disabled;
+    core always packages `pure-ftpd` and `redis-server`; no bogofilter/
+    SpamAssassin/sqlite apt packages — panel DB is MariaDB), then that script
+    clones if
+    `/usr/local/src/kloxo-cp` is missing, or fetches `origin/main` and
+    `reset --hard` when that clone already exists.
     Hiawatha 12.4 needs a writable work dir (`/opt/kloxo/var/hiawatha`
     for new builds; also `/usr/local/var/lib/hiawatha/upload` for the
     current binary) or `kloxo-web` exits 1. Panel PHP is FastCGI on
@@ -335,6 +342,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     cover the fields. The dashboard still renders behind a backdrop.
     Alert popups (`kloxo-error-box`) no longer share `id="showimage"`
     with Generate Password, so Esc and Close hide the visible box.
+    Simplicity Status toast (`#div_cfstatus`) peeks `frm_emessage` /
+    `frm_smessage` without consuming them, auto-opens for 15s, and the
+    content area still prints green/red inline alerts. Live toast after
+    deploy is **UNVERIFIED**.
     `convert_message` does not index a missing `frm_o_o[0]`.
     Theme CSS links include a filemtime query so a browser
     cannot keep the old simplicity sheet after deploy.
@@ -376,17 +387,16 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Connections / Raw Connections / White List tabs) has Switch To Another
     across pservers (`lxguard::getSelfList` via `pserver::adminServerSwitchList`,
     at least `localhost`). LxGuard list tabs omit the Find/search input too.
-    Security has a **UFW Firewall** tile and top-bar item (`a=show&o=ufwfirewall`).
-    Exactly one beige tab **UFW Firewall** with a Hestia-style show page:
-    status badge + Enable/Disable, default incoming/outgoing, rules table
-    (Action/Protocol/Port/IP + per-row Delete), inline Add Rule (port lists
-    `80,443` and ranges `80-82`). `ufwPropertyTabs` forced to `a=show`.
-    `KloxoUfw` runs `ufw` with argument-array `proc_open`
-    (status/enable/disable/setDefaults/allow/deny/delete). Enable first allows
-    panel 7777/7778 plus SSH, HTTP/S, FTP, DNS and mail; deny/delete of the
-    last panel-port allow is refused. `install.sh` apt-installs `ufw` and leaves
-    it inactive. No left Find box. Live UFW after deploy is
-    **UNVERIFIED**. SSH Terminal is admin-only (pserver
+    Security has a **UFW Firewall** tile (`a=show&o=ufwfirewall`), one beige
+    tab. Port management: Enable/Disable, default policies, numbered rules
+    (ALLOW/DENY/REJECT add; per-row delete; lists `80,443`, ranges `80-82`).
+    `KloxoUfw` is loaded from `include.php` and runs as root via
+    kloxo-backend when the panel is not root (no silent non-root fallback).
+    Enable allows panel 7777/7778 plus SSH, HTTP/S, FTP, DNS, mail, IMAP/POP,
+    webcache 8080 and webproxy 30080; deny/reject of panel ports and deleting
+    the last panel allow are refused. Numbered parse accepts `(v6)` lines.
+    `install.sh` packages `ufw` inactive. No left Find box. Live UFW after
+    deploy is **UNVERIFIED**. SSH Terminal is admin-only (pserver
     child, not client home) and shows a WebConsole-like black terminal
     (`Switch To Another`, `root@host #` prompt, command form). Panel FPM
     sends commands to `kloxo-backend` (root on loopback 7776) then

@@ -1045,6 +1045,11 @@ html>body #quotausagebar span.last {
 		box-sizing: border-box;
 	}
 
+	.kloxo-inline-alert.kloxo-inline-info {
+		border: 1px solid #6a6;
+		background: #efe;
+	}
+
 	.kloxo-modal-backdrop {
 		position: fixed;
 		z-index: 10040;

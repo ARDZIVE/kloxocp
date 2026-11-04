@@ -902,14 +902,14 @@ TXT;
         return [
             'session_save_path_flag' => $sessionPath,
             'output_compression_flag' => 'off',
-            'upload_max_filesize' => '16M',
+            'upload_max_filesize' => '1024M',
             'register_global_flag' => 'off',
             'disable_functions' => 'exec,passthru,shell_exec,system,proc_open,popen,show_source',
-            'max_execution_time_flag' => '120',
-            'max_input_time_flag' => '120',
+            'max_execution_time_flag' => '600',
+            'max_input_time_flag' => '180',
             'memory_limit_flag' => '128M',
             'allow_url_fopen_flag' => 'on',
-            'allow_url_include_flag' => 'off',
+            'allow_url_include_flag' => 'on',
             'display_error_flag' => 'off',
             'log_errors_flag' => 'off',
             'session_autostart_flag' => 'off',
@@ -920,7 +920,7 @@ TXT;
             'magic_quotes_gpc_flag' => 'off',
             'gpc_order_flag' => 'GPC',
             'variables_order_flag' => 'EGPCS',
-            'post_max_size_flag' => '32M',
+            'post_max_size_flag' => '1024M',
             'magic_quotes_runtime_flag' => 'off',
             'magic_quotes_sybase_flag' => 'off',
             'enable_dl_flag' => 'on',
@@ -931,8 +931,8 @@ TXT;
             'sendmail_from' => '',
             'max_input_vars_flag' => '3000',
             'date_timezone_flag' => 'Europe/London',
-            'phpfpm_type_flag' => 'ondemand',
-            'phpfpm_limit_extensions' => '.php .php5 .php7',
+            'phpfpm_type_flag' => 'static',
+            'phpfpm_limit_extensions' => '.php .php3 .php4 .php5',
         ];
     }
 

@@ -19,7 +19,8 @@ class phpini_flag_b extends lxaclass
 	static $__desc_magic_quotes_gpc_flag = array("f", "", "magic_quotes_gpc");
 	static $__desc_register_long_arrays_flag = array("f", "", "register_long_arrays");
 	static $__desc_variables_order_flag = array("", "", "variables_order");
-	static $__desc_output_compression_flag = array("f", "", "output_compression");
+	// Text value (on/off/…), not a checkbox — matches Kloxo-MR PHP Configure.
+	static $__desc_output_compression_flag = array("", "", "output_compression");
 	static $__desc_post_max_size_flag = array("", "", "post_max_size");
 	static $__desc_magic_quotes_runtime_flag = array("f", "", "magic_quotes_runtime");
 	static $__desc_magic_quotes_sybase_flag = array("f", "", "magic_quotes_sybase");
@@ -80,6 +81,11 @@ class phpini extends lxdb
 
 	function getId()
 	{
+		// Heading is "PHP Configure for client-admin" (nname), not the parent login.
+		$n = isset($this->nname) ? (string) $this->nname : '';
+		if ($n !== '') {
+			return $n;
+		}
 		$parent = null;
 		try {
 			$parent = $this->getParentO();
@@ -87,19 +93,12 @@ class phpini extends lxdb
 			$parent = null;
 		}
 		if (is_object($parent) && isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
-			return $parent->nname;
-		}
-		$n = isset($this->nname) ? (string) $this->nname : '';
-		foreach (array('client-', 'pserver-', 'web-') as $pfx) {
-			if (str_starts_with($n, $pfx)) {
-				$rest = substr($n, strlen($pfx));
-				if ($rest !== '') {
-					return $rest;
-				}
-			}
+			$cls = method_exists($parent, 'getClass') ? (string) $parent->getClass() : 'client';
+
+			return $cls . '-' . $parent->nname;
 		}
 
-		return $n !== '' ? $n : 'phpini';
+		return 'phpini';
 	}
 
 	function getInheritedList()
@@ -381,13 +380,13 @@ class phpini extends lxdb
 
 			$isAdmin = isset($login) && is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin();
 			if ($isAdmin) {
-				$this->initialValue('phpfpm_type_flag', 'ondemand');
+				$this->initialValue('phpfpm_type_flag', 'static');
 				$vlist["phpini_flag_b-phpfpm_type_flag"] = array('s', self::getPhpfpmTypeList());
 			} else {
 				$cur = (isset($this->phpini_flag_b) && is_object($this->phpini_flag_b)
 					&& isset($this->phpini_flag_b->phpfpm_type_flag)
 					&& $this->phpini_flag_b->phpfpm_type_flag !== '')
-					? $this->phpini_flag_b->phpfpm_type_flag : 'ondemand';
+					? $this->phpini_flag_b->phpfpm_type_flag : 'static';
 				$vlist["phpini_flag_b-phpfpm_type_flag"] = array('s', array($cur));
 			}
 		}
@@ -462,7 +461,7 @@ class phpini extends lxdb
 	{
 		$this->initialValue('output_compression_flag', 'off');
 
-		$this->initialValue('upload_max_filesize', '16M');
+		$this->initialValue('upload_max_filesize', '1024M');
 		$this->initialValue('register_global_flag', 'off');
 
 		$defaultSession = is_dir('/var/lib/php/sessions')
@@ -472,11 +471,11 @@ class phpini extends lxdb
 		$initial = 'exec,passthru,shell_exec,system,proc_open,popen,show_source';
 		$this->initialValue('disable_functions', $initial);
 
-		$this->initialValue('max_execution_time_flag', '120');
-		$this->initialValue('max_input_time_flag', '120');
+		$this->initialValue('max_execution_time_flag', '600');
+		$this->initialValue('max_input_time_flag', '180');
 		$this->initialValue('memory_limit_flag', '128M');
 		$this->initialValue('allow_url_fopen_flag', 'on');
-		$this->initialValue('allow_url_include_flag', 'off');
+		$this->initialValue('allow_url_include_flag', 'on');
 		$this->initialValue('display_error_flag', 'off');
 		$this->initialValue('log_errors_flag', 'off');
 		$this->initialValue('session_autostart_flag', 'off');
@@ -487,7 +486,7 @@ class phpini extends lxdb
 		$this->initialValue('magic_quotes_gpc_flag', 'off');
 		$this->initialValue('gpc_order_flag', 'GPC');
 		$this->initialValue('variables_order_flag', 'EGPCS');
-		$this->initialValue('post_max_size_flag', '32M');
+		$this->initialValue('post_max_size_flag', '1024M');
 		$this->initialValue('magic_quotes_runtime_flag', 'off');
 		$this->initialValue('magic_quotes_sybase_flag', 'off');
 		$this->initialValue('enable_dl_flag', 'on');
@@ -498,21 +497,18 @@ class phpini extends lxdb
 
 		$this->initialValue('sendmail_from', '');
 
-
 		$this->initialValue('max_input_vars_flag', '3000');
 
 		if (is_link("/etc/localtime")) {
 			$c = str_replace("/usr/share/zoneinfo/", "", readlink("/etc/localtime"));
 			$this->initialValue('date_timezone_flag', $c);
 		} else {
-			// it's mean php in panel itself and wrong. so changed
-		//	$this->initialValue('date_timezone_flag', date_default_timezone_get());
 			$this->initialValue('date_timezone_flag', 'Europe/London');
 		}
 
-		$this->initialValue('phpfpm_type_flag', 'ondemand');
+		$this->initialValue('phpfpm_type_flag', 'static');
 
-		$this->initialValue('phpfpm_limit_extensions', '.php .php5 .php7');
+		$this->initialValue('phpfpm_limit_extensions', '.php .php3 .php4 .php5');
 	}
 
 	function initialValue($var, $val)

@@ -2,7 +2,7 @@
 # Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
 # One line (downloads this script from GitHub main, then clones or fetches origin/main):
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full'
 #
 # Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
 # (apt would steal stdin); wget/curl to a file, then bash it.
@@ -45,8 +45,8 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
   sudo bash install.sh [--profile=core|full] [--yes] [--force]
   sudo bash install.sh --slave --slave-password=SECRET
 
-  --profile=core   php, nginx (default), mariadb, bind9, ufw (inactive), webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
-  --profile=full   core plus exim4-daemon-heavy (default MTA), postfix (disabled), dovecot, rspamd, redis
+  --profile=core   php, nginx (default), mariadb, bind9, pure-ftpd, redis-server, ufw (inactive), webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
+  --profile=full   core plus exim4-daemon-heavy (default MTA), postfix (disabled), dovecot, rspamd (no bogofilter/spamassassin/sqlite)
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
                    password the master uses when adding this host
@@ -66,7 +66,7 @@ Slave password: --slave-password= or KLOXO_SLAVE_PASSWORD (min 8 chars).
 
 One-line install on Ubuntu 24.04 or 26.x (root). Downloads this script from GitHub main, then clones or fetches origin/main:
 
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full'
 
 Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
 This tree is NOT production-safe.
@@ -203,6 +203,9 @@ plan: Kloxo CP ${KCP_VERSION}
   web     nginx enabled (default); apache2 prepared and disabled
   cache   kloxo-webcache :8080 and kloxo-webproxy :30080 (nginx; no varnish/squid)
   smtp    exim4 default (--profile=full); postfix packaged and disabled
+  ftp     pure-ftpd (core)
+  redis   redis-server (core; Rspamd Bayes backend)
+  skip    no bogofilter/spamassassin/sqlite apt packages
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
   exit 0
@@ -301,9 +304,13 @@ trap release_standby_units EXIT
 hold_standby_units
 
 apt-get update -y
+# Core: panel + sites + DNS + FTP + Redis (Rspamd Bayes backend). Mail spam is
+# Rspamd (full profile), not bogofilter/spamassassin. Panel DB is MariaDB (the
+# Sqlite class is mysqli); slave-db.db is PHP serialize — do not apt-install sqlite.
 apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
-  mariadb-server nginx apache2 bind9 pdns-server pdns-backend-mysql iproute2 ufw \
+  mariadb-server nginx apache2 bind9 pdns-server pdns-backend-mysql \
+  pure-ftpd redis-server iproute2 ufw \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
@@ -315,7 +322,7 @@ if [[ "$WITH_MAIL" -eq 1 ]]; then
   apt-get install -y exim4-daemon-heavy postfix \
     dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
     dovecot-mysql dovecot-sieve dovecot-managesieved \
-    rspamd redis-server
+    rspamd
   systemctl disable --now postfix >/dev/null 2>&1 || true
 fi
 

@@ -32,21 +32,24 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 ## Installation command (Ubuntu 24.04 or 26.x, as root)
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full'
 ```
 
 Low-RAM / small-disk VPS (add `--force`):
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full --force'
 ```
 
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash.
-Starts Nginx, BIND, webcache on **8080**, and webproxy on **30080**.
-Packages `ufw` and leaves it **inactive** (enable later from Security →
-**UFW Firewall**; that first allows 7777/7778). Apache and PowerDNS are
-packaged and stay disabled.
+`--profile=full` installs Exim (default MTA), Dovecot, Rspamd, and
+Postfix (unit stays **disabled** until Switch Program selects it). Core always
+packages **pure-ftpd** and **redis-server** (Rspamd Bayes). It does **not**
+install bogofilter, SpamAssassin, or sqlite (panel DB is MariaDB; spam is Rspamd). Starts Nginx, BIND, webcache on
+**8080**, and webproxy on **30080**. Packages `ufw` and leaves it **inactive**
+(enable later from Security → **UFW Firewall**; that first allows 7777/7778).
+Apache and PowerDNS are packaged and stay disabled.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
 self-signed certificate. Change that password on first login. Flags and
@@ -96,9 +99,9 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
-| UFW Firewall | Security-section button. One beige tab **UFW Firewall** (Hestia-style): status Enable/Disable, default incoming/outgoing, rules table with per-row Delete, inline Add Rule (action/protocol/port/IP; lists and ranges). Enable first allows 7777/7778. `ufw` packaged inactive. No left Find box. Live UFW after deploy is unverified. |
+| UFW Firewall | Security-section button. One beige tab: enable/disable, defaults, numbered port rules (ALLOW/DENY/REJECT; lists/ranges). Runs as root via kloxo-backend. Enable first allows 7777/7778 and common service ports. `ufw` packaged inactive. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
-| Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
+| Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). |
 | Watchdog | Eight services. webcache (8080) and webproxy (30080) are nginx frontends to port 80 (`kloxo-webcache` / `kloxo-webproxy`), not Varnish/Squid. |
 
@@ -124,21 +127,22 @@ the Change Password modal is required (Esc/Close cannot skip it).
 **Ubuntu 24.04 or 26.x, as root** (same command as at the top of this file):
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full'
 ```
 
 Downloads the current `install.sh` from GitHub `main`
-(https://github.com/ARDZIVE/kloxocp) and runs it. That script clones the
+(https://github.com/ARDZIVE/kloxocp) and runs it with `--profile=full` (Exim,
+Dovecot, Rspamd, Postfix packaged disabled; Redis is already in core). That script clones the
 tree if needed, or fetches `origin/main` and hard-resets when
 `/usr/local/src/kloxo-cp` is already a git clone. Safe to repeat after a
 failed install or to pick up GitHub `main` (local edits in that clone are
-discarded).
+discarded). Use `--profile=core` for a panel without mail packages.
 
 A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:
 
 ```
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://github.com/ARDZIVE/kloxocp/raw/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=full --force'
 ```
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
@@ -162,11 +166,13 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 1. Refuses another control panel, and refuses less than ~2 GB RAM / 10 GB disk
    unless you pass `--force`.
 2. Installs the **core** apt set: `php-cli` `php-fpm` `php-mysql` `php-xml`
-   `php-mbstring` `php-curl`, MariaDB, Nginx, BIND 9, `iproute2`, and the
+   `php-mbstring` `php-curl`, MariaDB, Nginx, BIND 9, **pure-ftpd**,
+   **redis-server**, `iproute2`, and the
    compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`),
    and `ufw` (left inactive; enable from Security → **UFW Firewall**, which
    first allows 7777/7778). Also packages `pdns-server` and `apache2` but does
-   not let apt start them (BIND stays on 53, Nginx on 80/443).
+   not let apt start them (BIND stays on 53, Nginx on 80/443). Does **not**
+   install bogofilter, SpamAssassin, or sqlite.
 3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
    If it is already a git clone, fetches `origin/main` and `reset --hard` first. If `/opt/kloxo`
    is a real directory (not a symlink to the clone), copies `httpdocs` /
@@ -206,8 +212,8 @@ that password is changed. The password is also written to
 
 It does **not** run `kloxo-mail apply`, Let's Encrypt, or a signed apt
 install. `--profile=full` only apt-installs mail packages (Exim, Dovecot,
-Rspamd, Redis); it does not configure mail. The installer does not run a
-browser login.
+Rspamd); Redis is already in core. It does not configure mail. The installer
+does not run a browser login.
 
 ### Flags and environment
 
@@ -215,9 +221,9 @@ browser login.
 sudo bash install.sh
 sudo bash install.sh --update              # accepted; every run already git-fetches the clone
 sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
-sudo bash install.sh --profile=full        # also apt-install exim4-daemon-heavy, dovecot, rspamd, redis
+sudo bash install.sh --profile=full        # also apt-install exim4-daemon-heavy, postfix (disabled), dovecot, rspamd
 sudo bash install.sh --with-mail           # same as --profile=full
-sudo bash install.sh --profile=core        # default: php, nginx, mariadb, bind9, ufw (inactive), webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
+sudo bash install.sh --profile=core        # php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive), webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
 sudo bash install.sh --dry-run             # print repo/src/root/profile and exit
 sudo bash install.sh --src=/path           # clone location (default /usr/local/src/kloxo-cp)
 sudo bash install.sh --root=/opt/kloxo     # program root
@@ -330,6 +336,8 @@ apt install -y \
   apache2 \
   bind9 \
   pdns-server pdns-backend-mysql \
+  pure-ftpd \
+  redis-server \
   iproute2 \
   ufw \
   ca-certificates git curl openssl \
@@ -344,11 +352,11 @@ apt install -y \
   exim4-daemon-heavy postfix \
   dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
   dovecot-mysql dovecot-sieve dovecot-managesieved \
-  rspamd redis-server
+  rspamd
 ```
 
 Hiawatha is **not** in Ubuntu 24.04 or 26.x. `install.sh` (or the command in section 8)
-builds pinned 12.4. Redis is a mail-stack dependency, not a core panel package.
+builds pinned 12.4. `redis-server` is a core package (Rspamd Bayes backend).
 `pdns-server` is installed and left **disabled**; BIND stays on port 53 until
 Switch Program selects PowerDNS. `apache2` is installed and left **disabled**;
 Nginx stays on 80/443 until Switch Program selects Apache (PHP-FPM via

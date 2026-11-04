@@ -10,22 +10,20 @@
 		$status_title = '';
 	}
 
-	if ($status_title !== '') {
+	$has_toast = ($status_title !== '');
+	if ($has_toast) {
 		$status_title = str_replace(":  ", ":\n<ul style=\"margin-left:-20px\"><li>", $status_title);
 		$status_title .= "</li></ul>";
-		$divclass = "div_header_message";
-	} else {
-		$divclass = "div_header_message";
 	}
-
+	$divclass = "div_header_message";
+	$toast_display = $has_toast ? 'block' : 'none';
 	$clock_now = date('H:i:s');
 ?>
-				<div id="div_cfstatus" class="div_header_message_status" style="display:none">
-				<?=$status_title;?>
-				</div>
-
 				<div class="div_fixed_right">
-					<div id="div_status" class="<?=$divclass;?>" onMouseOver="this.style.backgroundColor='#fff'; this.style.color='#000'; displayStatus('div_cfstatus', 'inline');" onMouseOut="this.style.backgroundColor='#3498db'; this.style.color='#fff'; displayStatus('div_cfstatus', 'none');">&nbsp;<?= $login->getKeywordUc('status'); ?>&nbsp;</div>
+					<div id="div_cfstatus" class="div_header_message_status<?= $has_toast ? ' kloxo-status-toast-open' : '' ?>" style="display:<?= $toast_display ?>;" role="status" aria-live="polite">
+					<?=$status_title;?>
+					</div>
+					<div id="div_status" class="<?=$divclass;?>" onMouseOver="this.style.backgroundColor='#fff'; this.style.color='#000'; displayStatus('div_cfstatus', 'block');" onMouseOut="this.style.backgroundColor='#3498db'; this.style.color='#fff'; if (!window.kloxoStatusToastPinned) { displayStatus('div_cfstatus', 'none'); }">&nbsp;<?= $login->getKeywordUc('status'); ?>&nbsp;</div>
 					<a href="#" onClick="toggleVisibilityById('mmm'); return false;">
 						<div id="div_showhide" class="div_header_message" onMouseOver="this.style.backgroundColor='#fff'; this.style.color='#000';" onMouseOut="this.style.backgroundColor='#3498db'; this.style.color='#fff';">&nbsp;<?= $login->getKeywordUc('showhide') ?>&nbsp;</div>
 					</a>
@@ -36,6 +34,8 @@
 		$this->print_jscript_source($clock_path);
 ?>
 		<script>
+			window.kloxoStatusToastPinned = <?= $has_toast ? 'true' : 'false' ?>;
+
 			function cf_fade() {
 				var elemid = document.getElementById("div_cfstatus");
 				if (!elemid) {
@@ -54,6 +54,10 @@
 						}
 
 						elemid.style.display = 'none';
+						window.kloxoStatusToastPinned = false;
+						if (elemid.className) {
+							elemid.className = elemid.className.replace(/\bkloxo-status-toast-open\b/g, '').replace(/\s+/g, ' ').trim();
+						}
 					}
 
 					if (elemid.style.filter) {
@@ -81,7 +85,10 @@
 				elemid.style.display = state;
 			}
 
-			cf = setTimeout(function(){cf_fade()},15000);
+			<?php if ($has_toast) { ?>
+			displayStatus('div_cfstatus', 'block');
+			setTimeout(function () { cf_fade(); }, 15000);
+			<?php } ?>
 
 			if (typeof startTime === 'function') {
 				startTime('clock_div');

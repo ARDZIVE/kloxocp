@@ -17,12 +17,16 @@ present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`te
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
-`ufw` is packaged and left inactive; the README one-liner downloads `install.sh`
-from GitHub `main`, then that script
+`ufw`, `pure-ftpd`, and `redis-server` are packaged (`ufw` left inactive);
+the README one-liner downloads `install.sh` from GitHub `main` and runs
+`--profile=full` (Exim, Dovecot, Rspamd; Postfix packaged disabled;
+no bogofilter/SpamAssassin/sqlite), then that script
 fetches `origin/main` and hard-resets when the clone already exists;
 `kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
 change after first login (required Change Password modal with the form
-inside; Esc/Close cannot skip it). Admin Servers list seeds `localhost`. The Update
+inside; Esc/Close cannot skip it). Simplicity Status toast auto-opens for
+alerts/info and content shows matching inline alerts (Status peek does not
+consume the message). Admin Servers list seeds `localhost`. The Update
 screen shows **10.1-2026110201** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).
 Switch Program DNS default is BIND (`pg_dns=bind`); PowerDNS is packaged and
 prepared (`install-pdns`) but the `pdns` unit stays disabled until selected
@@ -35,7 +39,7 @@ panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and
 redirected; otherwise the MySQL logon form is shown (panel admin may
 leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
-exim4, postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
+pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim` (default, `pg_smtp=exim`) / `postfix`
 (packaged, unit disabled until selected; hosted mail is Exim via `kloxo-mail`;
 qmail-toaster is no longer the selectable MTA). PHP Module Status
@@ -74,8 +78,11 @@ fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Con
 (**PHP Configure** / **Advanced PHP Configure**; `phpiniPropertyTabs`, forced; no parent Home/Domain
 tabs on either page; different links `a=show` and `a=updateform&sa=extraedit`). Nested `phpini_flag_b-*` form
 fields resolve without a TypeError when the flag class has no `$__desc`.
-Heading uses the parent name (`admin`, not `client-admin`). Parent/login
-guards keep both forms loadable when the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with exactly one beige tab **UFW Firewall**; Hestia-style show page (status badge Enable/Disable, default incoming/outgoing, rules table with per-row Delete, inline Add Rule for action/protocol/port/IP; port lists `80,443` and ranges `80-82`); argument-array `ufw` (`KloxoUfw`); enable first allows 7777/7778; last panel-port allow cannot be deleted. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
+Heading uses the phpini nname (`client-admin`). Output Compression is a text
+value (`off`), not a checkbox; defaults match Kloxo-MR (execution 600, input
+180, post/upload 1024M, allow_url_include on, PHP-fpm Type static, extensions
+`.php .php3 .php4 .php5`). Parent/login guards keep both forms loadable when
+the parent or `$login` is missing. Security has a **UFW Firewall** button (`a=show&o=ufwfirewall`) with exactly one beige tab **UFW Firewall**: enable/disable, default policies, numbered port rules (add ALLOW/DENY/REJECT, delete); ports accept lists/ranges; `KloxoUfw` runs as root via kloxo-backend (`include.php` loads it); enable first allows panel 7777/7778 plus SSH/web/FTP/DNS/mail/webcache; deny/reject of panel ports and deleting the last panel allow are refused. Live UFW after deploy is UNVERIFIED. Watchdog under localhost lists the Kloxo-MR eight services
 (add form + Switch To Another; mail uses `__driver_mail`; webcache 8080
 and webproxy 30080 are nginx frontends started by `install-webfront`). SSH Configure beige tab is **SSH Configure** (not Home). Log/driver/php/backup/webserver/SSH Configure/LxGuard/SSH Terminal/File Manager/HelpDesk ticket/Notification/Update/Manage DNS/PHPinfo show pages
 omit the left Find box. Manage DNS beige tabs are Manage DNS, Rebuild, NS, A, AAAA, CNAME, FCNAME, MX, TXT, CAA, SRV, General Settings; show lists `dns_record_a` without `write()`/`setUpdateSubaction` (template records often lack `parent_clname`; dirtying the zone made `login->was()` sync DNS and bounce Home). Live Manage DNS after deploy is UNVERIFIED. Client PHPinfo is web `a=show&sa=phpinfo` (site `php -i` via argument-array `proc_open`); `getTrueParentO`/`getParentO` treat `client-admin` as root (`isRootClient`) and never print `no parent_clname`. Live PHPinfo after deploy is UNVERIFIED. Change Owner (`a=updateform&sa=changeowner`) builds a client select without calling methods on a missing parent; `Lxclient::updateform` does not load `general` first; help text does not explode a null string. Live Change Owner after deploy is UNVERIFIED. SSL Certificates under a domain has beige tabs SSL Certificates, Add SSL File, Add SSL Text, Add Let's Encrypt, Add SSL Link, Switch To Another of sibling domains, and columns User Name, Certificate Name, Add Type, Parent Domain, Syncserver (list toolbar search stays). HelpDesk ticket show has Switch To Another

@@ -9020,13 +9020,15 @@ function uploadAbort(e) { // upload abort
 <?php
 	}
 
-	function print_inline_alert($body_html)
+	function print_inline_alert($body_html, $kind = 'alert')
 	{
 		if (!is_string($body_html) || $body_html === '') {
 			return;
 		}
+		$kind = ($kind === 'info') ? 'info' : 'alert';
+		$class = ($kind === 'info') ? 'kloxo-inline-alert kloxo-inline-info' : 'kloxo-inline-alert';
 ?>
-		<div class="kloxo-inline-alert" role="alert"><?= $body_html ?></div>
+		<div class="<?= $class ?>" role="alert"><?= $body_html ?></div>
 <?php
 	}
 
@@ -9052,6 +9054,8 @@ function uploadAbort(e) { // upload abort
 		global $g_language_mes;
 
 		$img_path = get_general_image_path();
+		// Status tooltip only peeks; content print_message consumes and shows the toast.
+		$peek = ($skin_name === 'simplicity');
 
 		$cgi_message = $this->cgi("frm_emessage");
 		$this->checkForScript($cgi_message);
@@ -9069,22 +9073,28 @@ function uploadAbort(e) { // upload abort
 
 			$imgfile = $img_path . "/button/okpic.gif";
 
-			unset($this->__http_vars['frm_smessage']);
-			unset($this->__http_vars['frm_m_smessage_data']);
-
 			$color = 'green';
 			$message = "<span style='color:green'><b>Information: </b></span> ";
 			$style = 'border: 1px solid green; background:#fff;';
 			$fontstyle = 'color: #000';
 			$mess = $this->format_message($mess, $value, true);
 
-			if ($skin_name === 'simplicity') {
-				$mess = preg_replace("/<.*?>/", "", $mess);
-				$message = preg_replace("/<.*?>/", "", $message);
-				return $message . " " . $mess;
-			} else {
-				$this->print_on_status_bar("$message $mess");
+			if ($peek) {
+				$plainMess = preg_replace("/<.*?>/", "", $mess);
+				$plainMessage = preg_replace("/<.*?>/", "", $message);
+
+				return $plainMessage . " " . $plainMess;
 			}
+
+			unset($this->__http_vars['frm_smessage']);
+			unset($this->__http_vars['frm_m_smessage_data']);
+
+			if ($this->isSimplicitySkin()) {
+				$this->print_inline_alert($message . ' ' . $this->convert_message($mess), 'info');
+			}
+			$this->print_on_status_bar("$message $mess");
+
+			return '';
 		}
 
 		if ($cgi_message) {
@@ -9099,9 +9109,6 @@ function uploadAbort(e) { // upload abort
 				}
 			}
 
-			unset($this->__http_vars['frm_emessage']);
-			unset($this->__http_vars['frm_m_emessage_data']);
-
 			$imgfile = $img_path . "/button/warningpic.gif";
 			$color = 'brown';
 			$message = "<span style='color:red'><b>Alert: </b></span> ";
@@ -9111,17 +9118,25 @@ function uploadAbort(e) { // upload abort
 			// In the status bar, you should print with mainframe. But in the main page, it should be simple url.
 			$pmess = $this->format_message($mess, $value, false);
 
-			if ($skin_name === 'simplicity') {
+			if ($peek) {
 				$pmess = $this->format_message($mess, $value, true);
 				$pmess = substr($pmess, 0, 270);
 				$message = preg_replace("/<.*?>/", "", $message);
 				$pmess = preg_replace("/<.*?>/", "", $pmess);
+
 				return $message . " " . $pmess . "...";
 			}
 
+			unset($this->__http_vars['frm_emessage']);
+			unset($this->__http_vars['frm_m_emessage_data']);
+
 			if ($this->isSimplicitySkin()) {
-				// Fixed modal sat on the password form and every later page.
-				$this->print_inline_alert($message . ' ' . $this->convert_message($pmess));
+				// Inline toast — fixed Error Box sat on the password form and later pages.
+				$this->print_inline_alert($message . ' ' . $this->convert_message($pmess), 'alert');
+				$pmessBar = $this->format_message($mess, $value, true);
+				$pmessBar = substr($pmessBar, 0, 270);
+				$this->print_on_status_bar("$message $pmessBar...");
+
 				return '';
 			}
 

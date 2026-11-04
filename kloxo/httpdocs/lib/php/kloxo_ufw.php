@@ -4,8 +4,8 @@ declare(strict_types=1);
 /**
  * Ubuntu UFW frontend. Argument-array process execution only.
  *
- * Enable always allows panel ports 7777/7778 (and SSH/web/mail) first so
- * the host does not lock out the panel. Never builds a shell string.
+ * Enable always allows panel ports 7777/7778 (and SSH/web/mail/FTP/DNS)
+ * first so the host does not lock out the panel. Never builds a shell string.
  *
  * Copyright (C) 2026 Kloxo CP contributors
  * GNU Affero General Public License v3 or later. See LICENSE.txt.
@@ -16,7 +16,11 @@ final class KloxoUfw
     /** @return list<int> */
     public static function protectedTcpPorts(): array
     {
-        return [22, 25, 80, 443, 465, 587, 993, 995, 7777, 7778];
+        // Panel, SSH, web, FTP, mail (SMTP/submission/IMAP/POP), Watchdog frontends.
+        return [
+            21, 22, 25, 80, 110, 143, 443, 465, 587, 993, 995,
+            7777, 7778, 8080, 30080,
+        ];
     }
 
     /** @return list<int> */
@@ -49,7 +53,7 @@ final class KloxoUfw
     public static function validateAction(string $action): string
     {
         $a = strtolower(trim($action));
-        if ($a !== 'allow' && $a !== 'deny') {
+        if ($a !== 'allow' && $a !== 'deny' && $a !== 'reject') {
             throw new InvalidArgumentException('invalid_ufw_action');
         }
 
@@ -69,7 +73,7 @@ final class KloxoUfw
     public static function validatePort(string $port): string
     {
         $port = trim(str_replace(' ', '', $port));
-        // Hestia-style range 80-90 → UFW 80:90
+        // Range 80-90 → UFW 80:90
         if (preg_match('/^(\d+)-(\d+)$/', $port, $m) === 1) {
             $port = $m[1] . ':' . $m[2];
         }
@@ -95,7 +99,7 @@ final class KloxoUfw
     }
 
     /**
-     * Split a Hestia-style port field (80,443,8080 or 80-82) into UFW ports.
+     * Split a port field (80,443,8080 or 80-82) into UFW ports.
      *
      * @return list<string>
      */
@@ -125,12 +129,15 @@ final class KloxoUfw
      */
     public static function parseRuleTo(string $to): array
     {
-        $to = trim($to);
+        $to = trim(preg_replace('/\s*\(v6\)\s*$/i', '', $to) ?? $to);
         if (preg_match('/^(\d+(?::\d+)?)\/(tcp|udp)$/i', $to, $m) === 1) {
             return ['port' => $m[1], 'proto' => strtolower($m[2])];
         }
         if (preg_match('/^(tcp|udp)\/(\d+(?::\d+)?)$/i', $to, $m) === 1) {
             return ['port' => $m[2], 'proto' => strtolower($m[1])];
+        }
+        if (preg_match('/^(\d+(?::\d+)?)$/', $to, $m) === 1) {
+            return ['port' => $m[1], 'proto' => ''];
         }
 
         return ['port' => $to, 'proto' => ''];
@@ -139,7 +146,7 @@ final class KloxoUfw
     public static function validateFrom(string $from): string
     {
         $from = trim($from);
-        if ($from === '' || strtolower($from) === 'any' || $from === 'Anywhere') {
+        if ($from === '' || strtolower($from) === 'any' || strcasecmp($from, 'Anywhere') === 0) {
             return '';
         }
         if (preg_match('/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\/(\d{1,2}))?$/', $from, $m) !== 1) {
@@ -186,7 +193,7 @@ final class KloxoUfw
         $proto = self::validateProto($proto);
         $port = self::validatePort($port);
         $from = self::validateFrom($from);
-        if ($action === 'deny' && self::portTouchesPanel($port)) {
+        if (($action === 'deny' || $action === 'reject') && self::portTouchesPanel($port)) {
             throw new InvalidArgumentException('cannot_deny_panel_port');
         }
         if ($from === '') {
@@ -253,14 +260,27 @@ final class KloxoUfw
             if ($line === '' || !str_starts_with($line, '[')) {
                 continue;
             }
-            if (preg_match('/^\[\s*(\d+)\]\s+(\S+)\s+(\S+(?:\s+\S+)?)\s+(.+)$/', $line, $m) !== 1) {
+            // [ 1] 22/tcp                     ALLOW IN    Anywhere
+            // [ 2] 80/tcp (v6)                 DENY IN     1.2.3.4
+            // [ 3] 443                        ALLOW       Anywhere (v6)
+            if (preg_match(
+                '/^\[\s*(\d+)\]\s+(.+?)\s+(ALLOW|DENY|REJECT|LIMIT)(?:\s+(IN|OUT))?\s+(.+)$/i',
+                $line,
+                $m
+            ) !== 1) {
                 continue;
             }
+            $to = trim(preg_replace('/\s*\(v6\)\s*$/i', '', trim($m[2])) ?? trim($m[2]));
+            $action = strtoupper(trim($m[3]));
+            if (isset($m[4]) && is_string($m[4]) && $m[4] !== '') {
+                $action .= ' ' . strtoupper($m[4]);
+            }
+            $from = trim(preg_replace('/\s*\(v6\)\s*$/i', '', trim($m[5])) ?? trim($m[5]));
             $out[] = [
                 'number' => (int) $m[1],
-                'to' => $m[2],
-                'action' => trim($m[3]),
-                'from' => trim($m[4]),
+                'to' => $to,
+                'action' => $action,
+                'from' => $from,
             ];
         }
 
@@ -347,6 +367,30 @@ final class KloxoUfw
     }
 
     /**
+     * Allow protected TCP ports + DNS/FTP before enable (idempotent).
+     *
+     * @return array{ok:bool, out:string, error?:string}
+     */
+    public static function ensureProtectedPorts(): array
+    {
+        if (!self::isInstalled()) {
+            return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
+        }
+        $bin = self::ufwBinary();
+        $out = '';
+        foreach (self::protectedTcpPorts() as $port) {
+            $p = self::run([$bin, 'allow', $port . '/tcp']);
+            $out .= $p['out'] . $p['err'];
+        }
+        foreach ([['53', 'tcp'], ['53', 'udp'], ['21', 'tcp']] as $pair) {
+            $p = self::run([$bin, 'allow', $pair[0] . '/' . $pair[1]]);
+            $out .= $p['out'] . $p['err'];
+        }
+
+        return ['ok' => true, 'out' => $out];
+    }
+
+    /**
      * @return array{ok:bool, out:string, error?:string}
      */
     public static function enable(): array
@@ -354,20 +398,9 @@ final class KloxoUfw
         if (!self::isInstalled()) {
             return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
         }
-        $bin = self::ufwBinary();
-        $parts = [];
-        foreach (self::protectedTcpPorts() as $port) {
-            $parts[] = self::run([$bin, 'allow', $port . '/tcp']);
-        }
-        $parts[] = self::run([$bin, 'allow', '53/tcp']);
-        $parts[] = self::run([$bin, 'allow', '53/udp']);
-        $parts[] = self::run([$bin, 'allow', '21/tcp']);
-        $done = self::run([$bin, '--force', 'enable']);
-        $out = '';
-        foreach ($parts as $p) {
-            $out .= $p['out'] . $p['err'];
-        }
-        $out .= $done['out'] . $done['err'];
+        $prep = self::ensureProtectedPorts();
+        $done = self::run([self::ufwBinary(), '--force', 'enable']);
+        $out = (string) ($prep['out'] ?? '') . $done['out'] . $done['err'];
         if ($done['code'] !== 0) {
             return ['ok' => false, 'out' => $out, 'error' => 'ufw_enable_failed'];
         }
