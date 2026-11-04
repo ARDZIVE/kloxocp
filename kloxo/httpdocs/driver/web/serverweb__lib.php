@@ -724,6 +724,29 @@ class serverweb__ extends lxDriverClass
 		);
 	}
 
+	/**
+	 * Build the wrapper script body. trap uses a double-quoted body so
+	 * escapeshellarg() quotes stay valid (single-quoted trap bodies break).
+	 */
+	static function sitePhpInstallWrap($script, $root, $versArg, $log, $lock, $job)
+	{
+		foreach (array($script, $root, $log, $lock, $job) as $p) {
+			if (!is_string($p) || $p === '' || strpos($p, "\n") !== false || strpos($p, "\0") !== false) {
+				return '';
+			}
+		}
+		if (!is_string($versArg) || preg_match('/^[0-9.]+(,[0-9.]+)*$/', $versArg) !== 1) {
+			return '';
+		}
+
+		return "#!/bin/bash\nset -euo pipefail\n"
+			. 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
+			. '/bin/bash ' . escapeshellarg($script)
+			. ' --root=' . escapeshellarg($root)
+			. ' --versions=' . escapeshellarg($versArg)
+			. ' >>' . escapeshellarg($log) . " 2>&1\n";
+	}
+
 	function startSitePhpInstall($vers)
 	{
 		global $login, $sgbl;
@@ -761,13 +784,8 @@ class serverweb__ extends lxDriverClass
 			@unlink($job);
 		}
 
-		$wrap = "#!/bin/bash\nset -euo pipefail\n"
-			. "trap 'rm -f " . escapeshellarg($lock) . ' ' . escapeshellarg($job) . "' EXIT\n"
-			. "/bin/bash " . escapeshellarg($script)
-			. " --root=" . escapeshellarg($paths['root'])
-			. " --versions=" . escapeshellarg($versArg)
-			. " >>" . escapeshellarg($log) . " 2>&1\n";
-		if (@file_put_contents($job, $wrap) === false) {
+		$wrap = self::sitePhpInstallWrap($script, $paths['root'], $versArg, $log, $lock, $job);
+		if ($wrap === '' || @file_put_contents($job, $wrap) === false) {
 			throw new lxException($login->getThrow('could_not_execute'), '', $job);
 		}
 		@chmod($job, 0700);
@@ -790,6 +808,7 @@ class serverweb__ extends lxDriverClass
 			));
 			$started = ($code === 0);
 		}
+		// Fallback only when systemd-run did not start the job (do not double-run).
 		if (!$started) {
 			if ($euid !== 0) {
 				@unlink($job);

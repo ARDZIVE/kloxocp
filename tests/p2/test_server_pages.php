@@ -2531,11 +2531,37 @@ $phpJobOk = ($phpJob['job'] ?? '') === '/opt/kloxo/log/kloxo-site-php-install.sh
 	&& ($phpJob['lock'] ?? '') === '/opt/kloxo/log/kloxo-site-php-install.lock'
 	&& ($phpJob['script'] ?? '') === '/opt/kloxo/bin/install/install-site-php'
 	&& !str_starts_with((string)($phpJob['job'] ?? ''), '/tmp/');
+$phpWrap = serverweb__::sitePhpInstallWrap(
+	$phpJob['script'],
+	$phpJob['root'],
+	'8.4,7.4',
+	$phpJob['log'],
+	$phpJob['lock'],
+	$phpJob['job']
+);
+$phpWrapOk = is_string($phpWrap) && $phpWrap !== ''
+	&& str_contains($phpWrap, 'trap "rm -f -- ')
+	&& str_contains($phpWrap, escapeshellarg($phpJob['lock']))
+	&& str_contains($phpWrap, escapeshellarg($phpJob['job']))
+	&& !str_contains($phpWrap, "trap 'rm -f ");
+$phpFallbackOk = str_contains($webSync, 'if (!$started)')
+	&& str_contains($webSync, "lxshell_background('bash', \$job)");
 if ($phpJobOk) {
 	ok('Multiple PHP Install queues install-site-php outside PrivateTmp /tmp');
 } else {
 	bad('Multiple PHP Install queues install-site-php outside PrivateTmp /tmp',
 		json_encode($phpJob));
+}
+if ($phpWrapOk) {
+	ok('Multiple PHP Install wrapper trap uses double-quoted escapeshellarg paths');
+} else {
+	bad('Multiple PHP Install wrapper trap uses double-quoted escapeshellarg paths',
+		is_string($phpWrap) ? $phpWrap : 'wrap empty');
+}
+if ($phpFallbackOk) {
+	ok('Multiple PHP Install falls back to lxshell_background only when systemd-run did not start');
+} else {
+	bad('Multiple PHP Install falls back to lxshell_background only when systemd-run did not start');
 }
 
 $htmlSrc = (string)file_get_contents($doc . '/theme/htmllib.php');
