@@ -77,7 +77,8 @@ chosen on Webserver Configure (PHP Used / PHP Branch list php8.3, php7.4,
 php5.6 — not php52m). Webserver Configure section forms (PHP Used/Branch,
 Multiple PHP, PHP Type, Apache optimize, MySQL convert, fix ownership,
 Pagespeed) load without the panel DB; Multiple PHP Install queues
-`install-site-php` for the selected `phpX.Y` ids so they appear on
+`install-site-php` for the selected `phpX.Y` ids (job under `$ROOT/log/`,
+not `/tmp`, because `kloxo-backend` uses `PrivateTmp`) so they appear on
 Multiple PHP Remove; Apache optimize writes
 `kloxo-optimize.conf`; PHP Type on Ubuntu is proxy_fcgi + mpm_event/worker;
 fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share exactly two beige tabs
@@ -165,10 +166,12 @@ names collapse to one row (`apache2` not `httpd`, `bind9` not `named`,
 `mariadb` not `mysqld`). Service start/stop/restart/enable/disable uses
 absolute `systemctl --no-block` via argument-array `proc_open`
 (`Service__Linux::systemctlRun`); driver includes use `__DIR__`. Stop/disable/restart
-of panel-critical units is refused (`mariadb`/`mysql`/`mysqld`, `kloxo-php`,
+of panel-critical units is refused on click (`mariadb`/`mysql`/`mysqld`, `kloxo-php`,
 `kloxo-web`, `kloxo-backend`, `kloxo-wrap`, `hiawatha`) — stopping MariaDB blanks
-every page with `No such file or directory` (missing DB socket). Start/enable
-of those units remains allowed. Live Services actions after deploy are UNVERIFIED.
+every page with `No such file or directory` (missing DB socket). Start/Stop/Restart
+icons stay visible for every row (headers Start / Stop / Restart); Sb and State
+are view-only for those critical units. Start/enable of those units remains allowed.
+Live Services actions after deploy are UNVERIFIED.
 `httpd` and `apache2` are the same Apache daemon (RHEL vs Debian unit name);
 `named` and `bind9` are the same BIND daemon. Default SQL is **MariaDB**
 (`systemctl enable --now mariadb`); `mysql`/`mysqld` alias rows are not listed

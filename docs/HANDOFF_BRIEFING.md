@@ -228,9 +228,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     for unreachable hops (not `no`). Live after deploy is UNVERIFIED.
     Services list collapses httpd/apache2 and named/bind9 to one preferred
     row; start/stop/restart/boot use absolute `systemctl --no-block` with pipe
-    timeouts. Stop/disable/restart of mariadb / kloxo-php / kloxo-web /
-    kloxo-backend / hiawatha is refused (stopping MariaDB blanks the UI with
-    socket "No such file or directory"). Live Services actions UNVERIFIED.
+    timeouts. Column headers are Start / Stop / Restart (not three "Service").
+    Stop/disable/restart of mariadb / kloxo-php / kloxo-web / kloxo-backend /
+    hiawatha is refused on click while those icons stay visible (blank cells
+    looked like missing icons); Sb/State toggles are view-only for them
+    (stopping MariaDB blanks the UI with socket "No such file or directory").
+    Live Services actions UNVERIFIED.
     File Manager Thumbnail/resize checks `/usr/bin/convert` (or `magick`),
     not CentOS `rpm -q ImageMagick`; `install.sh` packages `imagemagick`.
     Default SQL is MariaDB (`enable --now mariadb`); mysqld/mysql alias rows
@@ -718,8 +721,11 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    for Apache, Apache optimize, MySQL convert, fix ownership, Pagespeed)
    with Ubuntu `phpX.Y` ids, not `php52m`. Multiple PHP Install submits
    the dual-listbox selection (Available highlights and/or Selected) as
-   `phpX.Y` ids and queues `install-site-php --versions=`; Multiple PHP
-   Remove lists actually installed `phpX.Y-fpm` (binaries or
+   `phpX.Y` ids and queues `install-site-php --versions=` via a job under
+   `$ROOT/log/` (not `/tmp`: `kloxo-backend` has `PrivateTmp=true`, which
+   made `systemd-run` fail with `could_not_execute [install-site-php]`);
+   falls back to background bash as root when `systemd-run` is unavailable.
+   Multiple PHP Remove lists actually installed `phpX.Y-fpm` (binaries or
    `/etc/php/X.Y/fpm`). Each section form loads without
    a DB password. Apache optimize writes
    `/etc/apache2/conf-available/kloxo-optimize.conf` (validate `apache2ctl

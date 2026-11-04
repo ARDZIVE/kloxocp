@@ -243,11 +243,20 @@ try {
 		|| strpos($e->getMessage(), 'critical') !== false
 		|| $e->getMessage() !== '');
 }
-if ($protOk && $svcCritStopBlocked && !$svcCrit->isAction('button_stop_f') && $svcCrit->isAction('button_start_f')) {
+$svcCritIcons = $svcCrit->isAction('button_start_f')
+	&& $svcCrit->isAction('button_stop_f')
+	&& $svcCrit->isAction('button_restart_f')
+	&& !$svcCrit->isAction('state')
+	&& !$svcCrit->isAction('boot_state');
+$svcBtnLabels = Service::$__desc_button_start_f[2] === 'start'
+	&& Service::$__desc_button_stop_f[2] === 'stop'
+	&& Service::$__desc_button_restart_f[2] === 'restart';
+if ($protOk && $svcCritStopBlocked && $svcCritIcons && $svcBtnLabels) {
 	ok('Services refuse stop/restart of MariaDB and panel units; systemctl uses --no-block');
 } else {
 	bad('Services refuse stop/restart of MariaDB and panel units; systemctl uses --no-block',
-		'prot=' . ($protOk ? 'yes' : 'no') . ' stopBlocked=' . ($svcCritStopBlocked ? 'yes' : 'no'));
+		'prot=' . ($protOk ? 'yes' : 'no') . ' stopBlocked=' . ($svcCritStopBlocked ? 'yes' : 'no')
+		. ' icons=' . ($svcCritIcons ? 'yes' : 'no') . ' labels=' . ($svcBtnLabels ? 'yes' : 'no'));
 }
 
 $psSrc = (string) file_get_contents($doc . '/driver/pserver/pserver__linuxlib.php');
@@ -2504,11 +2513,29 @@ if (!str_contains($webSrc, 'getCleanRpmBranchListOnList')
 	&& str_contains($webSync, 'function writeUbuntuApacheOptimize')
 	&& str_contains($webSync, 'function set_php_type_ubuntu')
 	&& str_contains($webSync, 'function startSitePhpInstall')
+	&& str_contains($webSync, 'function sitePhpInstallPaths')
 	&& str_contains($webSync, 'KloxoPhpver::parseRequestedIds')
-	&& str_contains($webSync, 'install-site-php')) {
+	&& str_contains($webSync, 'install-site-php')
+	&& str_contains($webSync, 'kloxo-site-php-install.sh')
+	&& !str_contains($webSync, "\$lock = '/tmp/kloxo-site-php-install.lock'")) {
 	ok('Webserver Configure does not parse CentOS php.lst or cat httpd');
 } else {
 	bad('Webserver Configure does not parse CentOS php.lst or cat httpd');
+}
+
+if (!class_exists('serverweb__', false)) {
+	include_once $doc . '/driver/web/serverweb__lib.php';
+}
+$phpJob = serverweb__::sitePhpInstallPaths('/opt/kloxo');
+$phpJobOk = ($phpJob['job'] ?? '') === '/opt/kloxo/log/kloxo-site-php-install.sh'
+	&& ($phpJob['lock'] ?? '') === '/opt/kloxo/log/kloxo-site-php-install.lock'
+	&& ($phpJob['script'] ?? '') === '/opt/kloxo/bin/install/install-site-php'
+	&& !str_starts_with((string)($phpJob['job'] ?? ''), '/tmp/');
+if ($phpJobOk) {
+	ok('Multiple PHP Install queues install-site-php outside PrivateTmp /tmp');
+} else {
+	bad('Multiple PHP Install queues install-site-php outside PrivateTmp /tmp',
+		json_encode($phpJob));
 }
 
 $htmlSrc = (string)file_get_contents($doc . '/theme/htmllib.php');

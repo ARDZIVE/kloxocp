@@ -702,12 +702,40 @@ class serverweb__ extends lxDriverClass
 		throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
 	}
 
+	/**
+	 * Paths for a queued install-site-php job.
+	 * Job/lock live under program log (not /tmp): kloxo-backend.service
+	 * sets PrivateTmp=true, so a /tmp script is invisible to systemd-run.
+	 *
+	 * @return array{root:string,script:string,logDir:string,job:string,lock:string,log:string}
+	 */
+	static function sitePhpInstallPaths($root)
+	{
+		$root = rtrim((string)$root, '/');
+		$logDir = $root . '/log';
+
+		return array(
+			'root' => $root,
+			'script' => $root . '/bin/install/install-site-php',
+			'logDir' => $logDir,
+			'job' => $logDir . '/kloxo-site-php-install.sh',
+			'lock' => $logDir . '/kloxo-site-php-install.lock',
+			'log' => $logDir . '/install-site-php.log',
+		);
+	}
+
 	function startSitePhpInstall($vers)
 	{
-		global $login;
+		global $login, $sgbl;
 
-		$root = dirname(__DIR__, 3);
-		$script = $root . '/bin/install/install-site-php';
+		$root = (isset($sgbl) && !empty($sgbl->__path_program_root))
+			? (string)$sgbl->__path_program_root
+			: dirname(__DIR__, 3);
+		if (strpos($root, '..') !== false || strpos($root, "\n") !== false) {
+			throw new lxException($login->getThrow('file_not_found'), '', $root);
+		}
+		$paths = self::sitePhpInstallPaths($root);
+		$script = $paths['script'];
 		if (!is_file($script)) {
 			throw new lxException($login->getThrow('file_not_found'), '', $script);
 		}
@@ -715,53 +743,63 @@ class serverweb__ extends lxDriverClass
 		if (preg_match('/^[0-9.]+(,[0-9.]+)*$/', $versArg) !== 1) {
 			throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
 		}
-		if (strpos($root, '..') !== false || strpos($root, "\n") !== false) {
-			throw new lxException($login->getThrow('file_not_found'), '', $root);
-		}
 
-		$lock = '/tmp/kloxo-site-php-install.lock';
+		$job = $paths['job'];
+		$lock = $paths['lock'];
+		$log = $paths['log'];
+		// Clear stale /tmp lock from older panel builds (PrivateTmp-safe path is below).
+		@unlink('/tmp/kloxo-site-php-install.lock');
+		if (!is_dir($paths['logDir']) && !@mkdir($paths['logDir'], 0755, true) && !is_dir($paths['logDir'])) {
+			throw new lxException($login->getThrow('could_not_execute'), '', $paths['logDir']);
+		}
 		if (is_file($lock)) {
 			$age = time() - (int)@filemtime($lock);
 			if ($age >= 0 && $age < 1800) {
 				throw new lxException($login->getThrow('other_install_process_still_running'), '', $this->main->syncserver);
 			}
 			@unlink($lock);
+			@unlink($job);
 		}
 
-		$logDir = $root . '/log';
-		if (!is_dir($logDir)) {
-			$logDir = '/tmp';
-		}
-		$log = $logDir . '/install-site-php.log';
 		$wrap = "#!/bin/bash\nset -euo pipefail\n"
-			. "trap 'rm -f " . $lock . "' EXIT\n"
+			. "trap 'rm -f " . escapeshellarg($lock) . ' ' . escapeshellarg($job) . "' EXIT\n"
 			. "/bin/bash " . escapeshellarg($script)
-			. " --root=" . escapeshellarg($root)
+			. " --root=" . escapeshellarg($paths['root'])
 			. " --versions=" . escapeshellarg($versArg)
 			. " >>" . escapeshellarg($log) . " 2>&1\n";
-		if (@file_put_contents($lock, $wrap) === false) {
+		if (@file_put_contents($job, $wrap) === false) {
+			throw new lxException($login->getThrow('could_not_execute'), '', $job);
+		}
+		@chmod($job, 0700);
+		if (@file_put_contents($lock, (string)time()) === false) {
+			@unlink($job);
 			throw new lxException($login->getThrow('could_not_execute'), '', $lock);
 		}
-		@chmod($lock, 0700);
 
+		$euid = function_exists('posix_geteuid') ? (int)posix_geteuid() : 0;
+		$started = false;
 		$systemd = '/usr/bin/systemd-run';
-		if (is_executable($systemd)) {
+		if ($euid === 0 && is_executable($systemd)) {
 			$code = $this->runArgv(array(
 				$systemd,
 				'--no-block',
 				'--collect',
-				'--unit=kloxo-site-php-install-' . (string)getmypid(),
+				'--unit=kloxo-site-php-install-' . (string)getmypid() . '-' . (string)time(),
 				'/bin/bash',
-				$lock,
+				$job,
 			));
-			if ($code !== 0) {
+			$started = ($code === 0);
+		}
+		if (!$started) {
+			if ($euid !== 0) {
+				@unlink($job);
 				@unlink($lock);
 				throw new lxException($login->getThrow('could_not_execute'), '', 'install-site-php');
 			}
-			throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
+			// Same PrivateTmp as kloxo-backend: background child can still run apt.
+			lxshell_background('bash', $job);
 		}
 
-		lxshell_background('bash', $lock);
 		throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
 	}
 

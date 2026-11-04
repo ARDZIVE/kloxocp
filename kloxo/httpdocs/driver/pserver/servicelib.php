@@ -18,9 +18,9 @@ class Service extends Lxdb
 	static $__desc_boot_state_v_dull = array("", "", "service_not_installed");
 
 	static $__desc_state = array("e", "", "state", URL_TOGGLE_STATE);
-	static $__desc_button_stop_f = array("b", "", "", "a=update&sa=stop");
-	static $__desc_button_restart_f = array("b", "", "", "a=update&sa=restart");
-	static $__desc_button_start_f = array("b", "", "", "a=update&sa=start");
+	static $__desc_button_stop_f = array("b", "", "stop", "a=update&sa=stop");
+	static $__desc_button_restart_f = array("b", "", "restart", "a=update&sa=restart");
+	static $__desc_button_start_f = array("b", "", "start", "a=update&sa=start");
 
 	static $__desc_state_v_on = array("", "", "running");
 	static $__desc_state_v_off = array("", "", "stopped");
@@ -85,13 +85,11 @@ class Service extends Lxdb
 
 		$svc = isset($this->servicename) ? (string) $this->servicename : '';
 		$protected = class_exists('Service__Linux', false) && Service__Linux::isProtectedUnit($svc);
-		// Hide stop / restart / state-toggle / boot-toggle for panel-critical units
-		// (MariaDB, kloxo-php, kloxo-web, kloxo-backend). Stopping them blanks the UI.
-		if ($protected) {
-			if ($var === 'state' || $var === 'boot_state'
-				|| $var === 'button_stop_f' || $var === 'button_restart_f') {
-				return false;
-			}
+		// Keep Start/Stop/Restart icons for every installed row (blank cells look broken).
+		// Sb / State stay view-only for panel-critical units; Stop/Restart still refuse
+		// in updateStop/updateRestart via assertMayControl.
+		if ($protected && ($var === 'state' || $var === 'boot_state')) {
+			return false;
 		}
 
 		return true;
