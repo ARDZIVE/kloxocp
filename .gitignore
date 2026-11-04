@@ -1,6 +1,10 @@
 
 /.idea
 
+# Runtime panel logs (never commit host/test noise)
+/kloxo/log/*
+!/kloxo/log/.gitkeep
+
 # Operator CLI snapshots (may contain copies of TLS keys)
 /kloxo/var/backups/
 
