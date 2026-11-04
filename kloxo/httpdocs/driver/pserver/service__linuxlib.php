@@ -92,6 +92,53 @@ class Service__Linux extends Lxlclass
 		return is_string($name) && $name !== '' && preg_match('/^[A-Za-z0-9_.:@+-]+$/', $name) === 1;
 	}
 
+	/**
+	 * Units the panel must not stop/disable/restart: killing them blanks every
+	 * page (MariaDB socket "No such file or directory") or hangs the backend.
+	 *
+	 * @return list<string>
+	 */
+	static function protectedUnits()
+	{
+		return array(
+			'mariadb', 'mysql', 'mysqld',
+			'kloxo-php', 'kloxo-web', 'kloxo-backend', 'kloxo-wrap', 'hiawatha',
+		);
+	}
+
+	static function isProtectedUnit($name)
+	{
+		$name = strtolower((string) $name);
+		if ($name === '' || !self::isSafeUnit($name)) {
+			return true;
+		}
+		if (in_array($name, self::protectedUnits(), true)) {
+			return true;
+		}
+		$prefer = strtolower(self::preferredServiceName($name));
+
+		return in_array($prefer, self::protectedUnits(), true);
+	}
+
+	/**
+	 * Whether systemctl $act is allowed for $unit.
+	 * start/enable always OK for installed units; stop/disable/restart blocked for protected.
+	 */
+	static function mayControlUnit($unit, $act)
+	{
+		$unit = (string) $unit;
+		$act = (string) $act;
+		if (!self::isSafeUnit($unit)
+			|| !in_array($act, array('start', 'stop', 'restart', 'enable', 'disable'), true)) {
+			return false;
+		}
+		if (in_array($act, array('start', 'enable'), true)) {
+			return true;
+		}
+		// stop / disable / restart of panel-critical units take the UI down.
+		return !self::isProtectedUnit($unit);
+	}
+
 	static function hasSystemd()
 	{
 		return is_dir('/run/systemd/system');
@@ -110,9 +157,39 @@ class Service__Linux extends Lxlclass
 	}
 
 	/**
-	 * Run systemctl with an argument array (no shell string).
+	 * Drain a pipe with a short timeout so a stuck systemctl cannot hang the panel.
 	 *
-	 * @return int process exit code, or -1 on failure
+	 * @param resource $pipe
+	 */
+	static function readPipeLimited($pipe, $seconds = 5)
+	{
+		$out = '';
+		if (!is_resource($pipe)) {
+			return $out;
+		}
+		stream_set_blocking($pipe, false);
+		$deadline = microtime(true) + (float) $seconds;
+		while (!feof($pipe) && microtime(true) < $deadline) {
+			$chunk = fread($pipe, 8192);
+			if ($chunk === false || $chunk === '') {
+				usleep(50000);
+				continue;
+			}
+			$out .= $chunk;
+			if (strlen($out) > 65536) {
+				break;
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Run systemctl with an argument array (no shell string).
+	 * Uses --no-block for start/stop/restart so the request cannot hang waiting
+	 * on a unit (or deadlock when controlling kloxo-backend itself).
+	 *
+	 * @return int process exit code, or -1 on failure / refused
 	 */
 	static function systemctlRun($act, $unit)
 	{
@@ -120,11 +197,18 @@ class Service__Linux extends Lxlclass
 		$act = (string) $act;
 		$unit = (string) $unit;
 		if ($bin === '' || !self::isSafeUnit($unit)
-			|| !in_array($act, array('start', 'stop', 'restart', 'enable', 'disable'), true)) {
+			|| !in_array($act, array('start', 'stop', 'restart', 'enable', 'disable'), true)
+			|| !self::mayControlUnit($unit, $act)) {
 			return -1;
 		}
+		$args = array($bin);
+		if (in_array($act, array('start', 'stop', 'restart'), true)) {
+			$args[] = '--no-block';
+		}
+		$args[] = $act;
+		$args[] = $unit;
 		try {
-			$p = @proc_open(array($bin, $act, $unit), array(
+			$p = @proc_open($args, array(
 				0 => array('file', '/dev/null', 'r'),
 				1 => array('pipe', 'w'),
 				2 => array('pipe', 'w'),
@@ -135,13 +219,17 @@ class Service__Linux extends Lxlclass
 		if ($p === false || $p === null) {
 			return -1;
 		}
-		if (isset($pipes[1]) && is_resource($pipes[1])) {
-			stream_get_contents($pipes[1]);
+		if (isset($pipes[1])) {
+			self::readPipeLimited($pipes[1], 5);
 			fclose($pipes[1]);
 		}
-		if (isset($pipes[2]) && is_resource($pipes[2])) {
-			stream_get_contents($pipes[2]);
+		if (isset($pipes[2])) {
+			self::readPipeLimited($pipes[2], 5);
 			fclose($pipes[2]);
+		}
+		$status = @proc_get_status($p);
+		if (is_array($status) && !empty($status['running'])) {
+			@proc_terminate($p);
 		}
 
 		return (int) proc_close($p);
@@ -180,6 +268,23 @@ class Service__Linux extends Lxlclass
 		);
 
 		return isset($map[$name]) ? $map[$name] : $name;
+	}
+
+	/** True when two unit names share the same systemd unit file (alias). */
+	static function unitsAreSameDaemon($a, $b)
+	{
+		$a = (string) $a;
+		$b = (string) $b;
+		if ($a === '' || $b === '') {
+			return false;
+		}
+		if ($a === $b) {
+			return true;
+		}
+		$fa = self::systemdShow($a, 'FragmentPath');
+		$fb = self::systemdShow($b, 'FragmentPath');
+
+		return $fa !== '' && $fa === $fb;
 	}
 
 
@@ -259,13 +364,17 @@ class Service__Linux extends Lxlclass
 			return '';
 		}
 		$out = '';
-		if (isset($pipes[1]) && is_resource($pipes[1])) {
-			$out = stream_get_contents($pipes[1]);
+		if (isset($pipes[1])) {
+			$out = self::readPipeLimited($pipes[1], 3);
 			fclose($pipes[1]);
 		}
-		if (isset($pipes[2]) && is_resource($pipes[2])) {
-			stream_get_contents($pipes[2]);
+		if (isset($pipes[2])) {
+			self::readPipeLimited($pipes[2], 3);
 			fclose($pipes[2]);
+		}
+		$status = @proc_get_status($p);
+		if (is_array($status) && !empty($status['running'])) {
+			@proc_terminate($p);
 		}
 		proc_close($p);
 
@@ -405,7 +514,9 @@ class Service__Linux extends Lxlclass
 			return array();
 		}
 
-		$byUnit = array();
+		// Key by preferred family (bind9/named → bind9) so systemd aliases of the
+		// same daemon do not produce two installed rows.
+		$byFamily = array();
 
 		foreach ($list as $key => &$__l) {
 			if (!is_array($__l)) {
@@ -421,20 +532,37 @@ class Service__Linux extends Lxlclass
 				continue;
 			}
 
-			$prefer = self::preferredServiceName($unit);
-			if (isset($byUnit[$unit])) {
-				$prevKey = $byUnit[$unit];
+			// Ubuntu default SQL is MariaDB. Hide mysqld/mysql only when they are
+			// the same systemd unit/alias as mariadb. A distinct mysql-server
+			// package (different FragmentPath) stays listed and can be started
+			// from Services after install left it stopped.
+			if (in_array($svc, array('mysql', 'mysqld'), true)) {
+				$mariaUnit = self::resolveInstalledUnit('mariadb');
+				if ($mariaUnit !== '' && self::unitsAreSameDaemon($unit, $mariaUnit)) {
+					continue;
+				}
+			}
+
+			// Family key: named+bind9 → bind9, httpd+apache2 → apache2, even when
+			// systemd LoadState is true for both the real unit and its alias.
+			$family = self::preferredServiceName($unit);
+			if ($family === $unit) {
+				$family = self::preferredServiceName($svc);
+			}
+			if (isset($byFamily[$family])) {
+				$prevKey = $byFamily[$family];
 				$prevSvc = isset($list[$prevKey]['servicename']) ? (string) $list[$prevKey]['servicename'] : '';
-				if ($svc === $prefer && $prevSvc !== $prefer) {
+				// Prefer the Debian/Ubuntu catalog name (bind9, apache2, mariadb).
+				if ($svc === $family && $prevSvc !== $family) {
 					$list[$prevKey]['install_state'] = 'dull';
 					$list[$prevKey]['state'] = 'off';
 					$list[$prevKey]['boot_state'] = 'off';
-					$byUnit[$unit] = $key;
+					$byFamily[$family] = $key;
 				} else {
 					continue;
 				}
 			} else {
-				$byUnit[$unit] = $key;
+				$byFamily[$family] = $key;
 			}
 
 			$__l['install_state'] = 'on';

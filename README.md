@@ -10,14 +10,14 @@ Public git remote: https://github.com/ARDZIVE/kloxocp.git (`main`).
 
 | What | Value |
 |---|---|
-| **Kloxo CP** (this fork) | **10.1-2026110401** |
-| `kloxo/bin/kloxoversion` | **10.1-2026110401** |
+| **Kloxo CP** (this fork) | **10.1-2026110402** |
+| `kloxo/bin/kloxoversion` | **10.1-2026110402** |
 | Upstream base | Kloxo-MR `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` |
 
-`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110401**.
+`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110402**.
 The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
-> **Status: 10.1-2026110401, NOT FOR PRODUCTION.**
+> **Status: 10.1-2026110402, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. Phase-1a security items (C1–C5) are
 > closed, first-party PHP parses and loads on PHP 8, and `install.sh` can
 > bootstrap a panel, but the legacy PHP is still PHP 5-era in behaviour.
@@ -31,7 +31,7 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
 ## Installation command (Ubuntu 24.04 or 26.x, as root)
 
-**Recommended (current `main`, version 10.1-2026110401):**
+**Recommended (current `main`, version 10.1-2026110402):**
 
 ```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
@@ -62,17 +62,20 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get i
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
 (`curl | bash` breaks apt stdin). Re-run the same command to refresh an
-existing clone to current `main`.
+existing clone to current `main` (includes Services hardening, MariaDB-default
+SQL, ImageMagick for File Manager Thumbnail).
 
 Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
-**redis-server**, and Ubuntu **universe** enabled when needed. Postfix is
-**not** installed with Exim (both conflict on `mail-transport-agent`); Switch
-Program `smtp=postfix` removes Exim and installs Postfix. It does **not**
-install bogofilter, SpamAssassin, or sqlite (panel DB is MariaDB; spam is Rspamd).
-Starts Nginx, BIND, Redis, Pure-FTPd, webcache on **8080**, and webproxy on
-**30080**. Packages `ufw` and leaves it **inactive** (enable later from
-Security → **UFW Firewall**; that first allows 7777/7778). Apache and PowerDNS
-are packaged and stay disabled.
+**redis-server**, **imagemagick**, and Ubuntu **universe** enabled when needed.
+Postfix is **not** installed with Exim (both conflict on
+`mail-transport-agent`); Switch Program `smtp=postfix` removes Exim and
+installs Postfix. It does **not** install bogofilter, SpamAssassin, or sqlite
+(panel DB is **MariaDB**; spam is Rspamd). Starts Nginx, **MariaDB**, BIND,
+Redis, Pure-FTPd, webcache on **8080**, and webproxy on **30080**. Default SQL
+is MariaDB only (`mysql`/`mysqld` aliases are not a second started service).
+Packages `ufw` and leaves it **inactive** (enable later from Security →
+**UFW Firewall**; that first allows 7777/7778). Apache and PowerDNS are
+packaged and stay disabled.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
 self-signed certificate. Change that password on first login. Flags and
@@ -91,7 +94,7 @@ details are under [Installation](#installation).
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
 | Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
-| Database | MariaDB (panel DB `kloxo`; mail DB is separate) |
+| Database | **MariaDB** default (started at install; panel DB `kloxo`; mail DB is separate). A distinct MySQL package, if present, stays stopped until started from Services. |
 | SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `root`@`127.0.0.1`) |
 | Billing | None |
 | License | GNU AGPL v3 |
@@ -117,8 +120,8 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Manage DNS | Tabs **Manage DNS**, **Rebuild**, **NS**, **A**, **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**, **General Settings**. No left Find box. Show does not rewrite the zone. |
 | DNS Templates | Add form on the list tab (name/primary/secondary empty). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
-| Update | **10.1-2026110401**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
-| Services | Lists only installed units; running/boot from systemd. RHEL/Debian aliases collapse to one row (`apache2` not `httpd`, `bind9` not `named`, `mariadb` not `mysqld`). Sb / State / start / stop / restart call absolute `systemctl`. Includes `kloxo-webcache` and `kloxo-webproxy`. Live actions after deploy are unverified. |
+| Update | **10.1-2026110402**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
+| Services | Lists only installed units; running/boot from systemd. RHEL/Debian aliases collapse to one row (`apache2` not `httpd`, `bind9` not `named`). Default SQL is **MariaDB** (started at install); `mysql`/`mysqld` are not shown as a second installed row while MariaDB is present. A separate MySQL package stays stopped until started here. Sb / State / start / stop / restart use `systemctl --no-block`. Stop/restart of MariaDB and panel units is refused. If every page shows `No such file or directory`, run `systemctl start mariadb`. |
 | Traceroute | Parses `traceroute` and `tracepath`. Response times show three decimals; unreachable hops show `*` (not `no`). |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
@@ -166,12 +169,12 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get i
 
 Downloads the current `install.sh` from GitHub `main`
 (https://github.com/ARDZIVE/kloxocp) and runs it (default **full**: Exim,
-Dovecot, Rspamd; Postfix not co-installed; Redis and Pure-FTPd enabled).
-That script clones the tree if needed, or fetches `origin/main` and
-hard-resets when `/usr/local/src/kloxo-cp` is already a git clone. Safe to
-repeat after a failed install or to pick up GitHub `main` (local edits in
-that clone are discarded). Use `--profile=core` for a panel without mail
-packages.
+Dovecot, Rspamd; Postfix not co-installed; Redis, Pure-FTPd, and ImageMagick
+enabled; **MariaDB** is the default SQL). That script clones the tree if
+needed, or fetches `origin/main` and hard-resets when `/usr/local/src/kloxo-cp`
+is already a git clone. Safe to repeat after a failed install or to pick up
+GitHub `main` (local edits in that clone are discarded). Use `--profile=core`
+for a panel without mail packages.
 
 A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:
@@ -201,8 +204,8 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 1. Refuses another control panel, and refuses less than ~2 GB RAM / 10 GB disk
    unless you pass `--force`.
 2. Installs the **core** apt set: `php-cli` `php-fpm` `php-mysql` `php-xml`
-   `php-mbstring` `php-curl`, MariaDB, Nginx, BIND 9, **pure-ftpd**,
-   **redis-server**, `iproute2`, and the
+   `php-mbstring` `php-curl`, **MariaDB**, Nginx, BIND 9, **pure-ftpd**,
+   **redis-server**, **imagemagick**, `iproute2`, and the
    compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`),
    and `ufw` (left inactive; enable from Security → **UFW Firewall**, which
    first allows 7777/7778). Also packages `pdns-server` and `apache2` but does
@@ -220,12 +223,14 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 6. Starts panel PHP-FPM (`kloxo-php`) as **`lxlabs`** on `127.0.0.1:39000`.
 7. Builds pinned **Hiawatha 12.4** (`install-hiawatha`) **before** the database
    schema, then starts `kloxo-web` on 7777/7778.
-8. Enables Nginx, MariaDB, and BIND. Starts webcache on **8080** and webproxy
-   on **30080** (`install-webfront`; dedicated nginx processes, not Varnish or
-   Squid). Prepares Apache (`install-apache`) and PowerDNS (`install-pdns`) and
-   leaves those units **disabled**. `--profile=full` installs Exim (default MTA)
-   only — Postfix conflicts with Exim on `mail-transport-agent` and is
-   apt-installed when Switch Program selects `smtp=postfix`.
+8. Enables Nginx, **MariaDB** (default SQL; not a separate mysqld enable), and
+   BIND. Starts webcache on **8080** and webproxy on **30080**
+   (`install-webfront`; dedicated nginx processes, not Varnish or Squid).
+   Prepares Apache (`install-apache`) and PowerDNS (`install-pdns`) and leaves
+   those units **disabled**. A distinct MySQL package unit, if present, stays
+   stopped until started from Services. `--profile=full` installs Exim
+   (default MTA) only — Postfix conflicts with Exim on `mail-transport-agent`
+   and is apt-installed when Switch Program selects `smtp=postfix`.
 9. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
    `localhost` driver with `dns` = `bind`, `web` = `nginx`, and `smtp` = `exim`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
@@ -260,7 +265,7 @@ sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
 sudo bash install.sh                       # default --profile=full (Exim, Dovecot, Rspamd; no Postfix)
 sudo bash install.sh --with-mail           # same as --profile=full
 sudo bash install.sh --profile=full        # explicit full
-sudo bash install.sh --profile=core        # php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive); no mail MTAs
+sudo bash install.sh --profile=core        # php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive), imagemagick; no mail MTAs
 sudo bash install.sh --dry-run             # print repo/src/root/profile and exit
 sudo bash install.sh --src=/path           # clone location (default /usr/local/src/kloxo-cp)
 sudo bash install.sh --root=/opt/kloxo     # program root
@@ -377,9 +382,13 @@ apt install -y \
   redis-server \
   iproute2 \
   ufw \
+  imagemagick \
   ca-certificates git curl openssl \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 ```
+
+`imagemagick` provides `/usr/bin/convert` for File Manager Thumbnail / resize
+(the panel no longer probes with CentOS `rpm -q ImageMagick`).
 
 Mail packages (only with `--profile=full` / `--with-mail`; does **not**
 configure Exim). Do **not** apt-install Postfix here — it Conflicts with

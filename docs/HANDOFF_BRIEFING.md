@@ -181,7 +181,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026110401**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026110402**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -227,8 +227,15 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `0.456ms`), shows response times with three decimals, and shows `*`
     for unreachable hops (not `no`). Live after deploy is UNVERIFIED.
     Services list collapses httpd/apache2 and named/bind9 to one preferred
-    row; start/stop/restart/boot toggles call absolute systemctl (no bare
-    PATH lookup / relative driver include). Live Services actions UNVERIFIED.
+    row; start/stop/restart/boot use absolute `systemctl --no-block` with pipe
+    timeouts. Stop/disable/restart of mariadb / kloxo-php / kloxo-web /
+    kloxo-backend / hiawatha is refused (stopping MariaDB blanks the UI with
+    socket "No such file or directory"). Live Services actions UNVERIFIED.
+    File Manager Thumbnail/resize checks `/usr/bin/convert` (or `magick`),
+    not CentOS `rpm -q ImageMagick`; `install.sh` packages `imagemagick`.
+    Default SQL is MariaDB (`enable --now mariadb`); mysqld/mysql alias rows
+    of the same unit are not listed; a distinct MySQL package stays stopped
+    until started from Services.
     Localhost File Manager / Switch Program / Traceroute / Cron Tasks
     no longer die with `No socket connect to server localhost`. Panel
     FPM is `lxlabs`; `remote_exec` sends privileged work to

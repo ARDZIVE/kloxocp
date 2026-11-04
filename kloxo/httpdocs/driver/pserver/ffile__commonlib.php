@@ -102,15 +102,30 @@ class ffile__common
 		}
 	}
 
+	/**
+	 * True when ImageMagick is available (Ubuntu imagemagick or RHEL ImageMagick).
+	 * Do not use rpm -q: that always fails on Debian/Ubuntu.
+	 */
+	static function hasImageMagick()
+	{
+		foreach (array('/usr/bin/convert', '/usr/bin/magick', '/bin/convert', '/bin/magick') as $bin) {
+			if (is_string($bin) && is_executable($bin)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	function throw_if_not_magick()
 	{
 		global $login;
 
-		$ret = lxshell_return("rpm", "-q", "ImageMagick");
-		
-		if ($ret) {
-			throw new lxException($login->getThrow('no_imagemagick'));
+		if (self::hasImageMagick()) {
+			return;
 		}
+
+		throw new lxException($login->getThrow('no_imagemagick'));
 	}
 
 	function resizeImage()

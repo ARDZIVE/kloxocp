@@ -70,7 +70,7 @@ class Sgbl
 		$verfile = $root . '/bin/kloxoversion';
 		$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
 		if ($t === '') {
-			$t = '10.1-2026110401';
+			$t = '10.1-2026110402';
 		}
 
 		$this->__ver_name = 'Kloxo CP';
@@ -281,6 +281,8 @@ class Sgbl
 		$this->__var_service_desc['dovecot'] = "Dovecot Pop3/IMAP Server";
 		$this->__var_service_desc['rspamd'] = "Rspamd Spam Filter";
 		$this->__var_service_desc['mariadb'] = "MariaDB Database Server";
+		$this->__var_service_desc['mysql'] = "MySQL Database Server";
+		$this->__var_service_desc['mysqld'] = "MySQL Database Server";
 		$this->__var_service_desc['hiawatha'] = "Hiawatha Web Server";
 
 		$this->__var_service_desc['named'] = "Bind Dns Server";

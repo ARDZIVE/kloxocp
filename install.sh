@@ -19,8 +19,9 @@
 # site PHP-FPM 5.6 / 7.4 / latest (install-site-php; default latest),
 # PowerDNS packaged and prepared (disabled; BIND stays default on 53),
 # Apache packaged and prepared (disabled; Nginx stays default on 80/443),
-# Exim is the default MTA on --profile=full (Postfix is not co-installed:
-# both Provide/Conflict mail-transport-agent; Switch Program installs Postfix),
+# MariaDB enabled as the default SQL (mysqld/mysql aliases not separately enabled),
+# imagemagick for File Manager Thumbnail, Exim default MTA on --profile=full
+# (Postfix is not co-installed; Switch Program installs Postfix),
 # ufw packaged and left inactive (enable from Security → UFW Firewall),
 # webcache (8080) and webproxy (30080) as nginx frontends (install-webfront),
 # kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
@@ -33,7 +34,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026110401"
+KCP_VERSION="10.1-2026110402"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -55,7 +56,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 
   --profile=full   default: core plus exim4-daemon-heavy (default MTA), dovecot, rspamd
                    (Postfix is not apt-installed here; it conflicts with Exim)
-  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive), webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
+  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive), imagemagick, webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
                    password the master uses when adding this host
@@ -351,7 +352,7 @@ apt-get update -y
 apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
   mariadb-server nginx apache2 bind9 pdns-server pdns-backend-mysql \
-  pure-ftpd redis-server iproute2 ufw \
+  pure-ftpd redis-server iproute2 ufw imagemagick \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
@@ -475,6 +476,9 @@ wait_mariadb() {
 }
 
 enable_default_stack() {
+  # Default SQL is MariaDB only. Do not enable mysql/mysqld by name (aliases of
+  # mariadb on Ubuntu; a separate mysql-server package stays stopped until the
+  # admin starts it from Services).
   systemctl enable --now nginx mariadb named 2>/dev/null \
     || systemctl enable --now nginx mariadb bind9 2>/dev/null || true
   systemctl enable --now redis-server 2>/dev/null \
@@ -483,6 +487,14 @@ enable_default_stack() {
   systemctl reset-failed pdns apache2 2>/dev/null || true
   systemctl disable --now pdns 2>/dev/null || true
   systemctl disable --now apache2 2>/dev/null || true
+  # If Oracle/community mysql.service is a distinct unit (not mariadb), leave it stopped.
+  if systemctl cat mysql >/dev/null 2>&1; then
+    frag_mysql="$(systemctl show -p FragmentPath --value mysql 2>/dev/null || true)"
+    frag_maria="$(systemctl show -p FragmentPath --value mariadb 2>/dev/null || true)"
+    if [[ -n "$frag_mysql" && -n "$frag_maria" && "$frag_mysql" != "$frag_maria" ]]; then
+      systemctl disable --now mysql 2>/dev/null || true
+    fi
+  fi
 }
 
 prepare_apache() {

@@ -740,6 +740,9 @@ if grep -q 'function getServiceDetails' "$ROOT/kloxo/httpdocs/driver/pserver/ser
   && grep -q "canGetSingle" "$ROOT/kloxo/httpdocs/driver/pserver/servicelib.php" \
   && grep -q 'Service__Linux::systemctlRun' "$ROOT/kloxo/httpdocs/driver/pserver/service__debianlib.php" \
   && grep -q 'function systemctlRun' "$ROOT/kloxo/httpdocs/driver/pserver/service__linuxlib.php" \
+  && grep -q 'function mayControlUnit' "$ROOT/kloxo/httpdocs/driver/pserver/service__linuxlib.php" \
+  && grep -q "'--no-block'" "$ROOT/kloxo/httpdocs/driver/pserver/service__linuxlib.php" \
+  && grep -q 'cannot_control_critical_service' "$ROOT/kloxo/httpdocs/driver/pserver/servicelib.php" \
   && grep -q "include_once __DIR__" "$ROOT/kloxo/httpdocs/driver/pserver/service__debianlib.php"; then
   ok "Ubuntu services, component info, and Exim mail queue drivers are registered"
 else

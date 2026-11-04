@@ -26,7 +26,7 @@ class Service__Debian extends lxDriverClass
 		if ($unit === '' || !Service__Linux::isSafeUnit($unit)) {
 			return;
 		}
-		if ($unit === 'hiawatha' && ($act === 'stop' || $act === 'disable')) {
+		if (!Service__Linux::mayControlUnit($unit, (string) $act)) {
 			return;
 		}
 		if (!in_array($act, array('start', 'stop', 'restart', 'enable', 'disable'), true)) {

@@ -172,15 +172,82 @@ $httpdOn = ($svcAliasProbe['httpd']['install_state'] ?? '') === 'on';
 $apacheOn = ($svcAliasProbe['apache2']['install_state'] ?? '') === 'on';
 $namedOn = ($svcAliasProbe['named']['install_state'] ?? '') === 'on';
 $bindOn = ($svcAliasProbe['bind9']['install_state'] ?? '') === 'on';
-// On machines without those units both stay dull; when one family is installed, only the preferred name is on.
+// Same daemon under two names: never both installed; prefer bind9/apache2 when present.
 $aliasOk = !($httpdOn && $apacheOn) && !($namedOn && $bindOn)
-	&& (!$httpdOn || !$apacheOn || $apacheOn)
+	&& Service__Linux::preferredServiceName('named') === 'bind9'
+	&& Service__Linux::preferredServiceName('httpd') === 'apache2'
 	&& (Service__Linux::systemctlBin() === '' || is_string(Service__Linux::systemctlBin()));
-if ($aliasOk) {
+// Simulate both alias and real unit resolving to different unit strings but same family.
+$svcFamilyProbe = Service__Linux::getServiceDetails(array(
+	'named' => array('servicename' => 'named', 'nname' => 'named___localhost'),
+	'bind9' => array('servicename' => 'bind9', 'nname' => 'bind9___localhost'),
+));
+$familyDup = (($svcFamilyProbe['named']['install_state'] ?? '') === 'on')
+	&& (($svcFamilyProbe['bind9']['install_state'] ?? '') === 'on');
+if ($aliasOk && !$familyDup) {
 	ok('Services list collapses httpd/apache2 and named/bind9 aliases');
 } else {
 	bad('Services list collapses httpd/apache2 and named/bind9 aliases',
-		"httpd={$httpdOn} apache2={$apacheOn} named={$namedOn} bind9={$bindOn}");
+		"httpd={$httpdOn} apache2={$apacheOn} named={$namedOn} bind9={$bindOn} familyDup=" . ($familyDup ? 'yes' : 'no'));
+}
+
+$svcSqlProbe = Service__Linux::getServiceDetails(array(
+	'mariadb' => array('servicename' => 'mariadb', 'nname' => 'mariadb___localhost'),
+	'mysqld' => array('servicename' => 'mysqld', 'nname' => 'mysqld___localhost'),
+	'mysql' => array('servicename' => 'mysql', 'nname' => 'mysql___localhost'),
+));
+$mariaOn = ($svcSqlProbe['mariadb']['install_state'] ?? '') === 'on';
+$mysqldOn = ($svcSqlProbe['mysqld']['install_state'] ?? '') === 'on';
+$mysqlOn = ($svcSqlProbe['mysql']['install_state'] ?? '') === 'on';
+// When MariaDB is present, mysqld/mysql must not appear as a second installed SQL.
+$sqlOk = (!$mariaOn && !$mysqldOn && !$mysqlOn)
+	|| ($mariaOn && !$mysqldOn && !$mysqlOn)
+	|| (!$mariaOn && ($mysqldOn || $mysqlOn)); // RHEL-only mysqld without mariadb unit name
+$instSrc = (string) file_get_contents(dirname($doc, 2) . '/install.sh');
+if (!is_string($instSrc) || $instSrc === '') {
+	$instSrc = (string) file_get_contents(dirname(__DIR__, 2) . '/install.sh');
+}
+if ($sqlOk
+	&& str_contains($instSrc, 'enable --now nginx mariadb')
+	&& str_contains($instSrc, 'Default SQL is MariaDB')
+	&& str_contains((string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php'), "in_array(\$svc, array('mysql', 'mysqld')")) {
+	ok('MariaDB is default SQL; mysqld/mysql not listed while MariaDB is present');
+} else {
+	bad('MariaDB is default SQL; mysqld/mysql not listed while MariaDB is present',
+		"mariadb={$mariaOn} mysqld={$mysqldOn} mysql={$mysqlOn}");
+}
+
+$linuxSrc = (string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php');
+$protOk = Service__Linux::isProtectedUnit('mariadb')
+	&& Service__Linux::isProtectedUnit('mysqld')
+	&& Service__Linux::isProtectedUnit('kloxo-php')
+	&& Service__Linux::isProtectedUnit('kloxo-backend')
+	&& !Service__Linux::isProtectedUnit('nginx')
+	&& !Service__Linux::isProtectedUnit('bind9')
+	&& Service__Linux::mayControlUnit('nginx', 'stop')
+	&& Service__Linux::mayControlUnit('mariadb', 'start')
+	&& !Service__Linux::mayControlUnit('mariadb', 'stop')
+	&& !Service__Linux::mayControlUnit('kloxo-php', 'restart')
+	&& str_contains($linuxSrc, "'--no-block'")
+	&& str_contains($linuxSrc, 'function mayControlUnit')
+	&& str_contains($debSrc, 'mayControlUnit');
+$svcCrit = new Service(null, 'localhost', 'mariadb___localhost');
+$svcCrit->servicename = 'mariadb';
+$svcCrit->install_state = 'on';
+$svcCrit->state = 'on';
+$svcCritStopBlocked = false;
+try {
+	$svcCrit->updateStop(array());
+} catch (Throwable $e) {
+	$svcCritStopBlocked = (strpos($e->getMessage(), 'cannot_control_critical_service') !== false
+		|| strpos($e->getMessage(), 'critical') !== false
+		|| $e->getMessage() !== '');
+}
+if ($protOk && $svcCritStopBlocked && !$svcCrit->isAction('button_stop_f') && $svcCrit->isAction('button_start_f')) {
+	ok('Services refuse stop/restart of MariaDB and panel units; systemctl uses --no-block');
+} else {
+	bad('Services refuse stop/restart of MariaDB and panel units; systemctl uses --no-block',
+		'prot=' . ($protOk ? 'yes' : 'no') . ' stopBlocked=' . ($svcCritStopBlocked ? 'yes' : 'no'));
 }
 
 $psSrc = (string) file_get_contents($doc . '/driver/pserver/pserver__linuxlib.php');
@@ -1320,6 +1387,27 @@ if (is_array($stat) && isset($stat['other_username']) && is_array($emptyStat)) {
 	ok('File Manager owner lookup accepts a missing posix user');
 } else {
 	bad('File Manager owner lookup accepts a missing posix user');
+}
+
+$ffCommonSrc = (string) file_get_contents($doc . '/driver/pserver/ffile__commonlib.php');
+$magickMsg = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+if (!class_exists('ffile__common', false)) {
+	include_once $doc . '/driver/pserver/ffile__commonlib.php';
+}
+$expectMagick = is_executable('/usr/bin/convert') || is_executable('/usr/bin/magick')
+	|| is_executable('/bin/convert') || is_executable('/bin/magick');
+$hasMagickFn = class_exists('ffile__common', false)
+	&& is_callable(array('ffile__common', 'hasImageMagick'))
+	&& ffile__common::hasImageMagick() === $expectMagick;
+if ($hasMagickFn
+	&& str_contains($ffCommonSrc, 'function hasImageMagick')
+	&& !str_contains($ffCommonSrc, '"rpm", "-q", "ImageMagick"')
+	&& str_contains($magickMsg, 'apt-get install -y imagemagick')
+	&& !str_contains($magickMsg, 'yum -y install imagemagick')) {
+	ok('ImageMagick check uses convert/magick binary, not rpm -q');
+} else {
+	bad('ImageMagick check uses convert/magick binary, not rpm -q',
+		'hasFn=' . ($hasMagickFn ? 'yes' : 'no') . ' expect=' . ($expectMagick ? 'yes' : 'no'));
 }
 
 if (function_exists('kloxo_string') && kloxo_string(array('x')) === '' && kloxo_string(null) === '' && kloxo_string(7) === '7') {

@@ -10,15 +10,17 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (designed, not built).
 
 ## Status
-10.1-2026110401. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026110402. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerDNS; qmail still
 present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
-`ufw`, `pure-ftpd`, and `redis-server` are packaged (`ufw` left inactive;
-Redis and Pure-FTPd enabled); install defaults to `--profile=full`. The
+`ufw`, `pure-ftpd`, `redis-server`, and `imagemagick` are packaged (`ufw` left
+inactive; Redis and Pure-FTPd enabled; ImageMagick for File Manager Thumbnail);
+install defaults to `--profile=full`. File Manager Thumbnail no longer probes
+with CentOS `rpm -q ImageMagick` (checks `/usr/bin/convert` / `magick`). The
 README one-liner downloads `install.sh` from
 `raw.githubusercontent.com/.../main/install.sh` (Exim, Dovecot, Rspamd;
 Postfix not co-installed with Exim (Switch Program apt-swaps);
@@ -30,7 +32,7 @@ change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it). Simplicity Status toast auto-opens for
 alerts/info and content shows matching inline alerts (Status peek does not
 consume the message). Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026110401** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).
+screen shows **10.1-2026110402** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).
 Switch Program DNS default is BIND (`pg_dns=bind`); PowerDNS is packaged and
 prepared (`install-pdns`) but the `pdns` unit stays disabled until selected
 (apt postinst is blocked from starting it).
@@ -161,10 +163,17 @@ and boot status come from systemd `ActiveState` / `UnitFileState`
 (aliases: bind9/named, mariadb/mysqld, phpX.Y-fpm). Duplicate RHEL/Debian
 names collapse to one row (`apache2` not `httpd`, `bind9` not `named`,
 `mariadb` not `mysqld`). Service start/stop/restart/enable/disable uses
-absolute `systemctl` via argument-array `proc_open` (`Service__Linux::systemctlRun`);
-driver includes use `__DIR__`. Live Services actions after deploy are UNVERIFIED.
+absolute `systemctl --no-block` via argument-array `proc_open`
+(`Service__Linux::systemctlRun`); driver includes use `__DIR__`. Stop/disable/restart
+of panel-critical units is refused (`mariadb`/`mysql`/`mysqld`, `kloxo-php`,
+`kloxo-web`, `kloxo-backend`, `kloxo-wrap`, `hiawatha`) — stopping MariaDB blanks
+every page with `No such file or directory` (missing DB socket). Start/enable
+of those units remains allowed. Live Services actions after deploy are UNVERIFIED.
 `httpd` and `apache2` are the same Apache daemon (RHEL vs Debian unit name);
-`named` and `bind9` are the same BIND daemon.
+`named` and `bind9` are the same BIND daemon. Default SQL is **MariaDB**
+(`systemctl enable --now mariadb`); `mysql`/`mysqld` alias rows are not listed
+as a second installed service while MariaDB is present. A distinct MySQL
+package unit (different FragmentPath) stays disabled until started from Services.
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
 Mails Per Client lists under the selected pserver and shows Switch To Another.
 Admin Servers can add a remote host (hostname or IPv4 plus the slave password)

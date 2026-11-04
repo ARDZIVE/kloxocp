@@ -82,8 +82,39 @@ class Service extends Lxdb
 				return false;
 			}
 		}
-		
+
+		$svc = isset($this->servicename) ? (string) $this->servicename : '';
+		$protected = class_exists('Service__Linux', false) && Service__Linux::isProtectedUnit($svc);
+		// Hide stop / restart / state-toggle / boot-toggle for panel-critical units
+		// (MariaDB, kloxo-php, kloxo-web, kloxo-backend). Stopping them blanks the UI.
+		if ($protected) {
+			if ($var === 'state' || $var === 'boot_state'
+				|| $var === 'button_stop_f' || $var === 'button_restart_f') {
+				return false;
+			}
+		}
+
 		return true;
+	}
+
+	function assertMayControl($act)
+	{
+		global $login;
+
+		$svc = isset($this->servicename) ? (string) $this->servicename : '';
+		$unit = class_exists('Service__Linux', false)
+			? Service__Linux::resolveInstalledUnit($svc)
+			: $svc;
+		if ($unit === '') {
+			$unit = $svc;
+		}
+		if (!class_exists('Service__Linux', false) || Service__Linux::mayControlUnit($unit, (string) $act)) {
+			return;
+		}
+		$msg = (is_object($login) && method_exists($login, 'getThrow'))
+			? $login->getThrow('cannot_control_critical_service')
+			: 'cannot_control_critical_service';
+		throw new lxException($msg, '', $svc !== '' ? $svc : $unit);
 	}
 
 	static function add($parent, $class, $param)
@@ -141,8 +172,11 @@ class Service extends Lxdb
 
 	function updateToggle_State($param)
 	{
-		// This is very much needed. Since param is null, no action would be set on its own.
-		$this->state = $this->isOn('state') ? 'off' : 'on';
+		// Turning a running critical unit off would stop MariaDB / panel PHP and
+		// blank every page with "No such file or directory" (missing DB socket).
+		$next = $this->isOn('state') ? 'off' : 'on';
+		$this->assertMayControl($next === 'on' ? 'start' : 'stop');
+		$this->state = $next;
 		$this->setUpdateSubaction('toggle_state');
 
 		return null;
@@ -150,15 +184,17 @@ class Service extends Lxdb
 
 	function updateToggle_boot_state($param)
 	{
-		// This is very much needed. Since param is null, no action would be set on its own.
-		$this->boot_state = $this->isOn('boot_state') ? 'off' : 'on';
+		$next = $this->isOn('boot_state') ? 'off' : 'on';
+		$this->assertMayControl($next === 'on' ? 'enable' : 'disable');
+		$this->boot_state = $next;
 		$this->setUpdateSubaction('toggle_boot_state');
-		
+
 		return null;
 	}
 
 	function updateStart($param)
 	{
+		$this->assertMayControl('start');
 		$this->state = 'on';
 		$this->setUpdateSubaction('start');
 
@@ -167,6 +203,7 @@ class Service extends Lxdb
 
 	function updateStop($param)
 	{
+		$this->assertMayControl('stop');
 		$this->state = 'off';
 		$this->setUpdateSubaction('stop');
 
@@ -175,6 +212,7 @@ class Service extends Lxdb
 
 	function updateRestart($param)
 	{
+		$this->assertMayControl('restart');
 		$this->setUpdateSubaction('restart');
 
 		return null;

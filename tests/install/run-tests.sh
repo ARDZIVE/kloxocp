@@ -111,17 +111,26 @@ if echo "$ONELINER" | grep -q 'curl -fsSL https://raw.githubusercontent.com/ARDZ
 else
   bad "one-liner downloads install.sh then runs the file"
 fi
-if grep -q 'pure-ftpd redis-server iproute2 ufw' "$ROOT/install.sh" \
+if grep -q 'pure-ftpd redis-server iproute2 ufw imagemagick' "$ROOT/install.sh" \
   && grep -q 'PROFILE="full"' "$ROOT/install.sh" \
   && grep -q 'WITH_MAIL=1' "$ROOT/install.sh" \
   && grep -q 'ensure_ubuntu_universe' "$ROOT/install.sh" \
   && grep -q 'enable --now redis-server' "$ROOT/install.sh" \
   && grep -q 'enable --now pure-ftpd' "$ROOT/install.sh" \
+  && grep -q 'enable --now nginx mariadb' "$ROOT/install.sh" \
+  && grep -q 'Default SQL is MariaDB' "$ROOT/install.sh" \
   && ! grep -E 'apt-get install -y.*(bogofilter|spamassassin|sqlite3)' "$ROOT/install.sh" \
   && ! grep -E '^[[:space:]]*apt-get install -y.*(php-sqlite|sqlite3)' "$ROOT/install.sh"; then
-  ok "install.sh defaults to full; packages pure-ftpd/redis; enables universe"
+  ok "install.sh defaults to full; packages pure-ftpd/redis/imagemagick; MariaDB default SQL"
 else
-  bad "install.sh defaults to full; packages pure-ftpd/redis; enables universe"
+  bad "install.sh defaults to full; packages pure-ftpd/redis/imagemagick; MariaDB default SQL"
+fi
+if grep -q 'function hasImageMagick' "$ROOT/kloxo/httpdocs/driver/pserver/ffile__commonlib.php" \
+  && ! grep -q 'rpm.*-q.*ImageMagick\|"rpm", "-q", "ImageMagick"' "$ROOT/kloxo/httpdocs/driver/pserver/ffile__commonlib.php" \
+  && grep -q 'apt-get install -y imagemagick' "$ROOT/kloxo/httpdocs/lang/en-us/messagelib.php"; then
+  ok "File Manager ImageMagick check is Ubuntu-safe (not rpm -q)"
+else
+  bad "File Manager ImageMagick check is Ubuntu-safe (not rpm -q)"
 fi
 if grep -q 'print_access_box' "$ROOT/install.sh" && grep -q 'Username' "$ROOT/install.sh" && grep -q 'first login' "$ROOT/install.sh"; then
   ok "installer prints a login access box"

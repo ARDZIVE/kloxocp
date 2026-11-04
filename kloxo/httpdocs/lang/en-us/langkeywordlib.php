@@ -504,6 +504,7 @@ $__throw["file_manager_is_readonly"] = "File Manager is readonly";
 $__throw["can_not_save_content"] = "Can not save content";
 
 $__throw["no_imagemagick"] = "No ImageMagick";
+$__throw["cannot_control_critical_service"] = "Cannot stop critical service";
 $__throw["please_type_full_url_including_file_name"] = "Please type full url including file name";
 $__throw["file_exists"] = "File exists";
 $__throw["can_not_unzip_in_root"] = "Can not unzip in root";
