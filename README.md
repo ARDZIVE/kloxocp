@@ -74,9 +74,8 @@ installs Postfix. It does **not** install bogofilter, SpamAssassin, or sqlite
 (panel DB is **MariaDB**; spam is Rspamd). Starts Nginx, **MariaDB**, BIND,
 Redis, Pure-FTPd, webcache on **8080**, and webproxy on **30080**. Default SQL
 is MariaDB only (`mysql`/`mysqld` aliases are not a second started service).
-Packages `ufw` and leaves it **inactive** (enable later from Security →
-**UFW Firewall**; that first allows 7777/7778). Apache and PowerDNS are
-packaged and stay disabled.
+Packages and **enables `ufw` by default** (panel ports 7777/7778 allowed
+first). Apache and PowerDNS are packaged and stay disabled.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
 self-signed certificate. Change that password on first login. Flags and
@@ -127,7 +126,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
-| UFW Firewall | Security-section button. List-style page: Show/Hide add form, pink toolbar (Refresh/Search/Show All), Advanced Search, beige headers, alt rows, Actions (edit/delete). Family IPv4/IPv6. With IPv6 on, UFW lists each port twice — not a UI bug. Runs as root via kloxo-backend. `ufw` packaged inactive. Live UFW after deploy is unverified. |
+| UFW Firewall | Security-section button. **UFW enabled by default** at install. No Enable/defaults UI. Show/Hide add form (mail-account look); Port Rules list; edit on a separate page; Family IPv4/IPv6. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |
@@ -208,10 +207,10 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    `php-mbstring` `php-curl`, **MariaDB**, Nginx, BIND 9, **pure-ftpd**,
    **redis-server**, **imagemagick**, `iproute2`, and the
    compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`),
-   and `ufw` (left inactive; enable from Security → **UFW Firewall**, which
-   first allows 7777/7778). Also packages `pdns-server` and `apache2` but does
-   not let apt start them (BIND stays on 53, Nginx on 80/443). Does **not**
-   install bogofilter, SpamAssassin, or sqlite.
+   and `ufw` (**enabled by default**; panel ports 7777/7778 allowed first).
+   Also packages `pdns-server` and `apache2` but does not let apt start them
+   (BIND stays on 53, Nginx on 80/443). Does **not** install bogofilter,
+   SpamAssassin, or sqlite.
 3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
    If it is already a git clone, fetches `origin/main` and `reset --hard` first. If `/opt/kloxo`
    is a real directory (not a symlink to the clone), copies `httpdocs` /
@@ -266,7 +265,7 @@ sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
 sudo bash install.sh                       # default --profile=full (Exim, Dovecot, Rspamd; no Postfix)
 sudo bash install.sh --with-mail           # same as --profile=full
 sudo bash install.sh --profile=full        # explicit full
-sudo bash install.sh --profile=core        # php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive), imagemagick; no mail MTAs
+sudo bash install.sh --profile=core        # php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (enabled), imagemagick; no mail MTAs
 sudo bash install.sh --dry-run             # print repo/src/root/profile and exit
 sudo bash install.sh --src=/path           # clone location (default /usr/local/src/kloxo-cp)
 sudo bash install.sh --root=/opt/kloxo     # program root
@@ -409,9 +408,9 @@ builds pinned 12.4. `redis-server` is a core package (Rspamd Bayes backend).
 `pdns-server` is installed and left **disabled**; BIND stays on port 53 until
 Switch Program selects PowerDNS. `apache2` is installed and left **disabled**;
 Nginx stays on 80/443 until Switch Program selects Apache (PHP-FPM via
-`proxy_fcgi`, not mod_php). `ufw` is installed and left **inactive**; the
-Security → **UFW Firewall** page enables it (7777/7778 first). After Nginx
-starts, `install-webfront` enables **kloxo-webcache** (8080) and
+`proxy_fcgi`, not mod_php). `ufw` is installed and **enabled by default**
+(7777/7778 and common ports allowed first). After Nginx starts,
+`install-webfront` enables **kloxo-webcache** (8080) and
 **kloxo-webproxy** (30080). During apt,
 `install.sh` tells `invoke-rc.d` not to start pdns and apache2 (they have no
 backend yet, and would fight BIND / Nginx for the ports).

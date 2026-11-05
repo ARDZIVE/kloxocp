@@ -22,7 +22,7 @@
 # MariaDB enabled as the default SQL (mysqld/mysql aliases not separately enabled),
 # imagemagick for File Manager Thumbnail, Exim default MTA on --profile=full
 # (Postfix is not co-installed; Switch Program installs Postfix),
-# ufw packaged and left inactive (enable from Security → UFW Firewall),
+# ufw packaged and enabled by default (panel ports allowed first),
 # webcache (8080) and webproxy (30080) as nginx frontends (install-webfront),
 # kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
 # and skips the panel UI.
@@ -56,7 +56,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 
   --profile=full   default: core plus exim4-daemon-heavy (default MTA), dovecot, rspamd
                    (Postfix is not apt-installed here; it conflicts with Exim)
-  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (inactive), imagemagick, webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
+  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (enabled), imagemagick, webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
                    password the master uses when adding this host
@@ -475,6 +475,34 @@ wait_mariadb() {
   return 1
 }
 
+enable_ufw() {
+  # Host firewall on by default: UFW over nftables/iptables-nft. Allow panel
+  # ports first so install does not lock out 7777/7778.
+  if ! command -v ufw >/dev/null 2>&1; then
+    log "warn: ufw not installed; skip enable"
+    return 0
+  fi
+  local ufw_php="${ROOT}/httpdocs/lib/php/kloxo_ufw.php"
+  if [[ -f "$ufw_php" ]] && command -v php >/dev/null 2>&1; then
+    if php -r 'require $argv[1]; $r = KloxoUfw::enable(); fwrite(STDOUT, (string)($r["out"] ?? "")); exit(!empty($r["ok"]) ? 0 : 1);' \
+      "$ufw_php"; then
+      log "UFW enabled (protected ports allowed first)"
+      return 0
+    fi
+    log "warn: KloxoUfw::enable failed; trying ufw CLI"
+  fi
+  for p in 21 22 25 80 110 143 443 465 587 993 995 7777 7778 8080 30080; do
+    ufw allow "${p}/tcp" >/dev/null 2>&1 || true
+  done
+  ufw allow 53/tcp >/dev/null 2>&1 || true
+  ufw allow 53/udp >/dev/null 2>&1 || true
+  if ufw --force enable >/dev/null 2>&1; then
+    log "UFW enabled via CLI"
+  else
+    log "warn: ufw --force enable failed"
+  fi
+}
+
 enable_default_stack() {
   # Default SQL is MariaDB only. Do not enable mysql/mysqld by name (aliases of
   # mariadb on Ubuntu; a separate mysql-server package stays stopped until the
@@ -495,6 +523,7 @@ enable_default_stack() {
       systemctl disable --now mysql 2>/dev/null || true
     fi
   fi
+  enable_ufw
 }
 
 prepare_apache() {

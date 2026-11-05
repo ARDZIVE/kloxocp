@@ -84,16 +84,20 @@ if (str_contains($ufwUi, 'listaddform_ufwfirewall')
 	&& str_contains($ufwUi, 'Family')
 	&& str_contains($ufwUi, 'Actions')
 	&& str_contains($ufwUi, 'frm_ufw_filter')
-	&& str_contains($ufwUi, 'frm_ufw_edit')
+	&& str_contains($ufwUi, 'editRuleUrl')
+	&& str_contains($ufwUi, 'a=updateform&sa=editrule')
 	&& str_contains($ufwUi, 'updateform_edit.gif')
 	&& str_contains($ufwUi, 'delete.gif')
 	&& str_contains($ufwUi, 'function updateEditrule')
 	&& str_contains($ufwUi, 'collist')
-	&& str_contains($ufwUi, 'formtablerow0')
-	&& str_contains($ufwUi, 'filterRules')) {
-	ok('UFW page: Show/Hide add form, pink toolbar list chrome, Actions icons');
+	&& str_contains($ufwUi, '#f4faf4')
+	&& str_contains($ufwUi, 'filterRules')
+	&& !str_contains($ufwUi, 'Save Defaults')
+	&& !str_contains($ufwUi, "printActionForm('ufwenable'")
+	&& !str_contains($ufwUi, 'frm_ufw_edit')) {
+	ok('UFW page: Show/Hide add form, no Enable/defaults, edit on new page');
 } else {
-	bad('UFW page: Show/Hide add form, pink toolbar list chrome, Actions icons');
+	bad('UFW page: Show/Hide add form, no Enable/defaults, edit on new page');
 }
 
 $src = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/kloxo_ufw.php');
@@ -103,6 +107,23 @@ if (method_exists('KloxoUfw', 'editRule')
 	ok('KloxoUfw::editRule replaces a numbered rule');
 } else {
 	bad('KloxoUfw::editRule replaces a numbered rule');
+}
+
+$nft = KloxoUfw::parseIptablesVersion('iptables v1.8.10 (nf_tables)');
+$leg = KloxoUfw::parseIptablesVersion('iptables v1.8.7 (legacy)');
+$envShape = method_exists('KloxoUfw', 'environment');
+if ($nft['id'] === 'nftables' && str_contains($nft['label'], 'nftables')
+	&& $leg['id'] === 'iptables-legacy'
+	&& $envShape
+	&& str_contains($src, 'function environment')
+	&& str_contains($src, 'firewalld')
+	&& !str_contains($ufwUi, 'Managed:')
+	&& !str_contains($ufwUi, 'Backend:')
+	&& str_contains($ufwUi, 'margin:0 auto')) {
+	ok('UFW add form is centered; no Managed/Backend line');
+} else {
+	bad('UFW add form is centered; no Managed/Backend line',
+		var_export(array($nft, $leg), true));
 }
 
 $fakeRules = array(

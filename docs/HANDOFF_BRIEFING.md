@@ -419,19 +419,15 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     across pservers (`lxguard::getSelfList` via `pserver::adminServerSwitchList`,
     at least `localhost`). LxGuard list tabs omit the Find/search input too.
     Security has a **UFW Firewall** tile (`a=show&o=ufwfirewall`), one beige
-    tab. Look/feel matches Domains / Auxiliary Login lists: skin
-    **>>>> Click Here to Add Port Rule … (Show/Hide) <<<<** toggle,
-    collapsible add/edit form (`formtablerow*`, Add/Update bottom-right),
-    compact status/defaults, **Port Rules Under host (n to m of N)** legend,
-    pink `#fee` toolbar (Refresh / Search / Show All), Advanced Search
-    (Show/Hide) by column, beige `collist` headers, alternating `tablerow0/1`,
-    **Actions** (edit + delete icons). **Family** IPv4/IPv6. Numbered rules
-    ALLOW/DENY/REJECT; lists/ranges. `KloxoUfw::editRule` deletes then adds.
-    Loaded from `include.php`; root via kloxo-backend when needed. Enable
-    allows panel 7777/7778 plus SSH/HTTP/S/FTP/DNS/mail/webcache/webproxy;
-    deny/reject of panel ports and deleting the last panel allow refused.
-    `install.sh` packages `ufw` inactive. No left Find box. Live UFW after
-    deploy is **UNVERIFIED**. SSH Terminal is admin-only (pserver
+    tab. `install.sh` **enables UFW by default** (`enable_ufw` /
+    `KloxoUfw::enable`, panel ports first). Page has **no** Enable/Disable/
+    defaults controls and no Managed/Backend line. Show/Hide **centered**
+    add form uses mail-account look (pale green/lavender rows, grey Add
+    footer). **Port Rules Under host**, pink `#fee` toolbar, Advanced Search, beige
+    headers, alt rows, **Actions**: edit opens a **separate**
+    `a=updateform&sa=editrule` page; delete icon. **Family** IPv4/IPv6.
+    `KloxoUfw::environment` / `editRule`. Panel-port deny/delete of last
+    allow refused. No left Find box. Live UFW after deploy is **UNVERIFIED**. SSH Terminal is admin-only (pserver
     child, not client home) and shows a WebConsole-like black terminal
     (`Switch To Another`, `root@host #` prompt, command form). Panel FPM
     sends commands to `kloxo-backend` (root on loopback 7776) then

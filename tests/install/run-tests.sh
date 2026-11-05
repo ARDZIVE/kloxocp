@@ -681,10 +681,12 @@ else
   bad "init-panel-db seeds pg_smtp=exim"
 fi
 if grep -q 'iproute2 ufw' "$ROOT/install.sh" \
-  && ! grep -E 'ufw enable|enable --now ufw' "$ROOT/install.sh"; then
-  ok "install.sh packages ufw and leaves it inactive"
+  && grep -q 'enable_ufw' "$ROOT/install.sh" \
+  && grep -q 'KloxoUfw::enable' "$ROOT/install.sh" \
+  && grep -q 'ufw --force enable' "$ROOT/install.sh"; then
+  ok "install.sh packages ufw and enables it by default"
 else
-  bad "install.sh packages ufw and leaves it inactive"
+  bad "install.sh packages ufw and enables it by default"
 fi
 if grep -q 'apt-get install -y exim4-daemon-heavy' "$ROOT/install.sh" \
   && ! grep -E 'apt-get install -y.*\bpostfix\b' "$ROOT/install.sh" \

@@ -350,12 +350,139 @@ final class KloxoUfw
     }
 
     /**
-     * @return array{active:bool, installed:bool, default_in:string, default_out:string, raw:string, rules:list<array{number:int,to:string,action:string,from:string}>, error?:string}
+     * Which firewall this page manages, plus kernel backend and other
+     * managers that could conflict. Safe to call before Enable.
+     *
+     * @return array{
+     *   managed:string,
+     *   managed_label:string,
+     *   backend:string,
+     *   backend_label:string,
+     *   firewalld_active:bool,
+     *   nftables_service_active:bool,
+     *   conflict:bool,
+     *   conflict_note:string
+     * }
+     */
+    public static function environment(): array
+    {
+        $backend = self::detectPacketBackend();
+        $firewalld = self::unitIsActive('firewalld');
+        $nftSvc = self::unitIsActive('nftables');
+        $conflict = $firewalld;
+        $note = '';
+        if ($firewalld) {
+            $note = 'firewalld is active. Disable firewalld before enabling UFW '
+                . '(both manage the same packet filter and will conflict).';
+        } elseif ($nftSvc) {
+            $note = 'nftables.service is active. UFW still manages rules via its '
+                . 'own backend; avoid mixing hand-written nftables.service rules with UFW.';
+        }
+
+        return [
+            'managed' => 'ufw',
+            'managed_label' => 'UFW (Uncomplicated Firewall)',
+            'backend' => $backend['id'],
+            'backend_label' => $backend['label'],
+            'firewalld_active' => $firewalld,
+            'nftables_service_active' => $nftSvc,
+            'conflict' => $conflict,
+            'conflict_note' => $note,
+        ];
+    }
+
+    /**
+     * @return array{id:string, label:string}
+     */
+    public static function detectPacketBackend(): array
+    {
+        foreach (['/usr/sbin/iptables', '/sbin/iptables', '/usr/bin/iptables'] as $bin) {
+            if (!is_executable($bin)) {
+                continue;
+            }
+            $done = self::run([$bin, '-V']);
+            $text = trim($done['out'] . ' ' . $done['err']);
+
+            return self::parseIptablesVersion($text);
+        }
+
+        return [
+            'id' => 'unknown',
+            'label' => 'unknown (iptables not found)',
+        ];
+    }
+
+    /**
+     * @return array{id:string, label:string}
+     */
+    public static function parseIptablesVersion(string $text): array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return ['id' => 'unknown', 'label' => 'unknown'];
+        }
+        if (preg_match('/nf_tables/i', $text) === 1) {
+            return [
+                'id' => 'nftables',
+                'label' => 'nftables (iptables-nft API)',
+            ];
+        }
+        if (preg_match('/legacy/i', $text) === 1) {
+            return [
+                'id' => 'iptables-legacy',
+                'label' => 'iptables-legacy',
+            ];
+        }
+
+        return [
+            'id' => 'iptables',
+            'label' => 'iptables (' . $text . ')',
+        ];
+    }
+
+    public static function unitIsActive(string $unit): bool
+    {
+        $unit = trim($unit);
+        if ($unit === '' || preg_match('/^[a-zA-Z0-9@._:-]+$/', $unit) !== 1) {
+            return false;
+        }
+        foreach (['/bin/systemctl', '/usr/bin/systemctl'] as $bin) {
+            if (!is_executable($bin)) {
+                continue;
+            }
+            $done = self::run([$bin, 'is-active', $unit]);
+            $out = strtolower(trim($done['out'] . $done['err']));
+
+            return $done['code'] === 0 || $out === 'active';
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{
+     *   active:bool,
+     *   installed:bool,
+     *   default_in:string,
+     *   default_out:string,
+     *   raw:string,
+     *   rules:list<array{number:int,to:string,action:string,from:string,ipv6?:bool}>,
+     *   managed?:string,
+     *   managed_label?:string,
+     *   backend?:string,
+     *   backend_label?:string,
+     *   firewalld_active?:bool,
+     *   nftables_service_active?:bool,
+     *   conflict?:bool,
+     *   conflict_note?:string,
+     *   error?:string
+     * }
      */
     public static function status(): array
     {
+        $env = self::environment();
         if (!self::isInstalled()) {
-            return [
+            return array_merge([
                 'active' => false,
                 'installed' => false,
                 'default_in' => '',
@@ -363,14 +490,14 @@ final class KloxoUfw
                 'raw' => '',
                 'rules' => [],
                 'error' => 'ufw_not_installed',
-            ];
+            ], $env);
         }
         $verbose = self::run([self::ufwBinary(), 'status', 'verbose']);
         $numbered = self::run([self::ufwBinary(), 'status', 'numbered']);
         $parsed = self::parseStatus($verbose['out'] . "\n" . $verbose['err'], $numbered['out']);
         $parsed['installed'] = true;
 
-        return $parsed;
+        return array_merge($parsed, $env);
     }
 
     /**

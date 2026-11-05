@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UFW Firewall — Kloxo CP preview</title>
+<style>
+  body { margin: 0; font: 12px Tahoma, Verdana, Arial, sans-serif; color: #000; background: #fff; }
+  .topbar { background: #c00; color: #fff; padding: 6px 12px; font-weight: bold; }
+  .tabs { background: #edc; padding: 6px 12px; border-bottom: 1px solid #ccc; }
+  .tab { display: inline-block; background: #fff; border: 1px solid #aaa; border-bottom: none;
+         padding: 4px 14px; margin-right: 4px; font-weight: bold; }
+  .wrap { padding: 16px 20px 40px; max-width: 960px; }
+  .note { margin: 4px 25px 10px; color: #333; }
+  .toggle { background: #edc; padding: 4px; margin: 0 25px; text-align: center; }
+  .toggle a { color: #06c; text-decoration: underline; cursor: pointer; }
+  .addbox { margin: 12px auto 0; border: 1px solid #ccc; border-collapse: collapse; width: 70%; max-width: 640px; min-width: 360px; text-align: left; }
+  .formwrap { text-align: center; }
+  .addbox td { padding: 10px 12px; border-bottom: 1px solid #ddd; }
+  .lab { font-weight: bold; margin-bottom: 4px; }
+  .req { color: #c00; }
+  .textbox, .searchbox { border: 1px solid #888; padding: 3px 5px; font: 12px Tahoma, sans-serif; }
+  .submitbutton { border: 1px solid #666; background: #fff; font-weight: bold; padding: 3px 12px; cursor: pointer; }
+  .msg { margin: 6px 25px; color: #444; }
+  fieldset.legend { padding: 0; text-align: center; margin: 18px 0 0; border: 0; border-top: 1px solid #ddd; }
+  legend { font-weight: bold; padding: 0 8px; }
+  .toolbar { background: #fee; border: 1px solid #edc; padding: 10px; margin-top: 8px; }
+  .toolbar td { vertical-align: middle; }
+  .iconcol { text-align: center; width: 56px; color: #06c; font-size: 11px; }
+  .if16 { font-size: 16px; }
+  table.list { width: 100%; border-collapse: separate; border-spacing: 1px; margin-top: 10px; }
+  table.list th { background: #edc; text-align: left; padding: 6px 8px; }
+  table.list td { padding: 6px 8px; }
+  .tablerow0 { background: #f8f8f8; }
+  .tablerow1 { background: #efefef; }
+  .adv { background: #fee; border: 1px solid #edc; padding: 8px; margin-top: 6px; }
+  .small { font-size: 10px; }
+  code { background: #f0f0f0; padding: 0 3px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="topbar">admin — Clients — admin — Servers — localhost — {UFW Firewall}</div>
+<div class="tabs"><span class="tab">UFW Firewall</span></div>
+<div class="wrap">
+
+<div class="toggle">&nbsp;>>>>
+  <a href="javascript:void(0)" onclick="var e=document.getElementById('listaddform_ufwfirewall');e.style.display=e.style.display==='none'?'block':'none'">
+    Click Here to Add Port Rule for localhost (Show/Hide)
+  </a> <<<<&nbsp;</div>
+
+<div id="listaddform_ufwfirewall" class="formwrap" style="display:block;margin-top:12px">
+  <form onsubmit="return false">
+    <table class="addbox">
+      <tr style="background:#f4faf4"><td>
+        <div class="lab">Action</div>
+        <select class="textbox"><option>ALLOW</option><option>DENY</option><option>REJECT</option></select>
+      </td></tr>
+      <tr style="background:#f3f3f8"><td>
+        <div class="lab">Protocol</div>
+        <select class="textbox"><option>TCP</option><option>UDP</option></select>
+      </td></tr>
+      <tr style="background:#f4faf4"><td>
+        <div class="lab">Port <span class="req">*</span></div>
+        <input class="textbox" size="30" placeholder="80 or 80-82 or 80,443">
+      </td></tr>
+      <tr style="background:#f3f3f8"><td>
+        <div class="lab">From IP</div>
+        <input class="textbox" size="30" placeholder="blank = anywhere">
+      </td></tr>
+      <tr style="background:#e8e8e8"><td align="right">
+        <input type="submit" class="submitbutton" value="&nbsp;&nbsp;Add&nbsp;&nbsp;">
+      </td></tr>
+    </table>
+  </form>
+  <div class="msg" style="margin:6px auto;max-width:640px;text-align:left">Port: single (<code>443</code>), range (<code>80-82</code>), or list (<code>80,443</code>).
+    Blank From = anywhere. Deny/reject of panel ports <b>7777</b>/<b>7778</b> is refused.</div>
+</div>
+
+<br>
+<div class="div_showhide">
+  <fieldset class="legend"><legend>Port Rules Under localhost (1 to 8 of 8)</legend></fieldset>
+</div>
+
+<div class="toolbar">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td class="iconcol"><span class="if16">↻</span><br><span class="small">Refresh</span></td>
+    <td align="right">
+      <input class="searchbox" size="18" placeholder="">&nbsp;
+      <span class="if16" title="Search">🔍</span>
+      &nbsp;&nbsp;
+      <span class="iconcol" style="display:inline-block"><span class="if16">☰</span><br><span class="small">Show All</span></span>
+    </td>
+  </tr></table>
+</div>
+
+<div style="margin-top:6px">
+  <fieldset class="legend"><legend>Advanced Search
+    <a href="javascript:void(0)" onclick="var e=document.getElementById('ufw_advsearch');e.classList.toggle('hidden')">Show/Hide</a>
+  </legend></fieldset>
+</div>
+<div id="ufw_advsearch" class="adv hidden">
+  <table><tr>
+    <td><b>#</b><br><input class="searchbox" size="6"></td>
+    <td><b>Action</b><br><select class="searchbox"><option>—</option><option>ALLOW</option></select></td>
+    <td><b>Protocol</b><br><select class="searchbox"><option>—</option><option>TCP</option></select></td>
+    <td><b>Port</b><br><input class="searchbox" size="8"></td>
+    <td><b>Family</b><br><select class="searchbox"><option>—</option><option>IPv4</option><option>IPv6</option></select></td>
+    <td><b>From</b><br><input class="searchbox" size="10"></td>
+    <td valign="bottom"><input type="button" class="submitbutton" value="&nbsp;&nbsp;Search&nbsp;&nbsp;"></td>
+  </tr></table>
+</div>
+
+<br>
+<table class="list" cellpadding="3">
+  <tr>
+    <th>#</th><th>Action</th><th>Protocol</th><th>Port</th><th>Family</th><th>From</th><th>Actions</th>
+  </tr>
+  <tr class="tablerow0"><td>1</td><td>ALLOW</td><td>TCP</td><td>22</td><td>IPv4</td><td>Anywhere</td>
+    <td align="center"><a href="#edit" title="Edit on separate page">✏️</a> &nbsp; <a href="#del" title="Delete">🗑</a></td></tr>
+  <tr class="tablerow1"><td>2</td><td>ALLOW</td><td>TCP</td><td>80</td><td>IPv4</td><td>Anywhere</td>
+    <td align="center"><a href="#edit">✏️</a> &nbsp; <a href="#del">🗑</a></td></tr>
+  <tr class="tablerow0"><td>3</td><td>ALLOW</td><td>TCP</td><td>443</td><td>IPv4</td><td>Anywhere</td>
+    <td align="center"><a href="#edit">✏️</a> &nbsp; <a href="#del">🗑</a></td></tr>
+  <tr class="tablerow1"><td>4</td><td>ALLOW</td><td>TCP</td><td>7777</td><td>IPv4</td><td>Anywhere</td>
+    <td align="center"><a href="#edit">✏️</a> &nbsp; <span title="Protected" style="opacity:.35">🗑</span></td></tr>
+  <tr class="tablerow0"><td>5</td><td>ALLOW</td><td>TCP</td><td>22</td><td>IPv6</td><td>Anywhere</td>
+    <td align="center"><a href="#edit">✏️</a> &nbsp; <a href="#del">🗑</a></td></tr>
+  <tr class="tablerow1"><td>6</td><td>ALLOW</td><td>TCP</td><td>80</td><td>IPv6</td><td>Anywhere</td>
+    <td align="center"><a href="#edit">✏️</a> &nbsp; <a href="#del">🗑</a></td></tr>
+  <tr class="tablerow0"><td>7</td><td>ALLOW</td><td>TCP</td><td>443</td><td>IPv6</td><td>Anywhere</td>
+    <td align="center"><a href="#edit">✏️</a> &nbsp; <a href="#del">🗑</a></td></tr>
+  <tr class="tablerow1"><td>8</td><td>ALLOW</td><td>TCP</td><td>7777</td><td>IPv6</td><td>Anywhere</td>
+    <td align="center"><a href="#edit">✏️</a> &nbsp; <a href="#del">🗑</a></td></tr>
+</table>
+
+<p class="msg" style="margin-top:18px;color:#666">
+  Preview only (sample data). Edit opens a separate <code>updateform&amp;sa=editrule</code> page.
+  No Enable / Disable / defaults controls — UFW is enabled at install.
+</p>
+</div>
+</body>
+</html>
