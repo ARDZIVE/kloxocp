@@ -3257,7 +3257,25 @@ $ufwFormOk = is_array($ufwForm) && array_key_exists('ufw_action', $ufwForm)
 	&& is_array($ufwForm['ufw_proto'][1] ?? null)
 	&& array_key_exists('icmp', $ufwForm['ufw_proto'][1])
 	&& ($ufwForm['__v_button'] ?? '') === 'Add Rule';
-$ufwEditOk = is_array($ufwEditForm) && array_key_exists('ufw_rule', $ufwEditForm)
+$ufwEditWithNo = $ufw->updateform('editrule', array('ufw_rule' => '3'));
+$ufwActKeys = is_array($ufwForm['ufw_action'][1] ?? null) ? $ufwForm['ufw_action'][1] : array();
+$ufwEditTab = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=editrule&frm_o_o[1][class]=ufwfirewall');
+$ufwShowTab = kloxo_content_tab_label('', 'display.php?frm_action=show&frm_o_o[1][class]=ufwfirewall');
+$_REQUEST['frm_subaction'] = 'editrule';
+ob_start();
+$ufw->showRawPrint();
+$ufwEditListOut = (string) ob_get_clean();
+unset($_REQUEST['frm_subaction']);
+$ufwEditOk = is_array($ufwEditForm) && !array_key_exists('ufw_rule', $ufwEditForm)
+	&& (($ufwEditWithNo['__v_param']['ufw_rule'] ?? '') === '3')
+	&& !isset($ufwEditForm['__v_param'])
+	&& array_keys($ufwActKeys) === array('deny', 'allow', 'reject')
+	&& $ufwActKeys === array('deny' => 'DROP', 'allow' => 'ACCEPT', 'reject' => 'REJECT')
+	&& $ufw->ufw_action === 'deny' && $ufw->ufw_proto === 'tcp'
+	&& array_keys($ufwForm['ufw_proto'][1]) === array('tcp', 'udp', 'icmp')
+	&& $ufwEditTab === 'Edit' && $ufwShowTab === 'UFW Firewall'
+	&& $ufwEditListOut === ''
+	&& ufwfirewall::actionDisplay('DENY') === 'DROP' && ufwfirewall::actionDisplay('ALLOW') === 'ACCEPT'
 	&& array_key_exists('ufw_action', $ufwEditForm)
 	&& array_key_exists('ufw_port', $ufwEditForm)
 	&& array_key_exists('ufw_comment', $ufwEditForm)

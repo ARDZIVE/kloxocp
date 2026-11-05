@@ -121,9 +121,39 @@ class ufwfirewall extends lxclass
 		return $out !== array() ? $out : null;
 	}
 
+	/** UFW allow/deny/reject shown as ACCEPT/DROP/REJECT. */
+	static function actionDisplay($label)
+	{
+		$u = strtoupper((string) $label);
+		static $map = array('ALLOW' => 'ACCEPT', 'DENY' => 'DROP');
+
+		return isset($map[$u]) ? $map[$u] : $u;
+	}
+
+	/** True on the Add Rule / Edit pages, which must not render the rule list. */
+	static function isFormPage()
+	{
+		global $ghtml;
+
+		$sa = '';
+		if (is_object($ghtml)) {
+			$v = $ghtml->frm_subaction;
+			$sa = is_string($v) ? $v : '';
+		}
+		if ($sa === '' && isset($_REQUEST['frm_subaction']) && is_string($_REQUEST['frm_subaction'])) {
+			$sa = $_REQUEST['frm_subaction'];
+		}
+
+		return in_array(strtolower($sa), array('addrule', 'editrule'), true);
+	}
+
 	function showRawPrint($subaction = null)
 	{
 		global $login;
+
+		if (self::isFormPage()) {
+			return;
+		}
 
 		try {
 			$this->assertAdmin();
@@ -307,7 +337,7 @@ class ufwfirewall extends lxclass
 				echo '<select class="searchbox" name="frm_ufw_filter[action]"><option value="">—</option>';
 				foreach (array('ALLOW', 'DENY', 'REJECT', 'LIMIT') as $a) {
 					$sel = (strcasecmp($val, $a) === 0) ? ' selected' : '';
-					echo '<option value="' . $a . '"' . $sel . '>' . $a . '</option>';
+					echo '<option value="' . $a . '"' . $sel . '>' . self::actionDisplay($a) . '</option>';
 				}
 				echo '</select>';
 			} elseif ($meta['type'] === 'proto') {
@@ -380,7 +410,7 @@ class ufwfirewall extends lxclass
 				if ($isSusp) {
 					$actHtml .= '<span style="color:#c00;font-weight:bold;margin-right:4px" title="Suspended">&#9679;</span>';
 				}
-				$actHtml .= htmlspecialchars($rowN['action_label'], ENT_QUOTES);
+				$actHtml .= htmlspecialchars(self::actionDisplay($rowN['action_label']), ENT_QUOTES);
 
 				echo '<tr height="22" class="tablerow' . $count . '">';
 				echo '<td class="col" align="center"><input type="checkbox" class="ufw-row-check" value="'
@@ -765,7 +795,8 @@ class ufwfirewall extends lxclass
 		}
 
 		$policies = array('allow' => 'allow', 'deny' => 'deny', 'reject' => 'reject');
-		$actions = array('allow' => 'ALLOW', 'deny' => 'DENY', 'reject' => 'REJECT');
+		// First entry is the default (DROP = ufw deny).
+		$actions = array('deny' => 'DROP', 'allow' => 'ACCEPT', 'reject' => 'REJECT');
 		$protos = array('tcp' => 'TCP', 'udp' => 'UDP', 'icmp' => 'ICMP');
 		$vlist = array();
 		switch ($subaction) {
@@ -803,7 +834,7 @@ class ufwfirewall extends lxclass
 				$vlist['__v_button'] = 'Update Defaults';
 				return $vlist;
 			case 'addrule':
-				$this->ufw_action = 'allow';
+				$this->ufw_action = 'deny';
 				$this->ufw_proto = 'tcp';
 				$this->ufw_port = '';
 				$this->ufw_from = '';
@@ -824,7 +855,7 @@ class ufwfirewall extends lxclass
 				} elseif (isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
 					$ruleNo = (int) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
 				}
-				$preAction = 'allow';
+				$preAction = 'deny';
 				$preProto = 'tcp';
 				$prePort = '';
 				$preFrom = '';
@@ -839,7 +870,7 @@ class ufwfirewall extends lxclass
 							$rowE = $this->normalizeRuleRow($logical);
 							$preAction = strtolower((string) $rowE['action_label']);
 							if (!in_array($preAction, array('allow', 'deny', 'reject'), true)) {
-								$preAction = 'allow';
+								$preAction = 'deny';
 							}
 							$preProto = strtolower((string) $rowE['proto']);
 							if (!in_array($preProto, array('tcp', 'udp', 'icmp'), true)) {
@@ -855,13 +886,15 @@ class ufwfirewall extends lxclass
 					} catch (Throwable $e) {
 					}
 				}
-				$this->ufw_rule = $ruleNo > 0 ? (string) $ruleNo : '';
 				$this->ufw_action = $preAction;
 				$this->ufw_proto = $preProto;
 				$this->ufw_port = $prePort;
 				$this->ufw_from = $preFrom;
 				$this->ufw_comment = $preComment;
-				$vlist['ufw_rule'] = null;
+				// Rule number is carried as a hidden field, not shown.
+				if ($ruleNo > 0) {
+					$vlist['__v_param'] = array('ufw_rule' => (string) $ruleNo);
+				}
 				$vlist['ufw_action'] = array('s', $actions);
 				$vlist['ufw_proto'] = array('s', $protos);
 				$vlist['ufw_port'] = null;

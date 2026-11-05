@@ -3272,6 +3272,7 @@ function kloxo_ufw_action_label($sa)
 		'ufwdisable' => 'Disable',
 		'ufwdefaults' => 'Default Policies',
 		'addrule' => 'Add Rule',
+		'editrule' => 'Edit',
 		'deleterule' => 'Delete Rule',
 	);
 	$s = strtolower(trim((string) $sa));
