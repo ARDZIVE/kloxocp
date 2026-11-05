@@ -263,16 +263,21 @@ $__throw["could_not_set_ufw_defaults"] = "Could not set UFW defaults";
 $__throw["could_not_add_ufw_rule"] = "Could not add UFW rule";
 $__throw["could_not_edit_ufw_rule"] = "Could not edit UFW rule";
 $__throw["could_not_delete_ufw_rule"] = "Could not delete UFW rule";
+$__throw["could_not_suspend_ufw_rule"] = "Could not suspend UFW rule";
+$__throw["could_not_unsuspend_ufw_rule"] = "Could not unsuspend UFW rule";
 $__throw["invalid_ufw_action"] = "Invalid UFW action";
 $__throw["invalid_ufw_proto"] = "Invalid UFW protocol";
 $__throw["invalid_ufw_port"] = "Invalid UFW port";
 $__throw["invalid_ufw_from"] = "Invalid UFW from address";
+$__throw["invalid_ufw_comment"] = "Invalid UFW comment";
 $__throw["invalid_ufw_rule"] = "Invalid UFW rule number";
 $__throw["invalid_ufw_default"] = "Invalid UFW default policy";
 $__throw["cannot_deny_panel_port"] = "Cannot deny or reject panel ports 7777 or 7778";
 $__throw["cannot_delete_panel_port"] = "Cannot delete the last allow for panel ports 7777 or 7778";
 $__throw["ufw_backend_failed"] = "Could not run UFW through kloxo-backend (need root)";
 $__throw["ufw_not_installed"] = "UFW is not installed";
+$__throw["ufw_suspend_failed"] = "Could not save suspended UFW rule";
+$__throw["ufw_unsuspend_failed"] = "Could not restore suspended UFW rule";
 
 $__throw["could_not_get_application_version_list"] = "Could not get application version list";
 

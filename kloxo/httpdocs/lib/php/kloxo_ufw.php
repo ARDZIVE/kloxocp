@@ -63,16 +63,36 @@ final class KloxoUfw
     public static function validateProto(string $proto): string
     {
         $p = strtolower(trim($proto));
-        if ($p !== 'tcp' && $p !== 'udp') {
+        if ($p !== 'tcp' && $p !== 'udp' && $p !== 'icmp') {
             throw new InvalidArgumentException('invalid_ufw_proto');
         }
 
         return $p;
     }
 
+    public static function validateComment(string $comment): string
+    {
+        $comment = trim($comment);
+        if ($comment === '') {
+            return '';
+        }
+        if (strlen($comment) > 80) {
+            throw new InvalidArgumentException('invalid_ufw_comment');
+        }
+        // UFW comments are single-quoted on the CLI; keep printable safe chars only.
+        if (preg_match("/^[A-Za-z0-9 .,_:@+\\/\\-]+$/", $comment) !== 1) {
+            throw new InvalidArgumentException('invalid_ufw_comment');
+        }
+
+        return $comment;
+    }
+
     public static function validatePort(string $port): string
     {
         $port = trim(str_replace(' ', '', $port));
+        if ($port === '' || $port === '-' || strcasecmp($port, 'any') === 0) {
+            throw new InvalidArgumentException('invalid_ufw_port');
+        }
         // Range 80-90 → UFW 80:90
         if (preg_match('/^(\d+)-(\d+)$/', $port, $m) === 1) {
             $port = $m[1] . ':' . $m[2];
@@ -130,10 +150,13 @@ final class KloxoUfw
     public static function parseRuleTo(string $to): array
     {
         $to = trim(preg_replace('/\s*\(v6\)\s*$/i', '', $to) ?? $to);
-        if (preg_match('/^(\d+(?::\d+)?)\/(tcp|udp)$/i', $to, $m) === 1) {
+        if (preg_match('/^icmp$/i', $to) === 1) {
+            return ['port' => '', 'proto' => 'icmp'];
+        }
+        if (preg_match('/^(\d+(?::\d+)?)\/(tcp|udp|icmp)$/i', $to, $m) === 1) {
             return ['port' => $m[1], 'proto' => strtolower($m[2])];
         }
-        if (preg_match('/^(tcp|udp)\/(\d+(?::\d+)?)$/i', $to, $m) === 1) {
+        if (preg_match('/^(tcp|udp|icmp)\/(\d+(?::\d+)?)$/i', $to, $m) === 1) {
             return ['port' => $m[2], 'proto' => strtolower($m[1])];
         }
         if (preg_match('/^(\d+(?::\d+)?)$/', $to, $m) === 1) {
@@ -187,20 +210,39 @@ final class KloxoUfw
     /**
      * @return list<string>
      */
-    public static function addRuleArgv(string $action, string $proto, string $port, string $from = ''): array
-    {
+    public static function addRuleArgv(
+        string $action,
+        string $proto,
+        string $port = '',
+        string $from = '',
+        string $comment = ''
+    ): array {
         $action = self::validateAction($action);
         $proto = self::validateProto($proto);
-        $port = self::validatePort($port);
         $from = self::validateFrom($from);
-        if (($action === 'deny' || $action === 'reject') && self::portTouchesPanel($port)) {
-            throw new InvalidArgumentException('cannot_deny_panel_port');
+        $comment = self::validateComment($comment);
+        if ($proto === 'icmp') {
+            $argv = [$action, 'proto', 'icmp'];
+            if ($from !== '') {
+                $argv = [$action, 'proto', 'icmp', 'from', $from];
+            }
+        } else {
+            $port = self::validatePort($port);
+            if (($action === 'deny' || $action === 'reject') && self::portTouchesPanel($port)) {
+                throw new InvalidArgumentException('cannot_deny_panel_port');
+            }
+            if ($from === '') {
+                $argv = [$action, $port . '/' . $proto];
+            } else {
+                $argv = [$action, 'from', $from, 'to', 'any', 'port', $port, 'proto', $proto];
+            }
         }
-        if ($from === '') {
-            return [$action, $port . '/' . $proto];
+        if ($comment !== '') {
+            $argv[] = 'comment';
+            $argv[] = $comment;
         }
 
-        return [$action, 'from', $from, 'to', 'any', 'port', $port, 'proto', $proto];
+        return $argv;
     }
 
     public static function portTouchesPanel(string $port): bool
@@ -251,9 +293,9 @@ final class KloxoUfw
 
     /**
      * UFW with IPv6 enabled lists each allow twice (IPv4 then IPv6) with
-     * distinct rule numbers. Keep ipv6 so the UI does not look duplicated.
+     * distinct rule numbers. Keep ipv6 so collapseDualStack can pair them.
      *
-     * @return list<array{number:int,to:string,action:string,from:string,ipv6:bool}>
+     * @return list<array{number:int,to:string,action:string,from:string,ipv6:bool,comment:string}>
      */
     public static function parseNumbered(string $text): array
     {
@@ -266,6 +308,12 @@ final class KloxoUfw
             // [ 1] 22/tcp                     ALLOW IN    Anywhere
             // [ 2] 80/tcp (v6)                 DENY IN     1.2.3.4
             // [ 3] 443                        ALLOW       Anywhere (v6)
+            // [ 4] 443/tcp                     ALLOW IN    Anywhere                   # https
+            $comment = '';
+            if (preg_match('/^(.*?)(?:\s+#\s*(.*))$/', $line, $cm) === 1) {
+                $line = rtrim((string) $cm[1]);
+                $comment = trim((string) $cm[2]);
+            }
             if (preg_match(
                 '/^\[\s*(\d+)\]\s+(.+?)\s+(ALLOW|DENY|REJECT|LIMIT)(?:\s+(IN|OUT))?\s+(.+)$/i',
                 $line,
@@ -288,10 +336,209 @@ final class KloxoUfw
                 'action' => $action,
                 'from' => $from,
                 'ipv6' => $ipv6,
+                'comment' => $comment,
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * True when two numbered rows are the IPv4/IPv6 halves of one UFW rule.
+     *
+     * @param array{number:int,to:string,action:string,from:string,ipv6?:bool,comment?:string} $a
+     * @param array{number:int,to:string,action:string,from:string,ipv6?:bool,comment?:string} $b
+     */
+    public static function rulesAreDualPair(array $a, array $b): bool
+    {
+        $a6 = !empty($a['ipv6']);
+        $b6 = !empty($b['ipv6']);
+        if ($a6 === $b6) {
+            return false;
+        }
+        $toA = strtolower(trim((string) ($a['to'] ?? '')));
+        $toB = strtolower(trim((string) ($b['to'] ?? '')));
+        $actA = strtoupper(trim((string) ($a['action'] ?? '')));
+        $actB = strtoupper(trim((string) ($b['action'] ?? '')));
+        $fromA = strtolower(trim((string) ($a['from'] ?? '')));
+        $fromB = strtolower(trim((string) ($b['from'] ?? '')));
+        $cA = trim((string) ($a['comment'] ?? ''));
+        $cB = trim((string) ($b['comment'] ?? ''));
+
+        return $toA === $toB && $actA === $actB && $fromA === $fromB && $cA === $cB;
+    }
+
+    /**
+     * Collapse IPv4+IPv6 UFW pairs into one logical row (applies to both).
+     *
+     * @param list<array{number:int,to:string,action:string,from:string,ipv6?:bool,comment?:string}> $rules
+     * @return list<array{number:int,numbers:list<int>,to:string,action:string,from:string,ipv6:bool,comment:string,suspended:bool,id:string}>
+     */
+    public static function collapseDualStack(array $rules): array
+    {
+        $used = [];
+        $out = [];
+        $n = count($rules);
+        for ($i = 0; $i < $n; $i++) {
+            if (isset($used[$i])) {
+                continue;
+            }
+            $a = $rules[$i];
+            if (!is_array($a) || !isset($a['number'])) {
+                continue;
+            }
+            $pairIdx = null;
+            for ($j = $i + 1; $j < $n; $j++) {
+                if (isset($used[$j])) {
+                    continue;
+                }
+                $b = $rules[$j];
+                if (!is_array($b) || !isset($b['number'])) {
+                    continue;
+                }
+                if (self::rulesAreDualPair($a, $b)) {
+                    $pairIdx = $j;
+                    break;
+                }
+            }
+            $numbers = [(int) $a['number']];
+            $row = $a;
+            if ($pairIdx !== null) {
+                $used[$pairIdx] = true;
+                $numbers[] = (int) $rules[$pairIdx]['number'];
+                // Prefer the IPv4 half for display fields.
+                if (!empty($a['ipv6']) && empty($rules[$pairIdx]['ipv6'])) {
+                    $row = $rules[$pairIdx];
+                }
+            }
+            sort($numbers, SORT_NUMERIC);
+            $out[] = [
+                'number' => $numbers[0],
+                'numbers' => array_values($numbers),
+                'to' => (string) ($row['to'] ?? ''),
+                'action' => (string) ($row['action'] ?? ''),
+                'from' => (string) ($row['from'] ?? ''),
+                'ipv6' => false,
+                'comment' => (string) ($row['comment'] ?? ''),
+                'suspended' => false,
+                'id' => 'n:' . implode(',', $numbers),
+            ];
+            $used[$i] = true;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Path for paused rules (JSON). Root owns the file via kloxo-backend.
+     */
+    public static function suspendedStorePath(): string
+    {
+        global $sgbl;
+
+        if (isset($sgbl) && is_object($sgbl) && isset($sgbl->__path_program_etc)
+            && is_string($sgbl->__path_program_etc) && $sgbl->__path_program_etc !== '') {
+            return rtrim($sgbl->__path_program_etc, '/') . '/ufw_suspended.json';
+        }
+        foreach (['/opt/kloxo/etc/ufw_suspended.json', '/usr/local/lxlabs/kloxo/etc/ufw_suspended.json'] as $p) {
+            $dir = dirname($p);
+            if (is_dir($dir)) {
+                return $p;
+            }
+        }
+
+        return '/opt/kloxo/etc/ufw_suspended.json';
+    }
+
+    /**
+     * @return list<array{id:string,action:string,proto:string,port:string,from:string,comment:string,suspended:bool,number:int,numbers:list<int>,to:string,from_label?:string}>
+     */
+    public static function listSuspended(): array
+    {
+        $path = self::suspendedStorePath();
+        if (!is_file($path)) {
+            return [];
+        }
+        $raw = @file_get_contents($path);
+        if (!is_string($raw) || $raw === '') {
+            return [];
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $out = [];
+        foreach ($decoded as $row) {
+            if (!is_array($row) || !isset($row['id']) || !is_string($row['id']) || $row['id'] === '') {
+                continue;
+            }
+            $action = strtolower((string) ($row['action'] ?? 'allow'));
+            $proto = strtolower((string) ($row['proto'] ?? 'tcp'));
+            $port = (string) ($row['port'] ?? '');
+            $from = (string) ($row['from'] ?? '');
+            $comment = (string) ($row['comment'] ?? '');
+            $to = ($proto === 'icmp') ? 'icmp' : (($port !== '' && $proto !== '') ? ($port . '/' . $proto) : $port);
+            $out[] = [
+                'id' => $row['id'],
+                'action' => strtoupper($action),
+                'proto' => $proto,
+                'port' => $port,
+                'from' => $from !== '' ? $from : 'Anywhere',
+                'comment' => $comment,
+                'suspended' => true,
+                'number' => 0,
+                'numbers' => [],
+                'to' => $to,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array{id:string,action:string,proto:string,port:string,from:string,comment:string}> $rows
+     */
+    public static function writeSuspended(array $rows): bool
+    {
+        $path = self::suspendedStorePath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0750, true);
+        }
+        $clean = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || !isset($row['id']) || !is_string($row['id']) || $row['id'] === '') {
+                continue;
+            }
+            $clean[] = [
+                'id' => $row['id'],
+                'action' => strtolower((string) ($row['action'] ?? 'allow')),
+                'proto' => strtolower((string) ($row['proto'] ?? 'tcp')),
+                'port' => (string) ($row['port'] ?? ''),
+                'from' => (string) ($row['from'] ?? ''),
+                'comment' => (string) ($row['comment'] ?? ''),
+            ];
+        }
+        $json = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if (!is_string($json)) {
+            return false;
+        }
+        $tmp = $path . '.tmp.' . getmypid();
+        if (@file_put_contents($tmp, $json . "\n", LOCK_EX) === false) {
+            return false;
+        }
+        @chmod($tmp, 0640);
+
+        return @rename($tmp, $path);
+    }
+
+    public static function newSuspendedId(): string
+    {
+        try {
+            return 's:' . bin2hex(random_bytes(8));
+        } catch (Throwable $e) {
+            return 's:' . str_replace('.', '', uniqid('', true));
+        }
     }
 
     public static function ruleTouchesPanel(array $rule): bool
@@ -316,37 +563,69 @@ final class KloxoUfw
      */
     public static function canDeleteRule(array $rules, int $number): bool
     {
-        $target = null;
-        foreach ($rules as $r) {
-            if ((int) $r['number'] === $number) {
-                $target = $r;
-                break;
-            }
+        return self::canDeleteNumbers($rules, [$number]);
+    }
+
+    /**
+     * True when deleting these UFW numbers would leave at least one allow
+     * for each panel port (7777/7778) that the removed set currently covers.
+     *
+     * @param list<array{number:int,to:string,action:string,from:string}> $rules
+     * @param list<int> $numbers
+     */
+    public static function canDeleteNumbers(array $rules, array $numbers): bool
+    {
+        $remove = [];
+        foreach ($numbers as $n) {
+            $remove[(int) $n] = true;
         }
-        if ($target === null) {
+        if ($remove === []) {
             return false;
         }
-        if (!self::ruleTouchesPanel($target) || !self::ruleIsAllow($target)) {
+        $targets = [];
+        foreach ($rules as $r) {
+            $num = (int) ($r['number'] ?? 0);
+            if (!isset($remove[$num])) {
+                continue;
+            }
+            $targets[] = $r;
+        }
+        if (count($targets) !== count($remove)) {
+            // One of the numbers is missing from the live list.
+            return false;
+        }
+        $portsNeeded = [];
+        foreach ($targets as $t) {
+            if (!self::ruleTouchesPanel($t) || !self::ruleIsAllow($t)) {
+                continue;
+            }
+            if (preg_match('/\b(7777|7778)/', (string) $t['to'], $m) === 1) {
+                $portsNeeded[$m[1]] = true;
+            }
+        }
+        if ($portsNeeded === []) {
             return true;
         }
-        $port = '';
-        if (preg_match('/\b(7777|7778)/', (string) $target['to'], $m) === 1) {
-            $port = $m[1];
-        }
-        $others = 0;
-        foreach ($rules as $r) {
-            if ((int) $r['number'] === $number) {
-                continue;
+        foreach (array_keys($portsNeeded) as $port) {
+            $others = 0;
+            foreach ($rules as $r) {
+                $num = (int) ($r['number'] ?? 0);
+                if (isset($remove[$num])) {
+                    continue;
+                }
+                if (!self::ruleIsAllow($r)) {
+                    continue;
+                }
+                if (preg_match('/\b' . preg_quote((string) $port, '/') . '\b/', (string) $r['to']) === 1) {
+                    $others++;
+                }
             }
-            if (!self::ruleIsAllow($r)) {
-                continue;
-            }
-            if ($port !== '' && preg_match('/\b' . $port . '\b/', (string) $r['to']) === 1) {
-                $others++;
+            if ($others < 1) {
+                return false;
             }
         }
 
-        return $others > 0;
+        return true;
     }
 
     /**
@@ -563,12 +842,17 @@ final class KloxoUfw
     /**
      * @return array{ok:bool, out:string, error?:string}
      */
-    public static function addRule(string $action, string $proto, string $port, string $from = ''): array
-    {
+    public static function addRule(
+        string $action,
+        string $proto,
+        string $port = '',
+        string $from = '',
+        string $comment = ''
+    ): array {
         if (!self::isInstalled()) {
             return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
         }
-        $argv = self::addRuleArgv($action, $proto, $port, $from);
+        $argv = self::addRuleArgv($action, $proto, $port, $from, $comment);
         $done = self::run(array_merge([self::ufwBinary()], $argv));
         $out = $done['out'] . $done['err'];
         if ($done['code'] !== 0) {
@@ -579,30 +863,98 @@ final class KloxoUfw
     }
 
     /**
+     * Find the collapsed logical rule that owns this UFW number.
+     *
+     * @param list<array{number:int,to:string,action:string,from:string,ipv6?:bool,comment?:string}> $rawRules
+     * @return array{number:int,numbers:list<int>,to:string,action:string,from:string,comment:string}|null
+     */
+    public static function findLogicalRule(array $rawRules, int $number): ?array
+    {
+        foreach (self::collapseDualStack($rawRules) as $row) {
+            $nums = isset($row['numbers']) && is_array($row['numbers']) ? $row['numbers'] : [(int) $row['number']];
+            foreach ($nums as $n) {
+                if ((int) $n === $number) {
+                    return $row;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Delete one or more UFW numbers highest-first (renumber-safe). Also
+     * deletes the IPv6 twin when the selected number is part of a pair.
+     *
+     * @param list<int|string> $numbers
      * @return array{ok:bool, out:string, error?:string}
      */
-    public static function deleteRule(string $number): array
+    public static function deleteRules(array $numbers, bool $allowLastPanel = false): array
     {
         if (!self::isInstalled()) {
             return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
         }
-        $n = self::validateRuleNumber($number);
+        $want = [];
+        foreach ($numbers as $n) {
+            if (is_int($n) || (is_string($n) && preg_match('/^\d+$/', $n) === 1)) {
+                $want[] = (int) $n;
+            }
+        }
+        $want = array_values(array_unique($want));
+        if ($want === []) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
         $st = self::status();
-        if (!self::canDeleteRule($st['rules'], $n)) {
+        $raw = $st['rules'];
+        $toDelete = [];
+        foreach ($want as $n) {
+            $logical = self::findLogicalRule($raw, $n);
+            if ($logical === null) {
+                throw new InvalidArgumentException('invalid_ufw_rule');
+            }
+            foreach ($logical['numbers'] as $ln) {
+                $toDelete[] = (int) $ln;
+            }
+        }
+        $toDelete = array_values(array_unique($toDelete));
+        if (!$allowLastPanel && !self::canDeleteNumbers($raw, $toDelete)) {
             throw new InvalidArgumentException('cannot_delete_panel_port');
         }
-        $done = self::run([self::ufwBinary(), '--force', 'delete', (string) $n]);
-        $out = $done['out'] . $done['err'];
-        if ($done['code'] !== 0) {
-            return ['ok' => false, 'out' => $out, 'error' => 'ufw_deleterule_failed'];
+        rsort($toDelete, SORT_NUMERIC);
+        $out = '';
+        foreach ($toDelete as $n) {
+            // Re-read after each delete (UFW renumbers). Skip already-gone twins.
+            $live = self::status();
+            $stillThere = false;
+            foreach ($live['rules'] as $r) {
+                if ((int) $r['number'] === $n) {
+                    $stillThere = true;
+                    break;
+                }
+            }
+            if (!$stillThere) {
+                continue;
+            }
+            $done = self::run([self::ufwBinary(), '--force', 'delete', (string) $n]);
+            $out .= $done['out'] . $done['err'];
+            if ($done['code'] !== 0) {
+                return ['ok' => false, 'out' => $out, 'error' => 'ufw_deleterule_failed'];
+            }
         }
 
         return ['ok' => true, 'out' => $out];
     }
 
     /**
-     * Replace a numbered rule: delete then add. Refuses removing the last
-     * panel-port allow unless the replacement still allows that panel port.
+     * @return array{ok:bool, out:string, error?:string}
+     */
+    public static function deleteRule(string $number): array
+    {
+        return self::deleteRules([$number]);
+    }
+
+    /**
+     * Replace a logical rule (IPv4+IPv6 pair): delete both then add once.
      *
      * @return array{ok:bool, out:string, error?:string}
      */
@@ -610,38 +962,39 @@ final class KloxoUfw
         string $number,
         string $action,
         string $proto,
-        string $port,
-        string $from = ''
+        string $port = '',
+        string $from = '',
+        string $comment = ''
     ): array {
         if (!self::isInstalled()) {
             return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
         }
         $n = self::validateRuleNumber($number);
-        // Validate new rule first (deny panel, bad ports, etc.).
-        self::addRuleArgv($action, $proto, $port, $from);
+        self::addRuleArgv($action, $proto, $port, $from, $comment);
         $st = self::status();
-        $target = null;
-        foreach ($st['rules'] as $r) {
-            if ((int) $r['number'] === $n) {
-                $target = $r;
-                break;
-            }
-        }
-        if ($target === null) {
+        $logical = self::findLogicalRule($st['rules'], $n);
+        if ($logical === null) {
             throw new InvalidArgumentException('invalid_ufw_rule');
         }
-        $portNorm = self::validatePort($port);
-        $keepsPanel = self::ruleIsAllow(['action' => self::validateAction($action)])
-            && self::portTouchesPanel($portNorm);
-        if (!self::canDeleteRule($st['rules'], $n) && !$keepsPanel) {
+        $keepsPanel = false;
+        if ($proto !== 'icmp') {
+            $portNorm = self::validatePort($port);
+            $keepsPanel = self::ruleIsAllow(['action' => self::validateAction($action)])
+                && self::portTouchesPanel($portNorm);
+        }
+        if (!self::canDeleteNumbers($st['rules'], $logical['numbers']) && !$keepsPanel) {
             throw new InvalidArgumentException('cannot_delete_panel_port');
         }
-        $del = self::run([self::ufwBinary(), '--force', 'delete', (string) $n]);
-        $out = $del['out'] . $del['err'];
-        if ($del['code'] !== 0) {
-            return ['ok' => false, 'out' => $out, 'error' => 'ufw_editrule_failed'];
+        $del = self::deleteRules($logical['numbers'], $keepsPanel);
+        $out = (string) ($del['out'] ?? '');
+        if (empty($del['ok'])) {
+            return [
+                'ok' => false,
+                'out' => $out,
+                'error' => isset($del['error']) ? (string) $del['error'] : 'ufw_editrule_failed',
+            ];
         }
-        $add = self::addRule($action, $proto, $port, $from);
+        $add = self::addRule($action, $proto, $port, $from, $comment);
         $out .= (string) ($add['out'] ?? '');
         if (empty($add['ok'])) {
             return [
@@ -652,6 +1005,172 @@ final class KloxoUfw
         }
 
         return ['ok' => true, 'out' => $out];
+    }
+
+    /**
+     * Pause a live rule: remove from UFW and store for later unsuspend.
+     *
+     * @return array{ok:bool, out:string, error?:string}
+     */
+    public static function suspendRule(string $number): array
+    {
+        if (!self::isInstalled()) {
+            return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
+        }
+        $n = self::validateRuleNumber($number);
+        $st = self::status();
+        $logical = self::findLogicalRule($st['rules'], $n);
+        if ($logical === null) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
+        if (!self::canDeleteNumbers($st['rules'], $logical['numbers'])) {
+            throw new InvalidArgumentException('cannot_delete_panel_port');
+        }
+        $parsed = self::parseRuleTo((string) $logical['to']);
+        $act = strtolower((string) $logical['action']);
+        if (str_contains(strtoupper($act), 'REJECT')) {
+            $action = 'reject';
+        } elseif (str_contains(strtoupper($act), 'DENY')) {
+            $action = 'deny';
+        } else {
+            $action = 'allow';
+        }
+        $proto = $parsed['proto'] !== '' ? $parsed['proto'] : 'tcp';
+        $port = $parsed['port'];
+        $from = (string) $logical['from'];
+        if ($from === '' || strcasecmp($from, 'Anywhere') === 0 || strcasecmp($from, 'any') === 0) {
+            $from = '';
+        }
+        $comment = (string) ($logical['comment'] ?? '');
+        $id = self::newSuspendedId();
+        $rows = [];
+        foreach (self::listSuspended() as $s) {
+            $rows[] = [
+                'id' => $s['id'],
+                'action' => (string) ($s['action'] ?? 'allow'),
+                'proto' => (string) ($s['proto'] ?? 'tcp'),
+                'port' => (string) ($s['port'] ?? ''),
+                'from' => (isset($s['from']) && strcasecmp((string) $s['from'], 'Anywhere') !== 0)
+                    ? (string) $s['from'] : '',
+                'comment' => (string) ($s['comment'] ?? ''),
+            ];
+        }
+        $rows[] = [
+            'id' => $id,
+            'action' => $action,
+            'proto' => $proto,
+            'port' => $port,
+            'from' => $from,
+            'comment' => $comment,
+        ];
+        if (!self::writeSuspended($rows)) {
+            return ['ok' => false, 'out' => '', 'error' => 'ufw_suspend_failed'];
+        }
+        $del = self::deleteRules($logical['numbers']);
+        if (empty($del['ok'])) {
+            // Roll back store entry.
+            array_pop($rows);
+            self::writeSuspended($rows);
+
+            return [
+                'ok' => false,
+                'out' => (string) ($del['out'] ?? ''),
+                'error' => isset($del['error']) ? (string) $del['error'] : 'ufw_suspend_failed',
+            ];
+        }
+
+        return ['ok' => true, 'out' => (string) ($del['out'] ?? '')];
+    }
+
+    /**
+     * Restore a paused rule into UFW.
+     *
+     * @return array{ok:bool, out:string, error?:string}
+     */
+    public static function unsuspendRule(string $id): array
+    {
+        if (!self::isInstalled()) {
+            return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
+        }
+        $id = trim($id);
+        if ($id === '' || !str_starts_with($id, 's:')) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
+        $rows = [];
+        $target = null;
+        foreach (self::listSuspended() as $s) {
+            if ($s['id'] === $id) {
+                $target = $s;
+                continue;
+            }
+            $rows[] = [
+                'id' => $s['id'],
+                'action' => (string) ($s['action'] ?? 'allow'),
+                'proto' => (string) ($s['proto'] ?? 'tcp'),
+                'port' => (string) ($s['port'] ?? ''),
+                'from' => (isset($s['from']) && strcasecmp((string) $s['from'], 'Anywhere') !== 0)
+                    ? (string) $s['from'] : '',
+                'comment' => (string) ($s['comment'] ?? ''),
+            ];
+        }
+        if ($target === null) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
+        $action = strtolower((string) ($target['action'] ?? 'allow'));
+        $proto = strtolower((string) ($target['proto'] ?? 'tcp'));
+        $port = (string) ($target['port'] ?? '');
+        $from = (isset($target['from']) && strcasecmp((string) $target['from'], 'Anywhere') !== 0)
+            ? (string) $target['from'] : '';
+        $comment = (string) ($target['comment'] ?? '');
+        $add = self::addRule($action, $proto, $port, $from, $comment);
+        if (empty($add['ok'])) {
+            return [
+                'ok' => false,
+                'out' => (string) ($add['out'] ?? ''),
+                'error' => isset($add['error']) ? (string) $add['error'] : 'ufw_unsuspend_failed',
+            ];
+        }
+        self::writeSuspended($rows);
+
+        return ['ok' => true, 'out' => (string) ($add['out'] ?? '')];
+    }
+
+    /**
+     * Delete a suspended rule from the store (does not touch live UFW).
+     *
+     * @return array{ok:bool, out:string, error?:string}
+     */
+    public static function deleteSuspended(string $id): array
+    {
+        $id = trim($id);
+        if ($id === '' || !str_starts_with($id, 's:')) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
+        $rows = [];
+        $found = false;
+        foreach (self::listSuspended() as $s) {
+            if ($s['id'] === $id) {
+                $found = true;
+                continue;
+            }
+            $rows[] = [
+                'id' => $s['id'],
+                'action' => (string) ($s['action'] ?? 'allow'),
+                'proto' => (string) ($s['proto'] ?? 'tcp'),
+                'port' => (string) ($s['port'] ?? ''),
+                'from' => (isset($s['from']) && strcasecmp((string) $s['from'], 'Anywhere') !== 0)
+                    ? (string) $s['from'] : '',
+                'comment' => (string) ($s['comment'] ?? ''),
+            ];
+        }
+        if (!$found) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
+        if (!self::writeSuspended($rows)) {
+            return ['ok' => false, 'out' => '', 'error' => 'ufw_deleterule_failed'];
+        }
+
+        return ['ok' => true, 'out' => ''];
     }
 
     public static function validateDefaultPolicy(string $policy): string

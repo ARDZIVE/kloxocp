@@ -761,7 +761,10 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = lxguard::lxguardPropertyTabs();
 	}
 
-	$ufwSa = in_array($sa, array('ufwenable', 'ufwdisable', 'ufwdefaults', 'addrule', 'editrule', 'deleterule'), true);
+	$ufwSa = in_array($sa, array(
+		'ufwenable', 'ufwdisable', 'ufwdefaults', 'addrule', 'editrule',
+		'deleterule', 'deleterules', 'suspendrule', 'unsuspendrule',
+	), true);
 	if ($class === 'ufwfirewall' && class_exists('ufwfirewall')
 		&& is_callable(array('ufwfirewall', 'ufwPropertyTabs'))) {
 		$prlist['property'] = ufwfirewall::ufwPropertyTabs();

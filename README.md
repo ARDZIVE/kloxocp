@@ -63,9 +63,9 @@ Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
 (`curl | bash` breaks apt stdin). Re-run the same command to refresh an
 existing clone to current `main` (**10.1-2026110501**: UFW enabled at
-install; Security → UFW Firewall Port Rules with Family IPv4/IPv6; edit on
-a separate page; Services icons via `systemctl`; Multiple PHP Install under
-`$ROOT/log/`).
+install; Security → UFW Firewall list with Comment/ICMP/suspend and
+collapsed dual-stack rows; Add Rule on a separate page; Services icons via
+`systemctl`; Multiple PHP Install under `$ROOT/log/`).
 
 Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
 **redis-server**, **imagemagick**, and Ubuntu **universe** enabled when needed.
@@ -128,7 +128,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
-| UFW Firewall | Security-section button. **UFW enabled by default** at install. No Enable/defaults UI and no Managed/Backend line. Show/Hide centered add form; Port Rules pink toolbar; edit on a separate page; **Family** IPv4/IPv6 (UFW dual-stack — same port twice is normal). Manage IPv6 by editing/deleting the IPv6 row, or host `/etc/default/ufw` `IPV6=`. Live UFW after deploy is unverified. |
+| UFW Firewall | Security-section button. **UFW enabled by default** at install. List-only show; Add Rule / Edit on separate pages (TCP/UDP/ICMP, optional Comment). Toolbar Refresh / Add Rule / Delete with multi-select. No Family column (IPv4+IPv6 collapsed). Actions: edit / suspend|unsuspend / delete; suspended rows show a red ●. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |

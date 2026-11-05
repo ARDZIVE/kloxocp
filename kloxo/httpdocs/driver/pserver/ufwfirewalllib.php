@@ -3,8 +3,8 @@
 include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ufw.php';
 
 /**
- * Single-tab UFW page: enable/disable, default policies, numbered
- * port rules (add/delete). Privileged ufw runs via kloxo-backend.
+ * UFW Port Rules list (show) plus Add/Edit on separate updateform pages.
+ * Privileged ufw runs via kloxo-backend.
  */
 class ufwfirewall extends lxclass
 {
@@ -17,12 +17,15 @@ class ufwfirewall extends lxclass
 	static $__acdesc_update_addrule = array("", "", "Add Rule");
 	static $__acdesc_update_editrule = array("", "", "Edit Rule");
 	static $__acdesc_update_deleterule = array("", "", "Delete Rule");
+	static $__acdesc_update_deleterules = array("", "", "Delete");
+	static $__acdesc_update_suspendrule = array("", "", "Suspend Rule");
+	static $__acdesc_update_unsuspendrule = array("", "", "Unsuspend Rule");
 	static $__desc_ufw_action = array("s", "", "action");
 	static $__desc_ufw_proto = array("s", "", "protocol");
 	static $__desc_ufw_port = array("", "", "port");
 	static $__desc_ufw_from = array("", "", "from_address");
+	static $__desc_ufw_comment = array("", "", "comment");
 	static $__desc_ufw_rule = array("s", "", "rule_number");
-	static $__desc_ufw_family = array("s", "", "family");
 	static $__desc_ufw_default_in = array("s", "", "default_incoming");
 	static $__desc_ufw_default_out = array("s", "", "default_outgoing");
 	static $__desc_ufw_confirm = array("M", "", "UFW Firewall");
@@ -43,7 +46,20 @@ class ufwfirewall extends lxclass
 
 	static function ufwPropertyTabs()
 	{
-		return array('a=show');
+		$tabs = array('a=show');
+		$sa = '';
+		if (isset($_REQUEST['frm_subaction']) && is_scalar($_REQUEST['frm_subaction'])) {
+			$sa = strtolower(trim((string) $_REQUEST['frm_subaction']));
+		} elseif (isset($_GET['frm_subaction']) && is_scalar($_GET['frm_subaction'])) {
+			$sa = strtolower(trim((string) $_GET['frm_subaction']));
+		}
+		if ($sa === 'addrule') {
+			$tabs[] = 'a=updateform&sa=addrule';
+		} elseif ($sa === 'editrule') {
+			$tabs[] = 'a=updateform&sa=editrule';
+		}
+
+		return $tabs;
 	}
 
 	static function ufwPropertyTabsForPserver()
@@ -58,7 +74,7 @@ class ufwfirewall extends lxclass
 		return $alist;
 	}
 
-	/** All controls render in showRawPrint (single page). */
+	/** List chrome is showRawPrint; add/edit use updateform pages. */
 	function createShowUpdateform()
 	{
 		return array();
@@ -130,35 +146,32 @@ class ufwfirewall extends lxclass
 		$skin = $this->ufwSkinColor();
 		$installed = !empty($st['installed']);
 		$active = !empty($st['active']);
-		$rules = (isset($st['rules']) && is_array($st['rules'])) ? $st['rules'] : array();
+		$rawRules = (isset($st['rules']) && is_array($st['rules'])) ? $st['rules'] : array();
+		$logical = KloxoUfw::collapseDualStack($rawRules);
+		$suspended = array();
+		try {
+			$suspended = KloxoUfw::listSuspended();
+		} catch (Throwable $e) {
+			$suspended = array();
+		}
+		$rules = array_merge($logical, $suspended);
 		$err = isset($st['error']) ? (string) $st['error'] : '';
 		$conflictNote = (isset($st['conflict_note']) && is_string($st['conflict_note']))
 			? $st['conflict_note'] : '';
 		$iconBase = $this->ufwIconBase();
 		$editIcon = $iconBase . '/updateform_edit.gif';
 		$delIcon = $iconBase . '/delete.gif';
+		$suspendIcon = $iconBase . '/stop.gif';
+		$unsuspendIcon = $iconBase . '/enable.gif';
 		$filter = $this->ruleFilterFromRequest();
 		$displayRules = $this->filterRules($rules, $filter);
 		$nTotal = count($rules);
 		$nShown = count($displayRules);
 		$filterActive = $this->ruleFilterIsActive($filter);
-		$clickAdd = $this->ufwKeyword('clickheretoadd', 'Click Here to Add');
 		$showHide = $this->ufwKeyword('showhide', 'Show/Hide');
 		$showAll = $this->ufwKeyword('showall', 'Show All');
 		$under = $this->ufwKeyword('under', 'Under');
-		$formId = 'listaddform_ufwfirewall';
 		$advId = 'ufw_advsearch';
-		$formVisible = 'visibility:visible;display:block';
-		try {
-			if (is_object($login)
-				&& method_exists($login, 'getSpecialObject')
-				&& is_object($login->getSpecialObject('sp_specialplay'))
-				&& method_exists($login->getSpecialObject('sp_specialplay'), 'isOn')
-				&& $login->getSpecialObject('sp_specialplay')->isOn('close_add_form')) {
-				$formVisible = 'visibility:hidden;display:none';
-			}
-		} catch (Throwable $e) {
-		}
 		$advVisible = $filterActive && ($filter['q'] === '' || $this->ruleFilterHasColumnFields($filter))
 			? 'visibility:visible;display:block' : 'visibility:hidden;display:none';
 		$lower = $nShown > 0 ? 1 : 0;
@@ -169,10 +182,10 @@ class ufwfirewall extends lxclass
 		$showallIcon = '<span title="' . htmlspecialchars($showAll, ENT_QUOTES)
 			. '" class="if16">&#xf480;</span>';
 		$refreshIcon = '<span title="Refresh" class="if16">&#xf021;</span>';
-		// Mail-account add form look: pale green / lavender rows, grey footer.
-		$rowBg0 = '#f4faf4';
-		$rowBg1 = '#f3f3f8';
-		$footerBg = '#e8e8e8';
+		$addIcon = '<span title="Add Rule" class="if16">&#xf067;</span>';
+		$deleteTbIcon = '<span title="Delete" class="if16">&#xf00d;</span>';
+		$addUrl = $this->addRuleUrl();
+		$token = function_exists('getCSRFToken') ? getCSRFToken() : '';
 
 		echo '<div class="kloxo-ufw">';
 
@@ -200,73 +213,6 @@ class ufwfirewall extends lxclass
 				. htmlspecialchars($conflictNote, ENT_QUOTES) . '</p>';
 		}
 
-		$toggleLabel = 'Port Rule for ' . $host;
-		echo '<div style="background:#' . htmlspecialchars($skin, ENT_QUOTES)
-			. ';padding:4px;margin:0 25px;text-align:center">&nbsp;>>>> '
-			. '<a href="javascript:toggleVisibilityById(\'' . $formId . '\');">'
-			. htmlspecialchars($clickAdd . ' ' . $toggleLabel . ' (' . $showHide . ')', ENT_QUOTES)
-			. '</a> <<<<&nbsp;</div>';
-		echo '<br/>';
-
-		echo '<div id="' . $formId . '" style="' . $formVisible . ';text-align:center" class="div_showhide">';
-		$this->printFormOpen('addrule', false);
-		echo '<table cellpadding="8" cellspacing="0" border="0"'
-			. ' style="margin:0 auto;width:70%;max-width:640px;min-width:360px;text-align:left;'
-			. 'border:1px solid #ccc;border-collapse:collapse">';
-		$fields = array(
-			array(
-				'label' => 'Action',
-				'req' => false,
-				'html' => $this->ufwSelectHtml(
-					'frm_ufwfirewall_c_ufw_action',
-					array('allow' => 'ALLOW', 'deny' => 'DENY', 'reject' => 'REJECT'),
-					'allow'
-				),
-			),
-			array(
-				'label' => 'Protocol',
-				'req' => false,
-				'html' => $this->ufwSelectHtml(
-					'frm_ufwfirewall_c_ufw_proto',
-					array('tcp' => 'TCP', 'udp' => 'UDP'),
-					'tcp'
-				),
-			),
-			array(
-				'label' => 'Port',
-				'req' => true,
-				'html' => '<input type="text" class="textbox" name="frm_ufwfirewall_c_ufw_port"'
-					. ' value="" size="30" placeholder="80 or 80-82 or 80,443" required>',
-			),
-			array(
-				'label' => 'From IP',
-				'req' => false,
-				'html' => '<input type="text" class="textbox" name="frm_ufwfirewall_c_ufw_from"'
-					. ' value="" size="30" placeholder="blank = anywhere">',
-			),
-		);
-		foreach ($fields as $i => $f) {
-			$bg = ($i % 2 === 0) ? $rowBg0 : $rowBg1;
-			$lab = htmlspecialchars($f['label'], ENT_QUOTES);
-			if (!empty($f['req'])) {
-				$lab .= ' <span style="color:#c00">*</span>';
-			}
-			echo '<tr style="background:' . $bg . '"><td style="padding:10px 12px;border-bottom:1px solid #ddd">'
-				. '<div style="font-weight:bold;margin-bottom:4px">' . $lab . '</div>'
-				. $f['html'] . '</td></tr>';
-		}
-		echo '<tr style="background:' . $footerBg . '"><td align="right" style="padding:10px 12px">'
-			. '<input type="submit" class="submitbutton" value="&nbsp;&nbsp;Add&nbsp;&nbsp;">'
-			. '</td></tr>';
-		echo '</table>';
-		echo '<div class="messagetext" style="margin:6px auto;max-width:640px;text-align:left">'
-			. 'Port: single (<code>443</code>), range (<code>80-82</code>), or list (<code>80,443</code>). '
-			. 'Blank From = anywhere. Deny/reject of panel ports <b>7777</b>/<b>7778</b> is refused.'
-			. '</div>';
-		echo '</form></div>';
-
-		// List section — same chrome as Domains / Auxiliary Login lists.
-		echo '<br/>';
 		echo '<div class="div_showhide">';
 		echo '<fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">';
 		echo '<legend><span style="font-weight:bold">Port Rules ' . htmlspecialchars($under, ENT_QUOTES)
@@ -283,13 +229,36 @@ class ufwfirewall extends lxclass
 			. ';padding:10px">';
 		echo '<tr><td valign="middle">';
 		echo '<a href="' . htmlspecialchars($this->showUrl(), ENT_QUOTES)
-			. '" title="Refresh" style="text-decoration:none;margin-right:12px">'
+			. '" title="Refresh" style="text-decoration:none;margin-right:14px;display:inline-block;text-align:center">'
 			. $refreshIcon . '<br><span class="small">Refresh</span></a>';
+		echo '<a href="' . htmlspecialchars($addUrl, ENT_QUOTES)
+			. '" title="Add Rule" style="text-decoration:none;margin-right:14px;display:inline-block;text-align:center">'
+			. $addIcon . '<br><span class="small">Add Rule</span></a>';
+		echo '<a href="javascript:void(0)" title="Delete" style="text-decoration:none;display:inline-block;text-align:center"'
+			. ' onclick="return kloxoUfwDeleteSelected();">'
+			. $deleteTbIcon . '<br><span class="small">Delete</span></a>';
+		echo '<script type="text/javascript">function kloxoUfwDeleteSelected(){'
+			. 'var c=document.querySelectorAll("input.ufw-row-check:checked");'
+			. 'if(!c.length){alert("Select one or more rules to delete.");return false;}'
+			. 'if(!confirm("Delete selected rules?")){return false;}'
+			. 'var f=document.getElementById("ufw_multi_delete_form");'
+			. 'if(!f){return false;}'
+			. 'var old=f.querySelectorAll("input[name=\'frm_ufwfirewall_c_ufw_rules[]\']");'
+			. 'for(var i=0;i<old.length;i++){old[i].parentNode.removeChild(old[i]);}'
+			. 'for(var j=0;j<c.length;j++){var h=document.createElement("input");'
+			. 'h.type="hidden";h.name="frm_ufwfirewall_c_ufw_rules[]";h.value=c[j].value;f.appendChild(h);}'
+			. 'f.submit();return false;}</script>';
+		echo '<form id="ufw_multi_delete_form" method="post" action="/display.php" accept-charset="utf-8" style="display:none">';
+		echo '<input type="hidden" name="frm_token" value="' . htmlspecialchars((string) $token, ENT_QUOTES) . '">';
+		echo '<input type="hidden" name="frm_action" value="update">';
+		echo '<input type="hidden" name="frm_subaction" value="deleterules">';
+		$this->printObjectPathInputs();
+		echo '</form>';
 		echo '</td><td align="right" valign="middle">';
 		echo '<form name="ufw_lpform_search" method="get" action="/display.php" accept-charset="utf-8"'
 			. ' style="display:inline" onsubmit="return true;">';
 		$this->printShowHiddenGets();
-		foreach (array('number', 'action', 'proto', 'port', 'family', 'from') as $fk) {
+		foreach (array('number', 'action', 'proto', 'port', 'from', 'comment') as $fk) {
 			if (isset($filter[$fk]) && $filter[$fk] !== '') {
 				echo '<input type="hidden" name="frm_ufw_filter[' . $fk . ']" value="'
 					. htmlspecialchars((string) $filter[$fk], ENT_QUOTES) . '">';
@@ -324,8 +293,8 @@ class ufwfirewall extends lxclass
 			'action' => array('label' => 'Action', 'type' => 'action'),
 			'proto' => array('label' => 'Protocol', 'type' => 'proto'),
 			'port' => array('label' => 'Port', 'type' => 'text'),
-			'family' => array('label' => 'Family', 'type' => 'family'),
 			'from' => array('label' => 'From', 'type' => 'text'),
+			'comment' => array('label' => 'Comment', 'type' => 'text'),
 		);
 		foreach ($cols as $key => $meta) {
 			$val = isset($filter[$key]) ? (string) $filter[$key] : '';
@@ -340,14 +309,7 @@ class ufwfirewall extends lxclass
 				echo '</select>';
 			} elseif ($meta['type'] === 'proto') {
 				echo '<select class="searchbox" name="frm_ufw_filter[proto]"><option value="">—</option>';
-				foreach (array('TCP', 'UDP', 'any') as $a) {
-					$sel = (strcasecmp($val, $a) === 0) ? ' selected' : '';
-					echo '<option value="' . $a . '"' . $sel . '>' . $a . '</option>';
-				}
-				echo '</select>';
-			} elseif ($meta['type'] === 'family') {
-				echo '<select class="searchbox" name="frm_ufw_filter[family]"><option value="">—</option>';
-				foreach (array('IPv4', 'IPv6') as $a) {
+				foreach (array('TCP', 'UDP', 'ICMP', 'any') as $a) {
 					$sel = (strcasecmp($val, $a) === 0) ? ' selected' : '';
 					echo '<option value="' . $a . '"' . $sel . '>' . $a . '</option>';
 				}
@@ -363,9 +325,13 @@ class ufwfirewall extends lxclass
 		echo '</tr></table></form></div>';
 
 		echo '<br/>';
-		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0">';
+		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0" id="ufw_rules_table">';
 		echo '<tr height="25" valign="middle">';
-		foreach (array('#', 'Action', 'Protocol', 'Port', 'Family', 'From', 'Actions') as $h) {
+		echo '<td class="collist" nowrap style="background:#' . htmlspecialchars($skin, ENT_QUOTES)
+			. '"><input type="checkbox" title="Select all" onclick="var b=this.checked;'
+			. 'var n=document.querySelectorAll(\'#ufw_rules_table input.ufw-row-check\');'
+			. 'for(var i=0;i<n.length;i++){n[i].checked=b;}"></td>';
+		foreach (array('#', 'Action', 'Protocol', 'Port', 'From', 'Comment', 'Actions') as $h) {
 			echo '<td class="collist" nowrap style="background:#'
 				. htmlspecialchars($skin, ENT_QUOTES) . '"><b>'
 				. htmlspecialchars($h, ENT_QUOTES) . '</b></td>';
@@ -376,50 +342,82 @@ class ufwfirewall extends lxclass
 			$emptyMsg = $filterActive
 				? 'No matches found'
 				: ('No Port Rules ' . $under . ' ' . $host);
-			echo '<tr class="tablerow0"><td class="col" colspan="7" style="text-align:center;padding:12px">'
+			echo '<tr class="tablerow0"><td class="col" colspan="8" style="text-align:center;padding:12px">'
 				. '<b>' . htmlspecialchars($emptyMsg, ENT_QUOTES) . '</b></td></tr>';
 		} else {
 			$i = 0;
 			foreach ($displayRules as $r) {
-				if (!is_array($r) || !isset($r['number'])) {
+				if (!is_array($r)) {
 					continue;
 				}
 				$rowN = $this->normalizeRuleRow($r);
 				$i++;
 				$count = ($i % 2 === 0) ? 1 : 0;
-				$n = (string) $rowN['number'];
+				$isSusp = !empty($rowN['suspended']);
+				$selId = (string) $rowN['id'];
 				$canDel = true;
-				try {
-					$canDel = KloxoUfw::canDeleteRule($rules, (int) $n);
-				} catch (Throwable $e) {
-					$canDel = true;
+				if (!$isSusp) {
+					try {
+						$nums = isset($r['numbers']) && is_array($r['numbers'])
+							? $r['numbers'] : array((int) $rowN['number']);
+						$canDel = KloxoUfw::canDeleteNumbers($rawRules, $nums);
+					} catch (Throwable $e) {
+						$canDel = true;
+					}
 				}
-				$editUrl = $this->editRuleUrl((int) $n);
+				$editUrl = $isSusp ? '' : $this->editRuleUrl((int) $rowN['number']);
+				$numLabel = $isSusp ? '—' : (string) $rowN['number'];
+				$actHtml = '';
+				if ($isSusp) {
+					$actHtml .= '<span style="color:#c00;font-weight:bold;margin-right:4px" title="Suspended">&#9679;</span>';
+				}
+				$actHtml .= htmlspecialchars($rowN['action_label'], ENT_QUOTES);
+
 				echo '<tr height="22" class="tablerow' . $count . '">';
-				echo '<td class="col">' . htmlspecialchars($n, ENT_QUOTES) . '</td>';
-				echo '<td class="col">' . htmlspecialchars($rowN['action_label'], ENT_QUOTES) . '</td>';
+				echo '<td class="col" align="center"><input type="checkbox" class="ufw-row-check" value="'
+					. htmlspecialchars($selId, ENT_QUOTES) . '"'
+					. ($canDel || $isSusp ? '' : ' disabled title="Protected panel port"') . '></td>';
+				echo '<td class="col">' . htmlspecialchars($numLabel, ENT_QUOTES) . '</td>';
+				echo '<td class="col">' . $actHtml . '</td>';
 				echo '<td class="col">' . htmlspecialchars($rowN['proto'], ENT_QUOTES) . '</td>';
-				echo '<td class="col">' . htmlspecialchars($rowN['port'], ENT_QUOTES) . '</td>';
-				echo '<td class="col">' . htmlspecialchars($rowN['family'], ENT_QUOTES) . '</td>';
+				echo '<td class="col">' . htmlspecialchars($rowN['port'] !== '' ? $rowN['port'] : '—', ENT_QUOTES) . '</td>';
 				echo '<td class="col">' . htmlspecialchars($rowN['from_label'], ENT_QUOTES) . '</td>';
+				echo '<td class="col">' . htmlspecialchars($rowN['comment'], ENT_QUOTES) . '</td>';
 				echo '<td class="col" align="center" style="white-space:nowrap">';
-				echo '<a href="' . htmlspecialchars($editUrl, ENT_QUOTES) . '" title="Edit rule on a new page">'
-					. '<img src="' . htmlspecialchars($editIcon, ENT_QUOTES)
-					. '" alt="Edit" width="16" height="16" border="0" style="vertical-align:middle"></a>';
+
+				if (!$isSusp && $editUrl !== '') {
+					echo '<a href="' . htmlspecialchars($editUrl, ENT_QUOTES) . '" title="Edit">'
+						. '<img src="' . htmlspecialchars($editIcon, ENT_QUOTES)
+						. '" alt="Edit" width="16" height="16" border="0" style="vertical-align:middle"></a>';
+				} else {
+					echo '<img src="' . htmlspecialchars($editIcon, ENT_QUOTES)
+						. '" alt="Edit" width="16" height="16" border="0"'
+						. ' style="opacity:0.25;vertical-align:middle" title="Unsuspend before edit">';
+				}
 				echo '&nbsp;';
-				if ($canDel) {
-					$this->printFormOpen('deleterule');
-					echo '<input type="hidden" name="frm_ufwfirewall_c_ufw_rule" value="'
-						. htmlspecialchars($n, ENT_QUOTES) . '">';
-					echo '<button type="submit" title="Delete"'
-						. ' style="border:0;background:transparent;cursor:pointer;padding:0;margin:0;vertical-align:middle"'
-						. ' onclick="return confirm(' . htmlspecialchars(
-							json_encode('Delete rule #' . $n . '?'),
-							ENT_QUOTES
-						) . ')">'
-						. '<img src="' . htmlspecialchars($delIcon, ENT_QUOTES)
-						. '" alt="Delete" width="16" height="16" border="0"></button>';
-					echo '</form>';
+
+				if ($isSusp) {
+					$this->printInlineAction('unsuspendrule', $selId, $unsuspendIcon, 'Unsuspend',
+						'Unsuspend this rule?');
+				} elseif ($canDel) {
+					$this->printInlineAction('suspendrule', (string) $rowN['number'], $suspendIcon, 'Suspend',
+						'Suspend rule #' . $rowN['number'] . '?');
+				} else {
+					echo '<img src="' . htmlspecialchars($suspendIcon, ENT_QUOTES)
+						. '" alt="Protected" width="16" height="16" border="0"'
+						. ' style="opacity:0.35;vertical-align:middle"'
+						. ' title="Last allow for panel port 7777/7778">';
+				}
+				echo '&nbsp;';
+
+				if ($canDel || $isSusp) {
+					$this->printInlineAction(
+						'deleterule',
+						$isSusp ? $selId : (string) $rowN['number'],
+						$delIcon,
+						'Delete',
+						$isSusp ? 'Delete suspended rule?' : ('Delete rule #' . $rowN['number'] . '?')
+					);
 				} else {
 					echo '<img src="' . htmlspecialchars($delIcon, ENT_QUOTES)
 						. '" alt="Protected" width="16" height="16" border="0"'
@@ -432,6 +430,49 @@ class ufwfirewall extends lxclass
 		echo '</table>';
 
 		echo '</div>';
+	}
+
+	/**
+	 * Tiny POST form for a single-row action icon (nested forms are invalid HTML,
+	 * so these sit as sibling forms using absolute positioning via display:inline).
+	 */
+	function printInlineAction($subaction, $ruleId, $iconSrc, $title, $confirm)
+	{
+		$token = function_exists('getCSRFToken') ? getCSRFToken() : '';
+		echo '<form method="post" action="/display.php" accept-charset="utf-8"'
+			. ' style="display:inline;margin:0;padding:0">';
+		echo '<input type="hidden" name="frm_token" value="' . htmlspecialchars((string) $token, ENT_QUOTES) . '">';
+		echo '<input type="hidden" name="frm_action" value="update">';
+		echo '<input type="hidden" name="frm_subaction" value="'
+			. htmlspecialchars((string) $subaction, ENT_QUOTES) . '">';
+		$this->printObjectPathInputs();
+		echo '<input type="hidden" name="frm_ufwfirewall_c_ufw_rule" value="'
+			. htmlspecialchars((string) $ruleId, ENT_QUOTES) . '">';
+		echo '<button type="submit" title="' . htmlspecialchars((string) $title, ENT_QUOTES) . '"'
+			. ' style="border:0;background:transparent;cursor:pointer;padding:0;margin:0;vertical-align:middle"'
+			. ' onclick="return confirm(' . htmlspecialchars(json_encode((string) $confirm), ENT_QUOTES) . ')">'
+			. '<img src="' . htmlspecialchars((string) $iconSrc, ENT_QUOTES)
+			. '" alt="' . htmlspecialchars((string) $title, ENT_QUOTES)
+			. '" width="16" height="16" border="0"></button>';
+		echo '</form>';
+	}
+
+	function printObjectPathInputs()
+	{
+		global $ghtml;
+
+		if (is_object($ghtml) && isset($ghtml->__http_vars['frm_o_o'])
+			&& is_array($ghtml->__http_vars['frm_o_o'])
+			&& method_exists($ghtml, 'print_input_vars')) {
+			$ghtml->print_input_vars(array('frm_o_o' => $ghtml->__http_vars['frm_o_o']));
+
+			return;
+		}
+		$host = $this->syncServerName();
+		echo '<input type="hidden" name="frm_o_o[0][class]" value="pserver">';
+		echo '<input type="hidden" name="frm_o_o[0][nname]" value="'
+			. htmlspecialchars($host, ENT_QUOTES) . '">';
+		echo '<input type="hidden" name="frm_o_o[1][class]" value="ufwfirewall">';
 	}
 
 	function ufwSkinColor()
@@ -485,18 +526,27 @@ class ufwfirewall extends lxclass
 	}
 
 	/**
-	 * @param array{number?:int,to?:string,action?:string,from?:string,ipv6?:bool} $r
-	 * @return array{number:int,action_label:string,proto:string,port:string,family:string,from:string,from_label:string}
+	 * @param array $r
+	 * @return array{number:int,id:string,action_label:string,proto:string,port:string,from:string,from_label:string,comment:string,suspended:bool}
 	 */
 	function normalizeRuleRow($r)
 	{
+		$suspended = !empty($r['suspended']);
 		$to = isset($r['to']) ? (string) $r['to'] : '';
 		$actRaw = isset($r['action']) ? (string) $r['action'] : '';
 		$from = isset($r['from']) ? (string) $r['from'] : '';
-		$ipv6 = !empty($r['ipv6']);
+		$comment = isset($r['comment']) ? (string) $r['comment'] : '';
 		$parsed = KloxoUfw::parseRuleTo($to);
-		$port = $parsed['port'] !== '' ? $parsed['port'] : $to;
+		$port = $parsed['port'];
 		$proto = $parsed['proto'] !== '' ? strtoupper($parsed['proto']) : 'any';
+		if ($suspended) {
+			if (isset($r['proto']) && is_string($r['proto']) && $r['proto'] !== '') {
+				$proto = strtoupper((string) $r['proto']);
+			}
+			if (isset($r['port'])) {
+				$port = (string) $r['port'];
+			}
+		}
 		$actUp = strtoupper($actRaw);
 		$actLabel = 'ALLOW';
 		if (str_contains($actUp, 'REJECT')) {
@@ -508,24 +558,29 @@ class ufwfirewall extends lxclass
 		} elseif (!str_contains($actUp, 'ALLOW')) {
 			$actLabel = $actUp !== '' ? $actUp : '—';
 		}
+		$id = isset($r['id']) && is_string($r['id']) && $r['id'] !== ''
+			? $r['id']
+			: ('n:' . (isset($r['number']) ? (string) (int) $r['number'] : '0'));
 
 		return array(
 			'number' => isset($r['number']) ? (int) $r['number'] : 0,
+			'id' => $id,
 			'action_label' => $actLabel,
 			'proto' => $proto,
 			'port' => $port,
-			'family' => $ipv6 ? 'IPv6' : 'IPv4',
 			'from' => $from,
-			'from_label' => $from !== '' ? $from : 'Anywhere',
+			'from_label' => ($from !== '' && strcasecmp($from, 'Anywhere') !== 0) ? $from : 'Anywhere',
+			'comment' => $comment,
+			'suspended' => $suspended,
 		);
 	}
 
 	/**
-	 * @return array{q:string,number:string,action:string,proto:string,port:string,family:string,from:string}
+	 * @return array{q:string,number:string,action:string,proto:string,port:string,from:string,comment:string}
 	 */
 	function ruleFilterFromRequest()
 	{
-		$keys = array('q', 'number', 'action', 'proto', 'port', 'family', 'from');
+		$keys = array('q', 'number', 'action', 'proto', 'port', 'from', 'comment');
 		$out = array();
 		$src = array();
 		if (isset($_GET['frm_ufw_filter']) && is_array($_GET['frm_ufw_filter'])) {
@@ -540,9 +595,6 @@ class ufwfirewall extends lxclass
 		return $out;
 	}
 
-	/**
-	 * @param array{q?:string,number?:string,action?:string,proto?:string,port?:string,family?:string,from?:string} $filter
-	 */
 	function ruleFilterIsActive($filter)
 	{
 		foreach ($filter as $v) {
@@ -554,12 +606,9 @@ class ufwfirewall extends lxclass
 		return false;
 	}
 
-	/**
-	 * @param array{q?:string,number?:string,action?:string,proto?:string,port?:string,family?:string,from?:string} $filter
-	 */
 	function ruleFilterHasColumnFields($filter)
 	{
-		foreach (array('number', 'action', 'proto', 'port', 'family', 'from') as $k) {
+		foreach (array('number', 'action', 'proto', 'port', 'from', 'comment') as $k) {
 			if (isset($filter[$k]) && is_string($filter[$k]) && $filter[$k] !== '') {
 				return true;
 			}
@@ -569,9 +618,9 @@ class ufwfirewall extends lxclass
 	}
 
 	/**
-	 * @param list<array{number:int,to:string,action:string,from:string,ipv6?:bool}> $rules
-	 * @param array{q?:string,number?:string,action?:string,proto?:string,port?:string,family?:string,from?:string} $filter
-	 * @return list<array{number:int,to:string,action:string,from:string,ipv6?:bool}>
+	 * @param list<array> $rules
+	 * @param array $filter
+	 * @return list<array>
 	 */
 	function filterRules($rules, $filter)
 	{
@@ -581,7 +630,7 @@ class ufwfirewall extends lxclass
 		$q = isset($filter['q']) ? (string) $filter['q'] : '';
 		$out = array();
 		foreach ($rules as $r) {
-			if (!is_array($r) || !isset($r['number'])) {
+			if (!is_array($r)) {
 				continue;
 			}
 			$row = $this->normalizeRuleRow($r);
@@ -591,8 +640,9 @@ class ufwfirewall extends lxclass
 					$row['action_label'],
 					$row['proto'],
 					$row['port'],
-					$row['family'],
 					$row['from_label'],
+					$row['comment'],
+					!empty($row['suspended']) ? 'suspended' : '',
 				));
 				if (stripos($hay, $q) === false) {
 					continue;
@@ -614,12 +664,12 @@ class ufwfirewall extends lxclass
 				&& stripos($row['port'], (string) $filter['port']) === false) {
 				continue;
 			}
-			if (isset($filter['family']) && $filter['family'] !== ''
-				&& strcasecmp($row['family'], (string) $filter['family']) !== 0) {
-				continue;
-			}
 			if (isset($filter['from']) && $filter['from'] !== ''
 				&& stripos($row['from_label'], (string) $filter['from']) === false) {
+				continue;
+			}
+			if (isset($filter['comment']) && $filter['comment'] !== ''
+				&& stripos($row['comment'], (string) $filter['comment']) === false) {
 				continue;
 			}
 			$out[] = $r;
@@ -665,6 +715,27 @@ class ufwfirewall extends lxclass
 			. '&frm_o_o[1][class]=ufwfirewall';
 	}
 
+	function addRuleUrl()
+	{
+		global $ghtml;
+
+		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+			try {
+				$url = $ghtml->getFullUrl('a=updateform&sa=addrule');
+				if (is_string($url) && $url !== '') {
+					return $url;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+		$host = $this->syncServerName();
+
+		return '/display.php?frm_action=updateform&frm_subaction=addrule'
+			. '&frm_o_o[0][class]=pserver'
+			. '&frm_o_o[0][nname]=' . rawurlencode($host)
+			. '&frm_o_o[1][class]=ufwfirewall';
+	}
+
 	function editRuleUrl($number)
 	{
 		global $ghtml;
@@ -690,37 +761,12 @@ class ufwfirewall extends lxclass
 
 	function printShowHiddenGets()
 	{
-		global $ghtml;
-
 		echo '<input type="hidden" name="frm_action" value="show">';
-		if (is_object($ghtml) && isset($ghtml->__http_vars['frm_o_o'])
-			&& is_array($ghtml->__http_vars['frm_o_o'])
-			&& method_exists($ghtml, 'print_input_vars')) {
-			$ghtml->print_input_vars(array('frm_o_o' => $ghtml->__http_vars['frm_o_o']));
-
-			return;
-		}
-		$host = $this->syncServerName();
-		echo '<input type="hidden" name="frm_o_o[0][class]" value="pserver">';
-		echo '<input type="hidden" name="frm_o_o[0][nname]" value="'
-			. htmlspecialchars($host, ENT_QUOTES) . '">';
-		echo '<input type="hidden" name="frm_o_o[1][class]" value="ufwfirewall">';
-	}
-
-	function printActionForm($subaction, $label, $confirm)
-	{
-		$this->printFormOpen($subaction);
-		echo '<input type="hidden" name="frm_ufwfirewall_c_ufw_confirm" value="on">';
-		echo '<input type="submit" class="submitbutton" value="&nbsp;&nbsp;'
-			. htmlspecialchars((string) $label, ENT_QUOTES) . '&nbsp;&nbsp;"'
-			. ' onclick="return confirm(' . htmlspecialchars(json_encode($confirm), ENT_QUOTES) . ')">';
-		echo '</form>';
+		$this->printObjectPathInputs();
 	}
 
 	function printFormOpen($subaction, $inline = true)
 	{
-		global $ghtml;
-
 		$token = function_exists('getCSRFToken') ? getCSRFToken() : '';
 		$style = $inline ? 'display:inline;margin:0' : 'display:block;margin:0';
 		echo '<form method="post" action="/display.php" accept-charset="utf-8" style="' . $style . '">';
@@ -728,28 +774,19 @@ class ufwfirewall extends lxclass
 		echo '<input type="hidden" name="frm_action" value="update">';
 		echo '<input type="hidden" name="frm_subaction" value="'
 			. htmlspecialchars((string) $subaction, ENT_QUOTES) . '">';
-		if (is_object($ghtml) && isset($ghtml->__http_vars['frm_o_o'])
-			&& is_array($ghtml->__http_vars['frm_o_o'])
-			&& method_exists($ghtml, 'print_input_vars')) {
-			$ghtml->print_input_vars(array('frm_o_o' => $ghtml->__http_vars['frm_o_o']));
-		} else {
-			$host = $this->syncServerName();
-			echo '<input type="hidden" name="frm_o_o[0][class]" value="pserver">';
-			echo '<input type="hidden" name="frm_o_o[0][nname]" value="'
-				. htmlspecialchars($host, ENT_QUOTES) . '">';
-			echo '<input type="hidden" name="frm_o_o[1][class]" value="ufwfirewall">';
-		}
+		$this->printObjectPathInputs();
 	}
 
 	function updateform($subaction, $param)
 	{
-		// Kept for direct updateform URLs / tests; primary UI is showRawPrint.
 		try {
 			$this->assertAdmin();
 		} catch (Throwable $e) {
 		}
 
 		$policies = array('allow' => 'allow', 'deny' => 'deny', 'reject' => 'reject');
+		$actions = array('allow' => 'ALLOW', 'deny' => 'DENY', 'reject' => 'REJECT');
+		$protos = array('tcp' => 'TCP', 'udp' => 'UDP', 'icmp' => 'ICMP');
 		$vlist = array();
 		switch ($subaction) {
 			case 'ufwenable':
@@ -786,12 +823,16 @@ class ufwfirewall extends lxclass
 				$vlist['__v_button'] = 'Update Defaults';
 				return $vlist;
 			case 'addrule':
-				$vlist['ufw_action'] = array('s', array(
-					'allow' => 'ALLOW', 'deny' => 'DENY', 'reject' => 'REJECT',
-				));
-				$vlist['ufw_proto'] = array('s', array('tcp' => 'TCP', 'udp' => 'UDP'));
+				$this->ufw_action = 'allow';
+				$this->ufw_proto = 'tcp';
+				$this->ufw_port = '';
+				$this->ufw_from = '';
+				$this->ufw_comment = '';
+				$vlist['ufw_action'] = array('s', $actions);
+				$vlist['ufw_proto'] = array('s', $protos);
 				$vlist['ufw_port'] = null;
 				$vlist['ufw_from'] = null;
+				$vlist['ufw_comment'] = null;
 				$vlist['__v_button'] = 'Add Rule';
 				return $vlist;
 			case 'editrule':
@@ -807,22 +848,21 @@ class ufwfirewall extends lxclass
 				$preProto = 'tcp';
 				$prePort = '';
 				$preFrom = '';
+				$preComment = '';
 				if ($ruleNo > 0) {
 					try {
 						$stEdit = $this->ufwStatus();
 						$rulesEdit = (isset($stEdit['rules']) && is_array($stEdit['rules']))
 							? $stEdit['rules'] : array();
-						foreach ($rulesEdit as $rr) {
-							if (!is_array($rr) || !isset($rr['number']) || (int) $rr['number'] !== $ruleNo) {
-								continue;
-							}
-							$rowE = $this->normalizeRuleRow($rr);
+						$logical = KloxoUfw::findLogicalRule($rulesEdit, $ruleNo);
+						if (is_array($logical)) {
+							$rowE = $this->normalizeRuleRow($logical);
 							$preAction = strtolower((string) $rowE['action_label']);
 							if (!in_array($preAction, array('allow', 'deny', 'reject'), true)) {
 								$preAction = 'allow';
 							}
 							$preProto = strtolower((string) $rowE['proto']);
-							if ($preProto !== 'udp') {
+							if (!in_array($preProto, array('tcp', 'udp', 'icmp'), true)) {
 								$preProto = 'tcp';
 							}
 							$prePort = (string) $rowE['port'];
@@ -830,7 +870,7 @@ class ufwfirewall extends lxclass
 							if (strcasecmp($preFrom, 'Anywhere') === 0) {
 								$preFrom = '';
 							}
-							break;
+							$preComment = (string) $rowE['comment'];
 						}
 					} catch (Throwable $e) {
 					}
@@ -840,14 +880,13 @@ class ufwfirewall extends lxclass
 				$this->ufw_proto = $preProto;
 				$this->ufw_port = $prePort;
 				$this->ufw_from = $preFrom;
-				// Keep rule number in the posted form (separate page from the list).
+				$this->ufw_comment = $preComment;
 				$vlist['ufw_rule'] = null;
-				$vlist['ufw_action'] = array('s', array(
-					'allow' => 'ALLOW', 'deny' => 'DENY', 'reject' => 'REJECT',
-				));
-				$vlist['ufw_proto'] = array('s', array('tcp' => 'TCP', 'udp' => 'UDP'));
+				$vlist['ufw_action'] = array('s', $actions);
+				$vlist['ufw_proto'] = array('s', $protos);
 				$vlist['ufw_port'] = null;
 				$vlist['ufw_from'] = null;
+				$vlist['ufw_comment'] = null;
 				$vlist['__v_button'] = 'Update Rule';
 				return $vlist;
 			case 'deleterule':
@@ -941,12 +980,17 @@ class ufwfirewall extends lxclass
 		$proto = isset($p['ufw_proto']) ? (string) $p['ufw_proto'] : 'tcp';
 		$portField = isset($p['ufw_port']) ? (string) $p['ufw_port'] : '';
 		$from = isset($p['ufw_from']) ? (string) $p['ufw_from'] : '';
+		$comment = isset($p['ufw_comment']) ? (string) $p['ufw_comment'] : '';
 		try {
-			$ports = KloxoUfw::splitPorts($portField);
-			$last = null;
-			foreach ($ports as $port) {
-				$last = $this->execUfw('addRule', array($action, $proto, $port, $from));
-				$this->throwIfFailed($last, 'could_not_add_ufw_rule');
+			if (strtolower($proto) === 'icmp') {
+				$ret = $this->execUfw('addRule', array($action, 'icmp', '', $from, $comment));
+				$this->throwIfFailed($ret, 'could_not_add_ufw_rule');
+			} else {
+				$ports = KloxoUfw::splitPorts($portField);
+				foreach ($ports as $port) {
+					$last = $this->execUfw('addRule', array($action, $proto, $port, $from, $comment));
+					$this->throwIfFailed($last, 'could_not_add_ufw_rule');
+				}
 			}
 		} catch (InvalidArgumentException $e) {
 			$this->throwUfw($e->getMessage(), $portField);
@@ -968,10 +1012,14 @@ class ufwfirewall extends lxclass
 		$proto = isset($p['ufw_proto']) ? (string) $p['ufw_proto'] : 'tcp';
 		$portField = isset($p['ufw_port']) ? (string) $p['ufw_port'] : '';
 		$from = isset($p['ufw_from']) ? (string) $p['ufw_from'] : '';
+		$comment = isset($p['ufw_comment']) ? (string) $p['ufw_comment'] : '';
 		try {
-			// Edit replaces one numbered rule — a single port/range only.
-			$port = KloxoUfw::validatePort($portField);
-			$ret = $this->execUfw('editRule', array($number, $action, $proto, $port, $from));
+			if (strtolower($proto) === 'icmp') {
+				$port = '';
+			} else {
+				$port = KloxoUfw::validatePort($portField);
+			}
+			$ret = $this->execUfw('editRule', array($number, $action, $proto, $port, $from, $comment));
 			$this->throwIfFailed($ret, 'could_not_edit_ufw_rule');
 		} catch (InvalidArgumentException $e) {
 			$this->throwUfw($e->getMessage(), $portField !== '' ? $portField : $number);
@@ -986,12 +1034,109 @@ class ufwfirewall extends lxclass
 		$this->assertAdmin();
 		$p = is_array($param) ? $param : array();
 		$number = isset($p['ufw_rule']) ? (string) $p['ufw_rule'] : '';
+		if ($number === '' && isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
+			$number = (string) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
+		}
 		try {
-			$ret = $this->execUfw('deleteRule', array($number));
+			if (str_starts_with($number, 's:')) {
+				$ret = $this->execUfw('deleteSuspended', array($number));
+			} else {
+				$ret = $this->execUfw('deleteRule', array($number));
+			}
 		} catch (InvalidArgumentException $e) {
 			$this->throwUfw($e->getMessage(), $number);
 		}
 		$this->throwIfFailed($ret, 'could_not_delete_ufw_rule');
+		$this->redirectToShow();
+
+		return null;
+	}
+
+	function updateDeleterules($param)
+	{
+		$this->assertAdmin();
+		$ids = array();
+		if (isset($_REQUEST['frm_ufwfirewall_c_ufw_rules']) && is_array($_REQUEST['frm_ufwfirewall_c_ufw_rules'])) {
+			$ids = $_REQUEST['frm_ufwfirewall_c_ufw_rules'];
+		} elseif (is_array($param) && isset($param['ufw_rules']) && is_array($param['ufw_rules'])) {
+			$ids = $param['ufw_rules'];
+		}
+		$liveNums = array();
+		$suspIds = array();
+		foreach ($ids as $id) {
+			if (!is_scalar($id)) {
+				continue;
+			}
+			$id = trim((string) $id);
+			if ($id === '') {
+				continue;
+			}
+			if (str_starts_with($id, 's:')) {
+				$suspIds[] = $id;
+			} elseif (str_starts_with($id, 'n:')) {
+				$parts = explode(',', substr($id, 2));
+				foreach ($parts as $p) {
+					if (preg_match('/^\d+$/', trim($p)) === 1) {
+						$liveNums[] = (int) trim($p);
+					}
+				}
+			} elseif (preg_match('/^\d+$/', $id) === 1) {
+				$liveNums[] = (int) $id;
+			}
+		}
+		try {
+			if ($liveNums !== array()) {
+				$ret = $this->execUfw('deleteRules', array($liveNums));
+				$this->throwIfFailed($ret, 'could_not_delete_ufw_rule');
+			}
+			foreach ($suspIds as $sid) {
+				$ret = $this->execUfw('deleteSuspended', array($sid));
+				$this->throwIfFailed($ret, 'could_not_delete_ufw_rule');
+			}
+		} catch (InvalidArgumentException $e) {
+			$this->throwUfw($e->getMessage());
+		}
+		if ($liveNums === array() && $suspIds === array()) {
+			$this->throwUfw('invalid_ufw_rule');
+		}
+		$this->redirectToShow();
+
+		return null;
+	}
+
+	function updateSuspendrule($param)
+	{
+		$this->assertAdmin();
+		$p = is_array($param) ? $param : array();
+		$number = isset($p['ufw_rule']) ? (string) $p['ufw_rule'] : '';
+		if ($number === '' && isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
+			$number = (string) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
+		}
+		try {
+			$ret = $this->execUfw('suspendRule', array($number));
+		} catch (InvalidArgumentException $e) {
+			$this->throwUfw($e->getMessage(), $number);
+		}
+		$this->throwIfFailed($ret, 'could_not_suspend_ufw_rule');
+		$this->redirectToShow();
+
+		return null;
+	}
+
+	function updateUnsuspendrule($param)
+	{
+		$this->assertAdmin();
+		$p = is_array($param) ? $param : array();
+		$id = isset($p['ufw_rule']) ? (string) $p['ufw_rule'] : '';
+		if ($id === '' && isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
+			$id = (string) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
+		}
+		try {
+			$ret = $this->execUfw('unsuspendRule', array($id));
+		} catch (InvalidArgumentException $e) {
+			$this->throwUfw($e->getMessage(), $id);
+		}
+		$this->throwIfFailed($ret, 'could_not_unsuspend_ufw_rule');
 		$this->redirectToShow();
 
 		return null;
@@ -1054,7 +1199,7 @@ class ufwfirewall extends lxclass
 		if (!isset($st['rules']) || !is_array($st['rules'])) {
 			return $out;
 		}
-		foreach ($st['rules'] as $r) {
+		foreach (KloxoUfw::collapseDualStack($st['rules']) as $r) {
 			if (!is_array($r) || !isset($r['number'])) {
 				continue;
 			}
@@ -1062,8 +1207,8 @@ class ufwfirewall extends lxclass
 			$to = isset($r['to']) ? (string) $r['to'] : '';
 			$act = isset($r['action']) ? (string) $r['action'] : '';
 			$from = isset($r['from']) ? (string) $r['from'] : '';
-			$fam = !empty($r['ipv6']) ? 'IPv6' : 'IPv4';
-			$out[$n] = trim($n . ' ' . $to . ' ' . $act . ' ' . $from . ' ' . $fam);
+			$c = isset($r['comment']) ? (string) $r['comment'] : '';
+			$out[$n] = trim($n . ' ' . $to . ' ' . $act . ' ' . $from . ($c !== '' ? ' # ' . $c : ''));
 		}
 
 		return $out;
@@ -1075,7 +1220,6 @@ class ufwfirewall extends lxclass
 		$args = is_array($args) ? $args : array();
 		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
 		$panel = function_exists('php_sapi_name') ? php_sapi_name() : 'cli';
-		// Panel FPM runs as lxlabs; ufw needs root via kloxo-backend.
 		$useBackend = $euid !== 0 && $panel !== 'cli' && function_exists('rl_exec_get');
 		if ($useBackend) {
 			try {
