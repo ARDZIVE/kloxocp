@@ -35,8 +35,8 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
 ```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y ca-certificates curl
+apt-get -o DPkg::Lock::Timeout=600 update
+apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
 bash /tmp/kloxocp-install.sh'
 ```
@@ -44,20 +44,27 @@ bash /tmp/kloxocp-install.sh'
 One line (same steps):
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 Low-RAM / small-disk VPS (add `--force`):
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
 Panel-only host (skip Exim/Dovecot/Rspamd packages):
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=core'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=core'
 ```
+
+On a brand-new server `unattended-upgrades` often holds the dpkg lock for the
+first minutes (`Could not get lock /var/lib/dpkg/lock-frontend`). The
+one-liner waits for it (`-o DPkg::Lock::Timeout=600`), and `install.sh` waits
+up to 15 minutes (`KLOXO_APT_WAIT=<seconds>` to change) before it gives up; it
+never kills the other apt process. The lock is not a Kloxo CP error, so just
+let it finish or re-run the command.
 
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
@@ -159,8 +166,8 @@ the Change Password modal is required (Esc/Close cannot skip it).
 
 ```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y ca-certificates curl
+apt-get -o DPkg::Lock::Timeout=600 update
+apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
 bash /tmp/kloxocp-install.sh'
 ```
@@ -168,7 +175,7 @@ bash /tmp/kloxocp-install.sh'
 One-line form:
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 Downloads the current `install.sh` from GitHub `main`
@@ -186,7 +193,7 @@ A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
@@ -316,7 +323,7 @@ changes first. Then, on the server, run the same command again (it replaces
 `init-panel-db` and restarts the panel services):
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 A re-run on an existing panel **keeps the current admin password** (the

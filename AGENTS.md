@@ -217,6 +217,11 @@ phpMyAdmin admin SSO reads the panel session JSON in `<root>/session/<id>`
 MySQL logon form on a live server); live SSO after deploy is UNVERIFIED.
 `install.sh` re-runs keep an existing admin password
 (`init-panel-db --keep-admin-password`) unless `KLOXO_ADMIN_PASSWORD` is set.
+`install.sh` waits for the dpkg/apt lock (fresh servers run
+unattended-upgrades) via a temporary `apt.conf.d/99kloxo-install`
+(`DPkg::Lock::Timeout`) plus `wait_for_apt_locks`; the one-liner uses
+`-o DPkg::Lock::Timeout=600`. Tested only for syntax and the wait helper on a
+non-Ubuntu host; a live run on Ubuntu 26.04 is UNVERIFIED.
 Next: remaining P2 runtime, Debian packaging, or P4 exim UI. See briefing
 section 7.
 

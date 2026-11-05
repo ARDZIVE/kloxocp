@@ -3,12 +3,12 @@
 #
 # Install (downloads this script from GitHub main, then clones or fetches origin/main):
 #   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
-#   apt-get update
-#   apt-get install -y ca-certificates curl
+#   apt-get -o DPkg::Lock::Timeout=600 update
+#   apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
 #   bash /tmp/kloxocp-install.sh'
 # One line:
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 #
 # Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
 # (apt would steal stdin); wget/curl to a file, then bash it.
@@ -81,14 +81,14 @@ Install on Ubuntu 24.04 or 26.x (root). Downloads this script from GitHub main,
 then clones or fetches origin/main:
 
   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
-  apt-get update
-  apt-get install -y ca-certificates curl
+  apt-get -o DPkg::Lock::Timeout=600 update
+  apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
   bash /tmp/kloxocp-install.sh'
 
 One line:
 
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 
 Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
 This tree is NOT production-safe. Version ${KCP_VERSION}.
@@ -275,6 +275,44 @@ fi
 log "Kloxo CP ${KCP_VERSION} install starting $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 log "host=$(hostname -f 2>/dev/null || hostname) os=${os_pretty} profile=${PROFILE}"
 
+# A fresh Ubuntu server usually runs unattended-upgrades (or cloud-init apt) for
+# the first minutes and holds the dpkg lock. Wait for it instead of aborting:
+# apt gets a lock timeout for every apt/dpkg call (including the helper
+# scripts), and we also poll the lock files before our own first apt call.
+KLOXO_APT_CONF=/etc/apt/apt.conf.d/99kloxo-install
+KLOXO_APT_WAIT="${KLOXO_APT_WAIT:-900}"
+write_apt_conf() {
+  printf '%s\n' \
+    "// Temporary Kloxo CP install settings (removed when install.sh exits)" \
+    "DPkg::Lock::Timeout \"${KLOXO_APT_WAIT}\";" \
+    "Acquire::Retries \"3\";" > "$KLOXO_APT_CONF" || true
+}
+wait_for_apt_locks() {
+  local waited=0 locks held
+  locks=(/var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock)
+  command -v fuser >/dev/null 2>&1 || return 0
+  while :; do
+    held=0
+    for f in "${locks[@]}"; do
+      if [[ -e "$f" ]] && fuser "$f" >/dev/null 2>&1; then
+        held=1
+        break
+      fi
+    done
+    [[ "$held" -eq 0 ]] && return 0
+    if [[ "$waited" -ge "$KLOXO_APT_WAIT" ]]; then
+      die "apt/dpkg is still locked after ${KLOXO_APT_WAIT}s (another updater is running); try again later"
+    fi
+    if [[ $((waited % 30)) -eq 0 ]]; then
+      log "waiting for another apt/dpkg process to finish (unattended-upgrades?) ... ${waited}s"
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+}
+write_apt_conf
+wait_for_apt_locks
+
 # apt postinst starts packaged daemons. pdns would fail (no gmysql yet, and
 # BIND owns port 53) and apache2 would race Nginx on 80/443. policy-rc.d 101
 # skips those starts without failing the package; a runtime mask covers
@@ -310,6 +348,7 @@ EOF
     || true
 }
 release_standby_units() {
+  rm -f "$KLOXO_APT_CONF"
   systemctl unmask --runtime pdns.service apache2.service >/dev/null 2>&1 || true
   systemctl unmask pdns.service apache2.service >/dev/null 2>&1 || true
   systemctl reset-failed pdns apache2 >/dev/null 2>&1 || true
@@ -348,6 +387,7 @@ ensure_ubuntu_universe() {
 }
 ensure_ubuntu_universe
 
+wait_for_apt_locks
 apt-get update -y
 # Core: panel + sites + DNS + FTP + Redis (Rspamd Bayes backend). Mail spam is
 # Rspamd (full profile), not bogofilter/spamassassin. Panel DB is MariaDB (the
@@ -362,6 +402,7 @@ if [[ "$WITH_MAIL" -eq 1 ]]; then
   # Exim and Postfix both Provide/Conflict mail-transport-agent — never
   # apt-install them in one transaction. Default MTA is Exim; Switch Program
   # smtp=postfix removes Exim and installs Postfix.
+  wait_for_apt_locks
   echo "exim4-config exim4/dc_eximconfigconfigtype select none" | debconf-set-selections
   echo "exim4-config exim4/dc_use_split_config boolean false" | debconf-set-selections
   # Stop a leftover postfix unit before Exim lands (apt may remove the package).
