@@ -19,3 +19,6 @@ are comfortable with using "Kloxo CP" (and check trademark rules) before public 
 Third-party components bundled in the source tree (PEAR, HTTP_WebDAV_Server, PHPMailer,
 ExtJS, formmail, qmail/courier/maradns/nsd/webalizer config templates, etc.) keep their
 own licenses and copyright notices.
+Font Awesome Free 7.3.1 (https://fontawesome.com): the SVG icons under
+kloxo/httpdocs/theme/fontawesome/ are CC BY 4.0, Copyright Fonticons, Inc.; see
+kloxo/httpdocs/theme/fontawesome/LICENSE.txt.

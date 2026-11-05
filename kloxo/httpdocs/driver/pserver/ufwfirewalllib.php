@@ -121,6 +121,39 @@ class ufwfirewall extends lxclass
 		return $out !== array() ? $out : null;
 	}
 
+	/**
+	 * Inline Font Awesome Free solid SVG (theme/fontawesome/svgs/solid/NAME.svg).
+	 */
+	static function faIcon($name, $color = '#333', $title = '', $height = 16)
+	{
+		static $cache = array();
+
+		$name = preg_replace('/[^a-z0-9-]/', '', strtolower((string) $name));
+		if (!isset($cache[$name])) {
+			$cache[$name] = null;
+			$file = dirname(__DIR__, 2) . '/theme/fontawesome/svgs/solid/' . $name . '.svg';
+			$raw = is_file($file) ? @file_get_contents($file) : false;
+			if (is_string($raw)
+				&& preg_match('/viewBox="0 0 (\d+) (\d+)"/', $raw, $vb) === 1
+				&& preg_match('/<path[^>]*\sd="([^"]+)"/', $raw, $pd) === 1) {
+				$cache[$name] = array((int) $vb[1], (int) $vb[2], $pd[1]);
+			}
+		}
+		if ($cache[$name] === null) {
+			return '';
+		}
+		list($vw, $vh, $d) = $cache[$name];
+		$h = (int) $height;
+		$w = (int) round($h * $vw / max(1, $vh));
+		$t = htmlspecialchars((string) $title, ENT_QUOTES);
+		$c = preg_match('/^#[0-9a-fA-F]{3,6}$/', (string) $color) === 1 ? $color : '#333';
+
+		return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' . $vw . ' ' . $vh . '"'
+			. ' width="' . $w . '" height="' . $h . '" role="img" aria-label="' . $t . '"'
+			. ' style="fill:' . $c . ';vertical-align:middle"><title>' . $t . '</title>'
+			. '<path d="' . htmlspecialchars($d, ENT_QUOTES) . '"/></svg>';
+	}
+
 	/** UFW allow/deny/reject shown as ACCEPT/DROP/REJECT. */
 	static function actionDisplay($label)
 	{
@@ -188,14 +221,13 @@ class ufwfirewall extends lxclass
 		$err = isset($st['error']) ? (string) $st['error'] : '';
 		$conflictNote = (isset($st['conflict_note']) && is_string($st['conflict_note']))
 			? $st['conflict_note'] : '';
-		// Dashboard / list action glyphs (WebHostingHub if16), same set as tiles.
-		$editIconHtml = "<span class=\"if16\" title=\"Edit\" style=\"color:#333\">&#xf47c;</span>";
-		$delIconHtml = "<span class=\"if16\" title=\"Delete\" style=\"color:#333\">&#xf0d2;</span>";
-		$suspendIconHtml = "<span class=\"if16\" title=\"Suspend\" style=\"color:#c33\">&#xf572;</span>";
-		$unsuspendIconHtml = "<span class=\"if16\" title=\"Unsuspend\" style=\"color:#3c3\">&#xf571;</span>";
-		$editIconMuted = "<span class=\"if16\" title=\"Unsuspend before edit\" style=\"color:#ccc\">&#xf47c;</span>";
-		$suspendIconMuted = "<span class=\"if16\" title=\"Last allow for panel port 7777/7778\" style=\"color:#ccc\">&#xf572;</span>";
-		$delIconMuted = "<span class=\"if16\" title=\"Last allow for panel port 7777/7778\" style=\"color:#ccc\">&#xf0d2;</span>";
+		// Font Awesome Free SVG icons (theme/fontawesome, CC BY 4.0).
+		$editIconHtml = self::faIcon('pen-to-square', '#333', 'Edit');
+		$delIconHtml = self::faIcon('trash', '#333', 'Delete');
+		$suspendIconHtml = self::faIcon('pause', '#c60', 'Suspend (disable in firewall)');
+		$unsuspendIconHtml = self::faIcon('play', '#2a2', 'Unsuspend (enable in firewall)');
+		$suspendIconMuted = self::faIcon('pause', '#ccc', 'Last allow for panel port 7777/7778');
+		$delIconMuted = self::faIcon('trash', '#ccc', 'Last allow for panel port 7777/7778');
 		$filter = $this->ruleFilterFromRequest();
 		$displayRules = $this->filterRules($rules, $filter);
 		$nTotal = count($rules);
@@ -211,12 +243,11 @@ class ufwfirewall extends lxclass
 		$upper = (int) $nShown;
 		$perpageof = $lower . ' to ' . $upper . ' of ';
 		$qVal = isset($filter['q']) ? (string) $filter['q'] : '';
-		$searchIcon = '<span title="Search" class="if16">&#xf0c5;</span>';
-		$showallIcon = '<span title="' . htmlspecialchars($showAll, ENT_QUOTES)
-			. '" class="if16">&#xf480;</span>';
-		$refreshIcon = '<span title="Refresh" class="if16">&#xf021;</span>';
-		$addIcon = '<span title="Add Rule" class="if16">&#xf067;</span>';
-		$deleteTbIcon = '<span title="Delete" class="if16">&#xf00d;</span>';
+		$searchIcon = self::faIcon('magnifying-glass', '#333', 'Search');
+		$showallIcon = self::faIcon('list', '#333', $showAll);
+		$refreshIcon = self::faIcon('arrows-rotate', '#333', 'Refresh');
+		$addIcon = self::faIcon('plus', '#333', 'Add Rule');
+		$deleteTbIcon = self::faIcon('trash', '#333', 'Delete');
 		$addUrl = $this->addRuleUrl();
 		$token = function_exists('getCSRFToken') ? getCSRFToken() : '';
 
@@ -424,13 +455,9 @@ class ufwfirewall extends lxclass
 				echo '<td class="col">' . htmlspecialchars($rowN['comment'], ENT_QUOTES) . '</td>';
 				echo '<td class="col" align="center" style="white-space:nowrap;width:72px;max-width:72px;padding:2px 4px">';
 
-				if ($editUrl !== '') {
-					echo '<a href="' . htmlspecialchars($editUrl, ENT_QUOTES)
-						. '" title="Edit" style="text-decoration:none;margin:0 2px;vertical-align:middle">'
-						. $editIconHtml . '</a>';
-				} else {
-					echo '<span style="margin:0 2px;vertical-align:middle">' . $editIconMuted . '</span>';
-				}
+				echo '<a href="' . htmlspecialchars($editUrl, ENT_QUOTES)
+					. '" title="Edit" style="text-decoration:none;margin:0 2px;vertical-align:middle">'
+					. $editIconHtml . '</a>';
 
 				if ($isSusp) {
 					$this->printInlineAction('unsuspendrule', $selId, $unsuspendIconHtml, 'Unsuspend',
