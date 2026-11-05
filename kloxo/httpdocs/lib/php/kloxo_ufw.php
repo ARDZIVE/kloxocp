@@ -36,6 +36,11 @@ final class KloxoUfw
 
     public static function ufwBinary(): string
     {
+        // Tests define this constant to point at a fake ufw; never set from input.
+        if (defined('KLOXO_UFW_TEST_BIN') && is_string(KLOXO_UFW_TEST_BIN)
+            && is_executable(KLOXO_UFW_TEST_BIN)) {
+            return KLOXO_UFW_TEST_BIN;
+        }
         foreach (['/usr/sbin/ufw', '/sbin/ufw', '/usr/bin/ufw'] as $p) {
             if (is_executable($p)) {
                 return $p;
@@ -153,13 +158,14 @@ final class KloxoUfw
         if (preg_match('/^icmp$/i', $to) === 1) {
             return ['port' => '', 'proto' => 'icmp'];
         }
-        if (preg_match('/^(\d+(?::\d+)?)\/(tcp|udp|icmp)$/i', $to, $m) === 1) {
+        $pl = '\d+(?::\d+)?(?:,\d+(?::\d+)?)*';
+        if (preg_match('/^(' . $pl . ')\/(tcp|udp|icmp)$/i', $to, $m) === 1) {
             return ['port' => $m[1], 'proto' => strtolower($m[2])];
         }
-        if (preg_match('/^(tcp|udp|icmp)\/(\d+(?::\d+)?)$/i', $to, $m) === 1) {
+        if (preg_match('/^(tcp|udp|icmp)\/(' . $pl . ')$/i', $to, $m) === 1) {
             return ['port' => $m[2], 'proto' => strtolower($m[1])];
         }
-        if (preg_match('/^(\d+(?::\d+)?)$/', $to, $m) === 1) {
+        if (preg_match('/^(' . $pl . ')$/', $to, $m) === 1) {
             return ['port' => $m[1], 'proto' => ''];
         }
 
@@ -171,6 +177,23 @@ final class KloxoUfw
         $from = trim($from);
         if ($from === '' || strtolower($from) === 'any' || strcasecmp($from, 'Anywhere') === 0) {
             return '';
+        }
+        if (str_contains($from, ':')) {
+            // IPv6 address or CIDR.
+            $addr = $from;
+            $pfx = null;
+            if (str_contains($from, '/')) {
+                [$addr, $pfxRaw] = explode('/', $from, 2);
+                if (preg_match('/^\d{1,3}$/', $pfxRaw) !== 1 || (int) $pfxRaw > 128) {
+                    throw new InvalidArgumentException('invalid_ufw_from');
+                }
+                $pfx = (int) $pfxRaw;
+            }
+            if (filter_var($addr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                throw new InvalidArgumentException('invalid_ufw_from');
+            }
+
+            return $pfx === null ? strtolower($addr) : strtolower($addr) . '/' . $pfx;
         }
         if (preg_match('/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\/(\d{1,2}))?$/', $from, $m) !== 1) {
             throw new InvalidArgumentException('invalid_ufw_from');
@@ -970,21 +993,33 @@ final class KloxoUfw
             return ['ok' => false, 'out' => '', 'error' => 'ufw_not_installed'];
         }
         $n = self::validateRuleNumber($number);
-        self::addRuleArgv($action, $proto, $port, $from, $comment);
+        $action = self::validateAction($action);
+        $proto = self::validateProto($proto);
+        $fromNorm = self::validateFrom($from);
+        $comment = self::validateComment($comment);
+        // The port field may hold a list (80,443) or range (8000-8010): one rule each.
+        $ports = ($proto === 'icmp') ? [''] : self::splitPorts($port);
+        // Validate every new rule before touching the firewall.
+        foreach ($ports as $p) {
+            self::addRuleArgv($action, $proto, $p, $fromNorm, $comment);
+        }
         $st = self::status();
         $logical = self::findLogicalRule($st['rules'], $n);
         if ($logical === null) {
             throw new InvalidArgumentException('invalid_ufw_rule');
         }
         $keepsPanel = false;
-        if ($proto !== 'icmp') {
-            $portNorm = self::validatePort($port);
-            $keepsPanel = self::ruleIsAllow(['action' => self::validateAction($action)])
-                && self::portTouchesPanel($portNorm);
+        if ($proto !== 'icmp' && $action === 'allow' && $fromNorm === '') {
+            foreach ($ports as $p) {
+                if (self::portTouchesPanel($p)) {
+                    $keepsPanel = true;
+                }
+            }
         }
         if (!self::canDeleteNumbers($st['rules'], $logical['numbers']) && !$keepsPanel) {
             throw new InvalidArgumentException('cannot_delete_panel_port');
         }
+        $original = self::logicalRuleSpec($logical);
         $del = self::deleteRules($logical['numbers'], $keepsPanel);
         $out = (string) ($del['out'] ?? '');
         if (empty($del['ok'])) {
@@ -994,17 +1029,88 @@ final class KloxoUfw
                 'error' => isset($del['error']) ? (string) $del['error'] : 'ufw_editrule_failed',
             ];
         }
-        $add = self::addRule($action, $proto, $port, $from, $comment);
-        $out .= (string) ($add['out'] ?? '');
-        if (empty($add['ok'])) {
-            return [
-                'ok' => false,
-                'out' => $out,
-                'error' => isset($add['error']) ? (string) $add['error'] : 'ufw_editrule_failed',
-            ];
+        foreach ($ports as $p) {
+            $add = self::addRule($action, $proto, $p, $fromNorm, $comment);
+            $out .= (string) ($add['out'] ?? '');
+            if (empty($add['ok'])) {
+                // Put the original rule back so a failed edit never loses it.
+                $restored = false;
+                if ($original !== null) {
+                    try {
+                        $restored = true;
+                        $backPorts = $original['proto'] === 'icmp' ? [''] : self::splitPorts($original['port']);
+                        foreach ($backPorts as $bp) {
+                            $back = self::addRule(
+                                $original['action'],
+                                $original['proto'],
+                                $bp,
+                                $original['from'],
+                                $original['comment']
+                            );
+                            $out .= (string) ($back['out'] ?? '');
+                            if (empty($back['ok'])) {
+                                $restored = false;
+                            }
+                        }
+                    } catch (Throwable $e) {
+                        $restored = false;
+                    }
+                }
+
+                return [
+                    'ok' => false,
+                    'out' => $out,
+                    'error' => $restored
+                        ? (isset($add['error']) ? (string) $add['error'] : 'ufw_editrule_failed')
+                        : 'ufw_editrule_failed',
+                ];
+            }
         }
 
         return ['ok' => true, 'out' => $out];
+    }
+
+    /**
+     * Rebuild add-rule arguments from a logical (collapsed) rule so it can be
+     * re-created. Returns null when the rule cannot be represented.
+     *
+     * @param array<string,mixed> $logical
+     * @return array{action:string,proto:string,port:string,from:string,comment:string}|null
+     */
+    public static function logicalRuleSpec(array $logical): ?array
+    {
+        $parsed = self::parseRuleTo((string) ($logical['to'] ?? ''));
+        $actUp = strtoupper((string) ($logical['action'] ?? ''));
+        if (str_contains($actUp, 'REJECT')) {
+            $action = 'reject';
+        } elseif (str_contains($actUp, 'DENY')) {
+            $action = 'deny';
+        } elseif (str_contains($actUp, 'ALLOW')) {
+            $action = 'allow';
+        } else {
+            return null;
+        }
+        $proto = $parsed['proto'] !== '' ? $parsed['proto'] : 'tcp';
+        $port = $proto === 'icmp' ? '' : $parsed['port'];
+        $from = (string) ($logical['from'] ?? '');
+        if ($from === '' || strcasecmp($from, 'Anywhere') === 0 || strcasecmp($from, 'any') === 0) {
+            $from = '';
+        }
+        if ($proto !== 'icmp') {
+            try {
+                self::splitPorts($port);
+            } catch (InvalidArgumentException $e) {
+                return null;
+            }
+        }
+
+        return [
+            'action' => $action,
+            'proto' => $proto,
+            'port' => $port,
+            'from' => $from,
+            'comment' => (string) ($logical['comment'] ?? ''),
+        ];
     }
 
     /**
@@ -1168,6 +1274,69 @@ final class KloxoUfw
         }
         if (!self::writeSuspended($rows)) {
             return ['ok' => false, 'out' => '', 'error' => 'ufw_deleterule_failed'];
+        }
+
+        return ['ok' => true, 'out' => ''];
+    }
+
+    /**
+     * Edit a suspended (paused) rule in the store. It stays suspended; the
+     * live firewall is not touched until it is unsuspended.
+     *
+     * @return array{ok:bool, out:string, error?:string}
+     */
+    public static function editSuspended(
+        string $id,
+        string $action,
+        string $proto,
+        string $port = '',
+        string $from = '',
+        string $comment = ''
+    ): array {
+        $id = trim($id);
+        if ($id === '' || !str_starts_with($id, 's:')) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
+        $action = self::validateAction($action);
+        $proto = self::validateProto($proto);
+        $fromNorm = self::validateFrom($from);
+        $comment = self::validateComment($comment);
+        $ports = ($proto === 'icmp') ? [''] : self::splitPorts($port);
+        foreach ($ports as $p) {
+            self::addRuleArgv($action, $proto, $p, $fromNorm, $comment);
+        }
+        $rows = [];
+        $found = false;
+        foreach (self::listSuspended() as $s) {
+            if ($s['id'] !== $id) {
+                $rows[] = [
+                    'id' => $s['id'],
+                    'action' => (string) ($s['action'] ?? 'allow'),
+                    'proto' => (string) ($s['proto'] ?? 'tcp'),
+                    'port' => (string) ($s['port'] ?? ''),
+                    'from' => (isset($s['from']) && strcasecmp((string) $s['from'], 'Anywhere') !== 0)
+                        ? (string) $s['from'] : '',
+                    'comment' => (string) ($s['comment'] ?? ''),
+                ];
+                continue;
+            }
+            $found = true;
+            foreach ($ports as $i => $p) {
+                $rows[] = [
+                    'id' => $i === 0 ? $id : self::newSuspendedId(),
+                    'action' => $action,
+                    'proto' => $proto,
+                    'port' => $p,
+                    'from' => $fromNorm,
+                    'comment' => $comment,
+                ];
+            }
+        }
+        if (!$found) {
+            throw new InvalidArgumentException('invalid_ufw_rule');
+        }
+        if (!self::writeSuspended($rows)) {
+            return ['ok' => false, 'out' => '', 'error' => 'ufw_suspend_failed'];
         }
 
         return ['ok' => true, 'out' => ''];

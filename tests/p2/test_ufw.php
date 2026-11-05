@@ -341,5 +341,122 @@ if (str_contains($src, 'declare(strict_types=1)')
 	bad('KloxoUfw uses argument-array proc_open and is loaded for the backend');
 }
 
+// ---- add / edit / suspended edit against a fake ufw binary -------------------
+$tmp = sys_get_temp_dir() . '/kloxo-ufw-test-' . getmypid();
+@mkdir($tmp, 0700, true);
+putenv('FAKE_UFW_STATE=' . $tmp . '/state.json');
+$fake = $tmp . '/ufw';
+copy(__DIR__ . '/fake-ufw.php', $fake);
+chmod($fake, 0700);
+define('KLOXO_UFW_TEST_BIN', $fake);
+$sgbl = new stdClass();
+$sgbl->__path_program_etc = $tmp;
+$fakeRules = static function (): array {
+	return KloxoUfw::collapseDualStack(KloxoUfw::status()['rules']);
+};
+$find = static function (string $to) use ($fakeRules): ?array {
+	foreach ($fakeRules() as $r) {
+		if ($r['to'] === $to) {
+			return $r;
+		}
+	}
+
+	return null;
+};
+$e2e = true;
+$why = '';
+try {
+	// add: every field
+	$a = KloxoUfw::addRule('allow', 'tcp', '7777');
+	$a = KloxoUfw::addRule('allow', 'tcp', '2222', '', 'ssh alt');
+	$a = KloxoUfw::addRule('deny', 'udp', '5353', '10.1.2.3', 'mdns');
+	$a = KloxoUfw::addRule('reject', 'icmp', '', '', 'no ping');
+	$r1 = $find('2222/tcp');
+	$r2 = $find('5353/udp');
+	$r3 = $find('icmp');
+	if (!$r1 || count($r1['numbers']) !== 2 || $r1['comment'] !== 'ssh alt') {
+		throw new RuntimeException('add allow dual-stack rule');
+	}
+	if (!$r2 || count($r2['numbers']) !== 1 || $r2['from'] !== '10.1.2.3' || stripos($r2['action'], 'DENY') === false) {
+		throw new RuntimeException('add deny from-ip rule');
+	}
+	if (!$r3 || stripos($r3['action'], 'REJECT') === false) {
+		throw new RuntimeException('add icmp reject rule');
+	}
+	// edit: change action, proto, port, from and comment at once
+	$ed = KloxoUfw::editRule((string) $r1['number'], 'deny', 'udp', '2200', '192.168.0.0/24', 'moved');
+	if (empty($ed['ok'])) {
+		throw new RuntimeException('edit failed: ' . json_encode($ed));
+	}
+	$n = $find('2200/udp');
+	if ($find('2222/tcp') !== null || !$n || $n['from'] !== '192.168.0.0/24' || $n['comment'] !== 'moved'
+		|| stripos($n['action'], 'DENY') === false) {
+		throw new RuntimeException('edit did not apply all fields to the firewall');
+	}
+	// edit: port list becomes one rule per port
+	$ed = KloxoUfw::editRule((string) $find('5353/udp')['number'], 'allow', 'tcp', '80,443', '', 'web');
+	if (empty($ed['ok']) || !$find('80/tcp') || !$find('443/tcp') || $find('5353/udp') !== null) {
+		throw new RuntimeException('edit with port list');
+	}
+	// edit: icmp <-> port
+	$ed = KloxoUfw::editRule((string) $find('icmp')['number'], 'allow', 'tcp', '8080', '', '');
+	if (empty($ed['ok']) || !$find('8080/tcp') || $find('icmp') !== null) {
+		throw new RuntimeException('edit icmp to tcp');
+	}
+	// failed edit restores the original rule
+	$before = $find('8080/tcp');
+	$ed = KloxoUfw::editRule((string) $before['number'], 'allow', 'tcp', '9999', '', '');
+	if (!empty($ed['ok']) || !$find('8080/tcp')) {
+		throw new RuntimeException('failed edit must restore the original');
+	}
+	// panel port protection on edit
+	$bad = false;
+	try {
+		KloxoUfw::editRule((string) $find('7777/tcp')['number'], 'allow', 'tcp', '7000', '', '');
+	} catch (InvalidArgumentException $e) {
+		$bad = $e->getMessage() === 'cannot_delete_panel_port';
+	}
+	if (!$bad) {
+		throw new RuntimeException('last panel allow must not be moved off the panel port');
+	}
+	$ed = KloxoUfw::editRule((string) $find('7777/tcp')['number'], 'allow', 'tcp', '7777', '', 'panel');
+	if (empty($ed['ok']) || ($find('7777/tcp')['comment'] ?? '') !== 'panel') {
+		throw new RuntimeException('panel rule comment edit');
+	}
+	// IPv6 source
+	if (KloxoUfw::validateFrom('2001:db8::1') !== '2001:db8::1' || KloxoUfw::validateFrom('2001:DB8::/32') !== '2001:db8::/32') {
+		throw new RuntimeException('ipv6 from');
+	}
+	// suspended rule: edit keeps it out of the firewall
+	$sus = KloxoUfw::suspendRule((string) $find('80/tcp')['number']);
+	$sid = '';
+	foreach (KloxoUfw::listSuspended() as $s) {
+		$sid = $s['id'];
+	}
+	if (empty($sus['ok']) || $sid === '' || $find('80/tcp') !== null) {
+		throw new RuntimeException('suspend');
+	}
+	$es = KloxoUfw::editSuspended($sid, 'deny', 'udp', '81,82', '1.1.1.1', 'susp');
+	if (empty($es['ok']) || count(KloxoUfw::listSuspended()) !== 2 || $find('81/udp') !== null) {
+		throw new RuntimeException('edit suspended');
+	}
+	$un = KloxoUfw::unsuspendRule($sid);
+	if (empty($un['ok']) || !$find('81/udp') || $find('81/udp')['from'] !== '1.1.1.1') {
+		throw new RuntimeException('unsuspend after edit');
+	}
+} catch (Throwable $e) {
+	$e2e = false;
+	$why = $e->getMessage();
+}
+if ($e2e) {
+	ok('add/edit/suspended-edit apply every field to the firewall (fake ufw), failed edit rolls back');
+} else {
+	bad('add/edit/suspended-edit apply every field to the firewall (fake ufw)', $why);
+}
+foreach (glob($tmp . '/*') ?: [] as $f) {
+	@unlink($f);
+}
+@rmdir($tmp);
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

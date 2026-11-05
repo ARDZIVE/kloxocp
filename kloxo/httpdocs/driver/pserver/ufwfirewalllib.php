@@ -404,7 +404,7 @@ class ufwfirewall extends lxclass
 						$canDel = true;
 					}
 				}
-				$editUrl = $isSusp ? '' : $this->editRuleUrl((int) $rowN['number']);
+				$editUrl = $this->editRuleUrl($isSusp ? $selId : (int) $rowN['number']);
 				$numLabel = $isSusp ? '—' : (string) $rowN['number'];
 				$actHtml = '';
 				if ($isSusp) {
@@ -424,7 +424,7 @@ class ufwfirewall extends lxclass
 				echo '<td class="col">' . htmlspecialchars($rowN['comment'], ENT_QUOTES) . '</td>';
 				echo '<td class="col" align="center" style="white-space:nowrap;width:72px;max-width:72px;padding:2px 4px">';
 
-				if (!$isSusp && $editUrl !== '') {
+				if ($editUrl !== '') {
 					echo '<a href="' . htmlspecialchars($editUrl, ENT_QUOTES)
 						. '" title="Edit" style="text-decoration:none;margin:0 2px;vertical-align:middle">'
 						. $editIconHtml . '</a>';
@@ -750,12 +750,13 @@ class ufwfirewall extends lxclass
 	{
 		global $ghtml;
 
-		$n = (int) $number;
+		$n = (is_string($number) && preg_match('/^s:[0-9a-f.]+$/i', $number) === 1)
+			? $number : (string) (int) $number;
 		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
 			try {
 				$url = $ghtml->getFullUrl('a=updateform&sa=editrule');
 				if (is_string($url) && $url !== '') {
-					return $url . '&frm_ufwfirewall_c_ufw_rule=' . rawurlencode((string) $n);
+					return $url . '&frm_ufwfirewall_c_ufw_rule=' . rawurlencode($n);
 				}
 			} catch (Throwable $e) {
 			}
@@ -766,7 +767,7 @@ class ufwfirewall extends lxclass
 			. '&frm_o_o[0][class]=pserver'
 			. '&frm_o_o[0][nname]=' . rawurlencode($host)
 			. '&frm_o_o[1][class]=ufwfirewall'
-			. '&frm_ufwfirewall_c_ufw_rule=' . rawurlencode((string) $n);
+			. '&frm_ufwfirewall_c_ufw_rule=' . rawurlencode($n);
 	}
 
 	function printShowHiddenGets()
@@ -847,27 +848,17 @@ class ufwfirewall extends lxclass
 				$vlist['__v_button'] = 'Add Rule';
 				return $vlist;
 			case 'editrule':
-				$ruleNo = 0;
-				if (is_array($param) && isset($param['ufw_rule'])) {
-					$ruleNo = (int) $param['ufw_rule'];
-				} elseif (isset($_GET['frm_ufwfirewall_c_ufw_rule'])) {
-					$ruleNo = (int) $_GET['frm_ufwfirewall_c_ufw_rule'];
-				} elseif (isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
-					$ruleNo = (int) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
-				}
+				$ruleId = $this->requestedRuleId($param);
 				$preAction = 'deny';
 				$preProto = 'tcp';
 				$prePort = '';
 				$preFrom = '';
 				$preComment = '';
-				if ($ruleNo > 0) {
+				if ($ruleId !== '') {
 					try {
-						$stEdit = $this->ufwStatus();
-						$rulesEdit = (isset($stEdit['rules']) && is_array($stEdit['rules']))
-							? $stEdit['rules'] : array();
-						$logical = KloxoUfw::findLogicalRule($rulesEdit, $ruleNo);
-						if (is_array($logical)) {
-							$rowE = $this->normalizeRuleRow($logical);
+						$row = $this->findEditableRule($ruleId);
+						if (is_array($row)) {
+							$rowE = $this->normalizeRuleRow($row);
 							$preAction = strtolower((string) $rowE['action_label']);
 							if (!in_array($preAction, array('allow', 'deny', 'reject'), true)) {
 								$preAction = 'deny';
@@ -877,6 +868,9 @@ class ufwfirewall extends lxclass
 								$preProto = 'tcp';
 							}
 							$prePort = (string) $rowE['port'];
+							if (!preg_match('/^\d[\d:,]*$/', $prePort)) {
+								$prePort = '';
+							}
 							$preFrom = (string) $rowE['from'];
 							if (strcasecmp($preFrom, 'Anywhere') === 0) {
 								$preFrom = '';
@@ -892,8 +886,8 @@ class ufwfirewall extends lxclass
 				$this->ufw_from = $preFrom;
 				$this->ufw_comment = $preComment;
 				// Rule number is carried as a hidden field, not shown.
-				if ($ruleNo > 0) {
-					$vlist['__v_param'] = array('ufw_rule' => (string) $ruleNo);
+				if ($ruleId !== '') {
+					$vlist['__v_param'] = array('ufw_rule' => $ruleId);
 				}
 				$vlist['ufw_action'] = array('s', $actions);
 				$vlist['ufw_proto'] = array('s', $protos);
@@ -917,6 +911,41 @@ class ufwfirewall extends lxclass
 		}
 
 		return $vlist;
+	}
+
+	/** Rule id (live number or s:… suspended id) from param/GET/REQUEST. */
+	function requestedRuleId($param = null)
+	{
+		$raw = '';
+		if (is_array($param) && isset($param['ufw_rule']) && is_scalar($param['ufw_rule'])) {
+			$raw = (string) $param['ufw_rule'];
+		} elseif (isset($_REQUEST['frm_ufwfirewall_c_ufw_rule']) && is_scalar($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
+			$raw = (string) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
+		}
+		$raw = trim($raw);
+		if (preg_match('/^[1-9]\d{0,3}$/', $raw) === 1 || preg_match('/^s:[0-9a-f.]+$/i', $raw) === 1) {
+			return $raw;
+		}
+
+		return '';
+	}
+
+	/** Logical live rule (by number) or suspended record (by s:id). */
+	function findEditableRule($ruleId)
+	{
+		if (str_starts_with($ruleId, 's:')) {
+			foreach (KloxoUfw::listSuspended() as $s) {
+				if ($s['id'] === $ruleId) {
+					return $s;
+				}
+			}
+
+			return null;
+		}
+		$st = $this->ufwStatus();
+		$rules = (isset($st['rules']) && is_array($st['rules'])) ? $st['rules'] : array();
+
+		return KloxoUfw::findLogicalRule($rules, (int) $ruleId);
 	}
 
 	function redirectToShow()
@@ -1017,22 +1046,22 @@ class ufwfirewall extends lxclass
 	{
 		$this->assertAdmin();
 		$p = is_array($param) ? $param : array();
-		$number = isset($p['ufw_rule']) ? (string) $p['ufw_rule'] : '';
-		if ($number === '' && isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
-			$number = (string) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
-		}
+		$number = $this->requestedRuleId($p);
 		$action = isset($p['ufw_action']) ? (string) $p['ufw_action'] : '';
 		$proto = isset($p['ufw_proto']) ? (string) $p['ufw_proto'] : 'tcp';
 		$portField = isset($p['ufw_port']) ? (string) $p['ufw_port'] : '';
 		$from = isset($p['ufw_from']) ? (string) $p['ufw_from'] : '';
 		$comment = isset($p['ufw_comment']) ? (string) $p['ufw_comment'] : '';
 		try {
-			if (strtolower($proto) === 'icmp') {
-				$port = '';
-			} else {
-				$port = KloxoUfw::validatePort($portField);
+			if ($number === '') {
+				throw new InvalidArgumentException('invalid_ufw_rule');
 			}
-			$ret = $this->execUfw('editRule', array($number, $action, $proto, $port, $from, $comment));
+			// Applied to the firewall immediately (suspended rules only update the store).
+			if (str_starts_with($number, 's:')) {
+				$ret = $this->execUfw('editSuspended', array($number, $action, $proto, $portField, $from, $comment));
+			} else {
+				$ret = $this->execUfw('editRule', array($number, $action, $proto, $portField, $from, $comment));
+			}
 			$this->throwIfFailed($ret, 'could_not_edit_ufw_rule');
 		} catch (InvalidArgumentException $e) {
 			$this->throwUfw($e->getMessage(), $portField !== '' ? $portField : $number);
