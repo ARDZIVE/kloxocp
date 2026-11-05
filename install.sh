@@ -34,7 +34,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026110501"
+KCP_VERSION="10.1-2026110502"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -361,10 +361,13 @@ if [[ "$WITH_MAIL" -eq 1 ]]; then
   # smtp=postfix removes Exim and installs Postfix.
   echo "exim4-config exim4/dc_eximconfigconfigtype select none" | debconf-set-selections
   echo "exim4-config exim4/dc_use_split_config boolean false" | debconf-set-selections
+  # Stop a leftover postfix unit before Exim lands (apt may remove the package).
+  systemctl disable --now postfix 2>/dev/null || true
   apt-get install -y exim4-daemon-heavy \
     dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
     dovecot-mysql dovecot-sieve dovecot-managesieved \
     rspamd
+  systemctl disable --now postfix 2>/dev/null || true
 fi
 
 log "Hiawatha is not an Ubuntu package; will build pinned 12.4 from source"
@@ -512,9 +515,12 @@ enable_default_stack() {
   systemctl enable --now redis-server 2>/dev/null \
     || systemctl enable --now redis 2>/dev/null || true
   systemctl enable --now pure-ftpd 2>/dev/null || true
-  systemctl reset-failed pdns apache2 2>/dev/null || true
+  systemctl reset-failed pdns apache2 postfix 2>/dev/null || true
   systemctl disable --now pdns 2>/dev/null || true
   systemctl disable --now apache2 2>/dev/null || true
+  # Default MTA is Exim (full profile). Never leave a preinstalled Postfix
+  # unit enabled alongside Exim (mail-transport-agent conflict / dual listeners).
+  systemctl disable --now postfix 2>/dev/null || true
   # If Oracle/community mysql.service is a distinct unit (not mariadb), leave it stopped.
   if systemctl cat mysql >/dev/null 2>&1; then
     frag_mysql="$(systemctl show -p FragmentPath --value mysql 2>/dev/null || true)"

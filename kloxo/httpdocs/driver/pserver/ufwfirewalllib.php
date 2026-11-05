@@ -158,11 +158,14 @@ class ufwfirewall extends lxclass
 		$err = isset($st['error']) ? (string) $st['error'] : '';
 		$conflictNote = (isset($st['conflict_note']) && is_string($st['conflict_note']))
 			? $st['conflict_note'] : '';
-		$iconBase = $this->ufwIconBase();
-		$editIcon = $iconBase . '/updateform_edit.gif';
-		$delIcon = $iconBase . '/delete.gif';
-		$suspendIcon = $iconBase . '/stop.gif';
-		$unsuspendIcon = $iconBase . '/enable.gif';
+		// Dashboard / list action glyphs (WebHostingHub if16), same set as tiles.
+		$editIconHtml = "<span class=\"if16\" title=\"Edit\" style=\"color:#333\">&#xf47c;</span>";
+		$delIconHtml = "<span class=\"if16\" title=\"Delete\" style=\"color:#333\">&#xf0d2;</span>";
+		$suspendIconHtml = "<span class=\"if16\" title=\"Suspend\" style=\"color:#c33\">&#xf572;</span>";
+		$unsuspendIconHtml = "<span class=\"if16\" title=\"Unsuspend\" style=\"color:#3c3\">&#xf571;</span>";
+		$editIconMuted = "<span class=\"if16\" title=\"Unsuspend before edit\" style=\"color:#ccc\">&#xf47c;</span>";
+		$suspendIconMuted = "<span class=\"if16\" title=\"Last allow for panel port 7777/7778\" style=\"color:#ccc\">&#xf572;</span>";
+		$delIconMuted = "<span class=\"if16\" title=\"Last allow for panel port 7777/7778\" style=\"color:#ccc\">&#xf0d2;</span>";
 		$filter = $this->ruleFilterFromRequest();
 		$displayRules = $this->filterRules($rules, $filter);
 		$nTotal = count($rules);
@@ -327,15 +330,21 @@ class ufwfirewall extends lxclass
 		echo '<br/>';
 		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0" id="ufw_rules_table">';
 		echo '<tr height="25" valign="middle">';
-		echo '<td class="collist" nowrap style="background:#' . htmlspecialchars($skin, ENT_QUOTES)
-			. '"><input type="checkbox" title="Select all" onclick="var b=this.checked;'
+		echo '<td class="collist" nowrap align="center" style="background:#'
+			. htmlspecialchars($skin, ENT_QUOTES)
+			. ';text-align:center;width:28px"><input type="checkbox" title="Select all"'
+			. ' onclick="var b=this.checked;'
 			. 'var n=document.querySelectorAll(\'#ufw_rules_table input.ufw-row-check\');'
 			. 'for(var i=0;i<n.length;i++){n[i].checked=b;}"></td>';
-		foreach (array('#', 'Action', 'Protocol', 'Port', 'From', 'Comment', 'Actions') as $h) {
+		foreach (array('#', 'Action', 'Protocol', 'Port', 'From', 'Comment') as $h) {
 			echo '<td class="collist" nowrap style="background:#'
 				. htmlspecialchars($skin, ENT_QUOTES) . '"><b>'
 				. htmlspecialchars($h, ENT_QUOTES) . '</b></td>';
 		}
+		// Last column: icons only — no header title, narrow width.
+		echo '<td class="collist" nowrap align="center" style="background:#'
+			. htmlspecialchars($skin, ENT_QUOTES)
+			. ';text-align:center;width:72px;max-width:72px;padding:2px 4px">&nbsp;</td>';
 		echo '</tr>';
 
 		if ($displayRules === array()) {
@@ -383,46 +392,36 @@ class ufwfirewall extends lxclass
 				echo '<td class="col">' . htmlspecialchars($rowN['port'] !== '' ? $rowN['port'] : '—', ENT_QUOTES) . '</td>';
 				echo '<td class="col">' . htmlspecialchars($rowN['from_label'], ENT_QUOTES) . '</td>';
 				echo '<td class="col">' . htmlspecialchars($rowN['comment'], ENT_QUOTES) . '</td>';
-				echo '<td class="col" align="center" style="white-space:nowrap">';
+				echo '<td class="col" align="center" style="white-space:nowrap;width:72px;max-width:72px;padding:2px 4px">';
 
 				if (!$isSusp && $editUrl !== '') {
-					echo '<a href="' . htmlspecialchars($editUrl, ENT_QUOTES) . '" title="Edit">'
-						. '<img src="' . htmlspecialchars($editIcon, ENT_QUOTES)
-						. '" alt="Edit" width="16" height="16" border="0" style="vertical-align:middle"></a>';
+					echo '<a href="' . htmlspecialchars($editUrl, ENT_QUOTES)
+						. '" title="Edit" style="text-decoration:none;margin:0 2px;vertical-align:middle">'
+						. $editIconHtml . '</a>';
 				} else {
-					echo '<img src="' . htmlspecialchars($editIcon, ENT_QUOTES)
-						. '" alt="Edit" width="16" height="16" border="0"'
-						. ' style="opacity:0.25;vertical-align:middle" title="Unsuspend before edit">';
+					echo '<span style="margin:0 2px;vertical-align:middle">' . $editIconMuted . '</span>';
 				}
-				echo '&nbsp;';
 
 				if ($isSusp) {
-					$this->printInlineAction('unsuspendrule', $selId, $unsuspendIcon, 'Unsuspend',
+					$this->printInlineAction('unsuspendrule', $selId, $unsuspendIconHtml, 'Unsuspend',
 						'Unsuspend this rule?');
 				} elseif ($canDel) {
-					$this->printInlineAction('suspendrule', (string) $rowN['number'], $suspendIcon, 'Suspend',
+					$this->printInlineAction('suspendrule', (string) $rowN['number'], $suspendIconHtml, 'Suspend',
 						'Suspend rule #' . $rowN['number'] . '?');
 				} else {
-					echo '<img src="' . htmlspecialchars($suspendIcon, ENT_QUOTES)
-						. '" alt="Protected" width="16" height="16" border="0"'
-						. ' style="opacity:0.35;vertical-align:middle"'
-						. ' title="Last allow for panel port 7777/7778">';
+					echo '<span style="margin:0 2px;vertical-align:middle">' . $suspendIconMuted . '</span>';
 				}
-				echo '&nbsp;';
 
 				if ($canDel || $isSusp) {
 					$this->printInlineAction(
 						'deleterule',
 						$isSusp ? $selId : (string) $rowN['number'],
-						$delIcon,
+						$delIconHtml,
 						'Delete',
 						$isSusp ? 'Delete suspended rule?' : ('Delete rule #' . $rowN['number'] . '?')
 					);
 				} else {
-					echo '<img src="' . htmlspecialchars($delIcon, ENT_QUOTES)
-						. '" alt="Protected" width="16" height="16" border="0"'
-						. ' style="opacity:0.35;vertical-align:middle"'
-						. ' title="Last allow for panel port 7777/7778">';
+					echo '<span style="margin:0 2px;vertical-align:middle">' . $delIconMuted . '</span>';
 				}
 				echo '</td></tr>';
 			}
@@ -433,10 +432,9 @@ class ufwfirewall extends lxclass
 	}
 
 	/**
-	 * Tiny POST form for a single-row action icon (nested forms are invalid HTML,
-	 * so these sit as sibling forms using absolute positioning via display:inline).
+	 * Tiny POST form for a single-row action icon (if16 HTML glyph).
 	 */
-	function printInlineAction($subaction, $ruleId, $iconSrc, $title, $confirm)
+	function printInlineAction($subaction, $ruleId, $iconHtml, $title, $confirm)
 	{
 		$token = function_exists('getCSRFToken') ? getCSRFToken() : '';
 		echo '<form method="post" action="/display.php" accept-charset="utf-8"'
@@ -449,11 +447,9 @@ class ufwfirewall extends lxclass
 		echo '<input type="hidden" name="frm_ufwfirewall_c_ufw_rule" value="'
 			. htmlspecialchars((string) $ruleId, ENT_QUOTES) . '">';
 		echo '<button type="submit" title="' . htmlspecialchars((string) $title, ENT_QUOTES) . '"'
-			. ' style="border:0;background:transparent;cursor:pointer;padding:0;margin:0;vertical-align:middle"'
+			. ' style="border:0;background:transparent;cursor:pointer;padding:0;margin:0 2px;vertical-align:middle;line-height:1"'
 			. ' onclick="return confirm(' . htmlspecialchars(json_encode((string) $confirm), ENT_QUOTES) . ')">'
-			. '<img src="' . htmlspecialchars((string) $iconSrc, ENT_QUOTES)
-			. '" alt="' . htmlspecialchars((string) $title, ENT_QUOTES)
-			. '" width="16" height="16" border="0"></button>';
+			. $iconHtml . '</button>';
 		echo '</form>';
 	}
 
@@ -676,22 +672,6 @@ class ufwfirewall extends lxclass
 		}
 
 		return $out;
-	}
-
-	function ufwIconBase()
-	{
-		$base = '/theme/icon/collage';
-		if (function_exists('get_image_path')) {
-			try {
-				$got = get_image_path();
-				if (is_string($got) && $got !== '') {
-					$base = rtrim($got, '/');
-				}
-			} catch (Throwable $e) {
-			}
-		}
-
-		return $base;
 	}
 
 	function showUrl()

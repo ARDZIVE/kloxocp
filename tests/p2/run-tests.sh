@@ -804,7 +804,7 @@ else
 fi
 if grep -F -q '"driver/dns/dnstemplatelib.php"' "$ROOT/kloxo/httpdocs/lib/html/definecore.php" \
   && grep -c 'frm_action=list&frm_o_cname=dnstemplate' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" | grep -q '[2-9]' \
-  && grep -A 6 'function AddListForm' "$ROOT/kloxo/httpdocs/driver/dns/dnstemplatelib.php" | grep -q 'return null' \
+  && grep -A 12 'function AddListForm' "$ROOT/kloxo/httpdocs/driver/dns/dnstemplatelib.php" | grep -q 'return null' \
   && grep -q 'clientquery;?>frm_o_cname=allowedip' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
   && ! grep -q 'frm_ocname=' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php" \
   && ! grep -q 'c=phpmdule' "$ROOT/kloxo/httpdocs/theme/skin/simplicity/default/menu.php"; then

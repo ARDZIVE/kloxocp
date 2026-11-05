@@ -10,14 +10,14 @@ Public git remote: https://github.com/ARDZIVE/kloxocp.git (`main`).
 
 | What | Value |
 |---|---|
-| **Kloxo CP** (this fork) | **10.1-2026110501** |
-| `kloxo/bin/kloxoversion` | **10.1-2026110501** |
+| **Kloxo CP** (this fork) | **10.1-2026110502** |
+| `kloxo/bin/kloxoversion` | **10.1-2026110502** |
 | Upstream base | Kloxo-MR `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` |
 
-`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110501**.
+`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110502**.
 The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
-> **Status: 10.1-2026110501, NOT FOR PRODUCTION.**
+> **Status: 10.1-2026110502, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. Phase-1a security items (C1–C5) are
 > closed, first-party PHP parses and loads on PHP 8, and `install.sh` can
 > bootstrap a panel, but the legacy PHP is still PHP 5-era in behaviour.
@@ -31,7 +31,7 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
 ## Installation command (Ubuntu 24.04 or 26.x, as root)
 
-**Recommended (current `main`, version 10.1-2026110501):**
+**Recommended (current `main`, version 10.1-2026110502):**
 
 ```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
@@ -62,21 +62,22 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get i
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
 (`curl | bash` breaks apt stdin). Re-run the same command to refresh an
-existing clone to current `main` (**10.1-2026110501**: UFW enabled at
-install; Security → UFW Firewall list with Comment/ICMP/suspend and
-collapsed dual-stack rows; Add Rule on a separate page; Services icons via
-`systemctl`; Multiple PHP Install under `$ROOT/log/`).
+existing clone to current `main` (**10.1-2026110502**: installer disables any
+preinstalled Postfix so Exim stays the sole MTA; UFW enabled at install with
+Comment/ICMP/suspend Port Rules; Add Rule on a separate page; Services icons
+via `systemctl`; Multiple PHP Install under `$ROOT/log/`).
 
 Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
 **redis-server**, **imagemagick**, and Ubuntu **universe** enabled when needed.
 Postfix is **not** installed with Exim (both conflict on
-`mail-transport-agent`); Switch Program `smtp=postfix` removes Exim and
-installs Postfix. It does **not** install bogofilter, SpamAssassin, or sqlite
-(panel DB is **MariaDB**; spam is Rspamd). Starts Nginx, **MariaDB**, BIND,
-Redis, Pure-FTPd, webcache on **8080**, and webproxy on **30080**. Default SQL
-is MariaDB only (`mysql`/`mysqld` aliases are not a second started service).
-Packages and **enables `ufw` by default** (panel ports 7777/7778 plus common
-SSH/web/FTP/DNS/mail ports allowed first; dual-stack IPv4+IPv6 rules when
+`mail-transport-agent`); a leftover `postfix` unit is **disabled** at install.
+Switch Program `smtp=postfix` removes Exim and installs Postfix. It does
+**not** install bogofilter, SpamAssassin, or sqlite (panel DB is **MariaDB**;
+spam is Rspamd). Starts Nginx, **MariaDB**, BIND, Redis, Pure-FTPd, webcache on
+**8080**, and webproxy on **30080**. Default SQL is MariaDB only
+(`mysql`/`mysqld` aliases are not a second started service). Packages and
+**enables `ufw` by default** (panel ports 7777/7778 plus common
+SSH/web/FTP/DNS/mail ports allowed first; dual-stack IPv4+IPv6 when
 `IPV6=yes`). Apache and PowerDNS are packaged and stay disabled.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
@@ -122,7 +123,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Manage DNS | Tabs **Manage DNS**, **Rebuild**, **NS**, **A**, **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**, **General Settings**. No left Find box. Show does not rewrite the zone. |
 | DNS Templates | Add form on the list tab (name/primary/secondary empty). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
-| Update | **10.1-2026110501**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
+| Update | **10.1-2026110502**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
 | Services | Lists only installed units; running/boot from systemd. RHEL/Debian aliases collapse to one row (`apache2` not `httpd`, `bind9` not `named`). Default SQL is **MariaDB** (started at install); `mysql`/`mysqld` are not shown as a second installed row while MariaDB is present. A separate MySQL package stays stopped until started here. Columns **Start** / **Stop** / **Restart**; icon clicks run `systemctl --no-block` immediately. Stop/restart of MariaDB and panel units is refused (icons stay visible; Sb/State view-only for those). If every page shows `No such file or directory`, run `systemctl start mariadb`. |
 | Traceroute | Parses `traceroute` and `tracepath`. Response times show three decimals; unreachable hops show `*` (not `no`). |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
@@ -171,13 +172,14 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get i
 
 Downloads the current `install.sh` from GitHub `main`
 (https://github.com/ARDZIVE/kloxocp) and runs it (default **full**: Exim,
-Dovecot, Rspamd; Postfix not co-installed; Redis, Pure-FTPd, and ImageMagick
-enabled; **MariaDB** is the default SQL; **UFW enabled** with panel ports
-allowed first). That script clones the tree if needed, or fetches
-`origin/main` and hard-resets when `/usr/local/src/kloxo-cp` is already a
-git clone. Safe to repeat after a failed install or to pick up GitHub `main`
-(local edits in that clone are discarded; picks up **10.1-2026110501**).
-Use `--profile=core` for a panel without mail packages.
+Dovecot, Rspamd; Postfix not co-installed and any leftover Postfix unit
+disabled; Redis, Pure-FTPd, and ImageMagick enabled; **MariaDB** is the
+default SQL; **UFW enabled** with panel ports allowed first). That script
+clones the tree if needed, or fetches `origin/main` and hard-resets when
+`/usr/local/src/kloxo-cp` is already a git clone. Safe to repeat after a
+failed install or to pick up GitHub `main` (local edits in that clone are
+discarded; picks up **10.1-2026110502**). Use `--profile=core` for a panel
+without mail packages.
 
 A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:

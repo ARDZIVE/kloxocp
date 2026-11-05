@@ -700,6 +700,11 @@ if grep -E 'enable --now postfix' "$ROOT/install.sh"; then
 else
   ok "install.sh does not enable postfix at boot"
 fi
+if grep -q 'disable --now postfix' "$ROOT/install.sh"; then
+  ok "install.sh disables leftover postfix so Exim stays default"
+else
+  bad "install.sh disables leftover postfix so Exim stays default"
+fi
 if grep -q "apt-get', 'install', '-y', 'postfix'" "$ROOT/kloxo/httpdocs/driver/mmail/smtp__postfixlib.php" \
   && grep -q "apt-get', 'remove', '-y', 'postfix'" "$ROOT/kloxo/httpdocs/driver/mmail/smtp__eximlib.php"; then
   ok "Switch Program smtp swaps Exim/Postfix packages"

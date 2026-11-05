@@ -90,7 +90,8 @@ if (!str_contains($ufwUi, 'listaddform_ufwfirewall')
 	&& !str_contains($ufwUi, "'Family'")
 	&& !str_contains($ufwUi, '>Family<')
 	&& str_contains($ufwUi, 'Comment')
-	&& str_contains($ufwUi, 'Actions')
+	&& !str_contains($ufwUi, "'Actions'")
+	&& !str_contains($ufwUi, ', \'Actions\'')
 	&& str_contains($ufwUi, 'frm_ufw_filter')
 	&& str_contains($ufwUi, 'editRuleUrl')
 	&& str_contains($ufwUi, 'addRuleUrl')
@@ -101,10 +102,15 @@ if (!str_contains($ufwUi, 'listaddform_ufwfirewall')
 	&& str_contains($ufwUi, 'ufw-row-check')
 	&& str_contains($ufwUi, 'suspendrule')
 	&& str_contains($ufwUi, 'unsuspendrule')
-	&& str_contains($ufwUi, 'updateform_edit.gif')
-	&& str_contains($ufwUi, 'stop.gif')
-	&& str_contains($ufwUi, 'enable.gif')
-	&& str_contains($ufwUi, 'delete.gif')
+	&& str_contains($ufwUi, 'class="if16"')
+	&& str_contains($ufwUi, '&#xf47c;')
+	&& str_contains($ufwUi, '&#xf572;')
+	&& str_contains($ufwUi, '&#xf571;')
+	&& str_contains($ufwUi, '&#xf0d2;')
+	&& str_contains($ufwUi, 'text-align:center;width:28px')
+	&& str_contains($ufwUi, 'width:72px;max-width:72px')
+	&& !str_contains($ufwUi, 'updateform_edit.gif')
+	&& !str_contains($ufwUi, 'delete.gif')
 	&& str_contains($ufwUi, 'function updateEditrule')
 	&& str_contains($ufwUi, 'function updateSuspendrule')
 	&& str_contains($ufwUi, 'collist')
@@ -115,9 +121,9 @@ if (!str_contains($ufwUi, 'listaddform_ufwfirewall')
 	&& !str_contains($ufwUi, 'Save Defaults')
 	&& !str_contains($ufwUi, "printActionForm('ufwenable'")
 	&& !str_contains($ufwUi, 'frm_ufw_edit')) {
-	ok('UFW list: Add Rule page, Comment, no Family, multi-delete, suspend icons');
+	ok('UFW list: Add Rule page, Comment, no Family, multi-delete, if16 icons');
 } else {
-	bad('UFW list: Add Rule page, Comment, no Family, multi-delete, suspend icons');
+	bad('UFW list: Add Rule page, Comment, no Family, multi-delete, if16 icons');
 }
 
 $src = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/kloxo_ufw.php');
