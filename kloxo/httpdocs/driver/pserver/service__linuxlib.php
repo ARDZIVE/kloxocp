@@ -193,13 +193,35 @@ class Service__Linux extends Lxlclass
 	 */
 	static function systemctlRun($act, $unit)
 	{
+		$d = self::systemctlRunDetail($act, $unit);
+
+		return (int) $d['rc'];
+	}
+
+	/**
+	 * Same as systemctlRun but returns what happened. Runs in whatever process
+	 * calls it: only root can stop units, and `euid` says who that was.
+	 *
+	 * @return array{rc:int,out:string,err:string,euid:int}
+	 */
+	static function systemctlRunDetail($act, $unit)
+	{
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+		$res = array('rc' => -1, 'out' => '', 'err' => '', 'euid' => $euid);
 		$bin = self::systemctlBin();
 		$act = (string) $act;
 		$unit = (string) $unit;
-		if ($bin === '' || !self::isSafeUnit($unit)
+		if ($bin === '') {
+			$res['err'] = 'systemctl not found';
+
+			return $res;
+		}
+		if (!self::isSafeUnit($unit)
 			|| !in_array($act, array('start', 'stop', 'restart', 'enable', 'disable'), true)
 			|| !self::mayControlUnit($unit, $act)) {
-			return -1;
+			$res['err'] = 'refused';
+
+			return $res;
 		}
 		$args = array($bin);
 		if (in_array($act, array('start', 'stop', 'restart'), true)) {
@@ -214,25 +236,108 @@ class Service__Linux extends Lxlclass
 				2 => array('pipe', 'w'),
 			), $pipes);
 		} catch (Throwable $e) {
-			return -1;
+			$res['err'] = 'cannot run systemctl';
+
+			return $res;
 		}
 		if ($p === false || $p === null) {
-			return -1;
+			$res['err'] = 'cannot run systemctl';
+
+			return $res;
 		}
 		if (isset($pipes[1])) {
-			self::readPipeLimited($pipes[1], 5);
+			$res['out'] = self::readPipeLimited($pipes[1], 5);
 			fclose($pipes[1]);
 		}
 		if (isset($pipes[2])) {
-			self::readPipeLimited($pipes[2], 5);
+			$res['err'] = self::readPipeLimited($pipes[2], 5);
 			fclose($pipes[2]);
 		}
+		$rc = -1;
 		$status = @proc_get_status($p);
-		if (is_array($status) && !empty($status['running'])) {
-			@proc_terminate($p);
+		if (is_array($status)) {
+			if (!empty($status['running'])) {
+				@proc_terminate($p);
+			} elseif (isset($status['exitcode']) && (int) $status['exitcode'] >= 0) {
+				// proc_close() returns -1 once proc_get_status() has reaped the child.
+				$rc = (int) $status['exitcode'];
+			}
+		}
+		$closed = (int) proc_close($p);
+		$res['rc'] = $rc >= 0 ? $rc : $closed;
+
+		return $res;
+	}
+
+	/**
+	 * Run systemctl as root for the panel. Panel PHP-FPM is not root, so a
+	 * request goes to kloxo-backend (loopback 7776) explicitly. remote_exec()
+	 * falls back to running in-process when the backend fails; that would be a
+	 * silent no-op as the panel user, so the caller sees `euid` and an error.
+	 *
+	 * @return array{ok:bool,rc:int,out:string,err:string,euid:int}
+	 */
+	static function controlUnit($act, $unit, $server = 'localhost')
+	{
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+		$fail = array('ok' => false, 'rc' => -1, 'out' => '', 'err' => '', 'euid' => $euid);
+		if (!self::mayControlUnit((string) $unit, (string) $act)) {
+			$fail['err'] = 'refused';
+
+			return $fail;
+		}
+		if ($euid !== 0 && function_exists('rl_exec_get') && php_sapi_name() !== 'cli') {
+			try {
+				$got = rl_exec_get(null, $server, array('Service__Linux', 'systemctlRunDetail'), array($act, $unit));
+			} catch (Throwable $e) {
+				$fail['err'] = 'kloxo-backend: ' . $e->getMessage();
+
+				return $fail;
+			}
+			if (!is_array($got) || !isset($got['rc'])) {
+				$fail['err'] = 'kloxo-backend gave no answer';
+
+				return $fail;
+			}
+		} else {
+			$got = self::systemctlRunDetail($act, $unit);
+		}
+		$got['out'] = isset($got['out']) ? (string) $got['out'] : '';
+		$got['err'] = isset($got['err']) ? (string) $got['err'] : '';
+		$got['euid'] = isset($got['euid']) ? (int) $got['euid'] : -1;
+		$got['ok'] = ((int) $got['rc'] === 0);
+		if (!$got['ok'] && $got['euid'] > 0) {
+			$got['err'] = 'systemctl ran as uid ' . $got['euid'] . ', not root: kloxo-backend '
+				. '(127.0.0.1:7776) did not handle the request. ' . $got['err'];
 		}
 
-		return (int) proc_close($p);
+		return $got;
+	}
+
+	/**
+	 * systemctl --no-block returns at once; wait until the unit reaches the
+	 * state the page will show.
+	 */
+	static function waitForUnit($unit, $act, $seconds = 6)
+	{
+		if (!in_array((string) $act, array('start', 'stop', 'restart'), true)) {
+			return;
+		}
+		$deadline = microtime(true) + (float) $seconds;
+		// A restart may still read `active` before the stop begins.
+		if ($act === 'restart') {
+			usleep(300000);
+		}
+		do {
+			$s = self::systemdShow($unit, 'ActiveState');
+			if ($act === 'stop' && $s !== 'active' && $s !== 'deactivating') {
+				return;
+			}
+			if ($act !== 'stop' && ($s === 'active' || $s === 'failed')) {
+				return;
+			}
+			usleep(200000);
+		} while (microtime(true) < $deadline);
 	}
 
 	static function unitName($servicename)

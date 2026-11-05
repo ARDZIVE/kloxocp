@@ -106,7 +106,7 @@ details are under [Installation](#installation).
 | Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
 | Database | **MariaDB** default (started at install; panel DB `kloxo`; mail DB is separate). A distinct MySQL package, if present, stays stopped until started from Services. |
 | Database admin | Seeded by `init-panel-db` as the `kloxo_pma` MariaDB account (needed by Add Database) |
-| SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `root`@`127.0.0.1`) |
+| SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `kloxo_pma`@`127.0.0.1`) |
 | Billing | None |
 | License | GNU AGPL v3 |
 
@@ -118,7 +118,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 
 | Screen | Behaviour |
 |---|---|
-| SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session (read from the session file `<root>/session/<id>`, matched to the `kloxo-session-id` cookie) is signed in as MariaDB `root`@`127.0.0.1` and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
+| SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session (read from the session file `<root>/session/<id>`, matched to the `kloxo-session-id` cookie) is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (full privileges; `root`@`localhost` is unix_socket and is refused over TCP with error 1698) and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
 | Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP **exim**. Postfix is selectable and apt-swaps with Exim. |
 | Backup / Restore | Exactly five tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. Show page: Backup Now, Restore From File, Restore From FTP. File Manager / Upload under a backup keep those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
@@ -606,7 +606,7 @@ phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
 `kloxo/bin/install/install-phpmyadmin` (not shipped in git). Admin **SQL Manager**
 opens `/thirdparty/phpMyAdmin/kloxo-signon.php` in a new browser tab
 (`target="_blank"`). A live panel-admin session is signed in as MariaDB
-`root`@`127.0.0.1` (all databases, WITH GRANT OPTION) and redirected into
+`kloxo_pma`@`127.0.0.1` (all databases, WITH GRANT OPTION) and redirected into
 phpMyAdmin in that tab. Cross-site GET does not auto-sign-on. The MariaDB
 password is never put in the URL. Other users still see the MySQL logon form;
 panel admin may leave the password blank to use `pma.pass`. OS `root`@`localhost`

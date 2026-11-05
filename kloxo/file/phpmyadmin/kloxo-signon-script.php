@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * phpMyAdmin SignonScript. Copied into thirdparty/phpMyAdmin by install-phpmyadmin.
- * Returns MariaDB root credentials when the Kloxo admin panel session is live.
+ * Returns MariaDB kloxo_pma credentials (root@localhost is unix_socket) when the Kloxo admin panel session is live.
  */
 
 $root = dirname(__DIR__, 3);

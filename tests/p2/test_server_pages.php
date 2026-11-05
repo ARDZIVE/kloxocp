@@ -267,6 +267,32 @@ if ($protOk && $svcCritStopBlocked && $svcCritIcons && $svcBtnLabels && $svcIcon
 		. ' iconPath=' . ($svcIconPath ? 'yes' : 'no'));
 }
 
+// Stop/start/restart go to the root backend explicitly and report failure; the
+// generic object sync silently fell back to the non-root panel user.
+$linuxSrc2 = (string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php');
+$refusedCtl = Service__Linux::controlUnit('stop', 'mariadb');
+$noBinCtl = Service__Linux::systemctlRunDetail('stop', 'nginx; id');
+$svcDirect = new Service(null, 'localhost', 'nginx___localhost');
+$svcDirect->servicename = 'nginx';
+$svcRemote = new Service(null, 'otherhost', 'nginx___otherhost');
+$svcRemote->servicename = 'nginx';
+$svcRemote->syncserver = 'otherhost';
+if (empty($refusedCtl['ok']) && $refusedCtl['err'] === 'refused'
+	&& (int) $noBinCtl['rc'] !== 0
+	&& $svcRemote->runDirect('stop') === false
+	&& $svcDirect->runDirect('delete') === false
+	&& is_array(Service__Linux::systemctlRunDetail('stop', 'mariadb'))
+	&& str_contains($linuxSrc2, "array('Service__Linux', 'systemctlRunDetail')")
+	&& str_contains($linuxSrc2, 'function waitForUnit')
+	&& str_contains($linuxSrc2, 'not root')
+	&& str_contains($svcSrc, 'function runDirect')
+	&& str_contains($svcSrc, 'Service__Linux::controlUnit')
+	&& str_contains($svcSrc, "throw new lxException('Could not '")) {
+	ok('Service stop/start/restart run systemctl as root via kloxo-backend, wait for the unit and report failure');
+} else {
+	bad('Service stop/start/restart run systemctl as root via kloxo-backend, wait for the unit and report failure');
+}
+
 $psSrc = (string) file_get_contents($doc . '/driver/pserver/pserver__linuxlib.php');
 $rebootArgs = pserver__Linux::powerCommandArgs('reboot');
 $powerArgs = pserver__Linux::powerCommandArgs('poweroff');
@@ -561,6 +587,7 @@ if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('dns')
 	&& kloxo_skip_find_class('dns_record_a')
 	&& kloxo_skip_find_class('web')
+	&& kloxo_skip_find_class('dbadmin')
 	&& !kloxo_skip_find_class('tickethistory')
 	&& !kloxo_skip_find_class('client')) {
 	ok('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');

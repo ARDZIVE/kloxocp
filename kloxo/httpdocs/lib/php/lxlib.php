@@ -1635,6 +1635,7 @@ function kloxo_skip_find_class($class)
 		'sshconfig', 'lxguard', 'ufwfirewall', 'sshclient', 'ffile', 'ticket', 'notification',
 		'lxupdate', 'dns', 'dns_record_a', 'web', 'servermail', 'mail_graylist_wlist_a',
 		'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist', 'lxguardhit',
+		'dbadmin',
 	);
 
 	return in_array($c, $skip, true);

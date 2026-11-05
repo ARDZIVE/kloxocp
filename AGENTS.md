@@ -40,7 +40,7 @@ Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
 (`install-apache`, PHP-FPM via proxy_fcgi, no mod_php) but `apache2` stays
 disabled until selected. Admin SQL Manager opens phpMyAdmin in a new tab
 (`/thirdparty/phpMyAdmin/kloxo-signon.php`, `target="_blank"`): a live
-panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and
+panel-admin session is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (not `root`: root@localhost is unix_socket, error 1698 over TCP) and
 redirected; otherwise the MySQL logon form is shown (panel admin may
 leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, not a second Domain tile. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
@@ -175,7 +175,7 @@ Start/Stop/Restart icons stay visible for every row (headers Start / Stop / Rest
 Sb and State are view-only for those critical units. Icon clicks call
 `runServiceControl` (systemctl via the service driver) immediately so list
 children are not skipped by `login->was()`. Start/enable of critical units remains
-allowed. Live Services actions after deploy are UNVERIFIED.
+allowed. Start/Stop/Restart/Sb/State on a local unit call `Service::runDirect`: `Service__Linux::controlUnit` sends `systemctlRunDetail` to kloxo-backend as root (the panel user cannot stop units; the generic object sync fell back to it silently), waits for the unit's `ActiveState`, and throws `Could not <act> service <x>: <reason>` instead of doing nothing (reason names a non-root `systemctl` run when the backend did not answer). Live Services actions after deploy are UNVERIFIED.
 `httpd` and `apache2` are the same Apache daemon (RHEL vs Debian unit name);
 `named` and `bind9` are the same BIND daemon. Default SQL is **MariaDB**
 (`systemctl enable --now mariadb`); `mysql`/`mysqld` alias rows are not listed

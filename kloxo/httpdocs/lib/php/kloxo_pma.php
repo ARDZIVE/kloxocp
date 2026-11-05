@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 /**
  * phpMyAdmin sign-on: SQL Manager (target=_blank) opens kloxo-signon.php.
- * A live panel-admin session is signed in as MariaDB root@127.0.0.1 and
- * redirected into phpMyAdmin in that new tab. Credentials stay in
- * etc/conf/pma.pass (never in the URL). OS root@localhost stays unix_socket.
+ * A live panel-admin session is signed in as MariaDB kloxo_pma (ALL
+ * PRIVILEGES, 127.0.0.1) and redirected into phpMyAdmin in that new tab.
+ * Credentials stay in etc/conf/pma.pass (never in the URL). root@localhost
+ * stays unix_socket, so root cannot be used over TCP.
  * Other users still get the MySQL logon form.
  */
 
@@ -87,8 +88,12 @@ function kloxo_pma_login(?string $root = null): array
 		$pass = trim((string)file_get_contents($file));
 	}
 
+	// Not `root`: root@localhost is unix_socket on Ubuntu, and a TCP connection to
+	// 127.0.0.1 resolves to host `localhost`, so it matches that account and fails
+	// with error 1698 whatever the password. kloxo_pma has ALL PRIVILEGES and this
+	// password on both @localhost and @127.0.0.1 (init-panel-db).
 	return array(
-		'user' => 'root',
+		'user' => 'kloxo_pma',
 		'pass' => $pass,
 		'host' => '127.0.0.1',
 	);
@@ -513,7 +518,7 @@ function kloxo_pma_try_admin_sso(?string $root = null): bool
 function kloxo_pma_signon_page(?string $root = null): void
 {
 	$error = '';
-	$user = 'root';
+	$user = 'kloxo_pma';
 	if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 		$posted = kloxo_pma_signon_posted_user();
 		if ($posted !== '') {
@@ -567,8 +572,10 @@ function kloxo_pma_signon_submit(?string $root = null): string
 	}
 	$pass = $_POST['pma_pass'] ?? '';
 	$pass = is_string($pass) ? $pass : '';
-	if ($pass === '' && $user === 'root' && kloxo_pma_panel_is_admin($root)) {
+	if ($pass === '' && ($user === 'root' || $user === 'kloxo_pma') && kloxo_pma_panel_is_admin($root)) {
+		// root@localhost is unix_socket (no TCP password login): use kloxo_pma.
 		$cred = kloxo_pma_login($root);
+		$user = $cred['user'];
 		$pass = $cred['pass'];
 	}
 	if ($pass === '') {
@@ -577,13 +584,13 @@ function kloxo_pma_signon_submit(?string $root = null): string
 	return kloxo_pma_write_signon_and_redirect($user, $pass, '127.0.0.1');
 }
 
-function kloxo_pma_signon_form_html(?string $root = null, string $error = '', string $user = 'root'): string
+function kloxo_pma_signon_form_html(?string $root = null, string $error = '', string $user = 'kloxo_pma'): string
 {
 	$esc = static function (string $s): string {
 		return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 	};
 	$err = $error !== '' ? '<p class="err">' . $esc($error) . '</p>' : '';
-	$u = $esc($user !== '' ? $user : 'root');
+	$u = $esc($user !== '' ? $user : 'kloxo_pma');
 	$t = $esc(kloxo_pma_csrf_issue($root));
 	$action = '';
 
@@ -616,7 +623,7 @@ button{padding:6px 18px;cursor:pointer}
 <label for="pma_pass">Password</label>
 <input id="pma_pass" name="pma_pass" type="password" value="">
 <div class="row"><button type="submit">Go</button></div>
-<p class="hint">Panel admin is signed in automatically from SQL Manager. This form is for a MySQL user on 127.0.0.1; admin may leave the password blank to use the install root password.</p>
+<p class="hint">Panel admin is signed in automatically from SQL Manager. This form is for a MySQL user on 127.0.0.1; admin may leave the password blank to sign in as the install-time kloxo_pma account (full privileges).</p>
 </form>
 </body>
 </html>

@@ -73,6 +73,9 @@ class Service extends Lxdb
 	 */
 	function runServiceControl($subaction)
 	{
+		if ($this->runDirect($subaction)) {
+			return;
+		}
 		$this->createSyncClass();
 		$drv = (isset($this->driverApp) && is_object($this->driverApp))
 			? get_class($this->driverApp) : '';
@@ -88,6 +91,62 @@ class Service extends Lxdb
 		$this->syncToSystem();
 		// State/boot flags still need write(); skip a second sync in was().
 		$this->subaction = null;
+	}
+
+	/**
+	 * Local systemd unit: run systemctl as root through kloxo-backend now and
+	 * wait for the unit, instead of serializing this object to the backend
+	 * (any failure there silently fell back to the non-root panel user).
+	 * Returns false when it does not apply (remote server, no systemd, unit
+	 * not installed): the caller then uses the generic driver sync.
+	 */
+	function runDirect($subaction)
+	{
+		$subaction = (string) $subaction;
+		if (!in_array($subaction, array('start', 'stop', 'restart', 'toggle_state', 'toggle_boot_state'), true)) {
+			return false;
+		}
+		$server = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+			? $this->syncserver : 'localhost';
+		if (!isLocalhost($server) || !Service__Linux::hasSystemd() || Service__Linux::systemctlBin() === '') {
+			return false;
+		}
+		$svc = isset($this->servicename) ? (string) $this->servicename : '';
+		$unit = Service__Linux::resolveInstalledUnit($svc);
+		if ($unit === '') {
+			return false;
+		}
+
+		switch ($subaction) {
+			case 'toggle_state':
+				$act = $this->isOn('state') ? 'start' : 'stop';
+				break;
+			case 'toggle_boot_state':
+				$act = $this->isOn('boot_state') ? 'enable' : 'disable';
+				break;
+			default:
+				$act = $subaction;
+		}
+
+		$res = Service__Linux::controlUnit($act, $unit, 'localhost');
+		if (empty($res['ok'])) {
+			$why = trim(preg_replace('/\s+/', ' ', (string) ($res['err'] !== '' ? $res['err'] : $res['out'])) ?? '');
+			if (strlen($why) > 300) {
+				$why = substr($why, 0, 300);
+			}
+			throw new lxException('Could not ' . $act . ' service ' . $svc . ($why !== '' ? ': ' . $why : ''), '', $svc);
+		}
+		Service__Linux::waitForUnit($unit, $act);
+
+		$this->state = Service__Linux::systemdShow($unit, 'ActiveState') === 'active' ? 'on' : 'off';
+		$this->boot_state = Service__Linux::bootStateOn($unit) ? 'on' : 'off';
+		if ($this->dbaction === 'clean') {
+			$this->dbaction = 'update';
+		}
+		// write() persists state; nothing left for was() to sync.
+		$this->subaction = null;
+
+		return true;
 	}
 
 	static function createListAlist($parent, $class)

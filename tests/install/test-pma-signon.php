@@ -63,7 +63,7 @@ $check(str_contains($src, 'kloxo_pma_try_admin_sso')
 $remote = kloxo_pma_href(false, 'bad host');
 $check(str_contains($remote, 'kloxo-signon.php') && !str_contains($remote, ' '), 'unsafe remote host does not invent a URL');
 $login = kloxo_pma_login('/tmp/kloxo-pma-missing');
-$check($login['user'] === 'root', 'sign-on user is MariaDB root');
+$check($login['user'] === 'kloxo_pma', 'sign-on user is kloxo_pma (root@localhost is unix_socket: error 1698 over TCP)');
 $check($login['host'] === '127.0.0.1', 'sign-on host is 127.0.0.1');
 $check($login['pass'] === '', 'missing pma.pass does not invent a password');
 $check(kloxo_pma_panel_is_admin('/tmp/kloxo-pma-missing') === false, 'no cookies is not admin');
@@ -119,8 +119,8 @@ $sess('client-admin', time());
 $row = kloxo_pma_session_row($sid, $tmp);
 $check(is_array($row) && ($row['parent_clname'] ?? '') === 'client-admin', 'session row is read from the session file');
 $check(kloxo_pma_panel_is_admin($tmp) === true, 'live admin session file is admin');
-$check(kloxo_pma_signon_credentials($tmp) === array('root', 'secret-pma-pass'),
-	'SignonScript returns root + pma.pass for a live admin session');
+$check(kloxo_pma_signon_credentials($tmp) === array('kloxo_pma', 'secret-pma-pass'),
+	'SignonScript returns kloxo_pma + pma.pass for a live admin session');
 $sess('client-bob', time());
 $check(kloxo_pma_panel_is_admin($tmp) === false, 'non-admin session file is not admin');
 $sess('client-admin', time() - 90000);

@@ -15,7 +15,7 @@ class Pop3__dovecot extends lxDriverClass
 		lxshell_return('systemctl', 'start', 'dovecot');
 	}
 
-	static function uninstallMe()
+	static function unInstallMe()
 	{
 		lxshell_return('systemctl', 'stop', 'dovecot');
 		lxshell_return('systemctl', 'disable', 'dovecot');

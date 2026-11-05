@@ -167,7 +167,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL
     Manager opens `kloxo-signon.php` in a new tab (`kloxo_pma_href`,
     `target="_blank"`; never mywebsql). A live panel-admin session is
-    signed in as MariaDB `root`@`127.0.0.1` (`pma.pass`, WITH GRANT OPTION,
+    signed in as MariaDB `kloxo_pma`@`127.0.0.1` (not `root`: root@localhost is unix_socket, error 1698 over TCP) (`pma.pass`, WITH GRANT OPTION,
     no password in the URL; `AllowRoot` is on) and redirected into
     phpMyAdmin in that tab. Cross-site GET does not auto-SSO. Other users
     still get the MySQL logon form (signed CSRF; admin may leave the
@@ -625,7 +625,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    missing driver row, or admin `getParentO()`. Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
    opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
-   `root`@`127.0.0.1` via `kloxo-signon.php` (`auth_type=signon`,
+   `kloxo_pma`@`127.0.0.1` (not root: unix_socket) via `kloxo-signon.php` (`auth_type=signon`,
    `AllowRoot`, `pma.pass`; unix_socket `root`@`localhost` unchanged).
    Live phpMyAdmin login after re-install is **UNVERIFIED**. Remaining
    compile failures are third-party (`webdisk/PEAR*`, formmail,
