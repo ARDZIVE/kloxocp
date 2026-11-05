@@ -18,7 +18,7 @@ check "php -l kloxocp" php -l "$ROOT/kloxo/bin/kloxocp"
 check "help exits 0" "${TOOL[@]}" help
 check "version exits 0" "${TOOL[@]}" version
 out="$("${TOOL[@]}" version)"
-echo "$out" | grep -q '10.1-2026110403' && ok "version string" || bad "version string" "$out"
+echo "$out" | grep -q '10.1-2026110501' && ok "version string" || bad "version string" "$out"
 fails "unknown command is 64" "${TOOL[@]}" not-a-command
 "${TOOL[@]}" update >/dev/null 2>"$T/upd.err"; rc=$?
 [ "$rc" -eq 2 ] && ok "update exits 2 (not implemented)" || bad "update exits 2 (not implemented)" "rc=$rc"

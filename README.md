@@ -10,14 +10,14 @@ Public git remote: https://github.com/ARDZIVE/kloxocp.git (`main`).
 
 | What | Value |
 |---|---|
-| **Kloxo CP** (this fork) | **10.1-2026110403** |
-| `kloxo/bin/kloxoversion` | **10.1-2026110403** |
+| **Kloxo CP** (this fork) | **10.1-2026110501** |
+| `kloxo/bin/kloxoversion` | **10.1-2026110501** |
 | Upstream base | Kloxo-MR `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` |
 
-`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110403**.
+`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110501**.
 The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
-> **Status: 10.1-2026110403, NOT FOR PRODUCTION.**
+> **Status: 10.1-2026110501, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. Phase-1a security items (C1–C5) are
 > closed, first-party PHP parses and loads on PHP 8, and `install.sh` can
 > bootstrap a panel, but the legacy PHP is still PHP 5-era in behaviour.
@@ -31,7 +31,7 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
 ## Installation command (Ubuntu 24.04 or 26.x, as root)
 
-**Recommended (current `main`, version 10.1-2026110403):**
+**Recommended (current `main`, version 10.1-2026110501):**
 
 ```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
@@ -62,9 +62,10 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get i
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
 (`curl | bash` breaks apt stdin). Re-run the same command to refresh an
-existing clone to current `main` (**10.1-2026110403**: Services icon
-start/stop/restart via `systemctl`, Multiple PHP Install job under
-`$ROOT/log/`, MariaDB-default SQL, ImageMagick for File Manager Thumbnail).
+existing clone to current `main` (**10.1-2026110501**: UFW enabled at
+install; Security → UFW Firewall Port Rules with Family IPv4/IPv6; edit on
+a separate page; Services icons via `systemctl`; Multiple PHP Install under
+`$ROOT/log/`).
 
 Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
 **redis-server**, **imagemagick**, and Ubuntu **universe** enabled when needed.
@@ -74,8 +75,9 @@ installs Postfix. It does **not** install bogofilter, SpamAssassin, or sqlite
 (panel DB is **MariaDB**; spam is Rspamd). Starts Nginx, **MariaDB**, BIND,
 Redis, Pure-FTPd, webcache on **8080**, and webproxy on **30080**. Default SQL
 is MariaDB only (`mysql`/`mysqld` aliases are not a second started service).
-Packages and **enables `ufw` by default** (panel ports 7777/7778 allowed
-first). Apache and PowerDNS are packaged and stay disabled.
+Packages and **enables `ufw` by default** (panel ports 7777/7778 plus common
+SSH/web/FTP/DNS/mail ports allowed first; dual-stack IPv4+IPv6 rules when
+`IPV6=yes`). Apache and PowerDNS are packaged and stay disabled.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
 self-signed certificate. Change that password on first login. Flags and
@@ -120,13 +122,13 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Manage DNS | Tabs **Manage DNS**, **Rebuild**, **NS**, **A**, **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**, **General Settings**. No left Find box. Show does not rewrite the zone. |
 | DNS Templates | Add form on the list tab (name/primary/secondary empty). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
-| Update | **10.1-2026110403**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
+| Update | **10.1-2026110501**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
 | Services | Lists only installed units; running/boot from systemd. RHEL/Debian aliases collapse to one row (`apache2` not `httpd`, `bind9` not `named`). Default SQL is **MariaDB** (started at install); `mysql`/`mysqld` are not shown as a second installed row while MariaDB is present. A separate MySQL package stays stopped until started here. Columns **Start** / **Stop** / **Restart**; icon clicks run `systemctl --no-block` immediately. Stop/restart of MariaDB and panel units is refused (icons stay visible; Sb/State view-only for those). If every page shows `No such file or directory`, run `systemctl start mariadb`. |
 | Traceroute | Parses `traceroute` and `tracepath`. Response times show three decimals; unreachable hops show `*` (not `no`). |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
-| UFW Firewall | Security-section button. **UFW enabled by default** at install. No Enable/defaults UI. Show/Hide add form (mail-account look); Port Rules list; edit on a separate page; Family IPv4/IPv6. Live UFW after deploy is unverified. |
+| UFW Firewall | Security-section button. **UFW enabled by default** at install. No Enable/defaults UI and no Managed/Backend line. Show/Hide centered add form; Port Rules pink toolbar; edit on a separate page; **Family** IPv4/IPv6 (UFW dual-stack — same port twice is normal). Manage IPv6 by editing/deleting the IPv6 row, or host `/etc/default/ufw` `IPV6=`. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |
@@ -170,11 +172,12 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get i
 Downloads the current `install.sh` from GitHub `main`
 (https://github.com/ARDZIVE/kloxocp) and runs it (default **full**: Exim,
 Dovecot, Rspamd; Postfix not co-installed; Redis, Pure-FTPd, and ImageMagick
-enabled; **MariaDB** is the default SQL). That script clones the tree if
-needed, or fetches `origin/main` and hard-resets when `/usr/local/src/kloxo-cp`
-is already a git clone. Safe to repeat after a failed install or to pick up
-GitHub `main` (local edits in that clone are discarded). Use `--profile=core`
-for a panel without mail packages.
+enabled; **MariaDB** is the default SQL; **UFW enabled** with panel ports
+allowed first). That script clones the tree if needed, or fetches
+`origin/main` and hard-resets when `/usr/local/src/kloxo-cp` is already a
+git clone. Safe to repeat after a failed install or to pick up GitHub `main`
+(local edits in that clone are discarded; picks up **10.1-2026110501**).
+Use `--profile=core` for a panel without mail packages.
 
 A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:
@@ -193,9 +196,10 @@ that directory (a git clone is reset to GitHub `main`).
 When it finishes, the installer prints a box with the panel URL
 (`https://<ip>:7777/`), username `admin`, and password `admin`. Accept the
 self-signed certificate. The first screen after login is the password-change
-form; the home dashboard appears after that password is changed. If the page
-does not load, allow TCP 7777 (and 7778) in the host firewall. Watchdog
-webcache and webproxy listen on **8080** and **30080**.
+form; the home dashboard appears after that password is changed. UFW is
+already enabled with 7777/7778 allowed; manage further rules under Security →
+**UFW Firewall** (IPv4 and IPv6 rows). Watchdog webcache and webproxy listen
+on **8080** and **30080**.
 
 ### What `install.sh` does
 
@@ -207,7 +211,8 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    `php-mbstring` `php-curl`, **MariaDB**, Nginx, BIND 9, **pure-ftpd**,
    **redis-server**, **imagemagick**, `iproute2`, and the
    compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`),
-   and `ufw` (**enabled by default**; panel ports 7777/7778 allowed first).
+   and `ufw` (**enabled by default**; panel ports 7777/7778 plus common
+   SSH/web/FTP/DNS/mail ports allowed first; IPv4+IPv6 when `IPV6=yes`).
    Also packages `pdns-server` and `apache2` but does not let apt start them
    (BIND stays on 53, Nginx on 80/443). Does **not** install bogofilter,
    SpamAssassin, or sqlite.
@@ -409,7 +414,8 @@ builds pinned 12.4. `redis-server` is a core package (Rspamd Bayes backend).
 Switch Program selects PowerDNS. `apache2` is installed and left **disabled**;
 Nginx stays on 80/443 until Switch Program selects Apache (PHP-FPM via
 `proxy_fcgi`, not mod_php). `ufw` is installed and **enabled by default**
-(7777/7778 and common ports allowed first). After Nginx starts,
+(7777/7778 and common ports allowed first; dual-stack when IPv6 is on).
+After Nginx starts,
 `install-webfront` enables **kloxo-webcache** (8080) and
 **kloxo-webproxy** (30080). During apt,
 `install.sh` tells `invoke-rc.d` not to start pdns and apache2 (they have no

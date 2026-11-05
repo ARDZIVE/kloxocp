@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (designed, not built).
 
 ## Status
-10.1-2026110403. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026110501. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerDNS; qmail still
 present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -32,7 +32,7 @@ change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it). Simplicity Status toast auto-opens for
 alerts/info and content shows matching inline alerts (Status peek does not
 consume the message). Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026110403** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).
+screen shows **10.1-2026110501** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).
 Switch Program DNS default is BIND (`pg_dns=bind`); PowerDNS is packaged and
 prepared (`install-pdns`) but the `pdns` unit stays disabled until selected
 (apt postinst is blocked from starting it).
