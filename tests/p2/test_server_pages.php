@@ -3271,6 +3271,9 @@ $ufwEditOk = is_array($ufwEditForm) && !array_key_exists('ufw_rule', $ufwEditFor
 	&& !isset($ufwEditForm['__v_param'])
 	&& array_keys($ufwActKeys) === array('deny', 'allow', 'reject')
 	&& $ufwActKeys === array('deny' => 'DROP', 'allow' => 'ACCEPT', 'reject' => 'REJECT')
+	// 'A' = select posts the array KEYS (deny/allow/reject, tcp/udp/icmp); 's' would post the labels.
+	&& ($ufwForm['ufw_action'][0] ?? '') === 'A' && ($ufwForm['ufw_proto'][0] ?? '') === 'A'
+	&& ($ufwEditForm['ufw_action'][0] ?? '') === 'A' && ($ufwEditForm['ufw_proto'][0] ?? '') === 'A'
 	&& $ufw->ufw_action === 'deny' && $ufw->ufw_proto === 'tcp'
 	&& array_keys($ufwForm['ufw_proto'][1]) === array('tcp', 'udp', 'icmp')
 	&& $ufwEditTab === 'Edit' && $ufwShowTab === 'UFW Firewall'

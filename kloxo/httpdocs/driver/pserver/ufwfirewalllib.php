@@ -840,8 +840,8 @@ class ufwfirewall extends lxclass
 				$this->ufw_port = '';
 				$this->ufw_from = '';
 				$this->ufw_comment = '';
-				$vlist['ufw_action'] = array('s', $actions);
-				$vlist['ufw_proto'] = array('s', $protos);
+				$vlist['ufw_action'] = array('A', $actions);
+				$vlist['ufw_proto'] = array('A', $protos);
 				$vlist['ufw_port'] = null;
 				$vlist['ufw_from'] = null;
 				$vlist['ufw_comment'] = null;
@@ -889,8 +889,8 @@ class ufwfirewall extends lxclass
 				if ($ruleId !== '') {
 					$vlist['__v_param'] = array('ufw_rule' => $ruleId);
 				}
-				$vlist['ufw_action'] = array('s', $actions);
-				$vlist['ufw_proto'] = array('s', $protos);
+				$vlist['ufw_action'] = array('A', $actions);
+				$vlist['ufw_proto'] = array('A', $protos);
 				$vlist['ufw_port'] = null;
 				$vlist['ufw_from'] = null;
 				$vlist['ufw_comment'] = null;
@@ -905,7 +905,7 @@ class ufwfirewall extends lxclass
 				}
 				$vlist['ufw_rule'] = $choices === array()
 					? array('M', 'No rules to delete.')
-					: array('s', $choices);
+					: array('A', $choices);
 				$vlist['__v_button'] = $choices === array() ? array() : 'Delete Rule';
 				return $vlist;
 		}
