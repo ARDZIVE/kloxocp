@@ -209,6 +209,14 @@ tab (Greet Delay, max recipients 150, graylisting, RDNS/MX reject flags, DNS RBL
 Servers textarea, Blacklist Headers, Update). Clicking **Whitelist IPs** selects
 that tab and lists `mail_graylist_wlist_a` (add Whitelist IP + list column). Live
 Mail Server Settings after deploy is UNVERIFIED.
+`init-panel-db` seeds the `dbadmin` row `mysql___localhost` (MariaDB account
+`kloxo_pma`, password from `pma.pass`) so Add Database no longer fails with
+"no Database administrator entries"; live database creation is UNVERIFIED.
+phpMyAdmin admin SSO reads the panel session JSON in `<root>/session/<id>`
+(the `ssession` table is unused; before this fix SQL Manager always showed the
+MySQL logon form on a live server); live SSO after deploy is UNVERIFIED.
+`install.sh` re-runs keep an existing admin password
+(`init-panel-db --keep-admin-password`) unless `KLOXO_ADMIN_PASSWORD` is set.
 Next: remaining P2 runtime, Debian packaging, or P4 exim UI. See briefing
 section 7.
 

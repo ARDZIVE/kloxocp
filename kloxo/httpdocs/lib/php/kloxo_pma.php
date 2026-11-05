@@ -103,6 +103,41 @@ function kloxo_pma_cookie(string $suffix): string
 }
 
 /**
+ * The panel stores a login session as JSON in <root>/session/<id>
+ * (Ssession is transient; its `ssession` table is not used). Fall back to
+ * that table only if the file is missing.
+ *
+ * @return array<string,mixed>|null
+ */
+function kloxo_pma_session_row(string $sid, ?string $root = null): ?array
+{
+	$file = kloxo_pma_root($root) . '/session/' . $sid;
+	if (is_file($file) && is_readable($file)) {
+		$raw = @file_get_contents($file);
+		$row = is_string($raw) ? json_decode($raw, true) : null;
+		if (is_array($row)) {
+			return $row;
+		}
+	}
+
+	$pdo = kloxo_pma_panel_pdo($root);
+	if ($pdo === null) {
+		return null;
+	}
+	try {
+		$stmt = $pdo->prepare(
+			'SELECT parent_clname, ip_address, last_access FROM ssession WHERE nname = ? LIMIT 1'
+		);
+		$stmt->execute([$sid]);
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+	} catch (PDOException $e) {
+		return null;
+	}
+
+	return is_array($row) ? $row : null;
+}
+
+/**
  * True when the Kloxo panel session cookie is a live admin client session.
  */
 function kloxo_pma_panel_is_admin(?string $root = null): bool
@@ -113,23 +148,11 @@ function kloxo_pma_panel_is_admin(?string $root = null): bool
 	if ($class !== 'client' || $name !== 'admin' || $sid === '' || strlen($sid) > 255) {
 		return false;
 	}
-	if (!preg_match('/^[A-Za-z0-9._:-]+$/', $sid)) {
+	if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]*$/', $sid)) {
 		return false;
 	}
 
-	$pdo = kloxo_pma_panel_pdo($root);
-	if ($pdo === null) {
-		return false;
-	}
-	try {
-		$stmt = $pdo->prepare(
-			'SELECT parent_clname, ip_address, last_access FROM ssession WHERE nname = ? LIMIT 1'
-		);
-		$stmt->execute([$sid]);
-		$row = $stmt->fetch(PDO::FETCH_ASSOC);
-	} catch (PDOException $e) {
-		return false;
-	}
+	$row = kloxo_pma_session_row($sid, $root);
 	if (!is_array($row) || ($row['parent_clname'] ?? '') !== 'client-admin') {
 		return false;
 	}

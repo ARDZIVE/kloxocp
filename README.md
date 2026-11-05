@@ -98,6 +98,7 @@ details are under [Installation](#installation).
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
 | Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
 | Database | **MariaDB** default (started at install; panel DB `kloxo`; mail DB is separate). A distinct MySQL package, if present, stays stopped until started from Services. |
+| Database admin | Seeded by `init-panel-db` as the `kloxo_pma` MariaDB account (needed by Add Database) |
 | SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `root`@`127.0.0.1`) |
 | Billing | None |
 | License | GNU AGPL v3 |
@@ -110,7 +111,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 
 | Screen | Behaviour |
 |---|---|
-| SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session is signed in as MariaDB `root`@`127.0.0.1` and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
+| SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session (read from the session file `<root>/session/<id>`, matched to the `kloxo-session-id` cookie) is signed in as MariaDB `root`@`127.0.0.1` and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
 | Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP **exim**. Postfix is selectable and apt-swaps with Exim. |
 | Backup / Restore | Exactly five tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. Show page: Backup Now, Restore From File, Restore From FTP. File Manager / Upload under a backup keep those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
@@ -254,8 +255,10 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 
 Default login is **admin / admin**; the panel blocks the rest of the UI until
 that password is changed. The password is also written to
-`/root/kloxo-admin-password` (mode 0600). Override with `KLOXO_ADMIN_PASSWORD`
-(min 8 characters, or the literal default `admin`). Log:
+`/root/kloxo-admin-password` (mode 0600) on a first install. Override with
+`KLOXO_ADMIN_PASSWORD` (min 8 characters, or the literal default `admin`).
+Re-running the installer on an existing panel keeps the current admin
+password unless that variable is set. Log:
 `/var/log/kloxo-install.log`.
 
 It does **not** run `kloxo-mail apply`, Let's Encrypt, or a signed apt
@@ -279,12 +282,13 @@ sudo bash install.sh --root=/opt/kloxo     # program root
 sudo bash install.sh --branch=main         # git branch
 sudo bash install.sh --repo=URL            # git URL
 sudo bash install.sh --help
+sudo KLOXO_ADMIN_PASSWORD='...' bash install.sh         # set/change the admin UI password (min 8)
 sudo bash install.sh --slave --slave-password=SECRET   # second machine; no panel UI
 ```
 
 | Variable | Meaning |
 |---|---|
-| `KLOXO_ADMIN_PASSWORD` | Panel admin password (default `admin`; otherwise min 8 chars) |
+| `KLOXO_ADMIN_PASSWORD` | Panel admin password (first-install default `admin`; otherwise min 8 chars). Unset on a re-run keeps the current password. |
 | `KLOXO_SLAVE_PASSWORD` | Slave backend password (min 8 chars; used with `--slave`) |
 | `KLOXO_GIT_URL` | Git remote (default `https://github.com/ARDZIVE/kloxocp.git`) |
 | `KLOXO_GIT_BRANCH` | Git branch (default `main`) |
@@ -303,6 +307,33 @@ sudo rm -rf /usr/local/src/kloxo-cp
 ```
 
 then run the one-liner again.
+
+### Updating an existing install
+
+The installer only ever installs what is on GitHub `main`, so push your
+changes first. Then, on the server, run the same command again (it replaces
+`/tmp/kloxocp-install.sh`, resets the clone to `origin/main`, re-runs
+`init-panel-db` and restarts the panel services):
+
+```bash
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+```
+
+A re-run on an existing panel **keeps the current admin password** (the
+installer prints "unchanged"). Set `KLOXO_ADMIN_PASSWORD='...'` (at least 8
+characters) on the `sudo` call only when you want to change it. A first
+install, or a half-finished one with no admin row, still seeds `admin` /
+`admin` (the UI then requires a change).
+
+`raw.githubusercontent.com` can serve a cached copy for a few minutes after a
+push. If the run does not show your change, wait and run it again.
+
+If only the database schema or seed rows need refreshing (for example the
+database admin row below), run `init-panel-db` alone:
+
+```bash
+sudo php /opt/kloxo/bin/install/init-panel-db --root=/opt/kloxo --keep-admin-password --db-rootuser=root
+```
 
 ### Multi-server (master / slave)
 
@@ -593,12 +624,21 @@ sudo KLOXO_ADMIN_PASSWORD='YOUR_ADMIN_UI_PASS' \
 ```
 
 `init-panel-db` is idempotent (`CREATE TABLE IF NOT EXISTS`, insert-or-update
-admin). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0640, `lxlabs`). With no override
+admin; `--keep-admin-password` leaves an existing admin password alone, which
+`install.sh` uses on re-runs). It writes `/opt/kloxo/etc/conf/kloxo.pass` (0640, `lxlabs`). With no override
 it seeds **admin / admin** (the UI then requires a change), the `localhost`
 pserver and driver rows, simplicity appearance, and `generalmisc_b`. A custom
 `--admin-password` must be at least 8 characters. Re-running it on an existing
 database fills those rows if they are missing. On MariaDB 10.6+/11.8 it rewrites
 the 2014 dump so `client`/`domain`/`web` do not hit error 1118 (row size).
+
+It also seeds the **database administrator** row (`dbadmin`, `mysql___localhost`)
+that Add Database reads. Because OS `root`@`localhost` is unix_socket and cannot
+log in with a password, the row uses the `kloxo_pma` MariaDB account (ALL
+PRIVILEGES; password in `/opt/kloxo/etc/conf/pma.pass`). Without this row,
+creating a database fails with *There are no Database administrator entries
+configured for this particular server*. Live database creation after
+re-install is unverified.
 
 The legacy wrapper still works from `httpdocs` and now calls `init-panel-db`:
 

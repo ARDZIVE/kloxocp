@@ -717,6 +717,28 @@ else
   bad "install.sh dry-run names Nginx default and apache2 prepared"
 fi
 
+if grep -q 'seedDbadmin(\$pdo)' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "'mysql___localhost'" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "'kloxo_pma'" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds the local MariaDB dbadmin row (kloxo_pma)"
+else
+  bad "init-panel-db seeds the local MariaDB dbadmin row (kloxo_pma)"
+fi
+
+if grep -q -- '--keep-admin-password' "$ROOT/install.sh" \
+  && grep -q "keep-admin-password" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "install.sh re-run keeps an existing admin password (--keep-admin-password)"
+else
+  bad "install.sh re-run keeps an existing admin password (--keep-admin-password)"
+fi
+check "install.sh bash -n" bash -n "$ROOT/install.sh"
+if grep -q "session/" "$ROOT/kloxo/httpdocs/lib/php/kloxo_pma.php" \
+  && grep -q 'function kloxo_pma_session_row' "$ROOT/kloxo/httpdocs/lib/php/kloxo_pma.php"; then
+  ok "phpMyAdmin sign-on reads the panel session file"
+else
+  bad "phpMyAdmin sign-on reads the panel session file"
+fi
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

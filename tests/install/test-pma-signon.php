@@ -78,10 +78,46 @@ $check(($ck['path'] ?? '') === '/' && ($ck['samesite'] ?? '') === 'Lax',
 
 $tmp = sys_get_temp_dir() . '/kloxo-pma-' . bin2hex(random_bytes(4));
 mkdir($tmp . '/etc/conf', 0750, true);
+mkdir($tmp . '/session', 0750, true);
 file_put_contents($tmp . '/etc/conf/pma.pass', "secret-pma-pass\n");
 $with = kloxo_pma_login($tmp);
 $check($with['pass'] === 'secret-pma-pass', 'reads pma.pass');
 $check(strpos($with['pass'], '?') === false, 'password is not a URL query');
+
+// Panel sessions are JSON files in <root>/session/<id> (not the ssession table).
+$sid = 'AbC123xyzSESSIONid0123456789abcdefghijklmnopqrstuv';
+$sess = static function (string $parent, int $last, string $ip = '127.0.0.1') use ($tmp, $sid): void {
+	file_put_contents($tmp . '/session/' . $sid, json_encode(array(
+		'nname' => $sid, 'parent_clname' => $parent, 'ip_address' => $ip,
+		'last_access' => $last, 'timeout' => $last + 100,
+	)));
+};
+$_COOKIE['kloxo-classname'] = 'client';
+$_COOKIE['kloxo-clientname'] = 'admin';
+$_COOKIE['kloxo-session-id'] = $sid;
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+$check(kloxo_pma_panel_is_admin($tmp) === false, 'cookie without a session file is not admin');
+$sess('client-admin', time());
+$row = kloxo_pma_session_row($sid, $tmp);
+$check(is_array($row) && ($row['parent_clname'] ?? '') === 'client-admin', 'session row is read from the session file');
+$check(kloxo_pma_panel_is_admin($tmp) === true, 'live admin session file is admin');
+$check(kloxo_pma_signon_credentials($tmp) === array('root', 'secret-pma-pass'),
+	'SignonScript returns root + pma.pass for a live admin session');
+$sess('client-bob', time());
+$check(kloxo_pma_panel_is_admin($tmp) === false, 'non-admin session file is not admin');
+$sess('client-admin', time() - 90000);
+$check(kloxo_pma_panel_is_admin($tmp) === false, 'stale admin session file is not admin');
+$sess('client-admin', time(), '203.0.113.9');
+$_SERVER['REMOTE_ADDR'] = '198.51.100.7';
+$check(kloxo_pma_panel_is_admin($tmp) === false, 'admin session from another IP is not admin');
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+$_COOKIE['kloxo-session-id'] = '../etc/conf/pma.pass';
+$check(kloxo_pma_panel_is_admin($tmp) === false, 'path-like session id is rejected');
+$_COOKIE['kloxo-session-id'] = '..';
+$check(kloxo_pma_panel_is_admin($tmp) === false, 'dot session id is rejected');
+unset($_COOKIE['kloxo-classname'], $_COOKIE['kloxo-clientname'], $_COOKIE['kloxo-session-id'], $_SERVER['REMOTE_ADDR']);
+@unlink($tmp . '/session/' . $sid);
+@rmdir($tmp . '/session');
 @unlink($tmp . '/etc/conf/pma.pass');
 @rmdir($tmp . '/etc/conf');
 @rmdir($tmp . '/etc');

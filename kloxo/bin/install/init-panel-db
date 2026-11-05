@@ -194,8 +194,8 @@ final class App
         echo <<<TXT
 init-panel-db 0.1.0: create the Kloxo CP panel MariaDB schema
 
-  init-panel-db --root=DIR [--admin-password-env=VAR] [--db-socket=PATH]
-                [--db-rootuser=root] [--db-name=kloxo] [--db-user=kloxo]
+  init-panel-db --root=DIR [--admin-password-env=VAR | --keep-admin-password]
+                [--db-socket=PATH] [--db-rootuser=root] [--db-name=kloxo] [--db-user=kloxo]
   init-panel-db --print-schema-stats --root=DIR
   init-panel-db --self-test
   init-panel-db --help
@@ -211,7 +211,12 @@ Inserts admin / general rows if they are missing.
 Admin UI password: omitted flags seed the well-known default admin/admin
 (must be changed after first login). Override with --admin-password-env=VAR
 (preferred) or --admin-password= (visible in ps). Custom passwords must be
-at least 8 characters.
+at least 8 characters. With --keep-admin-password an existing admin row keeps
+its current password (re-runs and updates); a missing admin row is still
+created with the password above.
+
+Also seeds the database administrator row (dbadmin, mysql___localhost) with the
+kloxo_pma account so Add Database works.
 
 Ubuntu 24.04 / 26.x: creates the kloxo DB user via the mariadb CLI (unix
 socket, no root password prompt) then loads the schema as that user. Re-run is safe
@@ -286,6 +291,7 @@ TXT;
         $this->seedHelpdesk($pdo);
         $this->seedNotification($pdo);
         $this->seedPserver($pdo);
+        $this->seedDbadmin($pdo);
         $this->seedDriver($pdo);
         $this->seedPhpini($pdo);
         $this->seedServerweb($pdo);
@@ -625,6 +631,16 @@ TXT;
     {
         $n = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
         $hash = $this->md5Crypt($adminPass);
+        if ($n > 0 && isset($this->opt['keep-admin-password'])) {
+            // Re-run on an existing install: do not reset a password the
+            // owner already changed.
+            $pdo->exec(
+                "UPDATE client SET cttype = 'admin', cpstatus = 'on', status = 'on',
+                 syncserver = IF(syncserver IS NULL OR syncserver = '', 'localhost', syncserver)
+                 WHERE nname = 'admin'"
+            );
+            return;
+        }
         if ($n > 0) {
             $stmt = $pdo->prepare(
                 "UPDATE client SET password = ?, realpass = ?, cttype = 'admin', cpstatus = 'on', status = 'on',
@@ -701,6 +717,32 @@ TXT;
         }
 
         return ['ostype' => 'debian', 'osversion' => 'linux'];
+    }
+
+    /**
+     * Database administrator for the local MariaDB (the `dbadmin` table).
+     * Creating a database reads this row (databasecore::getDbAdminPass) and
+     * the driver then connects over the unix socket with it. root@localhost is
+     * unix_socket on Ubuntu (a password login as root fails), so use the
+     * kloxo_pma account (ALL PRIVILEGES, password in etc/conf/pma.pass).
+     */
+    private function seedDbadmin(PDO $pdo): void
+    {
+        $pass = trim((string)@file_get_contents($this->root . '/etc/conf/pma.pass'));
+        if ($pass === '') {
+            throw new IpdbException('pma.pass is empty; cannot seed the database admin');
+        }
+        $stmt = $pdo->prepare(
+            "INSERT INTO dbadmin (nname, parent_clname, parent_cmlist, dbtype, dbadmin_name, dbpassword, syncserver)
+             VALUES ('mysql___localhost', 'pserver-localhost', '', 'mysql', 'kloxo_pma', ?, 'localhost')
+             ON DUPLICATE KEY UPDATE
+                dbtype = 'mysql',
+                syncserver = 'localhost',
+                parent_clname = IF(parent_clname IS NULL OR parent_clname = '', 'pserver-localhost', parent_clname),
+                dbadmin_name = IF(dbadmin_name IS NULL OR dbadmin_name = '' OR dbadmin_name = 'root', 'kloxo_pma', dbadmin_name),
+                dbpassword = IF(dbpassword IS NULL OR dbpassword = '' OR dbadmin_name = 'kloxo_pma', VALUES(dbpassword), dbpassword)"
+        );
+        $stmt->execute([$pass]);
     }
 
     private function seedPserver(PDO $pdo): void

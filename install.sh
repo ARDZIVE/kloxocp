@@ -15,7 +15,8 @@
 #
 # Does: pre-flight, clone (if needed), apt packages, /opt/kloxo layout, TLS keys,
 # lxphp.exe wrappers, kloxo-php systemd unit, pinned Hiawatha 12.4 build,
-# panel MariaDB schema via init-panel-db, phpMyAdmin under httpdocs/thirdparty,
+# panel MariaDB schema via init-panel-db (also seeds the local database admin
+# row; a re-run keeps an existing admin UI password), phpMyAdmin under httpdocs/thirdparty,
 # site PHP-FPM 5.6 / 7.4 / latest (install-site-php; default latest),
 # PowerDNS packaged and prepared (disabled; BIND stays default on 53),
 # Apache packaged and prepared (disabled; Nginx stays default on 80/443),
@@ -72,6 +73,8 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 
 Default panel login is admin/admin; the UI requires a password change
 after the first login. Override with KLOXO_ADMIN_PASSWORD (min 8 chars).
+Re-running on an existing install keeps the current admin password unless
+KLOXO_ADMIN_PASSWORD is set.
 Slave password: --slave-password= or KLOXO_SLAVE_PASSWORD (min 8 chars).
 
 Install on Ubuntu 24.04 or 26.x (root). Downloads this script from GitHub main,
@@ -158,7 +161,7 @@ print_access_box() {
   box "Change the password on the first login; the panel requires it."
   box ""
   box "If the page does not load, allow TCP 7777 (and 7778) in the firewall."
-  box "Password is also saved in /root/kloxo-admin-password (mode 0600)."
+  box "A first-install password is saved in /root/kloxo-admin-password (0600)."
   echo "$bar"
   echo
 }
@@ -631,15 +634,30 @@ if ! wait_mariadb; then
 fi
 prepare_pdns
 
+# Re-running the installer on an existing panel must not reset a password the
+# owner already changed: keep it unless KLOXO_ADMIN_PASSWORD is given.
+keep_admin=0
+if [[ -z "${KLOXO_ADMIN_PASSWORD:-}" && -s "$ROOT/etc/conf/kloxo.pass" ]]; then
+  # only when an admin row really exists (not a half-finished first install)
+  if [[ "$(mariadb -N -B -e "SELECT COUNT(*) FROM kloxo.client WHERE nname='admin'" 2>/dev/null || true)" == "1" ]]; then
+    keep_admin=1
+  fi
+fi
 admin_env="${KLOXO_ADMIN_PASSWORD:-admin}"
 if [[ "$admin_env" != "admin" && ${#admin_env} -lt 8 ]]; then
   die "admin password must be at least 8 characters (or the default admin)"
 fi
-install -d -m 0700 /root
-printf '%s\n' "$admin_env" > /root/kloxo-admin-password
-chmod 600 /root/kloxo-admin-password
-KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
-    --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root
+if [[ "$keep_admin" -eq 1 ]]; then
+  log "existing install: keeping the current admin password (set KLOXO_ADMIN_PASSWORD to change it)"
+  KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
+      --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --keep-admin-password --db-rootuser=root
+else
+  install -d -m 0700 /root
+  printf '%s\n' "$admin_env" > /root/kloxo-admin-password
+  chmod 600 /root/kloxo-admin-password
+  KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
+      --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root
+fi
 if id -u lxlabs >/dev/null 2>&1; then
   chown -R lxlabs:lxlabs "$ROOT/etc/conf" || true
   chmod 0750 "$ROOT/etc/conf" || true
@@ -727,5 +745,9 @@ alt=""
 if [[ -n "$ip" && -n "$host" ]]; then
   alt="https://${host}:7777/"
 fi
-print_access_box "$url" "$alt" "admin" "$admin_env" | tee -a "$LOG"
+if [[ "$keep_admin" -eq 1 ]]; then
+  print_access_box "$url" "$alt" "admin" "(unchanged: your current admin password)" | tee -a "$LOG"
+else
+  print_access_box "$url" "$alt" "admin" "$admin_env" | tee -a "$LOG"
+fi
 exit 0
