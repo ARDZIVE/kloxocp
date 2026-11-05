@@ -75,21 +75,25 @@ if (count($dualRules) === 2
 }
 
 $ufwUi = (string) file_get_contents($root . '/kloxo/httpdocs/driver/pserver/ufwfirewalllib.php');
-if (str_contains($ufwUi, 'Family')
+if (str_contains($ufwUi, 'listaddform_ufwfirewall')
+	&& str_contains($ufwUi, 'toggleVisibilityById')
+	&& str_contains($ufwUi, 'clickheretoadd')
+	&& str_contains($ufwUi, 'background:#fee')
+	&& str_contains($ufwUi, 'Advanced Search')
+	&& str_contains($ufwUi, 'Port Rules')
+	&& str_contains($ufwUi, 'Family')
 	&& str_contains($ufwUi, 'Actions')
 	&& str_contains($ufwUi, 'frm_ufw_filter')
 	&& str_contains($ufwUi, 'frm_ufw_edit')
 	&& str_contains($ufwUi, 'updateform_edit.gif')
 	&& str_contains($ufwUi, 'delete.gif')
 	&& str_contains($ufwUi, 'function updateEditrule')
-	&& str_contains($ufwUi, 'Edit Port Rule')
-	&& str_contains($ufwUi, 'Add Port Rule')
-	&& str_contains($ufwUi, 'filterRules')
-	&& str_contains($ufwUi, "background-color:' . \$rowBg")
-	&& str_contains($ufwUi, "colspan=\"7\"")) {
-	ok('UFW page: top add/edit form, column filters, Actions icons, alt rows');
+	&& str_contains($ufwUi, 'collist')
+	&& str_contains($ufwUi, 'formtablerow0')
+	&& str_contains($ufwUi, 'filterRules')) {
+	ok('UFW page: Show/Hide add form, pink toolbar list chrome, Actions icons');
 } else {
-	bad('UFW page: top add/edit form, column filters, Actions icons, alt rows');
+	bad('UFW page: Show/Hide add form, pink toolbar list chrome, Actions icons');
 }
 
 $src = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/kloxo_ufw.php');
@@ -115,20 +119,25 @@ if (!class_exists('lxclass', false)) {
 require_once $root . '/kloxo/httpdocs/driver/pserver/ufwfirewalllib.php';
 $ufwProbe = new ufwfirewall(null, 'localhost', 'localhost');
 $filtTcp = $ufwProbe->filterRules($fakeRules, array(
-	'number' => '', 'action' => '', 'proto' => 'TCP', 'port' => '', 'family' => '', 'from' => '',
+	'q' => '', 'number' => '', 'action' => '', 'proto' => 'TCP', 'port' => '', 'family' => '', 'from' => '',
 ));
 $filtV6 = $ufwProbe->filterRules($fakeRules, array(
-	'number' => '', 'action' => '', 'proto' => '', 'port' => '', 'family' => 'IPv6', 'from' => '',
+	'q' => '', 'number' => '', 'action' => '', 'proto' => '', 'port' => '', 'family' => 'IPv6', 'from' => '',
 ));
 $filtPort = $ufwProbe->filterRules($fakeRules, array(
-	'number' => '', 'action' => 'DENY', 'proto' => '', 'port' => '80', 'family' => '', 'from' => '',
+	'q' => '', 'number' => '', 'action' => 'DENY', 'proto' => '', 'port' => '80', 'family' => '', 'from' => '',
+));
+$filtQ = $ufwProbe->filterRules($fakeRules, array(
+	'q' => '443', 'number' => '', 'action' => '', 'proto' => '', 'port' => '', 'family' => '', 'from' => '',
 ));
 if (count($filtTcp) === 3 && count($filtV6) === 1 && (int) $filtV6[0]['number'] === 3
-	&& count($filtPort) === 1 && (int) $filtPort[0]['number'] === 2) {
-	ok('ufwfirewall::filterRules matches Action/Protocol/Port/Family');
+	&& count($filtPort) === 1 && (int) $filtPort[0]['number'] === 2
+	&& count($filtQ) === 1 && (int) $filtQ[0]['number'] === 3) {
+	ok('ufwfirewall::filterRules matches Action/Protocol/Port/Family/q');
 } else {
-	bad('ufwfirewall::filterRules matches Action/Protocol/Port/Family',
-		'tcp=' . count($filtTcp) . ' v6=' . count($filtV6) . ' port=' . count($filtPort));
+	bad('ufwfirewall::filterRules matches Action/Protocol/Port/Family/q',
+		'tcp=' . count($filtTcp) . ' v6=' . count($filtV6) . ' port=' . count($filtPort)
+			. ' q=' . count($filtQ));
 }
 
 $off = KloxoUfw::parseStatus("Status: inactive\nDefault: deny (incoming), allow (outgoing)");
