@@ -289,7 +289,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (URL, admin/admin, change password, firewall 7777). The README
     one-liner downloads `install.sh` from
     `raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh` (default
-    profile **full**: Exim + Dovecot + Rspamd; Postfix not co-installed (apt-swap on Switch);
+    profile **full**: Exim + Dovecot + Rspamd (Dovecot is the default POP3/IMAP program:
+    `pg_pop3=dovecot`, Switch Program offers none/dovecot, `pop3__dovecot` drives apt + systemctl; live switch UNVERIFIED);
+    Postfix not co-installed (apt-swap on Switch);
     `pure-ftpd` and `redis-server` enabled; Ubuntu universe enabled when
     needed; no bogofilter/SpamAssassin/sqlite — panel DB is MariaDB), then
     that script clones if `/usr/local/src/kloxo-cp` is missing, or fetches

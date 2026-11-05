@@ -7,4 +7,5 @@ $driver['service'] = "debian";
 $driver['ipaddress'] = "debian";
 $driver['component'] = "deb";
 $driver['package'] = "aptget";
+$driver['pop3'] = array("none", "dovecot");
 $driver['smtp'] = array("none", "exim", "postfix");

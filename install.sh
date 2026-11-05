@@ -411,6 +411,8 @@ if [[ "$WITH_MAIL" -eq 1 ]]; then
     dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
     dovecot-mysql dovecot-sieve dovecot-managesieved \
     rspamd
+  # Dovecot is the default POP3/IMAP program (pg_pop3=dovecot).
+  systemctl enable dovecot 2>/dev/null || true
   systemctl disable --now postfix 2>/dev/null || true
 fi
 

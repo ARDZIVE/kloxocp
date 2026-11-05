@@ -76,6 +76,24 @@ $ck = kloxo_pma_signon_cookie_params();
 $check(($ck['path'] ?? '') === '/' && ($ck['samesite'] ?? '') === 'Lax',
 	'signon cookie is visible to phpMyAdmin index.php');
 
+// Redirect-loop guard: a rejected MariaDB login must not bounce panel -> phpMyAdmin -> panel forever.
+$bad = kloxo_pma_check_login('kloxo_nobody', 'wrong', '127.0.0.1');
+$check(!extension_loaded('pdo_mysql') || str_contains($bad, 'MariaDB refused the login'),
+	'a login MariaDB rejects is reported instead of being handed to phpMyAdmin');
+ob_start();
+$_COOKIE[kloxo_pma_sso_marker_name()] = (string)time();
+$bounce = kloxo_pma_bounced_back();
+$_COOKIE[kloxo_pma_sso_marker_name()] = (string)(time() - 60);
+$stale = kloxo_pma_bounced_back();
+unset($_COOKIE[kloxo_pma_sso_marker_name()]);
+$none = kloxo_pma_bounced_back();
+ob_end_clean();
+$check(str_contains($bounce, 'phpMyAdmin') && $stale === '' && $none === '',
+	'coming straight back from phpMyAdmin shows the form instead of signing in again');
+$src2 = (string)file_get_contents($helper);
+$check(str_contains($src2, 'kloxo_pma_bounced_back()') && str_contains($src2, 'kloxo_pma_check_login('),
+	'sign-on page uses the login check and the bounce guard');
+
 $tmp = sys_get_temp_dir() . '/kloxo-pma-' . bin2hex(random_bytes(4));
 mkdir($tmp . '/etc/conf', 0750, true);
 mkdir($tmp . '/session', 0750, true);

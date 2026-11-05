@@ -87,7 +87,7 @@ function write_slave(string $root, string $plain): void
 		'web' => 'nginx',
 		'webcache' => 'none',
 		'dns' => 'bind',
-		'pop3' => 'courier',
+		'pop3' => 'dovecot',
 		'smtp' => 'qmail',
 		'spam' => 'bogofilter',
 	);

@@ -680,6 +680,16 @@ if grep -q "'pg_smtp' => 'exim'" "$ROOT/kloxo/bin/install/init-panel-db"; then
 else
   bad "init-panel-db seeds pg_smtp=exim"
 fi
+if grep -q "'pg_pop3' => 'dovecot'" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q "'pop3' => 'dovecot'" "$ROOT/kloxo/bin/install/init-slave" \
+  && grep -q 'driver\[.pop3.\] = array("none", "dovecot")' "$ROOT/kloxo/file/driver/debian.inc" \
+  && grep -q "'systemctl', 'enable', 'dovecot'" "$ROOT/kloxo/httpdocs/driver/mmail/pop3__dovecotlib.php" \
+  && ! grep -q 'qmail' "$ROOT/kloxo/httpdocs/driver/mmail/pop3__dovecotlib.php" \
+  && php -l "$ROOT/kloxo/httpdocs/driver/mmail/pop3__dovecotlib.php" >/dev/null 2>&1; then
+  ok "POP3/IMAP default is Dovecot (db seed, slave seed, driver list, systemd driver)"
+else
+  bad "POP3/IMAP default is Dovecot (db seed, slave seed, driver list, systemd driver)"
+fi
 if grep -q 'iproute2 ufw' "$ROOT/install.sh" \
   && grep -q 'enable_ufw' "$ROOT/install.sh" \
   && grep -q 'KloxoUfw::enable' "$ROOT/install.sh" \

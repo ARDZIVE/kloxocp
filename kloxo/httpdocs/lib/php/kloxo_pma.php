@@ -380,21 +380,112 @@ function kloxo_pma_signon_start(): void
 	session_start();
 }
 
-function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string $host = '127.0.0.1'): void
+/**
+ * Try the MariaDB login before handing it to phpMyAdmin. phpMyAdmin answers a
+ * rejected login by redirecting back to SignonURL, which for a panel admin
+ * signs in again: an endless redirect ("page not redirected properly").
+ *
+ * @return string empty when the login works (or cannot be tested), else a message
+ */
+function kloxo_pma_check_login(string $user, string $pass, string $host = '127.0.0.1'): string
 {
+	if (!extension_loaded('pdo_mysql')) {
+		return '';
+	}
+	try {
+		new PDO(
+			'mysql:host=' . ($host !== '' ? $host : '127.0.0.1') . ';port=3306;charset=utf8mb4',
+			$user,
+			$pass,
+			array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 4)
+		);
+	} catch (PDOException $e) {
+		$msg = trim(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '');
+
+		return 'MariaDB refused the login for ' . $user . '@' . $host . ': ' . $msg;
+	}
+
+	return '';
+}
+
+/** Last sign-on failure text (shown on the MySQL logon form). */
+function kloxo_pma_last_error(?string $set = null): string
+{
+	static $err = '';
+	if ($set !== null) {
+		$err = $set;
+	}
+
+	return $err;
+}
+
+function kloxo_pma_sso_marker_name(): string
+{
+	return 'KloxoPmaSsoAt';
+}
+
+/**
+ * @return string error text when the login check failed (nothing is redirected);
+ *                otherwise this function redirects and exits
+ */
+function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string $host = '127.0.0.1'): string
+{
+	$bad = kloxo_pma_check_login($user, $pass, $host);
+	if ($bad !== '') {
+		return $bad;
+	}
 	kloxo_pma_signon_start();
 	$_SESSION['PMA_single_signon_user'] = $user;
 	$_SESSION['PMA_single_signon_password'] = $pass;
 	$_SESSION['PMA_single_signon_host'] = $host !== '' ? $host : '127.0.0.1';
 	$_SESSION['PMA_single_signon_port'] = '3306';
+	unset($_SESSION['PMA_single_signon_error_message']);
 	$sid = session_id();
 	session_write_close();
 	kloxo_pma_emit_signon_cookie((string)$sid);
 	if (!headers_sent()) {
+		$p = kloxo_pma_signon_cookie_params();
+		setcookie(kloxo_pma_sso_marker_name(), (string)time(), array(
+			'expires' => time() + 10,
+			'path' => '/',
+			'secure' => $p['secure'],
+			'httponly' => true,
+			'samesite' => 'Lax',
+		));
 		header('Cache-Control: no-store');
 		header('Location: ' . kloxo_pma_index_url(), true, 302);
 	}
 	exit;
+}
+
+/**
+ * True when we sent this browser to phpMyAdmin a moment ago and it came back
+ * here: phpMyAdmin rejected the sign-on. Returns the reason to show, or ''.
+ */
+function kloxo_pma_bounced_back(): string
+{
+	$name = kloxo_pma_sso_marker_name();
+	$at = isset($_COOKIE[$name]) && is_string($_COOKIE[$name]) ? (int)$_COOKIE[$name] : 0;
+	// A rejected sign-on bounces back within milliseconds; keep the window short so
+	// a deliberate second click on SQL Manager still signs in.
+	if ($at <= 0 || (time() - $at) > 5) {
+		return '';
+	}
+	if (!headers_sent()) {
+		setcookie($name, '', array('expires' => time() - 3600, 'path' => '/'));
+	}
+	$why = '';
+	if (isset($_COOKIE['KloxoPmaSignon']) && is_string($_COOKIE['KloxoPmaSignon'])) {
+		kloxo_pma_signon_start();
+		$m = $_SESSION['PMA_single_signon_error_message'] ?? '';
+		session_write_close();
+		if (is_string($m) && $m !== '') {
+			$why = trim(html_entity_decode(strip_tags($m), ENT_QUOTES, 'UTF-8'));
+		}
+	}
+
+	return $why !== '' ? 'phpMyAdmin refused the sign-on: ' . $why
+		: 'phpMyAdmin did not accept the sign-on session. Check that cookies are allowed for this site.';
 }
 
 /**
@@ -410,9 +501,10 @@ function kloxo_pma_try_admin_sso(?string $root = null): bool
 	if ($cred['user'] === '' || $cred['pass'] === '') {
 		return false;
 	}
-	kloxo_pma_write_signon_and_redirect($cred['user'], $cred['pass'], $cred['host']);
+	$err = kloxo_pma_write_signon_and_redirect($cred['user'], $cred['pass'], $cred['host']);
+	kloxo_pma_last_error($err);
 
-	return true;
+	return false;
 }
 
 /**
@@ -432,7 +524,14 @@ function kloxo_pma_signon_page(?string $root = null): void
 			return;
 		}
 	} else {
-		kloxo_pma_try_admin_sso($root);
+		$bounce = kloxo_pma_bounced_back();
+		if ($bounce !== '') {
+			// Do not sign in again: that is the redirect loop.
+			$error = $bounce;
+		} else {
+			kloxo_pma_try_admin_sso($root);
+			$error = kloxo_pma_last_error();
+		}
 	}
 	if (!headers_sent()) {
 		header('Content-Type: text/html; charset=UTF-8');
@@ -475,9 +574,7 @@ function kloxo_pma_signon_submit(?string $root = null): string
 	if ($pass === '') {
 		return 'Enter the MySQL password.';
 	}
-	kloxo_pma_write_signon_and_redirect($user, $pass, '127.0.0.1');
-
-	return '';
+	return kloxo_pma_write_signon_and_redirect($user, $pass, '127.0.0.1');
 }
 
 function kloxo_pma_signon_form_html(?string $root = null, string $error = '', string $user = 'root'): string

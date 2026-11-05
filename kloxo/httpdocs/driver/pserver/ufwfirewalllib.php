@@ -211,12 +211,7 @@ class ufwfirewall extends lxclass
 		$active = !empty($st['active']);
 		$rawRules = (isset($st['rules']) && is_array($st['rules'])) ? $st['rules'] : array();
 		$logical = KloxoUfw::collapseDualStack($rawRules);
-		$suspended = array();
-		try {
-			$suspended = KloxoUfw::listSuspended();
-		} catch (Throwable $e) {
-			$suspended = array();
-		}
+		$suspended = $this->suspendedList();
 		$rules = array_merge($logical, $suspended);
 		$err = isset($st['error']) ? (string) $st['error'] : '';
 		$conflictNote = (isset($st['conflict_note']) && is_string($st['conflict_note']))
@@ -961,7 +956,7 @@ class ufwfirewall extends lxclass
 	function findEditableRule($ruleId)
 	{
 		if (str_starts_with($ruleId, 's:')) {
-			foreach (KloxoUfw::listSuspended() as $s) {
+			foreach ($this->suspendedList() as $s) {
 				if ($s['id'] === $ruleId) {
 					return $s;
 				}
@@ -1241,6 +1236,30 @@ class ufwfirewall extends lxclass
 
 		return (isset($this->nname) && is_string($this->nname) && $this->nname !== '')
 			? $this->nname : 'localhost';
+	}
+
+	/**
+	 * Suspended (disabled) rules. The store is written by the root backend, so
+	 * it is read there too: the panel user (lxlabs) cannot read a root-owned
+	 * file, and the rows would silently vanish from the list.
+	 */
+	function suspendedList()
+	{
+		try {
+			$got = $this->execUfw('listSuspended', array());
+		} catch (Throwable $e) {
+			return array();
+		}
+		$out = array();
+		if (is_array($got)) {
+			foreach ($got as $row) {
+				if (is_array($row) && isset($row['id']) && is_string($row['id']) && str_starts_with($row['id'], 's:')) {
+					$out[] = $row;
+				}
+			}
+		}
+
+		return $out;
 	}
 
 	function ufwStatus()

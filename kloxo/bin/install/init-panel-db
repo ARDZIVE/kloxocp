@@ -1156,7 +1156,7 @@ TXT;
             'pg_lxguardwhitelist' => 'sync',
             'pg_hostdeny' => 'linux',
             'pg_dns' => 'bind',
-            'pg_pop3' => 'none',
+            'pg_pop3' => 'dovecot',
             'pg_smtp' => 'exim',
             'pg_spam' => 'none',
             'pg_mailinglist' => 'ezmlm',

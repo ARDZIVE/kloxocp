@@ -46,7 +46,9 @@ leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, n
 lists Ubuntu packages (nginx, apache2, bind9, pdns-server, mariadb-server,
 pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim` (default, `pg_smtp=exim`) / `postfix`
-(apt-swaps with Exim on select; hosted mail is Exim via `kloxo-mail`;
+(apt-swaps with Exim on select; POP3/IMAP default is **Dovecot**
+(`pg_pop3=dovecot`; Switch Program lists none/dovecot; `pop3__dovecot` uses
+apt + systemctl, not qmail supervise; live switch UNVERIFIED); hosted mail is Exim via `kloxo-mail`;
 qmail-toaster is no longer the selectable MTA). PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `count(null)` after login. Admin reboot/poweroff uses `systemctl --no-block`
