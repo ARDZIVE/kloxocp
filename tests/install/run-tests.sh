@@ -95,13 +95,14 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'"
+DATE_SUB='$(date +%s)'
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL \"https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=${DATE_SUB}\" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'"
 if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
   ok "README and install.sh share the same one-liner"
 else
   bad "README and install.sh share the same one-liner"
 fi
-if echo "$ONELINER" | grep -q 'curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh' \
+if echo "$ONELINER" | grep -Fq 'curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)"' \
   && echo "$ONELINER" | grep -q '/tmp/kloxocp-install.sh' \
   && echo "$ONELINER" | grep -q 'bash /tmp/kloxocp-install.sh' \
   && ! echo "$ONELINER" | grep -q 'curl | bash' \

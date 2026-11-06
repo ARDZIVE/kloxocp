@@ -5,10 +5,10 @@
 #   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
 #   apt-get -o DPkg::Lock::Timeout=600 update
 #   apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
+#   curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh
 #   bash /tmp/kloxocp-install.sh'
 # One line:
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 #
 # Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
 # (apt would steal stdin); wget/curl to a file, then bash it.
@@ -35,7 +35,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026110502"
+KCP_VERSION="10.1-2026110601"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -83,12 +83,12 @@ then clones or fetches origin/main:
   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
   apt-get -o DPkg::Lock::Timeout=600 update
   apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
-  curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
+  curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=\$(date +%s)" -o /tmp/kloxocp-install.sh
   bash /tmp/kloxocp-install.sh'
 
 One line:
 
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=\$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 
 Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
 This tree is NOT production-safe. Version ${KCP_VERSION}.

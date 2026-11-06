@@ -10,14 +10,14 @@ Public git remote: https://github.com/ARDZIVE/kloxocp.git (`main`).
 
 | What | Value |
 |---|---|
-| **Kloxo CP** (this fork) | **10.1-2026110502** |
-| `kloxo/bin/kloxoversion` | **10.1-2026110502** |
+| **Kloxo CP** (this fork) | **10.1-2026110601** |
+| `kloxo/bin/kloxoversion` | **10.1-2026110601** |
 | Upstream base | Kloxo-MR `dev`, commit `e0dfc28a15663fc3c682ee55c35d41f4032633f4` |
 
-`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110502**.
+`php kloxo/bin/kloxocp version` and the panel Update page both show **10.1-2026110601**.
 The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
-> **Status: 10.1-2026110502, NOT FOR PRODUCTION.**
+> **Status: 10.1-2026110601, NOT FOR PRODUCTION.**
 > Do not expose this on a public network. Phase-1a security items (C1–C5) are
 > closed, first-party PHP parses and loads on PHP 8, and `install.sh` can
 > bootstrap a panel, but the legacy PHP is still PHP 5-era in behaviour.
@@ -31,32 +31,32 @@ The Update page note is **Kloxo fork by Hampik TALATINIAN**.
 
 ## Installation command (Ubuntu 24.04 or 26.x, as root)
 
-**Recommended (current `main`, version 10.1-2026110502):**
+**Recommended (current `main`, version 10.1-2026110601):**
 
 ```bash
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
 apt-get -o DPkg::Lock::Timeout=600 update
 apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
+curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh
 bash /tmp/kloxocp-install.sh'
 ```
 
 One line (same steps):
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 Low-RAM / small-disk VPS (add `--force`):
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
 Panel-only host (skip Exim/Dovecot/Rspamd packages):
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=core'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --profile=core'
 ```
 
 On a brand-new server `unattended-upgrades` often holds the dpkg lock for the
@@ -69,18 +69,21 @@ let it finish or re-run the command.
 Downloads `install.sh` from GitHub `main` to `/tmp`, then that script
 clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
 (`curl | bash` breaks apt stdin). Re-run the same command to refresh an
-existing clone to current `main` (**10.1-2026110502**: installer disables any
-preinstalled Postfix so Exim stays the sole MTA; UFW enabled at install with
-Comment/ICMP/suspend Port Rules; Add Rule on a separate page; Services icons
-via `systemctl`; Multiple PHP Install under `$ROOT/log/`).
+existing clone to current `main` (**10.1-2026110601**: Switch Program audited
+(only the six program keys are processed, unknown names rejected, installs
+non-interactive with the apt error shown and the old choice kept, mail fix
+script `fixmail`); Spam bogofilter/SpamAssassin install through apt; Web Cache
+**nginx** proxy cache in front of Nginx or Apache; default UFW rules carry a
+purpose comment; the download URL carries a cache-busting query).
 
 Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
 **redis-server**, **imagemagick**, and Ubuntu **universe** enabled when needed.
 Postfix is **not** installed with Exim (both conflict on
 `mail-transport-agent`); a leftover `postfix` unit is **disabled** at install.
 Switch Program `smtp=postfix` removes Exim and installs Postfix. It does
-**not** install bogofilter, SpamAssassin, or sqlite (panel DB is **MariaDB**;
-spam is Rspamd). Starts Nginx, **MariaDB**, BIND, Redis, Pure-FTPd, webcache on
+**not** install bogofilter, SpamAssassin, or sqlite at install time (panel DB
+is **MariaDB**; spam is Rspamd; Switch Program installs bogofilter or
+SpamAssassin from apt only when you select them). Starts Nginx, **MariaDB**, BIND, Redis, Pure-FTPd, webcache on
 **8080**, and webproxy on **30080**. Default SQL is MariaDB only
 (`mysql`/`mysqld` aliases are not a second started service). Packages and
 **enables `ufw` by default** (panel ports 7777/7778 plus common
@@ -103,7 +106,7 @@ details are under [Installation](#installation).
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it. Multiple PHP Install queues under `$ROOT/log/`. |
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
-| Switch Program | Web **Nginx** (Apache selectable); DNS **BIND** (PowerDNS selectable); SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
+| Switch Program | Web **Nginx** (Apache selectable); Web Cache **none** (default) / `nginx`; DNS **BIND** (PowerDNS selectable); Spam `none` / `bogofilter` / `spamassassin` (apt, on demand); POP3/IMAP `none` / **dovecot**; SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
 | Database | **MariaDB** default (started at install; panel DB `kloxo`; mail DB is separate). A distinct MySQL package, if present, stays stopped until started from Services. |
 | Database admin | Seeded by `init-panel-db` as the `kloxo_pma` MariaDB account (needed by Add Database) |
 | SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `kloxo_pma`@`127.0.0.1`) |
@@ -119,7 +122,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Screen | Behaviour |
 |---|---|
 | SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session (read from the session file `<root>/session/<id>`, matched to the `kloxo-session-id` cookie) is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (full privileges; `root`@`localhost` is unix_socket and is refused over TCP with error 1698) and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
-| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, DNS BIND, SMTP **exim**. Postfix is selectable and apt-swaps with Exim. |
+| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, Web Cache none, DNS BIND, SMTP **exim**. Postfix is selectable and apt-swaps with Exim. Web Cache `nginx` puts an Nginx proxy cache on 80/443 in front of the Nginx or Apache site server (which moves to loopback 8081/8444); it rolls back on failure. Spam bogofilter / SpamAssassin install from apt; a failed install shows the apt error and keeps the old choice. Tested with fake apt/systemctl only; a live switch is unverified. |
 | Backup / Restore | Exactly five tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. Show page: Backup Now, Restore From File, Restore From FTP. File Manager / Upload under a backup keep those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
 | FTP Configure | Under localhost (not Backup FTP Configuration). One beige tab labelled **FTP Configure**. |
@@ -131,13 +134,13 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Manage DNS | Tabs **Manage DNS**, **Rebuild**, **NS**, **A**, **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**, **General Settings**. No left Find box. Show does not rewrite the zone. |
 | DNS Templates | Add form on the list tab (name/primary/secondary empty). No separate Add this template tab. |
 | Reboot | Tabs **Reboot** and **Poweroff** (`systemctl --no-block`; not `system("reboot")`). |
-| Update | **10.1-2026110502**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
+| Update | **10.1-2026110601**, note **Kloxo fork by Hampik TALATINIAN**. No left Find box. `kloxocp update` is not built (exits 2). |
 | Services | Lists only installed units; running/boot from systemd. RHEL/Debian aliases collapse to one row (`apache2` not `httpd`, `bind9` not `named`). Default SQL is **MariaDB** (started at install); `mysql`/`mysqld` are not shown as a second installed row while MariaDB is present. A separate MySQL package stays stopped until started here. Columns **Start** / **Stop** / **Restart**; icon clicks run `systemctl --no-block` immediately. Stop/restart of MariaDB and panel units is refused (icons stay visible; Sb/State view-only for those). If every page shows `No such file or directory`, run `systemctl start mariadb`. |
 | Traceroute | Parses `traceroute` and `tracepath`. Response times show three decimals; unreachable hops show `*` (not `no`). |
 | Servers | `localhost` is seeded. Add a remote host on the list (no separate Add Server tab). |
 | SSH Terminal | Admin-only, in-page as root via kloxo-backend (no Java applet). |
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
-| UFW Firewall | Security-section button. **UFW enabled by default** at install. List-only show; Add Rule / Edit on separate pages (TCP/UDP/ICMP, optional Comment). Toolbar Refresh / Add Rule / Delete with multi-select. No Family column (IPv4+IPv6 collapsed). Actions: edit / suspend|unsuspend / delete; suspended rows show a red ●. Live UFW after deploy is unverified. |
+| UFW Firewall | Security-section button. **UFW enabled by default** at install. Default rules carry their purpose as the comment (SSH, HTTP, SMTP, IMAP...). List-only show; Add Rule / Edit on separate pages (TCP/UDP/ICMP, optional Comment). Toolbar Refresh / Add Rule / Delete with multi-select. No Family column (IPv4+IPv6 collapsed). Actions: edit / suspend|unsuspend / delete; suspended rows show a red ●. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |
@@ -168,14 +171,14 @@ the Change Password modal is required (Esc/Close cannot skip it).
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
 apt-get -o DPkg::Lock::Timeout=600 update
 apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh
+curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh
 bash /tmp/kloxocp-install.sh'
 ```
 
 One-line form:
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 Downloads the current `install.sh` from GitHub `main`
@@ -186,14 +189,14 @@ default SQL; **UFW enabled** with panel ports allowed first). That script
 clones the tree if needed, or fetches `origin/main` and hard-resets when
 `/usr/local/src/kloxo-cp` is already a git clone. Safe to repeat after a
 failed install or to pick up GitHub `main` (local edits in that clone are
-discarded; picks up **10.1-2026110502**). Use `--profile=core` for a panel
+discarded; picks up **10.1-2026110601**). Use `--profile=core` for a panel
 without mail packages.
 
 A 2 GB VPS often reports ~1.6 GB RAM. If the installer stops on the RAM
 or disk floor, add `--force` at the end:
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --force'
 ```
 
 Do **not** pipe `install.sh` into bash (`curl | bash`): apt would read stdin.
@@ -225,7 +228,7 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    SSH/web/FTP/DNS/mail ports allowed first; IPv4+IPv6 when `IPV6=yes`).
    Also packages `pdns-server` and `apache2` but does not let apt start them
    (BIND stays on 53, Nginx on 80/443). Does **not** install bogofilter,
-   SpamAssassin, or sqlite.
+   SpamAssassin, or sqlite (Switch Program installs the first two on demand).
 3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
    If it is already a git clone, fetches `origin/main` and `reset --hard` first. If `/opt/kloxo`
    is a real directory (not a symlink to the clone), copies `httpdocs` /
@@ -323,7 +326,7 @@ changes first. Then, on the server, run the same command again (it replaces
 `init-panel-db` and restarts the panel services):
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 ```
 
 A re-run on an existing panel **keeps the current admin password** (the
@@ -333,7 +336,9 @@ install, or a half-finished one with no admin row, still seeds `admin` /
 `admin` (the UI then requires a change).
 
 `raw.githubusercontent.com` can serve a cached copy for a few minutes after a
-push. If the run does not show your change, wait and run it again.
+push. The command appends `?nocache=<unix time>` to the URL so each run asks
+for a fresh copy of `install.sh`. If the run still does not show your change,
+check that the change is pushed to `main`.
 
 If only the database schema or seed rows need refreshing (for example the
 database admin row below), run `init-panel-db` alone:
