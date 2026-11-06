@@ -148,6 +148,21 @@ if php "$HERE/test_ufw.php"; then
 else
   bad "test_ufw.php"
 fi
+if php "$HERE/test_apt.php"; then
+  ok "test_apt.php"
+else
+  bad "test_apt.php"
+fi
+if php "$HERE/test_switchprogram.php"; then
+  ok "test_switchprogram.php"
+else
+  bad "test_switchprogram.php"
+fi
+if php "$HERE/test_webcache.php"; then
+  ok "test_webcache.php"
+else
+  bad "test_webcache.php"
+fi
 if php "$HERE/test_multiserver.php"; then
   ok "test_multiserver.php"
 else

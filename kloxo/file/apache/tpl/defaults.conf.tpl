@@ -7,9 +7,12 @@ $defaultdocroot = '/home/kloxo/httpd/default';
 $indexorder = isset($indexorder) && $indexorder ? (is_array($indexorder) ? implode(' ', $indexorder) : $indexorder) : 'index.php index.html';
 $httpPort = 80;
 $httpsPort = 443;
+$bind = '*';
 if (isset($webcache) && $webcache && $webcache !== 'none') {
-	$httpPort = 8080;
-	$httpsPort = 8443;
+	// Web cache in front (install-webcache): loopback backends, TLS on 8444.
+	$bind = '127.0.0.1';
+	$httpPort = 8081;
+	$httpsPort = 8444;
 }
 
 $acme = '/var/run/letsencrypt/.well-known/acme-challenge';
@@ -31,7 +34,7 @@ if (!empty($certnamelist) && is_array($certnamelist)) {
 ?>
 ### begin - web of initial - do not remove/modify this line
 
-<VirtualHost *:<?=$httpPort;?>>
+<VirtualHost <?=$bind;?>:<?=$httpPort;?>>
 	ServerName _
 	ServerAlias *
 	DocumentRoot "<?=$defaultdocroot;?>"
@@ -48,7 +51,7 @@ if (!empty($certnamelist) && is_array($certnamelist)) {
 <?php if (is_file($certbase . '.key') && (is_file($certbase . '.pem') || is_file($certbase . '.crt'))) {
 	$certfile = is_file($certbase . '.pem') ? $certbase . '.pem' : $certbase . '.crt';
 ?>
-<VirtualHost *:<?=$httpsPort;?>>
+<VirtualHost <?=$bind;?>:<?=$httpsPort;?>>
 	ServerName _
 	ServerAlias *
 	SSLEngine on

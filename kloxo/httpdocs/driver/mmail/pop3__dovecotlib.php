@@ -8,9 +8,9 @@ class Pop3__dovecot extends lxDriverClass
 {
 	static function installMe()
 	{
-		lxshell_return('apt-get', 'install', '-y',
+		KloxoApt::installOrThrow(array(
 			'dovecot-core', 'dovecot-imapd', 'dovecot-pop3d', 'dovecot-lmtpd',
-			'dovecot-mysql', 'dovecot-sieve', 'dovecot-managesieved');
+			'dovecot-mysql', 'dovecot-sieve', 'dovecot-managesieved'));
 		lxshell_return('systemctl', 'enable', 'dovecot');
 		lxshell_return('systemctl', 'start', 'dovecot');
 	}

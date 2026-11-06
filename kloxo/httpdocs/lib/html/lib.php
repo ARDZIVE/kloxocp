@@ -7857,17 +7857,10 @@ function getAllWebCacheDriverList()
 
 function getAllRealWebCacheDriverList()
 {
-	$list = getAllWebCacheDriverList();
-
-	$ret = array();
-
-	foreach ($list as $k => $v) {
-		if ($v === 'none') { continue; }
-
-		$ret[] = $v;
-	}
-
-	return $ret;
+	// The only real web cache is the Nginx proxy cache (install-webcache). It has no
+	// legacy per-driver config templates under /opt/configs, so there is nothing for
+	// fixwebcache / setInitialAllWebCacheConfigs to render or copy.
+	return array();
 }
 
 function getDnsDriverList($drivertype = null)

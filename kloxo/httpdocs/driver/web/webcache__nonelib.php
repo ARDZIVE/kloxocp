@@ -1,14 +1,9 @@
 <?php
 
-include_once __DIR__ . '/webcache__lib.php';
-
-class webcache__none extends webcache__
+// Web cache is always 'none' in the Switch Program list: the Nginx webcache (8080) and
+// webproxy (30080) frontends are Watchdog services (install-webfront), not drivers.
+class webcache__none extends lxDriverClass
 {
-	function __construct()
-	{
-		parent::__construct();
-	}
-
 	static function uninstallMe()
 	{
 		// no action because 'none' driver

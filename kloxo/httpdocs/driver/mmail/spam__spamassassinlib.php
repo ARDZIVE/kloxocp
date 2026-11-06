@@ -4,37 +4,48 @@ class Spam__Spamassassin extends lxDriverClass
 {
 	static function installMe()
 	{
-		global $login;
+		// Ubuntu apt packages (universe); the CentOS *-toaster rpms and simscan do not exist.
+		KloxoApt::installOrThrow(array('spamassassin', 'spamc', 'ripmime'));
 
-		$ret = lxshell_return("yum", "-y", "install", "spamassassin-toaster");
+		// spamd is the unit name on Ubuntu 24.04+; older images use spamassassin.
+		if (lxshell_return('systemctl', 'enable', '--now', 'spamd') !== 0) {
+			lxshell_return('systemctl', 'enable', '--now', 'spamassassin');
+		}
+	}
 
-		if ($ret) {
-			throw new lxException($login->getThrow('install_failed'), '', 'spamassassin-toaster');
+	/**
+	 * Per-mailbox user_prefs path, or '' when domain/user are not plain names
+	 * (they come from object names; never allow path tricks).
+	 */
+	static function prefsPath($domain, $user)
+	{
+		$domain = strtolower((string) $domain);
+		$user = strtolower((string) $user);
+		if (preg_match('/^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/', $domain) !== 1
+			|| str_contains($domain, '..')
+			|| preg_match('/^[a-z0-9][a-z0-9._+-]{0,63}$/', $user) !== 1
+			|| str_contains($user, '..')) {
+			return '';
 		}
 
-		$ret2 = lxshell_return("yum", "-y", "install", "simscan-toaster");
+		return "/home/kloxomail/mail/spamassassin/{$domain}/{$user}/.spamassassin/user_prefs";
+	}
 
-		if ($ret2) {
-			throw new lxException($login->getThrow('install_failed'), '', 'simscan-toaster');
+	/** Owner of the prefs tree: the Ubuntu spamd account when present. */
+	static function prefsOwner()
+	{
+		if (function_exists('posix_getpwnam') && posix_getpwnam('debian-spamd') !== false) {
+			return 'debian-spamd:debian-spamd';
 		}
 
-		$ret3 = lxshell_return("yum", "-y", "install", "ripmime");
-
-		if ($ret2) {
-			throw new lxException($login->getThrow('install_failed'), '', 'ripmime');
-		}
-
-	//	lxshell_return("chkconfig", "spamassassin", "on");
-		lxfile_cp("../file/spamassassin/etc/sysconfig/spamassassin", "/etc/sysconfig/spamassassin");
-	//	createRestartFile("spamassassin");
+		return 'lxlabs:lxlabs';
 	}
 
 	static function uninstallMe()
 	{
-	//	lxshell_return("service", "spamassassin", "stop");
-		lxshell_return("rpm", "-e", "--nodeps", "spamassassin-toaster");
-	//	lxshell_return("rpm", "-e", "--nodeps", "simscan-toaster");
-	//	lxshell_return("rpm", "-e", "--nodeps", "ripmime");
+		// Keep the packages; only stop the daemon (unit is spamd on 24.04+, spamassassin earlier).
+		lxshell_return('systemctl', 'stop', 'spamd');
+		lxshell_return('systemctl', 'stop', 'spamassassin');
 	}
 
 	function dbactionAdd()
@@ -59,39 +70,37 @@ class Spam__Spamassassin extends lxDriverClass
 			$user = null;
 		}
 
-		// --- issue #578/#721 - missing in version 6.1.6
-		$mailpath = mmail__qmail::getDir($domain);
-
-		if ($user) {
-		//	$prefpath = "$mailpath/domains/{$domain}/{$user}/user_prefs";
-		/* JP add proper spamassassin path
-			* For this to work ensure that /var/qmail/supervise/spamd/run
-			* contains the correct --virtual-config-dir=/home/kloxomail/mail/spamassassin/%d/%l/.spamassassin command
-			*   
-			* eg exec /usr/bin/spamd --virtual-config-dir=/home/kloxomail/mail/spamassassin/%d/%l/.spamassassin -x -u vpopmail -s stderr -i 0.0.0.0 2>&1   
-		 */
-			// $prefpath = "{$mailpath}/{$user}/.spamassassin/user_prefs";
-
-			$prefpath = "/home/kloxomail/mail/spamassassin/{$domain}/{$user}/.spamassassin/user_prefs";
-		} else {
+		if (!$user) {
 			return;
 		}
 
+		// qmail/vpopmail are gone on Ubuntu: no mmail__qmail::getDir, no vpopmail:vchkpw.
+		$prefpath = self::prefsPath($domain, $user);
+		if ($prefpath === '') {
+			return;
+		}
+		$owner = self::prefsOwner();
+
 		if (!lxfile_exists(dirname($prefpath))) {
 			lxfile_mkdir(dirname($prefpath));
-			lxfile_generic_chown(dirname($prefpath), "vpopmail:vchkpw");
+			lxfile_generic_chown(dirname($prefpath), $owner);
 		}
 
+		// One directive per line: strip control characters so a value cannot add directives.
+		$clean = function ($v) {
+			return trim((string) preg_replace('/[\x00-\x1f\x7f]+/', ' ', (string) $v));
+		};
+		$score = is_numeric($this->main->spam_hit) ? (string) $this->main->spam_hit : '5';
 		$fdata = null;
-		$fdata .= "required_score  " . $this->main->spam_hit . "\n";
+		$fdata .= "required_score  " . $score . "\n";
 		$fdata .= "ok_locales   all\n";
-		$fdata .= "rewrite_header Subject  {$this->main->subject_tag}\n";
-		foreach ((array) $this->main->wlist_a as $wlist) $fdata .= "whitelist_from   " . $wlist->nname . "\n";
+		$fdata .= "rewrite_header Subject  " . $clean($this->main->subject_tag) . "\n";
+		foreach ((array) $this->main->wlist_a as $wlist) $fdata .= "whitelist_from   " . $clean($wlist->nname) . "\n";
 		$fdata .= "#***********************************\n";
-		foreach ((array) $this->main->blist_a as $blist) $fdata .= "blocklist_from   " . $blist->nname . "\n";
+		foreach ((array) $this->main->blist_a as $blist) $fdata .= "blocklist_from   " . $clean($blist->nname) . "\n";
 
 		lxfile_rm($prefpath);
-		lfile_write_content($prefpath, $fdata, "vpopmail:vchkpw");
+		lfile_write_content($prefpath, $fdata, $owner);
 	}
 
 	function dbactionUpdate($subaction)

@@ -4,18 +4,20 @@ class Spam__bogofilter extends lxDriverClass
 {
 	static function installMe()
 	{
-		global $login;
+		// Ubuntu: bogofilter is an apt package (universe). Not yum/rpm.
+		KloxoApt::installOrThrow(array('bogofilter'));
 
-		$ret = lxshell_return("yum", "-y", "install", "bogofilter");
-
-		if ($ret) {
-			throw new lxException($login->getThrow('install_failed'), '', 'bogofilter');
+		// Shared word-list directory used by the per-user preferences below.
+		if (!is_dir('/var/bogofilter')) {
+			@mkdir('/var/bogofilter', 0777, true);
 		}
+		@chmod('/var/bogofilter', 01777);
 	}
 
 	static function unInstallMe()
 	{
-		lxshell_return("rpm", "-e", "bogofilter");
+		// Keep the package and /var/bogofilter word lists: switching back must
+		// not destroy trained data. Nothing to stop (bogofilter has no daemon).
 	}
 
 	function dbactionAdd()

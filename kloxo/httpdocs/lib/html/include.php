@@ -15,6 +15,8 @@ include_once "$dir/lib/html/lib.php";
 include_once "$dir/lib/php/lxlib.php" ;
 include_once "$dir/lib/php/kloxo_pma.php";
 include_once "$dir/lib/php/kloxo_ufw.php";
+include_once "$dir/lib/php/kloxo_apt.php";
+include_once "$dir/lib/php/kloxo_webcache.php";
 include_once "$dir/lib/php/common.inc";
 include_once "$dir/lib/html/remotelib.php";
 include_once "$dir/lib/php/lxdb.php";

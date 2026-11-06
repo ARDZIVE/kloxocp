@@ -49,6 +49,57 @@ class pserver extends pservercore {
 	}
 
 
+	// Programs the Switch Program form offers, per class (same lists as the form).
+	function switchProgramChoices()
+	{
+		$os = (isset($this->ostype) && $this->ostype !== '') ? $this->ostype : 'debian';
+		$inc = ($os === 'debian' || $os === 'ubuntu') ? 'debian.inc' : 'rhel.inc';
+		$driver = array();
+		$incpath = "../file/driver/{$inc}";
+
+		if (is_file($incpath)) {
+			include $incpath;
+		}
+
+		if (!is_array($driver)) {
+			$driver = array();
+		}
+
+		$defaults = array(
+			'web' => array('none', 'nginx', 'apache'),
+			'webcache' => array('none'),
+			'dns' => array('none', 'bind', 'pdns'),
+			'spam' => array('none'),
+			'pop3' => array('none', 'dovecot'),
+			'smtp' => array('none', 'exim', 'postfix'),
+		);
+		$out = array();
+
+		foreach ($defaults as $c => $list) {
+			$out[$c] = (isset($driver[$c]) && is_array($driver[$c])) ? array_values($driver[$c]) : $list;
+		}
+
+		return $out;
+	}
+
+	// Program now in use for a class: the stored value, else the slave db, else none.
+	function switchProgramCurrent($class)
+	{
+		$key = "{$class}_driver";
+
+		if (isset($this->$key) && is_string($this->$key) && $this->$key !== '') {
+			return $this->$key;
+		}
+
+		try {
+			$val = rl_exec_get(null, $this->nname, 'slave_get_driver', array($class));
+		} catch (Throwable $e) {
+			$val = null;
+		}
+
+		return (is_string($val) && $val !== '') ? $val : 'none';
+	}
+
 	function updateSwitchProgram($param)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
@@ -61,12 +112,23 @@ class pserver extends pservercore {
 			unset($param['imap4_driver']);
 		}
 	*/
-		$a['web'] = $param['web_driver'];
-		$a['webcache'] = $param['webcache_driver'];
-		$a['dns'] = $param['dns_driver'];
-		$a['spam'] = $param['spam_driver'];
-		$a['pop3'] = $param['pop3_driver'];
-		$a['smtp'] = $param['smtp_driver'];
+		// Only these six keys are drivers. Anything else in $param (use_pagespeed,
+		// use_apache24, __v_updateall_button...) must never reach switchDriver.
+		$driverClasses = array('web', 'webcache', 'dns', 'spam', 'pop3', 'smtp');
+		$allowed = $this->switchProgramChoices();
+		$a = array();
+
+		foreach ($driverClasses as $c) {
+			$key = "{$c}_driver";
+			$cur = $this->switchProgramCurrent($c);
+			$want = isset($param[$key]) ? (string) $param[$key] : $cur;
+
+			if (!isset($allowed[$c]) || !in_array($want, $allowed[$c], true)) {
+				throw new lxException("Unknown {$c} program '{$want}'", '', $key);
+			}
+
+			$a[$c] = $want;
+		}
 
 	//	$nofixconfig = $param['no_fix_config'];
 
@@ -88,7 +150,7 @@ class pserver extends pservercore {
 		}
 
 		if ($out !== []) {
-			$next_useapache24 = $param['use_apache24'];
+			$next_useapache24 = (isset($param['use_apache24']) && $param['use_apache24'] === 'on') ? 'on' : 'off';
 
 			if ($next_useapache24 === 'on') {
 				exec("echo '' > {$httpd24flag}");
@@ -104,13 +166,21 @@ class pserver extends pservercore {
 		}
 
 		$pagespeedflag = "../etc/flag/use_pagespeed.flg";
-		$usepagespeed = $param['use_pagespeed'];
+		$usepagespeed = isset($param['use_pagespeed'])
+			? $param['use_pagespeed']
+			: (file_exists($pagespeedflag) ? 'on' : 'off');
+
+		$pagespeedWas = file_exists($pagespeedflag) ? 'on' : 'off';
 
 		if ($usepagespeed === 'on') {
 			exec("echo '' > {$pagespeedflag}");
-			setAllWebServerInstall();
 		} else {
 			exec("'rm' -f {$pagespeedflag}");
+		}
+
+		// Reinstall the web server only when this setting really changed; doing it
+		// on every Update restarted the web server for an unrelated switch.
+		if ($pagespeedWas !== ($usepagespeed === 'on' ? 'on' : 'off')) {
 			setAllWebServerInstall();
 		}
 
@@ -118,14 +188,12 @@ class pserver extends pservercore {
 	//	$a['pserver'] = $this->nname;
 	//	rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
 
-		foreach($param as $k => $v) {
-		//	if ($k === 'no_fix_config') { continue; }
-			if ($k === 'use_apache24') { continue; }
+		foreach ($driverClasses as $class) {
+			$k = "{$class}_driver";
+			$v = $a[$class];
+			$drstring = $k;
+			$current = $this->switchProgramCurrent($class);
 
-			$class = strtilfirst($k, "_");
-			$drstring = "{$class}_driver";
-
-		//	if (($class === 'web') && (isWebProxyOrApache())) {
 			if ($class === 'web') {
 				if ($current_useapache24 !== $next_useapache24) {
 					dprint("Change 'Use Apache24' from '{$current_useapache24}' to '{$next_useapache24}'\n");
@@ -133,12 +201,12 @@ class pserver extends pservercore {
 				}
 			}
 
-			if ($this->$k === $v) {
+			if ($current === $v) {
 				dprint("No change for $k: $v\n");
 			} else {
 				dprint("Change for $k: $v\n");
 
-				rl_exec_get(null, $this->nname, array($class, 'switchDriver'), array($class, $this->$drstring, $v));
+				rl_exec_get(null, $this->nname, array($class, 'switchDriver'), array($class, $current, $v));
 
 				changeDriver($this->nname, $class, $v);
 
@@ -146,7 +214,9 @@ class pserver extends pservercore {
 
 			//	if (($class === 'spam') || ($class === 'pop3') || ($class === 'imap4') || ($class === 'smtp')) {
 				if (($class === 'spam') || ($class === 'pop3') || ($class === 'smtp')) {
-					$fixc = "mmail";
+					// the script is /script/fixmail (it runs bin/fix/fixmmail.php);
+					// there is no /script/fixmmail
+					$fixc = "mail";
 				}
 
 				$a[$class] = $v;
@@ -154,23 +224,29 @@ class pserver extends pservercore {
 
 			//	if ($nofixconfig === 'on') { continue; }
 
+				if ($class === 'webcache') {
+					// Web cache in front: regenerate every site config with the new
+					// ports first, then let install-webcache move the cache onto 80/443.
+					// On failure put the old driver back and regenerate, so sites keep serving.
+					$oldcache = $current;
+					exec("sh /script/fixweb --server={$this->nname} --nolog");
+					$res = rl_exec_get(null, $this->nname, array('KloxoWebcache', 'apply'), array($v));
+					if (!is_array($res) || empty($res['ok'])) {
+						$why = (is_array($res) && isset($res['error']) && $res['error'] !== '') ? $res['error'] : 'no answer from the backend';
+						changeDriver($this->nname, $class, $oldcache);
+						$a[$class] = $oldcache;
+						rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
+						exec("sh /script/fixweb --server={$this->nname} --nolog");
+						$back = rl_exec_get(null, $this->nname, array('KloxoWebcache', 'apply'), array($oldcache));
+						$backok = (is_array($back) && !empty($back['ok'])) ? 'the previous web cache setting was restored' : 'RESTORING the previous setting also failed, check the web server';
+						throw new lxException("Web cache switch to {$v} failed ({$why}); {$backok}", '', 'webcache');
+					}
+
+					continue;
+				}
+
 			//	lxshell_return("sh", "/script/fix{$fixc}", "--target=defaults", "--server={$this->nname}", "--nolog");
 				exec("sh /script/fix{$fixc} --target=defaults --server={$this->nname} --nolog");
-
-				// MR -- original code not work, so change to, also must be the last process!
-				if ($fixc === 'web') {
-					if (isWebProxyOrApache()) {
-						$php_type = db_get_value("serverweb", "pserver-" . $this->nname, "php_type");
-
-						if (stripos($php_type, 'php-fpm') !== false) {
-							exec("chkconfig php-fpm on >/dev/null 2>&1");
-						} else {
-							exec("chkconfig php-fpm off >/dev/null 2>&1");
-						}
-					} else {
-						exec("chkconfig php-fpm on >/dev/null 2>&1");
-					}
-				}
 			}
 		}
 	}

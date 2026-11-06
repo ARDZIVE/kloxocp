@@ -26,7 +26,7 @@ echo "mmail=" . implode(",", (array)$mail) . "\n";
 echo "smtp=" . implode(",", (array)$smtp) . "\n";
 ' "$ROOT/kloxo/file/driver/linux.inc")"
 echo "$php_out" | grep -qx 'web=none,nginx,apache' && ok "web is none,nginx,apache" || bad "web is none,nginx,apache" "$php_out"
-echo "$php_out" | grep -qx 'webcache=none' && ok "webcache is none" || bad "webcache is none" "$php_out"
+echo "$php_out" | grep -qx 'webcache=none,nginx' && ok "webcache is none or nginx (no varnish/squid/ats)" || bad "webcache is none or nginx (no varnish/squid/ats)" "$php_out"
 echo "$php_out" | grep -qx 'dns=none,bind,pdns' && ok "dns is none,bind,pdns" || bad "dns is none,bind,pdns" "$php_out"
 echo "$php_out" | grep -qx 'davuser=none' && ok "davuser is none" || bad "davuser is none" "$php_out"
 echo "$php_out" | grep -qx 'mmail=qmail' && ok "mmail still qmail" || bad "mmail still qmail" "$php_out"
@@ -55,7 +55,7 @@ $present = 0;
 foreach ($forbid as $c) {
   if (isset($gl_class_array[$c])) { fwrite(STDERR, "still registered $c\n"); $present = 1; }
 }
-$need = array("web__nginx","web__apache","web__none","serverweb__nginx","serverweb__apache","serverweb__none","webcache__none",
+$need = array("web__nginx","web__apache","web__none","serverweb__nginx","serverweb__apache","serverweb__none","webcache__none","webcache__nginx",
   "dns__bind","dns__pdns","dns__none","davuser__none","dirprotect__nginx","dirprotect__apache","dirprotect__none",
   "webhandler__nginx","webmimetype__nginx","webhandler__apache","webmimetype__apache","smtp__exim","smtp__postfix","smtp__none");
 $needmiss = 0;

@@ -452,6 +452,47 @@ if ($e2e) {
 } else {
 	bad('add/edit/suspended-edit apply every field to the firewall (fake ufw)', $why);
 }
+// ---- default install rules carry their purpose as the comment --------------
+@unlink($tmp . '/state.json');
+$defOk = true;
+$defWhy = '';
+$prep = KloxoUfw::ensureProtectedPorts();
+$seen = array();
+foreach ($fakeRules() as $r) {
+	$seen[$r['to']] = $r['comment'];
+}
+$expectKeys = array();
+foreach (KloxoUfw::protectedTcpPorts() as $p) {
+	$expectKeys[] = $p . '/tcp';
+}
+$expectKeys[] = '53/tcp';
+$expectKeys[] = '53/udp';
+foreach ($expectKeys as $k) {
+	if (!isset($seen[$k]) || $seen[$k] === '' || $seen[$k] !== (KloxoUfw::defaultComments()[$k] ?? null)) {
+		$defOk = false;
+		$defWhy = 'missing or wrong comment for ' . $k . ': ' . var_export($seen[$k] ?? null, true);
+		break;
+	}
+}
+foreach (KloxoUfw::defaultComments() as $k => $c) {
+	try {
+		KloxoUfw::validateComment($c);
+	} catch (Throwable $e) {
+		$defOk = false;
+		$defWhy = 'comment not accepted by validateComment for ' . $k;
+	}
+	if (!in_array($k, $expectKeys, true)) {
+		$defOk = false;
+		$defWhy = 'stray default comment ' . $k;
+	}
+}
+if (!empty($prep['ok']) && $defOk && KloxoUfw::defaultComment('22', 'TCP') === 'SSH remote administration'
+	&& KloxoUfw::defaultComment('2222', 'tcp') === '') {
+	ok('ensureProtectedPorts adds every default rule with its purpose comment (fake ufw)');
+} else {
+	bad('ensureProtectedPorts adds every default rule with its purpose comment (fake ufw)', $defWhy);
+}
+
 foreach (glob($tmp . '/*') ?: [] as $f) {
 	@unlink($f);
 }

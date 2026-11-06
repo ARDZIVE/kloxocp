@@ -99,7 +99,10 @@ class Spam extends Lxdb
 	static function switchProgramPost($old, $new)
 	{
 		if ($new === 'spamassassin') {
-			lxfile_cp("../file/spamassassin/etc/sysconfig/spamassassin", "/etc/sysconfig/spamassassin");
+			// /etc/sysconfig is RHEL only; Ubuntu uses /etc/default/spamassassin from the package.
+			if (is_dir('/etc/sysconfig')) {
+				lxfile_cp("../file/spamassassin/etc/sysconfig/spamassassin", "/etc/sysconfig/spamassassin");
+			}
 			createRestartFile("spamassassin");
 		}
 	}

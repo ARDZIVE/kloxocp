@@ -23,6 +23,44 @@ final class KloxoUfw
         ];
     }
 
+    /**
+     * Purpose of each default (install-time) open port, used as the rule
+     * comment. Characters are limited to what validateComment() accepts.
+     *
+     * @return array<string,string> key "port/proto"
+     */
+    public static function defaultComments(): array
+    {
+        return [
+            '21/tcp' => 'FTP file transfer, Pure-FTPd control channel',
+            '22/tcp' => 'SSH remote administration',
+            '25/tcp' => 'SMTP, mail delivery between servers',
+            '53/tcp' => 'DNS over TCP, zone transfers and large answers',
+            '53/udp' => 'DNS queries, BIND or PowerDNS',
+            '80/tcp' => 'HTTP, websites',
+            '110/tcp' => 'POP3, mail download, STARTTLS required',
+            '143/tcp' => 'IMAP, mail access, STARTTLS required',
+            '443/tcp' => 'HTTPS, websites over TLS',
+            '465/tcp' => 'SMTPS, mail submission over implicit TLS',
+            '587/tcp' => 'Mail submission with STARTTLS',
+            '993/tcp' => 'IMAPS, mail access over TLS',
+            '995/tcp' => 'POP3S, mail download over TLS',
+            '7777/tcp' => 'Kloxo CP panel HTTPS',
+            '7778/tcp' => 'Kloxo CP panel HTTP',
+            '8080/tcp' => 'Webcache frontend, Nginx',
+            '30080/tcp' => 'Webproxy frontend, Nginx',
+        ];
+    }
+
+    /** Default purpose text for a plain single-port rule, '' when unknown. */
+    public static function defaultComment(string $port, string $proto): string
+    {
+        $map = self::defaultComments();
+        $key = trim($port) . '/' . strtolower(trim($proto));
+
+        return $map[$key] ?? '';
+    }
+
     /** @return list<int> */
     public static function panelPorts(): array
     {
@@ -814,13 +852,17 @@ final class KloxoUfw
         }
         $bin = self::ufwBinary();
         $out = '';
+        $pairs = [];
         foreach (self::protectedTcpPorts() as $port) {
-            $p = self::run([$bin, 'allow', $port . '/tcp']);
-            $out .= $p['out'] . $p['err'];
+            $pairs[] = [(string) $port, 'tcp'];
         }
-        // DNS only here — TCP 21 is already in protectedTcpPorts().
-        foreach ([['53', 'tcp'], ['53', 'udp']] as $pair) {
-            $p = self::run([$bin, 'allow', $pair[0] . '/' . $pair[1]]);
+        // DNS only here; TCP 21 is already in protectedTcpPorts().
+        $pairs[] = ['53', 'tcp'];
+        $pairs[] = ['53', 'udp'];
+        foreach ($pairs as $pair) {
+            // Each default rule carries its purpose as the UFW comment.
+            $rule = self::addRuleArgv('allow', $pair[1], $pair[0], '', self::defaultComment($pair[0], $pair[1]));
+            $p = self::run(array_merge([$bin], $rule));
             $out .= $p['out'] . $p['err'];
         }
 

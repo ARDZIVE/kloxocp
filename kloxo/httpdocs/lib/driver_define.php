@@ -15,6 +15,7 @@ $gl_class_array['web__apache'] = "driver/web/web__apachelib.php";
 $gl_class_array['web__none'] = "driver/web/web__nonelib.php";
 
 $gl_class_array['webcache__none'] =  "driver/web/webcache__nonelib.php";
+$gl_class_array['webcache__nginx'] =  "driver/web/webcache__nginxlib.php";
 
 //--// $gl_class_array['webtraffic__apache'] = "driver/web/webtraffic__apachelib.php";
 //--// $gl_class_array['webtraffic__lighttpd'] = "driver/web/webtraffic__lighttpdlib.php";

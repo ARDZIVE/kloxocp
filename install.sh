@@ -587,7 +587,7 @@ prepare_apache() {
 }
 
 prepare_webfront() {
-  chmod 0755 "$ROOT/bin/install/install-webfront" \
+  chmod 0755 "$ROOT/bin/install/install-webfront" "$ROOT/bin/install/install-webcache" \
     "$ROOT/pscript/restart-webcache" "$ROOT/pscript/restart-webproxy" || true
   php "$ROOT/bin/install/install-webfront" --root="$ROOT" \
     || log "warn: install-webfront failed; webcache/webproxy stay down"

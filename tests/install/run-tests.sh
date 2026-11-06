@@ -263,6 +263,9 @@ else
   ok "admin SQL Manager does not require a primary customer DB"
 fi
 check "php-cli pma sign-on helper" php "$HERE/test-pma-signon.php"
+check "install-webcache front/none, rollback and validation (fake nginx/systemctl)" php "$HERE/test-webcache.php"
+check "php -l install-webcache" php -l "$ROOT/kloxo/bin/install/install-webcache"
+check "install-webcache --help" php "$ROOT/kloxo/bin/install/install-webcache" --help
 if grep -q '/kloxo/etc/conf/pma.pass' "$ROOT/.gitignore"; then
   ok "pma.pass is gitignored"
 else
@@ -715,8 +718,8 @@ if grep -q 'disable --now postfix' "$ROOT/install.sh"; then
 else
   bad "install.sh disables leftover postfix so Exim stays default"
 fi
-if grep -q "apt-get', 'install', '-y', 'postfix'" "$ROOT/kloxo/httpdocs/driver/mmail/smtp__postfixlib.php" \
-  && grep -q "apt-get', 'remove', '-y', 'postfix'" "$ROOT/kloxo/httpdocs/driver/mmail/smtp__eximlib.php"; then
+if grep -q "KloxoApt::installOrThrow(array('postfix'))" "$ROOT/kloxo/httpdocs/driver/mmail/smtp__postfixlib.php" \
+  && grep -q "KloxoApt::remove(array('postfix'))" "$ROOT/kloxo/httpdocs/driver/mmail/smtp__eximlib.php"; then
   ok "Switch Program smtp swaps Exim/Postfix packages"
 else
   bad "Switch Program smtp swaps Exim/Postfix packages"

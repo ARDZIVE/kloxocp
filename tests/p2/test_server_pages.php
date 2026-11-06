@@ -3336,6 +3336,34 @@ $gbl->__this_redirect = null;
 $ufw->redirectToShow();
 $ufwRedirect = isset($gbl->__this_redirect) ? (string) $gbl->__this_redirect : '';
 $ghtml = $ufwPrevGhtml;
+$ufwMsgLib = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+preg_match_all("/redirectToShow\\('([a-z_]+)'/", $ufwSrc, $ufwKeys);
+$ufwKeys = array_unique(array_merge($ufwKeys[1], array('updated_successfully', 'added_successfully', 'restore_started')));
+$ufwMsgOk = $ufwKeys !== array();
+foreach ($ufwKeys as $k) {
+	if (!str_contains($ufwMsgLib, "\$__emessage['" . $k . "'] = ")) {
+		$ufwMsgOk = false;
+	}
+}
+$ufwSum = $ufw->ruleSummary('deny', 'tcp', '2222', '', 'ssh alt');
+$ufwSumOk = $ufwSum === 'DROP 2222/tcp from Anywhere, comment: ssh alt'
+	&& $ufw->ruleSummary('allow', 'icmp', '', '10.0.0.1') === 'ACCEPT ICMP from 10.0.0.1';
+// Old default rules without a comment show their purpose; custom rules do not.
+$ufwDefRow = $ufw->normalizeRuleRow(array('number' => 2, 'to' => '22/tcp', 'action' => 'ALLOW IN', 'from' => 'Anywhere', 'comment' => ''));
+$ufwDefRow53 = $ufw->normalizeRuleRow(array('number' => 15, 'to' => '53/udp', 'action' => 'ALLOW IN', 'from' => 'Anywhere', 'comment' => ''));
+$ufwCustomRow = $ufw->normalizeRuleRow(array('number' => 20, 'to' => '22/tcp', 'action' => 'ALLOW IN', 'from' => '1.2.3.4', 'comment' => ''));
+$ufwOwnRow = $ufw->normalizeRuleRow(array('number' => 21, 'to' => '22/tcp', 'action' => 'ALLOW IN', 'from' => 'Anywhere', 'comment' => 'mine'));
+$ufwSumOk = $ufwSumOk
+	&& $ufwDefRow['comment'] === 'SSH remote administration'
+	&& $ufwDefRow53['comment'] === KloxoUfw::defaultComment('53', 'udp')
+	&& $ufwCustomRow['comment'] === ''
+	&& $ufwOwnRow['comment'] === 'mine';
+$gbl->__this_redirect = null;
+$ufw->redirectToShow('ufw_rule_added', '<b>x</b> & y');
+$ufwMsgRedirect = (string) $gbl->__this_redirect;
+$ufwMsgRedirOk = str_contains($ufwMsgRedirect, 'frm_smessage=ufw_rule_added')
+	&& str_contains($ufwMsgRedirect, 'frm_m_smessage_data=')
+	&& !str_contains($ufwMsgRedirect, '<b>');
 $ufwRedirectOk = str_contains($ufwRedirect, 'frm_action=show')
 	&& str_contains($ufwRedirect, 'ufwfirewall')
 	&& str_contains($ufwRedirect, 'updated_successfully');
@@ -3361,7 +3389,7 @@ if (str_contains($ufwPserver, 'a=show&o=ufwfirewall')
 	&& $ufwHomeTab === 'UFW Firewall'
 	&& $ufwTabOk && $ufwForcedOk && $ufwPserverTabOk && $ufwShowFormsOk && $ufwUiOk && $ufwSwitchOk
 	&& $ufwFormOk && $ufwEditOk && $ufwEnOk && $ufwDisOk && $ufwDefOk && $ufwDelOk
-	&& $ufwCoreOk && $ufwSkipOk && $ufwRedirectOk && $ufwParentOk
+	&& $ufwCoreOk && $ufwSkipOk && $ufwRedirectOk && $ufwParentOk && $ufwMsgOk && $ufwSumOk && $ufwMsgRedirOk
 	&& $ufwIconOk
 	&& $ufw->isSync() === false
 	&& str_contains($ufwSrc, 'function getSelfList')

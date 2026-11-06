@@ -185,6 +185,11 @@ TXT;
         if ($name !== 'webcache' && $name !== 'webproxy') {
             throw new IwebfrontException('Invalid frontend name');
         }
+        if ($name === 'webcache' && is_file($this->root . '/etc/flag/webcache_front.flg')) {
+            // Web cache is in front (install-webcache --mode=front): keep its rendered config.
+            echo "webcache: front cache active, keeping its config\n";
+            return;
+        }
         $src = $this->root . '/file/webfront/' . $name . '.conf';
         if (!is_file($src)) {
             throw new IwebfrontException("missing $src");

@@ -606,6 +606,12 @@ class ufwfirewall extends lxclass
 		} elseif (!str_contains($actUp, 'ALLOW')) {
 			$actLabel = $actUp !== '' ? $actUp : '—';
 		}
+		// Default install rules created before comments existed: show their purpose.
+		if (trim($comment) === '' && $actLabel === 'ALLOW'
+			&& ($from === '' || strcasecmp($from, 'Anywhere') === 0)
+			&& preg_match('/^\d+$/', (string) $port) === 1) {
+			$comment = KloxoUfw::defaultComment((string) $port, $proto);
+		}
 		$id = isset($r['id']) && is_string($r['id']) && $r['id'] !== ''
 			? $r['id']
 			: ('n:' . (isset($r['number']) ? (string) (int) $r['number'] : '0'));
@@ -970,7 +976,42 @@ class ufwfirewall extends lxclass
 		return KloxoUfw::findLogicalRule($rules, (int) $ruleId);
 	}
 
-	function redirectToShow()
+	/** Human text for a rule (ACCEPT 443/tcp from Anywhere, comment: web). */
+	function ruleSummary($action, $proto, $port, $from, $comment = '')
+	{
+		$a = self::actionDisplay($action);
+		$proto = strtolower((string) $proto);
+		$to = ($proto === 'icmp') ? 'ICMP' : (((string) $port !== '' ? $port : 'any port') . ($proto !== '' ? '/' . $proto : ''));
+		$f = trim((string) $from);
+		if ($f === '' || strcasecmp($f, 'any') === 0) {
+			$f = 'Anywhere';
+		}
+		$out = $a . ' ' . $to . ' from ' . $f;
+		if (trim((string) $comment) !== '') {
+			$out .= ', comment: ' . trim((string) $comment);
+		}
+
+		return $out;
+	}
+
+	/** Summary of an existing live rule number or suspended id, '' if unknown. */
+	function describeRuleId($ruleId)
+	{
+		try {
+			$row = $this->findEditableRule((string) $ruleId);
+			if (!is_array($row)) {
+				return '';
+			}
+			$n = $this->normalizeRuleRow($row);
+			$port = (string) $n['port'];
+
+			return $this->ruleSummary($n['action_label'], $n['proto'], $port, $n['from'], $n['comment']);
+		} catch (Throwable $e) {
+			return '';
+		}
+	}
+
+	function redirectToShow($msgKey = 'updated_successfully', $data = '')
 	{
 		global $gbl, $ghtml;
 
@@ -978,7 +1019,12 @@ class ufwfirewall extends lxclass
 			return;
 		}
 
-		$tail = '&frm_smessage=updated_successfully';
+		$msgKey = preg_replace('/[^a-z0-9_]/', '', strtolower((string) $msgKey));
+		$tail = '&frm_smessage=' . $msgKey;
+		if ((string) $data !== '') {
+			// The value is placed into HTML by the message printer: escape it first.
+			$tail .= '&frm_m_smessage_data=' . rawurlencode(htmlspecialchars((string) $data, ENT_QUOTES));
+		}
 		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
 			try {
 				$url = $ghtml->getFullUrl('a=show');
@@ -1004,7 +1050,7 @@ class ufwfirewall extends lxclass
 		$this->assertAdmin();
 		$ret = $this->execUfw('enable', array());
 		$this->throwIfFailed($ret, 'could_not_enable_ufw');
-		$this->redirectToShow();
+		$this->redirectToShow('ufw_enabled');
 
 		return null;
 	}
@@ -1014,7 +1060,7 @@ class ufwfirewall extends lxclass
 		$this->assertAdmin();
 		$ret = $this->execUfw('disable', array());
 		$this->throwIfFailed($ret, 'could_not_disable_ufw');
-		$this->redirectToShow();
+		$this->redirectToShow('ufw_disabled');
 
 		return null;
 	}
@@ -1031,7 +1077,8 @@ class ufwfirewall extends lxclass
 			$this->throwUfw($e->getMessage());
 		}
 		$this->throwIfFailed($ret, 'could_not_set_ufw_defaults');
-		$this->redirectToShow();
+		$this->redirectToShow('ufw_defaults_set', 'incoming ' . self::actionDisplay($incoming)
+			. ', outgoing ' . self::actionDisplay($outgoing));
 
 		return null;
 	}
@@ -1059,7 +1106,9 @@ class ufwfirewall extends lxclass
 		} catch (InvalidArgumentException $e) {
 			$this->throwUfw($e->getMessage(), $portField);
 		}
-		$this->redirectToShow();
+		$shownPort = strtolower($proto) === 'icmp' ? '' : implode(',', KloxoUfw::splitPorts($portField));
+		$this->redirectToShow('ufw_rule_added',
+			$this->ruleSummary($action, $proto, $shownPort, $from, $comment));
 
 		return null;
 	}
@@ -1088,7 +1137,9 @@ class ufwfirewall extends lxclass
 		} catch (InvalidArgumentException $e) {
 			$this->throwUfw($e->getMessage(), $portField !== '' ? $portField : $number);
 		}
-		$this->redirectToShow();
+		$shownPort = strtolower($proto) === 'icmp' ? '' : implode(',', KloxoUfw::splitPorts($portField));
+		$this->redirectToShow(str_starts_with($number, 's:') ? 'ufw_rule_updated_suspended' : 'ufw_rule_updated',
+			$this->ruleSummary($action, $proto, $shownPort, $from, $comment));
 
 		return null;
 	}
@@ -1101,6 +1152,7 @@ class ufwfirewall extends lxclass
 		if ($number === '' && isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
 			$number = (string) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
 		}
+		$what = $this->describeRuleId($number);
 		try {
 			if (str_starts_with($number, 's:')) {
 				$ret = $this->execUfw('deleteSuspended', array($number));
@@ -1111,7 +1163,7 @@ class ufwfirewall extends lxclass
 			$this->throwUfw($e->getMessage(), $number);
 		}
 		$this->throwIfFailed($ret, 'could_not_delete_ufw_rule');
-		$this->redirectToShow();
+		$this->redirectToShow('ufw_rule_deleted', $what !== '' ? $what : ('#' . $number));
 
 		return null;
 	}
@@ -1148,6 +1200,21 @@ class ufwfirewall extends lxclass
 				$liveNums[] = (int) $id;
 			}
 		}
+		$whats = array();
+		foreach ($ids as $rawId) {
+			if (!is_scalar($rawId)) {
+				continue;
+			}
+			$rawId = trim((string) $rawId);
+			$lookup = $rawId;
+			if (str_starts_with($rawId, 'n:')) {
+				$lookup = explode(',', substr($rawId, 2))[0];
+			}
+			$d = $this->describeRuleId($lookup);
+			if ($d !== '') {
+				$whats[] = $d;
+			}
+		}
 		try {
 			if ($liveNums !== array()) {
 				$ret = $this->execUfw('deleteRules', array($liveNums));
@@ -1163,7 +1230,12 @@ class ufwfirewall extends lxclass
 		if ($liveNums === array() && $suspIds === array()) {
 			$this->throwUfw('invalid_ufw_rule');
 		}
-		$this->redirectToShow();
+		$shown = array_slice($whats, 0, 5);
+		$txt = count($whats) . ' deleted' . ($shown !== array() ? ': ' . implode('; ', $shown) : '');
+		if (count($whats) > 5) {
+			$txt .= '; and ' . (count($whats) - 5) . ' more';
+		}
+		$this->redirectToShow('ufw_rules_deleted', $txt);
 
 		return null;
 	}
@@ -1176,13 +1248,14 @@ class ufwfirewall extends lxclass
 		if ($number === '' && isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
 			$number = (string) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
 		}
+		$what = $this->describeRuleId($number);
 		try {
 			$ret = $this->execUfw('suspendRule', array($number));
 		} catch (InvalidArgumentException $e) {
 			$this->throwUfw($e->getMessage(), $number);
 		}
 		$this->throwIfFailed($ret, 'could_not_suspend_ufw_rule');
-		$this->redirectToShow();
+		$this->redirectToShow('ufw_rule_suspended', $what !== '' ? $what : ('#' . $number));
 
 		return null;
 	}
@@ -1195,13 +1268,14 @@ class ufwfirewall extends lxclass
 		if ($id === '' && isset($_REQUEST['frm_ufwfirewall_c_ufw_rule'])) {
 			$id = (string) $_REQUEST['frm_ufwfirewall_c_ufw_rule'];
 		}
+		$what = $this->describeRuleId($id);
 		try {
 			$ret = $this->execUfw('unsuspendRule', array($id));
 		} catch (InvalidArgumentException $e) {
 			$this->throwUfw($e->getMessage(), $id);
 		}
 		$this->throwIfFailed($ret, 'could_not_unsuspend_ufw_rule');
-		$this->redirectToShow();
+		$this->redirectToShow('ufw_rule_unsuspended', $what !== '' ? $what : $id);
 
 		return null;
 	}

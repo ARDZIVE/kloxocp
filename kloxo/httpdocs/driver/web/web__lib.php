@@ -403,6 +403,11 @@ class web__ extends lxDriverClass
 
 		$input['reverseproxy'] = isWebProxy();
 
+		// Web cache in front: TLS names + certificate of this domain (see install-webcache).
+		if ($conftype === 'domains' && class_exists('KloxoWebcache')) {
+			KloxoWebcache::writeRecord($input);
+		}
+
 		$list = getAllRealWebDriverList();
 
 		$input['webdriverlist'] = $list;
@@ -466,6 +471,10 @@ class web__ extends lxDriverClass
 
 	function setRemoveAllDomainConfigs()
 	{
+		if (class_exists('KloxoWebcache')) {
+			KloxoWebcache::removeAllRecords();
+		}
+
 		$list = getAllWebDriverList();
 
 		foreach ($list as &$l) {
@@ -1192,6 +1201,10 @@ class web__ extends lxDriverClass
 		// then the "rm - rf" command will delete all the domains.
 		// So please be careful here. Must find a better way to delete stuff.
 		if (!$domainname) {	return null;	}
+
+		if (class_exists('KloxoWebcache')) {
+			KloxoWebcache::removeRecord((string) $domainname);
+		}
 
 		$list = getAllWebDriverList();
 

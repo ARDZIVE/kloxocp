@@ -41,8 +41,8 @@ if (($webcache === 'none') || (!$webcache)) {
 	$ports[] = '80';
 	$ports[] = '443';
 } else {
-	$ports[] = '8080';
-	$ports[] = '8443';
+	$ports[] = '8081';
+	$ports[] = '8444';
 }
 
 $statsapp = $stats['app'];
