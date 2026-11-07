@@ -192,7 +192,7 @@ class Mailaccount extends Lxclient
 				$list = $this->getList('autoresponder');
 
 				if (!$list) {
-					throw new lxException($login->getThrow("first_add_some_autoresponders"));
+					throw new lxInfoException($login->getThrow("first_add_some_autoresponders"));
 				}
 
 				$nlist = get_namelist_from_objectlist($list, "nname", "autores_name");

@@ -136,6 +136,14 @@ class lxException extends Exception
 	}
 }
 
+/**
+ * Not a failure: a plain notice for the user ("First add some autoresponders").
+ * Pages that catch lxException print it as a normal info message, not an error.
+ */
+class lxInfoException extends lxException
+{
+}
+
 function getAllOperatingSystemDetails()
 {
 	$ret = findOperatingSystem();

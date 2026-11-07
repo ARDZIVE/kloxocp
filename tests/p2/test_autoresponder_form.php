@@ -38,8 +38,10 @@ $m->autoresponder_l = array();
 try {
 	$m->updateform('autores', array());
 	bad('autores form with no autoresponders throws a readable lxException');
+} catch (lxInfoException $e) {
+	ok('autores form with no autoresponders throws a notice (lxInfoException), not an error');
 } catch (lxException $e) {
-	ok('autores form with no autoresponders throws a readable lxException');
+	bad('autores form with no autoresponders throws a notice (lxInfoException), not an error');
 } catch (Throwable $e) {
 	bad('autores form with no autoresponders throws a readable lxException', get_class($e));
 }
@@ -58,11 +60,23 @@ try {
 	bad('autores form lists the existing autoresponder', $e->getMessage());
 }
 
-$src = (string)file_get_contents($doc . '/theme/coredisplaylib.php');
-if (preg_match('/catch \(lxException \$e\) \{[^}]*do_updateform[^}]*\$e->getMessage\(\)/s', $src)) {
-	ok('show page prints an lxException message from do_updateform');
+// The info alert the notice is shown in: green info box, plain text, escaped.
+$h = new HtmlLib();
+ob_start();
+$h->print_inline_alert(htmlspecialchars('First add <b>some</b>', ENT_QUOTES), 'info');
+$box = (string)ob_get_clean();
+if (str_contains($box, 'kloxo-inline-info') && str_contains($box, 'First add &lt;b&gt;some')) {
+	ok('notice renders in the info box with escaped text');
 } else {
-	bad('show page prints an lxException message from do_updateform');
+	bad('notice renders in the info box with escaped text', $box);
+}
+
+$src = (string)file_get_contents($doc . '/theme/coredisplaylib.php');
+if (preg_match('/catch \(lxInfoException \$e\) \{[^}]*print_inline_alert\([^;]*\'info\'\)/s', $src)
+	&& preg_match('/catch \(lxException \$e\) \{[^}]*do_updateform[^}]*\$e->getMessage\(\)/s', $src)) {
+	ok('show page prints notices as info messages and other lxException text as plain text');
+} else {
+	bad('show page prints notices as info messages and other lxException text as plain text');
 }
 
 echo "$pass passed, $fail failed\n";

@@ -1341,6 +1341,12 @@ function __ac_desc_UpdateForm($object)
 		} else {
 			do_updateform($object, $sublist);
 		}
+	} catch (lxInfoException $e) {
+		// A plain notice, not an error: show the text as an info message.
+		$msg = trim((string)$e->getMessage());
+		if ($msg !== '') {
+			$ghtml->print_inline_alert(htmlspecialchars($msg, ENT_QUOTES), 'info');
+		}
 	} catch (lxException $e) {
 		// A deliberate, user-readable refusal (for example "First add some
 		// autoresponders"): show it instead of the generic failure text.
