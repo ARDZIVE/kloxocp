@@ -41,6 +41,26 @@ curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?no
 bash /tmp/kloxocp-install.sh'
 ```
 
+Fresh install (wipe the previous Kloxo CP and start over; on a server that already has this panel):
+
+```bash
+sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; rm -f /tmp/kloxocp-install.sh; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --fresh'
+```
+
+`--fresh` asks you to type `YES` first (add `--yes` to skip the question, for
+example from a script; it refuses to run without a terminal otherwise). It stops
+and removes the Kloxo units, deletes the program root `/opt/kloxo` and the
+clone in `/usr/local/src/kloxo-cp`, drops the panel database `kloxo` and the
+`kloxo` / `kloxo_pma` MariaDB accounts, deletes `/root/kloxo-admin-password`,
+`/root/kloxo-recovery-password` and the Kloxo Fail2Ban panel jails, and then
+runs the normal install, so the panel comes back with `admin` / `admin`, new
+TLS keys and a new recovery password. Kept: apt packages (re-installed or
+updated by the install), customer sites in `/home/kloxo`, mail in `/var/vmail`,
+databases created for customers, firewall rules and the `lxlabs` user. Run it
+from your own SSH session so Fail2Ban whitelists your address. Not tested on a
+real Ubuntu server: the wipe is tested in a sandbox with fake `systemctl` and
+`mysql` (`tests/install/run-tests.sh`).
+
 One line (same steps):
 
 ```bash
@@ -287,6 +307,7 @@ does not run a browser login.
 ```
 sudo bash install.sh
 sudo bash install.sh --update              # accepted; every run already git-fetches the clone
+sudo bash install.sh --fresh               # wipe the previous Kloxo CP install first (asks for YES; --yes skips)
 sudo bash install.sh --force               # below 2 GB RAM / 10 GB disk
 sudo bash install.sh                       # default --profile=full (Exim, Dovecot, Rspamd; no Postfix)
 sudo bash install.sh --with-mail           # same as --profile=full

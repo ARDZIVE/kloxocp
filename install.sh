@@ -44,6 +44,8 @@ PROFILE="full"
 FORCE=0
 DRY=0
 UPDATE=0
+FRESH=0
+YES=0
 WITH_MAIL=1
 INSTALL_TYPE="master"
 SLAVE_PASSWORD=""
@@ -66,6 +68,11 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
   --yes            non-interactive (assumed when stdin is not a TTY)
   --force          continue below 2 GB RAM / 10 GB disk
   --update         accepted; every run already git-fetches the clone
+  --fresh          remove the previous Kloxo CP install first (program root, panel
+                   database and its accounts, kloxo units, saved passwords, Fail2Ban
+                   panel jails), then install from scratch. Asks you to type YES
+                   (or pass --yes). Kept: apt packages, customer sites in /home/kloxo,
+                   mail in /var/vmail, customer databases, firewall rules, the lxlabs user.
   --dry-run        print the plan and exit
   --src=DIR        clone location (default: ${KLOXO_SRC_DEFAULT})
   --root=DIR       program root (default: ${KLOXO_ROOT_DEFAULT})
@@ -176,10 +183,64 @@ print_access_box() {
   echo
 }
 
+fresh_wipe() {
+  local u unit root_real src_real here_real
+  log "fresh: removing the previous Kloxo CP install"
+
+  for unit in kloxo-watchdog kloxo-backend kloxo-web kloxo-php kloxo-wrap kloxo-webcache kloxo-webproxy hiawatha; do
+    systemctl disable --now "$unit" >/dev/null 2>&1 || true
+  done
+  rm -f /etc/systemd/system/kloxo-*.service /etc/systemd/system/multi-user.target.wants/kloxo-*.service \
+    /etc/systemd/system/mariadb.service.d/kloxo-restart.conf || true
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl reset-failed >/dev/null 2>&1 || true
+
+  if command -v mysql >/dev/null 2>&1 && systemctl is-active --quiet mariadb 2>/dev/null; then
+    if mysql --protocol=socket -uroot -e "DROP DATABASE IF EXISTS \`kloxo\`;
+        DROP USER IF EXISTS 'kloxo'@'localhost', 'kloxo'@'127.0.0.1', 'kloxo_pma'@'localhost', 'kloxo_pma'@'127.0.0.1';
+        FLUSH PRIVILEGES;" >>"$LOG" 2>&1; then
+      log "fresh: panel database and accounts dropped"
+    else
+      log "warn: could not drop the panel database (an old admin password may survive)"
+    fi
+  else
+    log "warn: MariaDB not running or not installed; no panel database dropped"
+  fi
+
+  rm -f /etc/fail2ban/jail.d/kloxo-cp.local /etc/fail2ban/filter.d/kloxo-panel.conf \
+    /etc/fail2ban/filter.d/kloxo-recovery.conf /etc/logrotate.d/kloxo-auth || true
+  systemctl reload fail2ban >/dev/null 2>&1 || true
+
+  rm -f /script /usr/bin/lxphp.exe /usr/bin/lphp.exe /usr/local/sbin/kloxocp \
+    /root/kloxo-admin-password /root/kloxo-recovery-password || true
+
+  if [[ -L "$ROOT" ]]; then
+    rm -f "$ROOT"
+  elif [[ -d "$ROOT" && -f "$ROOT/bin/kloxocp" && -d "$ROOT/httpdocs" && "$ROOT" =~ ^/[^/]+/[^/]+ ]]; then
+    rm -rf "$ROOT"
+  elif [[ -e "$ROOT" ]]; then
+    die "fresh: $ROOT is not a Kloxo program root; not removing it"
+  fi
+
+  # The clone: removed when it is the default one; kept (cleaned) when this script runs from inside it.
+  if [[ -d "$SRC/.git" && -f "$SRC/kloxo/bin/kloxocp" ]]; then
+    src_real="$(cd "$SRC" && pwd -P)"
+    here_real=""
+    [[ -n "$HERE" ]] && here_real="$(cd "$HERE" 2>/dev/null && pwd -P || true)"
+    if [[ "$src_real" == "$here_real" ]]; then
+      git -C "$SRC" clean -fdxq || true
+    elif [[ "$src_real" =~ ^/[^/]+/[^/]+ ]]; then
+      rm -rf "$src_real"
+    fi
+  fi
+  log "fresh: previous install removed"
+}
+
 for a in "$@"; do
   case "$a" in
     --help|-h) usage; exit 0 ;;
-    --yes|-y) ;;
+    --yes|-y) YES=1 ;;
+    --fresh) FRESH=1 ;;
     --force) FORCE=1 ;;
     --dry-run) DRY=1 ;;
     --update) UPDATE=1 ;;
@@ -230,6 +291,7 @@ plan: Kloxo CP ${KCP_VERSION}
   root    $ROOT
   profile $PROFILE
   type    $INSTALL_TYPE
+  fresh   $([ "$FRESH" -eq 1 ] && echo 'yes: previous install is removed first' || echo no)
   sitephp 5.6, 7.4, latest (install-site-php; default latest)
   dns     bind9 enabled (default); pdns-server prepared and disabled
   web     nginx enabled (default); apache2 prepared and disabled
@@ -245,6 +307,17 @@ EOF
 fi
 
 [[ "$(id -u)" -eq 0 ]] || die "run as root (sudo bash install.sh)"
+
+if [[ "$FRESH" -eq 1 ]]; then
+  if [[ "$YES" -ne 1 ]]; then
+    [[ -t 0 ]] || die "--fresh deletes the existing panel; run it from a terminal or add --yes"
+    printf 'This deletes the existing Kloxo CP install (%s), its panel database and saved passwords.\n' "$ROOT"
+    printf 'Customer sites, mail and customer databases are kept. Type YES to continue: '
+    read -r answer
+    [[ "$answer" == "YES" ]] || die "cancelled"
+  fi
+  fresh_wipe
+fi
 
 export DEBIAN_FRONTEND=noninteractive
 # Piped invocation must not let apt/debconf consume the script.

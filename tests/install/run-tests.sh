@@ -753,6 +753,64 @@ else
   bad "phpMyAdmin sign-on reads the panel session file"
 fi
 
+echo "== install.sh --fresh (function run in a sandbox, absolute paths remapped, fake systemctl/mysql)"
+FR="$T/fresh"; mkdir -p "$FR/bin"
+printf '#!/bin/sh\necho "systemctl $*" >> "%s/calls"\nexit 0\n' "$FR" > "$FR/bin/systemctl"
+printf '#!/bin/sh\necho "mysql $*" >> "%s/calls"\ncat >/dev/null 2>&1 < /dev/null\nexit 0\n' "$FR" > "$FR/bin/mysql"
+printf '#!/bin/sh\nexit 0\n' > "$FR/bin/git"
+chmod +x "$FR/bin/"*
+awk '/^fresh_wipe\(\) \{/{f=1} f{print} f&&/^\}/{exit}' "$ROOT/install.sh" \
+  | sed -e "s# /etc/# $FR/etc/#g" -e "s# /usr/# $FR/usr/#g" -e "s# /root/# $FR/root/#g" -e "s# /script# $FR/script#g" \
+        -e "s#^  rm -f /etc/#  rm -f $FR/etc/#" -e "s#\"/etc/#\"$FR/etc/#g" > "$FR/fn.sh"
+if [ -s "$FR/fn.sh" ] && ! grep -Eq '(^| )/(etc|usr|root|script)' "$FR/fn.sh"; then
+  ok "fresh_wipe extracted with every absolute path remapped"
+else
+  bad "fresh_wipe extraction" "$(grep -En '(^| )/(etc|usr|root|script)' "$FR/fn.sh" | head -5)"
+fi
+run_fresh() { # root src here
+  ( PATH="$FR/bin:$PATH"; LOG=/dev/null; ROOT="$1"; SRC="$2"; HERE="$3"
+    log() { :; }; die() { echo "die: $*" >&2; exit 1; }
+    . "$FR/fn.sh"; fresh_wipe ) 2>"$FR/err"
+}
+mk_install() { # dir
+  mkdir -p "$1/src/.git" "$1/src/kloxo/bin" "$1/src/kloxo/httpdocs" "$FR/etc/systemd/system" "$FR/etc/fail2ban/jail.d" "$FR/etc/fail2ban/filter.d" "$FR/root"
+  echo x > "$1/src/kloxo/bin/kloxocp"; ln -s "$1/src/kloxo" "$1/opt-kloxo"
+  echo x > "$FR/etc/systemd/system/kloxo-backend.service"; echo x > "$FR/etc/fail2ban/jail.d/kloxo-cp.local"
+  echo x > "$FR/etc/fail2ban/filter.d/kloxo-panel.conf"; echo x > "$FR/root/kloxo-admin-password"; echo x > "$FR/root/kloxo-recovery-password"
+}
+mkdir -p "$FR/elsewhere"
+mk_install "$FR/a"
+: > "$FR/calls"
+if run_fresh "$FR/a/opt-kloxo" "$FR/a/src" "$FR/elsewhere" \
+  && [ ! -e "$FR/a/opt-kloxo" ] && [ ! -e "$FR/a/src" ] \
+  && [ ! -e "$FR/root/kloxo-admin-password" ] && [ ! -e "$FR/root/kloxo-recovery-password" ] \
+  && [ ! -e "$FR/etc/systemd/system/kloxo-backend.service" ] && [ ! -e "$FR/etc/fail2ban/jail.d/kloxo-cp.local" ] \
+  && [ ! -e "$FR/etc/fail2ban/filter.d/kloxo-panel.conf" ]; then
+  ok "fresh: removes the program root link, the clone, saved passwords, units and the Fail2Ban panel jails"
+else
+  bad "fresh: removal" "$(cat "$FR/err")"
+fi
+grep -q 'systemctl disable --now kloxo-backend' "$FR/calls" && grep -q 'systemctl disable --now kloxo-watchdog' "$FR/calls" \
+  && ok "fresh: stops and disables the Kloxo units" || bad "fresh: stops units" "$(cat "$FR/calls")"
+mk_install "$FR/b"; mkdir -p "$FR/b/home/kloxo/httpd" "$FR/b/var/vmail"
+if run_fresh "$FR/b/opt-kloxo" "$FR/b/src" "$FR/b/src" && [ -d "$FR/b/src" ] && [ -f "$FR/b/src/kloxo/bin/kloxocp" ] \
+  && [ ! -e "$FR/b/opt-kloxo" ] && [ -d "$FR/b/home/kloxo/httpd" ] && [ -d "$FR/b/var/vmail" ]; then
+  ok "fresh: a clone the script runs from is kept (cleaned, not deleted); customer data is untouched"
+else
+  bad "fresh: running from the clone" "$(cat "$FR/err")"
+fi
+mkdir -p "$FR/c/usr-opt/kloxo/etc"; echo keep > "$FR/c/usr-opt/kloxo/etc/file"
+if ! run_fresh "$FR/c/usr-opt/kloxo" "$FR/c/none" "$FR/elsewhere" && [ -f "$FR/c/usr-opt/kloxo/etc/file" ]; then
+  ok "fresh: refuses to delete a directory that is not a Kloxo program root"
+else
+  bad "fresh: guard on a foreign directory"
+fi
+grep -q 'DROP DATABASE' "$ROOT/install.sh" && grep -q "kloxo_pma" "$ROOT/install.sh" \
+  && ok "fresh: drops the panel database and its accounts (kloxo, kloxo_pma)" || bad "fresh: DB drop"
+fails "install.sh --fresh without a terminal and without --yes is refused" bash -c "bash '$ROOT/install.sh' --fresh </dev/null"
+check "install.sh --fresh --dry-run" bash "$ROOT/install.sh" --fresh --dry-run
+grep -q 'type YES' "$ROOT/install.sh" && ok "fresh: asks for YES on a terminal" || bad "fresh: confirmation"
+
 check "pg_servermail migration (test_migrate_servermail.php)" php "$HERE/test_migrate_servermail.php"
 
 echo
