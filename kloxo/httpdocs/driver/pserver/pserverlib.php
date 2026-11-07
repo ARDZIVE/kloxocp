@@ -20,6 +20,7 @@ class pserver extends pservercore {
 	static $__desc_serverweb_o = array("db", "", "");
 	static $__desc_lxguard_o = array("db", "", "");
 	static $__desc_ufwfirewall_o = array("d", "", "");
+	static $__desc_fail2ban_o = array("d", "", "");
 	static $__desc_phpmodule_l = array("", "", "");
 
 	Function display($var)
@@ -188,6 +189,8 @@ class pserver extends pservercore {
 	//	$a['pserver'] = $this->nname;
 	//	rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
 
+		$policyErrors = array();
+
 		foreach ($driverClasses as $class) {
 			$k = "{$class}_driver";
 			$v = $a[$class];
@@ -222,6 +225,16 @@ class pserver extends pservercore {
 				$a[$class] = $v;
 				rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
 
+				if ($class === 'smtp') {
+					// SMTP protection (the Spamdyke replacement) follows the MTA: install the
+					// saved Mail Server Settings for the one that was just selected.
+					$pres = rl_exec_get(null, $this->nname, array('KloxoMailPolicy', 'reapply'), array($v));
+					if (!is_array($pres) || empty($pres['ok'])) {
+						$why = (is_array($pres) && isset($pres['error']) && $pres['error'] !== '') ? $pres['error'] : 'no answer from the backend';
+						$policyErrors[] = "SMTP is now {$v}, but the SMTP protection settings could not be applied ({$why})";
+					}
+				}
+
 			//	if ($nofixconfig === 'on') { continue; }
 
 				if ($class === 'webcache') {
@@ -248,6 +261,10 @@ class pserver extends pservercore {
 			//	lxshell_return("sh", "/script/fix{$fixc}", "--target=defaults", "--server={$this->nname}", "--nolog");
 				exec("sh /script/fix{$fixc} --target=defaults --server={$this->nname} --nolog");
 			}
+		}
+
+		if ($policyErrors !== array()) {
+			throw new lxException(implode('; ', $policyErrors), '', 'smtp');
 		}
 	}
 
@@ -495,6 +512,7 @@ class pserver extends pservercore {
 		$alist[] = "a=list&c=watchdog";
 		$alist[] = "a=show&o=lxguard";
 		$alist[] = "a=show&o=ufwfirewall";
+		$alist[] = "a=show&o=fail2ban";
 		$alist[] = "a=list&c=hostdeny";
 		$alist[] = "a=list&c=sshauthorizedkey";
 

@@ -35,7 +35,16 @@ class mail_graylist_wlist_a extends lxaclass {
 			$param = array();
 		}
 		$ip = isset($param['nname']) ? trim((string) $param['nname']) : '';
-		$param['nname'] = $ip;
+		// IPv4/IPv6 address or CIDR; stored in canonical form
+		try {
+			$list = KloxoMailPolicy::parseWhitelist(array($ip));
+		} catch (InvalidArgumentException $e) {
+			throw new lxException($e->getMessage(), 'nname', $ip);
+		}
+		if (count($list) !== 1) {
+			throw new lxException('Whitelist IP is required', 'nname', $ip);
+		}
+		$param['nname'] = $list[0];
 
 		return $param;
 	}
@@ -104,7 +113,6 @@ class ServerMail extends lxdb
 	static $__desc_reject_missing_sender_mx_flag = array("f", "",  "reject_missing_sender_mx");
 	static $__desc_reject_unresolvable_rdns_flag = array("f", "",  "reject_unresolvable_rdns");
 	static $__desc_dns_blacklists = array("t", "",  "dns_blacklists");
-	static $__desc_alt_smtp_sdyke_flag = array("f","","alt_smtp_sdyke");
 
 	static $__desc_default_dns_blacklists_flag = array("f", "",  "enable_default_dns_blacklists");
 
@@ -171,12 +179,11 @@ class ServerMail extends lxdb
 	function createExtraVariables()
 	{
 		$this->applySpamdykeDefaults();
-		$this->setDefaultValue("alt_smtp_sdyke_flag", 1);
 	}
 
 	function applySpamdykeDefaults()
 	{
-		// Kloxo-MR Spamdyke form defaults (screenshot).
+		// Kloxo-MR defaults of the (former Spamdyke) SMTP protection form.
 		$this->setDefaultValue('greet_delay', '1');
 		$this->setDefaultValue('max_rcpnts', '150');
 		$this->setDefaultValue('graylist_flag', 'on');
@@ -215,49 +222,37 @@ class ServerMail extends lxdb
 		}
 	}
 
+	/**
+	 * SMTP protection tab (key `spamdyke` kept for the URLs and the database columns):
+	 * validate before anything is saved; the driver then installs it for Exim or Postfix.
+	 */
 	function updatespamdyke($param)
 	{
-		$path = "../file/template";
-		$content = '';
-
 		if (($param['default_dns_blacklists_flag'] ?? '') === 'on') {
-			$cur = "{$path}/current.spamdyke_rbl.txt";
-			if (is_file($cur)) {
-				@unlink($cur);
-			}
-			$src = "{$path}/spamdyke_rbl.txt";
-			$param['dns_blacklists'] = is_file($src) ? (string) file_get_contents($src) : '';
-		} else {
-			$content = (string) ($param['dns_blacklists'] ?? '');
-			$file = "{$path}/current.spamdyke_rbl.txt";
-			@file_put_contents($file, $content);
+			$param['dns_blacklists'] = KloxoMailPolicy::defaultFile('default_rbl.txt');
 		}
-
 		if (($param['default_blacklist_headers_flag'] ?? '') === 'on') {
-			$cur = "{$path}/current.spamdyke_blacklist_headers.txt";
-			if (is_file($cur)) {
-				@unlink($cur);
-			}
-			$src = "{$path}/spamdyke_blacklist_headers.txt";
-			$param['blacklist_headers'] = is_file($src) ? (string) file_get_contents($src) : '';
-			$content = (string) ($param['blacklist_headers'] ?? '');
-		} else {
-			$content = (string) ($param['blacklist_headers'] ?? '');
-			$file = "{$path}/current.spamdyke_blacklist_headers.txt";
-			@file_put_contents($file, $content);
+			$param['blacklist_headers'] = KloxoMailPolicy::defaultFile('default_blacklist_headers.txt');
 		}
 
-		$dir = '/var/qmail/spamdyke';
-		if (is_dir($dir) && is_writable($dir)) {
-			@file_put_contents("{$dir}/blacklist_headers", $content);
-			if (function_exists('lxshell_return')) {
-				try {
-					lxshell_return('chown', 'qmaild:qmail', "{$dir}/blacklist_headers");
-				} catch (Throwable $e) {
-					log_log('error', 'servermail spamdyke chown: ' . $e->getMessage());
-				}
-			}
+		try {
+			$p = KloxoMailPolicy::normalize(array(
+				'enabled' => 'on',
+				'greet_delay' => $param['greet_delay'] ?? '',
+				'max_rcpnts' => $param['max_rcpnts'] ?? '',
+				'graylist' => $param['graylist_flag'] ?? '',
+				'graylist_min_secs' => $param['graylist_min_secs'] ?? '',
+				'graylist_max_secs' => $param['graylist_max_secs'] ?? '',
+				'dns_blacklists' => $param['dns_blacklists'] ?? '',
+				'blacklist_headers' => $param['blacklist_headers'] ?? '',
+			));
+		} catch (InvalidArgumentException $e) {
+			throw new lxException($e->getMessage(), '', '');
 		}
+
+		// the columns are TEXT; keep the lists in the canonical form that will be installed
+		$param['dns_blacklists'] = implode(' ', $p['dns_blacklists']);
+		$param['blacklist_headers'] = trim((string) ($param['blacklist_headers'] ?? ''));
 
 		return $param;
 	}
@@ -289,35 +284,24 @@ class ServerMail extends lxdb
 				$vlist['queuelifetime'] = null;
 
 				if (!isset($this->smtp_instance) || $this->smtp_instance === '' || $this->smtp_instance === null) {
-					$smtp_instance_file = '/var/qmail/control/concurrencyincoming';
-					$fromFile = (is_file($smtp_instance_file))
-						? trim((string) @file_get_contents($smtp_instance_file)) : '';
-					$this->smtp_instance = ($fromFile !== '') ? $fromFile : '50';
+					$this->smtp_instance = '50';
 				}
 				$vlist['smtp_instance'] = null;
 
 				if (!isset($this->smtp_relay) || $this->smtp_relay === null) {
-					$smtp_relay_file = '/var/qmail/control/smtproutes';
-					$this->smtp_relay = is_file($smtp_relay_file)
-						? (string) @file_get_contents($smtp_relay_file) : '';
+					$this->smtp_relay = '';
 				}
 				$vlist['smtp_relay'] = null;
 
 				if (!isset($this->send_limit) || $this->send_limit === '' || $this->send_limit === null) {
-					$sl_file = '/var/qmail/control/sendlimit';
-					if (is_file($sl_file)) {
-						$got = trim((string) @file_get_contents($sl_file));
-						$this->send_limit = ($got !== '') ? $got : '30000';
-					} else {
-						$this->setDefaultValue('send_limit', '30000');
-					}
+					$this->setDefaultValue('send_limit', '30000');
 				}
 				$vlist['send_limit'] = null;
 
 				break;
 
 			case "spamdyke":
-				// Kloxo-MR Spamdyke tab fields (screenshot).
+				// SMTP protection tab fields (the Kloxo-MR Spamdyke form, same fields).
 				$this->applySpamdykeDefaults();
 
 				$vlist['greet_delay'] = null;
@@ -330,19 +314,15 @@ class ServerMail extends lxdb
 				$vlist['reject_missing_sender_mx_flag'] = null;
 				$vlist['reject_unresolvable_rdns_flag'] = null;
 
-				$path = '../file/template';
-				$file = is_file("{$path}/current.spamdyke_rbl.txt")
-					? "{$path}/current.spamdyke_rbl.txt"
-					: "{$path}/spamdyke_rbl.txt";
-				$rbl = is_file($file) ? trim((string) @file_get_contents($file)) : '';
-				$vlist['dns_blacklists'] = array('t', $rbl);
+				// The saved list, or the shipped default until one was saved (an empty box is a saved choice).
+				$rbl = (isset($this->dns_blacklists) && is_string($this->dns_blacklists))
+					? $this->dns_blacklists : KloxoMailPolicy::defaultFile('default_rbl.txt');
+				$vlist['dns_blacklists'] = array('t', trim($rbl));
 				$vlist['default_dns_blacklists_flag'] = null;
 
-				$file = is_file("{$path}/current.spamdyke_blacklist_headers.txt")
-					? "{$path}/current.spamdyke_blacklist_headers.txt"
-					: "{$path}/spamdyke_blacklist_headers.txt";
-				$hdr = is_file($file) ? trim((string) @file_get_contents($file)) : '';
-				$vlist['blacklist_headers'] = array('t', $hdr);
+				$hdr = (isset($this->blacklist_headers) && is_string($this->blacklist_headers))
+					? $this->blacklist_headers : KloxoMailPolicy::defaultFile('default_blacklist_headers.txt');
+				$vlist['blacklist_headers'] = array('t', trim($hdr));
 				$vlist['default_blacklist_headers_flag'] = null;
 
 				break;

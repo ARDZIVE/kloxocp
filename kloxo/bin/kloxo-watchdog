@@ -1,0 +1,85 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * kloxo-watchdog: restarts crashed or unresponsive server applications.
+ * Standalone: no panel code, no database. Runs as the kloxo-watchdog systemd
+ * service (root). See httpdocs/lib/php/kloxo_watchdog.php for the rules.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3 or later. See LICENSE.txt.
+ *
+ * Usage: kloxo-watchdog [--once] [--root=DIR] [--status] [--help]
+ */
+
+$root = dirname(__DIR__);
+$once = false;
+$status = false;
+$testMail = false;
+foreach (array_slice($argv, 1) as $a) {
+    if ($a === '--help' || $a === '-h') {
+        echo "kloxo-watchdog [--once] [--status] [--test-mail] [--root=DIR]\n"
+            . "  (default)  check every unit each interval (default 60 s) and restart what is down\n"
+            . "  --once     one pass, then exit\n"
+            . "  --status   print the watchdog state (restarts, gave up, held units) and exit\n"
+            . "  --test-mail send a test message to the admin address and exit\n"
+            . "  --root=DIR program root (default: the tree this script is in)\n"
+            . "Settings: etc/conf/watchdog.json (interval, max_restarts, window, grace, notify, disabled).\n"
+            . "A unit stopped from the panel or the recovery console is held and not restarted.\n";
+        exit(0);
+    }
+    if ($a === '--once') {
+        $once = true;
+    } elseif ($a === '--status') {
+        $status = true;
+    } elseif ($a === '--test-mail') {
+        $testMail = true;
+    } elseif (str_starts_with($a, '--root=')) {
+        $root = rtrim(substr($a, 7), '/');
+    } else {
+        fwrite(STDERR, "error: unknown option $a\n");
+        exit(64);
+    }
+}
+if ($root === '' || $root[0] !== '/' || !is_dir($root . '/httpdocs/lib/php')) {
+    fwrite(STDERR, "error: not a Kloxo program root: $root\n");
+    exit(1);
+}
+require_once $root . '/httpdocs/lib/php/kloxo_watchdog.php';
+
+if ($testMail) {
+    $line = (new KloxoWatchdog($root))->testMail();
+    echo $line . "\n";
+    exit(str_starts_with($line, 'test message') ? 0 : 1);
+}
+
+if ($status) {
+    $st = KloxoWatchdog::readState($root);
+    $to = KloxoWatchdog::recipient($root);
+    echo 'mail to: ' . ($to !== '' ? $to : '(nobody: set the admin contact email in the panel)') . "\n";
+    echo 'state updated: ' . ($st['updated'] > 0 ? date('c', $st['updated']) : 'never') . "\n";
+    foreach ($st['units'] as $unit => $u) {
+        printf("  %-18s last=%s%s restarts_in_window=%d\n", $unit, (string) ($u['last'] ?? '-'),
+            !empty($u['gave_up']) ? ' (GAVE UP)' : '', is_array($u['restarts'] ?? null) ? count($u['restarts']) : 0);
+    }
+    $hold = glob(KloxoWatchdog::stateDir($root) . '/hold/*') ?: [];
+    foreach ($hold as $h) {
+        echo '  held (stopped on purpose): ' . basename($h) . "\n";
+    }
+    exit(0);
+}
+
+$wd = new KloxoWatchdog($root);
+do {
+    try {
+        $wd->cycle();
+    } catch (Throwable $e) {
+        // never let one bad pass end the service
+        fwrite(STDERR, 'watchdog: ' . $e->getMessage() . "\n");
+    }
+    if ($once) {
+        break;
+    }
+    sleep(KloxoWatchdog::config($root)['interval']);
+} while (true);

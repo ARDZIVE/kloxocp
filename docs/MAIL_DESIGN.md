@@ -162,6 +162,31 @@ The legacy mail layer is a set of swappable drivers (`Mmail__Qmail`, `Mailaccoun
 
 This step needs the legacy PHP running on PHP 8.3, so it follows the port.
 
+## 6a. SMTP protection (replaces Spamdyke)
+
+The panel's Mail Server Settings > SMTP Protection tab (formerly Spamdyke) is implemented by the SMTP server
+selected in Switch Program. The panel validates the form (`KloxoMailPolicy::normalize`), saves
+`/etc/kloxo/mail-policy.json` and runs `kloxo-mail policy:apply --mta=exim|postfix --policy=<file>`
+(`policy:show` prints the saved policy; policy off restores the original configuration).
+
+| Setting | Exim (rendered into `exim4.conf`) | Postfix (`postconf`/`postconf -M`) |
+|---|---|---|
+| greet delay | connect ACL `delay` for unauthenticated port-25 clients; premature input is refused by `smtp_enforce_sync` | `postscreen_greet_wait` + `postscreen_greet_action = enforce` |
+| max recipients | `$recipients_count` check in the RCPT ACL | `smtpd_recipient_limit` |
+| graylisting | `readsocket` to Postgrey after the unknown-user checks; Postgrey down = defer | `check_policy_service inet:127.0.0.1:10023` |
+| reject empty / unresolvable rDNS | `$sender_host_name` and `$host_lookup_deferred` | `reject_unknown_reverse_client_hostname` / `reject_unknown_client_hostname` |
+| rDNS contains the IP | regex on the host name (`dnsdb ptr`) | `check_reverse_client_hostname_access regexp:` (approximation) |
+| sender domain has no MX/A | `verify = sender` | `reject_unknown_sender_domain` |
+| DNS RBL servers | `dnslists`, ignoring 127.255.255.x error answers | `reject_rbl_client zone=127.0.0.[2..255]` |
+| blacklist headers | DATA ACL on `$h_<name>:` (case-insensitive, `*` wildcard, all else escaped) | `header_checks regexp:` (also applies to local submission) |
+| whitelist IPs | named hostlist `kloxo_policy_whitelist` exempting every rule | `check_client_access cidr:` and the postscreen access list |
+
+Authenticated, local and whitelisted clients skip the rDNS, RBL and greet rules. Postgrey is installed through
+`KloxoApt` when graylisting is on (`/etc/default/postgrey`: `--delay`, `--max-age` rounded up to days). Postfix
+apply keeps a state file and backups, validates with `postfix check`, and refuses to install when
+`smtpd_relay_restrictions` would leave an open relay. Not verified on a real server: Exim `-bV`, Postfix
+`check`/reload/postscreen, Postgrey, and live SMTP sessions through these rules (see section 8).
+
 ## 7. What was tested
 
 Environment for the original Postfix implementation: a scratch container with Ubuntu 24.04
@@ -178,6 +203,9 @@ packages, no systemd, no IPv6, no internet, everything on localhost.
 The Postfix-era run of those suites passed. After the Exim swap they have **not** been re-run
 on Ubuntu in this change (no MariaDB/Exim on the development Mac). Do not treat Exim as
 live-verified until that re-run.
+
+SMTP protection: `tests/p2/test_mailpolicy.php` (renderer, rendered Exim text, Postfix tool against a throw-away
+config directory with the host's `postconf`, panel hand-off with fakes). No real Exim, Postfix daemon or Postgrey ran.
 
 Bugs found by the original tests and fixed: Dovecot refusing to start without IPv6, quota check
 being bypassable from localhost, DKIM maps required by this Rspamd version, stale auth cache after

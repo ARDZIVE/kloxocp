@@ -208,6 +208,7 @@ final class App
                 'update' => $this->notImplemented('update'),
                 'install' => $this->install(),
                 'component' => $this->component($rest),
+                'recovery-password' => $this->recoveryPassword(),
                 default => $this->unknown($cmd),
             };
         } catch (KcpException $e) {
@@ -257,6 +258,7 @@ kloxocp — Kloxo CP operator CLI ($v)
   kloxocp snapshot [--root=DIR] [--snap-dir=DIR] [--keep=N] [--json]
   kloxocp rollback [--root=DIR] [--snap-dir=DIR] [--stamp=UTC] [--json]
   kloxocp component list
+  kloxocp recovery-password --generate | --password-env=VAR [--if-missing] [--raw] [--root=DIR]
   kloxocp update            (not built)
   kloxocp install           (pre-flight; Ubuntu bootstrap is install.sh)
 
@@ -264,11 +266,56 @@ kloxocp — Kloxo CP operator CLI ($v)
   --snap-dir=DIR  snapshot directory (default: <root>/var/backups/kloxocp)
   --json          machine-readable output
   --install       doctor in installer mode (extra host checks)
+  recovery-password sets the login of https://<server>:7777/recovery/, the console that
+                  still starts/stops MariaDB, Nginx, ... when the panel cannot load.
 
 Exit 0 ok, 1 failed check, 2 not implemented, 64 usage.
 
 TXT;
         return 0;
+    }
+
+    private function recoveryPassword(): int
+    {
+        $lib = $this->root . '/httpdocs/lib/php/kloxo_recovery.php';
+        if (!is_file($lib)) {
+            throw new KcpException('recovery library missing: ' . $lib);
+        }
+        require_once $lib;
+        $path = KloxoRecovery::credentialPath($this->root);
+        if (!empty($this->opt['if-missing']) && KloxoRecovery::hasCredential($path)) {
+            return $this->say(['changed' => false], 'recovery password already set (unchanged)');
+        }
+        $generated = false;
+        if (!empty($this->opt['generate'])) {
+            $pw = KloxoRecovery::generatePassword();
+            $generated = true;
+        } elseif (isset($this->opt['password-env']) && is_string($this->opt['password-env'])) {
+            $var = $this->opt['password-env'];
+            if (!preg_match('/^[A-Z_][A-Z0-9_]*$/', $var)) {
+                throw new KcpException('bad --password-env name');
+            }
+            $pw = (string)getenv($var);
+        } else {
+            fwrite(STDERR, "error: give --generate or --password-env=VAR\n");
+            return 64;
+        }
+        if (strlen($pw) < 12) {
+            throw new KcpException('recovery password must be at least 12 characters');
+        }
+        try {
+            KloxoRecovery::writeCredential($pw, $path);
+        } catch (Throwable $e) {
+            throw new KcpException('cannot write ' . $path . ': ' . $e->getMessage());
+        }
+        if ($generated && !empty($this->opt['raw'])) {
+            echo $pw, "\n";
+            return 0;
+        }
+        if ($generated) {
+            return $this->say(['changed' => true, 'password' => $pw], 'recovery password: ' . $pw);
+        }
+        return $this->say(['changed' => true], 'recovery password updated');
     }
 
     private function unknown(string $cmd): int

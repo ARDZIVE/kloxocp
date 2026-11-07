@@ -143,11 +143,9 @@ class Sgbl
 		$this->__path_client_root = "/home/kloxo/client";
 
 		// MR -- don't use isRpmInstalled for identified!!!
-	//	exec("rpm -qa qmail-toaster", $out);
-	//	$this->__path_mail_root = (count($out) > 0) ? "/home/vpopmail" : "/home/kloxomail/mail";
-		$this->__path_mail_root = "/home/vpopmail";
-		// MR -- still using old kloxo mail path
-		$this->__path_mail_data = "/home/kloxomail/mail";
+		// Exim + Dovecot (kloxo-mail): Maildir under /var/vmail/<domain>/<user>.
+		$this->__path_mail_root = "/var/vmail";
+		$this->__path_mail_data = "/var/vmail";
 
 		$this->__path_kloxo_httpd_root = "/home/kloxo/httpd";
 		$this->__path_kloxo_root = "/home/kloxo";
@@ -166,8 +164,7 @@ class Sgbl
 		$this->__var_programname_syslog = 'syslog';
 	//	$this->__var_programname_mysql = 'mysqld';
 		$this->__var_progservice_bind = 'named';
-		$this->__var_programname_mmail = 'qmail';
-	//	$this->__var_programname_imap = 'courier-imap';
+		$this->__var_programname_mmail = 'exim4';
 		$this->__var_programname_imap = 'dovecot';
 
 		$this->__var_programuser_dns = 'named';
@@ -277,7 +274,6 @@ class Sgbl
 		$this->__var_service_desc['exim'] = "Exim Mail Server";
 		$this->__var_service_desc['exim4'] = "Exim Mail Server";
 		$this->__var_service_desc['postfix'] = "Postfix Mail Server";
-		$this->__var_service_desc['qmail'] = "Exim Mail Server";
 		$this->__var_service_desc['dovecot'] = "Dovecot Pop3/IMAP Server";
 		$this->__var_service_desc['rspamd'] = "Rspamd Spam Filter";
 		$this->__var_service_desc['mariadb'] = "MariaDB Database Server";

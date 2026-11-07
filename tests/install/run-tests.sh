@@ -753,6 +753,8 @@ else
   bad "phpMyAdmin sign-on reads the panel session file"
 fi
 
+check "pg_servermail migration (test_migrate_servermail.php)" php "$HERE/test_migrate_servermail.php"
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

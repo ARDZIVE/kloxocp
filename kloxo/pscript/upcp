@@ -91,12 +91,6 @@ fi
 
 if [ "$1" == "-y" ] || [ "$1" == "--force" ] || [ "$2" == "-y" ] || \
 		[ "$2" == "--force" ]  || [ "$3" == "-y" ] || [ "$3" == "--force" ] ; then
-	if [ -f /etc/rc.d/init.d/qmail ] || [ -f /usr/lib/systemd/system/qmail.service ] ; then
-		service qmail stop
-		'rm' -f /etc/rc.d/init.d/qmail >/dev/null 2>&1
-		'rm' -f /usr/lib/systemd/system/qmail.service >/dev/null 2>&1
-	fi
-
 	sh ${ppath}/install/setup.sh $*  | tee ${ppath}/install/install.log
 
 	## MR -- running 'upcp -y ' make skin always use 'simplicity' skin

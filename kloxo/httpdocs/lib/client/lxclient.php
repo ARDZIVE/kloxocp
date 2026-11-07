@@ -1063,6 +1063,11 @@ abstract class Lxclient extends Lxdb
 		// We need to write because reads everything from the database.
 		$this->write();
 
+		if ($this->nname === 'admin') {
+			// The watchdog (own service, no DB) mails this address when it restarts a service.
+			save_admin_contactemail($this->contactemail);
+		}
+
 		if ($this->subaction === 'limit') {
 			$this->distributeChildQuota();
 

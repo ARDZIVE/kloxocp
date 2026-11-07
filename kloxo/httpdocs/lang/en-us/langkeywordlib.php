@@ -90,6 +90,7 @@ $__keyword["show"] = "Show";
 
 $__keyword["lxguard"] = "LxGuard";
 $__keyword["ufwfirewall"] = "UFW Firewall";
+$__keyword["fail2ban"] = "Fail2Ban";
 
 $__keyword["php"] = "PHP";
 $__keyword["web"] = "Web";
@@ -268,6 +269,24 @@ $__throw["could_not_unsuspend_ufw_rule"] = "Could not unsuspend UFW rule";
 $__throw["invalid_ufw_action"] = "Invalid UFW action";
 $__throw["invalid_ufw_proto"] = "Invalid UFW protocol";
 $__throw["invalid_ufw_port"] = "Invalid UFW port";
+$__throw["invalid_fail2ban_time"] = "Invalid time: use seconds or a number with s, m, h, d or w (for example 10m or 1d); -1 only for Ban Time";
+$__throw["invalid_fail2ban_maxretry"] = "Max Retry must be a whole number from 1 to 9999";
+$__throw["invalid_fail2ban_ip"] = "Not a valid IPv4 or IPv6 address";
+$__throw["invalid_fail2ban_ignoreip"] = "Whitelist entries must be IPv4/IPv6 addresses or networks such as 192.0.2.0/24 (a /0 network is refused)";
+$__throw["invalid_fail2ban_jail"] = "Unknown Fail2Ban jail";
+$__throw["fail2ban_not_installed"] = "Fail2Ban is not installed on this server";
+$__throw["fail2ban_backend_failed"] = "Could not reach the Kloxo backend to run Fail2Ban";
+$__throw["fail2ban_config_rejected"] = "Fail2Ban refused the new settings; the old ones are back in use";
+$__throw["fail2ban_reload_failed"] = "Fail2Ban could not reload; the old settings are back in use";
+$__throw["fail2ban_refuse_ban_protected"] = "That address is whitelisted, loopback or the one you are using, so it will not be banned";
+$__throw["fail2ban_jail_not_running"] = "That jail is not running";
+$__throw["fail2ban_jail_unavailable"] = "That jail cannot run on this server";
+$__throw["fail2ban_ban_failed"] = "Fail2Ban could not ban the address";
+$__throw["fail2ban_unban_failed"] = "Fail2Ban could not unban the address";
+$__throw["fail2ban_status_failed"] = "Fail2Ban did not answer";
+$__throw["fail2ban_cannot_write_filter"] = "Could not install the Fail2Ban filter files";
+$__throw["fail2ban_cannot_write_jail_file"] = "Could not write the Fail2Ban jail file";
+$__throw["fail2ban_config_not_writable"] = "Could not save etc/conf/fail2ban.json";
 $__throw["invalid_ufw_from"] = "Invalid UFW from address";
 $__throw["invalid_ufw_comment"] = "Invalid UFW comment";
 $__throw["invalid_ufw_rule"] = "Invalid UFW rule number";
@@ -542,7 +561,6 @@ $__throw["adding_cron_failed"] = "Adding cron failed";
 
 $__throw["can_not_be_null"] = "Can not be null";
 
-$__throw["spamdyke_is_not_installed"] = "spamdyke is not installed";
 $__throw["simscan_is_not_installed_for_virus_scan"] = "simscan is not installed for virus scan";
 
 $__throw["could_not_delete_domain"] = "Could not delete domain";

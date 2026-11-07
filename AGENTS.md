@@ -12,8 +12,8 @@ rollback (designed, not built).
 ## Status
 10.1-2026110601. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
-HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerDNS; qmail still
-present). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
+HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/PowerDNS; qmail, courier-imap and
+ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
 `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
@@ -25,7 +25,7 @@ README one-liner downloads `install.sh` from
 `raw.githubusercontent.com/.../main/install.sh?nocache=$(date +%s)` (cache-busting; Exim, Dovecot, Rspamd;
 Postfix not co-installed with Exim (Switch Program apt-swaps);
 Ubuntu universe enabled when needed;
-no bogofilter/SpamAssassin/sqlite), then that script
+no SpamAssassin/sqlite; bogofilter is not offered), then that script
 fetches `origin/main` and hard-resets when the clone already exists;
 `kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
 change after first login (required Change Password modal with the form
@@ -60,7 +60,7 @@ Client Processing Logs (`domaindefault`) beige tab is **Client Processing Logs**
 install seeds Login Message
 `<p> Welcome to <%programname%>  </p><p>Use a valid username and password to gain access to the console. </p>`
 and `etc/flag/enablecronforall.flg` so Enable Cron For All Users is checked
-by default. Switch Program Spam bogofilter/spamassassin install through `KloxoApt` (`lib/php/kloxo_apt.php`: non-interactive `apt-get`, one retry after `apt-get update`, error text names the package and the apt `E:` line; the old `yum`/`rpm` calls were why it said Install failed); SpamAssassin also enables `spamd` and writes per-mailbox `user_prefs` without qmail/vpopmail (validated path, no directive injection) but is not wired into Exim (Rspamd is); live switch UNVERIFIED and per-mailbox bogofilter prefs still use qmail-era helpers. Switch Program Web Cache offers **none** (default; the Nginx side cache on 8080 -> 80 stays a Watchdog service) and **nginx**: an Nginx proxy cache in front of the Nginx or Apache site server (`bin/install/install-webcache --mode=front|none`, `KloxoWebcache`, `webcache__nginx`; varnish/squid/ATS stay gone). Selecting nginx: Pserver::updateSwitchProgram saves the driver, runs `fixweb` so the site templates listen on 127.0.0.1:8081 (http) and 127.0.0.1:8444 (https, TLS; nginx `listen_*_back*.conf`, Apache `$bind/$httpPort/$httpsPort`), then `install-webcache` renders the cache config (cache on 80/443/8080; HTTPS terminated with the certificate each domain already uses, from `etc/webfront/domains/<domain>.json` written next to the site config), validates with `nginx -t`, moves Apache `ports.conf` to loopback and trusts `X-Forwarded-For` from 127.0.0.1 (nginx `real_ip`, Apache `remoteip`), reloads the site servers, restarts `kloxo-webcache`, checks the ports, and rolls files back on failure; if it fails the driver is reverted and `fixweb` re-run. The cache never stores requests with session/login cookies, an Authorization header, `/wp-admin`, `/wp-login.php`, `/administrator` or ACME challenges; default TTL 60 s for 200/301 when the site sends no cache headers; `install-webfront` keeps the front config while `etc/flag/webcache_front.flg` exists. Tested only against fake nginx/systemctl/apache2 binaries (`tests/install/test-webcache.php`, `tests/p2/test_webcache.php`); the rendered cache config has NOT been through a real `nginx -t`, and a live switch (80/443 hand-over, Apache restart, certificates, per-domain on/off, purge) is UNVERIFIED. Webmail System Default lists installed dirs under
+by default. Switch Program Spam none/spamassassin install through `KloxoApt` (bogofilter was removed: driver, option and package entry are gone) (`lib/php/kloxo_apt.php`: non-interactive `apt-get`, one retry after `apt-get update`, error text names the package and the apt `E:` line; the old `yum`/`rpm` calls were why it said Install failed); SpamAssassin also enables `spamd` and writes per-mailbox `user_prefs` without qmail/vpopmail (validated path, no directive injection) but is not wired into Exim (Rspamd is); live switch UNVERIFIED. Switch Program Web Cache offers **none** (default; the Nginx side cache on 8080 -> 80 stays a Watchdog service) and **nginx**: an Nginx proxy cache in front of the Nginx or Apache site server (`bin/install/install-webcache --mode=front|none`, `KloxoWebcache`, `webcache__nginx`; varnish/squid/ATS stay gone). Selecting nginx: Pserver::updateSwitchProgram saves the driver, runs `fixweb` so the site templates listen on 127.0.0.1:8081 (http) and 127.0.0.1:8444 (https, TLS; nginx `listen_*_back*.conf`, Apache `$bind/$httpPort/$httpsPort`), then `install-webcache` renders the cache config (cache on 80/443/8080; HTTPS terminated with the certificate each domain already uses, from `etc/webfront/domains/<domain>.json` written next to the site config), validates with `nginx -t`, moves Apache `ports.conf` to loopback and trusts `X-Forwarded-For` from 127.0.0.1 (nginx `real_ip`, Apache `remoteip`), reloads the site servers, restarts `kloxo-webcache`, checks the ports, and rolls files back on failure; if it fails the driver is reverted and `fixweb` re-run. The cache never stores requests with session/login cookies, an Authorization header, `/wp-admin`, `/wp-login.php`, `/administrator` or ACME challenges; default TTL 60 s for 200/301 when the site sends no cache headers; `install-webfront` keeps the front config while `etc/flag/webcache_front.flg` exists. Tested only against fake nginx/systemctl/apache2 binaries (`tests/install/test-webcache.php`, `tests/p2/test_webcache.php`); the rendered cache config has NOT been through a real `nginx -t`, and a live switch (80/443 hand-over, Apache restart, certificates, per-domain on/off, purge) is UNVERIFIED. Webmail System Default lists installed dirs under
 `httpd/webmail` plus available Afterlogic/Rainloop/Roundcube/Squirrelmail/Telaen
 (`Mmail::getWebmailProgList`). Panel FPM hides PHP errors (`log/php.err`). The middle column
 is no longer dropped by splash `flush()`/`ob_start()` or an
@@ -202,15 +202,34 @@ in the Server menu at the SSH Client title until `kloxo_menu_title`
 and `install.sh` git-pull/rsync. Re-run install after pulling this
 tree, then re-check Home.
 Mail Server Settings under localhost has exactly three beige tabs (**Mail Server
-Settings** selected on `sa=update`, **Spamdyke**, **Whitelist IPs**), Switch To
-Another (pserver list), and the Kloxo-MR update form (My Name, Enable Spamdyke,
+Settings** selected on `sa=update`, **SMTP Protection**, **Whitelist IPs**), Switch To
+Another (pserver list), and the Kloxo-MR update form (My Name, Enable SMTP Protection,
 Enable Domainkey/DKIM, Enable Virus Scan, Max Mail Attachment Size default
 41943040, Queue Life Time 604800, Max SMTP Instances 50, SMTP Relay, Send Limit
-30000, Update). Clicking **Spamdyke** keeps the servermail path and selects that
+30000, Update). Clicking **SMTP Protection** keeps the servermail path and selects that
 tab (Greet Delay, max recipients 150, graylisting, RDNS/MX reject flags, DNS RBL
 Servers textarea, Blacklist Headers, Update). Clicking **Whitelist IPs** selects
 that tab and lists `mail_graylist_wlist_a` (add Whitelist IP + list column). Live
 Mail Server Settings after deploy is UNVERIFIED.
+SMTP Protection replaces Spamdyke (the Mail Server Settings tab that was called Spamdyke; Spamdyke itself is
+not installed or used). The settings are saved as `/etc/kloxo/mail-policy.json` (`KloxoMailPolicy`,
+`lib/php/kloxo_mailpolicy.php`) and installed by `kloxo-mail policy:apply --mta=exim|postfix` for the SMTP server
+chosen in Switch Program (`pg_servermail` follows `pg_smtp`; drivers `servermail__exim`/`__postfix`/`__none`;
+`migrateServermailDriver` fixes older installs; selecting another SMTP re-applies the saved policy). Exim: the
+settings render into `exim4.conf` (connect `delay`, `$recipients_count`, rDNS/RBL/`verify = sender` rules, `$h_` header
+rules, whitelist hostlist; no policy file = old behaviour). Postfix: `postconf`/`postconf -M` edits with state file, backup,
+`postfix check` and rollback (postscreen greet wait, `smtpd_recipient_limit`, `reject_unknown_*`, `reject_rbl_client`,
+`header_checks`, `check_client_access cidr:`; open-relay guard). Graylisting on both is Postgrey on 127.0.0.1:10023
+(`/etc/default/postgrey` `--delay`/`--max-age`; a dead Postgrey defers). Approximations: Postfix "RDNS contains the IP"
+is a regexp table, Postfix header rules also apply to locally submitted mail (`header_checks`). Saving the form
+with the prefilled RBL list activates DNSBL. The first-tab fields (My Name, Domainkey, Virus Scan, Max Mail Attachment
+Size, Queue Life, Max SMTP Instances, SMTP Relay, Send Limit) are still not wired to a service. Tested:
+`tests/p2/test_mailpolicy.php` (69 checks: renderer, rendered Exim text, Postfix plan, the Postfix tool against Apple
+postconf 3.2.2 in a throw-away directory, panel hand-off with fakes), `tests/install/test_migrate_servermail.php`,
+`tests/p2/test_server_pages.php`. NOT verified: any real Exim (`exim -bV` not run), a real Postfix `postfix check`/reload/
+postscreen, a live Postgrey, a real SMTP session through the rules, the panel UI flow on Ubuntu. Also fixed: the
+template renderer's `@@NAME@@` pattern did not match digits, so `@@EXIM_DISABLE_IPV6@@` was never substituted in
+`exim4.conf` (it would have failed `exim -bV` and rolled the apply back).
 `init-panel-db` seeds the `dbadmin` row `mysql___localhost` (MariaDB account
 `kloxo_pma`, password from `pma.pass`) so Add Database no longer fails with
 "no Database administrator entries"; live database creation is UNVERIFIED.
@@ -225,6 +244,10 @@ unattended-upgrades) via a temporary `apt.conf.d/99kloxo-install`
 `-o DPkg::Lock::Timeout=600`. Tested only for syntax and the wait helper on a
 non-Ubuntu host; a live run on Ubuntu 26.04 is UNVERIFIED.
 Switch Program audit: `updateSwitchProgram` now only treats the six driver keys (web/webcache/dns/spam/pop3/smtp) as programs (before, `use_pagespeed` reached `switchDriver` as class `use`), rejects names not on the offered list, no longer reinstalls the web server on every Update, calls `/script/fixmail` (there is no `/script/fixmmail`) after spam/pop3/smtp switches, and Exim/Postfix/Dovecot installs go through `KloxoApt` (non-interactive, errors shown, old choice kept). `tests/p2/test_switchprogram.php` runs this in a copy of the tree with fake apt-get/systemctl; web driver switch, real apt and a live server are UNVERIFIED.
+Recovery console (`https://<host>:7777/recovery/`, `httpdocs/recovery/index.php`, `lib/php/kloxo_recovery.php`, `lib/php/kloxo_recovery_page.php`): works with MariaDB, Nginx and Apache down. Own login (Argon2id hash in `etc/conf/recovery.json`, 0640 root:lxlabs; `install.sh` generates it once and saves the password to `/root/kloxo-recovery-password`; `kloxocp recovery-password --generate|--password-env=VAR`), HTTPS only, CSRF token, own session under `var/recovery`, 5 failures per address locks 15 min, idle 15 min. Whitelisted units only; panel units (kloxo-web/php/backend) start/enable only. Root work (systemctl, journalctl) goes through `rl_exec_get` to kloxo-backend (`KloxoRecovery::serverControl/serverJournal`); the legacy client is included only for a logged-in request. `kloxo-backend` master mode now survives a missing database (`db_degraded`, retries in `do_server_stuff`), `lx_exception_handler` shows a 503 with a link when mysqli reports 2002/2003/2006/2013, `kloxo-web.service` and a MariaDB drop-in (`mariadb.service.d/kloxo-restart.conf`) restart on failure. `tests/p2/test_recovery.php` (52 checks, fake systemctl/journalctl) plus a manual run of a real backend in a temp tree (round trip while the DB was unreachable). NOT verified: real systemd as root, Hiawatha/FPM serving the page, the MariaDB-down page flow on Ubuntu, a reboot with MariaDB failing.
+
+Watchdog (`kloxo-watchdog` systemd service, `bin/kloxo-watchdog`, `lib/php/kloxo_watchdog.php`, `init/kloxo-watchdog.service`; replaces the RHEL-era `watchdog__sync::watchRun`, now a no-op): standalone root loop (cPanel chkservd model), no panel, no MariaDB. Every 60 s it checks the enabled units (web nginx/apache2 by driver, webcache, webproxy, dns bind9/pdns, mail exim4/postfix, pop3 dovecot, ftp, mariadb, every phpX.Y-fpm, rspamd, redis, kloxo-php/web/backend): unit not `active`, or active but its port/socket not answering (3 tries), -> `reset-failed` + `restart`, then waits for it to answer. Skips: boot grace 300 s, not installed, not enabled, masked, activating, **held**, switched off on the panel's Watchdog screen (`etc/watchdog.conf`) or in `etc/conf/watchdog.json` (`interval`, `max_restarts` 3, `window` 1800, `grace`, `notify`, `disabled`). A unit stopped/disabled on purpose from the recovery console or the panel Services page is held (`var/watchdog/hold/<unit>`) and released on start/restart. After `max_restarts` in the window it gives up (one "GAVE UP" mail, shown in the recovery console) and tries again after the window; one mail per unit per window to `notify` or the admin contact email from `etc/slavedb/contactemail` (written by `save_admin_contactemail` when the admin saves the profile via `Lxclient::postUpdate`, and by `init-panel-db` `syncAdminContactEmail` for existing installs; with no address the watchdog logs `no admin email set` and the recovery console shows a warning; `kloxo-watchdog --test-mail` sends a test). Log `log/watchdog.log`; `kloxo-watchdog --status`; the recovery console has a Watchdog column. `tests/p2/test_watchdog.php` (35 checks: fake systemd, sockets, clock, mailer). NOT verified: a real systemd run as root, real sockets, real sendmail, a live crash/restart on Ubuntu, `install.sh` enabling the unit.
+Fail2Ban (Security > **Fail2Ban**, admin only; `lib/php/kloxo_fail2ban.php`, `driver/pserver/fail2banlib.php`, `bin/install/install-fail2ban`, `install.sh prepare_fail2ban`): packages `fail2ban python3-systemd nftables` are installed by default; the installer's SSH client is whitelisted. The page lists 16 jails (SSH, recidive, panel + recovery logins via `log/auth-failures.log`, Exim, Dovecot, Postfix, Nginx, Apache, Pure-FTPd, MariaDB) with availability, state, per-jail Max Retry/Find Time/Ban Time, failed/banned counters, enable/disable and edit icons, a Banned IPs list with Unban, Ban IP / Unban All / Reload / Settings (defaults + whitelist) and Recent Activity from `/var/log/fail2ban.log`. `/etc/fail2ban/jail.d/kloxo-cp.local` is generated from `etc/conf/fail2ban.json` (render, `fail2ban-client -t`, atomic install, reload, rollback of file and settings); bans use the nftables action, not UFW; loopback is always whitelisted, ban refuses whitelisted/own addresses. Watchdog keeps `fail2ban` running. `tests/p2/test_fail2ban.php` (72 checks, fake `fail2ban-client`/systemctl) and `test_server_pages.php`; a real Fail2Ban, nftables, journal matches, live bans and a live install are UNVERIFIED.
 Next: remaining P2 runtime, Debian packaging, or P4 exim UI. See briefing
 section 7.
 
@@ -246,6 +269,7 @@ php kloxo/bin/install/install-apache --help
 php kloxo/bin/install/install-webfront --help
 bash kloxo/bin/install/install-hiawatha --help
 php kloxo/bin/install/install-webcache --help
+php kloxo/bin/install/install-fail2ban --help
 bash tests/mail/run-tests.sh          # mail checks (needs MariaDB root socket; disposable machine only)
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Exim/Dovecot/Rspamd; see tests/mail/README.md)
 php kloxo/bin/mail/kloxo-mail help

@@ -153,6 +153,26 @@ if php "$HERE/test_apt.php"; then
 else
   bad "test_apt.php"
 fi
+if php "$HERE/test_recovery.php"; then
+  ok "test_recovery.php"
+else
+  bad "test_recovery.php"
+fi
+if php "$HERE/test_watchdog.php"; then
+  ok "test_watchdog.php"
+else
+  bad "test_watchdog.php"
+fi
+if php "$HERE/test_fail2ban.php"; then
+  ok "test_fail2ban.php"
+else
+  bad "test_fail2ban.php"
+fi
+if php "$HERE/test_mailpolicy.php"; then
+  ok "test_mailpolicy.php"
+else
+  bad "test_mailpolicy.php"
+fi
 if php "$HERE/test_switchprogram.php"; then
   ok "test_switchprogram.php"
 else

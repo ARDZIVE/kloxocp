@@ -1632,7 +1632,7 @@ function kloxo_skip_find_class($class)
 	$c = strtolower((string)$class);
 	static $skip = array(
 		'llog', 'driver', 'phpini', 'lxbackup', 'serverweb', 'serverftp',
-		'sshconfig', 'lxguard', 'ufwfirewall', 'sshclient', 'ffile', 'ticket', 'notification',
+		'sshconfig', 'lxguard', 'ufwfirewall', 'fail2ban', 'sshclient', 'ffile', 'ticket', 'notification',
 		'lxupdate', 'dns', 'dns_record_a', 'web', 'servermail', 'mail_graylist_wlist_a',
 		'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist', 'lxguardhit',
 		'dbadmin',
@@ -2292,6 +2292,16 @@ function check_password($unenc, $enc)
 function lx_exception_handler($e)
 {
 	global $gbl, $sgbl, $login, $ghtml;
+
+	// MariaDB down: point at the recovery console (it needs no database)
+	// instead of a bare "No such file or directory".
+	if (class_exists('KloxoRecovery', false) && KloxoRecovery::isDatabaseDown($e)
+		&& PHP_SAPI !== 'cli' && !headers_sent()) {
+		http_response_code(503);
+		header('Cache-Control: no-store');
+		print(KloxoRecovery::databaseDownHtml());
+		return;
+	}
 
 	$var = (is_object($e) && isset($e->variable)) ? $e->variable : '';
 	$val = (is_object($e) && isset($e->value)) ? $e->value : '';
@@ -3216,6 +3226,23 @@ function kloxo_url_has_ufwfirewall($url)
 	return kloxo_url_has_object_class($url, 'ufwfirewall');
 }
 
+function kloxo_url_has_fail2ban($url)
+{
+	return kloxo_url_has_object_class($url, 'fail2ban');
+}
+
+function kloxo_fail2ban_action_label($sa)
+{
+	static $map = array(
+		'ban' => 'Ban IP',
+		'settings' => 'Settings',
+		'editjail' => 'Edit Jail',
+	);
+	$s = strtolower(trim((string) $sa));
+
+	return isset($map[$s]) ? $map[$s] : '';
+}
+
 function kloxo_url_has_servermail($url)
 {
 	return kloxo_url_has_object_class($url, 'servermail')
@@ -3255,7 +3282,7 @@ function kloxo_servermail_page_tab_label($str, $url)
 	}
 	if ($sa === 'spamdyke' || $str === 'spamdyke' || $str === 'Spamdyke'
 		|| $str === 'Update_spamdyke' || $str === 'Update _spamdyke') {
-		return 'Spamdyke';
+		return 'SMTP Protection';
 	}
 	if ($isMail || $str === 'server_mail_settings' || $str === 'Mail Server Settings'
 		|| $str === 'servermail' || $str === 'Servermail') {
@@ -3513,6 +3540,16 @@ function kloxo_content_tab_label($str, $url = '')
 		if ($act === 'show' || $act === '' || $act === 'updateform' || $act === 'update'
 			|| $str === 'Home') {
 			return 'UFW Firewall';
+		}
+	}
+	if (kloxo_url_has_fail2ban($urlStr) && !$isFfile) {
+		$f2bTab = kloxo_fail2ban_action_label($sa);
+		if ($f2bTab !== '') {
+			return $f2bTab;
+		}
+		if ($act === 'show' || $act === '' || $act === 'updateform' || $act === 'update'
+			|| $str === 'Home') {
+			return 'Fail2Ban';
 		}
 	}
 	if ($sa === 'rebuild') {

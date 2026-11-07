@@ -16,7 +16,6 @@ if [ "$1" == "--help" ] || [ "$1" == "-h" ] ; then
 	echo ""
 	exit
 else
-	ASQMAIL=""
 
 	for item in ${list[*]} ; do
 		svc_on='no'

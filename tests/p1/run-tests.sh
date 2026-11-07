@@ -29,7 +29,7 @@ echo "$php_out" | grep -qx 'web=none,nginx,apache' && ok "web is none,nginx,apac
 echo "$php_out" | grep -qx 'webcache=none,nginx' && ok "webcache is none or nginx (no varnish/squid/ats)" || bad "webcache is none or nginx (no varnish/squid/ats)" "$php_out"
 echo "$php_out" | grep -qx 'dns=none,bind,pdns' && ok "dns is none,bind,pdns" || bad "dns is none,bind,pdns" "$php_out"
 echo "$php_out" | grep -qx 'davuser=none' && ok "davuser is none" || bad "davuser is none" "$php_out"
-echo "$php_out" | grep -qx 'mmail=qmail' && ok "mmail still qmail" || bad "mmail still qmail" "$php_out"
+echo "$php_out" | grep -qx 'mmail=' && ok "no qmail mmail driver list" || bad "no qmail mmail driver list" "$php_out"
 echo "$php_out" | grep -qx 'smtp=none,exim,postfix' && ok "smtp is none,exim,postfix" || bad "smtp is none,exim,postfix" "$php_out"
 
 echo "== class map files exist and unused stacks unregistered"
@@ -73,7 +73,7 @@ else
 fi
 
 echo "== template trees"
-gone="lighttpd varnish squid trafficserver hiawatha djbdns nsd mydns yadifa maradns"
+gone="lighttpd varnish squid trafficserver hiawatha djbdns nsd mydns yadifa maradns qmail"
 for d in $gone; do
   if [ -e "$ROOT/kloxo/file/$d" ]; then
     bad "file/$d removed"
@@ -81,7 +81,7 @@ for d in $gone; do
     ok "file/$d removed"
   fi
 done
-for d in nginx apache bind pdns qmail mail; do
+for d in nginx apache bind pdns mail; do
   if [ -d "$ROOT/kloxo/file/$d" ]; then
     ok "file/$d kept"
   else

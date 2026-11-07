@@ -1,0 +1,113 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * install-fail2ban: first configuration of Fail2Ban for Kloxo CP.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3 or later. See LICENSE.txt.
+ *
+ * Writes etc/conf/fail2ban.json (only when it does not exist, so a re-run
+ * keeps the admin's choices), adds the given addresses to the whitelist,
+ * installs the logrotate file for log/auth-failures.log and applies the
+ * result through KloxoFail2ban::apply() (render, `fail2ban-client -t`, atomic
+ * install, reload, rollback on failure).
+ *
+ * Usage:
+ *   install-fail2ban --root=DIR [--ignore-ip=ADDR[,ADDR...]] [--dry-run]
+ */
+
+$root = '/opt/kloxo';
+$dry = false;
+$ignore = [];
+foreach (array_slice($argv, 1) as $a) {
+    if ($a === '--help' || $a === '-h') {
+        echo "install-fail2ban --root=DIR [--ignore-ip=ADDR[,ADDR...]] [--dry-run]\n"
+            . "  Configure Fail2Ban for Kloxo CP: default jails, whitelist, logrotate, apply with rollback.\n"
+            . "  An existing etc/conf/fail2ban.json is kept. The addresses (for example the SSH client that\n"
+            . "  runs the installer) are added to the whitelist so the installer cannot ban itself.\n";
+        exit(0);
+    }
+    if ($a === '--dry-run') {
+        $dry = true;
+    } elseif (str_starts_with($a, '--root=')) {
+        $root = rtrim(substr($a, 7), '/');
+    } elseif (str_starts_with($a, '--ignore-ip=')) {
+        foreach (explode(',', substr($a, 12)) as $ip) {
+            if (trim($ip) !== '') {
+                $ignore[] = trim($ip);
+            }
+        }
+    } else {
+        fwrite(STDERR, "error: unknown option $a\n");
+        exit(64);
+    }
+}
+if ($root === '' || $root[0] !== '/' || !is_file($root . '/httpdocs/lib/php/kloxo_fail2ban.php')) {
+    fwrite(STDERR, "error: not a Kloxo program root: $root\n");
+    exit(1);
+}
+putenv('KLOXO_ROOT=' . $root);
+require_once $root . '/httpdocs/lib/php/kloxo_fail2ban.php';
+// Test hook, honoured only for a dry run (nothing is written): a fake filesystem root.
+if ($dry && is_string(getenv('KLOXO_F2B_FSPREFIX')) && getenv('KLOXO_F2B_FSPREFIX') !== '') {
+    KloxoFail2ban::$fsPrefix = (string) getenv('KLOXO_F2B_FSPREFIX');
+}
+
+if (!KloxoFail2ban::isInstalled()) {
+    fwrite(STDERR, "fail2ban-client not found: install the fail2ban package first\n");
+    exit(1);
+}
+
+$cfg = KloxoFail2ban::loadConfig($root);
+foreach ($ignore as $ip) {
+    try {
+        $cfg['defaults']['ignoreip'][] = KloxoFail2ban::validIgnoreEntry($ip);
+    } catch (InvalidArgumentException $e) {
+        fwrite(STDERR, "warn: ignoring invalid --ignore-ip value\n");
+    }
+}
+$cfg = KloxoFail2ban::normalizeConfig($cfg);
+
+if ($dry) {
+    $skipped = [];
+    $running = [];
+    KloxoFail2ban::render($cfg, $skipped, $running);
+    echo 'would run jails: ' . ($running !== [] ? implode(', ', $running) : '(none)') . "\n";
+    foreach ($skipped as $j => $why) {
+        echo "would skip $j: $why\n";
+    }
+    exit(0);
+}
+
+if (function_exists('posix_geteuid') && posix_geteuid() !== 0) {
+    fwrite(STDERR, "error: run as root\n");
+    exit(1);
+}
+
+try {
+    KloxoFail2ban::saveConfig($cfg, $root);
+} catch (RuntimeException $e) {
+    fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+    exit(1);
+}
+
+// logrotate for the panel/recovery failure log
+$tpl = $root . '/file/fail2ban/logrotate-kloxo-auth';
+if (is_file($tpl) && is_dir('/etc/logrotate.d')) {
+    $txt = str_replace('/opt/kloxo/', $root . '/', (string) file_get_contents($tpl));
+    @file_put_contents('/etc/logrotate.d/kloxo-auth', $txt);
+    @chmod('/etc/logrotate.d/kloxo-auth', 0644);
+}
+
+$r = KloxoFail2ban::apply();
+if (!$r['ok']) {
+    fwrite(STDERR, 'error: ' . $r['error'] . "\n");
+    exit(1);
+}
+echo 'Fail2Ban running jails: ' . ($r['running'] !== [] ? implode(', ', $r['running']) : '(none)') . "\n";
+foreach ($r['skipped'] as $j => $why) {
+    echo "skipped $j: $why\n";
+}
+exit(0);

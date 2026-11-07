@@ -172,8 +172,11 @@ abstract class Lxclass
 				$this->driverApp = new $syncclass(null, null, $this->nname);
 				$this->driverApp->main = $this;
 			} else {
-				debugBacktrace();
+				// Driver removed (qmail/courier/ezmlm) or not written yet (Exim UI
+				// drivers): a no-op driver, so do_remote never sees a missing driverApp.
 				dprint("No driverApp class for {$class} {$syncclass}\n");
+				$this->driverApp = new LxaClass(null, null, $this->nname);
+				$this->driverApp->main = $this;
 			}
 		} else {
 			$this->driverApp = new LxaClass(null, null, $this->nname);
@@ -5542,7 +5545,7 @@ abstract class Lxclass
 			}
 
 			if ($this->ccenter_standard === 'Fix - Mail') {
-				$this->ccenter_command = 'sh /script/fixmail-all --server=all;';
+				$this->ccenter_command = 'sh /script/fixmail --server=all;';
 
 				if ($this->ccenter_restart === 'on') {
 					$this->ccenter_command .= 'sh /script/restart-mail --server=all --force;';

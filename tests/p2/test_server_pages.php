@@ -568,7 +568,7 @@ try {
 
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
-	&& str_contains($src, "'sshconfig', 'lxguard', 'ufwfirewall', 'sshclient', 'ffile', 'ticket', 'notification'")
+	&& str_contains($src, "'sshconfig', 'lxguard', 'ufwfirewall', 'fail2ban', 'sshclient', 'ffile', 'ticket', 'notification'")
 	&& str_contains($src, "'lxupdate', 'dns', 'dns_record_a', 'web', 'servermail', 'mail_graylist_wlist_a'")
 	&& str_contains($src, "'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist'")) {
 	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns show pages');
@@ -2986,7 +2986,7 @@ if (is_array($wdForm) && ($wdForm['action'] ?? '') === 'add'
 	&& ($wdDefaults[6][2] ?? '') === '__driver_webproxy' && ($wdDefaults[6][3] ?? '') === 'on'
 	&& ($wdAdd['syncserver'] ?? '') === 'localhost'
 	&& str_contains($wdSrc, 'foreach (self::defaultWatchdogList()')
-	&& str_contains($wdSync, 'lxshell_return')
+	&& str_contains($wdSync, 'kloxo-watchdog') && !str_contains($wdSync, 'lxshell_return')
 	&& !str_contains($wdSync, '__driver_qmail')) {
 	ok('Watchdog list add form and eight Kloxo-MR default services');
 } else {
@@ -3617,7 +3617,7 @@ if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl') && method_exists($g
 			$smHitLab = kloxo_content_tab_label('', $tu);
 		}
 	}
-	$smSpamSelect = $smHits === 1 && $smHitLab === 'Spamdyke'
+	$smSpamSelect = $smHits === 1 && $smHitLab === 'SMTP Protection'
 		&& is_string($smSpamHref) && str_contains($smSpamHref, 'spamdyke');
 
 	$ghtml->__http_vars['frm_action'] = 'list';
@@ -3679,7 +3679,7 @@ if (($smProp[0] ?? '') === 'a=updateform&sa=update'
 	&& $smForced === $smProp
 	&& $smShow === 'Mail Server Settings'
 	&& $smHomeBare === 'Mail Server Settings'
-	&& $smSpam === 'Spamdyke'
+	&& $smSpam === 'SMTP Protection'
 	&& $smWhite === 'Whitelist IPs'
 	&& $smFormOk
 	&& $smSpamFormOk
@@ -3718,8 +3718,174 @@ if (($smProp[0] ?? '') === 'a=updateform&sa=update'
 			. ' spamDef=' . (string) ($sm->greet_delay ?? '')
 				. '/' . (string) ($sm->max_rcpnts ?? ''));
 }
+// SMTP Protection: the form values are validated before they are saved
+$smOkParam = $sm->updatespamdyke(array('greet_delay' => '5', 'max_rcpnts' => '20', 'graylist_flag' => 'on',
+	'graylist_min_secs' => '60', 'graylist_max_secs' => '86400',
+	'dns_blacklists' => "zen.spamhaus.org\nbl.spamcop.net", 'blacklist_headers' => ''));
+$smBad = array();
+foreach (array(
+	array('greet_delay' => '99', 'max_rcpnts' => '20'),
+	array('greet_delay' => '5', 'max_rcpnts' => 'x'),
+	array('greet_delay' => '5', 'max_rcpnts' => '20', 'dns_blacklists' => 'bad zone!;rm'),
+	array('greet_delay' => '5', 'max_rcpnts' => '20', 'graylist_flag' => 'on', 'graylist_min_secs' => '600', 'graylist_max_secs' => '60'),
+) as $smBadParam) {
+	try {
+		$sm->updatespamdyke($smBadParam);
+		$smBad[] = 'accepted';
+	} catch (lxException $smE) {
+		$smBad[] = 'refused';
+	}
+}
+$smDefParam = $sm->updatespamdyke(array('greet_delay' => '0', 'max_rcpnts' => '0', 'default_dns_blacklists_flag' => 'on'));
+if (($smOkParam['dns_blacklists'] ?? '') === 'zen.spamhaus.org bl.spamcop.net'
+	&& $smBad === array('refused', 'refused', 'refused', 'refused')
+	&& str_contains((string) ($smDefParam['dns_blacklists'] ?? ''), 'zen.spamhaus.org')) {
+	ok('SMTP Protection save validates ranges, RBL names and graylist times; defaults flag fills the RBL list');
+} else {
+	bad('SMTP Protection save validation', json_encode(array($smOkParam['dns_blacklists'] ?? null, $smBad, $smDefParam['dns_blacklists'] ?? null)));
+}
 $login = $smPrevLogin;
 $GLOBALS['login'] = $smPrevLogin;
+
+// ---- Fail2Ban page (list page, forms, wiring); Fail2Ban is not installed on the test machine
+$f2bPrevLogin = isset($login) ? $login : null;
+$login = new class {
+	public $nname = 'admin';
+	public $cttype = 'admin';
+	public function isAdmin() { return true; }
+	public function getThrow($k) { return (string) $k; }
+};
+global $gbl, $ghtml;
+$f2bPrevGbl = $gbl ?? null;
+$f2bPrevHtml = $ghtml ?? null;
+$ghtml = null;
+$gbl = new stdClass();
+$gbl->c_session = new stdClass();
+$gbl->c_session->ssession_vars = array('__tmp_csrf_token' => 'f2b-test-token');
+$f2bSrc = (string) file_get_contents($doc . '/driver/pserver/fail2banlib.php');
+$f2bParent = new pserver(null, 'localhost', 'localhost');
+$f2bParent->nname = 'localhost';
+$f2b = new fail2ban(null, 'localhost', 'localhost');
+$f2b->nname = 'localhost';
+$f2b->syncserver = 'localhost';
+$f2b->__parent_o = $f2bParent;
+$f2bTabs = array('property' => array());
+$f2b->createShowPropertyList($f2bTabs);
+$f2bErr = '';
+$f2bForms = array();
+try {
+	$f2bForms['ban'] = $f2b->updateform('ban', array());
+	$f2bForms['settings'] = $f2b->updateform('settings', array());
+	$f2bForms['editjail'] = $f2b->updateform('editjail', array('f2b_jail' => 'sshd'));
+} catch (Throwable $e) {
+	$f2bErr = $e->getMessage();
+}
+$f2bUrl = 'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=fail2ban';
+$f2bTabShow = kloxo_content_tab_label('Home', $f2bUrl);
+$f2bTabBan = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=ban&frm_o_o[1][class]=fail2ban');
+$f2bTabSet = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=settings&frm_o_o[1][class]=fail2ban');
+$f2bTabEdit = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=editjail&frm_o_o[1][class]=fail2ban');
+ob_start();
+$f2b->showRawPrint();
+$f2bOutNone = (string) ob_get_clean();
+// A fake machine: sh stand-ins for fail2ban-client and systemctl (SSH jail running, one address banned)
+$f2bFs = sys_get_temp_dir() . '/kloxo-f2b-page-' . getmypid();
+mkdir($f2bFs . '/usr/bin', 0755, true);
+file_put_contents($f2bFs . '/usr/bin/fail2ban-client', <<<'SH'
+#!/bin/sh
+case "$1 $2" in
+  "--version "*) echo "Fail2Ban v1.0.2";;
+  "status ") printf 'Status\n|- Number of jail:\t1\n`- Jail list:\tsshd\n';;
+  "status sshd") printf 'Status for the jail: sshd\n|- Filter\n|  |- Currently failed:\t1\n|  `- Total failed:\t4\n`- Actions\n   |- Currently banned:\t1\n   |- Total banned:\t2\n   `- Banned IP list:\t203.0.113.9\n';;
+  *) exit 2;;
+esac
+SH
+);
+file_put_contents($f2bFs . '/usr/bin/systemctl', "#!/bin/sh\necho active\nexit 0\n");
+chmod($f2bFs . '/usr/bin/fail2ban-client', 0755);
+chmod($f2bFs . '/usr/bin/systemctl', 0755);
+KloxoFail2ban::$fsPrefix = $f2bFs;
+$f2bForms['ban'] = $f2b->updateform('ban', array());
+ob_start();
+$f2b->showRawPrint();
+$f2bOut = (string) ob_get_clean();
+KloxoFail2ban::$fsPrefix = '';
+exec('rm -rf ' . escapeshellarg($f2bFs));
+$_REQUEST['frm_subaction'] = 'ban';
+ob_start();
+$f2b->showRawPrint();
+$f2bFormOut = (string) ob_get_clean();
+unset($_REQUEST['frm_subaction']);
+$f2bPserver = (string) file_get_contents($doc . '/driver/pserver/pserverlib.php');
+$f2bMenu = (string) file_get_contents($doc . '/theme/skin/simplicity/default/menu.php');
+$f2bHtml = (string) file_get_contents($doc . '/theme/htmllib.php');
+$f2bCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$f2bDef = (string) file_get_contents($doc . '/lib/html/definecore.php');
+$f2bKw = (string) file_get_contents($doc . '/lang/en-us/langkeywordlib.php');
+$f2bMsg = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+$f2bDesc = (string) file_get_contents($doc . '/lang/en-us/desclib.php');
+$f2bThrows = array();
+if (preg_match_all('/(?:throwFail|throwIfFailed)\(\s*[\'"]([a-z0-9_]+)[\'"]/', $f2bSrc, $m)) {
+	$f2bThrows = $m[1];
+}
+$f2bLibKeys = array();
+foreach (array('invalid_fail2ban_time', 'invalid_fail2ban_maxretry', 'invalid_fail2ban_ip', 'invalid_fail2ban_ignoreip',
+	'invalid_fail2ban_jail', 'fail2ban_not_installed', 'fail2ban_config_rejected', 'fail2ban_reload_failed',
+	'fail2ban_refuse_ban_protected', 'fail2ban_jail_not_running', 'fail2ban_jail_unavailable', 'fail2ban_ban_failed',
+	'fail2ban_unban_failed', 'fail2ban_status_failed', 'fail2ban_backend_failed', 'fail2ban_cannot_write_filter',
+	'fail2ban_cannot_write_jail_file', 'fail2ban_config_not_writable') as $k) {
+	if (!str_contains($f2bKw, '$__throw["' . $k . '"]')) {
+		$f2bLibKeys[] = $k;
+	}
+}
+foreach (array('f2b_banned', 'f2b_unbanned', 'f2b_unbanned_all', 'f2b_jail_enabled', 'f2b_jail_disabled', 'f2b_jail_updated',
+	'f2b_settings_saved', 'f2b_reloaded') as $k) {
+	if (!str_contains($f2bMsg, "\$__emessage['" . $k . "']") || !str_contains($f2bSrc, "'" . $k . "'")) {
+		$f2bLibKeys[] = $k;
+	}
+}
+$f2bOk = array(
+	'class registered' => str_contains($f2bDef, "\$gl_class_array['fail2ban'] = \"driver/pserver/fail2banlib.php\""),
+	'child of pserver' => str_contains($f2bPserver, '__desc_fail2ban_o') && str_contains($f2bPserver, '$alist[] = "a=show&o=fail2ban"'),
+	'link sits in Security after UFW' => strpos($f2bPserver, 'a=show&o=ufwfirewall') < strpos($f2bPserver, 'a=show&o=fail2ban'),
+	'menu block' => str_contains($f2bMenu, "getKeywordUc('fail2ban')") && str_contains($f2bMenu, 'frm_o_o[1][class]=fail2ban'),
+	'icon' => str_contains($f2bHtml, "\$a[0] === 'fail2ban'") && str_contains($f2bHtml, '"f5d2"'),
+	'collage icons' => is_file($doc . '/theme/icon/collage/fail2ban_show.gif') && is_file($doc . '/theme/icon/collage/fail2ban_list.gif'),
+	'forced tabs' => str_contains($f2bCore, "\$class === 'fail2ban'") && substr_count($f2bCore, "'fail2ban'") >= 3,
+	'keyword + description' => str_contains($f2bKw, '$__keyword["fail2ban"] = "Fail2Ban"') && str_contains($f2bDesc, '$__description["fail2ban"]'),
+	'no Find box' => str_contains((string) file_get_contents($doc . '/lib/php/lxlib.php'), "'ufwfirewall', 'fail2ban'"),
+	'one beige tab list' => $f2bTabs['property'] === fail2ban::fail2banPropertyTabs() && ($f2bTabs['property'][0] ?? '') === 'a=show'
+		&& in_array('a=updateform&sa=ban', $f2bTabs['property'], true) && in_array('a=updateform&sa=settings', $f2bTabs['property'], true),
+	'tab labels' => $f2bTabShow === 'Fail2Ban' && $f2bTabBan === 'Ban IP' && $f2bTabSet === 'Settings' && $f2bTabEdit === 'Edit Jail',
+	'forms build' => $f2bErr === '' && array_key_exists('f2b_ip', $f2bForms['ban']) && array_key_exists('f2b_jail', $f2bForms['ban'])
+		&& str_contains($f2bOutNone, 'Install the')
+		&& array_key_exists('f2b_maxretry', $f2bForms['settings']) && array_key_exists('f2b_ignoreip', $f2bForms['settings'])
+		&& array_key_exists('f2b_enabled', $f2bForms['editjail']),
+	'list page' => str_contains($f2bOut, 'Jails') && str_contains($f2bOut, 'Banned IPs') && str_contains($f2bOut, 'Recent Activity')
+		&& str_contains($f2bOut, 'Refresh') && str_contains($f2bOut, 'Ban IP'),
+	'running jail, ban and counters shown' => str_contains($f2bOut, '203.0.113.9') && str_contains($f2bOut, '1 jails running')
+		&& str_contains($f2bOut, 'Unban') && str_contains($f2bOut, 'f2b-test-token')
+		&& str_contains($f2bOut, 'frm_o_o[1][class]=fail2ban') && !str_contains($f2bOut, 'servermail'),
+	'every situation listed' => substr_count($f2bOut, 'kloxo-panel') >= 1 && str_contains($f2bOut, 'sshd') && str_contains($f2bOut, 'recidive')
+		&& str_contains($f2bOut, 'nginx-http-auth') && str_contains($f2bOut, 'pure-ftpd'),
+	'list hidden on forms' => !str_contains($f2bFormOut, 'Recent Activity'),
+	'no raw errors on page' => !str_contains($f2bOut, 'Fatal') && !str_contains($f2bOut, 'Warning:') && !str_contains($f2bOut, 'Stack trace'),
+	'messages and throws exist' => $f2bLibKeys === array(),
+	'admin only' => str_contains($f2bSrc, 'only_admin_can_access'),
+	'no shell strings' => !preg_match('/\b(exec|system|passthru|shell_exec|popen)\s*\(/', $f2bSrc),
+	'CSRF token on inline actions' => str_contains($f2bSrc, 'frm_token'),
+);
+foreach ($f2bOk as $label => $good) {
+	if ($good) {
+		ok('Fail2Ban page: ' . $label);
+	} else {
+		bad('Fail2Ban page: ' . $label, $label === 'forms build' ? $f2bErr : ($label === 'messages and throws exist' ? implode(',', $f2bLibKeys) : ''));
+	}
+}
+$login = $f2bPrevLogin;
+$GLOBALS['login'] = $f2bPrevLogin;
+$gbl = $f2bPrevGbl;
+$ghtml = $f2bPrevHtml;
 
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

@@ -266,6 +266,20 @@ class Service__Linux extends Lxlclass
 		$closed = (int) proc_close($p);
 		$res['rc'] = $rc >= 0 ? $rc : $closed;
 
+		// Tell the watchdog: a unit stopped here on purpose stays stopped,
+		// a unit started here is watched again. Only the root backend can write.
+		if ($res['rc'] === 0 && $euid === 0 && class_exists('KloxoWatchdog', false)) {
+			$id = (string) preg_replace('/\.service$/', '', (string) self::systemdShow($unit, 'Id'));
+			$root = class_exists('KloxoRecovery', false) ? KloxoRecovery::rootDir() : '/opt/kloxo';
+			foreach (array_unique(array_filter(array((string) preg_replace('/\.service$/', '', $unit), $id))) as $n) {
+				if (in_array($act, array('stop', 'disable'), true)) {
+					KloxoWatchdog::hold($n, $root);
+				} elseif (in_array($act, array('start', 'restart'), true)) {
+					KloxoWatchdog::release($n, $root);
+				}
+			}
+		}
+
 		return $res;
 	}
 

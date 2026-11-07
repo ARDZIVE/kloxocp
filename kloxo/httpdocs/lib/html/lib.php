@@ -3257,6 +3257,21 @@ function save_admin_email($nolog = null)
 	slave_save_db("contactemail", $a);
 }
 
+// The kloxo-watchdog service reads the admin address from this file, not from
+// the database (it must keep working while MariaDB is down).
+function save_admin_contactemail($email)
+{
+	$email = trim((string) $email);
+	// An emptied address is saved as empty so the watchdog stops using the old one.
+	if ($email !== '' && (filter_var($email, FILTER_VALIDATE_EMAIL) === false || preg_match('/[\r\n,;<>]/', $email))) {
+		return;
+	}
+
+	$a = null;
+	$a['admin']['contactemail'] = $email;
+	slave_save_db("contactemail", $a);
+}
+
 function getKloxoLicenseInfo($nolog = null)
 {
 	log_cleanup("Get Kloxo CP License info", $nolog);
@@ -4313,11 +4328,6 @@ function rl_exec_in_driver($parent, $class, $function, $arglist)
 	}
 }
 
-function vpopmail_get_path($domain)
-{
-	return trim(lxshell_output("__path_mail_root/bin/vdominfo", "-d", $domain));
-}
-
 function addLineIfNotExistPattern($filename, $searchpattern, $pattern)
 {
 	$cont = lfile_get_contents($filename);
@@ -4981,19 +4991,12 @@ function lxguard_main($clearflag = false, $since = false)
 	$deny = lx_array_merge(array($deny, $hdn));
 
 	$str_host = null;
-	$str_tcprules = null;
-	$str_spamdyke = null;
 
 //	$note = "## blocked IP enough to use 'null routing'\n";
 
 	// MR -- remove blackhole blocked (CentOS helper; absent on Ubuntu)
 	if (is_file('/script/remove-blackhole-block')) {
 		exec("sh /script/remove-blackhole-block");
-	}
-
-//	exec("cat /etc/tcprules.d/tcp.smtp|grep -v ':deny'|grep -v '# MR'|grep -E ':allow,|:deny,'", $out);
-	if (is_file('/etc/tcprules.d/tcp.smtp')) {
-		exec("cat /etc/tcprules.d/tcp.smtp|grep -E ':allow,|:deny,' > /etc/tcprules.d/tcp.smtp2; mv -f /etc/tcprules.d/tcp.smtp2 /etc/tcprules.d/tcp.smtp");
 	}
 
 	foreach ($deny as $k => $v) {
@@ -5010,9 +5013,6 @@ function lxguard_main($clearflag = false, $since = false)
 		$k = str_replace("\n", "", $k);
 
 		$str_host .= "ALL : $k\n";
-		$str_tcprules .= "$k:deny\n";
-	//	$str_tcprules .= "$k:allow,RBLSMTP=\"Your Are Blocked. Go away!\"\n";
-		$str_spamdyke .= "$k\n";
 	}
 
 	dprint("Debug: \str_host is:\n$str_host\n");
@@ -5025,23 +5025,6 @@ function lxguard_main($clearflag = false, $since = false)
 	if (is_file('/etc/hosts.deny')) {
 		file_put_between_comments("root", $start_host, $end_host, $start_str_host, $end_str_host, "/etc/hosts.deny", $str_host);
 	}
-
-	$start_tcprules[] = "###Start Program tcp.smtp config Area";
-	$start_str_tcprules = $start_tcprules[0];
-	$end_tcprules[] = "###End Program tcp.smtp config Area";
-	$end_str_tcprules = $end_tcprules[0];
-
-	if (is_file('/etc/tcprules.d/tcp.smtp')) {
-		file_put_between_comments("root", $start_tcprules, $end_tcprules, $start_str_tcprules, $end_str_tcprules, "/etc/tcprules.d/tcp.smtp", $str_tcprules);
-	}
-	if (is_file('/usr/bin/qmailctl')) {
-		exec("/usr/bin/qmailctl cdb");
-	}
-
-	if (is_dir('/var/qmail/spamdyke')) {
-		file_put_contents('/var/qmail/spamdyke/blacklist_ip', $str_spamdyke);
-	}
-//	file_put_contents('/var/qmail/spamdyke/blacklist_ip', '');
 
 	if ($clearflag) {
 		lxfile_rm("{$lxgpath}/access.info");
@@ -6075,11 +6058,6 @@ function setKloxoHttpdChownChmod($nolog = null)
 	lxfile_unix_chmod("{$hkhpath}/", $httpddirchmod);
 	log_cleanup("- chmod {$httpddirchmod} FOR {$hkhpath}/", $nolog);
 
-	if (file_exists("/home/vpopmail")) {
-		exec("chmod {$domdirchmod} /home/vpopmail");
-		exec("chmod {$domdirchmod} /home/vpopmail/domains");
-	}
-
 	if (file_exists("/home/kloxomail/mail")) {
 		exec("chmod {$domdirchmod} /home/kloxomail");
 		exec("chmod {$domdirchmod} /home/kloxomail/mail");
@@ -6562,11 +6540,7 @@ function setCheckPackages($nolog = null)
 
 	log_cleanup("Check for rpm packages", $nolog);
 
-	// MR --remove spamdyke-utils because conflict with djbdns and not needed
-	// remove qmail-pop3d-toaster because pop3 already include in courier-imap/dovecot
-	$list = array("autorespond-toaster", "courier-imap-toaster", "dovecot-toaster", "daemontools-toaster",
-		"ezmlm-toaster", "libdomainkeys-toaster", "libsrs2-toaster", "maildrop-toaster",
-		"qmail-toaster", "ripmime", "ucspi-tcp-toaster", "vpopmail-toaster", "fetchmail", "bogofilter", "spamdyke",
+	$list = array("ripmime", "fetchmail",
 		"pure-ftpd", "webalizer", "dos2unix", "rrdtool", "xinetd", "lxjailshell");
 
 	foreach ($list as $l) {
@@ -6667,13 +6641,6 @@ function setSomePermissions($nolog = null)
 	@lxfile_unix_chmod("/var/lib/php/session/", "777");
 	exec("chmod o+t /var/lib/php/session/");
 
-	log_cleanup("- Set permissions for /var/bogofilter/ dir", $nolog);
-	if (!file_exists("/var/bogofilter")) {
-		mkdir("/var/bogofilter");
-	}
-	lxfile_unix_chmod("/var/bogofilter/", "777");
-	exec("chmod o+t /var/bogofilter/");
-
 	log_cleanup("- Kill sisinfoc system process", $nolog);
 	exec("pkill -f sisinfoc");
 }
@@ -6695,14 +6662,6 @@ function setJailshellSystem($nolog = null)
 function setSomeScript($nolog = null)
 {
 	log_cleanup("Execute/remove/initialize/install script", $nolog);
-
-	if (isRpmInstalled('qmail-toaster')) {
-		log_cleanup("- Execute vpopmail.sh", $nolog);
-		exec("sh ../bin/misc/vpopmail.sh");
-	} else {
-		log_cleanup("- Execute lxpopuser.sh", $nolog);
-		exec("sh ../bin/misc/lxpopuser.sh");
-	}
 
 	log_cleanup("- Initialize /home/kloxo/httpd/script dir", $nolog);
 	lxfile_mkdir("/home/kloxo/httpd/script");
@@ -6734,37 +6693,6 @@ function restart_xinetd_for_pureftp($nolog = null)
 	log_cleanup("- Restart process", $nolog);
 
 	createRestartFile("xinetd");
-}
-
-function install_bogofilter($nolog = null)
-{
-	log_cleanup("Check for bogofilter", $nolog);
-
-	if (!lxfile_exists("/var/bogofilter")) {
-		log_cleanup("- Create /var/bogofilter dir if needed", $nolog);
-		lxfile_mkdir("/var/bogofilter");
-	}
-
-	$dir = "/var/bogofilter";
-	$wordlist = "$dir/wordlist.db";
-	$kloxo_wordlist = "$dir/kloxo.wordlist.db";
-
-	if (lxfile_exists($kloxo_wordlist)) {
-		log_cleanup("- wordlist.db already exists", $nolog);
-
-		return;
-	} else {
-		log_cleanup("- Prepare and download wordlist.db", $nolog);
-	}
-
-
-	lxfile_mkdir($dir);
-
-	lxfile_rm($wordlist);
-	log_cleanup("- Skipping HTTP download of wordlist.db (audit C5)", $nolog);
-	return;
-	lxfile_unix_chown_rec($dir, "lxpopuser:lxpopgroup");
-	lxfile_cp($wordlist, $kloxo_wordlist);
 }
 
 function removeOtherDrivers($class = null, $nolog = null)
@@ -6911,7 +6839,6 @@ function enable_xinetd($nolog = null)
 	log_cleanup("Enable xinetd", $nolog);
 	log_cleanup("- enable process", $nolog);
 
-	createRestartFile("qmail");
 	exec("service pure-ftpd stop");
 	createRestartFile("xinetd");
 }
@@ -6928,30 +6855,6 @@ function fix_mailaccount_only($nolog = null)
 	$list = $login->getList('mailaccount');
 
 	foreach ($list as $l) {
-		$l->setUpdateSubaction('full_update');
-		$l->was();
-	}
-}
-
-function change_spam_to_bogofilter_next_next()
-{
-	global $login;
-
-	exec("rpm -e --nodeps spamassassin-toaster");
-	exec("yum -y install bogofilter");
-
-	$drv = $login->getFromList('pserver', 'localhost')->getObject('driver');
-	$drv->driver_b->pg_spam = 'bogofilter';
-	$drv->setUpdateSubaction();
-	$drv->write();
-
-	$login->loadAllObjects('mailaccount');
-	$list = $login->getList('mailaccount');
-
-	foreach ($list as $l) {
-		$s = $l->getObject('spam');
-		$s->setUpdateSubaction('update');
-		$s->was();
 		$l->setUpdateSubaction('full_update');
 		$l->was();
 	}
@@ -7202,7 +7105,6 @@ function updatecleanup($nolog = null)
 	setPrepareKloxo($nolog);
 
 	// MR -- disable (from 'old' Kloxo CP style)
-//	install_bogofilter($nolog);
 
 	setRemoveOldDirs($nolog);
 
@@ -8326,7 +8228,7 @@ function setSyncDrivers($nolog = null)
 //	include "../file/driver/rhel.inc";
 
 	$classlist = array('web' => 'nginx', 'webcache' => 'none', 'dns' => 'bind',
-		'pop3' => 'courier', 'smtp' => 'exim', 'spam' => 'bogofilter');
+		'pop3' => 'dovecot', 'smtp' => 'exim', 'spam' => 'none');
 
 	$nodriver = false;
 
@@ -8750,13 +8652,6 @@ function setAllDnsServerInstall($nolog = null)
 
 
 	foreach ($list as $k => $v) {
-		// MR -- remove because may conflict with djbdns
-		if ($v === 'djbdns') {
-			if (isRpmInstalled('spamdyke-utils')) { 
-				setRpmRemovedViaYum("spamdyke-utils");
-			}
-		}
-
 	//	$confpath = "/opt/configs/{$v}/etc/conf";
 
 		$t = $ds[$v];

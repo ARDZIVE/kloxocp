@@ -98,7 +98,7 @@ class Sendmailban extends Lxdb
 			
 		}
 
-		file_put_contents('/var/qmail/control/badsendmailfrom', $s);
+		// Exim: no qmail control file to write; the ban list stays in the panel DB.
 	}
 }
 

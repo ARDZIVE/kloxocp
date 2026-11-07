@@ -13,7 +13,7 @@ list_web=(kloxo-webcache kloxo-webproxy spawn-fcgi memcached nginx hiawatha http
 list_web=("${list_phpfpm[@]}" "${list_web[@]}")
 
 list_mysql=(mysql mysqld mariadb)
-list_mail=(qmail postfix)
+list_mail=(exim4 dovecot postfix)
 list_ftp=(pure-ftpd vsftpd)
 list_dns=(named bind9 djbdns pdns nsd yadifad)
 list_syslog=(syslog rsyslog syslog-ng httpry)

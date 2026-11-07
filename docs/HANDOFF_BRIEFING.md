@@ -52,7 +52,7 @@ kloxo-cp/
     bin/install/install-apache     NEW: Apache 2.4 PHP-FPM vhosts; unit stays disabled
     cexe/                        C sources: backend daemon (kloxo.c) only; no setuid helpers
     init/                        panel service units, Hiawatha base config, php-fpm templates
-    file/                        service config templates (nginx, apache, bind, pdns, qmail, NEW file/mail/; Lighttpd/cache/unused-DNS trees removed)
+    file/                        service config templates (nginx, apache, bind, pdns, NEW file/mail/; Lighttpd/cache/unused-DNS trees removed)
     install/                     LEGACY RPM/CentOS installer (reference only, to be replaced)
   docs/
     HANDOFF_BRIEFING.md          this file
@@ -97,7 +97,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
    Treat every copy of the old keys as compromised.
 7. **P0.2 (C4) closed:** deleted `cexe/closeinput.c`, `closeallinput.c`, `lxmisc.c`; Makefile
    and the legacy installer no longer `chmod ug+s`; `exec_with_all_closed*` no longer calls a
-   helper. Remaining `chmod 4755` on qmail `vchkpw` in `pscript/fixmail-all` waits until qmail is removed.
+   helper. The qmail `vchkpw` 4755 script is gone with the qmail removal.
 8. **P0.3 (C1) closed** for `process_server_input()`: auth envelope required before unserialize;
    `do_remote_exec` always sends it (including localhost). `reload_slave_password()` no longer
    writes through a null `$login` (C daemon / `process_single.php`). Tests: `tests/remote/`.
@@ -121,7 +121,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey,
     OpenLiteSpeed, and unused DNS (djbdns/nsd/mydns/yadifa/maradns) drivers and `file/` templates
     deleted. Panel Hiawatha stays under `init/hiawatha.conf.base`.
-    qmail/courier/ezmlm/spamassassin remain until P4 exim UI drivers exist. Tests: `tests/p1/`.
+    qmail/courier/ezmlm code is deleted (user decision: Exim or Postfix only); spamassassin remains until the P4 exim UI drivers exist. Tests: `tests/p1/`.
     Live pdns/apache2 start on Ubuntu is **UNVERIFIED**.
 12. **P2 first slice:** first-party `php -l` is clean (499 files; PEAR/WebDAV, formmail and
     urlrewrite examples still fail). `__autoload` replaced by `spl_autoload_register`
@@ -293,7 +293,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `pg_pop3=dovecot`, Switch Program offers none/dovecot, `pop3__dovecot` drives apt + systemctl; live switch UNVERIFIED);
     Postfix not co-installed (apt-swap on Switch);
     `pure-ftpd` and `redis-server` enabled; Ubuntu universe enabled when
-    needed; no bogofilter/SpamAssassin/sqlite — panel DB is MariaDB), then
+    needed; no SpamAssassin/sqlite (bogofilter is not offered at all) — panel DB is MariaDB), then
     that script clones if `/usr/local/src/kloxo-cp` is missing, or fetches
     `origin/main` and `reset --hard` when that clone already exists.
     Hiawatha 12.4 needs a writable work dir (`/opt/kloxo/var/hiawatha`
@@ -517,6 +517,59 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     CSS (`position:fixed` Message/Ticket overlaying Home, logo
     `z-index:-9999`) until that deploy.
 
+- **Recovery console** (requirement: the panel must stay able to manage server
+  applications when Nginx/Apache or MariaDB are down). Added
+  `httpdocs/recovery/index.php` + `lib/php/kloxo_recovery.php` (credential, throttle,
+  unit policy, root-side `serverControl`/`serverJournal`) + `lib/php/kloxo_recovery_page.php`
+  (request handler). Separate recovery password (hash in `etc/conf/recovery.json`, created by
+  `install.sh`, saved to `/root/kloxo-recovery-password`, reset with
+  `kloxocp recovery-password`). HTTPS only, CSRF, 5 failures/15 min per address. Root work goes
+  through `rl_exec_get` to kloxo-backend. `kloxo-backend` (master) now starts without the
+  database (`db_degraded`) and loads it when it returns; `lx_exception_handler` answers a
+  DB-down mysqli error (2002/2003/2006/2013) with a 503 linking `/recovery/`; `kloxo-web` and
+  MariaDB restart on failure. Tests: `tests/p2/test_recovery.php` (fake systemctl/journalctl);
+  a real backend was also run in a temp tree with the DB unreachable and a non-root client
+  call round-tripped through it. **UNVERIFIED:** real systemd as root, Hiawatha/FPM serving
+  the page, a reboot with MariaDB failing, `/recovery` without trailing slash.
+  Known limit: it needs kloxo-backend to be running and MariaDB-independent; if
+  `kloxo-backend` itself is dead the page says so and gives the `systemctl` command.
+
+- **Watchdog** (standalone, cPanel chkservd model). `kloxo-watchdog` systemd service
+  (`bin/kloxo-watchdog` + `lib/php/kloxo_watchdog.php`, installed by `install.sh`
+  `install_watchdog`, runs on slaves too). Restarts only the failing unit (reset-failed +
+  restart, waits until it answers), respects boot grace, enabled-only, panel Watchdog screen
+  off switches, `etc/conf/watchdog.json`, holds for units stopped on purpose
+  (`KloxoRecovery::serverControl`, `Service__Linux::systemctlRunDetail`), max 3 restarts per
+  30 min then gives up with one mail (address from `etc/slavedb/contactemail`, no DB; the panel writes that file when the admin saves the profile (`Lxclient::postUpdate` -> `save_admin_contactemail`), `init-panel-db` copies an existing address; `kloxo-watchdog --test-mail`; recovery console warns when empty). The old
+  `watchdog__sync::watchRun` (RHEL `/script/restart-*`, DB-driven notification) is a no-op so
+  nothing restarts twice. Recovery console shows a Watchdog column. Tests:
+  `tests/p2/test_watchdog.php` (fake collaborators), `test_recovery.php` hold/release, the old
+  `test_server_pages.php` Watchdog check updated. **UNVERIFIED:** real systemd as root, real
+  sockets/sendmail, live crash recovery, installer enabling the unit.
+
+- **Fail2Ban** (Security > Fail2Ban page, class `fail2ban`, a child of `pserver` like `ufwfirewall`).
+  Backend `lib/php/kloxo_fail2ban.php` (`KloxoFail2ban`; run as root via kloxo-backend `rl_exec_get`),
+  page `driver/pserver/fail2banlib.php`, installer `bin/install/install-fail2ban` (called by
+  `install.sh` `prepare_fail2ban` on master and slave; packages `fail2ban python3-systemd nftables`;
+  whitelists the installer's SSH client address). Sixteen jails in `catalog()` (sshd, recidive,
+  kloxo-panel, kloxo-recovery, exim, dovecot, postfix, nginx-http-auth, nginx-botsearch, four apache
+  jails, apache-overflows, pure-ftpd, mysqld-auth); settings in `etc/conf/fail2ban.json`; the jail file
+  `/etc/fail2ban/jail.d/kloxo-cp.local` is generated (never edit by hand): render, `fail2ban-client -t`,
+  atomic install, reload, restore the old file (and the saved settings in `setJail`/`setDefaults`) on
+  failure. Bans use `banaction = nftables` (not `ufw`) so they stay out of the UFW rule list. A jail only
+  runs when its program unit, filter file, journal support (python3-systemd) or log file exists; the page
+  shows why it cannot run. Panel and recovery login failures are written by `KloxoAuthLog` to
+  `log/auth-failures.log` (user name sanitised so it cannot inject a second address; filters
+  `file/fail2ban/filter.d/kloxo-panel.conf` and `kloxo-recovery.conf`; logrotate `kloxo-auth`). Ban refuses
+  loopback, whitelisted addresses and the admin's own address; loopback is always kept in the whitelist;
+  `/0` whitelist entries are refused. LxGuard and Block IP are unchanged (overlap only). The watchdog keeps
+  the `fail2ban` unit running. Tests: `tests/p2/test_fail2ban.php` (72 checks: fake `fail2ban-client` and
+  systemctl in a temp tree via `KloxoFail2ban::$fsPrefix`, validation, render, apply/rollback, ban rules,
+  log parsing, auth-log format, filter regexes translated to PHP, installer `--dry-run`),
+  `test_server_pages.php` (page, tabs, forms, wiring, a fake-machine render). **UNVERIFIED:** a real
+  Fail2Ban (`-t`, reload, `datepattern`, the nftables action, journal matches), live bans, `python3-systemd`
+  availability on 24.04/26.04, the installer on a real server, the page in a browser.
+
 ### Deliberately NOT changed (do not "fix" these blindly)
 
 * Internal `lx*` identifiers (`lxclass`, `lxlib`, `lxshell_*`, DB tables `lxguard*`, column `ser_lxadminconfig_b`, program name `lxlabsclient`). The DB stores PHP-serialized data; renames need tests first.
@@ -596,7 +649,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
 
 ### P1: shrink the tree (phase 1b)
 1. **DONE for web/DNS.** Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`, `apache` (Nginx default; Apache 2.4 + PHP-FPM packaged, disabled). Webcache: `none`. DNS: `none`, `bind`, `pdns` (BIND default; PowerDNS packaged, disabled). Panel Hiawatha kept in `init/`. Tests: `tests/p1/`.
-2. **NOT DONE.** qmail/courier/ezmlm/bogofilter/spamassassin drivers stay until P4 exim UI drivers exist.
+2. **PARTLY DONE.** qmail/courier/ezmlm/bogofilter drivers deleted; spamassassin stays until P4 exim UI drivers exist. Left on purpose: mailing-list UI without a backend, `mailtrafficlib` qmail-format log parser (needs an Exim parser), lxguard vpopmail log regex, legacy `kloxo/install/**`.
 3. **PARTIAL.** No Ubuntu package; `install-hiawatha` builds pinned 12.4
    (sha256 in the script). Config check is `hiawatha -k -c <init>`. **UNVERIFIED**
    on a real 24.04 VM. `lib.php` still contains dead Apache install/chown
@@ -653,16 +706,34 @@ Work in this order. Keep every change small, tested and committed separately. Do
    forms (local overwrite warning + file, HTTP URL, FTP credentials/file). Live
    Backup / Restore after re-install is **UNVERIFIED**.
    Mail Server Settings has exactly three content tabs **Mail Server Settings**
-   (selected on `sa=update`), **Spamdyke**, **Whitelist IPs**
+   (selected on `sa=update`), **SMTP Protection** (was Spamdyke), **Whitelist IPs**
    (`ServerMail::servermailPropertyTabs` forced); Switch To Another via
    `getSelfList`; update form matches Kloxo-MR field set and defaults
    (attachment 41943040, queue 604800, SMTP instances 50, send limit 30000).
-   Clicking **Spamdyke** selects that tab; form matches Kloxo-MR (greet delay,
+   Clicking **SMTP Protection** selects that tab; form matches Kloxo-MR (greet delay,
    recipients 150, graylist, RDNS/MX rejects, DNS RBL + blacklist header
    textareas). Clicking **Whitelist IPs** selects that tab; add/list of
    `mail_graylist_wlist_a` (Whitelist IP field/column). Live Mail Server
-   Settings after re-install is **UNVERIFIED** (backend still reads some qmail
-   control paths until P4 Exim UI).
+   Settings after re-install is **UNVERIFIED**.
+   SMTP Protection replaces Spamdyke (the Mail Server Settings tab that was called Spamdyke; Spamdyke itself is
+   not installed or used). The settings are saved as `/etc/kloxo/mail-policy.json` (`KloxoMailPolicy`,
+   `lib/php/kloxo_mailpolicy.php`) and installed by `kloxo-mail policy:apply --mta=exim|postfix` for the SMTP server
+   chosen in Switch Program (`pg_servermail` follows `pg_smtp`; drivers `servermail__exim`/`__postfix`/`__none`;
+   `migrateServermailDriver` fixes older installs; selecting another SMTP re-applies the saved policy). Exim: the
+   settings render into `exim4.conf` (connect `delay`, `$recipients_count`, rDNS/RBL/`verify = sender` rules, `$h_` header
+   rules, whitelist hostlist; no policy file = old behaviour). Postfix: `postconf`/`postconf -M` edits with state file, backup,
+   `postfix check` and rollback (postscreen greet wait, `smtpd_recipient_limit`, `reject_unknown_*`, `reject_rbl_client`,
+   `header_checks`, `check_client_access cidr:`; open-relay guard). Graylisting on both is Postgrey on 127.0.0.1:10023
+   (`/etc/default/postgrey` `--delay`/`--max-age`; a dead Postgrey defers). Approximations: Postfix "RDNS contains the IP"
+   is a regexp table, Postfix header rules also apply to locally submitted mail (`header_checks`). Saving the form
+   with the prefilled RBL list activates DNSBL. The first-tab fields (My Name, Domainkey, Virus Scan, Max Mail Attachment
+   Size, Queue Life, Max SMTP Instances, SMTP Relay, Send Limit) are still not wired to a service. Tested:
+   `tests/p2/test_mailpolicy.php` (69 checks: renderer, rendered Exim text, Postfix plan, the Postfix tool against Apple
+   postconf 3.2.2 in a throw-away directory, panel hand-off with fakes), `tests/install/test_migrate_servermail.php`,
+   `tests/p2/test_server_pages.php`. NOT verified: any real Exim (`exim -bV` not run), a real Postfix `postfix check`/reload/
+   postscreen, a live Postgrey, a real SMTP session through the rules, the panel UI flow on Ubuntu. Also fixed: the
+   template renderer's `@@NAME@@` pattern did not match digits, so `@@EXIM_DISABLE_IPV6@@` was never substituted in
+   `exim4.conf` (it would have failed `exim -bV` and rolled the apply back).
    Live reboot from the UI is **UNVERIFIED**. Notification Welcome Message
    For New Accounts defaults to the %name%/%password% hosting welcome text
    (`Notification::defaultWelcomeMessage`, `file/welcome.txt`). Live

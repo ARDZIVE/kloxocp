@@ -12,7 +12,9 @@ declare(strict_types=1);
  * Usage: kloxo-mail <command> [arguments] [--options]      (kloxo-mail help)
  */
 
-const KM_VERSION = '0.1.0';
+const KM_VERSION = '0.2.0';
+
+require_once dirname(__DIR__, 2) . '/httpdocs/lib/php/kloxo_mailpolicy.php';
 
 final class KmException extends RuntimeException
 {
@@ -42,6 +44,7 @@ final class Conf
         'tls_key'            => '/etc/ssl/private/ssl-cert-snakeoil.key',
         'custom_dir'         => '/etc/kloxo/mail.d',
         'rspamd_ctrl_hash'   => '',
+        'policy_file'        => '/etc/kloxo/mail-policy.json',
     ];
 
     /** @var array<string,mixed> */
@@ -342,7 +345,7 @@ final class Renderer
         if (!$this->c->get('rspamd_ctrl_hash')) {
             throw new KmException('rspamd_ctrl_hash is empty: install Rspamd and run `kloxo-mail init --force` or set it');
         }
-        return [
+        return $this->policyVars() + [
             'HOSTNAME' => $h,
             'DB_SOCKET' => (string)$this->c->get('db_socket'),
             'DB_NAME' => (string)$this->c->get('db_name'),
@@ -367,6 +370,30 @@ final class Renderer
         ];
     }
 
+    /** The SMTP protection policy (Spamdyke replacement); no file means everything off. */
+    public function policy(): array
+    {
+        try {
+            return KloxoMailPolicy::load((string)$this->c->get('policy_file'));
+        } catch (InvalidArgumentException $e) {
+            throw new KmException('mail policy: ' . $e->getMessage());
+        }
+    }
+
+    /** @return array<string,string> */
+    private function policyVars(): array
+    {
+        return KloxoMailPolicy::eximSnippets($this->policy());
+    }
+
+    /** Data files generated from the policy (target => content). */
+    public function policyFiles(): array
+    {
+        $p = $this->policy();
+
+        return KloxoMailPolicy::needsPostgrey($p) ? ['etc/default/postgrey' => KloxoMailPolicy::postgreyDefaults($p)] : [];
+    }
+
     /** Render all templates below $out. @return list<string> written relative paths */
     public function render(string $out, array $extra = []): array
     {
@@ -385,7 +412,7 @@ final class Renderer
                     $customText = "\n# --- custom settings from $custom ---\n" . file_get_contents($custom);
                 }
             }
-            $text = preg_replace_callback('/@@([A-Z_]+)@@/', function (array $m) use ($vars, $tpl): string {
+            $text = preg_replace_callback('/@@([A-Z0-9_]+)@@/', function (array $m) use ($vars, $tpl): string {
                 if ($m[1] === 'CUSTOM_SNIPPET') {
                     return $m[0];
                 }
@@ -432,6 +459,270 @@ final class Renderer
 }
 
 // ---------------------------------------------------------------------------
+// Postfix: apply the SMTP protection policy with postconf (backup, check, roll back)
+// ---------------------------------------------------------------------------
+final class PostfixPolicy
+{
+    private const SMTP_POSTSCREEN = 'smtp inet n - n - 1 postscreen';
+    private const SMTP_DEFAULT = 'smtp inet n - y - - smtpd';
+    /** services postscreen needs next to the smtp listener */
+    private const SERVICES = [
+        'smtpd/pass'    => 'smtpd pass - - n - - smtpd',
+        'dnsblog/unix'  => 'dnsblog unix - - n - 0 dnsblog',
+        'tlsproxy/unix' => 'tlsproxy unix - - n - 0 tlsproxy',
+    ];
+
+    public function __construct(
+        private string $confDir,
+        private string $mapDir,
+        private string $stateFile,
+        private string $backupDir,
+        private bool $live,
+        private string $root
+    ) {
+    }
+
+    /** @param list<string> $args @return array{0:int,1:string,2:string} */
+    private function pc(array $args): array
+    {
+        return Proc::run(array_merge(['postconf', '-c', $this->confDir], $args));
+    }
+
+    /** @var array<string,string>|null explicit main.cf values, read with one postconf call */
+    private ?array $explicitCache = null;
+
+    /** Value set explicitly in main.cf, or null when the parameter is at its default. */
+    private function explicit(string $name): ?string
+    {
+        if ($this->explicitCache === null) {
+            [$rc, $out, $err] = $this->pc(['-n']);
+            if ($rc !== 0) {
+                throw new KmException('postconf -n failed: ' . trim($err));
+            }
+            $this->explicitCache = [];
+            foreach (explode("\n", $out) as $line) {
+                if (preg_match('/^([A-Za-z0-9_]+) =\s?(.*)$/', $line, $m) === 1) {
+                    $this->explicitCache[$m[1]] = $m[2];
+                }
+            }
+        }
+        return $this->explicitCache[$name] ?? null;
+    }
+
+    private function master(string $svc): ?string
+    {
+        [$rc, $out] = $this->pc(['-M', $svc]);
+        $out = trim((string)preg_replace('/\s+/', ' ', $out));
+        return $rc === 0 && $out !== '' ? $out : null;
+    }
+
+    private function masterCommand(?string $line): string
+    {
+        return $line === null ? '' : (explode(' ', $line)[7] ?? '');
+    }
+
+    private function setParam(string $name, ?string $want): void
+    {
+        $cur = $this->explicit($name);
+        if ($want === null) {
+            if ($cur !== null) {
+                $this->must($this->pc(['-X', $name]), "postconf -X $name");
+                unset($this->explicitCache[$name]);
+            }
+            return;
+        }
+        if (preg_match('/[\r\n\0]/', $want)) {
+            throw new KmException("refusing a multi-line value for $name");
+        }
+        if ($cur !== $want) {
+            $this->must($this->pc(['-e', "$name=$want"]), "postconf -e $name");
+            $this->explicitCache[$name] = $want;
+        }
+    }
+
+    /** @param array{0:int,1:string,2:string} $r */
+    private function must(array $r, string $what): void
+    {
+        if ($r[0] !== 0) {
+            throw new KmException("$what failed: " . trim($r[2] !== '' ? $r[2] : $r[1]));
+        }
+    }
+
+    private function setMaster(bool $postscreen, array $state): void
+    {
+        $curCmd = $this->masterCommand($this->master('smtp/inet'));
+        if ($postscreen) {
+            if ($curCmd !== 'postscreen') {
+                $this->must($this->pc(['-Me', 'smtp/inet=' . self::SMTP_POSTSCREEN]), 'postconf -Me smtp/inet');
+            }
+            foreach (self::SERVICES as $svc => $line) {
+                if ($this->master($svc) === null) {
+                    $this->must($this->pc(['-Me', "$svc=$line"]), "postconf -Me $svc");
+                }
+            }
+            return;
+        }
+        if ($curCmd === 'postscreen') {
+            $orig = $state['master_smtp'] ?? null;
+            if (!is_string($orig) || $this->masterCommand($orig) === 'postscreen' || $orig === '') {
+                $orig = self::SMTP_DEFAULT;
+            }
+            $this->must($this->pc(['-Me', 'smtp/inet=' . $orig]), 'postconf -Me smtp/inet (restore)');
+        }
+    }
+
+    private function writeFile(string $path, string $text, int $mode = 0644): void
+    {
+        $dir = dirname($path);
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            throw new KmException("Cannot create $dir");
+        }
+        $tmp = $path . '.kloxo-new';
+        file_put_contents($tmp, $text);
+        chmod($tmp, $mode);
+        rename($tmp, $path);
+    }
+
+    private function loadState(): ?array
+    {
+        if (!is_file($this->stateFile)) {
+            return null;
+        }
+        $j = json_decode((string)file_get_contents($this->stateFile), true, 8);
+        return is_array($j) ? $j : null;
+    }
+
+    private function validate(): void
+    {
+        if ($this->live) {
+            if (!Proc::exists('postfix')) {
+                throw new KmException('postfix not found; cannot validate the configuration');
+            }
+            [$rc, $out, $err] = Proc::run(['postfix', '-c', $this->confDir, 'check']);
+            if ($rc !== 0) {
+                throw new KmException('postfix check failed: ' . substr(trim($err !== '' ? $err : $out), 0, 800));
+            }
+            return;
+        }
+        $r = $this->pc(['-n']);
+        $this->must($r, 'postconf -n');
+    }
+
+    /** Postgrey (graylisting): defaults file, then enable and restart the daemon. */
+    private function installPostgrey(array $p): void
+    {
+        $this->writeFile($this->root . '/etc/default/postgrey', KloxoMailPolicy::postgreyDefaults($p));
+        if (!$this->live) {
+            return;
+        }
+        if (!Proc::exists('postgrey')) {
+            throw new KmException('graylisting is on but postgrey is not installed (apt install postgrey)');
+        }
+        [$rc, $out] = Proc::run(['systemctl', 'cat', 'postgrey']);
+        if ($rc !== 0 || !str_contains($out, '/etc/default/postgrey')) {
+            throw new KmException('the postgrey unit does not read /etc/default/postgrey; graylist settings would be ignored');
+        }
+        Proc::run(['systemctl', 'enable', 'postgrey']);
+        $this->must(Proc::run(['systemctl', 'restart', 'postgrey']), 'systemctl restart postgrey');
+    }
+
+    /** @return array{summary:string,backup:?string,changed:list<string>} */
+    public function apply(array $p): array
+    {
+        $enabled = $p['enabled'];
+        foreach (['main.cf', 'master.cf'] as $f) {
+            if (!is_file($this->confDir . '/' . $f)) {
+                throw new KmException("{$this->confDir}/$f not found (is Postfix installed?)");
+            }
+        }
+        $plan = KloxoMailPolicy::postfixPlan($p, $this->mapDir);
+        $state = $this->loadState();
+        if (!$enabled && $state === null) {
+            return ['summary' => 'SMTP protection is off and nothing was applied before; no change', 'backup' => null, 'changed' => []];
+        }
+        if ($enabled) {
+            [$rc, $relay] = $this->pc(['-h', 'smtpd_relay_restrictions']);
+            if ($rc !== 0 || !preg_match('/\b(reject|defer)_unauth_destination\b/', $relay)) {
+                throw new KmException('smtpd_relay_restrictions has no reject_unauth_destination/defer_unauth_destination; '
+                    . 'refusing to install a policy that could leave the server an open relay');
+            }
+        }
+        if ($state === null) {
+            $state = ['original' => [], 'master_smtp' => $this->master('smtp/inet')];
+            foreach (KloxoMailPolicy::POSTFIX_PARAMS as $n) {
+                $state['original'][$n] = $this->explicit($n);
+            }
+        }
+
+        $bk = $this->backupDir . '/postfix-' . date('Ymd-His') . '-' . bin2hex(random_bytes(3));
+        if (!mkdir($bk, 0700, true) && !is_dir($bk)) {
+            throw new KmException("Cannot create $bk");
+        }
+        foreach (['main.cf', 'master.cf'] as $f) {
+            copy($this->confDir . '/' . $f, "$bk/$f");
+        }
+        $pgFile = $this->root . '/etc/default/postgrey';
+        $pgOld = is_file($pgFile) ? (string)file_get_contents($pgFile) : null;
+        $stateOld = is_file($this->stateFile) ? (string)file_get_contents($this->stateFile) : null;
+
+        $changed = [];
+        try {
+            if ($enabled) {
+                foreach ($plan['files'] as $name => $text) {
+                    $this->writeFile($this->mapDir . '/' . $name, $text);
+                }
+            }
+            foreach (KloxoMailPolicy::POSTFIX_PARAMS as $n) {
+                $want = $enabled ? $plan['params'][$n] : null;
+                $want ??= $state['original'][$n] ?? null;
+                $this->setParam($n, $want);
+                $changed[] = $n;
+            }
+            $this->setMaster($enabled && $plan['postscreen'], $state);
+            $this->validate();
+            if ($enabled && $plan['postgrey']) {
+                $this->installPostgrey($p);
+            }
+            if ($enabled) {
+                $this->writeFile($this->stateFile, json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", 0600);
+            } elseif (is_file($this->stateFile)) {
+                unlink($this->stateFile);
+            }
+            if ($this->live) {
+                [$rc] = Proc::run(['systemctl', 'is-active', '--quiet', 'postfix']);
+                if ($rc === 0) {
+                    $this->must(Proc::run(['systemctl', 'reload', 'postfix']), 'systemctl reload postfix');
+                }
+            }
+        } catch (Throwable $e) {
+            foreach (['main.cf', 'master.cf'] as $f) {
+                copy("$bk/$f", $this->confDir . '/' . $f);
+            }
+            if ($pgOld === null) {
+                @unlink($pgFile);
+            } else {
+                @file_put_contents($pgFile, $pgOld);
+            }
+            if ($stateOld === null) {
+                @unlink($this->stateFile);
+            } else {
+                @file_put_contents($this->stateFile, $stateOld);
+            }
+            if ($this->live) {
+                Proc::run(['systemctl', 'reload', 'postfix']);
+            }
+            throw new KmException('postfix policy failed and was rolled back: ' . $e->getMessage() . " (backup: $bk)");
+        }
+
+        $summary = $enabled
+            ? 'SMTP protection installed' . ($plan['postscreen'] ? ' (postscreen greeting delay)' : '')
+                . ($plan['postgrey'] ? ' (postgrey graylisting)' : '') . "; backup in $bk"
+            : "SMTP protection removed, previous Postfix settings restored; backup in $bk";
+        return ['summary' => $summary, 'backup' => $bk, 'changed' => $changed];
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Command line application
 // ---------------------------------------------------------------------------
 final class App
@@ -461,7 +752,10 @@ final class App
         $this->confPath = (string)($this->opt['conf'] ?? getenv('KLOXO_MAIL_CONF') ?: '/etc/kloxo/mail.ini');
 
         try {
-            if (!in_array($cmd, ['help', '--help', 'version', 'init'], true)) {
+            if ($cmd === 'policy:show' || ($cmd === 'policy:apply' && ($this->opt['mta'] ?? '') !== 'exim')) {
+                // no mail database needed (Postfix has no hosted-mail templates here)
+                $this->c = is_file($this->confPath) ? Conf::load($this->confPath) : new Conf();
+            } elseif (!in_array($cmd, ['help', '--help', 'version', 'init'], true)) {
                 $this->c = Conf::load($this->confPath);
                 $this->db = new Db($this->c);
             }
@@ -501,6 +795,8 @@ final class App
             'dns:records'     => $this->dnsRecords(),
             'render'          => $this->render(),
             'apply'           => $this->apply(),
+            'policy:apply'    => $this->policyApply(),
+            'policy:show'     => $this->policyShow(),
             'check'           => $this->check(),
             default           => throw new KmException("Unknown command: $cmd (try `kloxo-mail help`)"),
         };
@@ -573,6 +869,9 @@ kloxo-mail {$this->v()}: mail stack tool for Kloxo CP
   dns:records <domain> [--ip=1.2.3.4]
   render --out=DIR                                  write all config files below DIR
   apply [--root=/] [--no-reload]                    render, back up, validate, reload, roll back on failure
+  policy:apply --mta=exim|postfix|none [--policy=FILE] [--root=/] [--postfix-dir=/etc/postfix] [--no-reload]
+                                                    install the SMTP protection policy (the Spamdyke replacement) for the MTA
+  policy:show [--policy=FILE]                       print the policy (validated) as JSON
   check                                             database and tool self-check
 Global options: --json  --conf=FILE (default /etc/kloxo/mail.ini or \$KLOXO_MAIL_CONF)
 
@@ -957,7 +1256,7 @@ TXT;
         if ($out === '' || $out === '1') {
             throw new KmException('Give --out=DIR');
         }
-        $files = $this->renderer()->render($out, $this->dkimMaps());
+        $files = $this->renderer()->render($out, $this->dkimMaps() + $this->renderer()->policyFiles());
         return $this->say(['out' => $out, 'files' => $files], count($files) . " files written below $out");
     }
 
@@ -968,8 +1267,9 @@ TXT;
         $tmp = sys_get_temp_dir() . '/kloxo-mail-' . bin2hex(random_bytes(6));
         mkdir($tmp, 0700);
         $r = $this->renderer();
-        $extra = $this->dkimMaps();
+        $extra = $this->dkimMaps() + $r->policyFiles();
         $r->render($tmp, $extra);
+        $postgrey = isset($extra['etc/default/postgrey']);
 
         $stamp = date('Ymd-His');
         $backup = $live ? "/var/backups/kloxo-mail/$stamp" : "$tmp.backup";
@@ -997,7 +1297,7 @@ TXT;
                 $done[] = $target;
             }
             if ($live) {
-                $this->validateLive();
+                $this->validateLive($postgrey);
             }
         } catch (Throwable $e) {
             $fail = $e->getMessage();
@@ -1019,14 +1319,19 @@ TXT;
 
         $msg = count($done) . ' files installed' . ($live ? '' : " below $root");
         if ($live && !isset($this->opt['no-reload'])) {
-            foreach (['exim4', 'dovecot', 'rspamd'] as $svc) {
+            // Postgrey first: Exim's graylist ACL talks to it
+            $services = $postgrey ? ['postgrey', 'exim4', 'dovecot', 'rspamd'] : ['exim4', 'dovecot', 'rspamd'];
+            if ($postgrey) {
+                Proc::run(['systemctl', 'enable', 'postgrey']);
+            }
+            foreach ($services as $svc) {
                 [$rc, , $err] = Proc::run(['systemctl', 'reload-or-restart', $svc]);
                 if ($rc !== 0) {
                     // roll back files and try to bring the old configuration up again
                     foreach ($done as $target) {
                         is_file("$backup/$target") ? copy("$backup/$target", "/$target") : @unlink("/$target");
                     }
-                    foreach (['exim4', 'dovecot', 'rspamd'] as $s) {
+                    foreach ($services as $s) {
                         Proc::run(['systemctl', 'reload-or-restart', $s]);
                     }
                     throw new KmException("reload of $svc failed ($err); previous configuration restored");
@@ -1038,8 +1343,11 @@ TXT;
     }
 
     /** Validate the installed configuration with the services' own checkers. */
-    private function validateLive(): void
+    private function validateLive(bool $postgrey = false): void
     {
+        if ($postgrey) {
+            $this->checkPostgrey();
+        }
         [$rc, , $err] = Proc::run(['sievec', '/var/lib/dovecot/sieve/before.d/00-kloxo-spam.sieve']);
         if ($rc !== 0 && Proc::exists('sievec')) {
             throw new KmException("sieve script invalid: $err");
@@ -1065,6 +1373,18 @@ TXT;
             $this->db()->one('SELECT 1 AS n FROM domains LIMIT 1');
         } catch (Throwable $e) {
             throw new KmException('mail database probe failed: ' . $e->getMessage());
+        }
+    }
+
+    /** Graylisting needs the Postgrey daemon and a unit that reads /etc/default/postgrey. */
+    private function checkPostgrey(): void
+    {
+        if (!Proc::exists('postgrey')) {
+            throw new KmException('graylisting is on but postgrey is not installed (apt install postgrey)');
+        }
+        [$rc, $out] = Proc::run(['systemctl', 'cat', 'postgrey']);
+        if ($rc !== 0 || !str_contains($out, '/etc/default/postgrey')) {
+            throw new KmException('the postgrey unit does not read /etc/default/postgrey; graylist settings would be ignored');
         }
     }
 
@@ -1101,6 +1421,55 @@ TXT;
         return $this->say($rep, $txt);
     }
 
+    /** Policy file from --policy (absolute path) or the config; sets it on the config. */
+    private function policyPath(): string
+    {
+        if (isset($this->opt['policy']) && $this->opt['policy'] !== true) {
+            $f = (string)$this->opt['policy'];
+            if (preg_match('#^/[A-Za-z0-9._/-]{1,200}$#', $f) !== 1 || str_contains($f, '..')) {
+                throw new KmException('Invalid --policy path');
+            }
+            $this->c->v['policy_file'] = $f;
+        }
+        return (string)$this->c->get('policy_file');
+    }
+
+    private function policyShow(): int
+    {
+        $this->policyPath();
+        $p = $this->renderer()->policy();
+        return $this->say($p, json_encode($p, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function policyApply(): int
+    {
+        $mta = (string)($this->opt['mta'] ?? '');
+        $this->policyPath();
+        switch ($mta) {
+            case 'exim':
+                // the policy is part of the generated Exim configuration
+                return $this->apply();
+            case 'postfix':
+                $p = $this->renderer()->policy();
+                $root = rtrim((string)($this->opt['root'] ?? '/'), '/');
+                $live = $root === '';
+                $pf = new PostfixPolicy(
+                    (string)($this->opt['postfix-dir'] ?? $root . '/etc/postfix'),
+                    $root . KloxoMailPolicy::POSTFIX_DIR,
+                    $root . '/etc/kloxo/mail-policy-postfix.state.json',
+                    $live ? '/var/backups/kloxo-mail' : sys_get_temp_dir() . '/kloxo-mail-backup',
+                    $live && !isset($this->opt['no-reload']),
+                    $root
+                );
+                $res = $pf->apply($p);
+                return $this->say($res, 'Postfix: ' . $res['summary']);
+            case 'none':
+                return $this->say(['mta' => 'none'], 'SMTP is none: nothing to install');
+            default:
+                throw new KmException('Give --mta=exim, --mta=postfix or --mta=none');
+        }
+    }
+
     private function rmTree(string $path): void
     {
         $vm = rtrim((string)($this->c->v['vmail_dir'] ?? ''), '/');
@@ -1122,4 +1491,6 @@ TXT;
     }
 }
 
-exit((new App())->run($argv));
+if (PHP_SAPI === 'cli' && isset($_SERVER['SCRIPT_FILENAME']) && realpath((string)$_SERVER['SCRIPT_FILENAME']) === __FILE__) {
+    exit((new App())->run($argv));
+}

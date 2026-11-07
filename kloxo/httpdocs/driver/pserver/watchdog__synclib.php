@@ -3,62 +3,14 @@
 class watchdog__sync extends Lxdriverclass
 {
 
+	// Service checks and restarts are done by the kloxo-watchdog systemd service
+	// (bin/kloxo-watchdog, lib/php/kloxo_watchdog.php). It does not need the
+	// panel or its database, restarts only the unit that is down (the old
+	// /script/restart-* lists restarted every enabled unit and knew nothing of
+	// Exim or Dovecot), and honours units stopped on purpose.
 	static function watchRun()
 	{
-		if (lx_core_lock_check_only("scavenge.php", "scavenge.php.pid")) {
-			log_log("watchdog", "scavenge is running");
-			dprint("Savenge is running\n");
-			return;
-		}
-
-		// Don't restart service while booting.
-		$time = os_getUptime();
-
-		if ($time < 600) { return; }
-
-		$list = lfile_get_unserialize("../etc/watchdog.conf");
-
-		foreach ((array) $list as $l) {
-			if (!is_array($l)) {
-				continue;
-			}
-			$status = isset($l['status']) ? $l['status'] : 'off';
-			$name = isset($l['servicename']) ? (string) $l['servicename'] : '';
-			$port = isset($l['port']) ? $l['port'] : '';
-			$raw = isset($l['action']) ? (string) $l['action'] : '';
-			if (!isOn($status)) {
-				print("{$name} is disabled\n");
-				continue;
-			}
-
-			if (check_if_port_on($port)) {
-				continue;
-			}
-
-			$drv = '';
-			if (csb($raw, "__driver_")) {
-				$drv = substr($raw, strlen('__driver_'));
-				if ($drv === 'qmail') {
-					$drv = 'mail';
-				}
-			} elseif (csb($raw, "restart-")) {
-				$drv = substr($raw, strlen('restart-'));
-			} else {
-				continue;
-			}
-			if (!preg_match('/^[A-Za-z0-9._-]+$/', $drv)) {
-				continue;
-			}
-			$script = "/script/restart-{$drv}";
-			if (!is_file($script) && !is_link($script)) {
-				continue;
-			}
-			$action = "sh {$script} --force";
-			lxshell_return('/bin/sh', $script, '--force');
-
-			log_log("watchdog", "$action executed for port {$port}");
-			send_system_monitor_message_to_admin("Port: {$port}\nAction: {$action}");
-		}
+		return;
 	}
 
 	function dbactionUpdate($subaction)

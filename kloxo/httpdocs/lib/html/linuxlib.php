@@ -250,10 +250,9 @@ function os_create_default_slave_driver_db()
 	$a['web'] = "nginx";
 	$a['webcache'] = "none";
 	$a['dns'] = "bind";
-	$a['pop3'] = "courier";
-//	$a['imap4'] = "courier";
+	$a['pop3'] = "dovecot";
 	$a['smtp'] = "exim";
-	$a['spam'] = "bogofilter";
+	$a['spam'] = "none";
 	slave_save_db("driver", $a);
 }
 

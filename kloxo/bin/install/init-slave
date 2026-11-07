@@ -88,8 +88,8 @@ function write_slave(string $root, string $plain): void
 		'webcache' => 'none',
 		'dns' => 'bind',
 		'pop3' => 'dovecot',
-		'smtp' => 'qmail',
-		'spam' => 'bogofilter',
+		'smtp' => 'exim',
+		'spam' => 'none',
 	);
 	$dpath = $slavedb . '/driver';
 	$dtmp = $dpath . '.tmp';

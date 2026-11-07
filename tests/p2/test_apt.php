@@ -116,18 +116,16 @@ if ($badNames === 6 && KloxoApt::validPackages(['spamassassin', 'libfoo2.0+b']) 
 }
 
 // drivers: apt, no yum/rpm
-$bf = (string) file_get_contents($root . '/kloxo/httpdocs/driver/mmail/spam__bogofilterlib.php');
 $sa = (string) file_get_contents($root . '/kloxo/httpdocs/driver/mmail/spam__spamassassinlib.php');
 $inc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/include.php');
-$code = preg_replace('#//[^\n]*#', '', $bf . $sa) ?? '';
-if (str_contains($bf, "KloxoApt::installOrThrow(array('bogofilter'))")
-	&& str_contains($sa, "array('spamassassin', 'spamc', 'ripmime')")
+$code = preg_replace('#//[^\n]*#', '', $sa) ?? '';
+if (str_contains($sa, "array('spamassassin', 'spamc', 'ripmime')")
 	&& !preg_match('/\b(yum|rpm)\b/', $code)
 	&& !str_contains($code, '-toaster')
 	&& str_contains($inc, 'kloxo_apt.php')) {
-	ok('bogofilter and spamassassin drivers install with apt and no rpm/yum');
+	ok('spamassassin driver installs with apt and no rpm/yum');
 } else {
-	bad('bogofilter and spamassassin drivers install with apt and no rpm/yum');
+	bad('spamassassin driver install with apt and no rpm/yum');
 }
 
 // SpamAssassin per-mailbox prefs: no qmail/vpopmail, validated path, one directive per line.

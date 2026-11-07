@@ -184,33 +184,12 @@ if ($yadifabranch) {
 
 $out = null;
 
-$qmailbranch = getRpmBranchInstalled('qmail-toaster');
-if ($qmailbranch) {
-	exec("rpm -qa {$qmailbranch}", $out);
-	$appqmail = trim($out[0]);
-} else {
-	$appqmail = '--uninstalled--';
-}
-
-$out = null;
-
 $dovecotbranch = getRpmBranchInstalled('dovecot');
 if ($dovecotbranch) {
 	exec("rpm -qa {$dovecotbranch}", $out);
 	$appdovecot = trim($out[0]);
 } else {
 	$appdovecot = '--uninstalled--';
-}
-
-$out = null;
-
-$courierimapbranch = 'courier-imap-toaster';
-$isinstalled = isRpmInstalled($courierimapbranch);
-if ($isinstalled) {
-	exec("rpm -qa {$courierimapbranch}", $out);
-	$appcourierimap = trim($out[0]);
-} else {
-	$appcourierimap = '--uninstalled--';
 }
 
 $out = null;
@@ -242,8 +221,6 @@ if (count($out) > 0) {
 $out = null;
 
 $pop3app = slave_get_driver('pop3');
-
-if ($pop3app === 'courier') { $pop3app = 'courier-imap'; }
 
 exec("rpm -qa {$pop3app}-toaster", $out);
 
@@ -370,7 +347,7 @@ echo "     - DJBDns: {$appdjbdns}\n";
 echo "     - NSD: {$appnsd}\n";
 echo "     - PowerDNS: {$apppdns}\n";
 echo "     - Yadifa: {$appyadifa}\n";
-echo "   6. Mail: {$appqmail}\n";
+echo "   6. Mail: " . slave_get_driver('smtp') . "\n";
 
 if ($appdovecot !== '--uninstalled--') {
 	echo "      - with: {$appdovecot}\n";

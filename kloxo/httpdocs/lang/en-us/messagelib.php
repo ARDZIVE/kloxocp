@@ -66,6 +66,14 @@ $__emessage['ufw_rules_deleted'] = "Firewall rules deleted: [%s]";
 $__emessage['ufw_enabled'] = "UFW firewall enabled. Panel ports 7777/7778, SSH, web, FTP, DNS and mail are allowed.";
 $__emessage['ufw_disabled'] = "UFW firewall disabled. Existing rules are kept and apply again when you enable it.";
 $__emessage['ufw_defaults_set'] = "UFW default policies set: [%s]";
+$__emessage['f2b_banned'] = "Address banned: [%s]";
+$__emessage['f2b_unbanned'] = "Address unbanned: [%s]";
+$__emessage['f2b_unbanned_all'] = "Every ban in every jail was removed.";
+$__emessage['f2b_jail_enabled'] = "Jail turned on and Fail2Ban reloaded: [%s]";
+$__emessage['f2b_jail_disabled'] = "Jail turned off and Fail2Ban reloaded: [%s]";
+$__emessage['f2b_jail_updated'] = "Jail updated and Fail2Ban reloaded: [%s]";
+$__emessage['f2b_settings_saved'] = "Fail2Ban defaults saved and applied.";
+$__emessage['f2b_reloaded'] = "Fail2Ban settings applied: [%s]";
 $__emessage['backup_has_been_scheduled'] = "The backup is now happening in the background. You will receive a mail at your contact email when it is done.";
 $__emessage['update_scheduled'] = "Update is now running in the background. You can refresh this page to see if the update has completed properly.";
 $__emessage['restore_has_been_scheduled'] = "The Restore is now happening in the background. You will receive a mail at your contact email when it is done.";
@@ -191,6 +199,10 @@ $__information['ufwfirewall_updateform_ufwdefaults_pre'] = "<p>Set UFW default p
 $__information['ufwfirewall_updateform_addrule_pre'] = "<p>Add an allow, deny, or reject rule. Port is a number, list, or range. From address may be blank (any), an IPv4 address, or IPv4/CIDR.</p>";
 $__information['ufwfirewall_updateform_editrule_pre'] = "<p>Edit a numbered UFW rule on this page (replace = delete then add). Port is a single number or range. The last allow for panel ports 7777/7778 may only be edited to another allow that still covers that panel port.</p>";
 $__information['ufwfirewall_updateform_deleterule_pre'] = "<p>Delete a numbered UFW rule. The last allow for panel ports 7777/7778 cannot be deleted.</p>";
+$__information['fail2ban_show__pre'] = "<p>Fail2Ban watches log files and the system journal and bans an address (with nftables, not in the UFW rule list) when it fails too often. <b>Jails</b> are the situations it can watch: turn one on or off with the play/pause icon, or change its limits with the pen. A jail can only run when its program is installed and its log exists. <b>Banned IPs</b> can be unbanned one by one, and <b>Recent Activity</b> shows the last bans. Changes are checked with <code>fail2ban-client -t</code> before they are used and are rolled back if Fail2Ban refuses them.</p>";
+$__information['fail2ban_updateform_ban_pre'] = "<p>Ban an address by hand in one of the running jails.</p>";
+$__information['fail2ban_updateform_settings_pre'] = "<p>Defaults for all jails: how many failures within the find time cause a ban, and how long the ban lasts. The whitelist is never banned.</p>";
+$__information['fail2ban_updateform_editjail_pre'] = "<p>Turn a jail on or off and give it its own limits. Empty values use the defaults from Settings.</p>";
 
 $__information['lxguard_updateform_update_pre'] = "<p>Lxguard protects you against brute force attacks by monitoring the ssh and ftp log messages, ".
 	"and blocking ipaddresses that have too many failed attempts at logging into the server.</p>".
@@ -823,7 +835,7 @@ $__information['serverweb_updateform_edit_pre'] = $__information['webserver_conf
 
 $__information['ftpuser_addform__pre'] = $__information['ftpuser_admin'];
 
-$__information['servermail_updateform_spamdyke_pre'] = "<p>No information...</p>";
+$__information['servermail_updateform_spamdyke_pre'] = "<p>Applied to Exim or Postfix, whichever is selected in Switch Program. Graylisting uses Postgrey (installed when needed); the greet delay uses the Exim connect delay or Postfix postscreen. Whitelisted IPs skip every rule. One header rule per line: <i>Header-Name: text</i>, where * matches anything.</p>";
 
 $__information['mail_graylist_wlist_a_addform__pre'] = "<p>No information...</p>";
 

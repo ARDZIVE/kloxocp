@@ -41,8 +41,6 @@ if [ "${appfiles}" != "" ] ; then
 		echo "- Need access to webmail url first"	
 	fi
 
-	sh /script/add-rainloop-domains
-
 	chown -R apache:apache ${path}
 else
 	echo "- Run '$0 -y' to install"

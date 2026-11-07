@@ -1,0 +1,2 @@
+# Default blacklist headers: none. One rule per line, "Header-Name: text".
+# `*` matches any run of characters; the text may match anywhere in the header, ignoring case.

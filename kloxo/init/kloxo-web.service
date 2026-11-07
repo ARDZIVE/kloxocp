@@ -9,6 +9,8 @@ Type=simple
 ExecStart=/opt/kloxo/init/kloxo-hiawatha -d -c /opt/kloxo/init
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=mixed
+Restart=on-failure
+RestartSec=3
 PrivateTmp=true
 
 [Install]

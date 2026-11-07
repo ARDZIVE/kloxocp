@@ -24,6 +24,8 @@
 # imagemagick for File Manager Thumbnail, Exim default MTA on --profile=full
 # (Postfix is not co-installed; Switch Program installs Postfix),
 # ufw packaged and enabled by default (panel ports allowed first),
+# fail2ban packaged and configured by install-fail2ban (nftables bans; jails for SSH,
+# panel, mail, FTP, web auth; the installer's SSH client is whitelisted),
 # webcache (8080) and webproxy (30080) as nginx frontends (install-webfront),
 # kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
 # and skips the panel UI.
@@ -57,7 +59,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 
   --profile=full   default: core plus exim4-daemon-heavy (default MTA), dovecot, rspamd
                    (Postfix is not apt-installed here; it conflicts with Exim)
-  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (enabled), imagemagick, webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
+  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (enabled), fail2ban (enabled), imagemagick, webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
                    password the master uses when adding this host
@@ -139,7 +141,7 @@ print_slave_box() {
 }
 
 print_access_box() {
-  local url="$1" alt="$2" user="$3" pass="$4"
+  local url="$1" alt="$2" user="$3" pass="$4" rec="${5:-}"
   local w=70 bar
   bar="+$(printf '%0.s-' $(seq 1 $((w + 2))))+"
   box() { printf '| %-*s |\n' "$w" "$1"; }
@@ -162,6 +164,14 @@ print_access_box() {
   box ""
   box "If the page does not load, allow TCP 7777 (and 7778) in the firewall."
   box "A first-install password is saved in /root/kloxo-admin-password (0600)."
+  if [[ -n "$rec" ]]; then
+    box ""
+    box "Recovery console (still works when MariaDB or Nginx is down):"
+    box "  ${url}recovery/"
+    box "  Password : ${rec}"
+    box "Saved in /root/kloxo-recovery-password (0600). Reset it with:"
+    box "  php /opt/kloxo/bin/kloxocp recovery-password --generate"
+  fi
   echo "$bar"
   echo
 }
@@ -227,6 +237,7 @@ plan: Kloxo CP ${KCP_VERSION}
   smtp    exim4 default (full); postfix via Switch Program (cannot co-install)
   ftp     pure-ftpd (enabled)
   redis   redis-server (enabled; Rspamd Bayes backend)
+  f2b     fail2ban (enabled; jails for SSH, panel, mail, FTP, web auth; nftables bans)
   skip    no bogofilter/spamassassin/sqlite apt packages
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
@@ -396,6 +407,7 @@ apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
   mariadb-server nginx apache2 bind9 pdns-server pdns-backend-mysql \
   pure-ftpd redis-server iproute2 ufw imagemagick \
+  fail2ban python3-systemd nftables \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
@@ -552,7 +564,21 @@ enable_ufw() {
   fi
 }
 
+# MariaDB holds the panel data: bring it back by itself after a crash.
+# (The recovery console at /recovery/ covers the case where it stays down.)
+install_restart_dropins() {
+  install -d -m 0755 /etc/systemd/system/mariadb.service.d
+  cat > /etc/systemd/system/mariadb.service.d/kloxo-restart.conf <<'DROPIN'
+[Service]
+Restart=on-failure
+RestartSec=5s
+DROPIN
+  chmod 0644 /etc/systemd/system/mariadb.service.d/kloxo-restart.conf
+  systemctl daemon-reload 2>/dev/null || true
+}
+
 enable_default_stack() {
+  install_restart_dropins
   # Default SQL is MariaDB only. Do not enable mysql/mysqld by name (aliases of
   # mariadb on Ubuntu; a separate mysql-server package stays stopped until the
   # admin starts it from Services).
@@ -612,6 +638,54 @@ install_backend() {
   wait_unit kloxo-backend || log "warn: kloxo-backend is not active"
 }
 
+# Address of the person running this installer (SSH session), so Fail2Ban
+# never bans the installer's own connection.
+installer_client_ip() {
+  local ip=""
+  if [[ -n "${SSH_CLIENT:-}" ]]; then
+    ip="${SSH_CLIENT%% *}"
+  elif [[ -n "${SSH_CONNECTION:-}" ]]; then
+    ip="${SSH_CONNECTION%% *}"
+  else
+    ip="$(who -m 2>/dev/null | sed -n 's/.*(\([0-9a-fA-F:.]*\)).*/\1/p' | head -n 1)"
+  fi
+  if [[ "$ip" =~ ^[0-9a-fA-F:.]+$ ]]; then
+    printf '%s' "$ip"
+  fi
+}
+
+# Fail2Ban: bans addresses that keep failing logins (SSH, panel, mail, FTP, web
+# auth). Jails come from etc/conf/fail2ban.json and are managed in the panel
+# under Security > Fail2Ban. Bans use nftables, not the UFW rule list.
+prepare_fail2ban() {
+  chmod 0755 "$ROOT/bin/install/install-fail2ban" || true
+  if ! command -v fail2ban-client >/dev/null 2>&1; then
+    log "warn: fail2ban is not installed; skipping"
+    return 0
+  fi
+  local cip args=()
+  cip="$(installer_client_ip)"
+  [[ -n "$cip" ]] && args+=("--ignore-ip=$cip")
+  touch "$ROOT/log/auth-failures.log" 2>/dev/null || true
+  chmod 0664 "$ROOT/log/auth-failures.log" 2>/dev/null || true
+  chown lxlabs:lxlabs "$ROOT/log/auth-failures.log" 2>/dev/null || true
+  php "$ROOT/bin/install/install-fail2ban" --root="$ROOT" "${args[@]}" \
+    || log "warn: install-fail2ban failed; Security > Fail2Ban can retry (Reload)"
+}
+
+# Restarts crashed or unresponsive server applications (nginx, mariadb, bind9,
+# exim4, dovecot, php-fpm, ...). Its own systemd service: it needs neither the
+# panel nor MariaDB. Units stopped from the panel are left alone.
+install_watchdog() {
+  chmod 0755 "$ROOT/bin/kloxo-watchdog" || true
+  install -d -m 0755 "$ROOT/var/watchdog" "$ROOT/log"
+  install -m 0644 "$ROOT/init/kloxo-watchdog.service" /etc/systemd/system/kloxo-watchdog.service
+  systemctl daemon-reload
+  systemctl enable kloxo-watchdog >/dev/null 2>&1 || true
+  systemctl restart kloxo-watchdog || systemctl start kloxo-watchdog || true
+  wait_unit kloxo-watchdog || log "warn: kloxo-watchdog is not active"
+}
+
 if [[ "$INSTALL_TYPE" == "slave" ]]; then
   slave_pw="${SLAVE_PASSWORD:-${KLOXO_SLAVE_PASSWORD:-}}"
   if [[ -z "$slave_pw" ]]; then
@@ -631,6 +705,8 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
     log "warn: extra site PHP versions failed; Webserver Configure can retry"
   fi
   install_backend
+  install_watchdog
+  prepare_fail2ban
   host="$(hostname -f 2>/dev/null || hostname)"
   ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
   print_slave_box "$host" "$ip" "$slave_pw" | tee -a "$LOG"
@@ -716,6 +792,28 @@ if id -u lxlabs >/dev/null 2>&1; then
 fi
 log "panel schema ready"
 
+# Recovery console login (a file, not the database): created on first install,
+# kept on re-runs. The password is shown once in the final box.
+recovery_pw=""
+if id -u lxlabs >/dev/null 2>&1; then
+  install -d -m 0700 -o lxlabs -g lxlabs "$ROOT/var/recovery"
+else
+  install -d -m 0700 "$ROOT/var/recovery"
+fi
+if [[ ! -s "$ROOT/etc/conf/recovery.json" ]]; then
+  if recovery_pw="$(php "$ROOT/bin/kloxocp" recovery-password --generate --raw --root="$ROOT")" && [[ -n "$recovery_pw" ]]; then
+    install -d -m 0700 /root
+    printf '%s\n' "$recovery_pw" > /root/kloxo-recovery-password
+    chmod 600 /root/kloxo-recovery-password
+    log "recovery console password created (/root/kloxo-recovery-password)"
+  else
+    recovery_pw=""
+    log "warn: could not create the recovery console password; run: php $ROOT/bin/kloxocp recovery-password --generate"
+  fi
+else
+  log "recovery console password kept (unchanged)"
+fi
+
 bash "$ROOT/bin/install/install-phpmyadmin" --root="$ROOT"
 log "installing site PHP 5.6, 7.4, and latest (default); panel kloxo-php is unchanged"
 if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
@@ -780,6 +878,8 @@ fi
 php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
 
 install_backend
+install_watchdog
+prepare_fail2ban
 
 host="$(hostname -f 2>/dev/null || hostname)"
 ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -789,8 +889,8 @@ if [[ -n "$ip" && -n "$host" ]]; then
   alt="https://${host}:7777/"
 fi
 if [[ "$keep_admin" -eq 1 ]]; then
-  print_access_box "$url" "$alt" "admin" "(unchanged: your current admin password)" | tee -a "$LOG"
+  print_access_box "$url" "$alt" "admin" "(unchanged: your current admin password)" "$recovery_pw" | tee -a "$LOG"
 else
-  print_access_box "$url" "$alt" "admin" "$admin_env" | tee -a "$LOG"
+  print_access_box "$url" "$alt" "admin" "$admin_env" "$recovery_pw" | tee -a "$LOG"
 fi
 exit 0

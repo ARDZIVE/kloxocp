@@ -42,7 +42,6 @@ final class KloxoComponent
             ['name' => 'dovecot-pop3d', 'type' => 'pop', 'kind' => 'deb'],
             ['name' => 'rspamd', 'type' => 'spam', 'kind' => 'deb'],
             ['name' => 'spamassassin', 'type' => 'spam', 'kind' => 'deb'],
-            ['name' => 'bogofilter', 'type' => 'spam', 'kind' => 'deb'],
             ['name' => 'pure-ftpd', 'type' => 'ftp', 'kind' => 'deb'],
             ['name' => 'proftpd-basic', 'type' => 'ftp', 'kind' => 'deb'],
             ['name' => 'vsftpd', 'type' => 'ftp', 'kind' => 'deb'],

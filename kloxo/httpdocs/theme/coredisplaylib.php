@@ -772,6 +772,10 @@ function kloxo_print_object_property_tabs($object)
 		&& is_callable(array('ufwfirewall', 'ufwPropertyTabsForPserver'))) {
 		$prlist['property'] = ufwfirewall::ufwPropertyTabsForPserver();
 	}
+	if ($class === 'fail2ban' && class_exists('fail2ban')
+		&& is_callable(array('fail2ban', 'fail2banPropertyTabs'))) {
+		$prlist['property'] = fail2ban::fail2banPropertyTabs();
+	}
 	if ($class === 'pserver' && ($sa === 'reboot' || $sa === 'poweroff')
 		&& $prlist['property'] === array()
 		&& class_exists('pserver') && is_callable(array('pserver', 'rebootPropertyTabs'))) {
@@ -828,7 +832,7 @@ function kloxo_print_object_property_tabs($object)
 
 	$generalForced = ($class === 'general' && ($sa === 'generalsetting' || $sa === ''));
 	if (!$prlist['property'] && $class !== 'phpini' && !$phpiniUrl && $class !== 'sshconfig'
-		&& $class !== 'lxguard' && $class !== 'ufwfirewall'
+		&& $class !== 'lxguard' && $class !== 'ufwfirewall' && $class !== 'fail2ban'
 		&& $class !== 'lxbackup' && !$isBackupPage && !$backupUrl
 		&& $class !== 'servermail' && $class !== 'mail_graylist_wlist_a' && !$mailUrl
 		&& !$generalForced) {
@@ -1267,7 +1271,7 @@ function do_update($object, $subaction, $list)
 
 	$oldvlist = $object->updateform($subaction, $param);
 
-	if ($class !== 'lxbackup' && $class !== 'ufwfirewall') {
+	if ($class !== 'lxbackup' && $class !== 'ufwfirewall' && $class !== 'fail2ban') {
 		security_check($oldvlist, $param);
 	}
 

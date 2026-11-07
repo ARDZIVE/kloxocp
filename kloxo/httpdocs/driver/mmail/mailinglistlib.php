@@ -105,11 +105,9 @@ class Mailinglist extends Lxdb
 
 		list($list, $domain) = explode("@", $this->nname);
 
-		$mailpath = mmail__qmail::getDir($domain);
-		$mailpath = str_replace($sgbl->__path_mail_root, $sgbl->__path_mail_data, $mailpath);
-
-		$uid = mmail__qmail::getUserGroup($domain, true);
-		$username = os_get_user_from_uid($uid);
+		// No mailing-list backend (ezmlm is gone); keep the path under the vmail tree.
+		$mailpath = mailaccount::vmailDomainDir($domain);
+		$username = 'vmail';
 		$root = "$mailpath/$list/archive";
 		$ffile = new Ffile(null, $this->syncserver, $root, $name, $username);
 		$ffile->__parent_o = $this;

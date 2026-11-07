@@ -83,9 +83,6 @@ switch ($scenario) {
 	case 'pop3':
 		sp_run('pop3', array_merge($base, array('pop3' => 'none')), array('pop3_driver' => 'dovecot'));
 		break;
-	case 'spam_bogofilter':
-		sp_run('spam_bogofilter', $base, array('spam_driver' => 'bogofilter'));
-		break;
 	case 'spam_spamassassin':
 		sp_run('spam_spamassassin', $base, array('spam_driver' => 'spamassassin'));
 		break;

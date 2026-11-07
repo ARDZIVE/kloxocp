@@ -990,8 +990,6 @@ class Web extends Lxdb
 			exec("sh /script/fixphp --client={$this->customer_name}");
 		}
 
-		// MR -- add rainloop webmail ini for this domain
-		exec("sh /script/add-rainloop-domains --domain={$domname}");
 	}
 
 	static function createstatsConf($domname, $stats_name, $stats_password)

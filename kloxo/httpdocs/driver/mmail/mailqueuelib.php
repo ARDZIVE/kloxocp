@@ -79,7 +79,7 @@ class mailqueue extends lxclass
 			}
 		}
 
-		return (is_string($app) && $app !== '') ? $app : 'qmail';
+		return (is_string($app) && $app !== '') ? $app : 'exim';
 	}
 
 	static function initThisObject($parent, $class, $name = null)

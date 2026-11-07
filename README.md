@@ -72,7 +72,7 @@ clones or fetches `origin/main` (hard-reset). Do **not** pipe into bash
 existing clone to current `main` (**10.1-2026110601**: Switch Program audited
 (only the six program keys are processed, unknown names rejected, installs
 non-interactive with the apt error shown and the old choice kept, mail fix
-script `fixmail`); Spam bogofilter/SpamAssassin install through apt; Web Cache
+script `fixmail`); Spam SpamAssassin installs through apt; Web Cache
 **nginx** proxy cache in front of Nginx or Apache; default UFW rules carry a
 purpose comment; the download URL carries a cache-busting query).
 
@@ -81,16 +81,18 @@ Default profile is **full**: Exim (default MTA), Dovecot, Rspamd, **pure-ftpd**,
 Postfix is **not** installed with Exim (both conflict on
 `mail-transport-agent`); a leftover `postfix` unit is **disabled** at install.
 Switch Program `smtp=postfix` removes Exim and installs Postfix. It does
-**not** install bogofilter, SpamAssassin, or sqlite at install time (panel DB
-is **MariaDB**; spam is Rspamd; Switch Program installs bogofilter or
-SpamAssassin from apt only when you select them). Starts Nginx, **MariaDB**, BIND, Redis, Pure-FTPd, webcache on
+**not** install SpamAssassin or sqlite at install time (panel DB
+is **MariaDB**; spam is Rspamd; Switch Program installs SpamAssassin
+from apt only when you select it). Bogofilter is not offered. Starts Nginx, **MariaDB**, BIND, Redis, Pure-FTPd, webcache on
 **8080**, and webproxy on **30080**. Default SQL is MariaDB only
 (`mysql`/`mysqld` aliases are not a second started service). Packages and
 **enables `ufw` by default** (panel ports 7777/7778 plus common
 SSH/web/FTP/DNS/mail ports allowed first; dual-stack IPv4+IPv6 when
 `IPV6=yes`). Apache and PowerDNS are packaged and stay disabled.
 
-When it finishes: `https://<ip>:7777/` — **admin / admin**. Accept the
+When it finishes: `https://<ip>:7777/` — **admin / admin**. The same box prints the
+**recovery console** address (`https://<ip>:7777/recovery/`) and its separate password,
+for managing MariaDB, Nginx and the other applications if the panel itself cannot load. Accept the
 self-signed certificate. Change that password on first login. Flags and
 details are under [Installation](#installation).
 
@@ -106,7 +108,8 @@ details are under [Installation](#installation).
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it. Multiple PHP Install queues under `$ROOT/log/`. |
 | DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
-| Switch Program | Web **Nginx** (Apache selectable); Web Cache **none** (default) / `nginx`; DNS **BIND** (PowerDNS selectable); Spam `none` / `bogofilter` / `spamassassin` (apt, on demand); POP3/IMAP `none` / **dovecot**; SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
+| Switch Program | Web **Nginx** (Apache selectable); Web Cache **none** (default) / `nginx`; DNS **BIND** (PowerDNS selectable); Spam `none` / `spamassassin` (apt, on demand); POP3/IMAP `none` / **dovecot**; SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
+| SMTP protection | Mail Server Settings > **SMTP Protection** (replaces Spamdyke): greet delay, recipient limit, graylisting (Postgrey), rDNS and DNS RBL checks, blacklist headers, whitelist IPs; applied to Exim or Postfix, whichever Switch Program selects. Rendered and unit-tested only; not yet run against a live Exim/Postfix. |
 | Database | **MariaDB** default (started at install; panel DB `kloxo`; mail DB is separate). A distinct MySQL package, if present, stays stopped until started from Services. |
 | Database admin | Seeded by `init-panel-db` as the `kloxo_pma` MariaDB account (needed by Add Database) |
 | SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `kloxo_pma`@`127.0.0.1`) |
@@ -122,7 +125,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Screen | Behaviour |
 |---|---|
 | SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session (read from the session file `<root>/session/<id>`, matched to the `kloxo-session-id` cookie) is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (full privileges; `root`@`localhost` is unix_socket and is refused over TCP with error 1698) and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
-| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, Web Cache none, DNS BIND, SMTP **exim**. Postfix is selectable and apt-swaps with Exim. Web Cache `nginx` puts an Nginx proxy cache on 80/443 in front of the Nginx or Apache site server (which moves to loopback 8081/8444); it rolls back on failure. Spam bogofilter / SpamAssassin install from apt; a failed install shows the apt error and keeps the old choice. Tested with fake apt/systemctl only; a live switch is unverified. |
+| Switch Program | One content tab labelled **Switch Program**. Defaults: web Nginx, Web Cache none, DNS BIND, SMTP **exim**. Postfix is selectable and apt-swaps with Exim. Web Cache `nginx` puts an Nginx proxy cache on 80/443 in front of the Nginx or Apache site server (which moves to loopback 8081/8444); it rolls back on failure. Spam SpamAssassin installs from apt; a failed install shows the apt error and keeps the old choice. Tested with fake apt/systemctl only; a live switch is unverified. |
 | Backup / Restore | Exactly five tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. Show page: Backup Now, Restore From File, Restore From FTP. File Manager / Upload under a backup keep those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
 | FTP Configure | Under localhost (not Backup FTP Configuration). One beige tab labelled **FTP Configure**. |
@@ -144,6 +147,9 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |
+| Recovery console | `https://<server>:7777/recovery/` (HTTPS only). Works without MariaDB, Nginx or Apache: it is served by the panel's own Hiawatha + PHP-FPM and logs in with its own **recovery password** (a hash in `etc/conf/recovery.json`; the installer prints the password once and saves it to `/root/kloxo-recovery-password`; reset with `php /opt/kloxo/bin/kloxocp recovery-password --generate`). Lists the server applications (nginx, apache2, mariadb, bind9, pdns, exim4, dovecot, rspamd, pure-ftpd, redis-server, ufw, phpX.Y-fpm, the Kloxo units) with Start / Stop / Restart and a log view; panel units can only be started (stopping them would end the page). Five wrong passwords lock an address for 15 minutes. When MariaDB is unreachable the panel pages show a link to it. Root actions go through `kloxo-backend`, which now starts even while MariaDB is down. Tested with fake systemctl and a local backend only; live use is unverified. |
+| Watchdog | The `kloxo-watchdog` service (installed and enabled by `install.sh`, independent of the panel and MariaDB) checks the server applications every minute and restarts one that crashed or stopped answering on its port; after 3 restarts in 30 minutes it stops trying and mails the admin once. Applications you stopped yourself (recovery console or Services page) are left alone until you start them again. Switch a service off on the panel's Watchdog screen, or tune `etc/conf/watchdog.json`. It mails the admin contact email (the address entered in the panel profile; or `notify` in `etc/conf/watchdog.json`) when it restarts a service, when a restart fails and when it gives up; `kloxo-watchdog --test-mail` checks delivery, and the recovery console warns while no address is set. `kloxo-watchdog --status` shows what it did; log in `log/watchdog.log`. Tested with a fake systemd/clock/mailer only; a live crash-and-restart on Ubuntu is unverified. |
+| Fail2Ban | Installed by `install.sh` (`fail2ban`, `python3-systemd`, `nftables`) and configured by `bin/install/install-fail2ban`; the address you ran the installer from over SSH is whitelisted so you cannot lock yourself out. Security > **Fail2Ban** (admin only) lists every situation it can watch as a jail: SSH, repeat offenders (recidive), the panel login and the recovery console (their failures go to `log/auth-failures.log`, rotated weekly), Exim, Dovecot, Postfix, Nginx auth and bot searches, Apache auth/noscript/botsearch/overflows, Pure-FTPd and MariaDB. Each row shows whether it can run on this server (program installed, filter and log present), its state, limits, failed/banned counters, and play/pause and edit icons (Max Retry, Find Time, Ban Time per jail). Ban IP, Unban, Unban All, Reload, Settings (defaults and the whitelist) and a Recent Activity list from `/var/log/fail2ban.log` are on the same page. Bans use the nftables action, so they are not mixed into the UFW rule list; LxGuard and the Block IP list still work and only overlap in purpose. The jail file `/etc/fail2ban/jail.d/kloxo-cp.local` is generated from `etc/conf/fail2ban.json`, checked with `fail2ban-client -t`, installed atomically and rolled back (file and saved settings) if Fail2Ban refuses it. The watchdog keeps the `fail2ban` unit running. Tested with a fake `fail2ban-client`/systemctl and the filter regexes translated to PHP (`tests/p2/test_fail2ban.php`, `test_server_pages.php`); a real Fail2Ban, nftables, the journal matches, live bans and a live install on Ubuntu are unverified. |
 | Watchdog | Eight services. webcache (8080) and webproxy (30080) are nginx frontends to port 80 (`kloxo-webcache` / `kloxo-webproxy`), not Varnish/Squid. |
 
 ## Goals
@@ -227,8 +233,8 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    and `ufw` (**enabled by default**; panel ports 7777/7778 plus common
    SSH/web/FTP/DNS/mail ports allowed first; IPv4+IPv6 when `IPV6=yes`).
    Also packages `pdns-server` and `apache2` but does not let apt start them
-   (BIND stays on 53, Nginx on 80/443). Does **not** install bogofilter,
-   SpamAssassin, or sqlite (Switch Program installs the first two on demand).
+   (BIND stays on 53, Nginx on 80/443). Does **not** install SpamAssassin
+   or sqlite (Switch Program installs SpamAssassin on demand).
 3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
    If it is already a git clone, fetches `origin/main` and `reset --hard` first. If `/opt/kloxo`
    is a real directory (not a symlink to the clone), copies `httpdocs` /
@@ -672,8 +678,9 @@ Hosted mail is **Exim** (SMTP) + **Dovecot** (IMAP/POP3/LMTP) + **Rspamd**
 `exim` apt-installs `exim4-daemon-heavy` and removes Postfix; `postfix`
 apt-installs Postfix and removes Exim (they cannot co-exist). Hosted-mail
 templates stay Exim (`kloxo-mail`). qmail-toaster is not the selectable MTA.
-P4 will wire the panel mail screens to `kloxo-mail`. qmail remains in the
-tree until those drivers exist.
+P4 will wire the panel mail screens to `kloxo-mail`. The qmail, courier-imap and
+ezmlm drivers, templates and scripts are deleted; a missing mail driver degrades
+to a no-op.
 
 On a **disposable** machine only (`tests/mail/README.md`): live tests rewrite
 `/etc/exim4`, `/etc/dovecot`, `/etc/rspamd/local.d`.
@@ -740,7 +747,7 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/ sbin/ pscript/   backend and maintenance scripts
   cexe/           C backend daemon (source only; setuid helpers removed)
   init/           panel systemd units, Hiawatha, PHP-FPM pool, php-cli.sh
-  file/           service config templates (nginx, apache, bind, pdns, qmail, mail)
+  file/           service config templates (nginx, apache, bind, pdns, mail)
   install/        LEGACY RPM/CentOS installer (do not use on Ubuntu)
   bin/kloxocp            operator CLI (status, doctor, snapshot, rollback)
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)

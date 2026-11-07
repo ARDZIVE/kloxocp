@@ -29,7 +29,17 @@ function lxserver_main()
 		$login = new Client(null, null, 'admin');
 		$gbl->is_master = true;
 		$gbl->is_slave = false;
-		$login->get();
+		// MariaDB down at start (reboot, crash): stay up anyway. The recovery
+		// console (/recovery/) needs this backend to start MariaDB. Requests
+		// authenticate from kloxo.pass, not from the database, and the object
+		// is loaded as soon as the database answers (do_server_stuff).
+		try {
+			$login->get();
+			$gbl->db_degraded = false;
+		} catch (Throwable $e) {
+			$gbl->db_degraded = true;
+			print("Database not reachable ({$e->getMessage()}); backend runs without it until it is back\n");
+		}
 		$argv[1] = "Running as Master";
 	} else {
 		print("Wrong arguments\n");
@@ -55,6 +65,20 @@ function do_server_stuff()
 
 	try {
 		timed_execution();
+
+		if (!empty($gbl->db_degraded)) {
+			// retry with a fresh object; keep serving requests meanwhile
+			try {
+				$fresh = new Client(null, null, 'admin');
+				$fresh->get();
+				$fresh->cttype = 'admin';
+				$login = $fresh;
+				$gbl->db_degraded = false;
+				print("Database is back; backend loaded the panel data\n");
+			} catch (Throwable $e) {
+				return;
+			}
+		}
 
 		if ($sgbl->is_this_master()) {
 			$schour = null;

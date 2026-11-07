@@ -6886,6 +6886,9 @@ class HtmlLib
 				} elseif ($a[0] === 'ufwfirewall') {
 					// WebHostingHub glyph "firewall" (distinct from LxGuard shield f02e).
 					$x = "f021";
+				} elseif ($a[0] === 'fail2ban') {
+					// WebHostingHub glyph "banuser".
+					$x = "f5d2";
 				} elseif ($a[0] === 'driver') {
 					$x = "f09a";
 				} elseif (strpos($a[0], 'server') !== false) {

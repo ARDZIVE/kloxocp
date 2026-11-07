@@ -205,6 +205,10 @@ function check_login_success($cgi_classname, $cgi_clientname, $cgi_password, $cg
 		} else {
 			session_login();
 			log_log("login_fail", "Failed Login attempt to $cgi_clientname from " .  $_SERVER['REMOTE_ADDR']);
+			// One safe line per failure for Fail2Ban (filter kloxo-panel).
+			if (class_exists('KloxoAuthLog')) {
+				KloxoAuthLog::failed('kloxo-panel', (string) $cgi_clientname, (string) $_SERVER['REMOTE_ADDR'], kloxo_program_root());
+			}
 			$ghtml->print_redirect("/login/?frm_emessage=login_error");
 			return false; 
 		}

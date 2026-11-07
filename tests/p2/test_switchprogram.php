@@ -74,7 +74,7 @@ $ok = isset($v['web_driver'][1], $v['webcache_driver'][1], $v['dns_driver'][1], 
 	&& $v['web_driver'][1] === array('none', 'nginx', 'apache')
 	&& $v['webcache_driver'][1] === array('none', 'nginx')
 	&& $v['dns_driver'][1] === array('none', 'bind', 'pdns')
-	&& $v['spam_driver'][1] === array('none', 'bogofilter', 'spamassassin')
+	&& $v['spam_driver'][1] === array('none', 'spamassassin')
 	&& $v['pop3_driver'][1] === array('none', 'dovecot')
 	&& $v['smtp_driver'][1] === array('none', 'exim', 'postfix')
 	&& isset($v['use_pagespeed']) && isset($v['__v_updateall_button']);
@@ -106,9 +106,6 @@ $r = child($tmp, 'pop3');
 	: bad('pop3 none -> dovecot installs the packages and stores the choice', json_encode($r));
 
 // 6. spam
-$r = child($tmp, 'spam_bogofilter');
-($r['error'] === '' && ($r['slave']['spam'] ?? '') === 'bogofilter' && str_contains($r['calls'], 'install bogofilter'))
-	? ok('spam none -> bogofilter') : bad('spam none -> bogofilter', json_encode($r));
 $r = child($tmp, 'spam_spamassassin');
 ($r['error'] === '' && ($r['slave']['spam'] ?? '') === 'spamassassin' && str_contains($r['calls'], 'install spamassassin spamc ripmime'))
 	? ok('spam none -> spamassassin') : bad('spam none -> spamassassin', json_encode($r));
@@ -120,8 +117,8 @@ $r = child($tmp, 'dns');
 
 // 8. a failing install is reported and the old choice is kept
 touch($fail_flag);
-foreach (array('smtp' => 'postfix', 'spam_bogofilter' => 'bogofilter', 'pop3' => 'dovecot') as $sc => $want) {
-	$cls = $sc === 'spam_bogofilter' ? 'spam' : $sc;
+foreach (array('smtp' => 'postfix', 'spam_spamassassin' => 'spamassassin', 'pop3' => 'dovecot') as $sc => $want) {
+	$cls = $sc === 'spam_spamassassin' ? 'spam' : $sc;
 	$r = child($tmp, $sc);
 	$old = $sc === 'pop3' ? 'none' : ($sc === 'smtp' ? 'exim' : 'none');
 	(str_contains($r['error'] ?? '', 'Install failed') && ($r['slave'][$cls] ?? '') === $old)
@@ -157,7 +154,7 @@ is_file($repo . '/kloxo/pscript/fixmail') && !is_file($repo . '/kloxo/pscript/fi
 	? ok('/script/fixmail exists (the script called after spam/pop3/smtp switches)')
 	: bad('/script/fixmail exists (the script called after spam/pop3/smtp switches)');
 $drv = '';
-foreach (array('smtp__eximlib', 'smtp__postfixlib', 'pop3__dovecotlib', 'spam__bogofilterlib', 'spam__spamassassinlib') as $f) {
+foreach (array('smtp__eximlib', 'smtp__postfixlib', 'pop3__dovecotlib', 'spam__spamassassinlib') as $f) {
 	$drv .= (string) file_get_contents($repo . '/kloxo/httpdocs/driver/mmail/' . $f . '.php');
 }
 !str_contains($drv, "lxshell_return('apt-get'") ? ok('mail program drivers install only through KloxoApt (non-interactive, errors reported)')

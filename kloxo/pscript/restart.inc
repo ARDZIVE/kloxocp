@@ -13,8 +13,6 @@ else
 	ppath="/opt/kloxo/etc/process"
 	fpath="/opt/kloxo/etc/flag"
 	
-	ASQMAIL=""
-
 	stype=$(ps --no-headers -o comm 1)
 
 	for item in ${list[*]} ; do
@@ -47,10 +45,7 @@ else
 			if [ "${svc_on}" == 'yes' ] ; then
 					echo ""
 					if [ "$1" == "--force" ] || [ "$1" == "-y" ] ; then
-						if [ "${item}" == "qmail" ] ; then
-							ASQMAIL="qmail"
-							sh /script/restart-mail
-						elif [ "${item}" == "nsd" ] ; then
+						if [ "${item}" == "nsd" ] ; then
 							service ${item} restart
 						elif [ "${item}" == "spawn-fcgi" ] ; then
 							'rm' -f /tmp/fcgiwrap.sock
@@ -77,9 +72,7 @@ else
 		fi
 	done
 
-	if [ "${ASQMAIL}" != "qmail" ] ; then
-		echo ""
-		echo "- For help, type '$0 [--help|-h]'"
-	fi
+	echo ""
+	echo "- For help, type '$0 [--help|-h]'"
 fi
 

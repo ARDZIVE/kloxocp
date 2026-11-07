@@ -16,7 +16,7 @@ $driver['ftpsession'] = "__v_ftpuser";
 $driver['mailcontent'] = "__v_mmail";
 
 $driver['reversedns'] = '__v_dns';
-$driver['servermail'] = '__v_mmail';
+$driver['servermail'] = '__v_smtp';
 $driver['serverftp'] = "__v_ftpuser";
 $driver['serverweb'] = '__v_web';
 $driver['webhandler'] = '__v_web';

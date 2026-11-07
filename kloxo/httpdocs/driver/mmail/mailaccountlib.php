@@ -298,18 +298,25 @@ class Mailaccount extends Lxclient
 		return null;
 	}
 
+	static function vmailDomainDir($domain)
+	{
+		$domain = preg_match('/^[A-Za-z0-9.-]+$/', (string) $domain) === 1 ? strtolower((string) $domain) : 'invalid';
+
+		return '/var/vmail/' . $domain;
+	}
+
 	function getFfileFromVirtualList($name)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
 		list($mailacc, $domain) = explode("@", $this->nname);
 
-		$mailpath = mmail__qmail::getDir($domain);
-		$mailpath = str_replace($sgbl->__path_mail_root, $sgbl->__path_mail_data, $mailpath);
+		// Exim/Dovecot (kloxo-mail): /var/vmail/<domain>/<user>, owned by vmail.
+		$mailpath = self::vmailDomainDir($domain);
 
 		$name = coreFfile::getRealpath($name);
 		$name = '/' . $name;
-		$ffile = new Ffile($this->__masterserver, $this->__readserver, "$mailpath/$mailacc", $name, mmail__qmail::getUserGroup($domain));
+		$ffile = new Ffile($this->__masterserver, $this->__readserver, "$mailpath/$mailacc", $name, 'vmail');
 		$ffile->__parent_o = $this;
 		$ffile->get();
 

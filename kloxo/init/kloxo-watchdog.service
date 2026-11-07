@@ -1,0 +1,17 @@
+[Unit]
+Description=Kloxo CP service watchdog (restarts crashed server applications)
+Documentation=https://kloxocp.invalid/
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/php /opt/kloxo/bin/kloxo-watchdog
+Restart=always
+RestartSec=5
+User=root
+Nice=10
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
