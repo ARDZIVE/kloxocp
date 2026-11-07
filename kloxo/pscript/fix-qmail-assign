@@ -1,4 +1,0 @@
-#!/bin/sh
-
-source /script/directory
-lxphp.exe ../bin/fix/fix-qmail-assign.php $*

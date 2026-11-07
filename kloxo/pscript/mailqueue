@@ -1,6 +1,0 @@
-#!/bin/sh
-
-. /script/directory
-
-chmod 755 ../bin/misc/qmHandle
-../bin/misc/qmHandle $*
