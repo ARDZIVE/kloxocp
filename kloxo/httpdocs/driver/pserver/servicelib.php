@@ -66,6 +66,55 @@ class Service extends Lxdb
 	}
 
 	/**
+	 * Read the real unit state from systemd. The service table has no state or
+	 * boot_state columns, so an object loaded for an icon click starts with the
+	 * defaults ('off'); the State / Sb toggles then picked the wrong command
+	 * (clicking a running unit sent `start`, an enabled one `enable`) and
+	 * nothing visibly happened. Local systemd units only.
+	 */
+	function refreshLiveState()
+	{
+		$server = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+			? $this->syncserver : 'localhost';
+		if (!isLocalhost($server)) {
+			return false;
+		}
+		$svc = isset($this->servicename) ? (string) $this->servicename : '';
+		$live = self::probeLiveState($svc);
+		if ($live === null) {
+			return false;
+		}
+		$this->install_state = 'on';
+		$this->state = $live['state'];
+		$this->boot_state = $live['boot_state'];
+
+		return true;
+	}
+
+	/** Set by tests to replace the systemd probe (callable(string): ?array). */
+	public static $liveStateProbe = null;
+
+	/** @return array{state:string,boot_state:string}|null null: not a local systemd unit */
+	static function probeLiveState($svc)
+	{
+		if (is_callable(self::$liveStateProbe)) {
+			return call_user_func(self::$liveStateProbe, $svc);
+		}
+		if (!Service__Linux::hasSystemd() || Service__Linux::systemctlBin() === '') {
+			return null;
+		}
+		$unit = Service__Linux::resolveInstalledUnit($svc);
+		if ($unit === '') {
+			return null;
+		}
+
+		return array(
+			'state' => Service__Linux::systemdShow($unit, 'ActiveState') === 'active' ? 'on' : 'off',
+			'boot_state' => Service__Linux::bootStateOn($unit) ? 'on' : 'off',
+		);
+	}
+
+	/**
 	 * Run systemctl now for icon clicks. List children can miss login->was()
 	 * sync; clearing subaction afterwards lets write() persist state without a
 	 * second systemctl. If the driver is not loaded in this process (tests or
@@ -279,6 +328,7 @@ class Service extends Lxdb
 	{
 		// Turning a running critical unit off would stop MariaDB / panel PHP and
 		// blank every page with "No such file or directory" (missing DB socket).
+		$this->refreshLiveState();
 		$next = $this->isOn('state') ? 'off' : 'on';
 		$this->assertMayControl($next === 'on' ? 'start' : 'stop');
 		$this->state = $next;
@@ -289,6 +339,7 @@ class Service extends Lxdb
 
 	function updateToggle_boot_state($param)
 	{
+		$this->refreshLiveState();
 		$next = $this->isOn('boot_state') ? 'off' : 'on';
 		$this->assertMayControl($next === 'on' ? 'enable' : 'disable');
 		$this->boot_state = $next;
@@ -398,6 +449,11 @@ class Service extends Lxdb
 				: (function_exists('isServiceExists') && isServiceExists($svc));
 			$ob->install_state = $installed ? 'on' : 'dull';
 			$ob->dbaction = 'clean';
+		}
+
+		try {
+			$ob->refreshLiveState();
+		} catch (Throwable $e) {
 		}
 
 		return $ob;
