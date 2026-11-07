@@ -1,6 +1,6 @@
 <?php
 /**
- * Busy modal: Loading.io "ball" spinner while a Services icon action runs.
+ * Busy modal: animated GIF spinner while a Services icon action runs.
  */
 declare(strict_types=1);
 
@@ -20,30 +20,31 @@ function bad(string $d, string $x = ''): void
 $root = dirname(__DIR__, 2);
 $doc = $root . '/kloxo/httpdocs';
 $js = (string) @file_get_contents($doc . '/theme/js/kloxo-busy.js');
-$svg = (string) @file_get_contents($doc . '/theme/loadingio/fvz7y1.svg');
+$gif = (string) @file_get_contents($doc . '/theme/img/kloxo-spinner.gif');
 $html = (string) file_get_contents($doc . '/theme/htmllib.php');
 $notice = (string) file_get_contents($root . '/NOTICE');
 
-if (str_contains($svg, '<d:slug>fvz7y1</d:slug>') && substr_count($svg, '<circle') === 8) {
-	ok('spinner SVG is the Loading.io fvz7y1 ball ring (8 circles)');
+$frames = substr_count($gif, "\x21\xF9\x04");   // graphic control extension per frame
+if (str_starts_with($gif, 'GIF89a') && $frames >= 8 && str_contains($gif, 'NETSCAPE2.0')) {
+	ok('spinner is an animated, looping GIF (' . $frames . ' frames)');
 } else {
-	bad('spinner SVG is the Loading.io fvz7y1 ball ring');
+	bad('spinner is an animated, looping GIF', 'frames=' . $frames);
 }
-if (str_contains($notice, 'fvz7y1') && str_contains($notice, 'Loading.io BY License')) {
-	ok('NOTICE credits Loading.io');
+if (!is_dir($doc . '/theme/loadingio') && !str_contains($notice, 'Loading.io')) {
+	ok('no Loading.io asset or attribution is left');
 } else {
-	bad('NOTICE credits Loading.io');
+	bad('no Loading.io asset or attribution is left');
 }
 if (str_contains($html, '"kloxo-busy.js"')) {
 	ok('kloxo-busy.js is included on every panel page');
 } else {
 	bad('kloxo-busy.js is included on every panel page');
 }
-if (str_contains($js, '/theme/loadingio/fvz7y1.svg') && str_contains($js, 'KloxoBusy')
-	&& str_contains($js, "'pageshow'") && str_contains($js, 'setTimeout(api.hide')) {
-	ok('JS shows the spinner, hides on pageshow and has a time-out');
+if (str_contains($js, '/theme/img/kloxo-spinner.gif') && str_contains($js, 'KloxoBusy')
+	&& str_contains($js, "'pageshow'") && !str_contains($js, 'setTimeout')) {
+	ok('JS shows the GIF, hides on pageshow and never times out');
 } else {
-	bad('JS shows the spinner, hides on pageshow and has a time-out');
+	bad('JS shows the GIF, hides on pageshow and never times out');
 }
 
 // The hrefs the Services list really renders must match the JS patterns.
