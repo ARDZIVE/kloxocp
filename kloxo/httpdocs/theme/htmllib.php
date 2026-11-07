@@ -5851,6 +5851,7 @@ class HtmlLib
 		$this->print_jscript_source($lxa_path);
 		$this->print_jscript_source($helptext_path);
 		$this->print_jscript_source($preop_path);
+		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js")));
 
 		if (!$login->getSpecialObject('sp_specialplay')->isOn('enable_ajax') && ($header !== 'left_panel')) {
 			//

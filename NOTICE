@@ -22,3 +22,6 @@ own licenses and copyright notices.
 Font Awesome Free 7.3.1 (https://fontawesome.com): the SVG icons under
 kloxo/httpdocs/theme/fontawesome/ are CC BY 4.0, Copyright Fonticons, Inc.; see
 kloxo/httpdocs/theme/fontawesome/LICENSE.txt.
+Loading.io "ball" icon (https://loading.io/icon/fvz7y1), Loading.io BY License (similar to
+CC-BY; attribution required): kloxo/httpdocs/theme/loadingio/fvz7y1.svg, the busy spinner
+shown while Services actions run (kloxo/httpdocs/theme/js/kloxo-busy.js).
