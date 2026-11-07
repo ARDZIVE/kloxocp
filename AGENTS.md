@@ -184,7 +184,11 @@ package unit (different FragmentPath) stays disabled until started from Services
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
 Mails Per Client lists under the selected pserver and shows Switch To Another.
 Admin Servers can add a remote host (hostname or IPv4 plus the slave password)
-on the list page; there is no separate Add Server tab. Adding a client does
+on the list page; there is no separate Add Server tab. Adding a domain no longer fails with
+`Unsupported operand types: string + int`: quota counters (`priv`/`used`) are strings (`''`, `Unlimited`), and
+`changeUsedFromParent`, `check_priv`, `getEffectivePriv`, parent-quota checks and `delete` now do arithmetic through
+`kloxo_quota_num()` (`lib/php/lxlib.php`; `tests/p2/test_quota_math.php`). The rest of the domain-add path (DB writes,
+web/DNS/mail sync) was not run without a live panel DB; live Add Domain after deploy is UNVERIFIED. Adding a client does
 not implode() a string (contact email / coma_* lists), does not TypeError
 on a missing plan priv/listpriv or parent quota, and chowns the home to
 www-data on Ubuntu. Adding a Resource Plan

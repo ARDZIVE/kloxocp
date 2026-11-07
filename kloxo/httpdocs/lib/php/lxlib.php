@@ -1760,6 +1760,46 @@ function getNumericValue($var)
 	return $var;
 }
 
+/**
+ * Quota counters (priv/used) are stored as strings: '', 'Unlimited', '10', '1024 MB'.
+ * PHP 8 throws "Unsupported operand types: string + int" for '' + 1, so every
+ * arithmetic on a quota value goes through this. Non-numeric text counts as 0.
+ *
+ * @param mixed $v
+ * @return int|float
+ */
+function kloxo_quota_num($v)
+{
+	if (is_int($v) || is_float($v)) {
+		return $v;
+	}
+
+	if (is_bool($v)) {
+		return $v ? 1 : 0;
+	}
+
+	if (!is_string($v)) {
+		return 0;
+	}
+
+	$v = trim($v);
+
+	if ($v === '') {
+		return 0;
+	}
+
+	if (!is_numeric($v)) {
+		$v = getNumericValue($v);
+		if (!is_int($v) && !is_float($v) && !is_numeric($v)) {
+			return 0;
+		}
+	}
+
+	$n = $v + 0;
+
+	return $n;
+}
+
 function isQuotaGreaterThanOrEq($used, $priv)
 {
 	if (is_unlimited($priv)) {

@@ -4198,7 +4198,7 @@ abstract class Lxclass
 			return 'Unlimited';
 		} else {
 			if (isHardQuotaVariableInClass($class, $k)) {
-				return $this->priv->$k - $this->used->$k;
+				return kloxo_quota_num($this->priv->$k) - kloxo_quota_num($this->used->$k);
 			} else {
 				return $this->priv->$k;
 			}
@@ -4628,7 +4628,7 @@ abstract class Lxclass
 
 		$numvar = $class . "_num";
 
-		if (isQuotaGreaterThan($parent->used->$numvar + 1, $parent->priv->$numvar)) {
+		if (isQuotaGreaterThan(kloxo_quota_num($parent->used->$numvar) + 1, $parent->priv->$numvar)) {
 			throw new lxException($login->getThrow('not_enough_quota_in_parent'), '', $numvar);
 		}
 
@@ -4639,7 +4639,7 @@ abstract class Lxclass
 				throw new lxException($login->getThrow('not_enough_quota_in_parent'), '', $k);
 			}
 
-			if (isQuotaGreaterThan($parent->used->$k + $this->used->$k, $parent->priv->$k)) {
+			if (isQuotaGreaterThan(kloxo_quota_num($parent->used->$k) + kloxo_quota_num($this->used->$k), $parent->priv->$k)) {
 				throw new lxException($login->getThrow('not_enough_quota_in_parent'), '', $k);
 			}
 		}
@@ -4724,7 +4724,7 @@ abstract class Lxclass
 		$val = 1 * $flag;
 
 		if ($qp->isQuotaVariable($cnum)) {
-			$qp->used->$cnum += $val;
+			$qp->used->$cnum = kloxo_quota_num($qp->used->$cnum) + $val;
 			$doupdate = true;
 			dprint("IN change used ... quota variable specific {$qp->getClname()} {$class} {$this->nname}\n");
 		//	dprintr($qp->used);
@@ -4784,7 +4784,7 @@ abstract class Lxclass
 
 		foreach ((array)$qlist as $k => $v) {
 			if ($this->isHardQuota($k)) {
-				$this->getParentO()->used->$k -= $this->priv->$k;
+				$this->getParentO()->used->$k = kloxo_quota_num($this->getParentO()->used->$k) - kloxo_quota_num($this->priv->$k);
 			}
 		}
 

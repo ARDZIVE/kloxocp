@@ -242,8 +242,8 @@ function check_priv($parent, $class, $pvar, $v)
 			}
 			if (is_unlimited($parent->priv->$pk)) {
 				if (isHardQuotaVariableInClass($class, $pk)) {
-					$parent->used->$pk -= $pvar->$pk;
-					$parent->used->$pk += $pv;
+					$parent->used->$pk = kloxo_quota_num($parent->used->$pk) - kloxo_quota_num($pvar->$pk);
+					$parent->used->$pk = kloxo_quota_num($parent->used->$pk) + kloxo_quota_num($pv);
 					$parent->setUpdateSubaction();
 				}
 
@@ -261,7 +261,7 @@ function check_priv($parent, $class, $pvar, $v)
 			}
 
 			if (isHardQuotaVariableInClass($class, $pk)) {
-				$parent->used->$pk -= $pvar->$pk;
+				$parent->used->$pk = kloxo_quota_num($parent->used->$pk) - kloxo_quota_num($pvar->$pk);
 			}
 
 			dprintr($parent->used);
@@ -279,7 +279,7 @@ function check_priv($parent, $class, $pvar, $v)
 			dprint("No throw.. $tmp <br> ");
 
 			if (isHardQuotaVariableInClass($class, $pk)) {
-				$parent->used->$pk += $pv;
+				$parent->used->$pk = kloxo_quota_num($parent->used->$pk) + kloxo_quota_num($pv);
 				$parent->setUpdateSubaction();
 			}
 

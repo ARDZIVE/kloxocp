@@ -133,6 +133,11 @@ if php "$HERE/test_empty_list.php"; then
 else
   bad "test_empty_list.php"
 fi
+if php "$HERE/test_quota_math.php"; then
+  ok "test_quota_math.php"
+else
+  bad "test_quota_math.php"
+fi
 if php "$HERE/test_menu_title.php"; then
   ok "test_menu_title.php"
 else
