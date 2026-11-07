@@ -60,6 +60,31 @@ try {
 	bad('autores form lists the existing autoresponder', $e->getMessage());
 }
 
+// Set / Disable Auto Responder keep all five Auto Responder tabs.
+global $ghtml;
+$ghtml = new HtmlLib();
+$expect = array('a=show', 'a=list&c=autoresponder', 'a=addform&c=autoresponder', 'a=updateform&sa=autores');
+foreach (array('autores', 'enable_autorespond', 'disable_autorespond') as $sa) {
+	$ghtml->__http_vars['frm_subaction'] = $sa;
+	$pl = array('property' => array());
+	$m->createShowPropertyList($pl);
+	$tabs = $pl['property'];
+	if (count($tabs) === 5 && array_slice($tabs, 0, 4) === $expect && str_contains((string)$tabs[4], 'autorespond')) {
+		ok("sa=$sa shows Mail Account, Auto Responders, Add, Set and Enable/Disable tabs");
+	} else {
+		bad("sa=$sa shows all five Auto Responder tabs", json_encode($tabs));
+	}
+}
+$ghtml->__http_vars['frm_subaction'] = 'password';
+$pl = array('property' => array());
+$m->createShowPropertyList($pl);
+if ($pl['property'] === array('a=updateform&sa=password')) {
+	ok('other Mail Account pages keep their single tab');
+} else {
+	bad('other Mail Account pages keep their single tab', json_encode($pl['property']));
+}
+unset($ghtml->__http_vars['frm_subaction']);
+
 // The info alert the notice is shown in: green info box, plain text, escaped.
 $h = new HtmlLib();
 ob_start();

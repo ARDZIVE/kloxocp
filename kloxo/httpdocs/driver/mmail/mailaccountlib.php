@@ -369,6 +369,9 @@ class Mailaccount extends Lxclient
 			$alist['property'][] = "a=list&c=mailcontent";
 		} elseif ($ghtml->frm_o_cname === 'autoresponder') {
 			$alist['property'][] = "a=list&c=autoresponder";
+		} elseif (in_array($ghtml->frm_subaction, array('autores', 'enable_autorespond', 'disable_autorespond', 'toggle_autorespond'), true)) {
+			// Set / Disable Auto Responder keep the same tabs as the Auto Responders pages.
+			$alist['property'] = Autoresponder::createListAlist($this, 'autoresponder');
 		} else {
 			$alist['property'][] = "a=show";
 		}
