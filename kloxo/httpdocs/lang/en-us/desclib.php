@@ -1459,6 +1459,7 @@ $__description["microcache_time"] = array("Microcache Time (seconds; -1 to disab
 $__description["microcache_insert_into"] = array("Microcache Insert into");
 
 $__description["multiple_php_install"] = array("Multiple PHP Install");
+$__description["multiple_php_install_note"] = array("Install Status");
 $__description["multiple_php_already_installed"] = array("Multiple PHP Already Installed");
 $__description["multiple_php_remove"] = array("Multiple PHP Remove");
 

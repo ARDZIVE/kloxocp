@@ -30,12 +30,25 @@ install-site-php: customer-site PHP-FPM (5.6, 7.4, latest)
   --dry-run          print the plan and exit
   --help
 
-Uses Ubuntu distro packages first. If 5.6 / 7.4 are missing, adds
-ppa:ondrej/php (Ondřej Surý). The panel keeps using kloxo-php.
+Uses Ubuntu distro packages first. If a wanted series is missing, adds
+ppa:ondrej/php (Ondřej Surý) when that PPA publishes packages for this Ubuntu
+release; otherwise the series is skipped (no broken apt source is left behind).
+The result is written to ROOT/log/install-site-php.status. The panel keeps using kloxo-php.
 EOF
 }
 
 log() { printf '%s\n' "$*"; }
+
+# One line the panel shows on Webserver Configure: epoch|state|message
+STATUS_STATE="failed"
+STATUS_MSG="stopped before finishing (see install-site-php.log)"
+write_status() {
+  local f="${ROOT}/log/install-site-php.status"
+  mkdir -p "${ROOT}/log" 2>/dev/null || return 0
+  printf '%s|%s|%s\n' "$(date +%s)" "$1" "$2" > "$f" 2>/dev/null || true
+  chmod 0644 "$f" 2>/dev/null || true
+}
+finish_status() { write_status "$STATUS_STATE" "$STATUS_MSG"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 have_fpm() {
@@ -59,14 +72,61 @@ pick_latest() {
   return 1
 }
 
+codename() {
+  local c=""
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    c="$(. /etc/os-release; printf '%s' "${VERSION_CODENAME:-}")"
+  fi
+  printf '%s' "$c"
+}
+
+# True when ppa:ondrej/php publishes packages for this Ubuntu release
+# (a new release often has none for weeks: the PPA answers 404).
+ppa_published() {
+  local c url
+  c="$(codename)"
+  [[ "$c" =~ ^[a-z]+$ ]] || return 1
+  url="https://ppa.launchpadcontent.net/ondrej/php/ubuntu/dists/${c}/Release"
+  curl -fsI --max-time 20 "$url" >/dev/null 2>&1
+}
+
+# A leftover ondrej source for a release the PPA does not serve makes every
+# later `apt-get update` fail (E: ... does not have a Release file).
+drop_dead_ppa() {
+  local f
+  for f in /etc/apt/sources.list.d/ondrej-*php*.sources /etc/apt/sources.list.d/ondrej-*php*.list; do
+    [[ -e "$f" ]] || continue
+    log "removing ${f}: ppa:ondrej/php has no packages for Ubuntu $(codename)"
+    rm -f -- "$f"
+  done
+}
+
+apt_update() {
+  apt-get update -y || log "warn: apt-get update reported errors"
+}
+
+# Needs the PPA only for series the distro does not carry. Returns 1 (and
+# leaves apt healthy) when the PPA cannot serve this release.
 ensure_sury() {
-  if apt_has php5.6-fpm && apt_has php7.4-fpm; then
+  local v
+  for v in "$@"; do
+    apt_has "php${v}-fpm" || break
+    v=""
+  done
+  if [[ -z "${v:-}" ]]; then
     return 0
   fi
-  log "adding ppa:ondrej/php for PHP 5.6 / 7.4 (EOL; customer sites only)"
-  apt-get install -y software-properties-common ca-certificates gnupg apt-transport-https
+  if ! ppa_published; then
+    drop_dead_ppa
+    apt_update
+    log "ppa:ondrej/php has no packages for Ubuntu $(codename); only the PHP versions Ubuntu itself ships can be installed"
+    return 1
+  fi
+  log "adding ppa:ondrej/php for PHP versions the distro does not ship (EOL ones are for customer sites only)"
+  apt-get install -y software-properties-common ca-certificates gnupg apt-transport-https curl
   add-apt-repository -y ppa:ondrej/php
-  apt-get update -y
+  apt_update
 }
 
 pkgs_for() {
@@ -157,7 +217,7 @@ if [[ "$DRY" -eq 1 ]]; then
 plan: install customer-site PHP-FPM
   root     $ROOT
   versions ${ONLY_VERS[*]:-5.6 (5.6.40), 7.4 (7.4.33), plus newest of: ${LATEST_CANDIDATES[*]}}
-  repo     distro apt, then ppa:ondrej/php if 5.6/7.4 are missing
+  repo     distro apt, then ppa:ondrej/php only if it publishes for this Ubuntu release
   default  newest installed phpX.Y-fpm
   panel    kloxo-php is not changed
 EOF
@@ -167,14 +227,19 @@ fi
 [[ "$(id -u)" -eq 0 ]] || die "run as root"
 export DEBIAN_FRONTEND=noninteractive
 
-apt-get update -y
-ensure_sury
+write_status running "installing ${ONLY_VERS[*]:-site PHP}"
+trap finish_status EXIT
 
-latest=""
-if latest="$(pick_latest)"; then
-  log "latest site PHP is ${latest}"
+# Heal a leftover ondrej source from an earlier run on a release the PPA does not serve.
+if compgen -G "/etc/apt/sources.list.d/ondrej-*php*" >/dev/null && ! ppa_published; then
+  drop_dead_ppa
+fi
+apt_update
+# Series that must come from the PPA when the distro lacks them.
+if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
+  ensure_sury "${ONLY_VERS[@]}" || true
 else
-  die "no phpX.Y-fpm package found (tried ${LATEST_CANDIDATES[*]})"
+  ensure_sury "${WANTED_OLD[@]}" || true
 fi
 
 install_one() {
@@ -188,28 +253,53 @@ install_one() {
 }
 
 if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
+  done_list=()
+  skipped=()
   for v in "${ONLY_VERS[@]}"; do
-    if apt_has "php${v}-fpm"; then
-      install_one "$v" || log "warn: php${v}-fpm install failed"
+    if ! apt_has "php${v}-fpm" && ! have_fpm "$v"; then
+      log "warn: php${v}-fpm is not available for Ubuntu $(codename); skip"
+      skipped+=("$v")
+      continue
+    fi
+    if install_one "$v" && have_fpm "$v"; then
+      wire_include "$v" || log "warn: php${v}-fpm could not be wired into the panel pools"
+      done_list+=("$v")
     else
-      log "warn: php${v}-fpm is not in apt; skip"
+      log "warn: php${v}-fpm install failed"
+      skipped+=("$v")
     fi
   done
-  for v in "${ONLY_VERS[@]}"; do
-    if have_fpm "$v"; then
-      wire_include "$v"
-    fi
-  done
-  log "installed requested site PHP: ${ONLY_VERS[*]}"
-  exit 0
+  if [[ ${#done_list[@]} -gt 0 && ${#skipped[@]} -eq 0 ]]; then
+    STATUS_STATE="ok"; STATUS_MSG="installed ${done_list[*]}"
+    log "installed requested site PHP: ${done_list[*]}"
+    exit 0
+  elif [[ ${#done_list[@]} -gt 0 ]]; then
+    STATUS_STATE="partial"; STATUS_MSG="installed ${done_list[*]}; not available or failed: ${skipped[*]}"
+    log "$STATUS_MSG"
+    exit 0
+  fi
+  STATUS_STATE="failed"
+  STATUS_MSG="${skipped[*]} not installed: not in Ubuntu $(codename) and ppa:ondrej/php has no packages for it"
+  log "$STATUS_MSG"
+  exit 1
+fi
+
+latest=""
+if latest="$(pick_latest)"; then
+  log "latest site PHP is ${latest}"
+else
+  STATUS_MSG="no phpX.Y-fpm package found (tried ${LATEST_CANDIDATES[*]})"
+  die "$STATUS_MSG"
 fi
 
 install_one "$latest"
+skipped=()
 for v in "${WANTED_OLD[@]}"; do
   if apt_has "php${v}-fpm"; then
-    install_one "$v" || log "warn: php${v}-fpm install failed (EOL packages)"
+    install_one "$v" || { log "warn: php${v}-fpm install failed (EOL packages)"; skipped+=("$v"); }
   else
-    log "warn: php${v}-fpm is not in apt; skip"
+    log "warn: php${v}-fpm is not in apt for Ubuntu $(codename); skip"
+    skipped+=("$v")
   fi
 done
 
@@ -220,4 +310,10 @@ for v in "$latest" "${WANTED_OLD[@]}"; do
 done
 
 write_default_flag "$latest"
-log "site PHP default is php${latest} (Webserver Configure can select 5.6 / 7.4)"
+log "site PHP default is php${latest} (Webserver Configure can select the others that are installed)"
+STATUS_STATE="ok"
+STATUS_MSG="php${latest} installed"
+if [[ ${#skipped[@]} -gt 0 ]]; then
+  STATUS_STATE="partial"
+  STATUS_MSG="php${latest} installed; not available for Ubuntu $(codename): ${skipped[*]}"
+fi

@@ -25,6 +25,7 @@ class serverweb extends lxdb
 	static $__desc_multiple_php_flag = array("f", "", "multiple_php_enable");
 
 	static $__desc_multiple_php_install = array("", "", "multiple_php_install");
+	static $__desc_multiple_php_install_note = array("", "", "multiple_php_install_note");
 	static $__desc_multiple_php_already_installed = array("", "", "multiple_php_already_installed");
 	static $__desc_multiple_php_remove = array("", "", "multiple_php_remove");
 
@@ -169,10 +170,16 @@ class serverweb extends lxdb
 				$this->multiple_php_install = null;
 				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 				$avail = KloxoPhpver::asSelectList(KloxoPhpver::availableToInstall());
+				$note = KloxoPhpver::installNote();
 				if ($avail === array()) {
-					$vlist['multiple_php_install'] = array('M', '(all catalog versions are already installed)');
+					$vlist['multiple_php_install'] = array('M', $note !== ''
+						? '(nothing to install) ' . $note
+						: '(all catalog versions are already installed)');
 				} else {
 					$vlist['multiple_php_install'] = array('U', $avail);
+					if ($note !== '') {
+						$vlist['multiple_php_install_note'] = array('M', $note);
+					}
 				}
 
 				break;

@@ -8,7 +8,7 @@
 #   curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh
 #   bash /tmp/kloxocp-install.sh'
 # One line:
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update; apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 #
 # Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
 # (apt would steal stdin); wget/curl to a file, then bash it.
@@ -97,7 +97,7 @@ then clones or fetches origin/main:
 
 One line:
 
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=\$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update; apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=\$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
 
 Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
 This tree is NOT production-safe. Version ${KCP_VERSION}.
@@ -471,8 +471,25 @@ ensure_ubuntu_universe() {
 }
 ensure_ubuntu_universe
 
+drop_dead_ondrej_ppa() {
+  # ppa:ondrej/php answers 404 for an Ubuntu release it has no packages for yet; a
+  # leftover source file then makes every `apt-get update` exit with an error.
+  local f c
+  c="${VERSION_CODENAME:-}"
+  [[ -n "$c" ]] || return 0
+  for f in /etc/apt/sources.list.d/ondrej-*php*.sources /etc/apt/sources.list.d/ondrej-*php*.list; do
+    [[ -e "$f" ]] || continue
+    if command -v curl >/dev/null 2>&1 \
+      && ! curl -fsI --max-time 20 "https://ppa.launchpadcontent.net/ondrej/php/ubuntu/dists/${c}/Release" >/dev/null 2>&1; then
+      log "removing $f: ppa:ondrej/php has no packages for Ubuntu ${c}"
+      rm -f -- "$f"
+    fi
+  done
+}
+
 wait_for_apt_locks
-apt-get update -y
+drop_dead_ondrej_ppa
+apt-get update -y || log "warn: apt-get update reported errors; continuing"
 # Core: panel + sites + DNS + FTP + Redis (Rspamd Bayes backend). Mail spam is
 # Rspamd (full profile), not bogofilter/spamassassin. Panel DB is MariaDB (the
 # Sqlite class is mysqli); slave-db.db is PHP serialize — do not apt-install sqlite.

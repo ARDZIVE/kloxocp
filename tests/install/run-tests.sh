@@ -96,7 +96,7 @@ else
   bad "install.sh calls init-panel-db"
 fi
 DATE_SUB='$(date +%s)'
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update && apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL \"https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=${DATE_SUB}\" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'"
+ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update; apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL \"https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=${DATE_SUB}\" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'"
 if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
   ok "README and install.sh share the same one-liner"
 else
@@ -179,7 +179,7 @@ check "install-site-php --help" bash "$SITEPHP" --help
 check "install-site-php --dry-run" bash "$SITEPHP" --dry-run --root="$ROOT/kloxo"
 fails "install-site-php root with .. rejected" bash "$SITEPHP" --root="$ROOT/kloxo/../kloxo"
 if grep -q 'install-site-php' "$ROOT/install.sh" \
-  && grep -q 'php5.6-fpm' "$SITEPHP" && grep -q 'php7.4-fpm' "$SITEPHP" \
+  && grep -q 'WANTED_OLD=(5.6 7.4)' "$SITEPHP" \
   && grep -q 'ppa:ondrej/php' "$SITEPHP" \
   && grep -q 'kloxo-php is not changed' "$SITEPHP"; then
   ok "install.sh installs site PHP 5.6, 7.4, and latest via ondrej"
@@ -810,6 +810,60 @@ grep -q 'DROP DATABASE' "$ROOT/install.sh" && grep -q "kloxo_pma" "$ROOT/install
 fails "install.sh --fresh without a terminal and without --yes is refused" bash -c "bash '$ROOT/install.sh' --fresh </dev/null"
 check "install.sh --fresh --dry-run" bash "$ROOT/install.sh" --fresh --dry-run
 grep -q 'type YES' "$ROOT/install.sh" && ok "fresh: asks for YES on a terminal" || bad "fresh: confirmation"
+
+echo "== install-site-php: dead ondrej PPA (functions run with fake curl/apt, sandboxed paths)"
+SP="$T/sitephp"; mkdir -p "$SP/bin" "$SP/sources" "$SP/osrel"
+printf 'VERSION_CODENAME=resolute\n' > "$SP/osrel/os-release"
+cat > "$SP/bin/apt-cache" <<'EOS'
+#!/bin/sh
+# only php8.5-fpm is known
+[ "$1" = "show" ] && [ "$2" = "php8.5-fpm" ] && exit 0
+exit 100
+EOS
+cat > "$SP/bin/apt-get" <<EOS
+#!/bin/sh
+echo "apt-get \$*" >> "$SP/calls"
+exit 0
+EOS
+cat > "$SP/bin/add-apt-repository" <<EOS
+#!/bin/sh
+echo "add-apt-repository \$*" >> "$SP/calls"
+exit 0
+EOS
+cat > "$SP/bin/curl" <<EOS
+#!/bin/sh
+[ -f "$SP/ppa-ok" ] && exit 0
+exit 22
+EOS
+chmod +x "$SP/bin/"*
+awk '/^codename\(\) \{/{f=1} /^pkgs_for\(\) \{/{f=0} f{print}' "$ROOT/kloxo/bin/install/install-site-php" \
+  | sed -e "s#/etc/os-release#$SP/osrel/os-release#g" -e "s#/etc/apt/sources.list.d/#$SP/sources/#g" > "$SP/fn.sh"
+{ echo 'log() { echo "$*" >> "'"$SP"'/log"; }'; echo 'apt_has() { apt-cache show "$1" >/dev/null 2>&1; }'; cat "$SP/fn.sh"; } > "$SP/fn2.sh"
+if [ -s "$SP/fn.sh" ] && ! grep -Eq '(^| )/etc/(apt|os-release)' "$SP/fn.sh"; then ok "site-php functions extracted with paths remapped"; else bad "site-php extraction"; fi
+run_sp() { ( PATH="$SP/bin:$PATH"; . "$SP/fn2.sh"; "$@" ) >/dev/null 2>&1; }
+: > "$SP/calls"; : > "$SP/log"; touch "$SP/sources/ondrej-ubuntu-php-resolute.sources" "$SP/sources/ubuntu.sources"
+if ! run_sp ensure_sury 8.4 && [ ! -e "$SP/sources/ondrej-ubuntu-php-resolute.sources" ] && [ -e "$SP/sources/ubuntu.sources" ] \
+  && ! grep -q add-apt-repository "$SP/calls" && grep -q 'apt-get update' "$SP/calls" && grep -q 'has no packages for Ubuntu resolute' "$SP/log"; then
+  ok "PPA 404 for the release: leftover ondrej source removed, no PPA added, apt left healthy, ensure_sury reports failure"
+else
+  bad "PPA 404 handling" "$(cat "$SP/calls" "$SP/log")"
+fi
+: > "$SP/calls"
+if run_sp ensure_sury 8.5 && [ ! -s "$SP/calls" ]; then
+  ok "a series the distro already ships needs no PPA"
+else
+  bad "distro series needs no PPA" "$(cat "$SP/calls")"
+fi
+: > "$SP/calls"; touch "$SP/ppa-ok"
+if run_sp ensure_sury 8.4 && grep -q 'add-apt-repository -y ppa:ondrej/php' "$SP/calls"; then
+  ok "PPA published for the release: it is added"
+else
+  bad "PPA published" "$(cat "$SP/calls")"
+fi
+grep -q 'install-site-php.status' "$ROOT/kloxo/bin/install/install-site-php" && grep -q 'trap finish_status EXIT' "$ROOT/kloxo/bin/install/install-site-php" \
+  && ok "install-site-php writes its result to log/install-site-php.status" || bad "install-site-php status file"
+grep -q 'drop_dead_ondrej_ppa' "$ROOT/install.sh" && grep -q 'apt-get update -y || log' "$ROOT/install.sh" \
+  && ok "install.sh heals a dead ondrej source before apt-get update and tolerates update errors" || bad "install.sh dead PPA heal"
 
 check "pg_servermail migration (test_migrate_servermail.php)" php "$HERE/test_migrate_servermail.php"
 

@@ -150,4 +150,41 @@ if (is_array($live)) {
 }
 
 echo $fail === 0 ? "phpver tests ok\n" : "phpver tests failed\n";
+// ---- install availability (probes injected; nothing touches apt or the network)
+KloxoPhpver::$aptProbe = static fn(string $v): bool => $v === '8.5';
+KloxoPhpver::$ppaProbe = static fn(): bool => false;
+$a = KloxoPhpver::availableToInstall();
+if (!in_array('php8.4', $a, true) && !in_array('php7.4', $a, true) && !in_array('php5.6', $a, true)) {
+    $ok('no PPA for this release: versions apt cannot supply are not offered');
+} else {
+    $bad('no PPA for this release: versions apt cannot supply are not offered');
+}
+KloxoPhpver::$ppaProbe = static fn(): bool => true;
+$a = KloxoPhpver::availableToInstall();
+if (in_array('php5.6', $a, true) && in_array('php7.4', $a, true) && in_array('php8.4', $a, true)
+    && count(array_diff($a, KloxoPhpver::catalogIds())) === 0) {
+    $ok('PPA publishes for this release: catalog versions are offered');
+} else {
+    $bad('PPA publishes for this release: catalog versions are offered');
+}
+KloxoPhpver::$ppaProbe = static fn(): bool => false;
+$tmpStatus = sys_get_temp_dir() . '/kloxo-phpver-status-' . getmypid();
+file_put_contents($tmpStatus, "1794031272|failed|php8.4 not installed: <b>no</b> packages\n");
+$l = KloxoPhpver::lastInstall($tmpStatus);
+if ($l !== null && $l['state'] === 'failed' && $l['at'] === 1794031272 && !str_contains($l['message'], '<')
+    && str_contains(KloxoPhpver::installNote($tmpStatus), 'Last install attempt failed')) {
+    $ok('last install status is parsed, cleaned and shown');
+} else {
+    $bad('last install status is parsed, cleaned and shown');
+}
+file_put_contents($tmpStatus, "garbage\n");
+if (KloxoPhpver::lastInstall($tmpStatus) === null && KloxoPhpver::lastInstall($tmpStatus . '.none') === null) {
+    $ok('a missing or malformed status file is ignored');
+} else {
+    $bad('a missing or malformed status file is ignored');
+}
+@unlink($tmpStatus);
+KloxoPhpver::$aptProbe = null;
+KloxoPhpver::$ppaProbe = null;
+
 exit($fail === 0 ? 0 : 1);

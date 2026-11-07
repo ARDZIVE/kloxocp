@@ -103,18 +103,174 @@ final class KloxoPhpver
         return self::INSTALLABLE_SERIES;
     }
 
-    /** @return list<string> catalog ids not yet installed */
+    /**
+     * Test hooks (null in production): fn(string $series): bool for apt, fn(): bool for the PPA.
+     *
+     * @var callable|null
+     */
+    public static $aptProbe = null;
+    /** @var callable|null */
+    public static $ppaProbe = null;
+    /** @var array<string,bool> */
+    private static array $aptMemo = [];
+
+    private static function programRoot(): string
+    {
+        return dirname(__DIR__, 3);
+    }
+
+    /** Ubuntu release codename (resolute, noble, ...), or ''. */
+    public static function codename(): string
+    {
+        $f = '/etc/os-release';
+        if (!is_readable($f)) {
+            return '';
+        }
+        foreach (file($f, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            if (preg_match('/^VERSION_CODENAME="?([a-z]+)"?$/', $line, $m) === 1) {
+                return $m[1];
+            }
+        }
+
+        return '';
+    }
+
+    /** Does apt know a candidate for phpX.Y-fpm (distro or an enabled PPA)? */
+    public static function aptHas(string $series): bool
+    {
+        if (preg_match('/^\d+\.\d+$/', $series) !== 1) {
+            return false;
+        }
+        if (self::$aptProbe !== null) {
+            return (bool) (self::$aptProbe)($series);
+        }
+        if (isset(self::$aptMemo[$series])) {
+            return self::$aptMemo[$series];
+        }
+        $bin = '/usr/bin/apt-cache';
+        $has = false;
+        if (is_executable($bin)) {
+            $p = @proc_open([$bin, 'policy', 'php' . $series . '-fpm'],
+                [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+            if (is_resource($p)) {
+                $out = (string) stream_get_contents($pipes[1]);
+                fclose($pipes[1]);
+                proc_close($p);
+                $has = preg_match('/Candidate:\s*(?!\(none\))\S+/', $out) === 1;
+            }
+        }
+        self::$aptMemo[$series] = $has;
+
+        return $has;
+    }
+
+    /**
+     * Does ppa:ondrej/php publish packages for this Ubuntu release? The answer is
+     * cached for a day in etc/conf/sitephp-ppa.json (a new release often has none for weeks).
+     */
+    public static function ppaPublished(): bool
+    {
+        if (self::$ppaProbe !== null) {
+            return (bool) (self::$ppaProbe)();
+        }
+        $c = self::codename();
+        if ($c === '') {
+            return false;
+        }
+        $cache = self::programRoot() . '/etc/conf/sitephp-ppa.json';
+        $old = null;
+        if (is_file($cache)) {
+            $j = json_decode((string) @file_get_contents($cache), true);
+            if (is_array($j) && ($j['codename'] ?? '') === $c && isset($j['ok'], $j['at'])) {
+                if (time() - (int) $j['at'] < 86400) {
+                    return (bool) $j['ok'];
+                }
+                $old = (bool) $j['ok'];
+            }
+        }
+        $ctx = stream_context_create(['http' => ['method' => 'HEAD', 'timeout' => 5, 'ignore_errors' => true]]);
+        $r = @file_get_contents('https://ppa.launchpadcontent.net/ondrej/php/ubuntu/dists/' . $c . '/Release', false, $ctx);
+        $hdr = function_exists('http_get_last_response_headers')
+            ? (http_get_last_response_headers() ?? [])
+            : ($http_response_header ?? []);
+        $reached = $r !== false || $hdr !== [];
+        if (!$reached) {
+            return $old ?? false;
+        }
+        $ok = isset($hdr[0]) && preg_match('~^HTTP/\S+\s+2\d\d~', (string) $hdr[0]) === 1;
+        $dir = dirname($cache);
+        if (is_dir($dir) && is_writable($dir)) {
+            @file_put_contents($cache, json_encode(['codename' => $c, 'ok' => $ok, 'at' => time()]), LOCK_EX);
+        }
+
+        return $ok;
+    }
+
+    /** Can this series be installed here (distro/enabled repo, or a PPA that serves this release)? */
+    public static function installable(string $series): bool
+    {
+        return self::aptHas($series) || self::ppaPublished();
+    }
+
+    /** @return list<string> catalog ids not yet installed and installable on this release */
     public static function availableToInstall(): array
     {
         $have = array_fill_keys(self::installedIds(), true);
         $out = [];
         foreach (self::catalogIds() as $id) {
-            if (!isset($have[$id])) {
+            if (isset($have[$id])) {
+                continue;
+            }
+            if (self::installable(self::idToSeries($id))) {
                 $out[] = $id;
             }
         }
 
         return $out;
+    }
+
+    /** @return array{at:int,state:string,message:string}|null last install-site-php run */
+    public static function lastInstall(?string $file = null): ?array
+    {
+        $f = $file ?? (self::programRoot() . '/log/install-site-php.status');
+        if (!is_file($f) || !is_readable($f)) {
+            return null;
+        }
+        $line = trim((string) @file_get_contents($f));
+        if (preg_match('/^(\d{9,11})\|(running|ok|partial|failed)\|(.*)$/', $line, $m) !== 1) {
+            return null;
+        }
+        $msg = trim((string) preg_replace('/[^\x20-\x7e]/', '?', $m[3]));
+        $msg = str_replace(['<', '>', '&', '"', "'"], '', $msg);
+
+        return ['at' => (int) $m[1], 'state' => $m[2], 'message' => substr($msg, 0, 300)];
+    }
+
+    /**
+     * Text for Multiple PHP Install: why nothing is offered, and how the last attempt went.
+     */
+    public static function installNote(?string $statusFile = null): string
+    {
+        $parts = [];
+        $notInstalled = [];
+        $have = array_fill_keys(self::installedIds(), true);
+        foreach (self::catalogIds() as $id) {
+            if (!isset($have[$id])) {
+                $notInstalled[] = $id;
+            }
+        }
+        if ($notInstalled !== [] && self::availableToInstall() === []) {
+            $c = self::codename();
+            $parts[] = 'The other versions (' . implode(', ', $notInstalled) . ') cannot be installed on this server'
+                . ($c !== '' ? ' (Ubuntu ' . $c . ')' : '') . ': Ubuntu does not ship them and ppa:ondrej/php has no packages for this release yet.';
+        }
+        $last = self::lastInstall($statusFile);
+        if ($last !== null) {
+            $label = ['running' => 'still running', 'ok' => 'finished', 'partial' => 'partly done', 'failed' => 'failed'][$last['state']];
+            $parts[] = 'Last install attempt ' . $label . ' (' . gmdate('Y-m-d H:i', $last['at']) . ' UTC): ' . $last['message'] . '.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**
