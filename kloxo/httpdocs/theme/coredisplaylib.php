@@ -429,7 +429,8 @@ function __ac_desc_show($object)
 
 	$show_class = strtolower((string) $object->getClass());
 	$show_table = strtolower((string) $object->get__table());
-	$show_find = !kloxo_skip_find_class($show_class) && !kloxo_skip_find_class($show_table);
+	$show_find = !kloxo_skip_find_class($show_class) && !kloxo_skip_find_class($show_table)
+		&& !kloxo_skip_find_show_class($show_class) && !kloxo_skip_find_show_class($show_table);
 	$show_note = false;
 	try {
 		$show_note = (bool) $object->createShowNote();

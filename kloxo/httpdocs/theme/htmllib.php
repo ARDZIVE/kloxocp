@@ -6967,6 +6967,16 @@ class HtmlLib
 					$imgvar = "<span title='{$a[0]}' class='if32' style='color: {$b[0]};'>&#x{$x};</span>";
 				}
 
+				// Mail Account tiles use local Font Awesome Free SVGs.
+				$faName = self::mailTileFaName($a);
+				if ($faName !== '') {
+					$faColor = ($button_type === 'reverse-font') ? '#fff' : $b[0];
+					$faSvg = self::faTileIcon($faName, $faColor, $a[0]);
+					if ($faSvg !== '') {
+						$imgvar = "<span title='{$a[0]}' class='if32'>{$faSvg}</span>";
+					}
+				}
+
 				if ($a[1] === 'show') {
 					$x = "f0d5";
 				} elseif ($a[1] === 'list') {
@@ -7000,6 +7010,83 @@ class HtmlLib
 			<div class="<?= $cssclass ?>"><span title='<?= $alt ?>'><?= $displayvar ?></span></div>
 		</div>
 <?php
+	}
+
+	/**
+	 * Font Awesome Free icon for a Mail Account dashboard tile, from the button
+	 * form name parts (class, action, subaction); '' keeps the default glyph.
+	 *
+	 * @param array $a
+	 * @return string
+	 */
+	static function mailTileFaName($a)
+	{
+		$c = isset($a[0]) ? (string) $a[0] : '';
+		$x = isset($a[1]) ? (string) $a[1] : '';
+		$y = isset($a[2]) ? (string) $a[2] : '';
+
+		if ($c === 'mailaccount' && $x === 'updateform') {
+			$map = array(
+				'password' => 'key',
+				'limit' => 'sliders',
+				'filter' => 'filter',
+				'configuration' => 'gear',
+				'webmail' => 'envelope-open-text',
+			);
+
+			return isset($map[$y]) ? $map[$y] : '';
+		}
+
+		if ($c === 'forward') {
+			return 'share';
+		}
+
+		if ($c === 'autoresponder' && $x === 'list') {
+			return 'reply';
+		}
+
+		if ($c === 'mailcontent' && $x === 'list') {
+			return 'shield-halved';
+		}
+
+		return '';
+	}
+
+	/**
+	 * Inline Font Awesome Free solid SVG (theme/fontawesome/svgs/solid/NAME.svg,
+	 * CC BY 4.0, see NOTICE) sized for a 32px dashboard tile.
+	 *
+	 * @return string
+	 */
+	static function faTileIcon($name, $color = '#333', $title = '', $height = 32)
+	{
+		static $cache = array();
+
+		$name = preg_replace('/[^a-z0-9-]/', '', strtolower((string) $name));
+		if (!isset($cache[$name])) {
+			$cache[$name] = null;
+			$file = dirname(__DIR__) . '/theme/fontawesome/svgs/solid/' . $name . '.svg';
+			$raw = is_file($file) ? @file_get_contents($file) : false;
+			if (is_string($raw)
+				&& preg_match('/viewBox="0 0 (\d+) (\d+)"/', $raw, $vb) === 1
+				&& preg_match('/<path[^>]*\sd="([^"]+)"/', $raw, $pd) === 1) {
+				$cache[$name] = array((int) $vb[1], (int) $vb[2], $pd[1]);
+			}
+		}
+		if ($cache[$name] === null) {
+			return '';
+		}
+
+		list($vw, $vh, $d) = $cache[$name];
+		$h = (int) $height;
+		$w = (int) round($h * $vw / max(1, $vh));
+		$t = htmlspecialchars((string) $title, ENT_QUOTES);
+		$c = preg_match('/^#[0-9a-fA-F]{3,6}$/', (string) $color) === 1 ? $color : '#333';
+
+		return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' . $vw . ' ' . $vh . '"'
+			. ' width="' . $w . '" height="' . $h . '" role="img" aria-label="' . $t . '"'
+			. ' style="fill:' . $c . ';vertical-align:middle"><title>' . $t . '</title>'
+			. '<path d="' . htmlspecialchars($d, ENT_QUOTES) . '"/></svg>';
 	}
 
 	function get_metro_color()
@@ -7575,7 +7662,9 @@ class HtmlLib
 		global $gbl, $sgbl, $login, $ghtml;
 
 		if (is_object($object) && (kloxo_skip_find_class($object->getClass())
-			|| kloxo_skip_find_class($object->get__table()))) {
+			|| kloxo_skip_find_class($object->get__table())
+			|| kloxo_skip_find_show_class($object->getClass())
+			|| kloxo_skip_find_show_class($object->get__table()))) {
 			return;
 		}
 

@@ -1641,6 +1641,17 @@ function kloxo_skip_find_class($class)
 	return in_array($c, $skip, true);
 }
 
+/**
+ * Pages that drop the left Find box on their own show page only (their list
+ * pages and child lists keep the search toolbar, unlike kloxo_skip_find_class).
+ */
+function kloxo_skip_find_show_class($class)
+{
+	static $skip = array('mailaccount');
+
+	return in_array(strtolower((string)$class), $skip, true);
+}
+
 function kloxo_string($value)
 {
 	if (is_string($value)) {

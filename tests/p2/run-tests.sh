@@ -143,6 +143,11 @@ if php "$HERE/test_autoresponder_form.php"; then
 else
   bad "test_autoresponder_form.php"
 fi
+if php "$HERE/test_mail_tile_icons.php"; then
+  ok "test_mail_tile_icons.php"
+else
+  bad "test_mail_tile_icons.php"
+fi
 if php "$HERE/test_menu_title.php"; then
   ok "test_menu_title.php"
 else

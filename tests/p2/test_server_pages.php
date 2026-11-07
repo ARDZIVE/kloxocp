@@ -595,6 +595,17 @@ if (function_exists('kloxo_skip_find_class')
 	bad('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
 }
 
+$showSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+if (function_exists('kloxo_skip_find_show_class')
+	&& kloxo_skip_find_show_class('mailaccount')
+	&& !kloxo_skip_find_class('mailaccount')
+	&& !kloxo_skip_find_show_class('client')
+	&& str_contains($showSrc, 'kloxo_skip_find_show_class($show_class)')) {
+	ok('Mail Account show page drops the Find box while mail account lists keep their search');
+} else {
+	bad('Mail Account show page drops the Find box while mail account lists keep their search');
+}
+
 $welcomeDefault = Notification::defaultWelcomeMessage();
 $welcomeFile = (string) file_get_contents($root . '/file/welcome.txt');
 $prevLoginN = isset($login) ? $login : null;
