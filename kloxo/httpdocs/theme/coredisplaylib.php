@@ -1340,6 +1340,17 @@ function __ac_desc_UpdateForm($object)
 		} else {
 			do_updateform($object, $sublist);
 		}
+	} catch (lxException $e) {
+		// A deliberate, user-readable refusal (for example "First add some
+		// autoresponders"): show it instead of the generic failure text.
+		log_log("error", "do_updateform: " . $e->getMessage());
+		$msg = trim((string)$e->getMessage());
+		$val = (isset($e->value) && is_string($e->value)) ? trim($e->value) : '';
+		if ($msg === '') {
+			$msg = 'The requested form could not be loaded.';
+		}
+		print('<div class="div_content" style="padding:16px">'
+			. htmlspecialchars($msg . ($val !== '' ? ' ' . $val : ''), ENT_QUOTES) . '</div>');
 	} catch (Throwable $e) {
 		log_log("error", "do_updateform: " . $e->getMessage());
 		print('<div class="div_content" style="padding:16px">The requested form could not be loaded.</div>');

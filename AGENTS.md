@@ -188,7 +188,7 @@ on the list page; there is no separate Add Server tab. Adding a domain no longer
 `Unsupported operand types: string + int`: quota counters (`priv`/`used`) are strings (`''`, `Unlimited`), and
 `changeUsedFromParent`, `check_priv`, `getEffectivePriv`, parent-quota checks and `delete` now do arithmetic through
 `kloxo_quota_num()` (`lib/php/lxlib.php`; `tests/p2/test_quota_math.php`). The rest of the domain-add path (DB writes,
-web/DNS/mail sync) was not run without a live panel DB; live Add Domain after deploy is UNVERIFIED. Adding a client does
+web/DNS/mail sync) was not run without a live panel DB; live Add Domain after deploy is UNVERIFIED. Mail Account > Set Auto Responder with no autoresponders shows the real message ("First add some autoresponders") instead of "The requested form could not be loaded." (`do_updateform` catch in `theme/coredisplaylib.php` prints `lxException` text; `tests/p2/test_autoresponder_form.php`; live UNVERIFIED). Adding a client does
 not implode() a string (contact email / coma_* lists), does not TypeError
 on a missing plan priv/listpriv or parent quota, and chowns the home to
 www-data on Ubuntu. Adding a Resource Plan

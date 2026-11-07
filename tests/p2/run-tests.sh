@@ -138,6 +138,11 @@ if php "$HERE/test_quota_math.php"; then
 else
   bad "test_quota_math.php"
 fi
+if php "$HERE/test_autoresponder_form.php"; then
+  ok "test_autoresponder_form.php"
+else
+  bad "test_autoresponder_form.php"
+fi
 if php "$HERE/test_menu_title.php"; then
   ok "test_menu_title.php"
 else
