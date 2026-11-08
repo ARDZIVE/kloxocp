@@ -39,6 +39,8 @@
 	var KEY = 'kloxo-busy';
 	var MAX_AGE = 15 * 60 * 1000;   // a flag older than this is a navigation that never finished
 	var DEFAULT_TEXT = 'Please wait...';
+	// The modal is 70% transparent: backdrop and box are 30% opaque, the spinner and text stay solid.
+	var OPACITY = 0.3;
 
 	var overlay = null;
 	var label = null;
@@ -106,10 +108,11 @@
 		css.type = 'text/css';
 		css.appendChild(doc.createTextNode(
 			'#kloxo-busy{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;' +
-			'background:rgba(0,0,0,.45);align-items:center;justify-content:center}' +
+			'background:rgba(0,0,0,' + OPACITY + ');align-items:center;justify-content:center}' +
 			'#kloxo-busy.on{display:flex}' +
-			'#kloxo-busy .kb-box{background:#fff;border-radius:8px;padding:22px 34px;min-width:200px;' +
-			'text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4);font:14px Arial,Helvetica,sans-serif;color:#333}' +
+			'#kloxo-busy .kb-box{background:rgba(255,255,255,' + OPACITY + ');border-radius:8px;padding:22px 34px;min-width:200px;' +
+			'text-align:center;font:bold 14px Arial,Helvetica,sans-serif;color:#222;' +
+			'text-shadow:0 0 4px #fff,0 0 4px #fff}' +
 			'#kloxo-busy img{width:64px;height:64px;display:block;margin:0 auto 10px}'
 		));
 		(doc.head || doc.getElementsByTagName('head')[0] || host).appendChild(css);
