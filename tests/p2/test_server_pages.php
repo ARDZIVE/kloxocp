@@ -4098,6 +4098,75 @@ $GLOBALS['login'] = $f2bPrevLogin;
 $gbl = $f2bPrevGbl;
 $ghtml = $f2bPrevHtml;
 
+$navPrevLogin = isset($login) ? $login : null;
+$navPrevGblNavig = (isset($gbl) && is_object($gbl) && isset($gbl->__navig)) ? $gbl->__navig : null;
+$navPrevGblMenu = (isset($gbl) && is_object($gbl) && isset($gbl->__navigmenu)) ? $gbl->__navigmenu : null;
+$navPrevHtml = $ghtml;
+try {
+	$navAdmin = new Client(null, 'localhost', 'admin');
+	$navAdmin->nname = 'admin';
+	$login = $navAdmin;
+	$GLOBALS['login'] = $navAdmin;
+	$navOther = new Client(null, 'localhost', 'bob');
+	$navOther->nname = 'bob';
+	$navClone = new Client(null, 'localhost', 'admin');
+	$navClone->nname = 'admin';
+	$sameLogin = kloxo_navig_is_login_object($navAdmin);
+	$cloneLogin = kloxo_navig_is_login_object($navClone);
+	$otherLogin = kloxo_navig_is_login_object($navOther);
+	$ghtml->__http_vars['frm_action'] = 'list';
+	$ghtml->__http_vars['frm_o_cname'] = 'client';
+	$ghtml->__http_vars['frm_o_o'] = array(
+		array('class' => 'client', 'nname' => 'admin'),
+	);
+	unset($ghtml->frm_action, $ghtml->frm_o_cname, $ghtml->frm_o_o, $ghtml->frm_consumedlogin);
+	createPrincipleObject();
+	$nav = (isset($gbl->__navig) && is_array($gbl->__navig)) ? $gbl->__navig : array();
+	$navMenu = (isset($gbl->__navigmenu) && is_array($gbl->__navigmenu)) ? $gbl->__navigmenu : array();
+	$listCrumbs = 0;
+	$showAfterFirst = 0;
+	foreach ($navMenu as $i => $m) {
+		$kind = (is_array($m) && isset($m[0])) ? $m[0] : '';
+		if ($kind === 'list') {
+			$listCrumbs++;
+		}
+		if ($i > 0 && $kind === 'show') {
+			$showAfterFirst++;
+		}
+	}
+	$navSrc = (string) file_get_contents($doc . '/lib/html/objectactionlib.php');
+	$navHtmlSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+	$navOk = $sameLogin === true && $cloneLogin === true && $otherLogin === false
+		&& count($nav) === 1 && isset($nav[0]['frm_action']) && $nav[0]['frm_action'] === 'show'
+		&& $listCrumbs === 0 && $showAfterFirst === 0
+		&& str_contains($navSrc, 'function kloxo_navig_is_login_object')
+		&& str_contains($navSrc, 'kloxo_navig_is_login_object($object)')
+		&& str_contains($navHtmlSrc, "\$menu0 === 'list'");
+	if ($navOk) {
+		ok('Clients list breadcrumb does not repeat Clients — admin');
+	} else {
+		bad('Clients list breadcrumb does not repeat Clients — admin',
+			'same=' . ($sameLogin ? 'y' : 'n')
+				. ' clone=' . ($cloneLogin ? 'y' : 'n')
+				. ' other=' . ($otherLogin ? 'y' : 'n')
+				. ' crumbs=' . count($nav)
+				. ' list=' . (string) $listCrumbs
+				. ' extraShow=' . (string) $showAfterFirst);
+	}
+} catch (Throwable $e) {
+	bad('Clients list breadcrumb does not repeat Clients — admin',
+		$e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+}
+$login = $navPrevLogin;
+$GLOBALS['login'] = $navPrevLogin;
+if (isset($gbl) && is_object($gbl)) {
+	$gbl->__navig = $navPrevGblNavig;
+	$gbl->__navigmenu = $navPrevGblMenu;
+}
+if ($navPrevHtml !== null) {
+	$ghtml = $navPrevHtml;
+}
+
 $pwSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $lxSrc = (string) file_get_contents($doc . '/lib/client/lxclient.php');
 if (str_contains($pwSrc, "unset(\$ghtml->__http_vars['frm_o_o']")

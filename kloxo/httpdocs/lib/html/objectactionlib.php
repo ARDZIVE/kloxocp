@@ -322,6 +322,36 @@ function get_v_descr($stuff, $v = null)
 	return $desc[2];
 }
 
+function kloxo_navig_is_login_object($object)
+{
+	global $login;
+
+	if (!is_object($object)) {
+		return false;
+	}
+	try {
+		if (method_exists($object, 'isLogin') && $object->isLogin()) {
+			return true;
+		}
+	} catch (Throwable $e) {
+	}
+	if (!is_object($login)) {
+		return false;
+	}
+	try {
+		if (method_exists($object, 'getClName') && method_exists($login, 'getClName')) {
+			$a = (string) $object->getClName();
+			$b = (string) $login->getClName();
+			if ($a !== '' && $a === $b) {
+				return true;
+			}
+		}
+	} catch (Throwable $e) {
+	}
+
+	return false;
+}
+
 function createPrincipleObject()
 {
 	global $gbl, $sgbl, $login, $ghtml; 
@@ -362,6 +392,12 @@ function createPrincipleObject()
 
 			if (!$object) {
 				break;
+			}
+
+			// frm_o_o often repeats the signed-in client (admin). That added
+			// "Clients — admin" before {Clients}. The first crumb is already Home.
+			if (kloxo_navig_is_login_object($object)) {
+				continue;
 			}
 
 			if (!$object->isLogin() && !is_object($object->getParentO())) {

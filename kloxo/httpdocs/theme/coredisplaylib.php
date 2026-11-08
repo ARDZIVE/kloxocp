@@ -2178,6 +2178,17 @@ function print_navigation($navig)
 		}
 
 		foreach ((array)$navig as $k => $h) {
+			$menu0 = (isset($navigmenu[$k][0]) && is_string($navigmenu[$k][0])) ? $navigmenu[$k][0] : '';
+			$menuObj = (isset($navigmenu[$k][1]) && is_object($navigmenu[$k][1])) ? $navigmenu[$k][1] : null;
+			$nextObj = (isset($navigmenu[$k + 1][1]) && is_object($navigmenu[$k + 1][1])) ? $navigmenu[$k + 1][1] : null;
+			if ($k > 0 && $menuObj && function_exists('kloxo_navig_is_login_object')
+				&& kloxo_navig_is_login_object($menuObj)) {
+				continue;
+			}
+			if ($k > 0 && $menu0 === 'list' && $nextObj && function_exists('kloxo_navig_is_login_object')
+				&& kloxo_navig_is_login_object($nextObj)) {
+				continue;
+			}
 			//You have to actually get only the filters of the parents of this object. But let us just print all the filters anyway.
 			$url = $ghtml->get_get_from_post(null, $h);
 			$url = "/display.php?$url";

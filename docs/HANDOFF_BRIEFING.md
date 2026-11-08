@@ -707,7 +707,10 @@ Work in this order. Keep every change small, tested and committed separately. Do
    (`Mmail::getWebmailProgList`). Live webmail install on Ubuntu is
    **UNVERIFIED**.
    Home show no longer fatals on a null `used` object,
-   missing driver row, or admin `getParentO()`. Browser login against
+   missing driver row, or admin `getParentO()`. The beige navigation
+   crumb skips the signed-in client in `frm_o_o`, so Clients is
+   `admin — {Clients}` (not `admin — Clients — admin — {Clients}`).
+   Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
    opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
    `kloxo_pma`@`127.0.0.1` (not root: unix_socket) via `kloxo-signon.php` (`auth_type=signon`,

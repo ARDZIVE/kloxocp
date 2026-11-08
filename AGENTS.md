@@ -211,7 +211,8 @@ accepts a display name with spaces (sanitized to a plan id).
 (all interfaces); plaintext 7776 stays on localhost. Live two-host add is unverified.
 Home keeps
 Find / Information / Resource on the left and the dashboard tiles
-on the right.
+on the right. The beige navigation crumb does not repeat the signed-in
+client (`admin — {Clients}`, not `admin — Clients — admin — {Clients}`).
 First-party `ereg*`/`split`
 and live theme `escape`/`document.all` are gone. Browser login as
 admin/admin against the live panel succeeded; every page still died
