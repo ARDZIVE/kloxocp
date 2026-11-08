@@ -117,7 +117,13 @@ $svcDummy = new Service(null, 'localhost', 'knot___localhost');
 $svcDummy->servicename = 'knot';
 $svcDummy->state = 'off';
 $svcDummy->dbaction = 'clean';
-$svcDummy->updateStart(array());
+$svcDummyStarted = false;
+try {
+	$svcDummy->updateStart(array());
+	$svcDummyStarted = $svcDummy->subaction === 'start';
+} catch (Throwable $e) {
+	$svcDummyStarted = str_contains($e->getMessage(), 'not installed');
+}
 $svcFiltered = Service::onlyInstalledRows(array(
 	array('nname' => 'nginx___localhost', 'install_state' => 'on', 'state' => 'on'),
 	array('nname' => 'knot___localhost', 'install_state' => 'dull', 'state' => 'off'),
@@ -141,18 +147,21 @@ if (Service::canGetSingle()
 	&& in_array('postfix', Service::defaultServiceList(), true)
 	&& in_array('fail2ban', Service::defaultServiceList(), true)
 	&& in_array('ufw', Service::defaultServiceList(), true)
+	&& in_array('redis-server', Service::defaultServiceList(), true)
+	&& in_array('kloxo-backend', Service::defaultServiceList(), true)
 	&& isset(Service__Linux::getMainServiceList()['fail2ban'])
 	&& isset(Service__Linux::getMainServiceList()['ufw'])
 	&& Service::serviceDescription('ufw') === 'UFW Firewall'
 	&& Service::serviceDescription('fail2ban') === 'Fail2Ban'
 	&& Service__Linux::unitName('knot') === 'knot'
-	&& $svcDummy->subaction === 'start'
+	&& $svcDummyStarted
 	&& str_contains($debSrc, 'Service__Linux::systemctlRun')
 	&& str_contains($debSrc, "case 'start':")
 	&& str_contains($debSrc, "include_once __DIR__")
-	&& count($svcFiltered) === 2
+	&& count($svcFiltered) === 3
 	&& ($svcFiltered[0]['nname'] ?? '') === 'nginx___localhost'
-	&& ($svcFiltered[1]['nname'] ?? '') === 'apache2___localhost'
+	&& ($svcFiltered[1]['nname'] ?? '') === 'knot___localhost'
+	&& ($svcFiltered[2]['nname'] ?? '') === 'apache2___localhost'
 	&& is_array($svcMissing) && ($svcMissing['missing']['install_state'] ?? '') === 'dull'
 	&& ($svcMissing['missing']['state'] ?? '') === 'off'
 	&& in_array('named', $svcBindCands, true) && in_array('bind9', $svcBindCands, true)
@@ -234,11 +243,55 @@ if (($secProbe['fail2ban']['install_state'] ?? '') === 'on'
 		json_encode($secProbe));
 }
 
+$prevShow = Service__Linux::$showProbe;
+Service__Linux::$showProbe = static function (string $u, string $p): string {
+	if ($u !== 'nginx') {
+		return '';
+	}
+	if ($p === 'LoadState') {
+		return 'loaded';
+	}
+	if ($p === 'ActiveState') {
+		return 'active';
+	}
+	if ($p === 'SubState') {
+		return 'running';
+	}
+	if ($p === 'UnitFileState') {
+		return 'enabled';
+	}
+
+	return '';
+};
+$stProbe = Service__Linux::getServiceDetails(array(
+	'nginx' => array('servicename' => 'nginx', 'nname' => 'nginx___localhost'),
+	'missing' => array('servicename' => 'kloxo-no-such-unit-xyz', 'nname' => 'missing___localhost'),
+));
+Service__Linux::$showProbe = $prevShow;
+$svcObjStatus = new Service(null, 'localhost', 'nginx___localhost');
+$svcObjStatus->install_state = 'on';
+$svcObjStatus->active_state = 'active';
+$svcObjStatus->sub_state = 'running';
+$svcListSrc = (string) file_get_contents($doc . '/driver/pserver/servicelib.php');
+if (($stProbe['nginx']['status_f'] ?? '') === 'active (running)'
+	&& ($stProbe['missing']['status_f'] ?? '') === 'not installed'
+	&& $svcObjStatus->display('status_f') === 'active (running)'
+	&& str_contains($svcListSrc, '$nlist["status_f"]')
+	&& Service__Linux::formatStatus('inactive', 'dead', true) === 'inactive (dead)'
+	&& Service__Linux::formatStatus('', '', false) === 'not installed'
+	&& in_array('kloxo-web', Service__Linux::unitCandidates('hiawatha'), true)) {
+	ok('Services list shows exact systemd status like the recovery console');
+} else {
+	bad('Services list shows exact systemd status like the recovery console',
+		json_encode($stProbe));
+}
+
 $svcPostfixCands = Service__Linux::unitCandidates('postfix');
 $svcPostfixKeep = Service::onlyInstalledRows(array(
 	array('nname' => 'nginx___localhost', 'servicename' => 'nginx', 'install_state' => 'on', 'state' => 'on'),
 	array('nname' => 'postfix___localhost', 'servicename' => 'postfix', 'install_state' => 'dull', 'state' => 'off'),
 	array('nname' => 'knot___localhost', 'servicename' => 'knot', 'install_state' => 'dull', 'state' => 'off'),
+	array('nname' => 'ghost___localhost', 'servicename' => 'kloxo-no-such-unit-xyz', 'install_state' => 'dull', 'state' => 'off'),
 ));
 $prevShow = Service__Linux::$showProbe;
 $prevFs = Service__Linux::$fsRoot;
@@ -277,9 +330,11 @@ exec('rm -rf ' . escapeshellarg($tmpPostfix));
 if (in_array('postfix@-', $svcPostfixCands, true)
 	&& Service__Linux::preferredServiceName('postfix@-') === 'postfix'
 	&& Service::alwaysListedService('postfix')
-	&& count($svcPostfixKeep) === 2
+	&& Service::alwaysListedService('knot')
+	&& count($svcPostfixKeep) === 3
 	&& ($svcPostfixKeep[0]['servicename'] ?? '') === 'nginx'
 	&& ($svcPostfixKeep[1]['servicename'] ?? '') === 'postfix'
+	&& ($svcPostfixKeep[2]['servicename'] ?? '') === 'knot'
 	&& $postfixAliasUnit === 'postfix@-'
 	&& ($postfixAlias['postfix']['install_state'] ?? '') === 'on'
 	&& $postfixTemplate) {

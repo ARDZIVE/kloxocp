@@ -20,6 +20,7 @@ class Service extends Lxdb
 	static $__desc_boot_state_v_dull = array("", "", "service_not_installed");
 
 	static $__desc_state = array("e", "", "state", URL_TOGGLE_STATE);
+	static $__desc_status_f = array("", "", "status");
 	static $__desc_button_stop_f = array("b", "", "stop", "a=update&sa=stop");
 	static $__desc_button_restart_f = array("b", "", "restart", "a=update&sa=restart");
 	static $__desc_button_start_f = array("b", "", "start", "a=update&sa=start");
@@ -87,6 +88,17 @@ class Service extends Lxdb
 		$this->install_state = 'on';
 		$this->state = $live['state'];
 		$this->boot_state = $live['boot_state'];
+		if (isset($live['active_state'])) {
+			$this->active_state = $live['active_state'];
+		}
+		if (isset($live['sub_state'])) {
+			$this->sub_state = $live['sub_state'];
+		}
+		$this->status_f = Service__Linux::formatStatus(
+			isset($this->active_state) ? (string) $this->active_state : '',
+			isset($this->sub_state) ? (string) $this->sub_state : '',
+			true
+		);
 
 		return true;
 	}
@@ -94,7 +106,7 @@ class Service extends Lxdb
 	/** Set by tests to replace the systemd probe (callable(string): ?array). */
 	public static $liveStateProbe = null;
 
-	/** @return array{state:string,boot_state:string}|null null: not a local systemd unit */
+	/** @return array{state:string,boot_state:string,active_state?:string,sub_state?:string}|null */
 	static function probeLiveState($svc)
 	{
 		if (is_callable(self::$liveStateProbe)) {
@@ -107,10 +119,13 @@ class Service extends Lxdb
 		if ($unit === '') {
 			return null;
 		}
+		$active = Service__Linux::systemdShow($unit, 'ActiveState');
 
 		return array(
-			'state' => Service__Linux::systemdShow($unit, 'ActiveState') === 'active' ? 'on' : 'off',
+			'state' => $active === 'active' ? 'on' : 'off',
 			'boot_state' => Service__Linux::bootStateOn($unit) ? 'on' : 'off',
+			'active_state' => $active,
+			'sub_state' => Service__Linux::systemdShow($unit, 'SubState'),
 		);
 	}
 
@@ -216,6 +231,7 @@ class Service extends Lxdb
 	//	$nlist["install_state"] = "5%";
 		$nlist["boot_state"] = "5%";
 		$nlist["state"] = "5%";
+		$nlist["status_f"] = "12%";
 	//	$nlist["nname"] = "10%";
 	//	$nlist["syncserver"] = "10%";
 		$nlist["servicename"] = "10%";
@@ -266,8 +282,10 @@ class Service extends Lxdb
 			// e.g. Exim after Switch Program picked Postfix: the package is gone, only the row stays
 			throw new lxException("{$svc} is not installed (it was replaced in Switch Program); select it there to install it again", '', $svc);
 		}
-		if (Service__Linux::resolveInstalledUnit($svc) === '' && self::alwaysListedService($svc)) {
-			throw new lxException("{$svc} is not installed; select it in Switch Program", '', $svc);
+		if (Service__Linux::resolveInstalledUnit($svc) === ''
+			&& self::alwaysListedService($svc)
+			&& (!isset($this->install_state) || $this->install_state !== 'on')) {
+			throw new lxException("{$svc} is not installed", '', $svc);
 		}
 		if (Service__Linux::mayControlUnit($unit, (string) $act)) {
 			return;
@@ -322,12 +340,22 @@ class Service extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		if ($var === 'status_f') {
+			$installed = isset($this->install_state) && $this->install_state === 'on';
+			$active = isset($this->active_state) ? (string) $this->active_state : '';
+			$sub = isset($this->sub_state) ? (string) $this->sub_state : '';
+			if ($active === '' && isset($this->state) && $this->state === 'on') {
+				$active = 'active';
+			}
+
+			return Service__Linux::formatStatus($active, $sub, $installed);
+		}
 		if ($var === 'state' || $var === 'boot_state') {
 			if ($this->install_state === 'dull') {
 				return 'dull';
 			}
 		}
-		
+
 		return parent::display($var);
 	}
 
@@ -471,7 +499,8 @@ class Service extends Lxdb
 		return array(
 			'nginx', 'apache2', 'bind9', 'knot', 'exim4', 'postfix', 'dovecot',
 			'rspamd', 'mariadb', 'php-fpm', 'kloxo-php', 'hiawatha', 'pure-ftpd',
-			'fail2ban', 'ufw',
+			'fail2ban', 'ufw', 'redis-server', 'kloxo-webcache', 'kloxo-webproxy',
+			'kloxo-backend', 'kloxo-watchdog',
 		);
 	}
 
@@ -511,13 +540,17 @@ class Service extends Lxdb
 
 	/**
 	 * Catalog names that stay on the Services list even when the package is not
-	 * installed (dull row). Postfix cannot be co-installed with Exim, so the
-	 * default SMTP leaves it missing; the row still has to be visible the way
-	 * recovery lists it. Icons refuse until Switch Program installs it.
+	 * installed (dull row), matching the recovery console. Icons refuse until
+	 * the unit is installed (Switch Program for Postfix/Apache/Knot).
 	 */
 	static function alwaysListedService($svc)
 	{
-		return (string) $svc === 'postfix';
+		$svc = (string) $svc;
+		if (in_array($svc, self::defaultServiceList(), true)) {
+			return true;
+		}
+
+		return preg_match('/^php[0-9.]+-fpm$/', $svc) === 1;
 	}
 
 	static function onlyInstalledRows($rows)
@@ -598,6 +631,7 @@ class Service extends Lxdb
 				'boot_state' => 'off',
 				'state' => 'off',
 				'install_state' => 'dull',
+				'status_f' => 'not installed',
 			);
 		}
 

@@ -472,13 +472,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `Service__Debian::getServiceDetails` and `systemctl` for
     start/stop/restart; a missing `knot___localhost` row no longer
     blanks the page (`Service::canGetSingle` + `initThisObject`).
-    The Services list omits units that are not installed except **postfix**,
-    which stays as a dull/not_installed row (Debian will not co-install it with
-    Exim; Switch Program SMTP=postfix is what apt-installs it). Ubuntu
-    `postfix.service` is often an alias of `postfix@-.service`;
-    `unitCandidates` includes `postfix@-` / `postfix@` and `LoadState=alias`
-    counts as installed. Running/boot state come from systemd `ActiveState` /
-    `UnitFileState` (bind9→named, mariadb→mariadbd, php-fpm→phpX.Y-fpm). Catalog includes
+    The Services list keeps the catalog (installed or dull), matching recovery,
+    with a **Status** column of exact systemd `ActiveState (SubState)` (for
+    example `active (running)`). Debian will not co-install Postfix with Exim;
+    that row stays dull until Switch Program SMTP=postfix. Ubuntu
+    `postfix.service` is often an alias of `postfix@-.service`; `hiawatha`
+    resolves to `kloxo-web`. `systemctl --system` is used. Running/boot state
+    come from systemd `ActiveState` / `UnitFileState` (bind9→named,
+    mariadb→mariadbd, php-fpm→phpX.Y-fpm). Catalog includes
     fail2ban and ufw (UFW Firewall). Live Services
     after deploy is **UNVERIFIED**.
     Component Info has a
@@ -541,20 +542,22 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   through `rl_exec_get` to kloxo-backend. `kloxo-backend` (master) now starts without the
   database (`db_degraded`) and loads it when it returns; `lx_exception_handler` answers a
   DB-down mysqli error (2002/2003/2006/2013) with a 503 linking `/recovery/`; `kloxo-web` and
-  MariaDB restart on failure.   `KloxoRecovery::states()` keys `systemctl show` blocks by the catalog name and by
-  `Names`/`Id` and the real units `named` / `postfix@-` so Debian `bind9.service`
-  (alias of `named.service`) and `postfix.service` (often `postfix@-.service`) are
-  not listed as not installed; start/stop/journal use the canonical unit. An **Enable at boot**
+  MariaDB restart on failure.   `KloxoRecovery::states()` uses `systemctl --system show`, keys blocks by
+  `Names`/`Id` (never argument index), asks for the real units `named` /
+  `postfix@-`, retries any catalog name that still looks missing, and treats a
+  unit file or cgroup as installed when systemd says not-found. The overview
+  prints exact status `ActiveState (SubState)`. Start/stop/journal use the
+  canonical unit. An **Enable at boot**
   button (`systemctl enable`) is shown on a row whose UnitFileState is not already
   enabled/static. The catalog includes **postfix**. Starting, restarting or
   enabling nginx/apache2, bind9/knot or exim4/postfix stops and disables the
   other of the pair (held so the watchdog does not bring it back). Tests: `tests/p2/test_recovery.php`
-  (fake systemctl/journalctl, including the bind9→named alias);
+  (76 checks, fake systemctl/journalctl, including the bind9→named alias);
   a real backend was also run in a temp tree with the DB unreachable and a non-root client
   call round-tripped through it. The login, overview and journal pages use the panel
   red/beige/green (inline CSS; CSP still `style-src 'unsafe-inline'`). Overview columns
   are Application, State, Actions, At boot, Watchdog, Log so Start/Stop stay on screen;
-  inactive units omit SubState; installed rows come first. Checked against HTML dumps
+  State is `ActiveState (SubState)`; installed rows come first. Checked against HTML dumps
   in a local browser. **UNVERIFIED:** real systemd as root, Hiawatha/FPM serving
   the page, a reboot with MariaDB failing, `/recovery` without trailing slash, live bind9
   row on Ubuntu.

@@ -344,6 +344,22 @@ CSS;
     }
 
     /**
+     * systemd-style "active (running)" / "inactive (dead)" / "failed (failed)".
+     *
+     * @param array{name:string,unit:string,installed:bool,active:string,sub:string,enabled:string,self:bool} $s
+     */
+    private static function formatState(array $s): string
+    {
+        $active = $s['active'] !== '' ? $s['active'] : 'unknown';
+        $sub = $s['sub'];
+        if ($sub !== '' && $sub !== $active) {
+            return $active . ' (' . $sub . ')';
+        }
+
+        return $active;
+    }
+
+    /**
      * @param array{name:string,unit:string,installed:bool,active:string,sub:string,enabled:string,self:bool} $s
      * @param array{updated:int,units:array<string,array<string,mixed>>} $wd
      */
@@ -400,18 +416,15 @@ CSS;
         foreach (array_merge($installed, $missing) as $s) {
             $n = self::h($s['name']);
             if (!$s['installed']) {
-                $h .= '<tr class="mute"><td>' . $n . '</td><td colspan="5">not installed</td></tr>';
+                $h .= '<tr class="mute"><td>' . $n . '</td><td><span class="pill pill-mute">not installed</span></td>'
+                    . '<td></td><td></td><td></td><td></td></tr>';
                 continue;
             }
             $cls = $s['active'] === 'active' ? 'ok' : ($s['active'] === 'failed' ? 'bad' : 'mute');
             $pill = $s['active'] === 'active' ? 'pill-ok' : ($s['active'] === 'failed' ? 'pill-bad' : 'pill-mute');
             $bootPill = KloxoRecovery::isEnabledAtBoot($s['enabled']) ? 'pill-ok' : 'pill-mute';
-            $state = $s['active'];
-            if ($s['sub'] !== '' && !in_array($s['active'], ['inactive', 'unknown'], true)) {
-                $state .= ' / ' . $s['sub'];
-            }
             $h .= '<tr><td class="name"><strong>' . $n . '</strong>' . ($s['self'] ? ' <span class="tag">(panel)</span>' : '') . '</td>'
-                . '<td class="' . $cls . '"><span class="pill ' . $pill . '">' . self::h($state) . '</span></td>'
+                . '<td class="' . $cls . '"><span class="pill ' . $pill . '">' . self::h(self::formatState($s)) . '</span></td>'
                 . '<td class="actions">';
             $btn = ['start' => 'btn btn-start', 'stop' => 'btn btn-stop', 'restart' => 'btn btn-restart'];
             foreach (['start', 'stop', 'restart'] as $act) {

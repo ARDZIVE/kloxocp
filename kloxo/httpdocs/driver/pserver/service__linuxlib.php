@@ -78,6 +78,11 @@ class Service__Linux extends Lxlclass
 
 		$nval['pure-ftpd'] = 'pure-ftpd';
 		$nval['kloxo-php'] = 'kloxo-php';
+		$nval['kloxo-web'] = 'kloxo-web';
+		$nval['kloxo-backend'] = 'kloxo-backend';
+		$nval['kloxo-watchdog'] = 'kloxo-watchdog';
+		$nval['redis-server'] = 'redis-server';
+		$nval['redis'] = 'redis-server';
 
 		$nval['iptables'] = "iptables";
 		$nval['firewalld'] = "firewalld";
@@ -358,7 +363,7 @@ class Service__Linux extends Lxlclass
 
 			return $res;
 		}
-		$args = array($bin);
+		$args = array($bin, '--system');
 		if (in_array($act, array('start', 'stop', 'restart'), true)) {
 			$args[] = '--no-block';
 		}
@@ -378,7 +383,7 @@ class Service__Linux extends Lxlclass
 				0 => array('file', '/dev/null', 'r'),
 				1 => array('pipe', 'w'),
 				2 => array('pipe', 'w'),
-			), $pipes);
+			), $pipes, null, self::systemctlEnv());
 		} catch (Throwable $e) {
 			$res['err'] = 'cannot run systemctl';
 
@@ -550,6 +555,10 @@ class Service__Linux extends Lxlclass
 			'postfix' => 'postfix',
 			'postfix@-' => 'postfix',
 			'postfix@' => 'postfix',
+			'redis' => 'redis-server',
+			'redis-server' => 'redis-server',
+			'kloxo-web' => 'hiawatha',
+			'hiawatha' => 'hiawatha',
 		);
 
 		return isset($map[$name]) ? $map[$name] : $name;
@@ -602,14 +611,18 @@ class Service__Linux extends Lxlclass
 			'named' => array('named', 'bind9'),
 			'httpd' => array('httpd', 'apache2'),
 			'apache2' => array('apache2', 'httpd'),
-			'mariadb' => array('mariadb', 'mysql', 'mysqld'),
-			'mysql' => array('mysql', 'mariadb', 'mysqld'),
-			'mysqld' => array('mysqld', 'mariadb', 'mysql'),
+			'mariadb' => array('mariadb', 'mysql', 'mysqld', 'mariadbd'),
+			'mysql' => array('mysql', 'mariadb', 'mysqld', 'mariadbd'),
+			'mysqld' => array('mysqld', 'mariadb', 'mysql', 'mariadbd'),
 			'knot' => array('knot'),
 			'exim4' => array('exim4', 'exim'),
 			'exim' => array('exim', 'exim4'),
 			'postfix' => array('postfix', 'postfix@-'),
 			'pure-ftpd' => array('pure-ftpd', 'pure-ftpd-mysql'),
+			'redis-server' => array('redis-server', 'redis'),
+			'redis' => array('redis', 'redis-server'),
+			'hiawatha' => array('hiawatha', 'kloxo-web'),
+			'kloxo-web' => array('kloxo-web', 'hiawatha'),
 		);
 		$cands = isset($map[$name]) ? $map[$name] : array($name);
 		if ($name === 'php-fpm' || preg_match('/^php[0-9.]+-fpm$/', $name) === 1) {
@@ -629,6 +642,21 @@ class Service__Linux extends Lxlclass
 	/** Set by tests: callable(string $unit, string $prop): string replacing `systemctl show`. */
 	public static $showProbe = null;
 
+	/** @return array<string,string> */
+	static function systemctlEnv()
+	{
+		$prev = getenv();
+		$env = is_array($prev) ? $prev : array();
+		$env['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+		$env['LC_ALL'] = 'C';
+		$env['LANG'] = 'C';
+		$env['SYSTEMD_COLORS'] = '0';
+		$env['SYSTEMD_PAGER'] = '';
+		unset($env['DBUS_SESSION_BUS_ADDRESS'], $env['XDG_RUNTIME_DIR']);
+
+		return $env;
+	}
+
 	static function systemdShow($unit, $prop)
 	{
 		if (is_callable(self::$showProbe) && self::isSafeUnit($unit) && self::isSafeUnit($prop)) {
@@ -644,11 +672,11 @@ class Service__Linux extends Lxlclass
 			return '';
 		}
 		try {
-			$p = @proc_open(array($bin, 'show', '-p', $prop, '--value', $unit), array(
+			$p = @proc_open(array($bin, '--system', 'show', '--no-pager', '-p', $prop, '--value', $unit), array(
 				0 => array('file', '/dev/null', 'r'),
 				1 => array('pipe', 'w'),
 				2 => array('pipe', 'w'),
-			), $pipes);
+			), $pipes, null, self::systemctlEnv());
 		} catch (Throwable $e) {
 			return '';
 		}
@@ -767,7 +795,7 @@ class Service__Linux extends Lxlclass
 		}
 		$load = self::systemdShow($unit, 'LoadState');
 
-		return $load === 'loaded' || $load === 'masked' || $load === 'alias';
+		return in_array($load, array('loaded', 'masked', 'alias', 'stub', 'merged'), true);
 	}
 
 	/**
@@ -933,6 +961,21 @@ class Service__Linux extends Lxlclass
 		return false;
 	}
 
+	/** systemd-style "active (running)" / "inactive (dead)" / "not installed". */
+	static function formatStatus($active, $sub, $installed)
+	{
+		if (!$installed) {
+			return 'not installed';
+		}
+		$active = is_string($active) && $active !== '' ? $active : 'unknown';
+		$sub = is_string($sub) ? $sub : '';
+		if ($sub !== '' && $sub !== $active) {
+			return $active . ' (' . $sub . ')';
+		}
+
+		return $active;
+	}
+
 	static function getServiceDetails($list)
 	{
 		if (!is_array($list)) {
@@ -950,6 +993,9 @@ class Service__Linux extends Lxlclass
 			$__l['install_state'] = 'dull';
 			$__l['state'] = 'off';
 			$__l['boot_state'] = 'off';
+			$__l['active_state'] = '';
+			$__l['sub_state'] = '';
+			$__l['status_f'] = 'not installed';
 
 			$svc = isset($__l['servicename']) ? (string) $__l['servicename'] : '';
 			$unit = self::resolveInstalledUnit($svc);
@@ -991,14 +1037,18 @@ class Service__Linux extends Lxlclass
 			}
 
 			$__l['install_state'] = 'on';
-			if (self::hasSystemd()) {
-				$__l['state'] = self::systemdShow($unit, 'ActiveState') === 'active' ? 'on' : 'off';
+			if (self::hasSystemd() || is_callable(self::$showProbe)) {
+				$__l['active_state'] = self::systemdShow($unit, 'ActiveState');
+				$__l['sub_state'] = self::systemdShow($unit, 'SubState');
+				$__l['state'] = $__l['active_state'] === 'active' ? 'on' : 'off';
 				$__l['boot_state'] = self::bootStateOn($unit) ? 'on' : 'off';
 			} else {
 				$__l['boot_state'] = self::checkServiceOn($unit) ? 'on' : 'off';
 				$grep = isset($__l['grepstring']) ? (string) $__l['grepstring'] : $unit;
 				$__l['state'] = (self::processIsRunning($unit) || self::processIsRunning($grep)) ? 'on' : 'off';
+				$__l['active_state'] = $__l['state'] === 'on' ? 'active' : 'inactive';
 			}
+			$__l['status_f'] = self::formatStatus($__l['active_state'], $__l['sub_state'], true);
 		}
 		unset($__l);
 

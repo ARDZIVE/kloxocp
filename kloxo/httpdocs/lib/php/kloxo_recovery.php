@@ -78,8 +78,17 @@ final class KloxoRecovery
      */
     private const UNIT_ALIASES = [
         'bind9' => ['named'],
+        'named' => ['bind9'],
         'postfix' => ['postfix@-'],
+        'mariadb' => ['mysql', 'mysqld', 'mariadbd'],
+        'apache2' => ['httpd'],
+        'exim4' => ['exim'],
+        'redis-server' => ['redis'],
+        'pure-ftpd' => ['pure-ftpd-mysql'],
     ];
+
+    /** Prefix for unit-file / cgroup checks; tests point it at a throw-away tree. */
+    public static string $fsRoot = '';
 
     /** Other catalog name that must be inactive when this one is started. Empty if none. */
     public static function rivalOf(string $name): string
@@ -246,9 +255,10 @@ final class KloxoRecovery
     public static function catalog(): array
     {
         $cat = self::CATALOG;
+        $root = self::$fsRoot;
         foreach (['/lib/systemd/system', '/usr/lib/systemd/system', '/etc/systemd/system'] as $dir) {
-            foreach (glob($dir . '/php*-fpm.service') ?: [] as $f) {
-                $n = basename($f, '.service');
+            foreach (glob($root . $dir . '/php*-fpm.service') ?: [] as $f) {
+                $n = basename((string) $f, '.service');
                 if (preg_match('/^php[0-9]+\.[0-9]+-fpm$/', $n) === 1) {
                     $cat[$n] = $n;
                 }
@@ -301,9 +311,24 @@ final class KloxoRecovery
      * @param list<string> $argv
      * @return array{rc:int,out:string,err:string}
      */
+    /** @param list<string> $args arguments after the systemctl binary */
+    private static function systemctlCmd(string $bin, array $args): array
+    {
+        return array_merge([$bin, '--system'], $args);
+    }
+
     private static function run(array $argv, int $seconds = 8): array
     {
-        $env = ['PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL' => 'C'];
+        $prev = getenv();
+        $env = is_array($prev) ? $prev : [];
+        $env['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+        $env['LC_ALL'] = 'C';
+        $env['LANG'] = 'C';
+        $env['SYSTEMD_COLORS'] = '0';
+        $env['SYSTEMD_PAGER'] = '';
+        // A user bus / runtime dir makes systemctl talk to a session manager
+        // and return nothing for nginx, mariadb, … (everything "not installed").
+        unset($env['DBUS_SESSION_BUS_ADDRESS'], $env['XDG_RUNTIME_DIR']);
         $p = @proc_open($argv, [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, $env);
         if (!is_resource($p)) {
             return ['rc' => 127, 'out' => '', 'err' => 'cannot run ' . $argv[0]];
@@ -331,7 +356,7 @@ final class KloxoRecovery
                 $err .= "\ntimed out";
                 break;
             }
-            if (strlen($out) > 65536) {
+            if (strlen($out) > 262144) {
                 break;
             }
             usleep(30000);
@@ -354,7 +379,7 @@ final class KloxoRecovery
         if ($bin === '') {
             return $want;
         }
-        $r = self::run([$bin, 'show', '--no-pager', '-p', 'Id', '--value', $want], 5);
+        $r = self::run(self::systemctlCmd($bin, ['show', '--no-pager', '-p', 'Id', '--value', $want]), 5);
         $id = trim($r['out']);
         if ($id !== '' && preg_match('/^[A-Za-z0-9_.@-]+\.service$/', $id) === 1) {
             return $id;
@@ -367,7 +392,10 @@ final class KloxoRecovery
     }
 
     /**
-     * Unit states, read without privileges.
+     * Unit states. Prefer `systemctl --system show` (keyed by Id/Names, never by
+     * argument index). A multi-unit show can omit aliases; those names are
+     * retried one-by-one. If systemd still says not-found, a unit file or
+     * cgroup on disk means the package is installed.
      *
      * @return list<array{name:string,unit:string,installed:bool,active:string,sub:string,enabled:string,self:bool}>
      */
@@ -377,29 +405,20 @@ final class KloxoRecovery
         $bin = self::systemctlBin();
         $info = [];
         if ($bin !== '') {
-            $show = array_values($cat);
-            foreach (self::UNIT_ALIASES as $alts) {
-                foreach ($alts as $a) {
-                    $show[] = $a;
+            $show = [];
+            foreach ($cat as $name => $unit) {
+                foreach (self::unitCandidates($name, $unit) as $c) {
+                    $show[] = $c;
                 }
             }
-            $units = array_map(static fn(string $u): string => $u . '.service', array_values(array_unique($show)));
-            // Do not pair blocks by argument index: systemd omits alias names
-            // (bind9, postfix) from a multi-unit show, which shifted later rows
-            // and left those two as "not installed". Key by Id/Names instead,
-            // and ask for the real units (named, postfix@-) as well.
-            $r = self::run(array_merge([$bin, 'show', '--no-pager',
-                '-p', 'Id', '-p', 'Names', '-p', 'LoadState', '-p', 'ActiveState',
-                '-p', 'SubState', '-p', 'UnitFileState'], $units));
-            $blocks = preg_split('/\n\s*\n/', trim($r['out'])) ?: [];
-            foreach ($blocks as $block) {
-                $row = self::parseShowBlock((string) $block);
-                if ($row === []) {
+            $info = self::collectShow($bin, $show);
+            foreach ($cat as $name => $unit) {
+                if (self::loadStateInstalled((string) (self::stateRow($info, $name, $unit)['LoadState'] ?? ''))) {
                     continue;
                 }
-                foreach (self::showBlockKeys($row) as $k) {
+                foreach (self::collectShow($bin, self::unitCandidates($name, $unit)) as $k => $row) {
                     $prev = $info[$k]['LoadState'] ?? '';
-                    if (!self::loadStateInstalled($prev)) {
+                    if (!self::loadStateInstalled((string) $prev)) {
                         $info[$k] = $row;
                     }
                 }
@@ -409,6 +428,10 @@ final class KloxoRecovery
         foreach ($cat as $name => $unit) {
             $row = self::stateRow($info, $name, $unit);
             $installed = self::loadStateInstalled((string) ($row['LoadState'] ?? ''));
+            if (!$installed) {
+                $row = self::fileFallbackRow($name, $unit, $row);
+                $installed = self::loadStateInstalled((string) ($row['LoadState'] ?? ''));
+            }
             $out[] = [
                 'name' => $name,
                 'unit' => $unit,
@@ -423,10 +446,72 @@ final class KloxoRecovery
         return $out;
     }
 
+    /**
+     * @param list<string> $unitBases names without .service
+     * @return array<string,array<string,string>>
+     */
+    private static function collectShow(string $bin, array $unitBases): array
+    {
+        $units = [];
+        foreach ($unitBases as $u) {
+            $u = (string) $u;
+            if ($u === '' || !self::isSafeUnitName($u) || in_array($u . '.service', $units, true)) {
+                continue;
+            }
+            $units[] = $u . '.service';
+        }
+        if ($units === []) {
+            return [];
+        }
+        $r = self::run(self::systemctlCmd($bin, array_merge([
+            'show', '--no-pager',
+            '-p', 'Id', '-p', 'Names', '-p', 'LoadState', '-p', 'ActiveState',
+            '-p', 'SubState', '-p', 'UnitFileState',
+        ], $units)), 12);
+        $info = [];
+        foreach (preg_split('/\n\s*\n/', trim($r['out'])) ?: [] as $block) {
+            $row = self::parseShowBlock((string) $block);
+            if ($row === []) {
+                continue;
+            }
+            foreach (self::showBlockKeys($row) as $k) {
+                $prev = $info[$k]['LoadState'] ?? '';
+                if (!self::loadStateInstalled((string) $prev)) {
+                    $info[$k] = $row;
+                }
+            }
+        }
+
+        return $info;
+    }
+
+    public static function isSafeUnitName(string $name): bool
+    {
+        return $name !== '' && preg_match('/^[A-Za-z0-9_.@-]+$/', $name) === 1;
+    }
+
+    /** @return list<string> */
+    public static function unitCandidates(string $name, string $unit): array
+    {
+        $cands = [$unit, $name];
+        foreach (self::UNIT_ALIASES[$name] ?? [] as $a) {
+            $cands[] = $a;
+        }
+        $out = [];
+        foreach ($cands as $c) {
+            $c = (string) $c;
+            if (self::isSafeUnitName($c) && !in_array($c, $out, true)) {
+                $out[] = $c;
+            }
+        }
+
+        return $out;
+    }
+
     /** systemd LoadState values that mean the unit exists on this machine. */
     public static function loadStateInstalled(string $load): bool
     {
-        return in_array($load, ['loaded', 'masked', 'alias'], true);
+        return in_array($load, ['loaded', 'masked', 'alias', 'stub', 'merged'], true);
     }
 
     /**
@@ -435,19 +520,109 @@ final class KloxoRecovery
      */
     private static function stateRow(array $info, string $name, string $unit): array
     {
-        $cands = array_merge([$unit, $name], self::UNIT_ALIASES[$name] ?? []);
+        $found = [];
         $best = [];
-        foreach (array_unique($cands) as $c) {
+        foreach (self::unitCandidates($name, $unit) as $c) {
             $row = $info[$c] ?? [];
             if (self::loadStateInstalled((string) ($row['LoadState'] ?? ''))) {
-                return $row;
-            }
-            if ($row !== [] && $best === []) {
+                $found[] = $row;
+            } elseif ($row !== [] && $best === []) {
                 $best = $row;
             }
         }
+        if ($found === []) {
+            return $best;
+        }
+        foreach ($found as $row) {
+            if (($row['ActiveState'] ?? '') === 'active') {
+                return $row;
+            }
+        }
+        foreach ($found as $row) {
+            if (($row['LoadState'] ?? '') === 'loaded') {
+                return $row;
+            }
+        }
 
-        return $best;
+        return $found[0];
+    }
+
+    /**
+     * @param array<string,string> $row
+     * @return array<string,string>
+     */
+    private static function fileFallbackRow(string $name, string $unit, array $row): array
+    {
+        foreach (self::unitCandidates($name, $unit) as $c) {
+            if (!self::unitFileExists($c)) {
+                continue;
+            }
+            $row['LoadState'] = 'loaded';
+            if (($row['ActiveState'] ?? '') === '' || ($row['ActiveState'] ?? '') === 'unknown') {
+                if (self::cgroupActive($c)) {
+                    $row['ActiveState'] = 'active';
+                    $row['SubState'] = $row['SubState'] !== '' ? $row['SubState'] : 'running';
+                } else {
+                    $row['ActiveState'] = $row['ActiveState'] !== '' ? $row['ActiveState'] : 'inactive';
+                }
+            }
+            if (($row['UnitFileState'] ?? '') === '') {
+                $row['UnitFileState'] = self::wantsEnabled($c) ? 'enabled' : 'disabled';
+            }
+
+            return $row;
+        }
+
+        return $row;
+    }
+
+    public static function unitFileExists(string $unit): bool
+    {
+        if (!self::isSafeUnitName($unit)) {
+            return false;
+        }
+        $names = [$unit . '.service'];
+        if (str_contains($unit, '@')) {
+            $names[] = preg_replace('/@.*$/', '@', $unit) . '.service';
+        } else {
+            $names[] = $unit . '@.service';
+        }
+        $root = self::$fsRoot;
+        foreach (['/lib/systemd/system', '/usr/lib/systemd/system', '/etc/systemd/system'] as $dir) {
+            foreach ($names as $n) {
+                if ($n !== '.service' && is_file($root . $dir . '/' . $n)) {
+                    return true;
+                }
+            }
+        }
+
+        return is_file($root . '/etc/init.d/' . $unit);
+    }
+
+    public static function cgroupActive(string $unit): bool
+    {
+        if (!self::isSafeUnitName($unit)) {
+            return false;
+        }
+        $path = self::$fsRoot . '/sys/fs/cgroup/system.slice/' . $unit . '.service';
+
+        return is_dir($path);
+    }
+
+    public static function wantsEnabled(string $unit): bool
+    {
+        if (!self::isSafeUnitName($unit)) {
+            return false;
+        }
+        $root = self::$fsRoot;
+        foreach (['multi-user.target.wants', 'default.target.wants'] as $w) {
+            if (is_link($root . '/etc/systemd/system/' . $w . '/' . $unit . '.service')
+                || is_file($root . '/etc/systemd/system/' . $w . '/' . $unit . '.service')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return array<string,string> */
@@ -496,7 +671,7 @@ final class KloxoRecovery
         }
         $unitBase = self::catalog()[$rival];
         $unit = self::canonicalUnit($unitBase);
-        $show = self::run([$bin, 'show', '--no-pager', '-p', 'LoadState', '-p', 'ActiveState', '-p', 'UnitFileState', $unit], 5);
+        $show = self::run(self::systemctlCmd($bin, ['show', '--no-pager', '-p', 'LoadState', '-p', 'ActiveState', '-p', 'UnitFileState', $unit]), 5);
         $row = self::parseShowBlock($show['out']);
         if (!self::loadStateInstalled((string) ($row['LoadState'] ?? ''))) {
             return ['err' => '', 'retired' => ''];
@@ -505,7 +680,7 @@ final class KloxoRecovery
         $boot = (string) ($row['UnitFileState'] ?? '');
         $did = [];
         if ($active === 'active') {
-            self::run([$bin, '--no-block', 'stop', $unit], 10);
+            self::run(self::systemctlCmd($bin, ['--no-block', 'stop', $unit]), 10);
             $deadline = microtime(true) + 12;
             do {
                 $active = self::activeState($bin, $unit);
@@ -522,7 +697,7 @@ final class KloxoRecovery
             $boot = self::unitFileState($bin, $unit);
         }
         if (self::isEnabledAtBoot($boot)) {
-            self::run([$bin, 'disable', $unit], 10);
+            self::run(self::systemctlCmd($bin, ['disable', $unit]), 10);
             $boot = self::unitFileState($bin, $unit);
             if (!self::isEnabledAtBoot($boot)) {
                 KloxoWatchdog::hold($unitBase, self::rootDir());
@@ -568,13 +743,13 @@ final class KloxoRecovery
         $unit = self::canonicalUnit($unitBase);
         if (in_array($act, ['start', 'restart'], true)) {
             // A unit left "failed" refuses to start until reset.
-            self::run([$bin, 'reset-failed', $unit], 5);
+            self::run(self::systemctlCmd($bin, ['reset-failed', $unit]), 5);
         }
-        $args = [$bin];
+        $args = [];
         if (in_array($act, ['start', 'stop', 'restart'], true)) {
             $args[] = '--no-block';
         }
-        $r = self::run(array_merge($args, [$act, $unit]), 10);
+        $r = self::run(self::systemctlCmd($bin, array_merge($args, [$act, $unit])), 10);
         $res['rc'] = $r['rc'];
         $res['err'] = $r['err'];
         if (in_array($act, ['start', 'stop', 'restart'], true)) {
@@ -622,14 +797,14 @@ final class KloxoRecovery
 
     private static function activeState(string $bin, string $unit): string
     {
-        $r = self::run([$bin, 'show', '--no-pager', '-p', 'ActiveState', '--value', $unit], 5);
+        $r = self::run(self::systemctlCmd($bin, ['show', '--no-pager', '-p', 'ActiveState', '--value', $unit]), 5);
 
         return trim($r['out']) !== '' ? trim($r['out']) : 'unknown';
     }
 
     private static function unitFileState(string $bin, string $unit): string
     {
-        $r = self::run([$bin, 'show', '--no-pager', '-p', 'UnitFileState', '--value', $unit], 5);
+        $r = self::run(self::systemctlCmd($bin, ['show', '--no-pager', '-p', 'UnitFileState', '--value', $unit]), 5);
 
         return trim($r['out']);
     }
@@ -655,7 +830,7 @@ final class KloxoRecovery
         if (!is_executable($bin)) {
             return ['ok' => false, 'text' => 'journalctl not found', 'euid' => $euid];
         }
-        $r = self::run([$bin, '-u', self::canonicalUnit(self::catalog()[$name]), '-n', (string) $lines, '--no-pager', '-o', 'short-iso'], 8);
+        $r = self::run([$bin, '--system', '-u', self::canonicalUnit(self::catalog()[$name]), '-n', (string) $lines, '--no-pager', '-o', 'short-iso'], 8);
         $text = $r['out'] !== '' ? $r['out'] : $r['err'];
         $text = (string) preg_replace('/[^\x09\x0a\x20-\x7e]/', '?', $text);
 

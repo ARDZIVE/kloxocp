@@ -36,6 +36,7 @@ file_put_contents($fakeCtl, <<<'SH'
 #!/bin/sh
 S="@STATE@"
 echo "$*" >> "$S/calls.log"
+while [ "${1-}" = --system ]; do shift; done
 case "$1" in
   show)
     shift
@@ -47,6 +48,7 @@ case "$1" in
         -p) shift; prop="$prop $1" ;;
         --value) value=1 ;;
         --no-pager) ;;
+        --system) ;;
         *) units="$units $1" ;;
       esac
       shift
@@ -166,6 +168,22 @@ foreach (KloxoRecovery::states() as $s) {
 check(($st['postfix']['installed'] ?? false) === true,
 	'states: postfix is installed when systemd only reports postfix@-.service');
 @unlink($state . '/omit-postfix');
+check(($st['nginx']['active'] ?? '') === 'active' && ($st['nginx']['sub'] ?? '') === 'x',
+	'states: nginx carries ActiveState and SubState');
+$fs = $tmp . '/fs';
+@mkdir($fs . '/lib/systemd/system', 0755, true);
+touch($fs . '/lib/systemd/system/knot.service');
+touch($fs . '/lib/systemd/system/php8.3-fpm.service');
+KloxoRecovery::$fsRoot = $fs;
+$st = [];
+foreach (KloxoRecovery::states() as $s) {
+	$st[$s['name']] = $s;
+}
+check(($st['knot']['installed'] ?? false) === true && ($st['knot']['active'] ?? '') === 'inactive',
+	'states: a unit file on disk counts as installed when systemd says not-found');
+check(isset($st['php8.3-fpm']) && ($st['php8.3-fpm']['installed'] ?? false) === true,
+	'states: installed phpX.Y-fpm units are listed');
+KloxoRecovery::$fsRoot = '';
 check(KloxoRecovery::canonicalUnit('bind9') === 'named.service'
 	&& KloxoRecovery::canonicalUnit('nginx') === 'nginx.service',
 	'canonicalUnit: bind9 resolves to named.service, nginx stays nginx.service');
@@ -286,7 +304,8 @@ check($res['status'] === 200 && str_contains($res['body'], 'mariadb') && str_con
 	&& str_contains($res['body'], 'name="csrf" value="' . $csrf . '"'), 'logged in: unit list with CSRF-protected buttons');
 check(str_contains($res['body'], '<th>Application</th><th>State</th><th>Actions</th><th>At boot</th><th>Watchdog</th><th>Log</th>'),
 	'overview puts Actions next to State so the buttons stay on screen');
-check(!str_contains($res['body'], 'inactive / '), 'inactive units do not append SubState');
+check(str_contains($res['body'], '>active (x)</') && str_contains($res['body'], '>inactive (x)</'),
+	'installed units show exact systemd status ActiveState (SubState)');
 check(str_contains($res['body'], 'name="unit" value="bind9"')
 	&& !str_contains($res['body'], '<td>bind9</td><td colspan="5">not installed</td>'),
 	'logged in: bind9 has Start, not "not installed"');

@@ -289,6 +289,13 @@ class Sgbl
 		$this->__var_service_desc['mysql'] = "MySQL Database Server";
 		$this->__var_service_desc['mysqld'] = "MySQL Database Server";
 		$this->__var_service_desc['hiawatha'] = "Hiawatha Web Server";
+		$this->__var_service_desc['kloxo-web'] = "Kloxo CP panel web server";
+		$this->__var_service_desc['kloxo-backend'] = "Kloxo CP backend";
+		$this->__var_service_desc['kloxo-watchdog'] = "Kloxo CP watchdog";
+		$this->__var_service_desc['kloxo-webcache'] = "Kloxo CP web cache";
+		$this->__var_service_desc['kloxo-webproxy'] = "Kloxo CP web proxy";
+		$this->__var_service_desc['redis-server'] = "Redis";
+		$this->__var_service_desc['redis'] = "Redis";
 
 		$this->__var_service_desc['named'] = "Bind Dns Server";
 		$this->__var_service_desc['bind9'] = "Bind Dns Server";
