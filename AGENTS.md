@@ -162,7 +162,7 @@ qualifies a blank or short nameserver to `ns1.<template>.dnst`, and writes defau
 `dns_record_a`. Secondary NS is validated separately from primary.
 FTP Configure is `serverftp` under localhost, not Backup FTP Configuration;
 the beige tab is labelled **FTP Configure**.
-The Services list shows only installed units (`install_state=on`); running
+The Services list shows only installed units (`install_state=on`); the catalog includes **fail2ban** and **ufw** (UFW Firewall) as well as nginx/apache2/bind9/knot/exim4/postfix/dovecot/rspamd/mariadb/php-fpm/kloxo-php/hiawatha/pure-ftpd; running
 and boot status come from systemd `ActiveState` / `UnitFileState`
 (aliases: bind9/named, mariadb/mysqld, phpX.Y-fpm). Duplicate RHEL/Debian
 names collapse to one row (`apache2` not `httpd`, `bind9` not `named`,

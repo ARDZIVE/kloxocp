@@ -468,6 +468,7 @@ class Service extends Lxdb
 		return array(
 			'nginx', 'apache2', 'bind9', 'knot', 'exim4', 'postfix', 'dovecot',
 			'rspamd', 'mariadb', 'php-fpm', 'kloxo-php', 'hiawatha', 'pure-ftpd',
+			'fail2ban', 'ufw',
 		);
 	}
 

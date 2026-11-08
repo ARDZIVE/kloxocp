@@ -1909,6 +1909,8 @@ INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","de
 INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('mysql___localhost','pserver-localhost','','mysqld','MySQL Database','mysqld','localhost','','');
 INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('mariadb___localhost','pserver-localhost','','mysql','MariaDB Database','mysql','localhost','','');
 INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('iptables___localhost','pserver-localhost','','iptables','IPTables Firewall','iptables','localhost','','');
+INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('ufw___localhost','pserver-localhost','','ufw','UFW Firewall','ufw','localhost','','');
+INSERT INTO "service" ("nname","parent_clname","parent_cmlist","servicename","description","grepstring","syncserver","oldsyncserver","olddeleteflag") VALUES ('fail2ban___localhost','pserver-localhost','','fail2ban','Fail2Ban','fail2ban','localhost','','');
 
 ----
 -- Table structure for skipbackup

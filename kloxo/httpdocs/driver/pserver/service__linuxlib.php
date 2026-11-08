@@ -81,6 +81,8 @@ class Service__Linux extends Lxlclass
 
 		$nval['iptables'] = "iptables";
 		$nval['firewalld'] = "firewalld";
+		$nval['ufw'] = 'ufw';
+		$nval['fail2ban'] = 'fail2ban';
 
 		return $nval;
 	}

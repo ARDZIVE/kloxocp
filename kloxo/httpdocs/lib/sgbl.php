@@ -299,6 +299,8 @@ class Sgbl
 
 		$this->__var_service_desc['djbdns'] = "Djbdns Dns Server";
 		$this->__var_service_desc['iptables'] = "IPTables Firewall";
+		$this->__var_service_desc['ufw'] = "UFW Firewall";
+		$this->__var_service_desc['fail2ban'] = "Fail2Ban";
 	}
 
 	private function initLTypes()

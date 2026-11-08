@@ -132,6 +132,12 @@ if (Service::canGetSingle()
 	&& is_array($svcClientList)
 	&& in_array('knot', Service::defaultServiceList(), true)
 	&& in_array('postfix', Service::defaultServiceList(), true)
+	&& in_array('fail2ban', Service::defaultServiceList(), true)
+	&& in_array('ufw', Service::defaultServiceList(), true)
+	&& isset(Service__Linux::getMainServiceList()['fail2ban'])
+	&& isset(Service__Linux::getMainServiceList()['ufw'])
+	&& Service::serviceDescription('ufw') === 'UFW Firewall'
+	&& Service::serviceDescription('fail2ban') === 'Fail2Ban'
 	&& Service__Linux::unitName('knot') === 'knot'
 	&& $svcDummy->subaction === 'start'
 	&& str_contains($debSrc, 'Service__Linux::systemctlRun')
@@ -189,6 +195,36 @@ if ($aliasOk && !$familyDup) {
 } else {
 	bad('Services list collapses httpd/apache2 and named/bind9 aliases',
 		"httpd={$httpdOn} apache2={$apacheOn} named={$namedOn} bind9={$bindOn} familyDup=" . ($familyDup ? 'yes' : 'no'));
+}
+
+$prevShow = Service__Linux::$showProbe;
+Service__Linux::$showProbe = static function (string $u, string $p): string {
+	if (!in_array($u, array('fail2ban', 'ufw'), true)) {
+		return '';
+	}
+	if ($p === 'LoadState') {
+		return 'loaded';
+	}
+	if ($p === 'ActiveState') {
+		return 'active';
+	}
+	if ($p === 'UnitFileState') {
+		return 'enabled';
+	}
+
+	return '';
+};
+$secProbe = Service__Linux::getServiceDetails(array(
+	'fail2ban' => array('servicename' => 'fail2ban', 'nname' => 'fail2ban___localhost'),
+	'ufw' => array('servicename' => 'ufw', 'nname' => 'ufw___localhost'),
+));
+Service__Linux::$showProbe = $prevShow;
+if (($secProbe['fail2ban']['install_state'] ?? '') === 'on'
+	&& ($secProbe['ufw']['install_state'] ?? '') === 'on') {
+	ok('Services list includes fail2ban and UFW Firewall when the units are installed');
+} else {
+	bad('Services list includes fail2ban and UFW Firewall when the units are installed',
+		json_encode($secProbe));
 }
 
 $svcSqlProbe = Service__Linux::getServiceDetails(array(

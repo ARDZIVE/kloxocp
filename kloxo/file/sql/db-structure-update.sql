@@ -34,7 +34,9 @@ INSERT IGNORE INTO `service` (`nname`, `parent_clname`, `parent_cmlist`, `servic
 ('mariadb___localhost', 'pserver-localhost', '', 'mysql', 'MariaDB Database', 'mysql', 'localhost', '', ''),
 ('pureftpd___localhost', 'pserver-localhost', '', 'pure-ftpd', 'Pure-FTPD FTP server', 'pure-ftpd', 'localhost', '', ''),
 ('firewalld___localhost', 'pserver-localhost', '', 'firewalld', 'FirewallD', 'firewalld', 'localhost', '', ''),
-('iptables___localhost', 'pserver-localhost', '', 'iptables', 'IPTables Firewall', 'iptables', 'localhost', '', '');
+('iptables___localhost', 'pserver-localhost', '', 'iptables', 'IPTables Firewall', 'iptables', 'localhost', '', ''),
+('ufw___localhost', 'pserver-localhost', '', 'ufw', 'UFW Firewall', 'ufw', 'localhost', '', ''),
+('fail2ban___localhost', 'pserver-localhost', '', 'fail2ban', 'Fail2Ban', 'fail2ban', 'localhost', '', '');
 
 UPDATE `service` SET `description`='Php Fastcgi Process Manager (Php Used)' WHERE `nname`='php-fpm___localhost';
 

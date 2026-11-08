@@ -474,7 +474,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     blanks the page (`Service::canGetSingle` + `initThisObject`).
     The Services list omits units that are not installed and reads
     running/boot state from systemd `ActiveState` / `UnitFileState`
-    (bind9→named, mariadb→mariadbd, php-fpm→phpX.Y-fpm). Live Services
+    (bind9→named, mariadb→mariadbd, php-fpm→phpX.Y-fpm). Catalog includes
+    fail2ban and ufw (UFW Firewall). Live Services
     after deploy is **UNVERIFIED**.
     Component Info has a
     dpkg driver; Mail Queue reads Exim `exim -bp` when
