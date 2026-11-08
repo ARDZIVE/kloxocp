@@ -462,7 +462,7 @@ class Service extends Lxdb
 	static function defaultServiceList()
 	{
 		return array(
-			'nginx', 'apache2', 'bind9', 'pdns', 'exim4', 'postfix', 'dovecot',
+			'nginx', 'apache2', 'bind9', 'knot', 'exim4', 'postfix', 'dovecot',
 			'rspamd', 'mariadb', 'php-fpm', 'kloxo-php', 'hiawatha', 'pure-ftpd',
 		);
 	}

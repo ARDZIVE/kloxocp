@@ -36,7 +36,7 @@ final class KloxoUfw
             '22/tcp' => 'SSH remote administration',
             '25/tcp' => 'SMTP, mail delivery between servers',
             '53/tcp' => 'DNS over TCP, zone transfers and large answers',
-            '53/udp' => 'DNS queries, BIND or PowerDNS',
+            '53/udp' => 'DNS queries, BIND or Knot DNS',
             '80/tcp' => 'HTTP, websites',
             '110/tcp' => 'POP3, mail download, STARTTLS required',
             '143/tcp' => 'IMAP, mail access, STARTTLS required',

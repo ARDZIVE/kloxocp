@@ -64,13 +64,13 @@ if (is_callable(array('Service__Debian', 'getServiceDetails'))) {
 	bad('Service__Debian::getServiceDetails accepts an empty list', 'method missing');
 }
 
-$svcParsed = Service::parseServiceNname('pdns___localhost');
+$svcParsed = Service::parseServiceNname('knot___localhost');
 $svcObj = null;
 $svcObjErr = '';
 try {
 	$svcParent = new stdClass();
 	$svcParent->__masterserver = null;
-	$svcObj = Service::initThisObject($svcParent, 'service', 'pdns___localhost');
+	$svcObj = Service::initThisObject($svcParent, 'service', 'knot___localhost');
 } catch (Throwable $e) {
 	$svcObjErr = $e->getMessage();
 }
@@ -106,14 +106,14 @@ if (is_array($svcList)) {
 	}
 }
 $debSrc = (string) file_get_contents($doc . '/driver/pserver/service__debianlib.php');
-$svcDummy = new Service(null, 'localhost', 'pdns___localhost');
-$svcDummy->servicename = 'pdns';
+$svcDummy = new Service(null, 'localhost', 'knot___localhost');
+$svcDummy->servicename = 'knot';
 $svcDummy->state = 'off';
 $svcDummy->dbaction = 'clean';
 $svcDummy->updateStart(array());
 $svcFiltered = Service::onlyInstalledRows(array(
 	array('nname' => 'nginx___localhost', 'install_state' => 'on', 'state' => 'on'),
-	array('nname' => 'pdns___localhost', 'install_state' => 'dull', 'state' => 'off'),
+	array('nname' => 'knot___localhost', 'install_state' => 'dull', 'state' => 'off'),
 	array('nname' => 'apache2___localhost', 'install_state' => 'on', 'state' => 'off'),
 ));
 $svcMissing = Service__Linux::getServiceDetails(array(
@@ -125,14 +125,14 @@ $svcMissing = Service__Linux::getServiceDetails(array(
 $svcBindCands = Service__Linux::unitCandidates('bind9');
 $svcMariaCands = Service__Linux::unitCandidates('mariadb');
 if (Service::canGetSingle()
-	&& $svcParsed === array('pdns', 'localhost')
-	&& is_object($svcObj) && ($svcObj->nname ?? '') === 'pdns___localhost'
-	&& ($svcObj->servicename ?? '') === 'pdns'
+	&& $svcParsed === array('knot', 'localhost')
+	&& is_object($svcObj) && ($svcObj->nname ?? '') === 'knot___localhost'
+	&& ($svcObj->servicename ?? '') === 'knot'
 	&& is_array($svcList) && $svcAllInstalled
 	&& is_array($svcClientList)
-	&& in_array('pdns', Service::defaultServiceList(), true)
+	&& in_array('knot', Service::defaultServiceList(), true)
 	&& in_array('postfix', Service::defaultServiceList(), true)
-	&& Service__Linux::unitName('pdns-server') === 'pdns'
+	&& Service__Linux::unitName('knot') === 'knot'
 	&& $svcDummy->subaction === 'start'
 	&& str_contains($debSrc, 'Service__Linux::systemctlRun')
 	&& str_contains($debSrc, "case 'start':")
@@ -453,7 +453,7 @@ if (class_exists('KloxoComponent')) {
 			$names[$row['name']] = true;
 		}
 	}
-	if (isset($names['nginx'], $names['apache2'], $names['bind9'], $names['pdns-server'],
+	if (isset($names['nginx'], $names['apache2'], $names['bind9'], $names['knot'],
 		$names['mariadb-server'], $names['exim4'], $names['postfix'], $names['dovecot-core'], $names['rspamd'],
 		$names['hiawatha'], $names['php8.3-cli'], $names['php5.6-cli'], $names['php7.4-fpm'])) {
 		ok('Component catalog lists the Ubuntu stack');

@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * PowerDNS helpers: Ubuntu /etc/powerdns vs RHEL /etc/pdns, BIND vs pdns units.
- * BIND stays the default running server; pdns is prepared and started only when
+ * DNS server helpers: BIND vs Knot DNS units. BIND stays the default running
+ * server; Knot is installed and prepared (install-knot) and started only when
  * Switch Program selects it.
  */
 
@@ -22,8 +22,8 @@ function kloxo_dns_unit(string $driver): string
 
 		return 'named';
 	}
-	if ($driver === 'pdns') {
-		return 'pdns';
+	if ($driver === 'knot') {
+		return 'knot';
 	}
 
 	return $driver;
@@ -32,7 +32,7 @@ function kloxo_dns_unit(string $driver): string
 /** @return list<string> */
 function kloxo_dns_other_units(string $active): array
 {
-	$all = array('bind', 'pdns');
+	$all = array('bind', 'knot');
 	$out = array();
 	foreach ($all as $d) {
 		$u = kloxo_dns_unit($d);
@@ -42,81 +42,6 @@ function kloxo_dns_other_units(string $active): array
 	}
 
 	return array_values(array_unique($out));
-}
-
-function kloxo_pdns_root(?string $root = null): string
-{
-	if (is_string($root) && $root !== '') {
-		return rtrim($root, '/');
-	}
-	$env = getenv('KLOXO_ROOT');
-	if (is_string($env) && $env !== '') {
-		return rtrim($env, '/');
-	}
-
-	return '/opt/kloxo';
-}
-
-function kloxo_pdns_pass_file(?string $root = null): string
-{
-	return kloxo_pdns_root($root) . '/etc/conf/pdns.pass';
-}
-
-function kloxo_pdns_conf_file(): string
-{
-	if (is_dir('/etc/powerdns/pdns.d')) {
-		return '/etc/powerdns/pdns.d/zz-kloxo-gmysql.conf';
-	}
-	if (is_dir('/etc/pdns')) {
-		return '/etc/pdns/pdns.conf';
-	}
-
-	return '/etc/powerdns/pdns.d/zz-kloxo-gmysql.conf';
-}
-
-/** @return array{user:string,pass:string,host:string,dbname:string} */
-function kloxo_pdns_login(?string $root = null): array
-{
-	$pass = '';
-	$file = kloxo_pdns_pass_file($root);
-	if (is_readable($file)) {
-		$pass = trim((string)file_get_contents($file));
-	}
-
-	return array(
-		'user' => 'powerdns',
-		'pass' => $pass,
-		'host' => '127.0.0.1',
-		'dbname' => 'powerdns',
-	);
-}
-
-/** @param array<string,mixed> $input */
-function kloxo_pdns_fill_input(array &$input, ?string $root = null): void
-{
-	$l = kloxo_pdns_login($root);
-	$input['pdnsuser'] = $l['user'];
-	$input['pdnspass'] = $l['pass'];
-	$input['pdnshost'] = $l['host'];
-	$input['pdnsdb'] = $l['dbname'];
-}
-
-function kloxo_pdns_connect(?string $root = null): ?mysqli
-{
-	if (!class_exists('mysqli')) {
-		return null;
-	}
-	$l = kloxo_pdns_login($root);
-	if ($l['pass'] === '') {
-		return null;
-	}
-	mysqli_report(MYSQLI_REPORT_OFF);
-	$conn = @new mysqli($l['host'], $l['user'], $l['pass'], $l['dbname']);
-	if ($conn->connect_errno) {
-		return null;
-	}
-
-	return $conn;
 }
 
 function kloxo_dns_systemctl(string $action, string $unit): int
@@ -149,7 +74,7 @@ function kloxo_dns_systemctl(string $action, string $unit): int
 function kloxo_dns_switch(string $driver): void
 {
 	if ($driver === 'none' || $driver === '') {
-		foreach (array('bind', 'pdns') as $d) {
+		foreach (array('bind', 'knot') as $d) {
 			kloxo_dns_systemctl('disable', kloxo_dns_unit($d));
 		}
 

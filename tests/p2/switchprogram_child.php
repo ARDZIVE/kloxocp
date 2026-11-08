@@ -87,7 +87,7 @@ switch ($scenario) {
 		sp_run('spam_spamassassin', $base, array('spam_driver' => 'spamassassin'));
 		break;
 	case 'dns':
-		sp_run('dns', $base, array('dns_driver' => 'pdns'));
+		sp_run('dns', $base, array('dns_driver' => 'knot'));
 		break;
 	case 'cache_nginx':
 		sp_run('cache_nginx', $base, array('webcache_driver' => 'nginx'));

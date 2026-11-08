@@ -248,14 +248,14 @@ check(empty(KloxoWatchdog::readState($tmp . '/r5')['units']['mariadb']['gave_up'
 // ---- drivers choose the unit
 @mkdir($tmp . '/r6/etc/slavedb', 0755, true);
 $o = new stdClass();
-$o->data = ['web' => 'apache', 'dns' => 'pdns', 'smtp' => 'postfix', 'pop3' => 'none'];
+$o->data = ['web' => 'apache', 'dns' => 'knot', 'smtp' => 'postfix', 'pop3' => 'none'];
 file_put_contents($tmp . '/r6/etc/slavedb/driver', str_replace('O:8:"stdClass"', 'O:6:"Remote"', serialize($o)));
 $f6 = new Fake();
 $units = array_map(static fn(array $t): string => $t['unit'], $f6->wd($tmp . '/r6')->targets());
 check(in_array('apache2', $units, true) && !in_array('nginx', $units, true)
-	&& in_array('pdns', $units, true) && !in_array('bind9', $units, true)
+	&& in_array('knot', $units, true) && !in_array('bind9', $units, true)
 	&& in_array('postfix', $units, true) && !in_array('exim4', $units, true) && !in_array('dovecot', $units, true),
-	'slavedb drivers pick apache2/pdns/postfix and drop nginx/bind9/exim4/dovecot', implode(',', $units));
+	'slavedb drivers pick apache2/knot/postfix and drop nginx/bind9/exim4/dovecot', implode(',', $units));
 $units = array_map(static fn(array $t): string => $t['unit'], $f6->wd($tmp . '/nowhere')->targets());
 check(in_array('nginx', $units, true) && in_array('apache2', $units, true) && in_array('mariadb', $units, true),
 	'without slavedb every candidate is considered (only enabled ones are acted on)');

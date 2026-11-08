@@ -64,9 +64,7 @@ class Service__Linux extends Lxlclass
 		$nval['bind9'] = 'bind9';
 		$nval['djbdns'] = "tinydns";
 	//	$nval['maradns'] = "maradns";
-	//	$nval['powerdns'] = "powerdns";
-		$nval['pdns'] = "pdns";
-		$nval['pdns-server'] = "pdns";
+		$nval['knot'] = "knot";
 		$nval['nsd'] = "nsd";
 	//	$nval['mydns'] = "mydns";
 		$nval['yadifad'] = "yadifad";
@@ -534,8 +532,7 @@ class Service__Linux extends Lxlclass
 			'mysqld' => 'mariadb',
 			'mysql' => 'mariadb',
 			'mariadb' => 'mariadb',
-			'pdns-server' => 'pdns',
-			'pdns' => 'pdns',
+			'knot' => 'knot',
 			'exim' => 'exim4',
 			'exim4' => 'exim4',
 		);
@@ -593,8 +590,7 @@ class Service__Linux extends Lxlclass
 			'mariadb' => array('mariadb', 'mysql', 'mysqld'),
 			'mysql' => array('mysql', 'mariadb', 'mysqld'),
 			'mysqld' => array('mysqld', 'mariadb', 'mysql'),
-			'pdns' => array('pdns', 'pdns-server'),
-			'pdns-server' => array('pdns', 'pdns-server'),
+			'knot' => array('knot'),
 			'exim4' => array('exim4', 'exim'),
 			'exim' => array('exim', 'exim4'),
 			'postfix' => array('postfix'),
@@ -724,7 +720,7 @@ class Service__Linux extends Lxlclass
 			'mysqld' => array('mysqld', 'mariadbd'),
 			'bind9' => array('named'),
 			'named' => array('named'),
-			'pdns' => array('pdns_server'),
+			'knot' => array('knotd'),
 			'apache2' => array('apache2', 'httpd'),
 			'exim4' => array('exim4', 'exim'),
 		);

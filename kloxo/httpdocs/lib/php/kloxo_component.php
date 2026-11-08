@@ -31,7 +31,7 @@ final class KloxoComponent
             ['name' => 'sqlite3', 'type' => 'database', 'kind' => 'deb'],
             ['name' => 'redis-server', 'type' => 'database', 'kind' => 'deb'],
             ['name' => 'bind9', 'type' => 'dns', 'kind' => 'deb'],
-            ['name' => 'pdns-server', 'type' => 'dns', 'kind' => 'deb'],
+            ['name' => 'knot', 'type' => 'dns', 'kind' => 'deb'],
             ['name' => 'nginx', 'type' => 'web', 'kind' => 'deb'],
             ['name' => 'apache2', 'type' => 'web', 'kind' => 'deb'],
             ['name' => 'hiawatha', 'type' => 'web', 'kind' => 'hiawatha'],

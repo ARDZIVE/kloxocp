@@ -1310,10 +1310,39 @@ TXT;
             return;
         }
         $migrated = self::migrateServermailDriver($raw);
+        $dns = self::migrateDnsDriver($migrated ?? $raw);
+        if ($dns !== null) {
+            $migrated = $dns;
+            // PowerDNS is gone: its Services row goes, the Knot DNS row replaces it.
+            try {
+                $pdo->exec("DELETE FROM service WHERE nname = 'pdns___localhost'");
+                $pdo->exec(
+                    "INSERT IGNORE INTO service (nname, parent_clname, parent_cmlist, servicename, description, grepstring, syncserver, oldsyncserver, olddeleteflag)
+                     VALUES ('knot___localhost', 'pserver-localhost', '', 'knot', 'Knot DNS Server', 'knotd', 'localhost', '', '')"
+                );
+            } catch (PDOException $e) {
+                // no service table yet: the schema seed already carries the Knot row
+            }
+        }
         if ($migrated !== null) {
             $stmt = $pdo->prepare("UPDATE driver SET ser_driver_b = ? WHERE nname = 'localhost'");
             $stmt->execute([base64_encode($migrated)]);
         }
+    }
+
+    /**
+     * PowerDNS was removed (Knot DNS replaces it). An install that had selected it falls back to
+     * BIND, which is always installed; Knot is then chosen on Switch Program. Returns the new
+     * serialized blob, or null when nothing has to change.
+     */
+    public static function migrateDnsDriver(string $raw): ?string
+    {
+        $old = 's:6:"pg_dns";s:4:"pdns";';
+        if (!str_contains($raw, $old)) {
+            return null;
+        }
+
+        return str_replace($old, 's:6:"pg_dns";s:4:"bind";', $raw);
     }
 
     /**

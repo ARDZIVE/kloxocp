@@ -18,7 +18,7 @@
 # panel MariaDB schema via init-panel-db (also seeds the local database admin
 # row; a re-run keeps an existing admin UI password), phpMyAdmin under httpdocs/thirdparty,
 # site PHP-FPM 5.6 / 7.4 / latest (install-site-php; default latest),
-# PowerDNS packaged and prepared (disabled; BIND stays default on 53),
+# Knot DNS packaged and prepared (disabled; BIND stays default on 53),
 # Apache packaged and prepared (disabled; Nginx stays default on 80/443),
 # MariaDB enabled as the default SQL (mysqld/mysql aliases not separately enabled),
 # imagemagick for File Manager Thumbnail, Exim default MTA on --profile=full
@@ -61,7 +61,7 @@ Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
 
   --profile=full   default: core plus exim4-daemon-heavy (default MTA), dovecot, rspamd
                    (Postfix is not apt-installed here; it conflicts with Exim)
-  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (enabled), fail2ban (enabled), imagemagick, webcache:8080, webproxy:30080; apache2/pdns packaged, disabled
+  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (enabled), fail2ban (enabled), imagemagick, webcache:8080, webproxy:30080; apache2/knot packaged, disabled
   --slave          backend-only host; no panel UI (Kloxo-MR slave)
   --slave-password=SECRET
                    password the master uses when adding this host
@@ -293,7 +293,7 @@ plan: Kloxo CP ${KCP_VERSION}
   type    $INSTALL_TYPE
   fresh   $([ "$FRESH" -eq 1 ] && echo 'yes: previous install is removed first' || echo no)
   sitephp 5.6, 7.4, latest (install-site-php; default latest)
-  dns     bind9 enabled (default); pdns-server prepared and disabled
+  dns     bind9 enabled (default); knot prepared and disabled
   web     nginx enabled (default); apache2 prepared and disabled
   cache   kloxo-webcache :8080 and kloxo-webproxy :30080 (nginx; no varnish/squid)
   smtp    exim4 default (full); postfix via Switch Program (cannot co-install)
@@ -397,16 +397,37 @@ wait_for_apt_locks() {
 write_apt_conf
 wait_for_apt_locks
 
-# apt postinst starts packaged daemons. pdns would fail (no gmysql yet, and
-# BIND owns port 53) and apache2 would race Nginx on 80/443. policy-rc.d 101
+# apt postinst starts packaged daemons. knot would start on 127.0.0.1:53 and
+# clash with BIND (which owns port 53) and apache2 would race Nginx on 80/443. policy-rc.d 101
 # skips those starts without failing the package; a runtime mask covers
 # postinst that calls systemctl directly. BIND, Nginx, and Exim still start.
 # Postfix is not installed with Exim (mail-transport-agent conflict).
 KLOXO_POLICY_RC=/usr/sbin/policy-rc.d
 KLOXO_POLICY_PREV=/usr/sbin/policy-rc.d.kloxo-prev
 KLOXO_POLICY_OWNED=0
+# Standby servers: knot and apache2 stay off until Switch Program selects them. A
+# re-run must not stop one the admin already selected (enabled), so only the
+# units that are not enabled now are held, masked and disabled.
+KLOXO_STANDBY_UNITS=()
+standby_off() {
+  local u
+  for u in "$@"; do
+    if [[ " ${KLOXO_STANDBY_UNITS[*]:-} " == *" $u "* ]]; then
+      systemctl disable --now "$u" >/dev/null 2>&1 || true
+    fi
+  done
+}
 hold_standby_units() {
-  log "holding pdns and apache2 until Switch Program selects them"
+  local u
+  KLOXO_STANDBY_UNITS=()
+  for u in knot apache2; do
+    if systemctl is-enabled --quiet "$u" 2>/dev/null; then
+      log "$u is enabled (selected in Switch Program): leaving it running"
+    else
+      KLOXO_STANDBY_UNITS+=("$u")
+    fi
+  done
+  log "holding knot and apache2 until Switch Program selects them"
   if [[ -e "$KLOXO_POLICY_RC" ]] && ! grep -q 'Temporary Kloxo CP policy' "$KLOXO_POLICY_RC" 2>/dev/null; then
     if [[ ! -e "$KLOXO_POLICY_PREV" ]]; then
       mv "$KLOXO_POLICY_RC" "$KLOXO_POLICY_PREV"
@@ -416,7 +437,7 @@ hold_standby_units() {
 #!/bin/sh
 # Temporary Kloxo CP policy during install. BIND, Nginx, and Exim stay the listeners.
 case "${1:-}" in
-  pdns|pdns.service|pdns-server|apache2|apache2.service)
+  knot|knot.service|knot-resolver|apache2|apache2.service)
     exit 101
     ;;
 esac
@@ -427,16 +448,23 @@ exit 0
 EOF
   chmod 0755 "$KLOXO_POLICY_RC"
   KLOXO_POLICY_OWNED=1
-  systemctl mask --runtime pdns.service apache2.service >/dev/null 2>&1 \
-    || systemctl mask pdns.service apache2.service >/dev/null 2>&1 \
-    || true
+  for u in "${KLOXO_STANDBY_UNITS[@]:-}"; do
+    [[ -n "$u" ]] || continue
+    systemctl mask --runtime "$u.service" >/dev/null 2>&1 \
+      || systemctl mask "$u.service" >/dev/null 2>&1 \
+      || true
+  done
 }
 release_standby_units() {
   rm -f "$KLOXO_APT_CONF"
-  systemctl unmask --runtime pdns.service apache2.service >/dev/null 2>&1 || true
-  systemctl unmask pdns.service apache2.service >/dev/null 2>&1 || true
-  systemctl reset-failed pdns apache2 >/dev/null 2>&1 || true
-  systemctl disable --now pdns apache2 >/dev/null 2>&1 || true
+  local u
+  for u in "${KLOXO_STANDBY_UNITS[@]:-}"; do
+    [[ -n "$u" ]] || continue
+    systemctl unmask --runtime "$u.service" >/dev/null 2>&1 || true
+    systemctl unmask "$u.service" >/dev/null 2>&1 || true
+    systemctl reset-failed "$u" >/dev/null 2>&1 || true
+  done
+  standby_off knot apache2
   if [[ "${KLOXO_POLICY_OWNED:-0}" -eq 1 ]]; then
     rm -f "$KLOXO_POLICY_RC"
     if [[ -e "$KLOXO_POLICY_PREV" ]]; then
@@ -448,7 +476,7 @@ release_standby_units() {
 trap release_standby_units EXIT
 hold_standby_units
 
-# pdns / pure-ftpd / rspamd live in universe on Ubuntu cloud images.
+# pure-ftpd / rspamd live in universe on Ubuntu cloud images.
 ensure_ubuntu_universe() {
   local f changed=0
   for f in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list; do
@@ -466,7 +494,7 @@ ensure_ubuntu_universe() {
     fi
   done
   if [[ "$changed" -eq 1 ]]; then
-    log "enabled Ubuntu universe component for pure-ftpd / pdns / rspamd"
+    log "enabled Ubuntu universe component for pure-ftpd / rspamd"
   fi
 }
 ensure_ubuntu_universe
@@ -495,7 +523,7 @@ apt-get update -y || log "warn: apt-get update reported errors; continuing"
 # Sqlite class is mysqli); slave-db.db is PHP serialize — do not apt-install sqlite.
 apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
-  mariadb-server nginx apache2 bind9 pdns-server pdns-backend-mysql \
+  mariadb-server nginx apache2 bind9 knot knot-dnsutils \
   pure-ftpd redis-server iproute2 ufw imagemagick \
   fail2ban python3-systemd nftables \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
@@ -677,9 +705,8 @@ enable_default_stack() {
   systemctl enable --now redis-server 2>/dev/null \
     || systemctl enable --now redis 2>/dev/null || true
   systemctl enable --now pure-ftpd 2>/dev/null || true
-  systemctl reset-failed pdns apache2 postfix 2>/dev/null || true
-  systemctl disable --now pdns 2>/dev/null || true
-  systemctl disable --now apache2 2>/dev/null || true
+  systemctl reset-failed knot apache2 postfix 2>/dev/null || true
+  standby_off knot apache2
   # Default MTA is Exim (full profile). Never leave a preinstalled Postfix
   # unit enabled alongside Exim (mail-transport-agent conflict / dual listeners).
   systemctl disable --now postfix 2>/dev/null || true
@@ -698,7 +725,7 @@ prepare_apache() {
   chmod 0755 "$ROOT/bin/install/install-apache" || true
   php "$ROOT/bin/install/install-apache" --root="$ROOT" \
     || log "warn: install-apache failed; Switch Program can retry"
-  systemctl disable --now apache2 2>/dev/null || true
+  standby_off apache2
   systemctl enable --now nginx 2>/dev/null || true
 }
 
@@ -709,14 +736,11 @@ prepare_webfront() {
     || log "warn: install-webfront failed; webcache/webproxy stay down"
 }
 
-prepare_pdns() {
-  chmod 0755 "$ROOT/bin/install/install-pdns" || true
-  if ! wait_mariadb; then
-    log "warn: MariaDB is not ready; PowerDNS schema skipped"
-    return 0
-  fi
-  php "$ROOT/bin/install/install-pdns" --root="$ROOT" \
-    || log "warn: install-pdns failed; Switch Program can retry"
+prepare_knot() {
+  chmod 0755 "$ROOT/bin/install/install-knot" || true
+  php "$ROOT/bin/install/install-knot" --root="$ROOT" \
+    || log "warn: install-knot failed; Switch Program can retry"
+  standby_off knot
 }
 
 install_backend() {
@@ -789,7 +813,7 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
   enable_default_stack
   prepare_apache
   prepare_webfront
-  prepare_pdns
+  prepare_knot
   log "installing site PHP 5.6, 7.4, and latest (default) on this slave"
   if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
     log "warn: extra site PHP versions failed; Webserver Configure can retry"
@@ -841,7 +865,7 @@ prepare_webfront
 if ! wait_mariadb; then
   die "MariaDB is not accepting unix_socket logins as root"
 fi
-prepare_pdns
+prepare_knot
 
 # Re-running the installer on an existing panel must not reset a password the
 # owner already changed: keep it unless KLOXO_ADMIN_PASSWORD is given.
@@ -872,9 +896,6 @@ if id -u lxlabs >/dev/null 2>&1; then
   chmod 0750 "$ROOT/etc/conf" || true
   if [[ -f "$ROOT/etc/conf/kloxo.pass" ]]; then
     chmod 0640 "$ROOT/etc/conf/kloxo.pass"
-  fi
-  if [[ -f "$ROOT/etc/conf/pdns.pass" ]]; then
-    chmod 0640 "$ROOT/etc/conf/pdns.pass"
   fi
   if [[ -f "$ROOT/etc/conf/pma.pass" ]]; then
     chmod 0640 "$ROOT/etc/conf/pma.pass"

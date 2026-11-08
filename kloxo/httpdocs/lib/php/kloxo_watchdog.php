@@ -41,7 +41,7 @@ final class KloxoWatchdog
         'web' => ['driver' => 'web', 'units' => ['nginx' => 'nginx', 'apache' => 'apache2'], 'ports' => [80]],
         'webcache' => ['units' => ['kloxo-webcache'], 'ports' => [8080]],
         'webproxy' => ['units' => ['kloxo-webproxy'], 'ports' => [30080]],
-        'dns' => ['driver' => 'dns', 'units' => ['bind' => 'bind9', 'pdns' => 'pdns'], 'ports' => [53]],
+        'dns' => ['driver' => 'dns', 'units' => ['bind' => 'bind9', 'knot' => 'knot'], 'ports' => [53]],
         'mail' => ['driver' => 'smtp', 'units' => ['exim' => 'exim4', 'postfix' => 'postfix'], 'ports' => [25]],
         'pop3' => ['driver' => 'pop3', 'units' => ['dovecot' => 'dovecot'], 'ports' => [143]],
         'ftp' => ['units' => ['pure-ftpd'], 'ports' => [21]],

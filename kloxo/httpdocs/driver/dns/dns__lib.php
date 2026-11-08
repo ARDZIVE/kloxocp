@@ -17,7 +17,7 @@ class dns__ extends lxDriverClass
 			return;
 		}
 
-		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pdns.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_dns.php';
 		kloxo_dns_switch((string)$drivertype);
 
 		createRestartFile("restart-dns");
@@ -51,16 +51,13 @@ class dns__ extends lxDriverClass
 		// MR -- not work and not implementing yet!
 	//	$input['account'] = $this->parent->getRealClientParentO()->getPathFromName();
 
-		$input['rootpass'] = slave_get_db_pass();
-		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pdns.php';
-		kloxo_pdns_fill_input($input);
-
 		$dnsdrvlist = getAllDnsDriverList();
 
 		foreach ($dnsdrvlist as $v) {
 			if ($v === 'none') { continue; }
 
-			if (($v === 'bind') || ($v === 'yadifa')) { continue; }
+			// Knot is handled by dns__knot (zone files + knot.conf), not by templates.
+			if (($v === 'bind') || ($v === 'yadifa') || ($v === 'knot')) { continue; }
 
 			$tplsource = getLinkCustomfile("/opt/configs/{$v}/tpl", "domains.conf.tpl");
 			$tpl = file_get_contents($tplsource);
@@ -70,13 +67,9 @@ class dns__ extends lxDriverClass
 
 				$tpltarget = "/opt/configs/{$v}/conf/master/{$d}";
 
-				if (($v === 'pdns') || (($v === 'mydns'))) {
-					getParseInlinePhp($tpl, $input);
-				} else {
-					$tplparse = getParseInlinePhp($tpl, $input);
+				$tplparse = getParseInlinePhp($tpl, $input);
 
-					file_put_contents($tpltarget, $tplparse);
-				}
+				file_put_contents($tpltarget, $tplparse);
 			}
 		}
 	}
@@ -96,10 +89,6 @@ class dns__ extends lxDriverClass
 
 		$input['serverips'] = $this->getServerIps();
 
-		$input['rootpass'] = slave_get_db_pass();
-		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pdns.php';
-		kloxo_pdns_fill_input($input);
-
 		$dnsdrvlist = getAllDnsDriverList();
 
 		$mlist = $this->getMasterList();
@@ -107,7 +96,7 @@ class dns__ extends lxDriverClass
 		$rlist = $this->getReverseList();
 
 		foreach ($dnsdrvlist as $v) {
-			if ($v === 'none') { continue; }
+			if (($v === 'none') || ($v === 'knot')) { continue; }
 
 			$input['domains'] = $mlist;
 			$tplsource = getLinkCustomfile("/opt/configs/{$v}/tpl", "list.master.conf.tpl");
@@ -141,14 +130,10 @@ class dns__ extends lxDriverClass
 		$input['ips'] = $this->getIps();
 		$input['serverips'] = $this->getServerIps();
 
-		$input['rootpass'] = slave_get_db_pass();
-		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pdns.php';
-		kloxo_pdns_fill_input($input);
-
 		$dnsdrvlist = getAllDnsDriverList();
 
 		foreach ($dnsdrvlist as $v) {
-			if ($v === 'none') { continue; }
+			if (($v === 'none') || ($v === 'knot')) { continue; }
 
 			$tplsource = getLinkCustomfile("/opt/configs/{$v}/tpl", "list.transfered.conf.tpl");
 
@@ -243,7 +228,8 @@ class dns__ extends lxDriverClass
 	{
 		$driver = self::getActiveDriver();
 
-		if (($driver !== 'pdns') && ($driver !== 'mydns')) {
+		// Knot reloads itself from applyConf(); no restart file for it.
+		if ($driver !== 'knot') {
 			createRestartFile("restart-dns");
 		}
 	}

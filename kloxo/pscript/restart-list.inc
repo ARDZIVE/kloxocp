@@ -15,7 +15,7 @@ list_web=("${list_phpfpm[@]}" "${list_web[@]}")
 list_mysql=(mysql mysqld mariadb)
 list_mail=(exim4 dovecot postfix)
 list_ftp=(pure-ftpd vsftpd)
-list_dns=(named bind9 djbdns pdns nsd yadifad)
+list_dns=(named bind9 djbdns knot nsd yadifad)
 list_syslog=(syslog rsyslog syslog-ng httpry)
 
 list_services=("${list_mysql[@]}" "${list_dns[@]}" "${list_web[@]}" "${list_mail[@]}" "${list_ftp[@]}")

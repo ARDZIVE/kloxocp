@@ -1,0 +1,144 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * install-knot: prepare Knot DNS next to BIND on Ubuntu 24.04 / 26.x.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3. See LICENSE.txt.
+ *
+ * BIND stays the default DNS server. Knot (packages knot, knot-dnsutils) is
+ * installed by install.sh; this script gives it a valid generated knot.conf
+ * (explicit listen addresses, never the wildcard: systemd-resolved owns
+ * 127.0.0.53:53 on Ubuntu) and the zone directory, validates the result with
+ * `knotc conf-check`, and does NOT enable or start the unit (Switch Program
+ * does). Zone files already in the zone directory are kept and listed.
+ *
+ * Standalone apart from kloxo_knot.php. PHP 8.3, argument-array proc_open.
+ *
+ * Usage:
+ *   install-knot [--root=DIR] [--dry-run] [--base=PREFIX]
+ */
+
+const IKNOT_VERSION = '0.1.0';
+
+final class IknotException extends RuntimeException
+{
+}
+
+final class IknotApp
+{
+    /** @var array<string,string|true> */
+    private array $opt = [];
+
+    public function run(array $argv): int
+    {
+        array_shift($argv);
+        foreach ($argv as $a) {
+            if ($a === '--help' || $a === '-h') {
+                return $this->help();
+            }
+            if ($a === '--version') {
+                echo 'install-knot ' . IKNOT_VERSION . "\n";
+                return 0;
+            }
+            if ($a === '--dry-run') {
+                $this->opt['dry-run'] = true;
+                continue;
+            }
+            if (str_starts_with($a, '--') && str_contains($a, '=')) {
+                [$k, $v] = explode('=', substr($a, 2), 2);
+                $this->opt[$k] = $v;
+                continue;
+            }
+            throw new IknotException("Unknown argument: $a");
+        }
+
+        $root = $this->root();
+        $lib = $root . '/httpdocs/lib/php/kloxo_knot.php';
+        if (!is_file($lib)) {
+            throw new IknotException("Cannot find $lib");
+        }
+        require_once $lib;
+
+        $base = isset($this->opt['base']) ? (string)$this->opt['base'] : '';
+        if ($base !== '' && ($base[0] !== '/' || str_contains($base, '..'))) {
+            throw new IknotException('--base must be an absolute path without ..');
+        }
+        $opt = ['base' => $base];
+        if (isset($this->opt['bindirs'])) {
+            $opt['bindirs'] = explode(':', (string)$this->opt['bindirs']);
+        }
+
+        if (isset($this->opt['dry-run'])) {
+            echo "plan: install-knot {$root}\n";
+            echo "  packages knot knot-dnsutils (installed by install.sh; not started)\n";
+            echo '  conf     ' . $base . KloxoKnot::CONF . " (listen on this host's addresses, port 53)\n";
+            echo '  zones    ' . $base . KloxoKnot::ZONE_DIR . " (existing *.zone files are kept)\n";
+            echo "  default  bind stays enabled; knot stays disabled until Switch Program\n";
+            return 0;
+        }
+
+        if (KloxoKnot::bin('knotc', $opt) === '' || KloxoKnot::bin('kzonecheck', $opt) === '') {
+            throw new IknotException('knotc / kzonecheck not found: apt-get install knot knot-dnsutils');
+        }
+
+        $dir = $base . KloxoKnot::ZONE_DIR;
+        KloxoKnot::ensureZoneDir($dir);
+
+        $masters = [];
+        foreach (glob($dir . '/*.zone') ?: [] as $f) {
+            $masters[] = basename($f, '.zone');
+        }
+
+        $listen = isset($this->opt['listen'])
+            ? array_values(array_filter(explode(',', (string)$this->opt['listen']), 'strlen'))
+            : KloxoKnot::serverAddresses();
+
+        try {
+            $r = KloxoKnot::applyConf(['listen' => $listen, 'masters' => $masters], $opt);
+        } catch (KloxoKnotException $e) {
+            throw new IknotException($e->getMessage());
+        }
+
+        echo ($r['changed'] ? 'wrote ' : 'unchanged ') . $base . KloxoKnot::CONF . ' (' . count($r['masters']) . " zones)\n";
+        echo "knot stays disabled until Switch Program selects it\n";
+
+        return 0;
+    }
+
+    private function root(): string
+    {
+        $root = isset($this->opt['root']) ? (string)$this->opt['root'] : dirname(__DIR__, 2);
+        if ($root === '' || $root[0] !== '/' || str_contains($root, '..')) {
+            throw new IknotException('--root must be an absolute path without ..');
+        }
+
+        return rtrim($root, '/');
+    }
+
+    private function help(): int
+    {
+        echo <<<TXT
+install-knot 0.1.0: prepare Knot DNS beside BIND (BIND stays default)
+
+  install-knot [--root=DIR] [--base=PREFIX]
+  install-knot --dry-run [--root=DIR]
+  install-knot --help
+
+Writes a validated /etc/knot/knot.conf (explicit listen addresses) and the zone
+directory /var/lib/knot/zones, keeping any zone files already there. Does not
+enable or start the knot unit; Switch Program does that.
+
+TXT;
+        return 0;
+    }
+}
+
+try {
+    exit((new IknotApp())->run($argv));
+} catch (IknotException $e) {
+    fwrite(STDERR, 'install-knot: ' . $e->getMessage() . "\n");
+    exit(1);
+}

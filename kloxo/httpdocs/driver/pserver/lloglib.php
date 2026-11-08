@@ -101,7 +101,6 @@ class Llog extends Lxclass {
 			'named/' => 'Named',
 			'djbdns.log' => 'DJBDns',
 			'nsd.log' => 'NSD',
-			'pdns.log' => 'PowerDNS',
 			'yadifa/yadifa.log' => 'Yadifa',
 
 			'/var/lib/mysql/mysql-slow.log' => 'MySQL Slow (MariaDB)',

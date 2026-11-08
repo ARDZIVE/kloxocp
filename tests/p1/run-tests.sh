@@ -1,5 +1,5 @@
 #!/bin/bash
-# Source invariants for P1 tree shrink (nginx-only sites, BIND/PowerDNS, panel Hiawatha).
+# Source invariants for P1 tree shrink (nginx-only sites, BIND/Knot DNS, panel Hiawatha).
 # php-cli only. Safe locally. Does not start the panel.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -27,7 +27,7 @@ echo "smtp=" . implode(",", (array)$smtp) . "\n";
 ' "$ROOT/kloxo/file/driver/linux.inc")"
 echo "$php_out" | grep -qx 'web=none,nginx,apache' && ok "web is none,nginx,apache" || bad "web is none,nginx,apache" "$php_out"
 echo "$php_out" | grep -qx 'webcache=none,nginx' && ok "webcache is none or nginx (no varnish/squid/ats)" || bad "webcache is none or nginx (no varnish/squid/ats)" "$php_out"
-echo "$php_out" | grep -qx 'dns=none,bind,pdns' && ok "dns is none,bind,pdns" || bad "dns is none,bind,pdns" "$php_out"
+echo "$php_out" | grep -qx 'dns=none,bind,knot' && ok "dns is none,bind,knot" || bad "dns is none,bind,knot" "$php_out"
 echo "$php_out" | grep -qx 'davuser=none' && ok "davuser is none" || bad "davuser is none" "$php_out"
 echo "$php_out" | grep -qx 'mmail=' && ok "no qmail mmail driver list" || bad "no qmail mmail driver list" "$php_out"
 echo "$php_out" | grep -qx 'smtp=none,exim,postfix' && ok "smtp is none,exim,postfix" || bad "smtp is none,exim,postfix" "$php_out"
@@ -56,7 +56,7 @@ foreach ($forbid as $c) {
   if (isset($gl_class_array[$c])) { fwrite(STDERR, "still registered $c\n"); $present = 1; }
 }
 $need = array("web__nginx","web__apache","web__none","serverweb__nginx","serverweb__apache","serverweb__none","webcache__none","webcache__nginx",
-  "dns__bind","dns__pdns","dns__none","davuser__none","dirprotect__nginx","dirprotect__apache","dirprotect__none",
+  "dns__bind","dns__knot","dns__none","davuser__none","dirprotect__nginx","dirprotect__apache","dirprotect__none",
   "webhandler__nginx","webmimetype__nginx","webhandler__apache","webmimetype__apache","smtp__exim","smtp__postfix","smtp__none");
 $needmiss = 0;
 foreach ($need as $c) {
@@ -81,7 +81,7 @@ for d in $gone; do
     ok "file/$d removed"
   fi
 done
-for d in nginx apache bind pdns mail; do
+for d in nginx apache bind mail; do
   if [ -d "$ROOT/kloxo/file/$d" ]; then
     ok "file/$d kept"
   else
@@ -178,7 +178,7 @@ else
   bad "php -l linux.inc"
 fi
 
-echo "== PowerDNS ready, BIND default"
+echo "== Knot DNS ready, BIND default"
 if grep -q "'pg_dns' => 'bind'" "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db default dns is bind"
 else
@@ -189,39 +189,34 @@ if grep -q "\$a\['dns'\] = \"bind\"" "$ROOT/kloxo/httpdocs/lib/html/linuxlib.php
 else
   bad "slave default dns is bind"
 fi
-if php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_pdns.php" >/dev/null 2>&1; then
-  ok "php -l kloxo_pdns.php"
+if php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_dns.php" >/dev/null 2>&1; then
+  ok "php -l kloxo_dns.php"
 else
-  bad "php -l kloxo_pdns.php"
+  bad "php -l kloxo_dns.php"
 fi
-if php -l "$ROOT/kloxo/bin/install/install-pdns" >/dev/null 2>&1; then
-  ok "php -l install-pdns"
+if php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_knot.php" >/dev/null 2>&1 && php -l "$ROOT/kloxo/bin/install/install-knot" >/dev/null 2>&1; then
+  ok "php -l kloxo_knot.php, install-knot"
 else
-  bad "php -l install-pdns"
+  bad "php -l kloxo_knot.php, install-knot"
 fi
-if php -r 'include $argv[1]; exit(kloxo_dns_unit("pdns") === "pdns" && kloxo_dns_unit("bind") !== "" ? 0 : 1);' \
-  "$ROOT/kloxo/httpdocs/lib/php/kloxo_pdns.php"; then
-  ok "kloxo_dns_unit bind/pdns"
+if php -r 'include $argv[1]; exit(kloxo_dns_unit("knot") === "knot" && kloxo_dns_unit("bind") !== "" ? 0 : 1);' \
+  "$ROOT/kloxo/httpdocs/lib/php/kloxo_dns.php"; then
+  ok "kloxo_dns_unit bind/knot"
 else
-  bad "kloxo_dns_unit bind/pdns"
+  bad "kloxo_dns_unit bind/knot"
 fi
-if grep -q 'kloxo_pdns_connect' "$ROOT/kloxo/file/pdns/tpl/domains.conf.tpl" \
-  && ! grep -q "new mysqli('localhost', 'root'" "$ROOT/kloxo/file/pdns/tpl/"*.tpl \
-  && ! grep -q 'id = d2ids' "$ROOT/kloxo/file/pdns/tpl/"*.tpl; then
-  ok "pdns templates use powerdns user, not root+kloxo.pass"
+if [ ! -e "$ROOT/kloxo/file/pdns" ] && [ ! -e "$ROOT/kloxo/bin/install/install-pdns" ] \
+  && [ ! -e "$ROOT/kloxo/httpdocs/driver/dns/dns__pdnslib.php" ] \
+  && ! grep -rqE 'pdns|PowerDNS' "$ROOT/kloxo/httpdocs/lib" "$ROOT/kloxo/httpdocs/driver" "$ROOT/install.sh" --include='*.php' --include='*.inc' --include='*.sh'; then
+  ok "no PowerDNS code left (migration in init-panel-db only)"
 else
-  bad "pdns templates use powerdns user, not root+kloxo.pass"
+  bad "no PowerDNS code left (migration in init-panel-db only)"
 fi
-if grep -q 'function kloxo_dns_switch' "$ROOT/kloxo/httpdocs/lib/php/kloxo_pdns.php" \
+if grep -q 'function kloxo_dns_switch' "$ROOT/kloxo/httpdocs/lib/php/kloxo_dns.php" \
   && grep -q 'kloxo_dns_switch' "$ROOT/kloxo/httpdocs/driver/dns/dns__lib.php"; then
-  ok "Switch Program DNS uses systemctl bind9 vs pdns"
+  ok "Switch Program DNS uses systemctl bind9 vs knot"
 else
-  bad "Switch Program DNS uses systemctl bind9 vs pdns"
-fi
-if grep -n 'function PreparePowerdnsDb' -A 40 "$ROOT/kloxo/httpdocs/lib/html/lib.php" | grep -qi 'identified by'; then
-  bad "PreparePowerdnsDb no GRANT IDENTIFIED BY"
-else
-  ok "PreparePowerdnsDb no GRANT IDENTIFIED BY"
+  bad "Switch Program DNS uses systemctl bind9 vs knot"
 fi
 
 echo "== Apache ready, Nginx default"

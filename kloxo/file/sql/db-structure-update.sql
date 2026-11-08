@@ -19,7 +19,7 @@ INSERT IGNORE INTO `service` (`nname`, `parent_clname`, `parent_cmlist`, `servic
 ('exim___localhost', 'pserver-localhost', '', 'exim4', 'Exim Mail Server', 'exim', 'localhost', '', ''),
 ('named___localhost', 'pserver-localhost', '', 'named', 'Bind Dns Server', 'named', 'localhost', '', ''),
 ('djbdns___localhost', 'pserver-localhost', '', 'djbdns', 'DjbDns Dns Server', 'tinydns', 'localhost', '', ''),
-('pdns___localhost', 'pserver-localhost', '', 'pdns', 'PowerDNS Dns Server', 'pdns', 'localhost', '', ''),
+('knot___localhost', 'pserver-localhost', '', 'knot', 'Knot DNS Server', 'knotd', 'localhost', '', ''),
 ('nsd___localhost', 'pserver-localhost', '', 'nsd', 'NSD Dns Server', 'nsd', 'localhost', '', ''),
 ('yadifa___localhost', 'pserver-localhost', '', 'yadifad', 'YADIFA Dns Server', 'yadifad', 'localhost', '', ''),
 ('php-fpm___localhost', 'pserver-localhost', '', 'php-fpm', 'Php Fastcgi Process Manager (Php Used)', 'php-fpm', 'localhost', '', ''),

@@ -198,6 +198,16 @@ if php "$HERE/test_webcache.php"; then
 else
   bad "test_webcache.php"
 fi
+if php "$HERE/test_knot.php"; then
+  ok "test_knot.php"
+else
+  bad "test_knot.php"
+fi
+if php "$HERE/test_knot_driver.php"; then
+  ok "test_knot_driver.php"
+else
+  bad "test_knot_driver.php"
+fi
 if php "$HERE/test_busy_spinner.php"; then
   ok "test_busy_spinner.php"
 else

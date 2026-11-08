@@ -69,7 +69,7 @@ class pserver extends pservercore {
 		$defaults = array(
 			'web' => array('none', 'nginx', 'apache'),
 			'webcache' => array('none'),
-			'dns' => array('none', 'bind', 'pdns'),
+			'dns' => array('none', 'bind', 'knot'),
 			'spam' => array('none'),
 			'pop3' => array('none', 'dovecot'),
 			'smtp' => array('none', 'exim', 'postfix'),

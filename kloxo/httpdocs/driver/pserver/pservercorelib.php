@@ -1412,7 +1412,7 @@ STRIN;
 					$driver['webcache'] = array('none');
 				}
 				if (!isset($driver['dns'])) {
-					$driver['dns'] = array('none', 'bind', 'pdns');
+					$driver['dns'] = array('none', 'bind', 'knot');
 				}
 				if (!isset($driver['spam'])) {
 					$driver['spam'] = array('none');

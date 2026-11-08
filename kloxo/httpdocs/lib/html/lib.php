@@ -507,15 +507,14 @@ function slave_get_db_contactemail()
 	return $rmt->data['admin']['contactemail'];
 }
 
-function PreparePowerdnsDb($nolog = null)
+function PrepareKnotConf($nolog = null)
 {
-	log_cleanup("Prepare PowerDNS database", $nolog);
+	log_cleanup("Prepare Knot DNS configuration", $nolog);
 
-	include_once dirname(__DIR__) . '/php/kloxo_pdns.php';
-	$root = kloxo_pdns_root();
-	$bin = $root . '/bin/install/install-pdns';
+	$root = dirname(__DIR__, 3);
+	$bin = $root . '/bin/install/install-knot';
 	if (!is_readable($bin)) {
-		log_cleanup("- install-pdns missing at {$bin}", $nolog);
+		log_cleanup("- install-knot missing at {$bin}", $nolog);
 		return;
 	}
 
@@ -526,7 +525,7 @@ function PreparePowerdnsDb($nolog = null)
 		$pipes
 	);
 	if (!is_resource($p)) {
-		log_cleanup("- cannot run install-pdns", $nolog);
+		log_cleanup("- cannot run install-knot", $nolog);
 		return;
 	}
 	fclose($pipes[0]);
@@ -536,10 +535,10 @@ function PreparePowerdnsDb($nolog = null)
 	fclose($pipes[2]);
 	$rc = proc_close($p);
 	if ($rc !== 0) {
-		log_cleanup("- install-pdns failed: " . trim((string)$err . ' ' . (string)$out), $nolog);
+		log_cleanup("- install-knot failed: " . trim((string)$err . ' ' . (string)$out), $nolog);
 		return;
 	}
-	log_cleanup("- PowerDNS schema ready (pdns stays disabled until Switch Program)", $nolog);
+	log_cleanup("- Knot DNS configuration ready (knot stays disabled until Switch Program)", $nolog);
 }
 
 function PrepareMyDnsDb($nolog = null)
@@ -5842,15 +5841,19 @@ function setInitialDnsConfig($type, $nolog = null)
 {
 	$fpath = "../file";
 
+	// Knot has no template directory: knot.conf and the zones are generated (KloxoKnot).
+	if ($type === 'knot') {
+		PrepareKnotConf($nolog);
+		return;
+	}
+
 	if (!file_exists("{$fpath}/{$type}")) {
 		return;
 	}
 
 	setCopyDnsConfFiles($type);
 
-	if ($type === 'pdns') {
-		PreparePowerdnsDb($nolog);
-	} elseif ($type === 'mydns') {
+	if ($type === 'mydns') {
 		PrepareMyDnsDb($nolog);
 	} else {
 		$path = "/opt/configs/{$type}/conf";
@@ -7447,10 +7450,6 @@ function setCopyDnsConfFiles($dnsdriver, $nolog = null)
 		log_cleanup("- Copy etc/conf/{$s} to {$pathtarget}/{$aliasdriver}.conf", $nolog);
 		lxfile_cp($t, "{$pathtarget}/{$aliasdriver}.conf");
 
-	} elseif ($aliasdriver === 'pdns') {
-		log_cleanup("- PowerDNS templates at {$pathdrv}; gmysql snippet via install-pdns (not /etc/pdns overwrite)", $nolog);
-		PreparePowerdnsDb($nolog);
-		return;
 	} else {
 		$pathtarget = "{$pathetc}/{$aliasdriver}";
 
@@ -7777,7 +7776,7 @@ function getAllDnsDriverList()
 	$driver = array();
 	include "../file/driver/linux.inc";
 
-	return isset($driver['dns']) ? $driver['dns'] : array('none', 'bind', 'pdns');
+	return isset($driver['dns']) ? $driver['dns'] : array('none', 'bind', 'knot');
 }
 
 function getAllRealDnsDriverList()
@@ -8647,7 +8646,7 @@ function setAllDnsServerInstall($nolog = null)
 	$list = getAllRealDnsDriverList();
 
 	$ds = array('bind' => 'bind bind-utils bind-libs', 'djbdns' => 'djbdns',
-		'nsd' => 'nsd', 'pdns' => 'pdns pdns-backend-mysql pdns-tools pdns-geo',
+		'nsd' => 'nsd', 'knot' => 'knot knot-dnsutils',
 		'yadifa' => 'yadifa yadifa-tools');
 
 
@@ -8669,8 +8668,8 @@ function setAllDnsServerInstall($nolog = null)
 
 			if ($v === 'djbdns') {
 				exec("sh /script/setup-djbdns");
-			} elseif ($v === 'pdns') {
-				PreparePowerdnsDb($nolog);
+			} elseif ($v === 'knot') {
+				PrepareKnotConf($nolog);
 			} elseif ($v === 'yadifa') {
 				if (!isServiceExists($a)) {
 					exec("yum -y install yadifa-tools >/dev/null 2>&1");
@@ -8684,7 +8683,7 @@ function setAllInactivateDnsServer($nolog = null)
 {
 	log_cleanup("Inactivate DNS servers", $nolog);
 
-	include_once dirname(__DIR__) . '/php/kloxo_pdns.php';
+	include_once dirname(__DIR__) . '/php/kloxo_dns.php';
 	$list = getAllRealDnsDriverList();
 
 	foreach ($list as $k => $v) {
@@ -8697,7 +8696,7 @@ function setActivateDnsServer($nolog = null)
 {
 	log_cleanup("Activate Dns servers", $nolog);
 
-	include_once dirname(__DIR__) . '/php/kloxo_pdns.php';
+	include_once dirname(__DIR__) . '/php/kloxo_dns.php';
 	$list = getDnsDriverList();
 
 	foreach ($list as $k => $v) {

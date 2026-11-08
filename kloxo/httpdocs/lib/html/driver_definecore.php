@@ -1,6 +1,6 @@
 <?php 
 $gl_class_array['dns__bind'] =  "driver/dns/dns__bindlib.php";
-$gl_class_array['dns__pdns'] =  "driver/dns/dns__pdnslib.php";
+$gl_class_array['dns__knot'] =  "driver/dns/dns__knotlib.php";
 $gl_class_array['dns__none'] =  "driver/dns/dns__nonelib.php";
 
 $gl_class_array['anonftpipaddress__pureftp'] =  "driver/ftp/anonftpipaddress__pureftplib.php";

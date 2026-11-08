@@ -34,7 +34,7 @@ final class KloxoRecovery
         'apache2' => 'apache2',
         'mariadb' => 'mariadb',
         'bind9' => 'bind9',
-        'pdns' => 'pdns',
+        'knot' => 'knot',
         'exim4' => 'exim4',
         'dovecot' => 'dovecot',
         'rspamd' => 'rspamd',

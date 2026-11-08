@@ -126,7 +126,7 @@ foreach (KloxoRecovery::states() as $s) {
 	$st[$s['name']] = $s;
 }
 check(($st['nginx']['active'] ?? '') === 'active' && ($st['mariadb']['active'] ?? '') === 'inactive'
-	&& ($st['mariadb']['installed'] ?? false) === true && ($st['pdns']['installed'] ?? true) === false,
+	&& ($st['mariadb']['installed'] ?? false) === true && ($st['knot']['installed'] ?? true) === false,
 	'states: parses systemctl show blocks (active, inactive, not installed)');
 $r = KloxoRecovery::serverControl('start', 'mariadb');
 check($r['ok'] === true && $r['active'] === 'active' && active($state, 'mariadb'), 'start mariadb: reaches active', json_encode($r));

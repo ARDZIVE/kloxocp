@@ -284,8 +284,7 @@ class Sgbl
 		$this->__var_service_desc['named'] = "Bind Dns Server";
 		$this->__var_service_desc['bind9'] = "Bind Dns Server";
 		$this->__var_service_desc['bind'] = "Bind Dns Server";
-		$this->__var_service_desc['pdns'] = "PowerDNS Server";
-		$this->__var_service_desc['pdns-server'] = "PowerDNS Server";
+		$this->__var_service_desc['knot'] = "Knot DNS Server";
 
 		$this->__var_service_desc['pure-ftpd'] = "Pureftp Ftp Server";
 

@@ -600,72 +600,55 @@ else
   bad "install.sh dry-run names install type"
 fi
 
-echo "== PowerDNS packaged, BIND remains default"
-PDNS="$ROOT/kloxo/bin/install/install-pdns"
-check "php -l install-pdns" php -l "$PDNS"
-check "install-pdns --help" php "$PDNS" --help
-check "install-pdns --dry-run" php "$PDNS" --dry-run --root="$ROOT/kloxo"
-fails "install-pdns root with .. rejected" php "$PDNS" --root="$ROOT/kloxo/../kloxo"
-PDNS_ETC="$(mktemp -d)"
-mkdir -p "$PDNS_ETC/pdns.d"
-printf 'launch=bind\nbind-config=/etc/powerdns/named.conf\n' > "$PDNS_ETC/pdns.d/bind.conf"
-printf 'setuid=pdns\nbind-config=/etc/named.conf\nlaunch=gmysql\n' > "$PDNS_ETC/pdns.conf"
-printf 'local-port=53\n' > "$PDNS_ETC/pdns.d/other.conf"
-php "$PDNS" --fix-bind-settings --etc="$PDNS_ETC" --root="$ROOT/kloxo" >/dev/null
-if [ ! -e "$PDNS_ETC/pdns.d/bind.conf" ] && [ -e "$PDNS_ETC/pdns.d/bind.conf.kloxo-disabled" ] \
-  && [ -e "$PDNS_ETC/pdns.d/other.conf" ] && [ -e "$PDNS_ETC/pdns.conf.kloxo-bak" ] \
-  && ! grep -qE '^bind-config' "$PDNS_ETC/pdns.conf" && grep -q '^launch=gmysql' "$PDNS_ETC/pdns.conf"; then
-  ok "install-pdns --fix-bind-settings disables bind-config (pdns: unknown setting 'bind-config')"
+echo "== Knot DNS packaged, BIND remains default"
+KNOT="$ROOT/kloxo/bin/install/install-knot"
+check "php -l install-knot" php -l "$KNOT"
+check "install-knot --help" php "$KNOT" --help
+check "install-knot --dry-run" php "$KNOT" --dry-run --root="$ROOT/kloxo"
+fails "install-knot root with .. rejected" php "$KNOT" --root="$ROOT/kloxo/../kloxo"
+fails "install-knot --base must be absolute" php "$KNOT" --base=relative --root="$ROOT/kloxo"
+if grep -q 'bind9 knot knot-dnsutils' "$ROOT/install.sh" \
+  && grep -q 'install-knot' "$ROOT/install.sh" \
+  && grep -q 'standby_off knot' "$ROOT/install.sh"; then
+  ok "install.sh packages knot and leaves it disabled"
 else
-  bad "install-pdns --fix-bind-settings disables bind-config"
-fi
-rm -rf "$PDNS_ETC"
-FAKE_BIN="$(mktemp -d)"
-printf '#!/bin/sh\necho "udp UNCONN 0 0 127.0.0.54:53 0.0.0.0:*"\necho "udp UNCONN 0 0 127.0.0.53%%lo:53 0.0.0.0:*"\n' > "$FAKE_BIN/ss"
-printf '#!/bin/sh\necho "2: eth0    inet 203.0.113.5/24 brd 203.0.113.255 scope global eth0"\n' > "$FAKE_BIN/ip"
-chmod +x "$FAKE_BIN/ss" "$FAKE_BIN/ip"
-if [ "$(PATH="$FAKE_BIN:$PATH" php "$PDNS" --print-local-address)" = "local-address=127.0.0.1, 203.0.113.5" ]; then
-  ok "install-pdns avoids the systemd-resolved stub with an explicit local-address"
-else
-  bad "install-pdns avoids the systemd-resolved stub with an explicit local-address"
-fi
-printf '#!/bin/sh\necho "udp UNCONN 0 0 0.0.0.0:53 0.0.0.0:*"\n' > "$FAKE_BIN/ss"
-if PATH="$FAKE_BIN:$PATH" php "$PDNS" --print-local-address | grep -q wildcard; then
-  ok "install-pdns keeps the wildcard when no 127.0.0.x stub listens"
-else
-  bad "install-pdns keeps the wildcard when no 127.0.0.x stub listens"
-fi
-rm -rf "$FAKE_BIN"
-fails "install-pdns --etc must be absolute" php "$PDNS" --fix-bind-settings --etc=relative --root="$ROOT/kloxo"
-if grep -q 'pdns-server' "$ROOT/install.sh" && grep -q 'pdns-backend-mysql' "$ROOT/install.sh" \
-  && grep -q 'disable --now pdns' "$ROOT/install.sh" \
-  && grep -q 'install-pdns' "$ROOT/install.sh"; then
-  ok "install.sh packages pdns and leaves it disabled"
-else
-  bad "install.sh packages pdns and leaves it disabled"
+  bad "install.sh packages knot and leaves it disabled"
 fi
 if grep -q 'Temporary Kloxo CP policy' "$ROOT/install.sh" \
   && grep -q 'exit 101' "$ROOT/install.sh" \
-  && grep -q 'mask --runtime pdns.service apache2.service' "$ROOT/install.sh" \
-  && grep -q 'reset-failed pdns' "$ROOT/install.sh"; then
-  ok "install.sh blocks apt from starting pdns and apache2"
+  && grep -q 'knot|knot.service' "$ROOT/install.sh" \
+  && grep -q 'mask --runtime "$u.service"' "$ROOT/install.sh" \
+  && grep -q 'reset-failed "$u"' "$ROOT/install.sh"; then
+  ok "install.sh blocks apt from starting knot and apache2"
 else
-  bad "install.sh blocks apt from starting pdns and apache2"
+  bad "install.sh blocks apt from starting knot and apache2"
 fi
-if grep -E 'enable --now pdns' "$ROOT/install.sh"; then
-  bad "install.sh does not enable pdns at boot"
+if grep -E 'enable --now knot' "$ROOT/install.sh"; then
+  bad "install.sh does not enable knot at boot"
 else
-  ok "install.sh does not enable pdns at boot"
+  ok "install.sh does not enable knot at boot"
 fi
+# standby_off only stops units that were not enabled before the run (an admin-selected Knot/Apache survives a re-run)
+SB_DIR="$(mktemp -d)"
+printf '#!/bin/sh\necho "$*" >> %s/calls\n[ "$1" = is-enabled ] && [ "$3" = "${FAKE_ENABLED:-none}" ] && exit 0\nexit 1\n' "$SB_DIR" > "$SB_DIR/systemctl"
+chmod +x "$SB_DIR/systemctl"
+awk '/^KLOXO_STANDBY_UNITS=\(\)/{f=1} f{print} /^hold_standby_units\(\)/{exit}' "$ROOT/install.sh" | sed '$d' > "$SB_DIR/fn.sh"
+if (cd "$SB_DIR" && PATH="$SB_DIR:$PATH" bash -c 'log(){ :; }; . ./fn.sh; KLOXO_STANDBY_UNITS=(apache2); standby_off knot apache2' ) \
+  && grep -qx 'disable --now apache2' "$SB_DIR/calls" && ! grep -q 'disable --now knot' "$SB_DIR/calls"; then
+  ok "standby_off stops only held units"
+else
+  bad "standby_off stops only held units" "$(cat "$SB_DIR/calls" 2>/dev/null)"
+fi
+rm -rf "$SB_DIR"
 if grep -q "'pg_dns' => 'bind'" "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds pg_dns=bind"
 else
   bad "init-panel-db seeds pg_dns=bind"
 fi
-if echo "$inst_dry" | grep -q 'bind9 enabled'; then
-  ok "install.sh dry-run names BIND default and pdns prepared"
+if echo "$inst_dry" | grep -q 'bind9 enabled' && echo "$inst_dry" | grep -q 'knot prepared'; then
+  ok "install.sh dry-run names BIND default and knot prepared"
 else
-  bad "install.sh dry-run names BIND default and pdns prepared"
+  bad "install.sh dry-run names BIND default and knot prepared"
 fi
 
 echo "== Apache packaged, Nginx remains default"
@@ -675,7 +658,7 @@ check "install-apache --help" php "$APACHE" --help
 check "install-apache --dry-run" php "$APACHE" --dry-run --root="$ROOT/kloxo"
 fails "install-apache root with .. rejected" php "$APACHE" --root="$ROOT/kloxo/../kloxo"
 if grep -q 'apache2' "$ROOT/install.sh" \
-  && grep -q 'disable --now apache2' "$ROOT/install.sh" \
+  && grep -q 'standby_off apache2' "$ROOT/install.sh" \
   && grep -q 'install-apache' "$ROOT/install.sh"; then
   ok "install.sh packages apache2 and leaves it disabled"
 else

@@ -110,7 +110,7 @@ from apt only when you select it). Bogofilter is not offered. Starts Nginx, **Ma
 (`mysql`/`mysqld` aliases are not a second started service). Packages and
 **enables `ufw` by default** (panel ports 7777/7778 plus common
 SSH/web/FTP/DNS/mail ports allowed first; dual-stack IPv4+IPv6 when
-`IPV6=yes`). Apache and PowerDNS are packaged and stay disabled.
+`IPV6=yes`). Apache and Knot DNS are packaged and stay disabled.
 
 When it finishes: `https://<ip>:7777/` — **admin / admin**. The same box prints the
 **recovery console** address (`https://<ip>:7777/recovery/`) and its separate password,
@@ -128,9 +128,9 @@ details are under [Installation](#installation).
 | Customer websites | **Nginx + PHP-FPM** default; Apache 2.4 + PHP-FPM (`proxy_fcgi`, no mod_php) packaged and selectable |
 | Webcache / webproxy | nginx frontends `kloxo-webcache` **:8080** and `kloxo-webproxy` **:30080** (to `127.0.0.1:80`; not Varnish/Squid) |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it. Multiple PHP Install queues under `$ROOT/log/`. On a release where `ppa:ondrej/php` has no packages (Ubuntu 26.04 today: only php8.5 from Ubuntu), 5.6/7.4 and other versions cannot be installed: Multiple PHP Install offers only what apt or a published PPA can supply, shows why, and shows the last attempt (`log/install-site-php.status`); a leftover dead PPA source is removed so `apt-get update` keeps working. Tested with fake curl/apt in a sandbox; a live install of extra versions on Ubuntu 24.04 is unverified. |
-| DNS | **BIND 9** default; PowerDNS packaged and prepared, disabled until selected |
+| DNS | **BIND 9** default; Knot DNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
-| Switch Program | Web **Nginx** (Apache selectable); Web Cache **none** (default) / `nginx`; DNS **BIND** (PowerDNS selectable); Spam `none` / `spamassassin` (apt, on demand); POP3/IMAP `none` / **dovecot**; SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
+| Switch Program | Web **Nginx** (Apache selectable); Web Cache **none** (default) / `nginx`; DNS **BIND** (Knot DNS selectable); Spam `none` / `spamassassin` (apt, on demand); POP3/IMAP `none` / **dovecot**; SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
 | SMTP protection | Mail Server Settings > **SMTP Protection** (replaces Spamdyke): greet delay, recipient limit, graylisting (Postgrey), rDNS and DNS RBL checks, blacklist headers, whitelist IPs; applied to Exim or Postfix, whichever Switch Program selects. Rendered and unit-tested only; not yet run against a live Exim/Postfix. |
 | Database | **MariaDB** default (started at install; panel DB `kloxo`; mail DB is separate). A distinct MySQL package, if present, stays stopped until started from Services. |
 | Database admin | Seeded by `init-panel-db` as the `kloxo_pma` MariaDB account (needed by Add Database) |
@@ -167,9 +167,9 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | LxGuard | First beige tab **LxGuard**, then Connections / Raw Connections / White List. Switch To Another across servers. No left Find box. |
 | UFW Firewall | Security-section button. **UFW enabled by default** at install. Default rules carry their purpose as the comment (SSH, HTTP, SMTP, IMAP...). List-only show; Add Rule / Edit on separate pages (TCP/UDP/ICMP, optional Comment). Toolbar Refresh / Add Rule / Delete with multi-select. No Family column (IPv4+IPv6 collapsed). Actions: edit / suspend|unsuspend / delete; suspended rows show a red ●. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
-| Component Info | Ubuntu package names (nginx, apache2, bind9, pdns-server, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
+| Component Info | Ubuntu package names (nginx, apache2, bind9, knot, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
 | Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |
-| Recovery console | `https://<server>:7777/recovery/` (HTTPS only). Works without MariaDB, Nginx or Apache: it is served by the panel's own Hiawatha + PHP-FPM and logs in with its own **recovery password** (a hash in `etc/conf/recovery.json`; the installer prints the password once and saves it to `/root/kloxo-recovery-password`; reset with `php /opt/kloxo/bin/kloxocp recovery-password --generate`). Lists the server applications (nginx, apache2, mariadb, bind9, pdns, exim4, dovecot, rspamd, pure-ftpd, redis-server, ufw, phpX.Y-fpm, the Kloxo units) with Start / Stop / Restart and a log view; panel units can only be started (stopping them would end the page). Five wrong passwords lock an address for 15 minutes. When MariaDB is unreachable the panel pages show a link to it. Root actions go through `kloxo-backend`, which now starts even while MariaDB is down. Tested with fake systemctl and a local backend only; live use is unverified. |
+| Recovery console | `https://<server>:7777/recovery/` (HTTPS only). Works without MariaDB, Nginx or Apache: it is served by the panel's own Hiawatha + PHP-FPM and logs in with its own **recovery password** (a hash in `etc/conf/recovery.json`; the installer prints the password once and saves it to `/root/kloxo-recovery-password`; reset with `php /opt/kloxo/bin/kloxocp recovery-password --generate`). Lists the server applications (nginx, apache2, mariadb, bind9, knot, exim4, dovecot, rspamd, pure-ftpd, redis-server, ufw, phpX.Y-fpm, the Kloxo units) with Start / Stop / Restart and a log view; panel units can only be started (stopping them would end the page). Five wrong passwords lock an address for 15 minutes. When MariaDB is unreachable the panel pages show a link to it. Root actions go through `kloxo-backend`, which now starts even while MariaDB is down. Tested with fake systemctl and a local backend only; live use is unverified. |
 | Watchdog | The `kloxo-watchdog` service (installed and enabled by `install.sh`, independent of the panel and MariaDB) checks the server applications every minute and restarts one that crashed or stopped answering on its port; after 3 restarts in 30 minutes it stops trying and mails the admin once. Applications you stopped yourself (recovery console or Services page) are left alone until you start them again. Switch a service off on the panel's Watchdog screen, or tune `etc/conf/watchdog.json`. It mails the admin contact email (the address entered in the panel profile; or `notify` in `etc/conf/watchdog.json`) when it restarts a service, when a restart fails and when it gives up; `kloxo-watchdog --test-mail` checks delivery, and the recovery console warns while no address is set. `kloxo-watchdog --status` shows what it did; log in `log/watchdog.log`. Tested with a fake systemd/clock/mailer only; a live crash-and-restart on Ubuntu is unverified. |
 | Fail2Ban | Installed by `install.sh` (`fail2ban`, `python3-systemd`, `nftables`) and configured by `bin/install/install-fail2ban`; the address you ran the installer from over SSH is whitelisted so you cannot lock yourself out. Security > **Fail2Ban** (admin only) lists every situation it can watch as a jail: SSH, repeat offenders (recidive), the panel login and the recovery console (their failures go to `log/auth-failures.log`, rotated weekly), Exim, Dovecot, Postfix, Nginx auth and bot searches, Apache auth/noscript/botsearch/overflows, Pure-FTPd and MariaDB. Each row shows whether it can run on this server (program installed, filter and log present), its state, limits, failed/banned counters, and play/pause and edit icons (Max Retry, Find Time, Ban Time per jail). Ban IP, Unban, Unban All, Reload, Settings (defaults and the whitelist) and a Recent Activity list from `/var/log/fail2ban.log` are on the same page. Bans use the nftables action, so they are not mixed into the UFW rule list; LxGuard and the Block IP list still work and only overlap in purpose. The jail file `/etc/fail2ban/jail.d/kloxo-cp.local` is generated from `etc/conf/fail2ban.json`, checked with `fail2ban-client -t`, installed atomically and rolled back (file and saved settings) if Fail2Ban refuses it. The watchdog keeps the `fail2ban` unit running. Tested with a fake `fail2ban-client`/systemctl and the filter regexes translated to PHP (`tests/p2/test_fail2ban.php`, `test_server_pages.php`); a real Fail2Ban, nftables, the journal matches, live bans and a live install on Ubuntu are unverified. |
 | Watchdog | Eight services. webcache (8080) and webproxy (30080) are nginx frontends to port 80 (`kloxo-webcache` / `kloxo-webproxy`), not Varnish/Squid. |
@@ -182,7 +182,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | Updates | One command or one button, with backup, health check and rollback (`snapshot`/`rollback` exist; `update` not built) |
 | Target OS | Ubuntu 24.04 LTS and Ubuntu 26.x; AlmaLinux/Rocky 9 later |
 | Customer websites | Nginx + PHP-FPM default; Apache selectable; multiple PHP versions side by side |
-| DNS | BIND default; PowerDNS selectable |
+| DNS | BIND default; Knot DNS selectable (zones generated, checked with `kzonecheck`/`knotc conf-check`) |
 | Mail | Exim + Dovecot + Rspamd, mailboxes in MariaDB |
 | Panel's own web server | Hiawatha (panel UI only) |
 | Billing integrations | None for now |
@@ -254,7 +254,7 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    compilers Hiawatha needs (`build-essential` `cmake` `libssl-dev` `zlib1g-dev`),
    and `ufw` (**enabled by default**; panel ports 7777/7778 plus common
    SSH/web/FTP/DNS/mail ports allowed first; IPv4+IPv6 when `IPV6=yes`).
-   Also packages `pdns-server` and `apache2` but does not let apt start them
+   Also packages `knot` and `apache2` but does not let apt start them
    (BIND stays on 53, Nginx on 80/443). Does **not** install SpamAssassin
    or sqlite (Switch Program installs SpamAssassin on demand).
 3. Clones the git tree to `/usr/local/src/kloxo-cp` if that tree is missing.
@@ -272,7 +272,7 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
 8. Enables Nginx, **MariaDB** (default SQL; not a separate mysqld enable), and
    BIND. Starts webcache on **8080** and webproxy on **30080**
    (`install-webfront`; dedicated nginx processes, not Varnish or Squid).
-   Prepares Apache (`install-apache`) and PowerDNS (`install-pdns`) and leaves
+   Prepares Apache (`install-apache`) and Knot DNS (`install-knot`) and leaves
    those units **disabled**. A distinct MySQL package unit, if present, stays
    stopped until started from Services. `--profile=full` installs Exim
    (default MTA) only — Postfix conflicts with Exim on `mail-transport-agent`
@@ -421,7 +421,7 @@ at distro PHP 8, create runtime directories, install OS packages, build pinned
 Hiawatha 12.4, load the panel MariaDB schema (`init-panel-db`: admin,
 `localhost` server and driver, appearance, `generalmisc_b`, Login Message, and
 `enablecronforall.flg`), install phpMyAdmin,
-prepare Apache and PowerDNS without starting them, start `kloxo-php` /
+prepare Apache and Knot DNS without starting them, start `kloxo-php` /
 `kloxo-web` / `kloxo-backend`, optionally apt-install mail packages
 (`--profile=full`), and confirm `include.php` loads.
 
@@ -456,7 +456,7 @@ apt install -y \
   nginx \
   apache2 \
   bind9 \
-  pdns-server pdns-backend-mysql \
+  knot knot-dnsutils \
   pure-ftpd \
   redis-server \
   iproute2 \
@@ -484,16 +484,16 @@ apt install -y \
 
 Hiawatha is **not** in Ubuntu 24.04 or 26.x. `install.sh` (or the command in section 8)
 builds pinned 12.4. `redis-server` is a core package (Rspamd Bayes backend).
-`pdns-server` is installed and left **disabled**; BIND stays on port 53 until
-Switch Program selects PowerDNS. `apache2` is installed and left **disabled**;
+`knot` is installed and left **disabled**; BIND stays on port 53 until
+Switch Program selects Knot DNS (then run `/script/fixdns` once to write the zones). `apache2` is installed and left **disabled**;
 Nginx stays on 80/443 until Switch Program selects Apache (PHP-FPM via
 `proxy_fcgi`, not mod_php). `ufw` is installed and **enabled by default**
 (7777/7778 and common ports allowed first; dual-stack when IPv6 is on).
 After Nginx starts,
 `install-webfront` enables **kloxo-webcache** (8080) and
 **kloxo-webproxy** (30080). During apt,
-`install.sh` tells `invoke-rc.d` not to start pdns and apache2 (they have no
-backend yet, and would fight BIND / Nginx for the ports).
+`install.sh` tells `invoke-rc.d` not to start knot and apache2 (they would fight BIND / Nginx for the
+ports).
 
 ### 3. Place the tree at `/opt/kloxo`
 
@@ -741,7 +741,7 @@ bash tests/p3/run-tests.sh
 bash tests/install/run-tests.sh
 php kloxo/bin/install/generate-tls-keys --help
 php kloxo/bin/install/init-panel-db --help
-php kloxo/bin/install/install-pdns --help
+php kloxo/bin/install/install-knot --help
 php kloxo/bin/install/install-apache --help
 php kloxo/bin/install/install-webfront --help
 bash kloxo/bin/install/install-hiawatha --help
@@ -770,7 +770,7 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/ sbin/ pscript/   backend and maintenance scripts
   cexe/           C backend daemon (source only; setuid helpers removed)
   init/           panel systemd units, Hiawatha, PHP-FPM pool, php-cli.sh
-  file/           service config templates (nginx, apache, bind, pdns, mail)
+  file/           service config templates (nginx, apache, bind, mail)
   install/        LEGACY RPM/CentOS installer (do not use on Ubuntu)
   bin/kloxocp            operator CLI (status, doctor, snapshot, rollback)
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)
@@ -778,7 +778,7 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/install/init-panel-db      Ubuntu MariaDB panel schema
   bin/install/init-slave         slave-db.db for a --slave host
   bin/install/install-hiawatha   pinned Hiawatha 12.4 source build
-  bin/install/install-pdns       PowerDNS schema + gmysql snippet (unit stays disabled)
+  bin/install/install-knot       Knot DNS base knot.conf + zone dir (unit stays disabled)
   bin/install/install-apache     Apache 2.4 PHP-FPM vhosts (unit stays disabled)
   bin/install/install-webfront   nginx webcache :8080 and webproxy :30080
   bin/install/install-phpmyadmin phpMyAdmin under httpdocs/thirdparty

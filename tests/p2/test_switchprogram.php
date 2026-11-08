@@ -73,7 +73,7 @@ $v = $r['vlist'] ?? array();
 $ok = isset($v['web_driver'][1], $v['webcache_driver'][1], $v['dns_driver'][1], $v['spam_driver'][1], $v['pop3_driver'][1], $v['smtp_driver'][1])
 	&& $v['web_driver'][1] === array('none', 'nginx', 'apache')
 	&& $v['webcache_driver'][1] === array('none', 'nginx')
-	&& $v['dns_driver'][1] === array('none', 'bind', 'pdns')
+	&& $v['dns_driver'][1] === array('none', 'bind', 'knot')
 	&& $v['spam_driver'][1] === array('none', 'spamassassin')
 	&& $v['pop3_driver'][1] === array('none', 'dovecot')
 	&& $v['smtp_driver'][1] === array('none', 'exim', 'postfix')
@@ -110,10 +110,10 @@ $r = child($tmp, 'spam_spamassassin');
 ($r['error'] === '' && ($r['slave']['spam'] ?? '') === 'spamassassin' && str_contains($r['calls'], 'install spamassassin spamc ripmime'))
 	? ok('spam none -> spamassassin') : bad('spam none -> spamassassin', json_encode($r));
 
-// 7. dns bind -> pdns
+// 7. dns bind -> knot
 $r = child($tmp, 'dns');
-($r['error'] === '' && ($r['slave']['dns'] ?? '') === 'pdns' && str_contains($r['calls'], 'enable --now pdns'))
-	? ok('dns bind -> pdns enables pdns and stores the choice') : bad('dns bind -> pdns enables pdns and stores the choice', json_encode($r));
+($r['error'] === '' && ($r['slave']['dns'] ?? '') === 'knot' && str_contains($r['calls'], 'enable --now knot'))
+	? ok('dns bind -> knot enables knot and stores the choice') : bad('dns bind -> knot enables knot and stores the choice', json_encode($r));
 
 // 8. a failing install is reported and the old choice is kept
 touch($fail_flag);
