@@ -187,6 +187,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (`__title_domain_administer`) include SQL Manager (phpMyAdmin, new tab).
     Live phpMyAdmin login
     after this change is unverified; re-run `install.sh` after pull.
+    Add Database creates a real MariaDB database (`KloxoMariadb`: CREATE
+    DATABASE utf8mb4, CREATE USER + ALTER USER + GRANT for localhost /
+    127.0.0.1 / `%`). The driver no longer `exit`s on the missing PHP
+    `mysql` extension and no longer uses `GRANT ... IDENTIFIED BY` (removed
+    in MariaDB 10.4+). Live Add Database on Ubuntu is **UNVERIFIED**.
     Component Info uses Ubuntu package names (`kloxo_component.php`) instead
     of CentOS `set.*.lst` RPM names; Hiawatha is the panel binary. Live
     Component Info list is **UNVERIFIED**.
@@ -730,7 +735,9 @@ Work in this order. Keep every change small, tested and committed separately. Do
    opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
    `kloxo_pma`@`127.0.0.1` (not root: unix_socket) via `kloxo-signon.php` (`auth_type=signon`,
    `AllowRoot`, `pma.pass`; unix_socket `root`@`localhost` unchanged).
-   Live phpMyAdmin login after re-install is **UNVERIFIED**. Remaining
+   Live phpMyAdmin login after re-install is **UNVERIFIED**.
+   Add Database creates a real MariaDB database (`KloxoMariadb`, tests in
+   `tests/p2/test_mariadb.php`; no live MariaDB). Remaining
    compile failures are third-party (`webdisk/PEAR*`, formmail,
    urlrewrite examples). Runtime `split`/`ereg*`/`each` in those trees.
    `getAdminDbPass` throws `lxException` (not generic `Exception`);

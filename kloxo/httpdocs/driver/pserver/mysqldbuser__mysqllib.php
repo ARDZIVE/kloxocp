@@ -1,94 +1,68 @@
 <?php
 
+if (!class_exists('KloxoMariadb', false)) {
+	include_once dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
+}
+
 class Mysqldbuser__mysql extends lxDriverClass
 {
-	function lx_mysql_connect($server, $dbadmin, $dbpass)
+	function mariadb()
 	{
-		global $login;
-
-		$rdb = new mysqli('localhost', $dbadmin, $dbpass);
-
-		if (!$rdb) {
-			log_error($rdb->connect_error);
-
-			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
-
-			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $rdb->connect_error);
+		if (!class_exists('KloxoMariadb', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
 		}
+		$user = isset($this->main->__var_dbadmin) ? (string) $this->main->__var_dbadmin : '';
+		$pass = isset($this->main->__var_dbpassword) ? (string) $this->main->__var_dbpassword : '';
 
-		return $rdb;
+		return KloxoMariadb::connectAdmin($user, $pass);
 	}
 
 	function createUser()
 	{
 		global $login;
 
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
-
-		$rdb->query("use mysql");
-
-		$res = $rdb->query("select * from user where User = '{$this->main->username}'");
-		$ret = $res->fetch_row();
-
-		if ($ret) {
-			throw new lxException($login->getThrow('user_already_exists'), '', $this->main->username);
+		try {
+			$mdb = $this->mariadb();
+			$mdb->ensureUser((string) $this->main->username, (string) $this->main->dbpassword);
+			$mdb->grantDatabase((string) $this->main->dbname, (string) $this->main->username);
+			$mdb->flushPrivileges();
+		} catch (KloxoMariadbException $e) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
 		}
-
-		$rdb->query("grant all on {$this->main->dbname}.* to '{$this->main->username}'@'%' identified by '{$this->main->dbpassword}';");
-		$rdb->query("grant all on {$this->main->dbname}.* to '{$this->main->username}'@'localhost' identified by '{$this->main->dbpassword}';");
-
-		$this->log_error_messages(false);
-
-		$rdb->query("flush privileges;");
 	}
 
 	function deleteUser()
 	{
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
+		global $login;
 
-		$rdb->query("delete from mysql.user where user = '{$this->main->username}';");
-
-		$this->log_error_messages(false);
-
-		$rdb->query("flush privileges;");
+		try {
+			$this->mariadb()->dropUser((string) $this->main->username);
+		} catch (KloxoMariadbException $e) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
+		}
 	}
 
 	function updateDatabase()
 	{
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
+		global $login;
 
-		$rdb->query("update mysql.user set password = PASSWORD('{$this->main->dbpassword}') where user = '{$this->main->username}';");
-
-		$this->log_error_messages();
-
-		$rdb->query("flush privileges;");
-	}
-
-	function log_error_messages($throwflag = true)
-	{
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
-
-		if ($rdb->connect_errno) {
-			dprint($rdb->connect_error);
-
-			if ($rdb->connect_errno === 1007 && csa($this->main->dbname, "_")) {
-				log_message("Mysql Db {$this->main->dbname} already exists. and also has an underscore... Will treat this as the main db..");
-				log_error($rdb->connect_error);
-
-				return true;
-			}
-
-			if ($throwflag) {
-				throw new lxException('mysql_error', '', $rdb->connect_error);
-			}
+		try {
+			$this->mariadb()->setPassword(
+				(string) $this->main->username,
+				(string) $this->main->dbpassword
+			);
+		} catch (KloxoMariadbException $e) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
 		}
 	}
 
 	function doSyncToSystemPre()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $login;
 
-		databasecore::loadExtension('mysql');
+		if (!databasecore::loadExtension('mysql')) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', 'mysqli/pdo_mysql');
+		}
 	}
 
 	function dbactionAdd()
@@ -105,5 +79,4 @@ class Mysqldbuser__mysql extends lxDriverClass
 	{
 		$this->updateDatabase();
 	}
-
 }

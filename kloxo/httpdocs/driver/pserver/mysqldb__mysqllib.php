@@ -1,18 +1,34 @@
 <?php
 
+if (!class_exists('KloxoMariadb', false)) {
+	include_once dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
+}
+
 class Mysqldb__mysql extends lxDriverClass
 {
+	function mariadb()
+	{
+		if (!class_exists('KloxoMariadb', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
+		}
+		$user = isset($this->main->__var_dbadmin) ? (string) $this->main->__var_dbadmin : '';
+		$pass = isset($this->main->__var_dbpassword) ? (string) $this->main->__var_dbpassword : '';
+
+		return KloxoMariadb::connectAdmin($user, $pass);
+	}
+
 	function lx_mysql_connect($server, $dbadmin, $dbpass)
 	{
 		global $login;
 
-		$rdb = new mysqli('localhost', $dbadmin, $dbpass);
+		$host = ($server === 'localhost' || $server === '' || $server === null)
+			? '127.0.0.1' : $server;
+		$rdb = @new mysqli($host, $dbadmin, $dbpass);
 
-		if (!$rdb) {
-			log_error($rdb->connect_error);
-
-			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
-			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $rdb->connect_error);
+		if (!$rdb instanceof mysqli || $rdb->connect_errno) {
+			$err = ($rdb instanceof mysqli) ? $rdb->connect_error : 'connect failed';
+			log_error($err);
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $err);
 		}
 
 		return $rdb;
@@ -22,83 +38,63 @@ class Mysqldb__mysql extends lxDriverClass
 	{
 		global $login;
 
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
-
-		$rdb->query("use mysql");
-		$res = $rdb->query("select * from user where User = '{$this->main->username}'");
-
-		$ret = null;
-
-		if ($res) {
-			$ret = $res->fetch_row();
+		$primary = null;
+		if (isset($this->main->__var_primary_user) && is_string($this->main->__var_primary_user)
+			&& $this->main->__var_primary_user !== '') {
+			$primary = $this->main->__var_primary_user;
 		}
-
-		if ($ret) {
-		//	throw new lxException($login->getThrow("database_user_already_exists"), '', $this->main->username);
+		try {
+			$this->mariadb()->createDatabase(
+				(string) $this->main->dbname,
+				(string) $this->main->username,
+				(string) $this->main->dbpassword,
+				$primary
+			);
+		} catch (KloxoMariadbException $e) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
 		}
-
-		$rdb->query("create database {$this->main->dbname};");
-		$this->log_error_messages();
-
-		$rdb->query("grant all on {$this->main->dbname}.* to '{$this->main->username}'@'%' identified by '{$this->main->dbpassword}';");
-		$rdb->query("grant all on {$this->main->dbname}.* to '{$this->main->username}'@'localhost' identified by '{$this->main->dbpassword}';");
-
-		if (isset($this->main->__var_primary_user)) {
-			$parentname = $this->main->__var_primary_user;
-
-			$rdb->query("grant all on {$this->main->dbname}.* to '{$parentname}'@'localhost';");
-			$rdb->query("grant all on {$this->main->dbname}.* to '{$parentname}'@'%';");
-		}
-
-		$this->log_error_messages(false);
-
-		$rdb->query("flush privileges;");
 	}
 
 	function extraGrant()
 	{
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
+		global $login;
 
-		$rdb->query("revoke show databases on *.* from '{$this->main->username}'@'%' identified by '{$this->main->dbpassword}';");
-
-		$this->log_error_messages(false);
-
-		$rdb->query("grant SELECT,INSERT,UPDATE,DELETE,CREATE,DROP,ALTER on {$this->main->dbname}.* to '{$this->main->username}'@'localhost' identified by '{$this->main->dbpassword}';");
-
-		$this->log_error_messages(false);
-
-		$rdb->query("revoke show databases on *.* from '{$this->main->username}'@'localhost' identified by '{$this->main->dbpassword}';");
-
-		$this->log_error_messages(false);
+		try {
+			$this->mariadb()->grantDatabase(
+				(string) $this->main->dbname,
+				(string) $this->main->username
+			);
+		} catch (KloxoMariadbException $e) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
+		}
 	}
 
 	function deleteDatabase()
 	{
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
+		global $login;
 
-		$rdb->query("drop database {$this->main->dbname};");
-
-		$this->log_error_messages(false);
-
-		// MR -- fix delete database username
-	//	$rdb->query("delete from mysql.user where user = '{$this->main->username}';");
-		$rdb->query("drop user '{$this->main->username}'@'%';");
-		$rdb->query("drop user '{$this->main->username}'@'localhost';");
-
-		$this->log_error_messages(false);
-
-		$rdb->query("flush privileges;");
+		try {
+			$this->mariadb()->dropDatabase(
+				(string) $this->main->dbname,
+				(string) $this->main->username
+			);
+		} catch (KloxoMariadbException $e) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
+		}
 	}
 
 	function updateDatabase()
 	{
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
+		global $login;
 
-		$rdb->query("update mysql.user set password = PASSWORD('{$this->main->dbpassword}') where user = '{$this->main->username}';");
-
-		$this->log_error_messages();
-
-		$rdb->query("flush privileges;");
+		try {
+			$this->mariadb()->setPassword(
+				(string) $this->main->username,
+				(string) $this->main->dbpassword
+			);
+		} catch (KloxoMariadbException $e) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
+		}
 	}
 
 	function log_error_messages($throwflag = true)
@@ -258,10 +254,16 @@ class Mysqldb__mysql extends lxDriverClass
 
 	function fix_grant_all()
 	{
-		$rdb = $this->lx_mysql_connect('localhost', $this->main->__var_dbadmin, $this->main->__var_dbpassword);
+		global $login;
 
-		$rdb->query("grant all on {$this->main->dbname}.* to '{$this->main->username}'@'%'");
-		$rdb->query("grant all on {$this->main->dbname}.* to '{$this->main->username}'@'localhost'");
+		try {
+			$this->mariadb()->grantDatabase(
+				(string) $this->main->dbname,
+				(string) $this->main->username
+			);
+		} catch (KloxoMariadbException $e) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
+		}
 	}
 
 	function do_restore($docd)
@@ -319,9 +321,11 @@ class Mysqldb__mysql extends lxDriverClass
 
 	function doSyncToSystemPre()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $login;
 
-		databasecore::loadExtension('mysql');
+		if (!databasecore::loadExtension('mysql')) {
+			throw new lxException($login->getThrow('could_not_connect_to_db'), '', 'mysqli/pdo_mysql');
+		}
 	}
 
 	function dbactionAdd()

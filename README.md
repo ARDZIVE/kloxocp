@@ -679,8 +679,10 @@ that Add Database reads. Because OS `root`@`localhost` is unix_socket and cannot
 log in with a password, the row uses the `kloxo_pma` MariaDB account (ALL
 PRIVILEGES; password in `/opt/kloxo/etc/conf/pma.pass`). Without this row,
 creating a database fails with *There are no Database administrator entries
-configured for this particular server*. Live database creation after
-re-install is unverified.
+configured for this particular server*. Add Database then creates a real
+MariaDB database and user (`CREATE DATABASE` utf8mb4, `CREATE USER` /
+`ALTER USER` / `GRANT` on localhost, 127.0.0.1 and `%`). Live database
+creation after re-install is unverified.
 
 The legacy wrapper still works from `httpdocs` and now calls `init-panel-db`:
 

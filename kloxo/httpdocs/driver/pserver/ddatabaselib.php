@@ -34,18 +34,39 @@ class databasecore extends Lxdb
 
 	function createExtraVariables()
 	{
-		$pdb = $this->getTrueParentO()->getPrimaryDb();
-		
-		if ($pdb) {
-			$this->__var_primary_user = $pdb->nname;
+		$parent = null;
+		try {
+			$parent = $this->getTrueParentO();
+		} catch (Throwable $e) {
+			$parent = null;
 		}
-		if ($this->dbtype === 'mysql') {
-			$ret = $this->getDbAdminPass();
-			$this->__var_dbadmin = $ret['dbadmin'];
-			$this->__var_dbpassword = $ret['dbpassword'];
+		if (is_object($parent) && method_exists($parent, 'getPrimaryDb')) {
+			try {
+				$pdb = $parent->getPrimaryDb();
+				if (is_object($pdb) && isset($pdb->nname) && is_string($pdb->nname) && $pdb->nname !== '') {
+					$this->__var_primary_user = $pdb->nname;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+		$dbtype = (isset($this->dbtype) && is_string($this->dbtype) && $this->dbtype !== '')
+			? $this->dbtype : 'mysql';
+		if ($dbtype === 'mysql') {
+			try {
+				$ret = $this->getDbAdminPass();
+				$this->__var_dbadmin = $ret['dbadmin'];
+				$this->__var_dbpassword = $ret['dbpassword'];
+			} catch (Throwable $e) {
+				if (!function_exists('kloxo_pma_login')) {
+					include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
+				}
+				$cred = function_exists('kloxo_pma_login') ? kloxo_pma_login() : array('user' => 'kloxo_pma', 'pass' => '');
+				$this->__var_dbadmin = $cred['user'] ?? 'kloxo_pma';
+				$this->__var_dbpassword = $cred['pass'] ?? '';
+			}
 		}
 		if (!isset($this->__var_enc_pass)) {
-			$this->__var_enc_pass = md5($this->dbpassword);
+			$this->__var_enc_pass = md5((string) $this->dbpassword);
 		}
 	}
 
@@ -61,7 +82,7 @@ class databasecore extends Lxdb
 		if ($parent->isAdmin()) {
 			$param['nname'] = $param['nname'];
 		} else {
-			if ($param['clientname_as_prefix'] === 'on') {
+			if (isset($param['clientname_as_prefix']) && $param['clientname_as_prefix'] === 'on') {
 				$param['nname'] = substr($parent->nname, 0, 15) . "_" . $param['nname'];
 			} else {
 				$param['nname'] = random_string_lcase(4) . "_" . $param['nname'];
@@ -367,10 +388,15 @@ class databasecore extends Lxdb
 
 	static function loadExtension($dbtype)
 	{
+		if ($dbtype === 'mysql') {
+			return extension_loaded('mysqli') || extension_loaded('pdo_mysql');
+		}
 		if (!extension_loaded($dbtype)) {
 			dprint("Warning No $dbtype <br> ");
-			exit;
+			return false;
 		}
+
+		return true;
 	}
 
 	function getDbAdminPass()
@@ -379,7 +405,14 @@ class databasecore extends Lxdb
 		
 		$db = new Sqlite($this->__masterserver, 'dbadmin');
 
-		$res = $db->getRowsWhere("dbtype = '$this->dbtype' AND syncserver = '$this->syncserver'");
+		$dbtype = (isset($this->dbtype) && is_string($this->dbtype) && $this->dbtype !== '')
+			? $this->dbtype : 'mysql';
+		$sync = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+			? $this->syncserver : 'localhost';
+		$dbtypeSql = addslashes($dbtype);
+		$syncSql = addslashes($sync);
+
+		$res = $db->getRowsWhere("dbtype = '$dbtypeSql' AND syncserver = '$syncSql'");
 
 		if (!$res) {
 			dprintr("NO database admin entries... <br> ");
@@ -390,7 +423,7 @@ class databasecore extends Lxdb
 				$err = 'e_no_dbadmin_entries';
 			}
 			
-			throw new lxException($err, '', $this->syncserver);
+			throw new lxException($err, '', $sync);
 		}
 
 		$ret['dbadmin'] = $res[0]['dbadmin_name'];

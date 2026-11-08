@@ -256,6 +256,7 @@ else
   bad "init-panel-db grants phpMyAdmin root@127.0.0.1 WITH GRANT OPTION"
 fi
 check "php -l kloxo_pma.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_pma.php"
+check "php -l kloxo_mariadb.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_mariadb.php"
 check "php -l kloxo-signon.php" php -l "$ROOT/kloxo/file/phpmyadmin/kloxo-signon.php"
 check "php -l kloxo-signon-script.php" php -l "$ROOT/kloxo/file/phpmyadmin/kloxo-signon-script.php"
 if grep -q 'getPrimaryDb' "$ROOT/kloxo/httpdocs/lib/client/clientlib.php"; then

@@ -1,0 +1,251 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Customer MariaDB databases (Add Database in the panel).
+ * Identifiers are validated then backtick-quoted. Passwords are bound.
+ * MariaDB 10.4+ (Ubuntu 24.04 / 26.x): CREATE USER + ALTER USER + GRANT,
+ * never GRANT ... IDENTIFIED BY or PASSWORD().
+ */
+
+class KloxoMariadbException extends RuntimeException
+{
+}
+
+final class KloxoMariadb
+{
+	/** @var list<string> */
+	public const USER_HOSTS = array('localhost', '127.0.0.1', '%');
+
+	/** @var list<string> */
+	private const RESERVED_DB = array(
+		'mysql', 'information_schema', 'performance_schema', 'sys', 'kloxo',
+	);
+
+	/** @var list<string> */
+	private const RESERVED_USER = array(
+		'root', 'mysql', 'kloxo_pma', 'kloxo', 'debian-sys-maint', 'mariadb.sys',
+	);
+
+	/** Set in tests so the driver does not open a live MariaDB. */
+	public static ?self $injected = null;
+
+	/** @var list<array{0:string,1:list<mixed>}> */
+	public array $log = array();
+
+	private ?PDO $pdo;
+
+	public function __construct(?PDO $pdo = null)
+	{
+		$this->pdo = $pdo;
+	}
+
+	public static function ident(string $name): bool
+	{
+		return preg_match('/^[a-z0-9_]{1,63}[a-z0-9]$/', $name) === 1
+			&& !in_array($name, self::RESERVED_DB, true);
+	}
+
+	public static function userIdent(string $name): bool
+	{
+		return preg_match('/^[a-zA-Z0-9_]{1,32}$/', $name) === 1
+			&& !in_array(strtolower($name), self::RESERVED_USER, true);
+	}
+
+	public static function quoteIdent(string $name): string
+	{
+		if (!self::ident($name) && !self::userIdent($name)) {
+			throw new KloxoMariadbException('Invalid MariaDB identifier');
+		}
+
+		return '`' . str_replace('`', '``', $name) . '`';
+	}
+
+	public static function quoteUser(string $user, string $host): string
+	{
+		if (!self::userIdent($user) || !in_array($host, self::USER_HOSTS, true)) {
+			throw new KloxoMariadbException('Invalid MariaDB user or host');
+		}
+
+		return "'" . str_replace("'", "''", $user) . "'@'" . str_replace("'", "''", $host) . "'";
+	}
+
+	/**
+	 * Admin connection: kloxo_pma@127.0.0.1 (dbadmin / pma.pass), then
+	 * unix_socket as root (kloxo-backend runs as root on Ubuntu).
+	 */
+	public static function connectAdmin(string $user = '', string $pass = '', ?string $root = null): self
+	{
+		if (self::$injected instanceof self) {
+			return self::$injected;
+		}
+		if (!extension_loaded('pdo_mysql')) {
+			throw new KloxoMariadbException('pdo_mysql is not loaded');
+		}
+
+		$attempts = array();
+		if ($user !== '' && $pass !== '') {
+			$attempts[] = array('mysql:host=127.0.0.1;port=3306;charset=utf8mb4', $user, $pass);
+			$attempts[] = array('mysql:host=localhost;charset=utf8mb4', $user, $pass);
+		}
+		if (!function_exists('kloxo_pma_login')) {
+			$pma = dirname(__FILE__) . '/kloxo_pma.php';
+			if (is_file($pma)) {
+				include_once $pma;
+			}
+		}
+		if (function_exists('kloxo_pma_login')) {
+			$cred = kloxo_pma_login($root);
+			if (($cred['pass'] ?? '') !== '') {
+				$attempts[] = array(
+					'mysql:host=127.0.0.1;port=3306;charset=utf8mb4',
+					(string) $cred['user'],
+					(string) $cred['pass'],
+				);
+			}
+		}
+		foreach (array('/run/mysqld/mysqld.sock', '/var/run/mysqld/mysqld.sock') as $sock) {
+			if (is_string($sock) && $sock !== '' && file_exists($sock)) {
+				$attempts[] = array('mysql:unix_socket=' . $sock . ';charset=utf8mb4', 'root', '');
+			}
+		}
+
+		$errors = array();
+		$seen = array();
+		foreach ($attempts as $a) {
+			$key = $a[0] . "\0" . $a[1];
+			if (isset($seen[$key])) {
+				continue;
+			}
+			$seen[$key] = true;
+			try {
+				$pdo = new PDO($a[0], $a[1], $a[2], array(
+					PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+					PDO::ATTR_TIMEOUT => 8,
+					PDO::ATTR_EMULATE_PREPARES => false,
+				));
+
+				return new self($pdo);
+			} catch (PDOException $e) {
+				$errors[] = trim(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '');
+			}
+		}
+
+		throw new KloxoMariadbException(
+			'Could not connect to MariaDB: ' . ($errors !== array() ? implode('; ', $errors) : 'no admin login tried')
+		);
+	}
+
+	public function createDatabase(string $dbname, string $username, string $password, ?string $primaryUser = null): void
+	{
+		if (!self::ident($dbname)) {
+			throw new KloxoMariadbException('Invalid database name');
+		}
+		if (!self::userIdent($username)) {
+			throw new KloxoMariadbException('Invalid database user');
+		}
+		if ($password === '' || strlen($password) > 64) {
+			throw new KloxoMariadbException('Invalid database password');
+		}
+		$db = self::quoteIdent($dbname);
+		$this->run("CREATE DATABASE IF NOT EXISTS {$db} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+		$this->ensureUser($username, $password);
+		$this->grantDatabase($dbname, $username);
+		if (is_string($primaryUser) && $primaryUser !== '' && $primaryUser !== $username
+			&& self::userIdent($primaryUser)) {
+			$this->grantDatabase($dbname, $primaryUser);
+		}
+		$this->run('FLUSH PRIVILEGES');
+	}
+
+	public function dropDatabase(string $dbname, string $username): void
+	{
+		if (!self::ident($dbname)) {
+			throw new KloxoMariadbException('Invalid database name');
+		}
+		$db = self::quoteIdent($dbname);
+		$this->run("DROP DATABASE IF EXISTS {$db}");
+		if (self::userIdent($username)) {
+			foreach (self::USER_HOSTS as $host) {
+				$this->run('DROP USER IF EXISTS ' . self::quoteUser($username, $host));
+			}
+		}
+		$this->run('FLUSH PRIVILEGES');
+	}
+
+	public function setPassword(string $username, string $password): void
+	{
+		if (!self::userIdent($username)) {
+			throw new KloxoMariadbException('Invalid database user');
+		}
+		if ($password === '' || strlen($password) > 64) {
+			throw new KloxoMariadbException('Invalid database password');
+		}
+		foreach (self::USER_HOSTS as $host) {
+			$this->run('ALTER USER ' . self::quoteUser($username, $host) . ' IDENTIFIED BY ?', array($password));
+		}
+		$this->run('FLUSH PRIVILEGES');
+	}
+
+	public function dropUser(string $username): void
+	{
+		if (!self::userIdent($username)) {
+			throw new KloxoMariadbException('Invalid database user');
+		}
+		foreach (self::USER_HOSTS as $host) {
+			$this->run('DROP USER IF EXISTS ' . self::quoteUser($username, $host));
+		}
+		$this->run('FLUSH PRIVILEGES');
+	}
+
+	public function flushPrivileges(): void
+	{
+		$this->run('FLUSH PRIVILEGES');
+	}
+
+	public function grantDatabase(string $dbname, string $username): void
+	{
+		if (!self::ident($dbname) || !self::userIdent($username)) {
+			throw new KloxoMariadbException('Invalid database name or user');
+		}
+		$db = self::quoteIdent($dbname);
+		foreach (self::USER_HOSTS as $host) {
+			$this->run('GRANT ALL PRIVILEGES ON ' . $db . '.* TO ' . self::quoteUser($username, $host));
+		}
+	}
+
+	public function ensureUser(string $username, string $password): void
+	{
+		if (!self::userIdent($username)) {
+			throw new KloxoMariadbException('Invalid database user');
+		}
+		if ($password === '' || strlen($password) > 64) {
+			throw new KloxoMariadbException('Invalid database password');
+		}
+		foreach (self::USER_HOSTS as $host) {
+			$uh = self::quoteUser($username, $host);
+			$this->run('CREATE USER IF NOT EXISTS ' . $uh . ' IDENTIFIED BY ?', array($password));
+			$this->run('ALTER USER ' . $uh . ' IDENTIFIED BY ?', array($password));
+		}
+	}
+
+	/** @param list<mixed> $params */
+	private function run(string $sql, array $params = array()): void
+	{
+		$this->log[] = array($sql, $params);
+		if ($this->pdo === null) {
+			return;
+		}
+		try {
+			if ($params === array()) {
+				$this->pdo->exec($sql);
+
+				return;
+			}
+			$stmt = $this->pdo->prepare($sql);
+			$stmt->execute($params);
+		} catch (PDOException $e) {
+			throw new KloxoMariadbException(trim(preg_replace('/\s+/', ' ', $e->getMessage()) ?? ''), 0, $e);
+		}
+	}
+}

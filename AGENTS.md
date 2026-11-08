@@ -262,7 +262,10 @@ template renderer's `@@NAME@@` pattern did not match digits, so `@@EXIM_DISABLE_
 `exim4.conf` (it would have failed `exim -bV` and rolled the apply back).
 `init-panel-db` seeds the `dbadmin` row `mysql___localhost` (MariaDB account
 `kloxo_pma`, password from `pma.pass`) so Add Database no longer fails with
-"no Database administrator entries"; live database creation is UNVERIFIED.
+"no Database administrator entries". Add Database creates a real MariaDB
+database (`KloxoMariadb`: CREATE DATABASE utf8mb4, CREATE USER + ALTER USER +
+GRANT on localhost / 127.0.0.1 / `%`; the old `mysql` extension `exit` and
+`GRANT ... IDENTIFIED BY` are gone). Live database creation on Ubuntu is UNVERIFIED.
 phpMyAdmin admin SSO reads the panel session JSON in `<root>/session/<id>`
 (the `ssession` table is unused; before this fix SQL Manager always showed the
 MySQL logon form on a live server); live SSO after deploy is UNVERIFIED.
@@ -292,6 +295,7 @@ bash tests/remote/run-tests.sh        # C1 auth-before-unserialize checks (php-c
 bash tests/security/run-tests.sh      # P0.4/P0.5 source invariants (php-cli only)
 bash tests/p1/run-tests.sh            # P1 stack-shrink source invariants (php-cli only)
 bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload + UFW (php-cli only)
+php tests/p2/test_mariadb.php         # Add Database MariaDB SQL (no live server)
 bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
 bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)
 php kloxo/bin/install/init-panel-db --help
