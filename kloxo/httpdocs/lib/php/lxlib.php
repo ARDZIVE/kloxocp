@@ -1971,13 +1971,21 @@ function add_http_host($elem)
 
 function get_image_path($path = null)
 {
-	global $gbl, $sgbl;
+	global $login;
 
-	global $gbl, $sgbl, $login;
+	$icon = 'collage';
+	try {
+		if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+			$sp = $login->getSpecialObject('sp_specialplay');
+			if (is_object($sp) && !empty($sp->icon_name)) {
+				$icon = (string) $sp->icon_name;
+			}
+		}
+	} catch (Throwable $e) {
+	}
+	$path = is_string($path) ? $path : '';
 
-	//Return path of the encrypted images in the deployment version.
-
-	return "/theme/icon/{$login->getSpecialObject('sp_specialplay')->icon_name}/$path";
+	return "/theme/icon/{$icon}/{$path}";
 }
 
 function randomString($length)
@@ -3377,6 +3385,27 @@ function kloxo_ufw_action_label($sa)
 function kloxo_url_has_lxbackup($url)
 {
 	return kloxo_url_has_object_class($url, 'lxbackup');
+}
+
+function kloxo_ffile_is_backup_list($parent)
+{
+	if (!is_object($parent)) {
+		return false;
+	}
+	$base = isset($parent->base) ? (string) $parent->base : '';
+	$root = isset($parent->root) ? (string) $parent->root : '';
+	if ($base === '__backup' || basename(rtrim($root, '/')) === '__backup') {
+		return true;
+	}
+	try {
+		$po = method_exists($parent, 'getParentO') ? $parent->getParentO() : null;
+		if (is_object($po) && method_exists($po, 'isClass') && $po->isClass('lxbackup')) {
+			return true;
+		}
+	} catch (Throwable $e) {
+	}
+
+	return function_exists('kloxo_object_is_backup_page') && kloxo_object_is_backup_page($parent);
 }
 
 function kloxo_object_is_backup_page($object)

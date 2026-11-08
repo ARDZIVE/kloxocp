@@ -2248,6 +2248,139 @@ if (($bakProp[0] ?? '') === 'a=show'
 			. ' upHttp=' . implode(',', array_keys((array) $bakUpHttp))
 			. ' upFtp=' . implode(',', array_keys((array) $bakUpFtp)));
 }
+
+include_once $doc . '/theme/coredisplaylib.php';
+include_once $doc . '/lang/en-us/langfunctionlib.php';
+$bakPrevGhtml2 = $ghtml ?? null;
+$bakPrevGbl2 = $gbl ?? null;
+$bakPrevHome = (isset($sgbl) && is_object($sgbl) && isset($sgbl->__path_program_home))
+	? $sgbl->__path_program_home : null;
+$bakRenderErr = '';
+$bakTabHtml = $bakShowHtml = $bakFtpHtml = $bakSchedHtml = $bakFmHtml = $bakUpHtml = '';
+$bakFfLive = null;
+try {
+	if (!isset($gbl) || !is_object($gbl)) {
+		$gbl = new Gbl();
+	}
+	if (!isset($sgbl) || !is_object($sgbl)) {
+		$sgbl = new Sgbl();
+	}
+	$sgbl->__path_program_home = sys_get_temp_dir() . '/kloxo-backup-test';
+	$gbl->__c_object = $bak;
+	$gbl->c_session = new class {
+		public $ssession_vars = array();
+		public $dbaction = 'clean';
+		public function write() {}
+		public function setUpdateSubaction() {}
+	};
+	$ghtml = new HtmlLib();
+	$_SERVER['PHP_SELF'] = '/display.php';
+	$ghtml->__http_vars = array(
+		'frm_action' => 'show',
+		'frm_o_o' => array(
+			array('class' => 'client', 'nname' => 'admin'),
+			array('class' => 'lxbackup', 'nname' => 'client-admin'),
+		),
+	);
+	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
+	ob_start();
+	kloxo_print_object_property_tabs($bak);
+	$bakTabHtml = (string) ob_get_clean();
+	ob_start();
+	__ac_desc_show($bak);
+	$bakShowHtml = (string) ob_get_clean();
+	$ghtml->__http_vars['frm_action'] = 'updateform';
+	$ghtml->__http_vars['frm_subaction'] = 'ftp_conf';
+	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
+	ob_start();
+	__ac_desc_UpdateForm($bak);
+	$bakFtpHtml = (string) ob_get_clean();
+	$ghtml->__http_vars['frm_subaction'] = 'schedule_conf';
+	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
+	ob_start();
+	__ac_desc_UpdateForm($bak);
+	$bakSchedHtml = (string) ob_get_clean();
+	$bakFfLive = $bak->getFfileFromVirtualList('/');
+	$gbl->__c_object = $bakFfLive;
+	$ghtml->__http_vars = array(
+		'frm_action' => 'show',
+		'frm_o_o' => array(
+			array('class' => 'client', 'nname' => 'admin'),
+			array('class' => 'lxbackup', 'nname' => 'client-admin'),
+			array('class' => 'ffile', 'nname' => '/'),
+		),
+	);
+	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
+	ob_start();
+	__ac_desc_show($bakFfLive);
+	$bakFmHtml = (string) ob_get_clean();
+	$ghtml->__http_vars['frm_action'] = 'updateform';
+	$ghtml->__http_vars['frm_subaction'] = 'upload';
+	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
+	ob_start();
+	__ac_desc_UpdateForm($bakFfLive);
+	$bakUpHtml = (string) ob_get_clean();
+} catch (Throwable $e) {
+	$bakRenderErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
+$bakFive = str_contains($bakTabHtml, 'Backup / Restore')
+	&& str_contains($bakTabHtml, 'FTP Configuration')
+	&& str_contains($bakTabHtml, 'Schedule Configuration')
+	&& str_contains($bakTabHtml, 'File Manager')
+	&& str_contains($bakTabHtml, 'Upload');
+$bakShowOk = str_contains($bakShowHtml, 'Backup Now')
+	&& str_contains($bakShowHtml, 'frm_lxbackup_c_backup_to_file_f')
+	&& str_contains($bakShowHtml, 'Restore From File')
+	&& str_contains($bakShowHtml, 'frm_lxbackup_c_backup_from_file_f')
+	&& str_contains($bakShowHtml, 'Restore From FTP');
+$bakFtpOk = str_contains($bakFtpHtml, 'FTP Configuration')
+	&& str_contains($bakFtpHtml, 'frm_lxbackup_c_ftp_server')
+	&& str_contains($bakFtpHtml, 'frm_lxbackup_c_rm_username')
+	&& str_contains($bakFtpHtml, 'frm_lxbackup_c_rm_password')
+	&& str_contains($bakFtpHtml, 'frm_lxbackup_c_rm_directory')
+	&& str_contains($bakFtpHtml, 'upload_to_ftp');
+$bakSchedOk = str_contains($bakSchedHtml, 'Schedule Configuration')
+	&& str_contains($bakSchedHtml, 'backupschedule_type')
+	&& str_contains($bakSchedHtml, 'backupschedule_time')
+	&& str_contains($bakSchedHtml, 'rm_last_number');
+$bakFmOk = is_object($bakFfLive)
+	&& (($bakFfLive->ttype ?? '') === 'directory')
+	&& str_contains($bakFmHtml, 'Address:')
+	&& str_contains($bakFmHtml, 'Backup / Restore');
+$bakUpOk = str_contains($bakUpHtml, 'WARNING: Existing file will be overwritten')
+	&& str_contains($bakUpHtml, 'upload_file_f')
+	&& str_contains($bakUpHtml, 'download_url_f')
+	&& str_contains($bakUpHtml, 'download_ftp_f');
+$bakImplode = str_contains($bakSrc, 'implode(",", $val)')
+	&& str_contains($bakSrc, 'MakeSureDirectoryExists')
+	&& str_contains($bakSrc, 'lxshell_background')
+	&& str_contains($bakLib, 'function kloxo_ffile_is_backup_list')
+	&& str_contains((string) file_get_contents($doc . '/lib/html/lib.php'), 'method_exists($session, \'write\')')
+	&& str_contains($bakLib, "icon_name");
+if ($bakRenderErr === '' && $bakFive && $bakShowOk && $bakFtpOk && $bakSchedOk && $bakFmOk && $bakUpOk && $bakImplode) {
+	ok('Backup/Restore pages render Backup Now, FTP, Schedule, File Manager and Upload');
+} else {
+	bad('Backup/Restore pages render Backup Now, FTP, Schedule, File Manager and Upload',
+		($bakRenderErr !== '' ? $bakRenderErr : '')
+			. ' tabs=' . ($bakFive ? '1' : '0')
+			. ' show=' . ($bakShowOk ? '1' : '0')
+			. ' ftp=' . ($bakFtpOk ? '1' : '0')
+			. ' sched=' . ($bakSchedOk ? '1' : '0')
+			. ' fm=' . ($bakFmOk ? '1' : '0')
+			. ' up=' . ($bakUpOk ? '1' : '0')
+			. ' implode=' . ($bakImplode ? '1' : '0')
+			. ' ttype=' . (is_object($bakFfLive) ? (string) ($bakFfLive->ttype ?? '') : 'none')
+			. ' fmHint=' . substr(preg_replace('/\s+/', ' ', strip_tags($bakFmHtml)), 0, 180));
+}
+if ($bakPrevHome !== null && isset($sgbl) && is_object($sgbl)) {
+	$sgbl->__path_program_home = $bakPrevHome;
+}
+if ($bakPrevGhtml2 !== null) {
+	$ghtml = $bakPrevGhtml2;
+}
+if ($bakPrevGbl2 !== null) {
+	$gbl = $bakPrevGbl2;
+}
 $login = $bakPrevLogin;
 $GLOBALS['login'] = $bakPrevLogin;
 

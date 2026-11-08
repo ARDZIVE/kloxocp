@@ -13,11 +13,30 @@ function print_tab_block_start($alist)
 
 	$alist = $nalist;
 
-	if ($login->getSpecialObject('sp_specialplay')->isOn('enable_ajax')) {
+	$enableAjax = false;
+	try {
+		if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+			$sp = $login->getSpecialObject('sp_specialplay');
+			$enableAjax = is_object($sp) && method_exists($sp, 'isOn') && $sp->isOn('enable_ajax');
+		}
+	} catch (Throwable $e) {
+		$enableAjax = false;
+	}
+	if ($enableAjax && is_object($ghtml) && method_exists($ghtml, 'print_dialog')
+		&& is_object($gbl) && isset($gbl->__c_object)) {
 		$ghtml->print_dialog($alist, $gbl->__c_object);
 	}
 
-	$skin_color = $login->getSpecialObject('sp_specialplay')->skin_color;
+	$skin_color = 'default';
+	try {
+		if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+			$sp = $login->getSpecialObject('sp_specialplay');
+			if (is_object($sp) && !empty($sp->skin_color)) {
+				$skin_color = (string) $sp->skin_color;
+			}
+		}
+	} catch (Throwable $e) {
+	}
 
 ?>
 
@@ -59,9 +78,18 @@ function print_tab_button($key, $url, $list)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$skin_color = $login->getSpecialObject('sp_specialplay')->skin_color;
+	$skin_color = 'default';
+	try {
+		if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+			$sp = $login->getSpecialObject('sp_specialplay');
+			if (is_object($sp) && !empty($sp->skin_color)) {
+				$skin_color = (string) $sp->skin_color;
+			}
+		}
+	} catch (Throwable $e) {
+	}
 
-	$cobject = $gbl->__c_object;
+	$cobject = (is_object($gbl) && isset($gbl->__c_object)) ? $gbl->__c_object : null;
 	static $after_sel = false;
 
 	$psuedourl = null;

@@ -541,8 +541,22 @@ class Ffile extends Lxclass
 
 		$iconpath = get_image_path();
 
-		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
-		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
+		$skin_name = 'simplicity';
+		$button_type = 'font';
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp)) {
+					if (!empty($sp->skin_name)) {
+						$skin_name = (string) $sp->skin_name;
+					}
+					if (!empty($sp->button_type)) {
+						$button_type = (string) $sp->button_type;
+					}
+				}
+			}
+		} catch (Throwable $e) {
+		}
 
 		if ($button_type !== 'image') {
 			$background = "url({$genimgpath}/button/fnav_02.gif)";
@@ -580,10 +594,26 @@ class Ffile extends Lxclass
 			$url .= "&frm_selectshowbase=$base";
 		}
 
-		$parent = $this->getParentO();
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
 		$desc = is_object($parent) ? get_classvar_description($parent->getClass()) : null;
 		$desc_label = (is_array($desc) && isset($desc[2])) ? kloxo_string($desc[2]) : '';
-		$parent_id = is_object($parent) ? kloxo_string($parent->getId()) : '';
+		if (is_object($parent) && method_exists($parent, 'getClass')
+			&& strtolower((string) $parent->getClass()) === 'lxbackup') {
+			$desc_label = 'Backup / Restore';
+		}
+		$parent_id = '';
+		if (is_object($parent) && method_exists($parent, 'getId')) {
+			try {
+				$parent_id = kloxo_string($parent->getId());
+			} catch (Throwable $e) {
+				$parent_id = isset($parent->nname) ? kloxo_string($parent->nname) : '';
+			}
+		}
 ?>
 		Address: (<?= $desc_label ?>: <a class=insidelist href="<?= $url ?>"><?= $parent_id ?></a>)
 <?php
@@ -633,7 +663,14 @@ class Ffile extends Lxclass
 </div>
 <br/>
 <?php
-		$list = $gbl->getSessionV("frm_clip_list");
+		$list = null;
+		if (is_object($gbl) && method_exists($gbl, 'getSessionV')) {
+			try {
+				$list = $gbl->getSessionV("frm_clip_list");
+			} catch (Throwable $e) {
+				$list = null;
+			}
+		}
 
 		if (is_array($list) && $list) {
 			$flat = array();
@@ -1512,7 +1549,11 @@ class Ffile extends Lxclass
 			$list = rl_exec_get($parent->__masterserver, $parent->__readserver, array("coreFfile", "get_full_stat"),
 				array($parent->__username_o, $parent->root, $fpathp, $duflag));
 		} catch (Throwable $e) {
-			return null;
+			try {
+				$list = coreFfile::get_full_stat($parent->__username_o, $parent->root, $fpathp, $duflag);
+			} catch (Throwable $e2) {
+				return null;
+			}
 		}
 
 		if (!is_array($list)) {
@@ -1667,7 +1708,8 @@ class Ffile extends Lxclass
 		if ($parent->base === ".trash") {
 			$blist[] = array("a=update&sa=restore_trash");
 			$blist[] = array("a=update&sa=clear_trash");
-		} else if ($parent->base === "__backup" || basename($parent->root) === '__backup') {
+		} else if ((function_exists('kloxo_ffile_is_backup_list') && kloxo_ffile_is_backup_list($parent))
+			|| $parent->base === "__backup" || basename((string) $parent->root) === '__backup') {
 			$blist[] = array("a=update&sa=filerealdelete", 0, NULL, 1);
 			$blist[] = array("a=update&sa=copy");
 		} else if ($parent->isOn('browsebackup')) {
@@ -1729,8 +1771,13 @@ class Ffile extends Lxclass
 
 		$nlist["nname"] = "70%";
 
-		$gp = $parent->getParentO();
-		if (is_object($gp) && $gp->getClass() === 'web') {
+		$gp = null;
+		try {
+			$gp = $parent->getParentO();
+		} catch (Throwable $e) {
+			$gp = null;
+		}
+		if (is_object($gp) && method_exists($gp, 'getClass') && $gp->getClass() === 'web') {
 			$nlist["protect"] = "3%";
 		}
 

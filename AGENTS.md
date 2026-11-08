@@ -143,8 +143,12 @@ Download. Clicking **Upload** keeps lxbackup+ffile path with **Upload** selected
 (`goback=1`): three sections Upload / Upload (http) / Upload (ftp) (local file
 with overwrite warning + progress upload, URL + overwrite, FTP Server/Username/
 Password/File Name + overwrite). Bare Home tab label maps to **Backup / Restore**
-when current object is lxbackup (same frm_o_o path fix as PHP Configure). Live
-Backup FTP/Schedule/File Manager/Upload after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
+when current object is lxbackup (same frm_o_o path fix as PHP Configure). File Manager
+and Upload under Backup create `__backup/` locally if kloxo-backend is down, keep
+`ttype=directory` for `/`, and the address bar is `(Backup / Restore: …) /`.
+Schedule privilege is read from the parent client (`checkButton`); restore
+`implode` uses glue-first order. Live Backup FTP/Schedule/File Manager/Upload
+after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend

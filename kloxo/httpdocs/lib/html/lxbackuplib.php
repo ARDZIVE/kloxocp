@@ -41,23 +41,51 @@ class lxbackup extends Lxdb
 	{
 		global $sgbl;
 
-		$parent = $this->getParentO();
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
 
 		$name = coreFfile::getRealpath($name);
 		$name = "/$name";
 
-		$root = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup/";
+		$home = (is_object($sgbl) && isset($sgbl->__path_program_home) && is_string($sgbl->__path_program_home)
+			&& $sgbl->__path_program_home !== '') ? $sgbl->__path_program_home : '/home/kloxo';
+		$table = (is_object($parent) && method_exists($parent, 'get__table')) ? $parent->get__table() : 'client';
+		$pname = (is_object($parent) && isset($parent->nname) && $parent->nname !== '')
+			? (string) $parent->nname : 'admin';
+		$root = "{$home}/{$table}/{$pname}/__backup/";
 
-		if ($parent->isClient()) {
-			$syncserver = "localhost";
-		} else {
+		$syncserver = "localhost";
+		if (is_object($parent) && method_exists($parent, 'isClient') && !$parent->isClient()
+			&& isset($parent->syncserver) && is_string($parent->syncserver) && $parent->syncserver !== '') {
 			$syncserver = $parent->syncserver;
 		}
 
-		rl_exec_get(null, $syncserver, array("lxbackup", "MakeSureDirectoryExists"), array("$root/"));
+		try {
+			rl_exec_get(null, $syncserver, array("lxbackup", "MakeSureDirectoryExists"), array("$root/"));
+		} catch (Throwable $e) {
+			self::MakeSureDirectoryExists("$root/");
+		}
+
 		$ffile = new Ffile(null, $syncserver, $root, $name, 'lxlabs');
 		$ffile->__parent_o = $this;
-		$ffile->get();
+		try {
+			$ffile->get();
+		} catch (Throwable $e) {
+			$ffile->ttype = 'directory';
+			$ffile->readonly = 'off';
+			$ffile->__flag_showheader = true;
+			$ffile->setFileType();
+		}
+		if (!isset($ffile->ttype) || $ffile->ttype === '' || $ffile->nname === '/') {
+			$ffile->ttype = 'directory';
+			$ffile->readonly = 'off';
+			$ffile->__flag_showheader = true;
+			$ffile->setFileType();
+		}
 
 		return $ffile;
 	}
@@ -104,8 +132,9 @@ class lxbackup extends Lxdb
 		$this->write();
 
 		if ($this->subaction === 'schedule_conf') {
-			exec("sh /script/fix-cron-backup");
-
+			if (is_file('/script/fix-cron-backup')) {
+				lxshell_background('sh', '/script/fix-cron-backup');
+			}
 		}
 	}
 
@@ -174,7 +203,11 @@ class lxbackup extends Lxdb
 	{
 		global $login;
 
-		$param['rm_username'] = fix_meta_character($param['rm_username']);
+		$param['rm_username'] = fix_meta_character($param['rm_username'] ?? '');
+		$param['rm_password'] = $param['rm_password'] ?? '';
+		$param['ftp_server'] = $param['ftp_server'] ?? '';
+		$param['upload_to_ftp'] = $param['upload_to_ftp'] ?? '';
+		$param['dont_verify_ftp_f'] = $param['dont_verify_ftp_f'] ?? '';
 
 		if (is_star_password($param['rm_password'])) {
 			$param['rm_password'] = $this->rm_password;
@@ -308,8 +341,15 @@ class lxbackup extends Lxdb
 					$this->backupschedule_type = 'disabled';
 				}
 
-				// Same rule as checkButton: missing priv allows; flag off shows Disabled.
-				if ($this->checkButton('backupschedule_flag')) {
+				// Privilege lives on the parent client; missing priv allows (same as checkButton).
+				$canSched = true;
+				try {
+					$who = is_object($parent) ? $parent : $this;
+					$canSched = method_exists($who, 'checkButton') ? $who->checkButton('backupschedule_flag') : true;
+				} catch (Throwable $e) {
+					$canSched = true;
+				}
+				if ($canSched) {
 					$vlist['backupschedule_type'] = array('s', $sched);
 				} else {
 					$vlist['backupschedule_type'] = array('M', 'Disabled');
@@ -441,20 +481,32 @@ class lxbackup extends Lxdb
 
 	function getId()
 	{
-		list($class, $name) = getClassAndName($this->nname);
+		$n = isset($this->nname) ? (string) $this->nname : '';
+		if ($n === '') {
+			return '';
+		}
+		$parts = getClassAndName($n);
 
-		return $name;
+		return (is_array($parts) && isset($parts[1]) && $parts[1] !== '') ? $parts[1] : $n;
 	}
 
 	function updateBackupRestore($param, $type)
 	{
 		global $gbl, $login, $ghtml;
 
-		$parent = $this->getParentO();
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
+		if (!is_object($parent)) {
+			throw new lxException($login->getThrow('no_parent'), '', $type);
+		}
 
 		$stagevar = $type . "stage";
 
-		if ($parent->checkIfLockedForAction($type)) {
+		if (method_exists($parent, 'checkIfLockedForAction') && $parent->checkIfLockedForAction($type)) {
 			throw new lxException($login->getThrow('going_on'), '', $type);
 		}
 
@@ -470,8 +522,10 @@ class lxbackup extends Lxdb
 		}
 
 		// There is a timing issue here. The backup.php program should be run only AFTEr the update is fully complete.
-		foreach ($param as $k => $v) {
-			$this->$k = $v;
+		if (is_array($param)) {
+			foreach ($param as $k => $v) {
+				$this->$k = $v;
+			}
 		}
 
 		$this->$stagevar = 'doing';
@@ -486,8 +540,9 @@ class lxbackup extends Lxdb
 		} else {
 			$bpath = "__path_program_home/{$parent->get__table()}/{$parent->nname}/__backup";
 			// MR -- if no exists for backup_from_file_f mean exists backup_ftp_file_f
-			$fname = ($param['backup_from_file_f'])
-				? $param['backup_from_file_f'] : '_RESTORE_' . basename($param['backup_ftp_file_f']);
+			$fromFile = isset($param['backup_from_file_f']) ? (string) $param['backup_from_file_f'] : '';
+			$fromFtp = isset($param['backup_ftp_file_f']) ? (string) $param['backup_ftp_file_f'] : '';
+			$fname = ($fromFile !== '') ? $fromFile : '_RESTORE_' . basename($fromFtp);
 			$fname = str_replace("/", "", $fname);
 			$fname = str_replace(";", "", $fname);
 			$fname = str_replace(" ", "", $fname);
@@ -538,8 +593,9 @@ class lxbackup extends Lxdb
 	static function execrestorephp($class, $name, $file, $param)
 	{
 		global $sgbl;
-		$val = $param['_accountselect'];
-		$res = implode($val, ",");
+		$val = (isset($param['_accountselect']) && is_array($param['_accountselect']))
+			? $param['_accountselect'] : array();
+		$res = implode(",", $val);
 		$res = str_replace("-", ":", $res);
 	//	$res = str_replace("_s_vv_p_", ":", $res);
 

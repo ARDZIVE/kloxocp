@@ -746,9 +746,14 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `checkButton('backupschedule_flag')` for the select). Clicking **File Manager**
    keeps lxbackup+ffile path with `goback=1` tab hrefs so only File Manager is
    selected; list toolbar is T Hidden / Remove / Copy and columns match Kloxo-MR.
-   Clicking **Upload** selects that tab and shows the three Kloxo-MR multi-upload
-   forms (local overwrite warning + file, HTTP URL, FTP credentials/file). Live
-   Backup / Restore after re-install is **UNVERIFIED**.
+    Clicking **Upload** selects that tab and shows the three Kloxo-MR multi-upload
+    forms (local overwrite warning + file, HTTP URL, FTP credentials/file). File
+    Manager and Upload create `__backup/` in-process when kloxo-backend is down
+    (`getFfileFromVirtualList`), keep `ttype=directory` for `/`, and print
+    Address `(Backup / Restore: …) /`. Forms still render when `sp_specialplay`
+    or `c_session` is missing (`get_image_path`, `getCSRFToken`,
+    `print_content_begin`). Restore `implode(",", $val)` is PHP 8-safe.
+    Live Backup / Restore after re-install is **UNVERIFIED**.
    Mail Server Settings has exactly three content tabs **Mail Server Settings**
    (selected on `sa=update`), **SMTP Protection** (was Spamdyke), **Whitelist IPs**
    (`ServerMail::servermailPropertyTabs` forced); Switch To Another via

@@ -8111,13 +8111,25 @@ function getCSRFToken()
 {
 	global $gbl;
 
-	if (isset($gbl->c_session->ssession_vars['__tmp_csrf_token'])) {
-		$token = $gbl->c_session->ssession_vars['__tmp_csrf_token'];
-	} else {
-		$token = randomString(64);
-		//	$gbl->c_session->ssession_vars['__tmp_csrf_token'] = $token;
+	$session = (is_object($gbl) && isset($gbl->c_session) && is_object($gbl->c_session))
+		? $gbl->c_session : null;
+	if (is_object($session) && isset($session->ssession_vars)
+		&& is_array($session->ssession_vars)
+		&& isset($session->ssession_vars['__tmp_csrf_token'])
+		&& is_string($session->ssession_vars['__tmp_csrf_token'])
+		&& $session->ssession_vars['__tmp_csrf_token'] !== '') {
+		return $session->ssession_vars['__tmp_csrf_token'];
+	}
+
+	$token = randomString(64);
+	if (is_object($gbl) && method_exists($gbl, 'setSessionV')) {
 		$gbl->setSessionV('__tmp_csrf_token', $token);
-		$gbl->c_session->write();
+	}
+	if (is_object($session) && method_exists($session, 'write')) {
+		try {
+			$session->write();
+		} catch (Throwable $e) {
+		}
 	}
 
 	return $token;

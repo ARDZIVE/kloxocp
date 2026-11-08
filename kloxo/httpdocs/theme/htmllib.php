@@ -3275,16 +3275,28 @@ class HtmlLib
 		}
 
 		$domdesc = get_classvar_description($class);
-		$server = $this->print_machine($obj);
+		$server = '';
+		try {
+			$server = $this->print_machine($obj);
+		} catch (Throwable $e) {
+			$server = '';
+		}
 
-		$formname = fix_nname_to_be_variable("$title{$obj->getId()}");
+		$id = '';
+		try {
+			$id = (is_object($obj) && method_exists($obj, 'getId')) ? (string) $obj->getId() : '';
+		} catch (Throwable $e) {
+			$id = (is_object($obj) && isset($obj->nname)) ? (string) $obj->nname : '';
+		}
+
+		$formname = fix_nname_to_be_variable("$title{$id}");
 
 		$header = new FormVar();
 		$header->form = $formname;
 		$header->formtype = "enctype=\"multipart/form-data\"";
 
 		if ($title) {
-			$header->title = "$title for {$obj->getId()} $server";
+			$header->title = "$title for {$id} $server";
 		} else {
 			$header->title = null;
 		}
@@ -4770,7 +4782,7 @@ class HtmlLib
 			}
 		}
 
-		$pluraldesc = get_plural($classdesc2);
+		$pluraldesc = function_exists('get_plural') ? get_plural($classdesc2) : ucfirst((string) $classdesc2);
 
 		if ($login->issetHpFilter($filtername, 'pagenum')) {
 			$cgi_pagenum = $login->getHPFilter($filtername, 'pagenum');
@@ -5249,7 +5261,7 @@ class HtmlLib
 				} else {
 ?>
 
-						<div style="width: 100%; text-align: center"><b><?= $login->getKeywordUc('no') ?>&nbsp;<?= get_plural($classdesc2) ?>&nbsp;<?= $login->getKeywordUc('under') ?>&nbsp;<?= $parent->getId() ?></b></div>
+						<div style="width: 100%; text-align: center"><b><?= $login->getKeywordUc('no') ?>&nbsp;<?= function_exists('get_plural') ? get_plural($classdesc2) : ucfirst((string) $classdesc2) ?>&nbsp;<?= $login->getKeywordUc('under') ?>&nbsp;<?= $parent->getId() ?></b></div>
 <?php
 
 				}
@@ -7960,6 +7972,9 @@ class HtmlLib
 		$width = "100%";
 
 		$block = array_shift($full);
+		if (!is_object($block)) {
+			return;
+		}
 
 		if ($gbl->__inside_ajax) {
 			$onsubmit = "onsubmit='{$wait_text}return false;'";
@@ -8019,7 +8034,7 @@ class HtmlLib
 		$buttonexist = false;
 
 		foreach ($full as $variable) {
-			if ($variable->type === 'button') {
+			if (is_object($variable) && isset($variable->type) && $variable->type === 'button') {
 				$buttonexist = true;
 			}
 		}
@@ -8040,6 +8055,9 @@ class HtmlLib
 						<div align=left style="width:<?= $totalwidth ?>; border: 1px solid #<?= $skincolor ?>;">
 <?php
 		foreach ($full as $variable) {
+			if (!is_object($variable) || !isset($variable->type)) {
+				continue;
+			}
 			if ($variable->type == "subtitle") {
 ?>
 
@@ -8061,7 +8079,7 @@ class HtmlLib
 				continue;
 			}
 
-			if ($variable->need === 'yes') {
+			if (isset($variable->need) && $variable->need === 'yes') {
 				if ($gbl->__inside_ajax) {
 					if (!isset($gbl->__ajax_need_var)) {
 						$gbl->__ajax_need_var = array();
@@ -8123,11 +8141,12 @@ class HtmlLib
 
 		$icondir = get_image_path();
 
-		$prevvar = $gbl->getSessionV('__tmp_redirect_var');
+		$prevvar = (is_object($gbl) && method_exists($gbl, 'getSessionV'))
+			? $gbl->getSessionV('__tmp_redirect_var') : null;
 
 		$myneedstring = null;
 
-		if ($variable->need === "yes") {
+		if (isset($variable->need) && $variable->need === "yes") {
 			$myneedstring = "<span style='color:red'><sup>*</sup></span>";
 		}
 
@@ -10643,15 +10662,23 @@ function uploadAbort(e) { // upload abort
 	{
 		global $gbl, $sgbl, $login;
 
-		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
-		$as_simple_skin = $login->getSpecialObject('sp_specialplay')->isOn('simple_skin');
+		$skin_name = 'simplicity';
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && !empty($sp->skin_name)) {
+					$skin_name = (string) $sp->skin_name;
+				}
+			}
+		} catch (Throwable $e) {
+		}
 
 		// MR -- trouble for height if using div-div; so change to div-table
 ?>
 
 	<div id="content_wrapper" class="div_content">
 <?php
-		if ($login->getSpecialObject('sp_specialplay')->skin_name === 'simplicity') {
+		if ($skin_name === 'simplicity') {
 ?>
 		<div class="verb4">
 <?php
