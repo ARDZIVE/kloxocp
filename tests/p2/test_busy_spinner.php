@@ -41,10 +41,10 @@ if (str_contains($html, '"kloxo-busy.js"')) {
 	bad('kloxo-busy.js is included on every panel page');
 }
 if (str_contains($js, '/theme/img/kloxo-spinner.gif') && str_contains($js, 'KloxoBusy')
-	&& str_contains($js, "'pageshow'") && !str_contains($js, 'setTimeout')) {
-	ok('JS shows the GIF, hides on pageshow and never times out');
+	&& str_contains($js, "'pageshow'")) {
+	ok('JS shows the GIF and hides on pageshow');
 } else {
-	bad('JS shows the GIF, hides on pageshow and never times out');
+	bad('JS shows the GIF and hides on pageshow');
 }
 
 $login = (string) file_get_contents($doc . '/login/index.php');
@@ -67,10 +67,15 @@ if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") &&
 } else {
 	bad('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form');
 }
-if (!str_contains($js, 'animation')) {
-	ok('no fade-in delay (a modal still fading when the navigation commits is never seen)');
+// Quick pages never show it: one show-delay timer (showSoon), no CSS animation (it does
+// not run in an unpainted new document) and no timer that hides the modal.
+$code = (string)preg_replace('#/\*.*?\*/#s', '', $js);
+if (substr_count($code, 'setTimeout(') === 1 && str_contains($code, 'function showSoon(')
+	&& preg_match('/var DELAY = \d+;/', $code) === 1 && !str_contains($code, 'animation')
+	&& !preg_match('/setTimeout\([^)]*hide/', $code)) {
+	ok('modal appears after DELAY ms through one show timer; no CSS animation, no hide time-out');
 } else {
-	bad('no fade-in delay');
+	bad('modal appears after DELAY ms through one show timer; no CSS animation, no hide time-out');
 }
 
 // The hrefs the Services list really renders must match the JS patterns.

@@ -5,10 +5,12 @@
  *
  * KloxoBusy.show(text) / KloxoBusy.hide()
  *
- * Every navigation away from a page shows it: link click, form submit, a
+ * Every navigation away from a page can show it: link click, form submit, a
  * script that sets location or calls form.submit() (all of them end in
- * `beforeunload`). The modal then stays until the next page has received its
- * whole HTML (DOMContentLoaded), with no time-out. Because the panel streams
+ * `beforeunload`). It appears only when the page is slow: DELAY ms after the
+ * navigation started (counted across the page change, so quick pages never
+ * show it). Once shown it stays until the next page has received its whole
+ * HTML (DOMContentLoaded), with no time-out. Because the panel streams
  * its pages (the header is flushed, then the action runs for seconds), the new
  * document would otherwise replace the old one and take the modal with it; so
  * the "busy" state is kept in sessionStorage and the new page shows the modal
@@ -20,10 +22,11 @@
  * It is not shown for navigations that leave the page showing (they would
  * never hide it): downloads, mailto:, links or forms with a target, forms
  * with a chosen file (an upload has its own progress display), and links or
- * forms marked data-kloxo-nobusy. The modal is shown at once, not after a delay:
- * the browser keeps painting the old page's last frame until the new document
- * paints something, so a modal that is still fading in when the navigation
- * commits is never seen.
+ * forms marked data-kloxo-nobusy. The delay is a timer in whichever document is
+ * alive (the old page while the server has not answered, then the new page for
+ * the rest of it), not a CSS fade: a CSS animation does not run in a document
+ * that has not painted yet. A modal that was already shown before a redirect
+ * is shown again at once by the next page (no gap between the hops).
  *
  * Service list icons (Sb, State, Start, Stop, Restart) run their action in the
  * background (fetch) and then follow the server's redirect. Any link or form
@@ -39,10 +42,12 @@
 	var KEY = 'kloxo-busy';
 	var MAX_AGE = 15 * 60 * 1000;   // a flag older than this is a navigation that never finished
 	var DEFAULT_TEXT = 'Please wait...';
+	var DELAY = 500;                // ms a navigation may take before the modal appears
 
 	var overlay = null;
 	var label = null;
 	var suppressUntil = 0;
+	var pending = null;
 
 	function store() {
 		try {
@@ -52,11 +57,11 @@
 		}
 	}
 
-	function flagSet(text) {
+	function flagSet(text, shown) {
 		var s = store();
 		if (s) {
 			try {
-				s.setItem(KEY, JSON.stringify({t: Date.now(), text: text}));
+				s.setItem(KEY, JSON.stringify({t: Date.now(), text: text, shown: !!shown}));
 			} catch (e) {
 				// storage full or disabled: the modal just will not survive the page change
 			}
@@ -130,6 +135,43 @@
 		host.appendChild(overlay);
 	}
 
+	function cancelPending() {
+		if (pending !== null) {
+			win.clearTimeout(pending);
+			pending = null;
+		}
+	}
+
+	function overlayOn() {
+		return !!overlay && overlay.className === 'on';
+	}
+
+	function present(text) {
+		api.show(text);
+		var f = flagGet();
+		if (f) {
+			flagSet(f.text, true);
+		}
+	}
+
+	/*
+	 * Show the modal once the navigation that started at `since` has been running for
+	 * DELAY ms (at once when it was already shown before a redirect). The timer lives
+	 * in the current document; if the page changes first, the next one carries on.
+	 */
+	function showSoon(text, since, shown) {
+		cancelPending();
+		var wait = shown ? 0 : DELAY - (Date.now() - since);
+		if (wait <= 0) {
+			present(text);
+			return;
+		}
+		pending = win.setTimeout(function () {
+			pending = null;
+			present(text);
+		}, wait);
+	}
+
 	var api = {
 		/** @param {string=} text */
 		show: function (text) {
@@ -141,6 +183,7 @@
 			overlay.className = 'on';
 		},
 		hide: function () {
+			cancelPending();
 			if (overlay) {
 				overlay.className = '';
 			}
@@ -148,10 +191,11 @@
 	};
 	win.KloxoBusy = api;
 
-	// The page we arrived on was left while busy: show the modal again at once.
+	// The page we arrived on was left while busy: carry on counting (or show it at once
+	// if it was already on screen).
 	var arrived = flagGet();
 	if (arrived) {
-		api.show(arrived.text);
+		showSoon(arrived.text, arrived.t, !!arrived.shown);
 	}
 
 	// ---- Services icons: run in the background, then follow the redirect ----------------
@@ -179,8 +223,8 @@
 	var refreshRe = /http-equiv\s*=\s*["']?refresh["']?\s+content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*([^"'>\s]+)/i;
 
 	function run(href, text) {
-		api.show(text);
-		flagSet(text);
+		flagSet(text, false);
+		showSoon(text, Date.now(), false);
 		if (!win.fetch) {
 			win.location.href = href;
 			return;
@@ -259,7 +303,7 @@
 		}
 		var own = n.getAttribute('data-kloxo-busy');
 		if (own) {
-			flagSet(own);   // beforeunload shows the modal with this text
+			flagSet(own, false);   // beforeunload shows the modal with this text
 		}
 	}, true);
 
@@ -274,8 +318,8 @@
 		}
 		var t = f.getAttribute('data-kloxo-busy');
 		if (t) {
-			flagSet(t);
-			api.show(t);
+			flagSet(t, false);
+			showSoon(t, Date.now(), false);
 		}
 	}, true);
 
@@ -286,8 +330,9 @@
 		}
 		var f = flagGet();
 		var text = f ? f.text : DEFAULT_TEXT;
-		flagSet(text);
-		api.show(text);
+		var shown = overlayOn() || !!(f && f.shown);
+		flagSet(text, shown);
+		showSoon(text, Date.now(), shown);
 	});
 
 	// ---- hiding it ---------------------------------------------------------------------
