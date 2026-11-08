@@ -527,6 +527,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     show). Clients open SQL Manager from a database row as that
     database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager
     after deploy is **UNVERIFIED**.
+    Client Administration has no Login As tile (`sa=dologin`). Live client
+    home after deploy is **UNVERIFIED**.
     Admin Domains (`a=list&c=domain`) shows the Kloxo-MR add form
     (name, owner confirm, `/home/admin/` docroot, SSL/stats/
     Easy Installer/CGI/PHP, Add) even with no DNS template;

@@ -225,6 +225,7 @@ is missing; the icon stubs immediately before Domain Name (`pvview_f`,
 (type-b empty labels no longer fall back to the class name `domain`).
 Live client Domains after deploy is UNVERIFIED.
 SQL Manager tile is admin-only (pserver Basic; not home Domain or domain show). Clients open a selected database in SQL Manager as that database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager after deploy is UNVERIFIED.
+Client Administration (`__title_administer`) has no Login As tile (`sa=dologin`). Live client home after deploy is UNVERIFIED.
 First-party `ereg*`/`split`
 and live theme `escape`/`document.all` are gone. Browser login as
 admin/admin against the live panel succeeded; every page still died

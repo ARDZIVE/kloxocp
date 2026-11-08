@@ -841,6 +841,17 @@ if ($domShow !== '' && !str_contains($domShow, 'getMysqlDbAdmin($alist)')
 } else {
 	bad('domain show has no SQL Manager tile (Basic already has it)');
 }
+$adm = '';
+$apos = strpos($clsrc, "__title_administer");
+if ($apos !== false) {
+	$adm = substr($clsrc, $apos, 2500);
+}
+if ($adm !== '' && str_contains($adm, "getKeywordUc('administration')")
+	&& !str_contains($adm, 'sa=dologin') && !str_contains($clsrc, 'a=update&sa=dologin')) {
+	ok('client Administration section has no Login As tile');
+} else {
+	bad('client Administration section has no Login As tile');
+}
 
 $pmaUrl = '';
 $pmaTarget = '';

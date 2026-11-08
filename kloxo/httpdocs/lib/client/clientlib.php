@@ -485,10 +485,6 @@ class Client extends ClientBase
 			$alist[] = 'o=lxupdate&a=show';
 		}
 
-		if (!$this->isLogin()) {
-			$alist[] = "a=update&sa=dologin";
-		}
-
 		if ($this->checkButton('webhosting_flag')) {
 			$alist['__title_resource'] = $login->getKeywordUc('resource');
 		}
