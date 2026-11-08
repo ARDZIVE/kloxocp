@@ -385,19 +385,14 @@ class Client extends ClientBase
 
 	function getMysqlDbAdmin(&$alist)
 	{
-		if (!function_exists('kloxo_pma_href')) {
+		if (!function_exists('kloxo_pma_action_object')) {
 			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
 		}
 		$local = !method_exists($this, 'isLocalhost') || $this->isLocalhost('mysqldbsyncserver');
 		$server = (isset($this->mysqldbsyncserver) && is_string($this->mysqldbsyncserver)
 			&& $this->mysqldbsyncserver !== '')
 			? $this->mysqldbsyncserver : 'localhost';
-		$dbadminUrl = kloxo_pma_href($local, $server);
-
-		$alist[] = create_simpleObject(array('url' => $dbadminUrl,
-			'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin",
-			'target' => function_exists('kloxo_pma_link_attrs')
-				? kloxo_pma_link_attrs() : 'target="_blank" rel="noopener noreferrer"'));
+		$alist[] = kloxo_pma_action_object($local, $server);
 	}
 
 	function createShowAlist(&$alist, $subaction = null)
@@ -569,10 +564,18 @@ class Client extends ClientBase
 	//	if ($this->isNotCustomer()) {
 			$alist['__title_domain_rec'] = $login->getKeywordUc('domain');
 			$alist[] = "a=list&c=ftpuser";
-			$this->getListActions($alist, 'mysqldb');
+			try {
+				$this->getListActions($alist, 'mysqldb');
+			} catch (Throwable $e) {
+				$alist[] = "a=list&c=mysqldb";
+			}
 			// Admin SQL Manager lives in Basic (pserver webmailanddb), not Domain.
+			// Customers and resellers get SQL Manager here (phpMyAdmin, new tab).
 			if (!$this->isAdmin()) {
-				$this->getMysqlDbAdmin($alist);
+				try {
+					$this->getMysqlDbAdmin($alist);
+				} catch (Throwable $e) {
+				}
 			}
 			$alist[] = "a=show&l[class]=ffile&l[nname]=/";
 			$alist['__v_dialog_defd'] = "a=updateform&sa=default_domain";

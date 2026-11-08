@@ -40,6 +40,11 @@ $check(kloxo_pma_is_loopback('127.0.0.1') && kloxo_pma_is_loopback('::1')
 $check(str_contains(kloxo_pma_link_attrs(), 'target="_blank"')
 	&& str_contains(kloxo_pma_link_attrs(), 'noopener'), 'SQL Manager link opens a new tab');
 $check(kloxo_pma_href(true, 'localhost') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'localhost SQL Manager href is phpMyAdmin sign-on');
+$pmaTile = kloxo_pma_action_object(true, 'localhost');
+$check(is_object($pmaTile) && ($pmaTile->url ?? '') === kloxo_pma_url()
+	&& str_contains((string) ($pmaTile->purl ?? ''), 'phpmyadmin')
+	&& str_contains((string) ($pmaTile->target ?? ''), '_blank'),
+	'SQL Manager action object is phpMyAdmin in a new tab');
 $check(kloxo_pma_href(false, '') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'empty remote server stays phpMyAdmin sign-on');
 $check(kloxo_pma_try_admin_sso('/tmp/kloxo-pma-missing') === false, 'SSO without a panel session does not redirect');
 $check(kloxo_pma_same_origin_nav() === true, 'missing Referer is not treated as cross-site');

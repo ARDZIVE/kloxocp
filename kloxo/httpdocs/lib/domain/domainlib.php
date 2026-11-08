@@ -1365,6 +1365,25 @@ class Domaind extends DomainBase
 		$this->getToggleUrl($alist);
 	}
 
+	function getMysqlDbAdmin(&$alist)
+	{
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
+		if (is_object($parent) && method_exists($parent, 'getMysqlDbAdmin')
+			&& !($parent instanceof self)) {
+			$parent->getMysqlDbAdmin($alist);
+			return;
+		}
+		if (!function_exists('kloxo_pma_action_object')) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
+		}
+		$alist[] = kloxo_pma_action_object(true, 'localhost');
+	}
+
 	function createShowAlist(&$alist, $subaction = null)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
@@ -1407,8 +1426,14 @@ class Domaind extends DomainBase
 	//	$alist['__v_dialog_info'] = 'a=updateform&sa=information';
 	//	$alist['__v_dialog_pass'] = 'a=updateform&sa=password';
 
-		$web = $this->getObject('web');
 		$alist[] = 'a=list&c=addondomain';
+		// Client Domain section (and a one-domain shortcut to this page) needs SQL Manager.
+		try {
+			$this->getMysqlDbAdmin($alist);
+		} catch (Throwable $e) {
+		}
+
+		$web = $this->getObject('web');
 
 	//	$alist['__var_backup_flag'] = "a=show&o=lxbackup";
 	//	$alist[] = "a=list&c=mysqldb";

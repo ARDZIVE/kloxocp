@@ -817,18 +817,30 @@ if ($welcomeOk) {
 
 $clsrc = (string)file_get_contents($doc . '/lib/client/clientlib.php');
 $pssrc = (string)file_get_contents($doc . '/driver/pserver/pserverlib.php');
+$domsrc = (string)file_get_contents($doc . '/lib/domain/domainlib.php');
 $dom = '';
 $dpos = strpos($clsrc, "__title_domain_rec");
 if ($dpos !== false) {
-	$dom = substr($clsrc, $dpos, 900);
+	$dom = substr($clsrc, $dpos, 1200);
+}
+$domShow = '';
+$dspos = strpos($domsrc, "__title_domain_administer");
+if ($dspos !== false) {
+	$domShow = substr($domsrc, $dspos, 900);
 }
 if ($dom !== '' && str_contains($dom, 'if (!$this->isAdmin())')
-	&& preg_match('/if \(!\$this->isAdmin\(\)\)\s*\{\s*\$this->getMysqlDbAdmin/s', $dom)
+	&& preg_match('/if \(!\$this->isAdmin\(\)\)\s*\{\s*(?:try\s*\{\s*)?\$this->getMysqlDbAdmin/s', $dom)
 	&& str_contains($pssrc, "__title_webmailanddb")
 	&& str_contains($pssrc, 'getMysqlDbAdmin($alist)')) {
 	ok('SQL Manager is in Basic, not an extra Domain tile for admin');
 } else {
 	bad('SQL Manager is in Basic, not an extra Domain tile for admin');
+}
+if ($domShow !== '' && str_contains($domShow, 'getMysqlDbAdmin($alist)')
+	&& str_contains($domsrc, 'function getMysqlDbAdmin')) {
+	ok('domain show Domain section has SQL Manager');
+} else {
+	bad('domain show Domain section has SQL Manager');
 }
 
 $pmaUrl = '';
@@ -847,6 +859,8 @@ try {
 	$pmaErr = $e->getMessage();
 }
 $cliPmaUrl = '';
+$custPmaUrl = '';
+$custPmaPurl = '';
 try {
 	$cliPma = new Client(null, 'localhost', 'admin');
 	$cliPma->nname = 'admin';
@@ -855,6 +869,31 @@ try {
 	$cliPma->getMysqlDbAdmin($cliAlist);
 	$cliPmaUrl = (isset($cliAlist[0]) && is_object($cliAlist[0]) && isset($cliAlist[0]->url))
 		? (string) $cliAlist[0]->url : '';
+	$custPma = new Client(null, 'localhost', 'mesrob');
+	$custPma->nname = 'mesrob';
+	$custPma->cttype = 'customer';
+	$custPma->mysqldbsyncserver = 'localhost';
+	$custAlist = array();
+	$custPma->getMysqlDbAdmin($custAlist);
+	$custPmaUrl = (isset($custAlist[0]) && is_object($custAlist[0]) && isset($custAlist[0]->url))
+		? (string) $custAlist[0]->url : '';
+	$custPmaPurl = (isset($custAlist[0]) && is_object($custAlist[0]) && isset($custAlist[0]->purl))
+		? (string) $custAlist[0]->purl : '';
+} catch (Throwable $e) {
+	$pmaErr = $pmaErr !== '' ? $pmaErr : $e->getMessage();
+}
+$domPmaUrl = '';
+$domPmaPurl = '';
+try {
+	$domPma = new domain(null, 'localhost', 'example.com');
+	$domPma->nname = 'example.com';
+	$domPma->parent_clname = 'client-mesrob';
+	$domPmaAlist = array();
+	$domPma->getMysqlDbAdmin($domPmaAlist);
+	$domPmaUrl = (isset($domPmaAlist[0]) && is_object($domPmaAlist[0]) && isset($domPmaAlist[0]->url))
+		? (string) $domPmaAlist[0]->url : '';
+	$domPmaPurl = (isset($domPmaAlist[0]) && is_object($domPmaAlist[0]) && isset($domPmaAlist[0]->purl))
+		? (string) $domPmaAlist[0]->purl : '';
 } catch (Throwable $e) {
 	$pmaErr = $pmaErr !== '' ? $pmaErr : $e->getMessage();
 }
@@ -871,20 +910,26 @@ $pmaHelperSrc = (string) file_get_contents($doc . '/lib/php/kloxo_pma.php');
 $pmaWant = function_exists('kloxo_pma_url') ? kloxo_pma_url() : '/thirdparty/phpMyAdmin/';
 $pmaCfg = (string) file_get_contents(dirname($doc) . '/file/phpmyadmin/config.inc.php');
 if ($pmaUrl === $pmaWant && $cliPmaUrl === $pmaWant && $dbPmaUrl === $pmaWant
+	&& $custPmaUrl === $pmaWant && str_contains($custPmaPurl, 'phpmyadmin')
+	&& $domPmaUrl === $pmaWant && str_contains($domPmaPurl, 'phpmyadmin')
 	&& str_contains($pmaTarget, '_blank')
-	&& str_contains($pssrc, 'kloxo_pma_href')
+	&& str_contains($pssrc, 'kloxo_pma_action_object')
+	&& str_contains($clsrc, 'kloxo_pma_action_object')
 	&& !str_contains($pssrc, 'mywebsql')
 	&& !str_contains($clsrc, 'mywebsql')
 	&& str_contains($btnSrc, "str_starts_with(\$resolvedHref, '/thirdparty/')")
 	&& str_contains($btnSrc, 'kloxo_pma_link_attrs')
 	&& str_contains($pmaHelperSrc, 'kloxo_pma_try_admin_sso')
+	&& str_contains($pmaHelperSrc, 'function kloxo_pma_action_object')
 	&& str_contains($pmaCfg, 'kloxo-signon.php')
 	&& !str_contains($pmaCfg, 'SignonScript')
 	&& str_contains($pmaCfg, "AllowRoot'] = true")) {
 	ok('SQL Manager tile opens phpMyAdmin sign-on in a new tab');
 } else {
 	bad('SQL Manager tile opens phpMyAdmin sign-on in a new tab',
-		$pmaErr !== '' ? $pmaErr : ('ps=' . $pmaUrl . ' client=' . $cliPmaUrl . ' db=' . $dbPmaUrl . ' tgt=' . $pmaTarget));
+		$pmaErr !== '' ? $pmaErr : ('ps=' . $pmaUrl . ' client=' . $cliPmaUrl
+			. ' cust=' . $custPmaUrl . ' domain=' . $domPmaUrl . ' db=' . $dbPmaUrl
+			. ' tgt=' . $pmaTarget));
 }
 
 if (function_exists('kloxo_driver_class')

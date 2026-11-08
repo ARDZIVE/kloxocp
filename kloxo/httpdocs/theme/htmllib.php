@@ -1556,7 +1556,10 @@ class HtmlLib
 			$__t_identity = $identity;
 		} else {
 			$objname = (is_object($obj) && isset($obj->nname)) ? $obj->nname : '';
-			$url = str_replace("[%s]", $objname, $url);
+			if (is_object($url) && isset($url->url) && is_string($url->url)) {
+				$url = $url->url;
+			}
+			$url = is_string($url) ? str_replace("[%s]", $objname, $url) : '';
 			$path = $post = $file = $name = $image = $__t_identity = null;
 			$descr = $this->getActionDetails($url, $psuedourl, $buttonpath, $path, $post, $file, $name, $image, $__t_identity);
 		}

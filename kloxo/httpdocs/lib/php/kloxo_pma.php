@@ -79,6 +79,24 @@ function kloxo_pma_href(bool $local = true, string $server = ''): string
 	return ($ssl ? 'https://' : 'http://') . $fqdn . ':' . $port . $path;
 }
 
+/**
+ * Dashboard tile for SQL Manager (phpMyAdmin in a new tab).
+ * Used on the client Domain section and on a domain show page.
+ */
+function kloxo_pma_action_object(bool $local = true, string $server = 'localhost'): object
+{
+	$payload = array(
+		'url' => kloxo_pma_href($local, $server),
+		'purl' => 'c=mysqldb&a=updateform&sa=phpmyadmin',
+		'target' => kloxo_pma_link_attrs(),
+	);
+	if (function_exists('create_simpleObject')) {
+		return create_simpleObject($payload);
+	}
+
+	return (object) $payload;
+}
+
 /** @return array{user:string,pass:string,host:string} */
 function kloxo_pma_login(?string $root = null): array
 {

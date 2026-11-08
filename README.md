@@ -644,7 +644,8 @@ opens `/thirdparty/phpMyAdmin/kloxo-signon.php` in a new browser tab
 phpMyAdmin in that tab. Cross-site GET does not auto-sign-on. The MariaDB
 password is never put in the URL. Other users still see the MySQL logon form;
 panel admin may leave the password blank to use `pma.pass`. OS `root`@`localhost`
-stays unix_socket. SQL Manager is under Basic, not a second Domain tile.
+stays unix_socket. Admin SQL Manager is under Basic, not a second Domain tile.
+A client has SQL Manager in the Domain section (home and domain show).
 A 405 from Hiawatha on that URL means the directory has no `index.php`.
 Re-run `install.sh` (or `install-phpmyadmin` plus `init-panel-db`) after
 pulling this tree so sign-on and `root`@`127.0.0.1` exist. Live phpMyAdmin

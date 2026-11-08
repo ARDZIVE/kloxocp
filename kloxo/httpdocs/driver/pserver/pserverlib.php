@@ -383,17 +383,12 @@ class pserver extends pservercore {
 
 	function getMysqlDbAdmin(&$alist)
 	{
-		if (!function_exists('kloxo_pma_href')) {
+		if (!function_exists('kloxo_pma_action_object')) {
 			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
 		}
 		$local = method_exists($this, 'isLocalhost') && $this->isLocalhost('nname');
 		$server = (isset($this->nname) && is_string($this->nname)) ? $this->nname : 'localhost';
-		$dbadminUrl = kloxo_pma_href($local, $server);
-
-		$alist[] = create_simpleObject(array('url' => $dbadminUrl,
-			'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin",
-			'target' => function_exists('kloxo_pma_link_attrs')
-				? kloxo_pma_link_attrs() : 'target="_blank" rel="noopener noreferrer"'));
+		$alist[] = kloxo_pma_action_object($local, $server);
 	}
 
 

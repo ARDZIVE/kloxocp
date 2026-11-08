@@ -5468,9 +5468,20 @@ abstract class Lxclass
 
 		$l = exec_class_method($class, 'createListAlist', $this, $class);
 
-		if (!$login->getSpecialObject('sp_specialplay')->isOn('show_add_buttons')) {
+		$showAdd = true;
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && method_exists($sp, 'isOn')) {
+					$showAdd = $sp->isOn('show_add_buttons');
+				}
+			}
+		} catch (Throwable $e) {
+			$showAdd = true;
+		}
+		if (!$showAdd && is_object($ghtml) && method_exists($ghtml, 'is_special_url')) {
 			foreach ((array)$l as $k => $a) {
-				if (!is_array($a) && !$ghtml->is_special_url($a) && csa($a, "addform")) {
+				if (!is_array($a) && !$ghtml->is_special_url($a) && is_string($a) && csa($a, "addform")) {
 					unset($l[$k]);
 				}
 			}
