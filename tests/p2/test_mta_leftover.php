@@ -48,19 +48,27 @@ $pkg = 'rc';
 Service__Linux::$pkgStateProbe = static function (string $path) use (&$pkg): string { return $pkg; };
 
 check(Service__Linux::isRemovedSysvLeftover('exim4') === true, 'leftover: script only, package state rc -> removed leftover');
-check(Service__Linux::unitIsInstalled('exim4') === false, 'leftover is not listed as installed (the Services list hides it)');
-check(Service__Linux::resolveInstalledUnit('exim4') === '', 'resolveInstalledUnit finds nothing for the leftover');
-check(Service__Linux::bootStateOn('exim4') === true, 'generated SysV unit with S links still reads as boot on (so a still-installed one is truthful)');
+check(Service__Linux::unitIsInstalled('exim4') === true && Service__Linux::resolveInstalledUnit('exim4') === 'exim4',
+	'leftover row stays on the Services list (installed row)');
+check(Service__Linux::bootStateOn('exim4') === false, 'leftover reads Sb off even while its S links exist');
+$rows = Service__Linux::getServiceDetails(array('exim4' => array('servicename' => 'exim4', 'nname' => 'exim4___localhost')));
+check(($rows['exim4']['install_state'] ?? '') === 'on' && ($rows['exim4']['state'] ?? '') === 'off' && ($rows['exim4']['boot_state'] ?? '') === 'off',
+	'getServiceDetails: removed Exim row is listed with State off and Sb off');
+$show['exim4']['ActiveState'] = 'inactive';
+$pkg = 'ii';
+check(Service__Linux::bootStateOn('exim4') === true, 'installed unit generated from a SysV script with S links reads Sb on');
+$pkg = 'rc';
 
+$pkg = 'ii';
 foreach (array(2, 3, 4, 5) as $l) {
 	rename($tmp . "/etc/rc{$l}.d/S01exim4", $tmp . "/etc/rc{$l}.d/K01exim4");
 }
-check(Service__Linux::bootStateOn('exim4') === false, 'generated SysV unit after `update-rc.d disable` (K links) reads as boot OFF');
+check(Service__Linux::bootStateOn('exim4') === false, 'installed generated SysV unit after `update-rc.d disable` (K links) reads Sb off');
 
 // Still installed (package state ii): listed, and boot state follows the links.
 $pkg = 'ii';
 check(Service__Linux::isRemovedSysvLeftover('exim4') === false && Service__Linux::unitIsInstalled('exim4') === true,
-	'installed package (ii) with a SysV script is still listed');
+	'installed package (ii) with a SysV script is not a leftover');
 
 // Native unit file present: never a leftover, even if dpkg says rc.
 $pkg = 'rc';

@@ -262,6 +262,10 @@ class Service extends Lxdb
 		if ($unit === '') {
 			$unit = $svc;
 		}
+		if (Service__Linux::isRemovedSysvLeftover($unit)) {
+			// e.g. Exim after Switch Program picked Postfix: the package is gone, only the row stays
+			throw new lxException("{$svc} is not installed (it was replaced in Switch Program); select it there to install it again", '', $svc);
+		}
 		if (Service__Linux::mayControlUnit($unit, (string) $act)) {
 			return;
 		}

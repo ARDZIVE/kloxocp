@@ -701,7 +701,9 @@ class Service__Linux extends Lxlclass
 	 * A SysV script that is all that remains of a removed package (`apt remove` keeps
 	 * conffiles such as /etc/init.d/exim4 and its rc links): systemd still generates a
 	 * unit from it, but nothing is installed. True only when there is no native unit
-	 * file and dpkg says the owning package is not installed.
+	 * file and dpkg says the owning package is not installed. The Services list keeps
+	 * such a row (the MTA Switch Program replaced stays visible) but it always reads
+	 * State off and Sb off, and its icons refuse to act.
 	 */
 	static function isRemovedSysvLeftover($unit)
 	{
@@ -744,13 +746,12 @@ class Service__Linux extends Lxlclass
 		if (!self::isSafeUnit($unit)) {
 			return false;
 		}
-		$known = function_exists('isServiceExists') && isServiceExists($unit);
-		if (!$known) {
-			$load = self::systemdShow($unit, 'LoadState');
-			$known = ($load === 'loaded' || $load === 'masked');
+		if (function_exists('isServiceExists') && isServiceExists($unit)) {
+			return true;
 		}
+		$load = self::systemdShow($unit, 'LoadState');
 
-		return $known && !self::isRemovedSysvLeftover($unit);
+		return $load === 'loaded' || $load === 'masked';
 	}
 
 	static function resolveInstalledUnit($servicename)
@@ -775,6 +776,9 @@ class Service__Linux extends Lxlclass
 
 	static function bootStateOn($unit)
 	{
+		if (self::isRemovedSysvLeftover($unit)) {
+			return false;
+		}
 		$en = self::systemdShow($unit, 'UnitFileState');
 		if ($en === 'generated') {
 			// A unit systemd generated from a SysV script: UnitFileState is always
