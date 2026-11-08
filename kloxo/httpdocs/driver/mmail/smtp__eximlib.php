@@ -16,10 +16,11 @@ class Smtp__exim extends lxDriverClass
 
 	static function installMe()
 	{
-		lxshell_return('systemctl', 'stop', 'postfix');
-		lxshell_return('systemctl', 'disable', 'postfix');
+		KloxoMta::retire(KloxoMta::unitsFor('postfix'));
 		// Postfix and Exim both provide mail-transport-agent: remove, then install.
 		KloxoApt::remove(array('postfix'));
+		// apt keeps /etc/init.d/postfix and its rc links: make sure Postfix is off at boot.
+		KloxoMta::settle(KloxoMta::unitsFor('postfix'));
 		KloxoApt::installOrThrow(array('exim4-daemon-heavy'));
 		$unit = self::unitName();
 		lxshell_return('systemctl', 'enable', $unit);
@@ -28,8 +29,6 @@ class Smtp__exim extends lxDriverClass
 
 	static function uninstallMe()
 	{
-		$unit = self::unitName();
-		lxshell_return('systemctl', 'stop', $unit);
-		lxshell_return('systemctl', 'disable', $unit);
+		KloxoMta::retire(array(self::unitName()));
 	}
 }

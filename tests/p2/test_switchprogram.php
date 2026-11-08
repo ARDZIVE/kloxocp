@@ -47,6 +47,7 @@ function child(string $tmp, string $scenario): array
 		'KLOXO_ROOT' => $tmp . '/kloxo',
 		'KLOXO_APT_TEST_BIN' => $tmp . '/bin/apt-get',
 		'PATH' => $tmp . '/bin:/usr/bin:/bin',
+		'KLOXO_MTA_PATH' => $tmp . '/bin:/usr/bin:/bin',
 		'HOME' => $tmp,
 	);
 	$proc = proc_open($cmd, array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes, null, $env);
@@ -97,6 +98,20 @@ $r = child($tmp, 'smtp');
 	&& strpos($r['calls'], 'remove exim4') < strpos($r['calls'], 'install postfix'))
 	? ok('smtp exim -> postfix: non-interactive remove then install, choice stored')
 	: bad('smtp exim -> postfix: non-interactive remove then install, choice stored', json_encode($r));
+
+// 4b. the replaced MTA is disabled again AFTER the package removal (apt keeps its SysV script
+// and rc links, which showed up as an enabled unit: green Sb on the Services list)
+$calls = (string) ($r['calls'] ?? '');
+$lines = preg_split('/\R/', trim($calls)) ?: array();
+$norm = array_map(static fn($l) => preg_replace('/\s+/', ' ', trim($l)), $lines);
+$iRemove = array_search('apt-get noninteractive -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confold remove exim4-daemon-heavy exim4-base exim4-config', $norm, true);
+$after = $iRemove === false ? array() : array_slice($norm, $iRemove + 1);
+$iReload = array_search('systemctl daemon-reload', $after, true);
+$iDisable = array_search('systemctl disable exim4', $after, true);
+($iRemove !== false && $iReload !== false && $iDisable !== false && $iReload < $iDisable
+	&& array_search('apt-get noninteractive -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confold install postfix', $after, true) > $iDisable)
+	? ok('smtp exim -> postfix: Exim is daemon-reloaded and disabled again after its packages are removed (boot icon off)')
+	: bad('smtp exim -> postfix: Exim is daemon-reloaded and disabled again after its packages are removed', $calls);
 
 // 5. pop3 none -> dovecot (installs packages; unchanged keys untouched)
 $r = child($tmp, 'pop3');

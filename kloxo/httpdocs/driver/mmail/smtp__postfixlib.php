@@ -10,15 +10,16 @@ class Smtp__postfix extends lxDriverClass
 
 	static function installMe()
 	{
-		$exim = class_exists('Smtp__exim') ? Smtp__exim::unitName() : 'exim4';
-		lxshell_return('systemctl', 'stop', $exim);
-		lxshell_return('systemctl', 'disable', $exim);
-		if ($exim !== 'exim4') {
-			lxshell_return('systemctl', 'stop', 'exim4');
-			lxshell_return('systemctl', 'disable', 'exim4');
-		}
+		$exim = array_values(array_unique(array_merge(
+			array(class_exists('Smtp__exim') ? Smtp__exim::unitName() : 'exim4'),
+			KloxoMta::unitsFor('exim')
+		)));
+		KloxoMta::retire($exim);
 		// Ubuntu: Exim and Postfix conflict on mail-transport-agent.
 		KloxoApt::remove(array('exim4-daemon-heavy', 'exim4-base', 'exim4-config'));
+		// apt keeps /etc/init.d/exim4 and its rc links: make sure Exim is off at boot
+		// (after the removal the leftover script showed up as an enabled unit).
+		KloxoMta::settle($exim);
 		KloxoApt::installOrThrow(array('postfix'));
 		lxshell_return('systemctl', 'unmask', 'postfix');
 		lxshell_return('systemctl', 'enable', 'postfix');
@@ -27,7 +28,6 @@ class Smtp__postfix extends lxDriverClass
 
 	static function uninstallMe()
 	{
-		lxshell_return('systemctl', 'stop', 'postfix');
-		lxshell_return('systemctl', 'disable', 'postfix');
+		KloxoMta::retire(array('postfix'));
 	}
 }

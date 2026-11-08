@@ -49,7 +49,7 @@ pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus s
 on/off from dpkg. SMTP `none` / `exim` (default, `pg_smtp=exim`) / `postfix`
 (apt-swaps with Exim on select; POP3/IMAP default is **Dovecot**
 (`pg_pop3=dovecot`; Switch Program lists none/dovecot; `pop3__dovecot` uses
-apt + systemctl, not qmail supervise; live switch UNVERIFIED); hosted mail is Exim via `kloxo-mail`;
+apt + systemctl, not qmail supervise; live switch UNVERIFIED); hosted mail is Exim via `kloxo-mail`; an Exim<->Postfix switch retires the old MTA with `KloxoMta` (`lib/php/kloxo_mta.php`): stop + disable, apt remove, then `daemon-reload` and disable again (apt keeps `/etc/init.d/<mta>` and its rc links, which systemd turns into an enabled generated unit, so the old MTA kept a green Sb icon; `update-rc.d -f <unit> remove` if it is still on). Call order checked with fake systemctl/apt-get in `tests/p2/test_switchprogram.php`; the cause is inferred from Debian packaging, not reproduced, and the real Ubuntu behaviour is UNVERIFIED;
 qmail-toaster is no longer the selectable MTA). PHP Module Status
 reads Ubuntu `mods-available`. Empty allowedip/blockedip lists no longer
 `count(null)` after login. Admin reboot/poweroff uses `systemctl --no-block`
