@@ -188,7 +188,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     after this change is unverified; re-run `install.sh` after pull.
     Add Database creates a real MariaDB database (`KloxoMariadb`: CREATE
     DATABASE utf8mb4, CREATE USER + ALTER USER + GRANT for localhost /
-    127.0.0.1 / `%`). The driver no longer `exit`s on the missing PHP
+    127.0.0.1 / `%`). IDENTIFIED BY quotes the password (native `?` is a
+    1064 on MariaDB). The driver no longer `exit`s on the missing PHP
     `mysql` extension and no longer uses `GRANT ... IDENTIFIED BY` (removed
     in MariaDB 10.4+). Live Add Database on Ubuntu is **UNVERIFIED**.
     Component Info uses Ubuntu package names (`kloxo_component.php`) instead

@@ -264,7 +264,8 @@ template renderer's `@@NAME@@` pattern did not match digits, so `@@EXIM_DISABLE_
 `kloxo_pma`, password from `pma.pass`) so Add Database no longer fails with
 "no Database administrator entries". Add Database creates a real MariaDB
 database (`KloxoMariadb`: CREATE DATABASE utf8mb4, CREATE USER + ALTER USER +
-GRANT on localhost / 127.0.0.1 / `%`; the old `mysql` extension `exit` and
+GRANT on localhost / 127.0.0.1 / `%`; IDENTIFIED BY quotes the password,
+native `?` is MariaDB 1064; the old `mysql` extension `exit` and
 `GRANT ... IDENTIFIED BY` are gone). Live database creation on Ubuntu is UNVERIFIED.
 phpMyAdmin admin SSO reads the panel session JSON in `<root>/session/<id>`
 (the `ssession` table is unused; before this fix SQL Manager always showed the

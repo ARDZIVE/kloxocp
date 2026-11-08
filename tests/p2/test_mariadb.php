@@ -55,29 +55,27 @@ $sql = array_map(static fn (array $row): string => $row[0], $mdb->log);
 $joined = implode("\n", $sql);
 check(str_contains($joined, 'CREATE DATABASE IF NOT EXISTS `acme_wp`')
 	&& str_contains($joined, 'utf8mb4'), 'CREATE DATABASE utf8mb4');
-check(str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'localhost' IDENTIFIED BY ?")
-	&& str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'127.0.0.1' IDENTIFIED BY ?")
-	&& str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'%' IDENTIFIED BY ?"),
+check(str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'localhost' IDENTIFIED BY 'Secret12'")
+	&& str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'127.0.0.1' IDENTIFIED BY 'Secret12'")
+	&& str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'%' IDENTIFIED BY 'Secret12'"),
 	'CREATE USER for localhost, 127.0.0.1 and %');
-check(str_contains($joined, "ALTER USER 'acme_wp'@'localhost' IDENTIFIED BY ?"),
+check(str_contains($joined, "ALTER USER 'acme_wp'@'localhost' IDENTIFIED BY 'Secret12'"),
 	'ALTER USER sets the password (no GRANT IDENTIFIED BY)');
 check(str_contains($joined, 'GRANT ALL PRIVILEGES ON `acme_wp`.* TO')
 	&& str_contains($joined, 'FLUSH PRIVILEGES'), 'GRANT on the new database and FLUSH');
 $grantHasIdent = false;
+$identHasPlaceholder = false;
 foreach ($sql as $line) {
 	if (str_starts_with($line, 'GRANT ') && str_contains($line, 'IDENTIFIED BY')) {
 		$grantHasIdent = true;
 	}
-}
-check(!$grantHasIdent, 'GRANT does not use IDENTIFIED BY');
-$passwords = array();
-foreach ($mdb->log as $row) {
-	foreach ($row[1] as $p) {
-		$passwords[] = $p;
+	if (str_contains($line, 'IDENTIFIED BY ?')) {
+		$identHasPlaceholder = true;
 	}
 }
-check(in_array('Secret12', $passwords, true) && !str_contains($joined, 'Secret12'),
-	'password is bound, not interpolated');
+check(!$grantHasIdent, 'GRANT does not use IDENTIFIED BY');
+check(!$identHasPlaceholder && KloxoMariadb::quoteString("a'b\\c") === "'a''b\\\\c'",
+	'IDENTIFIED BY quotes the password (MariaDB rejects native ?)');
 
 $bad = new KloxoMariadb(null);
 $badName = false;

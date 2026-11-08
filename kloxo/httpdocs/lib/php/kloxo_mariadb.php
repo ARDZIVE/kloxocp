@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 /**
  * Customer MariaDB databases (Add Database in the panel).
- * Identifiers are validated then backtick-quoted. Passwords are bound.
+ * Identifiers are validated then backtick-quoted. IDENTIFIED BY cannot use
+ * native prepared `?` (MariaDB 1064 near '?'); passwords are PDO::quote'd.
  * MariaDB 10.4+ (Ubuntu 24.04 / 26.x): CREATE USER + ALTER USER + GRANT,
  * never GRANT ... IDENTIFIED BY or PASSWORD().
  */
@@ -68,6 +69,16 @@ final class KloxoMariadb
 		}
 
 		return "'" . str_replace("'", "''", $user) . "'@'" . str_replace("'", "''", $host) . "'";
+	}
+
+	/** SQL string literal. Native prepares cannot bind IDENTIFIED BY. */
+	public static function quoteString(string $value): string
+	{
+		if (str_contains($value, "\0")) {
+			throw new KloxoMariadbException('Invalid database password');
+		}
+
+		return "'" . str_replace(array('\\', "'"), array('\\\\', "''"), $value) . "'";
 	}
 
 	/**
@@ -181,8 +192,9 @@ final class KloxoMariadb
 		if ($password === '' || strlen($password) > 64) {
 			throw new KloxoMariadbException('Invalid database password');
 		}
+		$q = $this->quotePassword($password);
 		foreach (self::USER_HOSTS as $host) {
-			$this->run('ALTER USER ' . self::quoteUser($username, $host) . ' IDENTIFIED BY ?', array($password));
+			$this->run('ALTER USER ' . self::quoteUser($username, $host) . ' IDENTIFIED BY ' . $q);
 		}
 		$this->run('FLUSH PRIVILEGES');
 	}
@@ -222,11 +234,29 @@ final class KloxoMariadb
 		if ($password === '' || strlen($password) > 64) {
 			throw new KloxoMariadbException('Invalid database password');
 		}
+		$q = $this->quotePassword($password);
 		foreach (self::USER_HOSTS as $host) {
 			$uh = self::quoteUser($username, $host);
-			$this->run('CREATE USER IF NOT EXISTS ' . $uh . ' IDENTIFIED BY ?', array($password));
-			$this->run('ALTER USER ' . $uh . ' IDENTIFIED BY ?', array($password));
+			$this->run('CREATE USER IF NOT EXISTS ' . $uh . ' IDENTIFIED BY ' . $q);
+			$this->run('ALTER USER ' . $uh . ' IDENTIFIED BY ' . $q);
 		}
+	}
+
+	private function quotePassword(string $password): string
+	{
+		if (str_contains($password, "\0")) {
+			throw new KloxoMariadbException('Invalid database password');
+		}
+		if ($this->pdo instanceof PDO) {
+			$q = $this->pdo->quote($password);
+			if (!is_string($q) || $q === '' || !str_contains($q, "'")) {
+				throw new KloxoMariadbException('Could not quote the database password');
+			}
+
+			return $q;
+		}
+
+		return self::quoteString($password);
 	}
 
 	/** @param list<mixed> $params */
