@@ -2464,7 +2464,32 @@ function password_contact_check()
 		}
 		try {
 			$gbl->frm_ev_list = "old_password_f";
-			do_updateform($login, 'password');
+			// The modal sits on whatever page was opened (Services, Home, …).
+			// Inheriting that page's frm_o_o made Update run on pserver/service,
+			// and security_check refused old_password_f as unsettable.
+			$savedHttpOo = $ghtml->__http_vars['frm_o_o'] ?? null;
+			$savedHttpCname = $ghtml->__http_vars['frm_o_cname'] ?? null;
+			$savedHttpConsumed = $ghtml->__http_vars['frm_consumedlogin'] ?? null;
+			$savedOo = $ghtml->frm_o_o ?? null;
+			$savedCname = $ghtml->frm_o_cname ?? null;
+			unset($ghtml->__http_vars['frm_o_o'], $ghtml->__http_vars['frm_o_cname'], $ghtml->__http_vars['frm_consumedlogin']);
+			$ghtml->frm_o_o = null;
+			$ghtml->frm_o_cname = null;
+			try {
+				do_updateform($login, 'password');
+			} finally {
+				if ($savedHttpOo !== null) {
+					$ghtml->__http_vars['frm_o_o'] = $savedHttpOo;
+				}
+				if ($savedHttpCname !== null) {
+					$ghtml->__http_vars['frm_o_cname'] = $savedHttpCname;
+				}
+				if ($savedHttpConsumed !== null) {
+					$ghtml->__http_vars['frm_consumedlogin'] = $savedHttpConsumed;
+				}
+				$ghtml->frm_o_o = $savedOo;
+				$ghtml->frm_o_cname = $savedCname;
+			}
 		} catch (Throwable $e) {
 			log_log("error", "password force form: " . $e->getMessage());
 			echo '<div class="kloxo-inline-alert" role="alert">The password form could not be opened. Use Logout and sign in again.</div>';

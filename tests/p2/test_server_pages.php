@@ -3945,5 +3945,43 @@ $GLOBALS['login'] = $f2bPrevLogin;
 $gbl = $f2bPrevGbl;
 $ghtml = $f2bPrevHtml;
 
+$pwSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$lxSrc = (string) file_get_contents($doc . '/lib/client/lxclient.php');
+if (str_contains($pwSrc, "unset(\$ghtml->__http_vars['frm_o_o']")
+	&& str_contains($pwSrc, 'do_updateform($login, \'password\')')
+	&& str_contains($lxSrc, 'function isOwnAccount')
+	&& str_contains($lxSrc, 'old_password_f')) {
+	ok('forced Change Password form posts to the login client, not the page object');
+} else {
+	bad('forced Change Password form posts to the login client, not the page object');
+}
+$pwPrevLogin = isset($login) ? $login : null;
+try {
+	$admin = new Client(null, 'localhost', 'admin');
+	$admin->nname = 'admin';
+	$login = $admin;
+	$GLOBALS['login'] = $admin;
+	$own = $admin->updateform('password', array());
+	$clone = new Client(null, 'localhost', 'admin');
+	$clone->nname = 'admin';
+	$cloned = $clone->updateform('password', array());
+	$other = new Client(null, 'localhost', 'bob');
+	$other->nname = 'bob';
+	$others = $other->updateform('password', array());
+	if (array_key_exists('old_password_f', $own)
+		&& array_key_exists('old_password_f', $cloned)
+		&& !array_key_exists('old_password_f', $others)
+		&& $clone->isOwnAccount() && !$other->isOwnAccount()) {
+		ok('password form includes Old Password for the signed-in admin, not another client');
+	} else {
+		bad('password form includes Old Password for the signed-in admin, not another client',
+			json_encode(array('own' => array_keys($own), 'clone' => array_keys($cloned), 'other' => array_keys($others))));
+	}
+} catch (Throwable $e) {
+	bad('password form includes Old Password for the signed-in admin, not another client', $e->getMessage());
+}
+$login = $pwPrevLogin;
+$GLOBALS['login'] = $pwPrevLogin;
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

@@ -902,7 +902,14 @@ abstract class Lxclient extends Lxdb
 				return $vlist;
 
 			case "password":
-				if ($this->isLogin() || ($this->is__table('auxiliary') && $this->getParentO()->isAuxiliary())) {
+				$aux = false;
+				try {
+					$aux = $this->is__table('auxiliary') && is_object($this->getParentO())
+						&& $this->getParentO()->isAuxiliary();
+				} catch (Throwable $e) {
+					$aux = false;
+				}
+				if ($this->isOwnAccount() || $aux) {
 					$vlist['old_password_f'] = "";
 				}
 				
@@ -995,6 +1002,33 @@ abstract class Lxclient extends Lxdb
 		return $this->getSpecialObject('sp_specialplay')->isOn('demo_status');
 	}
 
+	/**
+	 * True when this object is the signed-in account. isLogin() is identity
+	 * ($this === $login); a client loaded from the request path is a different
+	 * instance with the same nname.
+	 */
+	function isOwnAccount()
+	{
+		global $login;
+
+		if ($this->isLogin()) {
+			return true;
+		}
+		if (!isset($login) || !is_object($login)) {
+			return false;
+		}
+		try {
+			$a = strtolower((string) $this->getClass());
+			$b = strtolower((string) $login->getClass());
+		} catch (Throwable $e) {
+			return false;
+		}
+
+		return $a === $b && isset($this->nname, $login->nname)
+			&& (string) $this->nname !== ''
+			&& (string) $this->nname === (string) $login->nname;
+	}
+
 	function canHaveChild()
 	{
 		return false;
@@ -1025,12 +1059,18 @@ abstract class Lxclient extends Lxdb
 			throw new lxException($login->getThrow("cannot_use_default_password"), 'password');
 		}
 
-	//	if ($this->isLogin() || ($this->is__table('auxiliary') && $this->getParentO()->isAuxiliary())) {
-		if ($this->isLogin() || ($this->getClass() === 'auxiliary' && $this->getParentO()->isAuxiliary())) {
-			if (!check_password($param['old_password_f'], $this->password)) {
+		$aux = false;
+		try {
+			$aux = $this->getClass() === 'auxiliary' && is_object($this->getParentO())
+				&& $this->getParentO()->isAuxiliary();
+		} catch (Throwable $e) {
+			$aux = false;
+		}
+		if ($this->isOwnAccount() || $aux) {
+			if (!isset($param['old_password_f']) || !check_password($param['old_password_f'], $this->password)) {
 				throw new lxException($login->getThrow("wrong_password"), 'old_password_f');
 			}
-			
+
 			unset($param['old_password_f']);
 		}
 		
