@@ -472,9 +472,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `Service__Debian::getServiceDetails` and `systemctl` for
     start/stop/restart; a missing `knot___localhost` row no longer
     blanks the page (`Service::canGetSingle` + `initThisObject`).
-    The Services list omits units that are not installed and reads
-    running/boot state from systemd `ActiveState` / `UnitFileState`
-    (bind9→named, mariadb→mariadbd, php-fpm→phpX.Y-fpm). Catalog includes
+    The Services list omits units that are not installed except **postfix**,
+    which stays as a dull/not_installed row (Debian will not co-install it with
+    Exim; Switch Program SMTP=postfix is what apt-installs it). Ubuntu
+    `postfix.service` is often an alias of `postfix@-.service`;
+    `unitCandidates` includes `postfix@-` / `postfix@` and `LoadState=alias`
+    counts as installed. Running/boot state come from systemd `ActiveState` /
+    `UnitFileState` (bind9→named, mariadb→mariadbd, php-fpm→phpX.Y-fpm). Catalog includes
     fail2ban and ufw (UFW Firewall). Live Services
     after deploy is **UNVERIFIED**.
     Component Info has a

@@ -266,6 +266,9 @@ class Service extends Lxdb
 			// e.g. Exim after Switch Program picked Postfix: the package is gone, only the row stays
 			throw new lxException("{$svc} is not installed (it was replaced in Switch Program); select it there to install it again", '', $svc);
 		}
+		if (Service__Linux::resolveInstalledUnit($svc) === '' && self::alwaysListedService($svc)) {
+			throw new lxException("{$svc} is not installed; select it in Switch Program", '', $svc);
+		}
 		if (Service__Linux::mayControlUnit($unit, (string) $act)) {
 			return;
 		}
@@ -506,6 +509,17 @@ class Service extends Lxdb
 		return $svc;
 	}
 
+	/**
+	 * Catalog names that stay on the Services list even when the package is not
+	 * installed (dull row). Postfix cannot be co-installed with Exim, so the
+	 * default SMTP leaves it missing; the row still has to be visible the way
+	 * recovery lists it. Icons refuse until Switch Program installs it.
+	 */
+	static function alwaysListedService($svc)
+	{
+		return (string) $svc === 'postfix';
+	}
+
 	static function onlyInstalledRows($rows)
 	{
 		$out = array();
@@ -516,7 +530,13 @@ class Service extends Lxdb
 			if (!is_array($row)) {
 				continue;
 			}
-			if (isset($row['install_state']) && $row['install_state'] === 'on') {
+			$svc = isset($row['servicename']) ? (string) $row['servicename'] : '';
+			if ($svc === '' && isset($row['nname']) && is_string($row['nname'])) {
+				$parts = explode('___', $row['nname'], 2);
+				$svc = $parts[0];
+			}
+			if ((isset($row['install_state']) && $row['install_state'] === 'on')
+				|| self::alwaysListedService($svc)) {
 				$out[] = $row;
 			}
 		}

@@ -547,6 +547,9 @@ class Service__Linux extends Lxlclass
 			'knot' => 'knot',
 			'exim' => 'exim4',
 			'exim4' => 'exim4',
+			'postfix' => 'postfix',
+			'postfix@-' => 'postfix',
+			'postfix@' => 'postfix',
 		);
 
 		return isset($map[$name]) ? $map[$name] : $name;
@@ -605,7 +608,7 @@ class Service__Linux extends Lxlclass
 			'knot' => array('knot'),
 			'exim4' => array('exim4', 'exim'),
 			'exim' => array('exim', 'exim4'),
-			'postfix' => array('postfix'),
+			'postfix' => array('postfix', 'postfix@-'),
 			'pure-ftpd' => array('pure-ftpd', 'pure-ftpd-mysql'),
 		);
 		$cands = isset($map[$name]) ? $map[$name] : array($name);
@@ -727,10 +730,8 @@ class Service__Linux extends Lxlclass
 		if (!is_file($root . $script)) {
 			return false;
 		}
-		foreach (array('/lib/systemd/system', '/usr/lib/systemd/system', '/etc/systemd/system') as $dir) {
-			if (file_exists($root . $dir . '/' . $unit . '.service')) {
-				return false;
-			}
+		if (self::unitFileExists($unit)) {
+			return false;
 		}
 		$state = self::packageStateOfFile($script);
 
@@ -758,12 +759,43 @@ class Service__Linux extends Lxlclass
 		if (!self::isSafeUnit($unit)) {
 			return false;
 		}
-		if (function_exists('isServiceExists') && isServiceExists($unit)) {
+		if (self::$fsRoot === '' && function_exists('isServiceExists') && isServiceExists($unit)) {
+			return true;
+		}
+		if (self::unitFileExists($unit)) {
 			return true;
 		}
 		$load = self::systemdShow($unit, 'LoadState');
 
-		return $load === 'loaded' || $load === 'masked';
+		return $load === 'loaded' || $load === 'masked' || $load === 'alias';
+	}
+
+	/**
+	 * Native unit file, including Ubuntu Postfix's instance template
+	 * (`postfix.service` is often an alias of `postfix@-.service`; the file on
+	 * disk is `postfix@.service`).
+	 */
+	static function unitFileExists($unit)
+	{
+		if (!self::isSafeUnit($unit)) {
+			return false;
+		}
+		$names = array($unit . '.service');
+		if (strpos($unit, '@') !== false) {
+			$names[] = preg_replace('/@.*$/', '@', $unit) . '.service';
+		} else {
+			$names[] = $unit . '@.service';
+		}
+		$root = self::$fsRoot;
+		foreach (array('/lib/systemd/system', '/usr/lib/systemd/system', '/etc/systemd/system') as $dir) {
+			foreach ($names as $n) {
+				if ($n !== '.service' && file_exists($root . $dir . '/' . $n)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	static function resolveInstalledUnit($servicename)
@@ -782,8 +814,17 @@ class Service__Linux extends Lxlclass
 				return $u;
 			}
 		}
+		$plain = array();
+		foreach ($installed as $u) {
+			if (strpos($u, '@') === false) {
+				$plain[] = $u;
+			}
+		}
+		if ($plain !== array()) {
+			return $plain[count($plain) - 1];
+		}
 
-		return $installed[count($installed) - 1];
+		return $installed[0];
 	}
 
 	static function bootStateOn($unit)
@@ -837,6 +878,7 @@ class Service__Linux extends Lxlclass
 			'knot' => array('knotd'),
 			'apache2' => array('apache2', 'httpd'),
 			'exim4' => array('exim4', 'exim'),
+			'postfix' => array('master', 'postfix'),
 		);
 		if (isset($alias[$name])) {
 			$names = array_merge($names, $alias[$name]);

@@ -100,6 +100,13 @@ if (is_array($svcList)) {
 			continue;
 		}
 		$svcNames[$row['nname']] = true;
+		$svcName = isset($row['servicename']) ? (string) $row['servicename'] : '';
+		if ($svcName === '' && isset($row['nname']) && is_string($row['nname'])) {
+			$svcName = explode('___', $row['nname'], 2)[0];
+		}
+		if (Service::alwaysListedService($svcName)) {
+			continue;
+		}
 		if (($row['install_state'] ?? '') !== 'on') {
 			$svcAllInstalled = false;
 		}
@@ -225,6 +232,67 @@ if (($secProbe['fail2ban']['install_state'] ?? '') === 'on'
 } else {
 	bad('Services list includes fail2ban and UFW Firewall when the units are installed',
 		json_encode($secProbe));
+}
+
+$svcPostfixCands = Service__Linux::unitCandidates('postfix');
+$svcPostfixKeep = Service::onlyInstalledRows(array(
+	array('nname' => 'nginx___localhost', 'servicename' => 'nginx', 'install_state' => 'on', 'state' => 'on'),
+	array('nname' => 'postfix___localhost', 'servicename' => 'postfix', 'install_state' => 'dull', 'state' => 'off'),
+	array('nname' => 'knot___localhost', 'servicename' => 'knot', 'install_state' => 'dull', 'state' => 'off'),
+));
+$prevShow = Service__Linux::$showProbe;
+$prevFs = Service__Linux::$fsRoot;
+$tmpPostfix = sys_get_temp_dir() . '/kloxo-postfix-svc-' . getmypid();
+mkdir($tmpPostfix . '/lib/systemd/system', 0755, true);
+Service__Linux::$fsRoot = $tmpPostfix;
+Service__Linux::$showProbe = static function (string $u, string $p): string {
+	if ($u === 'postfix' && $p === 'LoadState') {
+		return 'not-found';
+	}
+	if ($u === 'postfix@-' && $p === 'LoadState') {
+		return 'loaded';
+	}
+	if ($u === 'postfix@-' && $p === 'ActiveState') {
+		return 'active';
+	}
+	if ($u === 'postfix@-' && $p === 'UnitFileState') {
+		return 'enabled';
+	}
+
+	return '';
+};
+$postfixAliasUnit = Service__Linux::resolveInstalledUnit('postfix');
+$postfixAlias = Service__Linux::getServiceDetails(array(
+	'postfix' => array('servicename' => 'postfix', 'nname' => 'postfix___localhost'),
+));
+touch($tmpPostfix . '/lib/systemd/system/postfix@.service');
+Service__Linux::$showProbe = static function (string $u, string $p): string {
+	return $u === 'postfix' && $p === 'LoadState' ? 'not-found' : '';
+};
+$postfixTemplate = Service__Linux::unitIsInstalled('postfix')
+	&& Service__Linux::resolveInstalledUnit('postfix') === 'postfix';
+Service__Linux::$showProbe = $prevShow;
+Service__Linux::$fsRoot = $prevFs;
+exec('rm -rf ' . escapeshellarg($tmpPostfix));
+if (in_array('postfix@-', $svcPostfixCands, true)
+	&& Service__Linux::preferredServiceName('postfix@-') === 'postfix'
+	&& Service::alwaysListedService('postfix')
+	&& count($svcPostfixKeep) === 2
+	&& ($svcPostfixKeep[0]['servicename'] ?? '') === 'nginx'
+	&& ($svcPostfixKeep[1]['servicename'] ?? '') === 'postfix'
+	&& $postfixAliasUnit === 'postfix@-'
+	&& ($postfixAlias['postfix']['install_state'] ?? '') === 'on'
+	&& $postfixTemplate) {
+	ok('Services list keeps postfix (Ubuntu postfix@- alias and uninstalled catalog row)');
+} else {
+	bad('Services list keeps postfix (Ubuntu postfix@- alias and uninstalled catalog row)',
+		json_encode(array(
+			'cands' => $svcPostfixCands,
+			'keep' => $svcPostfixKeep,
+			'aliasUnit' => $postfixAliasUnit,
+			'alias' => $postfixAlias,
+			'template' => $postfixTemplate,
+		)));
 }
 
 $svcSqlProbe = Service__Linux::getServiceDetails(array(

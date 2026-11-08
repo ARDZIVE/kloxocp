@@ -164,7 +164,7 @@ qualifies a blank or short nameserver to `ns1.<template>.dnst`, and writes defau
 `dns_record_a`. Secondary NS is validated separately from primary.
 FTP Configure is `serverftp` under localhost, not Backup FTP Configuration;
 the beige tab is labelled **FTP Configure**.
-The Services list shows only installed units (`install_state=on`); the catalog includes **fail2ban** and **ufw** (UFW Firewall) as well as nginx/apache2/bind9/knot/exim4/postfix/dovecot/rspamd/mariadb/php-fpm/kloxo-php/hiawatha/pure-ftpd; running
+The Services list shows installed units (`install_state=on`) plus **postfix** even when the package is not installed (Exim is the default SMTP and Debian will not co-install Postfix; the row stays dull / not_installed until Switch Program selects it). Ubuntu `postfix.service` is often an alias of `postfix@-.service` (`postfix@.service` on disk); `unitCandidates` includes those names. The catalog includes **fail2ban** and **ufw** (UFW Firewall) as well as nginx/apache2/bind9/knot/exim4/postfix/dovecot/rspamd/mariadb/php-fpm/kloxo-php/hiawatha/pure-ftpd; running
 and boot status come from systemd `ActiveState` / `UnitFileState`
 (aliases: bind9/named, mariadb/mysqld, phpX.Y-fpm). Duplicate RHEL/Debian
 names collapse to one row (`apache2` not `httpd`, `bind9` not `named`,
