@@ -2981,6 +2981,69 @@ if (is_array($form) && ($form['action'] ?? '') === 'add'
 		$formErr !== '' ? $formErr : ('keys=' . implode(',', array_keys($vars))));
 }
 
+$domPrevLogin = $login;
+$domCust = new Client(null, 'localhost', 'armcath');
+$domCust->nname = 'armcath';
+$domCust->cttype = 'customer';
+$login = $domCust;
+$GLOBALS['login'] = $domCust;
+$domNlist = null;
+$domNlistErr = '';
+try {
+	$domNlist = domain::createListNlist($domCust, null);
+} catch (Throwable $e) {
+	$domNlistErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+}
+$domKeys = is_array($domNlist) ? array_keys($domNlist) : array();
+$domNeed = array('status', 'dtype', 'abutton_show_s_dns', 'abutton_list_s_domaintraffichistory',
+	'abutton_list_s_addondomain', 'abutton_update_s_phpinfo', 'pvview_f', 'check_dns_f',
+	'dnvview_f', 'webmail_f', 'awstats_f', 'nname', 'ddate', 'docroot', 'traffic_usage');
+$domMissing = array();
+foreach ($domNeed as $k) {
+	if (!in_array($k, $domKeys, true)) {
+		$domMissing[] = $k;
+	}
+}
+$domOrderOk = false;
+if (count($domKeys) >= 4) {
+	$iStatus = array_search('status', $domKeys, true);
+	$iDtype = array_search('dtype', $domKeys, true);
+	$iName = array_search('nname', $domKeys, true);
+	$iDate = array_search('ddate', $domKeys, true);
+	$iRoot = array_search('docroot', $domKeys, true);
+	$iTraf = array_search('traffic_usage', $domKeys, true);
+	$domOrderOk = $iStatus === 0 && $iDtype === 1 && $iName !== false && $iDate === $iName + 1
+		&& $iRoot === $iName + 2 && $iTraf === $iName + 3;
+}
+$drow = new domain(null, 'localhost', 'example.com');
+$drow->nname = 'example.com';
+$drow->docroot = 'example.com';
+$docDisp = null;
+$docDispErr = '';
+try {
+	$docDisp = $drow->display('docroot');
+} catch (Throwable $e) {
+	$docDispErr = $e->getMessage();
+}
+$domSrc = (string) file_get_contents($doc . '/lib/domain/domainlib.php');
+$htmlDomSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
+$domListOk = $domNlistErr === '' && $domMissing === array() && $domOrderOk
+	&& $docDispErr === '' && $docDisp === 'example.com'
+	&& str_contains($domSrc, 'checkButton(\'can_manage_dns\')')
+	&& str_contains($domSrc, 'checkButton(\'webhosting_flag\')')
+	&& str_contains($htmlDomSrc, 'printObjectElement {$class}.{$name}');
+if ($domListOk) {
+	ok('client Domains list columns match Kloxo-MR (S/T/icons/Name/Date/Docroot/Traffic)');
+} else {
+	bad('client Domains list columns match Kloxo-MR (S/T/icons/Name/Date/Docroot/Traffic)',
+		$domNlistErr !== '' ? $domNlistErr
+			: ('keys=' . implode(',', $domKeys) . ' missing=' . implode(',', $domMissing)
+				. ' order=' . ($domOrderOk ? 'y' : 'n') . ' doc=' . (string) $docDisp
+				. ' docErr=' . $docDispErr));
+}
+$login = $domPrevLogin;
+$GLOBALS['login'] = $domPrevLogin;
+
 $prevLogin3 = $login;
 $login = new Client(null, 'localhost', 'admin');
 $login->nname = 'admin';

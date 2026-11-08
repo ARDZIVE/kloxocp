@@ -309,7 +309,15 @@ class Domaind extends DomainBase
 		}
 	*/
 		if ($var === 'docroot') {
-			return $this->getObject('web')->docroot;
+			try {
+				$web = $this->getObject('web');
+				if (is_object($web) && isset($web->docroot) && is_string($web->docroot) && $web->docroot !== '') {
+					return $web->docroot;
+				}
+			} catch (Throwable $e) {
+			}
+
+			return (isset($this->docroot) && is_string($this->docroot)) ? $this->docroot : '';
 		}
 
 		return parent::display($var);
@@ -400,8 +408,13 @@ class Domaind extends DomainBase
 	{
 		global $gbl, $sgbl, $login;
 
-		if (($var === 'nname' || $var === 'dtype') && $this->getParentO()->isCustomer()) {
-			return true;
+		try {
+			$p = $this->getParentO();
+			if (($var === 'nname' || $var === 'dtype') && is_object($p)
+				&& method_exists($p, 'isCustomer') && $p->isCustomer()) {
+				return true;
+			}
+		} catch (Throwable $e) {
 		}
 
 		return true;
@@ -466,37 +479,56 @@ class Domaind extends DomainBase
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		$canDns = true;
+		try {
+			$canDns = (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin())
+				|| (is_object($login) && method_exists($login, 'checkButton') && $login->checkButton('can_manage_dns'));
+		} catch (Throwable $e) {
+			$canDns = true;
+		}
+
+		$webhosting = true;
+		try {
+			$webhosting = !is_object($parent) || !method_exists($parent, 'checkButton')
+				|| $parent->checkButton('webhosting_flag');
+		} catch (Throwable $e) {
+			$webhosting = true;
+		}
+
+		$webstatsprog = 'awstats';
+		try {
+			if (is_object($login) && method_exists($login, 'getObject')) {
+				$genObj = $login->getObject('general');
+				$gen = (is_object($genObj) && isset($genObj->generalmisc_b)) ? $genObj->generalmisc_b : null;
+				if (is_object($gen) && isset($gen->webstatisticsprogram) && $gen->webstatisticsprogram) {
+					$webstatsprog = $gen->webstatisticsprogram;
+				}
+			}
+		} catch (Throwable $e) {
+		}
+
 	//	$name_list["state"] = "3%";
 		$name_list["status"] = "3%";
 		$name_list["dtype"] = "3%";
 
-		if ($login->isAdmin() || $login->priv->isON('can_manage_dns')) {
+		if ($canDns) {
 			$name_list["abutton_show_s_dns"] = "3%";
 		}
 
 		$name_list["abutton_list_s_domaintraffichistory"] = "3%";
 
-		if ($parent->priv->isOn('webhosting_flag')) {
-			$gen = $login->getObject('general')->generalmisc_b;
-			$webstatsprog = (isset($gen->webstatisticsprogram)) ? $gen->webstatisticsprogram : null;
-			
-			if (!$webstatsprog) {
-				$webstatsprog = "awstats";
-			}
-
+		if ($webhosting) {
 			$name_list["abutton_list_s_addondomain"] = "3%";
 			$name_list["abutton_update_s_phpinfo"] = "3%";
 			$name_list["pvview_f"] = "3%";
 			$name_list["check_dns_f"] = "3%";
 			$name_list["dnvview_f"] = "3%";
 			$name_list["webmail_f"] = "3%";
-			
-			if ($webstatsprog === 'awstats') {
-				$name_list["awstats_f"] = "3%";
+
+			if ($webstatsprog === 'webalizer') {
+				$name_list["stats_f"] = "3%";
 			} else {
-				if ($webstatsprog === 'webalizer') {
-					$name_list["stats_f"] = "3%";
-				}
+				$name_list["awstats_f"] = "3%";
 			}
 		}
 

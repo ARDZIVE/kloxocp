@@ -4020,7 +4020,7 @@ class HtmlLib
 		$valign = "valign='middle'";
 		$image = 0;
 
-		if (csa($descr[$name][0], "e")) {
+		if (isset($descr[$name][0]) && csa($descr[$name][0], "e")) {
 			$pname = strtolower((string)$pname);
 			$property = "{$name}_v_$pname";
 
@@ -4085,7 +4085,7 @@ class HtmlLib
 			$image = 1;
 		}
 
-		if (!$obj->isAction($name) && char_search_a($descr[$name][0], "b")) {
+		if (!$obj->isAction($name) && isset($descr[$name][0]) && char_search_a($descr[$name][0], "b")) {
 			$pname = "";
 		}
 
@@ -5196,7 +5196,10 @@ class HtmlLib
 				try {
 					$this->printObjectElement($parent, $class, $classdesc, $obj, $name, $width, $descr, $colcount . "_" . $rowcount);
 				} catch (Throwable $e) {
-					break;
+					log_log("error", "printObjectElement {$class}.{$name}: " . $e->getMessage());
+?>
+						<td class="collist"></td>
+<?php
 				}
 
 				$colcount++;
