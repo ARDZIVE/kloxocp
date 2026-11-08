@@ -191,6 +191,61 @@ class Service__Linux extends Lxlclass
 	 *
 	 * @return int process exit code, or -1 on failure / refused
 	 */
+	/** Absolute journalctl binary, or empty if missing. */
+	static function journalctlBin()
+	{
+		foreach (array('/usr/bin/journalctl', '/bin/journalctl') as $bin) {
+			if (is_executable($bin)) {
+				return $bin;
+			}
+		}
+
+		return '';
+	}
+
+	/** Last journal lines of a unit (needs root to see system units). */
+	static function journalTail($unit, $lines = 12)
+	{
+		$bin = self::journalctlBin();
+		if ($bin === '' || !self::isSafeUnit((string) $unit)) {
+			return '';
+		}
+		$p = @proc_open(
+			array($bin, '-u', (string) $unit, '-n', (string) (int) $lines, '--no-pager', '-o', 'cat'),
+			array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('file', '/dev/null', 'w')),
+			$pipes
+		);
+		if (!is_resource($p)) {
+			return '';
+		}
+		$out = self::readPipeLimited($pipes[1], 5);
+		fclose($pipes[1]);
+		proc_close($p);
+
+		return trim((string) $out);
+	}
+
+	/**
+	 * Text for a unit that did not reach `active` after start/restart.
+	 * `systemctl --no-block start` returns 0 at once even when the daemon then
+	 * dies (port 53 taken, bad config, no database), so this is the only place
+	 * the reason can be shown.
+	 */
+	static function describeStartFailure($unit, $state, $journal)
+	{
+		$lines = preg_split('/\r\n|\r|\n/', trim((string) $journal)) ?: array();
+		$lines = array_values(array_filter(array_map('trim', $lines), 'strlen'));
+		$tail = implode(' | ', array_slice($lines, -6));
+		$txt = $unit . ' is ' . ($state !== '' ? $state : 'not running') . ' after start';
+		if ($tail !== '') {
+			$txt .= ': ' . $tail;
+		} else {
+			$txt .= '; see "journalctl -u ' . $unit . ' -n 50" on the server';
+		}
+
+		return $txt;
+	}
+
 	static function systemctlRun($act, $unit)
 	{
 		$d = self::systemctlRunDetail($act, $unit);
@@ -265,6 +320,19 @@ class Service__Linux extends Lxlclass
 		}
 		$closed = (int) proc_close($p);
 		$res['rc'] = $rc >= 0 ? $rc : $closed;
+
+		// The start was accepted; make sure the daemon actually stays up.
+		if ($res['rc'] === 0 && in_array($act, array('start', 'restart'), true)) {
+			self::waitForUnit($unit, $act);
+			$state = (string) self::systemdShow($unit, 'ActiveState');
+			$sub = (string) self::systemdShow($unit, 'SubState');
+			// `activating` (slow start) is not a failure; a dead or restart-looping daemon is.
+			if ($state === 'failed' || $state === 'inactive'
+				|| ($state === 'activating' && $sub === 'auto-restart')) {
+				$res['rc'] = 1;
+				$res['err'] = self::describeStartFailure($unit, $state, self::journalTail($unit));
+			}
+		}
 
 		// Tell the watchdog: a unit stopped here on purpose stays stopped,
 		// a unit started here is watched again. Only the root backend can write.

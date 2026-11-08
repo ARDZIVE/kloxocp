@@ -180,8 +180,8 @@ class Service extends Lxdb
 		$res = Service__Linux::controlUnit($act, $unit, 'localhost');
 		if (empty($res['ok'])) {
 			$why = trim(preg_replace('/\s+/', ' ', (string) ($res['err'] !== '' ? $res['err'] : $res['out'])) ?? '');
-			if (strlen($why) > 300) {
-				$why = substr($why, 0, 300);
+			if (strlen($why) > 500) {
+				$why = substr($why, 0, 500);
 			}
 			throw new lxException('Could not ' . $act . ' service ' . $svc . ($why !== '' ? ': ' . $why : ''), '', $svc);
 		}

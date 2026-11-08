@@ -83,5 +83,26 @@ if (!$p->refreshLiveState() && $p->state === 'off') {
 }
 Service::$liveStateProbe = null;
 
+// A start that systemd accepted but the daemon then failed must say why.
+$msg = Service__Linux::describeStartFailure('pdns', 'failed', "a\nUnable to bind UDP socket to '0.0.0.0:53': Address already in use\nFatal error: no backends\n");
+if (str_contains($msg, 'pdns is failed after start')
+	&& str_contains($msg, 'Address already in use') && str_contains($msg, 'no backends')) {
+	ok('describeStartFailure carries the journal tail');
+} else {
+	bad('describeStartFailure carries the journal tail', $msg);
+}
+$msg = Service__Linux::describeStartFailure('pdns', 'inactive', '');
+if (str_contains($msg, 'journalctl -u pdns')) {
+	ok('describeStartFailure points at journalctl when the journal is empty');
+} else {
+	bad('describeStartFailure points at journalctl when the journal is empty', $msg);
+}
+$src = (string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php');
+if (str_contains($src, "self::journalTail(\$unit)") && str_contains($src, "'auto-restart'")) {
+	ok('systemctlRunDetail checks the unit is active after start/restart');
+} else {
+	bad('systemctlRunDetail checks the unit is active after start/restart');
+}
+
 printf("\n%d passed, %d failed\n", $pass, $fail);
 exit($fail === 0 ? 0 : 1);
