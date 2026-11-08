@@ -611,8 +611,16 @@ class Service__Linux extends Lxlclass
 		return $out;
 	}
 
+	/** Set by tests: callable(string $unit, string $prop): string replacing `systemctl show`. */
+	public static $showProbe = null;
+
 	static function systemdShow($unit, $prop)
 	{
+		if (is_callable(self::$showProbe) && self::isSafeUnit($unit) && self::isSafeUnit($prop)) {
+			$r = call_user_func(self::$showProbe, (string) $unit, (string) $prop);
+
+			return is_string($r) ? trim($r) : '';
+		}
 		if (!self::hasSystemd() || !self::isSafeUnit($unit) || !self::isSafeUnit($prop)) {
 			return '';
 		}
@@ -650,17 +658,99 @@ class Service__Linux extends Lxlclass
 		return is_string($out) ? trim($out) : '';
 	}
 
+	/** Prefix for the file checks below; tests point it at a throw-away tree. */
+	public static $fsRoot = '';
+
+	/** Set by tests: callable(string $path): ?string, dpkg status ('ii', 'rc', ...) of the package owning $path. */
+	public static $pkgStateProbe = null;
+
+	/** dpkg status abbreviation of the package that owns $path ('' = unknown / not a dpkg host). */
+	static function packageStateOfFile($path)
+	{
+		if (is_callable(self::$pkgStateProbe)) {
+			$r = call_user_func(self::$pkgStateProbe, (string) $path);
+
+			return is_string($r) ? $r : '';
+		}
+		$bin = is_executable('/usr/bin/dpkg-query') ? '/usr/bin/dpkg-query' : '';
+		if ($bin === '' || strpos((string) $path, "\0") !== false) {
+			return '';
+		}
+		$run = static function (array $argv) {
+			$p = @proc_open($argv, array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
+			if (!is_resource($p)) {
+				return '';
+			}
+			$out = (string) stream_get_contents($pipes[1]);
+			stream_get_contents($pipes[2]);
+			fclose($pipes[1]);
+			fclose($pipes[2]);
+			proc_close($p);
+
+			return trim($out);
+		};
+		$owner = $run(array($bin, '-S', (string) $path));
+		if (preg_match('/^([a-z0-9][a-z0-9.+-]*)(?::[a-z0-9]+)?: /', $owner, $m) !== 1) {
+			return '';
+		}
+
+		return substr($run(array($bin, '-W', '-f=${db:Status-Abbrev}', $m[1])), 0, 2);
+	}
+
+	/**
+	 * A SysV script that is all that remains of a removed package (`apt remove` keeps
+	 * conffiles such as /etc/init.d/exim4 and its rc links): systemd still generates a
+	 * unit from it, but nothing is installed. True only when there is no native unit
+	 * file and dpkg says the owning package is not installed.
+	 */
+	static function isRemovedSysvLeftover($unit)
+	{
+		if (!self::isSafeUnit($unit)) {
+			return false;
+		}
+		$root = self::$fsRoot;
+		$script = '/etc/init.d/' . $unit;
+		if (!is_file($root . $script)) {
+			return false;
+		}
+		foreach (array('/lib/systemd/system', '/usr/lib/systemd/system', '/etc/systemd/system') as $dir) {
+			if (file_exists($root . $dir . '/' . $unit . '.service')) {
+				return false;
+			}
+		}
+		$state = self::packageStateOfFile($script);
+
+		return $state !== '' && $state !== 'ii' && $state !== 'hi';
+	}
+
+	/** SysV runlevel links: enabled when an S link exists in runlevels 2-5 (update-rc.d disable turns S into K). */
+	static function sysvLinksEnabled($unit)
+	{
+		if (!self::isSafeUnit($unit)) {
+			return false;
+		}
+		foreach (array(2, 3, 4, 5) as $lvl) {
+			$found = @glob(self::$fsRoot . '/etc/rc' . $lvl . '.d/S[0-9][0-9]' . $unit);
+			if (is_array($found) && $found !== array()) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	static function unitIsInstalled($unit)
 	{
 		if (!self::isSafeUnit($unit)) {
 			return false;
 		}
-		if (function_exists('isServiceExists') && isServiceExists($unit)) {
-			return true;
+		$known = function_exists('isServiceExists') && isServiceExists($unit);
+		if (!$known) {
+			$load = self::systemdShow($unit, 'LoadState');
+			$known = ($load === 'loaded' || $load === 'masked');
 		}
-		$load = self::systemdShow($unit, 'LoadState');
 
-		return $load === 'loaded' || $load === 'masked';
+		return $known && !self::isRemovedSysvLeftover($unit);
 	}
 
 	static function resolveInstalledUnit($servicename)
@@ -686,6 +776,14 @@ class Service__Linux extends Lxlclass
 	static function bootStateOn($unit)
 	{
 		$en = self::systemdShow($unit, 'UnitFileState');
+		if ($en === 'generated') {
+			// A unit systemd generated from a SysV script: UnitFileState is always
+			// "generated" and says nothing about boot. The rc links decide.
+			$src = self::systemdShow($unit, 'SourcePath');
+			if ($src === '/etc/init.d/' . $unit || $src === '/etc/rc.d/init.d/' . $unit) {
+				return self::sysvLinksEnabled($unit);
+			}
+		}
 
 		return in_array($en, array(
 			'enabled', 'enabled-runtime', 'static', 'indirect', 'generated', 'alias',

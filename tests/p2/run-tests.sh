@@ -218,6 +218,13 @@ if php "$HERE/test_service_toggle.php"; then
 else
   bad "test_service_toggle.php"
 fi
+
+echo "== removed MTA leftover (SysV script) on the Services list"
+if php "$HERE/test_mta_leftover.php"; then
+  ok "test_mta_leftover.php"
+else
+  bad "test_mta_leftover.php"
+fi
 if php "$HERE/test_multiserver.php"; then
   ok "test_multiserver.php"
 else
