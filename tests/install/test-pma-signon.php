@@ -63,9 +63,31 @@ $check(kloxo_pma_same_origin_nav() === false, 'foreign Referer does not auto-SSO
 unset($_SERVER['HTTPS'], $_SERVER['HTTP_HOST'], $_SERVER['SERVER_NAME'], $_SERVER['SERVER_PORT'], $_SERVER['HTTP_REFERER']);
 $src = (string)file_get_contents($helper);
 $check(str_contains($src, 'kloxo_pma_try_admin_sso')
+	&& str_contains($src, 'kloxo_pma_try_db_sso')
 	&& str_contains($src, 'kloxo_pma_write_signon_and_redirect')
-	&& str_contains($src, 'kloxo_pma_same_origin_nav'),
-	'sign-on GET uses panel-admin SSO then phpMyAdmin');
+	&& str_contains($src, 'kloxo_pma_same_origin_nav')
+	&& str_contains($src, 'PMA_single_signon_cfgupdate'),
+	'sign-on GET uses panel-admin SSO or per-database SSO then phpMyAdmin');
+$check(kloxo_pma_db_href('mesrob_wp') === kloxo_pma_url() . '?db=mesrob_wp',
+	'per-database SQL Manager href carries only the mysqldb nname');
+$check(kloxo_pma_db_href('../etc/passwd') === kloxo_pma_url()
+	&& kloxo_pma_db_href('mysql') === kloxo_pma_url(),
+	'unsafe or reserved database names are not put in the SQL Manager href');
+$check(kloxo_pma_db_ident('mesrob_wp') && !kloxo_pma_db_ident('mysql')
+	&& !kloxo_pma_db_ident('kloxo_pma') && !kloxo_pma_db_ident('a b'),
+	'database ident rejects system schemas and junk');
+$_GET['db'] = 'mesrob_wp';
+$check(kloxo_pma_request_db() === 'mesrob_wp', 'safe ?db= is accepted');
+$_GET['db'] = 'mysql';
+$check(kloxo_pma_request_db() === '', 'reserved ?db= is ignored');
+$_GET['db'] = '../x';
+$check(kloxo_pma_request_db() === '', 'path-like ?db= is ignored');
+$_GET['db'] = 'mesrob_wp';
+$dbForm = kloxo_pma_signon_form_html('/tmp/kloxo-pma-missing', '', 'kloxo_pma');
+$check(str_contains($dbForm, 'its own MariaDB user') && !str_contains($dbForm, 'full privileges')
+	&& str_contains($dbForm, 'name="kloxo_pma_db"'),
+	'per-database logon form does not offer the admin kloxo_pma account');
+unset($_GET['db']);
 $remote = kloxo_pma_href(false, 'bad host');
 $check(str_contains($remote, 'kloxo-signon.php') && !str_contains($remote, ' '), 'unsafe remote host does not invent a URL');
 $login = kloxo_pma_login('/tmp/kloxo-pma-missing');
@@ -127,6 +149,62 @@ $check(is_array($row) && ($row['parent_clname'] ?? '') === 'client-admin', 'sess
 $check(kloxo_pma_panel_is_admin($tmp) === true, 'live admin session file is admin');
 $check(kloxo_pma_signon_credentials($tmp) === array('kloxo_pma', 'secret-pma-pass'),
 	'SignonScript returns kloxo_pma + pma.pass for a live admin session');
+$_GET['db'] = 'bob_wp';
+$check(kloxo_pma_try_admin_sso($tmp) === false,
+	'admin SSO is not used when a specific database is selected');
+unset($_GET['db']);
+
+mkdir($tmp . '/var/lib/kloxo', 0700, true);
+$sqlite = $tmp . '/var/lib/kloxo/panel.sqlite';
+$pdo = new PDO('sqlite:' . $sqlite);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE mysqldb (
+	nname TEXT PRIMARY KEY, dbname TEXT, username TEXT, dbpassword TEXT,
+	parent_clname TEXT, parent_cmlist TEXT
+)');
+$ins = $pdo->prepare('INSERT INTO mysqldb (nname, dbname, username, dbpassword, parent_clname, parent_cmlist)
+	VALUES (?, ?, ?, ?, ?, ?)');
+$ins->execute(array('bob_wp', 'bob_wp', 'bob_wp', 'bob-secret', 'client-bob', ',client-bob,client-alice,client-admin,'));
+$ins->execute(array('eve_wp', 'eve_wp', 'eve_wp', 'eve-secret', 'client-eve', ',client-eve,client-admin,'));
+$ins->execute(array('bad_pma', 'bad_pma', 'kloxo_pma', 'pma-secret', 'client-bob', ',client-bob,'));
+$pdo = null;
+
+$_COOKIE['kloxo-clientname'] = 'bob';
+$sess('client-bob', time());
+$bob = kloxo_pma_panel_session($tmp);
+$check(is_array($bob) && ($bob['name'] ?? '') === 'bob' && empty($bob['admin']),
+	'live client session file is a panel client, not admin');
+$own = kloxo_pma_db_login('bob_wp', $tmp);
+$check(is_array($own) && ($own['user'] ?? '') === 'bob_wp' && ($own['dbname'] ?? '') === 'bob_wp'
+	&& ($own['pass'] ?? '') === 'bob-secret' && ($own['user'] ?? '') !== 'kloxo_pma',
+	'client opening their database uses that database user, not kloxo_pma');
+$check(kloxo_pma_db_login('eve_wp', $tmp) === null, 'client cannot open another client database');
+$check(kloxo_pma_db_login('bad_pma', $tmp) === null, 'a row whose MariaDB user is kloxo_pma is refused');
+$_COOKIE['kloxo-clientname'] = 'alice';
+$sess('client-alice', time());
+$resell = kloxo_pma_db_login('bob_wp', $tmp);
+$check(is_array($resell) && ($resell['user'] ?? '') === 'bob_wp',
+	'reseller in parent_cmlist opens the child database as the child user');
+$_COOKIE['kloxo-clientname'] = 'admin';
+$sess('client-admin', time());
+$asAdmin = kloxo_pma_db_login('bob_wp', $tmp);
+$check(is_array($asAdmin) && ($asAdmin['user'] ?? '') === 'bob_wp' && ($asAdmin['user'] ?? '') !== 'kloxo_pma',
+	'admin click on a specific database still uses that database user, not kloxo_pma');
+$_POST['kloxo_pma_csrf'] = kloxo_pma_csrf_issue($tmp);
+$_POST['pma_user'] = 'kloxo_pma';
+$_POST['pma_pass'] = 'secret-pma-pass';
+$_COOKIE['kloxo-clientname'] = 'bob';
+$sess('client-bob', time());
+$check(kloxo_pma_signon_submit($tmp) === 'That account is not available.',
+	'client cannot sign on as kloxo_pma from the logon form');
+unset($_POST['kloxo_pma_csrf'], $_POST['pma_user'], $_POST['pma_pass']);
+$_GET['db'] = 'eve_wp';
+$_POST['kloxo_pma_csrf'] = kloxo_pma_csrf_issue($tmp);
+$check(kloxo_pma_signon_submit($tmp) === 'You can only open your own database.',
+	'client POST for another database is refused');
+unset($_GET['db'], $_POST['kloxo_pma_csrf']);
+
+$_COOKIE['kloxo-clientname'] = 'admin';
 $sess('client-bob', time());
 $check(kloxo_pma_panel_is_admin($tmp) === false, 'non-admin session file is not admin');
 $sess('client-admin', time() - 90000);
@@ -145,6 +223,10 @@ unset($_COOKIE['kloxo-classname'], $_COOKIE['kloxo-clientname'], $_COOKIE['kloxo
 @unlink($tmp . '/etc/conf/pma.pass');
 @rmdir($tmp . '/etc/conf');
 @rmdir($tmp . '/etc');
+@unlink($tmp . '/var/lib/kloxo/panel.sqlite');
+@rmdir($tmp . '/var/lib/kloxo');
+@rmdir($tmp . '/var/lib');
+@rmdir($tmp . '/var');
 @rmdir($tmp);
 
 exit($fail === 0 ? 0 : 1);

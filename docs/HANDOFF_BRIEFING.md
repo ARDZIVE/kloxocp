@@ -181,9 +181,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     still get the MySQL logon form (signed CSRF; admin may leave the
     password blank). `KloxoPmaSignon` cookie path `/` so phpMyAdmin index
     can read it. There is no SignonScript; PMA uses SignonURL.
-    OS `root`@`localhost` stays unix_socket. SQL Manager (phpMyAdmin, new tab) is
-    **admin-only**: admin home Domain and Basic (`webmailanddb`). Clients do not
-    get the link.
+    OS `root`@`localhost` stays unix_socket. The SQL Manager **tile** (phpMyAdmin,
+    new tab) is **admin-only**: admin home Domain and Basic (`webmailanddb`).
+    A client (or admin) click on a specific database opens
+    `kloxo-signon.php?db=<nname>` as that mysqldb's MariaDB user with
+    phpMyAdmin `only_db` (never `kloxo_pma`).
     Live phpMyAdmin login
     after this change is unverified; re-run `install.sh` after pull.
     Add Database creates a real MariaDB database (`KloxoMariadb`: CREATE
@@ -521,9 +523,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `awstats_f`) keep blank headers: `get_classvar_description` no
     longer fills an empty type-b label with the class name `domain`.
     Live client Domains after deploy is **UNVERIFIED**.
-    SQL Manager is admin-only (home Domain and Basic; domain show when the
-    login is admin). Clients have no SQL Manager link. Live SQL Manager after
-    deploy is **UNVERIFIED**.
+    SQL Manager tile is admin-only (home Domain and Basic; domain show when the
+    login is admin). Clients open SQL Manager from a database row as that
+    database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager
+    after deploy is **UNVERIFIED**.
     Admin Domains (`a=list&c=domain`) shows the Kloxo-MR add form
     (name, owner confirm, `/home/admin/` docroot, SSL/stats/
     Easy Installer/CGI/PHP, Add) even with no DNS template;
@@ -735,7 +738,9 @@ Work in this order. Keep every change small, tested and committed separately. Do
    opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
    `kloxo_pma`@`127.0.0.1` (not root: unix_socket) via `kloxo-signon.php` (`auth_type=signon`,
    `AllowRoot`, `pma.pass`; unix_socket `root`@`localhost` unchanged).
-   Live phpMyAdmin login after re-install is **UNVERIFIED**.
+   A client click on a database uses that row's username/password and
+   `only_db` (tests in `tests/install/test-pma-signon.php`; not a live
+   phpMyAdmin session). Live phpMyAdmin login after re-install is **UNVERIFIED**.
    Add Database creates a real MariaDB database (`KloxoMariadb`, tests in
    `tests/p2/test_mariadb.php`; no live MariaDB). Remaining
    compile failures are third-party (`webdisk/PEAR*`, formmail,

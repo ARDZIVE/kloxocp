@@ -227,6 +227,36 @@ class databasecore extends Lxdb
 		return kloxo_pma_href($local, $server);
 	}
 
+	/**
+	 * Per-database SQL Manager (phpMyAdmin in a new tab). The sign-on URL
+	 * carries only the mysqldb nname; the handler logs in as that row's
+	 * MariaDB user with only_db, never kloxo_pma.
+	 */
+	function phpMyAdminActionObject()
+	{
+		if (!function_exists('kloxo_pma_db_href')) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
+		}
+		$nname = (isset($this->nname) && is_string($this->nname)) ? $this->nname : '';
+		if ($nname === '' || !function_exists('kloxo_pma_db_href')) {
+			return null;
+		}
+		$local = !method_exists($this, 'isLocalhost') || $this->isLocalhost();
+		$server = (isset($this->syncserver) && is_string($this->syncserver))
+			? $this->syncserver : 'localhost';
+		$payload = array(
+			'url' => kloxo_pma_db_href($nname, $local, $server),
+			'purl' => 'c=mysqldb&a=updateform&sa=phpmyadmin',
+			'target' => function_exists('kloxo_pma_link_attrs')
+				? kloxo_pma_link_attrs() : 'target="_blank" rel="noopener noreferrer"',
+		);
+		if (function_exists('create_simpleObject')) {
+			return create_simpleObject($payload);
+		}
+
+		return (object) $payload;
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
@@ -238,14 +268,9 @@ class databasecore extends Lxdb
 		$pass = $this->dbpassword;
 
 		try {
-			$dbadminUrl = $this->getDbAdminUrl();
-			if ($dbadminUrl && (function_exists('kloxo_pma_login_is_admin')
-				? kloxo_pma_login_is_admin()
-				: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()))) {
-				$alist['property'][] = create_simpleObject(array('url' => $dbadminUrl,
-					'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin",
-					'target' => function_exists('kloxo_pma_link_attrs')
-						? kloxo_pma_link_attrs() : 'target="_blank" rel="noopener noreferrer"'));
+			$pma = $this->phpMyAdminActionObject();
+			if (is_object($pma)) {
+				$alist['property'][] = $pma;
 			}
 		} catch (Exception $e) {}
 
@@ -294,10 +319,7 @@ class databasecore extends Lxdb
 		global $login;
 
 		$nlist['easyinstaller_flag'] = '5%';
-		if (function_exists('kloxo_pma_login_is_admin') ? kloxo_pma_login_is_admin()
-			: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin())) {
-			$nlist['phpmyadmin_f'] = '5%';
-		}
+		$nlist['phpmyadmin_f'] = '5%';
 		$nlist['parent_clname'] = '5%';
 		$nlist['syncserver'] = '5%';
 		$nlist['username'] =  '10%';
@@ -463,23 +485,8 @@ class mysqldb extends databasecore
 
 	function getStubUrl($name)
 	{
-		global $login;
-
 		if ($name == '__stub_phpmyadmin_url') {
-			if (!(function_exists('kloxo_pma_login_is_admin') ? kloxo_pma_login_is_admin()
-				: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()))) {
-				return null;
-			}
-
-			$dbadminUrl = $this->getDbAdminUrl();
-			$user = $this->username;
-			$pass = $this->dbpassword;
-		//	$pass = urlencode($pass);
-			
-			if ($dbadminUrl) {
-				return create_simpleObject(array('url' => $dbadminUrl,
-					'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
-			}
+			return $this->phpMyAdminActionObject();
 		}
 	}
 
@@ -510,22 +517,9 @@ class mysqldb extends databasecore
 		$alist['property'][] = "a=updateform&sa=restore";
 		$alist['property'][] = "a=updateform&sa=changeowner";
 
-		$server = $_SERVER['SERVER_NAME'];
-
-		list($server, $port) = explode(":", $server);
-
-		$user = $this->username;
-		$pass = $this->dbpassword;
-
-		$dbadminUrl = $this->getDbAdminUrl();
-		$servernum = $this->getDbServerNum();
-	//	$pass = urlencode($pass);
-
-		if ($dbadminUrl && (function_exists('kloxo_pma_login_is_admin')
-			? kloxo_pma_login_is_admin()
-			: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()))) {
-			$alist['property'][] = create_simpleObject(array('url' => $dbadminUrl,
-				'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
+		$pma = $this->phpMyAdminActionObject();
+		if (is_object($pma)) {
+			$alist['property'][] = $pma;
 		}
 	}
 

@@ -134,7 +134,7 @@ details are under [Installation](#installation).
 | SMTP protection | Mail Server Settings > **SMTP Protection** (replaces Spamdyke): greet delay, recipient limit, graylisting (Postgrey), rDNS and DNS RBL checks, blacklist headers, whitelist IPs; applied to Exim or Postfix, whichever Switch Program selects. Rendered and unit-tested only; not yet run against a live Exim/Postfix. |
 | Database | **MariaDB** default (started at install; panel DB `kloxo`; mail DB is separate). A distinct MySQL package, if present, stays stopped until started from Services. |
 | Database admin | Seeded by `init-panel-db` as the `kloxo_pma` MariaDB account (needed by Add Database) |
-| SQL Manager | phpMyAdmin in a **new browser tab** (panel-admin SSO as MariaDB `kloxo_pma`@`127.0.0.1`) |
+| SQL Manager | phpMyAdmin in a **new browser tab** (admin tile: `kloxo_pma`; client DB click: that database's own user) |
 | Billing | None |
 | License | GNU AGPL v3 |
 
@@ -146,7 +146,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 
 | Screen | Behaviour |
 |---|---|
-| SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. A live panel-admin session (read from the session file `<root>/session/<id>`, matched to the `kloxo-session-id` cookie) is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (full privileges; `root`@`localhost` is unix_socket and is refused over TCP with error 1698) and redirected into phpMyAdmin in that tab. Other users still see the MySQL logon form. Password is never put in the URL. |
+| SQL Manager | Opens `/thirdparty/phpMyAdmin/kloxo-signon.php` with `target="_blank"`. Admin tile: a live panel-admin session (session file `<root>/session/<id>`) is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (full privileges; `root`@`localhost` is unix_socket). Client click on a database: `?db=<nname>` signs in as that mysqldb username/password with phpMyAdmin `only_db` (never `kloxo_pma`). Password is never put in the URL. |
 | Switch Program | One content tab labelled **Switch Program**. The form has no Use Pagespeed checkbox and no Cache list. Defaults: web Nginx, Web Cache none, DNS BIND, SMTP **exim**. Postfix is selectable and apt-swaps with Exim. Web Cache `nginx` puts an Nginx proxy cache on 80/443 in front of the Nginx or Apache site server (which moves to loopback 8081/8444); it rolls back on failure. Spam SpamAssassin installs from apt; a failed install shows the apt error and keeps the old choice. Tested with fake apt/systemctl only; a live switch is unverified. |
 | Backup / Restore | Exactly five tabs **Backup / Restore**, **FTP Configuration**, **Schedule Configuration**, **File Manager**, **Upload**. Show page: Backup Now, Restore From File, Restore From FTP. File Manager / Upload under a backup keep those five tabs. |
 | File Manager | Tabs **File Manager**, **Permissions**, **Ownership**, **Disk Usage**, **Upload**, **Thumbnail**. Toolbar: T Hidden, New dir, New file, Copy, Cut, Paste, Trash, Remove, Zip, Refresh, Show All. |
@@ -641,11 +641,13 @@ phpMyAdmin is installed at `/thirdparty/phpMyAdmin/` by
 opens `/thirdparty/phpMyAdmin/kloxo-signon.php` in a new browser tab
 (`target="_blank"`). A live panel-admin session is signed in as MariaDB
 `kloxo_pma`@`127.0.0.1` (all databases, WITH GRANT OPTION) and redirected into
-phpMyAdmin in that tab. Cross-site GET does not auto-sign-on. The MariaDB
-password is never put in the URL. Other users still see the MySQL logon form;
-panel admin may leave the password blank to use `pma.pass`. OS `root`@`localhost`
-stays unix_socket. SQL Manager is admin-only (home Domain and Basic).
-Clients do not get an SQL Manager link.
+phpMyAdmin in that tab. A client click on a database uses
+`kloxo-signon.php?db=<nname>` as that database's own MariaDB user with
+phpMyAdmin `only_db` (never `kloxo_pma`). Cross-site GET does not auto-sign-on.
+The MariaDB password is never put in the URL. Other users still see the MySQL
+logon form; panel admin may leave the password blank to use `pma.pass`. OS
+`root`@`localhost` stays unix_socket. The SQL Manager tile is admin-only (home
+Domain and Basic).
 A 405 from Hiawatha on that URL means the directory has no `index.php`.
 Re-run `install.sh` (or `install-phpmyadmin` plus `init-panel-db`) after
 pulling this tree so sign-on and `root`@`127.0.0.1` exist. Live phpMyAdmin

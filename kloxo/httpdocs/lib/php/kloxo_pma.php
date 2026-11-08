@@ -3,11 +3,12 @@ declare(strict_types=1);
 
 /**
  * phpMyAdmin sign-on: SQL Manager (target=_blank) opens kloxo-signon.php.
- * A live panel-admin session is signed in as MariaDB kloxo_pma (ALL
- * PRIVILEGES, 127.0.0.1) and redirected into phpMyAdmin in that new tab.
- * Credentials stay in etc/conf/pma.pass (never in the URL). root@localhost
- * stays unix_socket, so root cannot be used over TCP.
- * Other users still get the MySQL logon form.
+ * Admin dashboard SQL Manager: a live panel-admin session is signed in as
+ * MariaDB kloxo_pma (ALL PRIVILEGES, 127.0.0.1). A client (or admin) click
+ * on a specific database uses ?db=<nname>: sign-on is that row's username
+ * and password, phpMyAdmin only_db is that database, never kloxo_pma.
+ * Credentials stay in the panel store / pma.pass (never in the URL).
+ * root@localhost stays unix_socket, so root cannot be used over TCP.
  */
 
 function kloxo_pma_root(?string $root = null): string
@@ -79,7 +80,45 @@ function kloxo_pma_href(bool $local = true, string $server = ''): string
 	return ($ssl ? 'https://' : 'http://') . $fqdn . ':' . $port . $path;
 }
 
-/** SQL Manager is admin-only (home Domain, Basic, domain show). */
+/** True when $name is a safe MariaDB / panel mysqldb nname (not a system schema). */
+function kloxo_pma_db_ident(string $name): bool
+{
+	if (preg_match('/^[A-Za-z0-9_]{1,64}$/', $name) !== 1) {
+		return false;
+	}
+	$lower = strtolower($name);
+
+	return !in_array($lower, array(
+		'mysql', 'information_schema', 'performance_schema', 'sys', 'kloxo',
+		'phpmyadmin', 'root', 'kloxo_pma',
+	), true);
+}
+
+/** mysqldb nname from ?db= / POST (empty when missing or unsafe). */
+function kloxo_pma_request_db(): string
+{
+	$raw = $_GET['db'] ?? $_POST['kloxo_pma_db'] ?? '';
+	$name = is_string($raw) ? trim($raw) : '';
+
+	return kloxo_pma_db_ident($name) ? $name : '';
+}
+
+/**
+ * Per-database SQL Manager href (client list/show icon). Sign-on looks up
+ * that mysqldb row and logs in as its MariaDB user, not kloxo_pma.
+ */
+function kloxo_pma_db_href(string $nname, bool $local = true, string $server = ''): string
+{
+	$base = kloxo_pma_href($local, $server);
+	if (!kloxo_pma_db_ident($nname)) {
+		return $base;
+	}
+	$sep = str_contains($base, '?') ? '&' : '?';
+
+	return $base . $sep . 'db=' . rawurlencode($nname);
+}
+
+/** SQL Manager dashboard tile is admin-only (home Domain, Basic, domain show). */
 function kloxo_pma_login_is_admin(): bool
 {
 	global $login;
@@ -168,37 +207,189 @@ function kloxo_pma_session_row(string $sid, ?string $root = null): ?array
 	return is_array($row) ? $row : null;
 }
 
+function kloxo_pma_client_name_ok(string $name): bool
+{
+	return $name !== '' && strlen($name) <= 64
+		&& preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $name) === 1;
+}
+
 /**
- * True when the Kloxo panel session cookie is a live admin client session.
+ * Live panel client session from the Kloxo cookies + session file.
+ *
+ * @return array{name:string,clname:string,admin:bool}|null
  */
-function kloxo_pma_panel_is_admin(?string $root = null): bool
+function kloxo_pma_panel_session(?string $root = null): ?array
 {
 	$class = kloxo_pma_cookie('classname');
 	$name = kloxo_pma_cookie('clientname');
 	$sid = kloxo_pma_cookie('session-id');
-	if ($class !== 'client' || $name !== 'admin' || $sid === '' || strlen($sid) > 255) {
-		return false;
+	if ($class !== 'client' || !kloxo_pma_client_name_ok($name) || $sid === '' || strlen($sid) > 255) {
+		return null;
 	}
 	if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]*$/', $sid)) {
-		return false;
+		return null;
 	}
 
 	$row = kloxo_pma_session_row($sid, $root);
-	if (!is_array($row) || ($row['parent_clname'] ?? '') !== 'client-admin') {
-		return false;
+	$clname = 'client-' . $name;
+	if (!is_array($row) || ($row['parent_clname'] ?? '') !== $clname) {
+		return null;
 	}
 	$last = (int)($row['last_access'] ?? 0);
 	if ($last > 0 && (time() - $last) > 86400) {
-		return false;
+		return null;
 	}
 	$ip = (string)($row['ip_address'] ?? '');
 	$remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
 	if ($ip !== '' && $remote !== '' && !kloxo_pma_same_ip($ip, $remote)
 		&& !kloxo_pma_is_loopback($remote) && !kloxo_pma_is_loopback($ip)) {
+		return null;
+	}
+
+	return array(
+		'name' => $name,
+		'clname' => $clname,
+		'admin' => ($name === 'admin'),
+	);
+}
+
+/**
+ * True when the Kloxo panel session cookie is a live admin client session.
+ */
+function kloxo_pma_panel_is_admin(?string $root = null): bool
+{
+	$sess = kloxo_pma_panel_session($root);
+
+	return is_array($sess) && !empty($sess['admin']);
+}
+
+function kloxo_pma_sqlite_path(?string $root = null): string
+{
+	$env = getenv('KLOXO_VAR_LIB');
+	if (is_string($env) && $env !== '' && !str_contains($env, "\0")) {
+		return rtrim($env, '/') . '/panel.sqlite';
+	}
+	$inRoot = kloxo_pma_root($root) . '/var/lib/kloxo/panel.sqlite';
+	if (is_file($inRoot)) {
+		return $inRoot;
+	}
+
+	return '/var/lib/kloxo/panel.sqlite';
+}
+
+function kloxo_pma_sqlite(?string $root = null): ?PDO
+{
+	$path = kloxo_pma_sqlite_path($root);
+	if ($path === '' || str_contains($path, "\0") || !is_file($path) || !is_readable($path)) {
+		return null;
+	}
+	try {
+		$pdo = new PDO('sqlite:' . $path, null, null, array(
+			PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+			PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+			PDO::ATTR_EMULATE_PREPARES => false,
+		));
+		$pdo->exec('PRAGMA busy_timeout = 3000');
+		$pdo->exec('PRAGMA query_only = ON');
+	} catch (PDOException $e) {
+		return null;
+	}
+
+	return $pdo;
+}
+
+/**
+ * @return array{nname:string,dbname:string,username:string,dbpassword:string,parent_clname:string,parent_cmlist:string}|null
+ */
+function kloxo_pma_mysqldb_row(string $nname, ?string $root = null): ?array
+{
+	if (!kloxo_pma_db_ident($nname)) {
+		return null;
+	}
+	$pdo = kloxo_pma_sqlite($root);
+	if ($pdo === null) {
+		return null;
+	}
+	try {
+		$stmt = $pdo->prepare(
+			'SELECT nname, dbname, username, dbpassword, parent_clname, parent_cmlist
+			 FROM mysqldb WHERE nname = ? LIMIT 1'
+		);
+		$stmt->execute([$nname]);
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+	} catch (PDOException $e) {
+		return null;
+	}
+	if (!is_array($row)) {
+		return null;
+	}
+	$dbname = (string)($row['dbname'] ?? '');
+	$user = (string)($row['username'] ?? '');
+	$pass = (string)($row['dbpassword'] ?? '');
+	if (!kloxo_pma_db_ident($dbname)
+		|| preg_match('/^[A-Za-z0-9_]{1,32}$/', $user) !== 1
+		|| in_array(strtolower($user), array('root', 'kloxo_pma', 'kloxo', 'mysql', 'debian-sys-maint', 'mariadb.sys'), true)
+		|| $pass === '' || str_contains($pass, "\0") || strlen($pass) > 128) {
+		return null;
+	}
+
+	return array(
+		'nname' => (string)($row['nname'] ?? $nname),
+		'dbname' => $dbname,
+		'username' => $user,
+		'dbpassword' => $pass,
+		'parent_clname' => (string)($row['parent_clname'] ?? ''),
+		'parent_cmlist' => (string)($row['parent_cmlist'] ?? ''),
+	);
+}
+
+/**
+ * @param array{name:string,clname:string,admin:bool} $session
+ * @param array{parent_clname:string,parent_cmlist:string} $db
+ */
+function kloxo_pma_session_owns_db(array $session, array $db): bool
+{
+	if (!empty($session['admin'])) {
+		return true;
+	}
+	$cl = (string)($session['clname'] ?? '');
+	if ($cl === '' || !str_starts_with($cl, 'client-')) {
+		return false;
+	}
+	if ((string)($db['parent_clname'] ?? '') === $cl) {
+		return true;
+	}
+	$cm = (string)($db['parent_cmlist'] ?? '');
+	if ($cm === '') {
 		return false;
 	}
 
-	return true;
+	return str_contains($cm, ',' . $cl . ',') || $cm === $cl;
+}
+
+/**
+ * MariaDB login for the selected mysqldb when the panel session owns it.
+ * Never returns kloxo_pma / root.
+ *
+ * @return array{user:string,pass:string,host:string,dbname:string}|null
+ */
+function kloxo_pma_db_login(string $nname, ?string $root = null): ?array
+{
+	$sess = kloxo_pma_panel_session($root);
+	if ($sess === null) {
+		return null;
+	}
+	$row = kloxo_pma_mysqldb_row($nname, $root);
+	if ($row === null || !kloxo_pma_session_owns_db($sess, $row)) {
+		return null;
+	}
+
+	return array(
+		'user' => $row['username'],
+		'pass' => $row['dbpassword'],
+		'host' => '127.0.0.1',
+		'dbname' => $row['dbname'],
+	);
 }
 
 function kloxo_pma_is_loopback(string $ip): bool
@@ -459,18 +650,34 @@ function kloxo_pma_sso_marker_name(): string
  * @return string error text when the login check failed (nothing is redirected);
  *                otherwise this function redirects and exits
  */
-function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string $host = '127.0.0.1'): string
+function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string $host = '127.0.0.1', string $onlyDb = ''): string
 {
+	if ($onlyDb !== '') {
+		if (!kloxo_pma_db_ident($onlyDb)) {
+			return 'You can only open your own database.';
+		}
+		if ($user === 'kloxo_pma' || $user === 'root' || strtolower($user) === 'kloxo') {
+			return 'This database must be opened as its own user.';
+		}
+	}
 	$bad = kloxo_pma_check_login($user, $pass, $host);
 	if ($bad !== '') {
 		return $bad;
 	}
 	kloxo_pma_signon_start();
+	if (function_exists('session_regenerate_id')) {
+		@session_regenerate_id(true);
+	}
 	$_SESSION['PMA_single_signon_user'] = $user;
 	$_SESSION['PMA_single_signon_password'] = $pass;
 	$_SESSION['PMA_single_signon_host'] = $host !== '' ? $host : '127.0.0.1';
 	$_SESSION['PMA_single_signon_port'] = '3306';
 	unset($_SESSION['PMA_single_signon_error_message']);
+	if ($onlyDb !== '') {
+		$_SESSION['PMA_single_signon_cfgupdate'] = array('only_db' => $onlyDb);
+	} else {
+		unset($_SESSION['PMA_single_signon_cfgupdate']);
+	}
 	$sid = session_id();
 	session_write_close();
 	kloxo_pma_emit_signon_cookie((string)$sid);
@@ -484,7 +691,11 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 			'samesite' => 'Lax',
 		));
 		header('Cache-Control: no-store');
-		header('Location: ' . kloxo_pma_index_url(), true, 302);
+		$loc = kloxo_pma_index_url();
+		if ($onlyDb !== '') {
+			$loc .= '?db=' . rawurlencode($onlyDb);
+		}
+		header('Location: ' . $loc, true, 302);
 	}
 	exit;
 }
@@ -522,9 +733,13 @@ function kloxo_pma_bounced_back(): string
 /**
  * Panel admin: one click from SQL Manager (new tab) into phpMyAdmin.
  * Returns false when there is no live admin session or no pma.pass.
+ * A ?db= click must not use kloxo_pma (that is kloxo_pma_try_db_sso).
  */
 function kloxo_pma_try_admin_sso(?string $root = null): bool
 {
+	if (kloxo_pma_request_db() !== '') {
+		return false;
+	}
 	if (!kloxo_pma_same_origin_nav() || !kloxo_pma_panel_is_admin($root)) {
 		return false;
 	}
@@ -539,7 +754,51 @@ function kloxo_pma_try_admin_sso(?string $root = null): bool
 }
 
 /**
- * Panel admin GET: SSO into phpMyAdmin. Otherwise MySQL logon, then redirect.
+ * Client (or admin) click on one mysqldb: sign on as that database's user
+ * with phpMyAdmin only_db. Never kloxo_pma.
+ */
+function kloxo_pma_try_db_sso(?string $root = null): bool
+{
+	$nname = kloxo_pma_request_db();
+	if ($nname === '') {
+		return false;
+	}
+	if (!kloxo_pma_same_origin_nav()) {
+		kloxo_pma_last_error('Open this database from the panel.');
+
+		return false;
+	}
+	$cred = kloxo_pma_db_login($nname, $root);
+	if ($cred === null) {
+		kloxo_pma_last_error('You can only open your own database.');
+
+		return false;
+	}
+	kloxo_pma_last_db_user($cred['user']);
+	$err = kloxo_pma_write_signon_and_redirect(
+		$cred['user'],
+		$cred['pass'],
+		$cred['host'],
+		$cred['dbname']
+	);
+	kloxo_pma_last_error($err);
+
+	return false;
+}
+
+function kloxo_pma_last_db_user(?string $set = null): string
+{
+	static $user = '';
+	if ($set !== null) {
+		$user = $set;
+	}
+
+	return $user;
+}
+
+/**
+ * GET: per-database SSO (?db=) as that MariaDB user, else admin kloxo_pma.
+ * Otherwise MySQL logon, then redirect.
  */
 function kloxo_pma_signon_page(?string $root = null): void
 {
@@ -559,6 +818,15 @@ function kloxo_pma_signon_page(?string $root = null): void
 		if ($bounce !== '') {
 			// Do not sign in again: that is the redirect loop.
 			$error = $bounce;
+		} elseif (kloxo_pma_request_db() !== '') {
+			kloxo_pma_try_db_sso($root);
+			$error = kloxo_pma_last_error();
+			$as = kloxo_pma_last_db_user();
+			if ($as !== '') {
+				$user = $as;
+			} else {
+				$user = '';
+			}
 		} else {
 			kloxo_pma_try_admin_sso($root);
 			$error = kloxo_pma_last_error();
@@ -592,9 +860,33 @@ function kloxo_pma_signon_submit(?string $root = null): string
 	if (!kloxo_pma_csrf_ok($posted, $root)) {
 		return 'Please try again.';
 	}
+	$db = kloxo_pma_request_db();
+	if ($db !== '') {
+		$want = kloxo_pma_db_login($db, $root);
+		if ($want === null) {
+			return 'You can only open your own database.';
+		}
+		$pass = $_POST['pma_pass'] ?? '';
+		$pass = is_string($pass) ? $pass : '';
+		if ($pass === '') {
+			$pass = $want['pass'];
+		}
+
+		return kloxo_pma_write_signon_and_redirect(
+			$want['user'],
+			$pass,
+			$want['host'],
+			$want['dbname']
+		);
+	}
 	$user = kloxo_pma_signon_posted_user();
 	if ($user === '') {
 		return 'Enter a MySQL user name.';
+	}
+	if ($user === 'root' || $user === 'kloxo_pma') {
+		if (!kloxo_pma_panel_is_admin($root)) {
+			return 'That account is not available.';
+		}
 	}
 	$pass = $_POST['pma_pass'] ?? '';
 	$pass = is_string($pass) ? $pass : '';
@@ -616,9 +908,19 @@ function kloxo_pma_signon_form_html(?string $root = null, string $error = '', st
 		return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 	};
 	$err = $error !== '' ? '<p class="err">' . $esc($error) . '</p>' : '';
-	$u = $esc($user !== '' ? $user : 'kloxo_pma');
+	$db = kloxo_pma_request_db();
+	$prefill = $user;
+	if ($db !== '' && ($prefill === 'kloxo_pma' || $prefill === 'root')) {
+		$prefill = '';
+	}
+	$u = $esc($prefill);
 	$t = $esc(kloxo_pma_csrf_issue($root));
-	$action = '';
+	$action = $db !== '' ? ('?db=' . rawurlencode($db)) : '';
+	$hiddenDb = $db !== '' ? '<input type="hidden" name="kloxo_pma_db" value="' . $esc($db) . '">' : '';
+	$hint = $db !== ''
+		? 'This opens only the database you selected, as its own MariaDB user (not the panel admin account).'
+		: 'Panel admin is signed in automatically from SQL Manager. This form is for a MySQL user on 127.0.0.1; admin may leave the password blank to sign in as the install-time kloxo_pma account (full privileges).';
+	$userReq = $db !== '' ? '' : ' required';
 
 	return <<<HTML
 <!DOCTYPE html>
@@ -644,12 +946,13 @@ button{padding:6px 18px;cursor:pointer}
 <h1>MySQL logon</h1>
 {$err}
 <input type="hidden" name="kloxo_pma_csrf" value="{$t}">
+{$hiddenDb}
 <label for="pma_user">Username</label>
-<input id="pma_user" name="pma_user" type="text" value="{$u}" maxlength="32" required>
+<input id="pma_user" name="pma_user" type="text" value="{$u}" maxlength="32"{$userReq}>
 <label for="pma_pass">Password</label>
 <input id="pma_pass" name="pma_pass" type="password" value="">
 <div class="row"><button type="submit">Go</button></div>
-<p class="hint">Panel admin is signed in automatically from SQL Manager. This form is for a MySQL user on 127.0.0.1; admin may leave the password blank to sign in as the install-time kloxo_pma account (full privileges).</p>
+<p class="hint">{$hint}</p>
 </form>
 </body>
 </html>

@@ -934,6 +934,42 @@ if ($pmaUrl === $pmaWant && $cliPmaUrl === $pmaWant && $dbPmaUrl === $pmaWant
 			. ' tgt=' . $pmaTarget));
 }
 
+$dbStubUrl = '';
+$dbListHasPma = false;
+$dbPropHasPma = false;
+$dbLibSrc = (string) file_get_contents($doc . '/driver/pserver/ddatabaselib.php');
+try {
+	$rowPma = new mysqldb(null, 'localhost', 'mesrob_wp');
+	$rowPma->nname = 'mesrob_wp';
+	$rowPma->syncserver = 'localhost';
+	$stubPma = $rowPma->getStubUrl('__stub_phpmyadmin_url');
+	$dbStubUrl = (is_object($stubPma) && isset($stubPma->url)) ? (string) $stubPma->url : '';
+	$nlistPma = mysqldb::createListNlist(new Client(null, 'localhost', 'mesrob'), '');
+	$dbListHasPma = is_array($nlistPma) && isset($nlistPma['phpmyadmin_f']);
+	$propPma = array();
+	$rowPma->createShowPropertyList($propPma);
+	foreach (($propPma['property'] ?? array()) as $item) {
+		if (is_object($item) && isset($item->url)
+			&& str_contains((string) $item->url, 'db=mesrob_wp')) {
+			$dbPropHasPma = true;
+		}
+	}
+} catch (Throwable $e) {
+	$pmaErr = $pmaErr !== '' ? $pmaErr : $e->getMessage();
+}
+if (str_contains($dbStubUrl, 'kloxo-signon.php') && str_contains($dbStubUrl, 'db=mesrob_wp')
+	&& !str_contains($dbStubUrl, 'kloxo_pma') && $dbListHasPma && $dbPropHasPma
+	&& str_contains($pmaHelperSrc, 'kloxo_pma_try_db_sso')
+	&& str_contains($pmaHelperSrc, 'PMA_single_signon_cfgupdate')
+	&& str_contains($dbLibSrc, 'phpMyAdminActionObject')
+	&& str_contains($dbLibSrc, 'kloxo_pma_db_href')) {
+	ok('client database SQL Manager opens that database as its own user');
+} else {
+	bad('client database SQL Manager opens that database as its own user',
+		$pmaErr !== '' ? $pmaErr : ('stub=' . $dbStubUrl . ' list=' . (int) $dbListHasPma
+			. ' prop=' . (int) $dbPropHasPma));
+}
+
 if (function_exists('kloxo_driver_class')
 	&& kloxo_driver_class('package', 'apt-get') === 'package__aptget'
 	&& kloxo_driver_class('phpmodule', '') === null
