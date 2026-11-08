@@ -68,6 +68,19 @@ final class KloxoRecovery
         'postfix' => 'exim4',
     ];
 
+    /**
+     * Extra systemd names for a catalog unit. Debian bind9.service is an alias
+     * of named.service; postfix.service is often an alias of postfix@-.service.
+     * A multi-unit `systemctl show` can omit the alias, which looked like
+     * "not installed".
+     *
+     * @var array<string,list<string>>
+     */
+    private const UNIT_ALIASES = [
+        'bind9' => ['named'],
+        'postfix' => ['postfix@-'],
+    ];
+
     /** Other catalog name that must be inactive when this one is started. Empty if none. */
     public static function rivalOf(string $name): string
     {
@@ -363,25 +376,30 @@ final class KloxoRecovery
         $cat = self::catalog();
         $bin = self::systemctlBin();
         $info = [];
-        $asked = array_values($cat);
         if ($bin !== '') {
-            $units = array_map(static fn(string $u): string => $u . '.service', $asked);
-            // Names is required for aliases: `systemctl show bind9` returns
-            // Id=named.service. Indexing only by Id made bind9 look uninstalled.
+            $show = array_values($cat);
+            foreach (self::UNIT_ALIASES as $alts) {
+                foreach ($alts as $a) {
+                    $show[] = $a;
+                }
+            }
+            $units = array_map(static fn(string $u): string => $u . '.service', array_values(array_unique($show)));
+            // Do not pair blocks by argument index: systemd omits alias names
+            // (bind9, postfix) from a multi-unit show, which shifted later rows
+            // and left those two as "not installed". Key by Id/Names instead,
+            // and ask for the real units (named, postfix@-) as well.
             $r = self::run(array_merge([$bin, 'show', '--no-pager',
                 '-p', 'Id', '-p', 'Names', '-p', 'LoadState', '-p', 'ActiveState',
                 '-p', 'SubState', '-p', 'UnitFileState'], $units));
             $blocks = preg_split('/\n\s*\n/', trim($r['out'])) ?: [];
-            foreach ($blocks as $i => $block) {
+            foreach ($blocks as $block) {
                 $row = self::parseShowBlock((string) $block);
                 if ($row === []) {
                     continue;
                 }
-                if (isset($asked[$i])) {
-                    $info[$asked[$i]] = $row;
-                }
                 foreach (self::showBlockKeys($row) as $k) {
-                    if (!isset($info[$k])) {
+                    $prev = $info[$k]['LoadState'] ?? '';
+                    if (!self::loadStateInstalled($prev)) {
                         $info[$k] = $row;
                     }
                 }
@@ -389,8 +407,8 @@ final class KloxoRecovery
         }
         $out = [];
         foreach ($cat as $name => $unit) {
-            $row = $info[$unit] ?? [];
-            $installed = ($row['LoadState'] ?? '') === 'loaded';
+            $row = self::stateRow($info, $name, $unit);
+            $installed = self::loadStateInstalled((string) ($row['LoadState'] ?? ''));
             $out[] = [
                 'name' => $name,
                 'unit' => $unit,
@@ -403,6 +421,33 @@ final class KloxoRecovery
         }
 
         return $out;
+    }
+
+    /** systemd LoadState values that mean the unit exists on this machine. */
+    public static function loadStateInstalled(string $load): bool
+    {
+        return in_array($load, ['loaded', 'masked', 'alias'], true);
+    }
+
+    /**
+     * @param array<string,array<string,string>> $info
+     * @return array<string,string>
+     */
+    private static function stateRow(array $info, string $name, string $unit): array
+    {
+        $cands = array_merge([$unit, $name], self::UNIT_ALIASES[$name] ?? []);
+        $best = [];
+        foreach (array_unique($cands) as $c) {
+            $row = $info[$c] ?? [];
+            if (self::loadStateInstalled((string) ($row['LoadState'] ?? ''))) {
+                return $row;
+            }
+            if ($row !== [] && $best === []) {
+                $best = $row;
+            }
+        }
+
+        return $best;
     }
 
     /** @return array<string,string> */
@@ -453,7 +498,7 @@ final class KloxoRecovery
         $unit = self::canonicalUnit($unitBase);
         $show = self::run([$bin, 'show', '--no-pager', '-p', 'LoadState', '-p', 'ActiveState', '-p', 'UnitFileState', $unit], 5);
         $row = self::parseShowBlock($show['out']);
-        if (($row['LoadState'] ?? '') !== 'loaded') {
+        if (!self::loadStateInstalled((string) ($row['LoadState'] ?? ''))) {
             return ['err' => '', 'retired' => ''];
         }
         $active = (string) ($row['ActiveState'] ?? '');

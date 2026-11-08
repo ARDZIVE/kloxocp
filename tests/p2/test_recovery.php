@@ -58,10 +58,13 @@ case "$1" in
       case "$n" in
         bind9|named) canon=named; loaded=loaded ;;
         nginx|mariadb|kloxo-web|kloxo-backend|apache2|php8.3-fpm|postfix|exim4) loaded=loaded ;;
+        postfix@-) canon='postfix@-'; loaded=loaded ;;
         *) loaded=not-found ;;
       esac
       [ -f "$S/loaded-$n" ] && loaded=loaded
       [ -f "$S/loaded-$canon" ] && loaded=loaded
+      [ $value -eq 0 ] && [ -f "$S/omit-$n" ] && continue
+      [ $value -eq 0 ] && [ "$n" = bind9 ] && continue
       act=inactive; [ -f "$S/active-$canon" ] && act=active
       boot=enabled; [ -f "$S/disabled-$canon" ] && boot=disabled
       if [ $value -eq 1 ]; then
@@ -154,7 +157,15 @@ check(($st['nginx']['active'] ?? '') === 'active' && ($st['mariadb']['active'] ?
 	&& ($st['mariadb']['installed'] ?? false) === true && ($st['knot']['installed'] ?? true) === false,
 	'states: parses systemctl show blocks (active, inactive, not installed)');
 check(($st['bind9']['installed'] ?? false) === true && ($st['bind9']['active'] ?? '') === 'inactive',
-	'states: bind9 is installed even when systemd Id is named.service (Debian alias)');
+	'states: bind9 is installed even when systemd omits the bind9 alias (named.service)');
+touch($state . '/omit-postfix');
+$st = [];
+foreach (KloxoRecovery::states() as $s) {
+	$st[$s['name']] = $s;
+}
+check(($st['postfix']['installed'] ?? false) === true,
+	'states: postfix is installed when systemd only reports postfix@-.service');
+@unlink($state . '/omit-postfix');
 check(KloxoRecovery::canonicalUnit('bind9') === 'named.service'
 	&& KloxoRecovery::canonicalUnit('nginx') === 'nginx.service',
 	'canonicalUnit: bind9 resolves to named.service, nginx stays nginx.service');

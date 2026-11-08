@@ -538,8 +538,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   database (`db_degraded`) and loads it when it returns; `lx_exception_handler` answers a
   DB-down mysqli error (2002/2003/2006/2013) with a 503 linking `/recovery/`; `kloxo-web` and
   MariaDB restart on failure.   `KloxoRecovery::states()` keys `systemctl show` blocks by the catalog name and by
-  `Names`/`Id` so Debian `bind9.service` (an alias of `named.service`) is not listed as
-  not installed; start/stop/journal use the canonical unit. An **Enable at boot**
+  `Names`/`Id` and the real units `named` / `postfix@-` so Debian `bind9.service`
+  (alias of `named.service`) and `postfix.service` (often `postfix@-.service`) are
+  not listed as not installed; start/stop/journal use the canonical unit. An **Enable at boot**
   button (`systemctl enable`) is shown on a row whose UnitFileState is not already
   enabled/static. The catalog includes **postfix**. Starting, restarting or
   enabling nginx/apache2, bind9/knot or exim4/postfix stops and disables the
