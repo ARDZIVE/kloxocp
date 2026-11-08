@@ -79,9 +79,17 @@ function kloxo_pma_href(bool $local = true, string $server = ''): string
 	return ($ssl ? 'https://' : 'http://') . $fqdn . ':' . $port . $path;
 }
 
+/** SQL Manager is admin-only (home Domain, Basic, domain show). */
+function kloxo_pma_login_is_admin(): bool
+{
+	global $login;
+
+	return is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin();
+}
+
 /**
  * Dashboard tile for SQL Manager (phpMyAdmin in a new tab).
- * Used on the client Domain section and on a domain show page.
+ * Admin Domain section and pserver Basic; not shown to clients.
  */
 function kloxo_pma_action_object(bool $local = true, string $server = 'localhost'): object
 {

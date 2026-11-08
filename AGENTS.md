@@ -45,7 +45,7 @@ disabled until selected. Admin SQL Manager opens phpMyAdmin in a new tab
 (`/thirdparty/phpMyAdmin/kloxo-signon.php`, `target="_blank"`): a live
 panel-admin session is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (not `root`: root@localhost is unix_socket, error 1698 over TCP) and
 redirected; otherwise the MySQL logon form is shown (panel admin may
-leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql, not a second Domain tile for admin (Basic / `webmailanddb`). A client home Domain section has SQL Manager (phpMyAdmin, new tab), and so does a domain show Domain section (the page a one-domain client often lands on). Component Info
+leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql. SQL Manager (phpMyAdmin, new tab) is **admin-only**: admin home Domain and Basic (`webmailanddb`); clients do not get the link. Component Info
 lists Ubuntu packages (nginx, apache2, bind9, knot, mariadb-server,
 pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim` (default, `pg_smtp=exim`) / `postfix`
@@ -224,7 +224,7 @@ is missing; the icon stubs immediately before Domain Name (`pvview_f`,
 `check_dns_f`, `dnvview_f`, `webmail_f`, `awstats_f`) have blank titles
 (type-b empty labels no longer fall back to the class name `domain`).
 Live client Domains after deploy is UNVERIFIED.
-Client home Domain section (`__title_domain_rec`) includes SQL Manager for non-admin; a domain show Domain section (`__title_domain_administer`) includes it too. Admin Domain on Home stays without that extra tile. Live client SQL Manager after deploy is UNVERIFIED.
+SQL Manager is admin-only (home Domain + Basic; domain show when the login is admin). Clients have no SQL Manager link. Live SQL Manager after deploy is UNVERIFIED.
 First-party `ereg*`/`split`
 and live theme `escape`/`document.all` are gone. Browser login as
 admin/admin against the live panel succeeded; every page still died

@@ -569,9 +569,8 @@ class Client extends ClientBase
 			} catch (Throwable $e) {
 				$alist[] = "a=list&c=mysqldb";
 			}
-			// Admin SQL Manager lives in Basic (pserver webmailanddb), not Domain.
-			// Customers and resellers get SQL Manager here (phpMyAdmin, new tab).
-			if (!$this->isAdmin()) {
+			// SQL Manager is admin-only (phpMyAdmin, new tab). Clients do not get this tile.
+			if ($this->isAdmin()) {
 				try {
 					$this->getMysqlDbAdmin($alist);
 				} catch (Throwable $e) {

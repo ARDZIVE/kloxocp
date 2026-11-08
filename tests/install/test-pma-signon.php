@@ -40,6 +40,7 @@ $check(kloxo_pma_is_loopback('127.0.0.1') && kloxo_pma_is_loopback('::1')
 $check(str_contains(kloxo_pma_link_attrs(), 'target="_blank"')
 	&& str_contains(kloxo_pma_link_attrs(), 'noopener'), 'SQL Manager link opens a new tab');
 $check(kloxo_pma_href(true, 'localhost') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'localhost SQL Manager href is phpMyAdmin sign-on');
+$check(kloxo_pma_login_is_admin() === false, 'SQL Manager admin check is false without a login');
 $pmaTile = kloxo_pma_action_object(true, 'localhost');
 $check(is_object($pmaTile) && ($pmaTile->url ?? '') === kloxo_pma_url()
 	&& str_contains((string) ($pmaTile->purl ?? ''), 'phpmyadmin')

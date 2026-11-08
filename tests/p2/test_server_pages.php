@@ -828,19 +828,21 @@ $dspos = strpos($domsrc, "__title_domain_administer");
 if ($dspos !== false) {
 	$domShow = substr($domsrc, $dspos, 900);
 }
-if ($dom !== '' && str_contains($dom, 'if (!$this->isAdmin())')
-	&& preg_match('/if \(!\$this->isAdmin\(\)\)\s*\{\s*(?:try\s*\{\s*)?\$this->getMysqlDbAdmin/s', $dom)
+if ($dom !== '' && str_contains($dom, 'if ($this->isAdmin())')
+	&& preg_match('/if \(\$this->isAdmin\(\)\)\s*\{\s*(?:try\s*\{\s*)?\$this->getMysqlDbAdmin/s', $dom)
+	&& !preg_match('/if \(!\$this->isAdmin\(\)\)\s*\{\s*(?:try\s*\{\s*)?\$this->getMysqlDbAdmin/s', $dom)
 	&& str_contains($pssrc, "__title_webmailanddb")
 	&& str_contains($pssrc, 'getMysqlDbAdmin($alist)')) {
-	ok('SQL Manager is in Basic, not an extra Domain tile for admin');
+	ok('SQL Manager is on admin Domain and Basic, not on the client');
 } else {
-	bad('SQL Manager is in Basic, not an extra Domain tile for admin');
+	bad('SQL Manager is on admin Domain and Basic, not on the client');
 }
 if ($domShow !== '' && str_contains($domShow, 'getMysqlDbAdmin($alist)')
+	&& str_contains($domShow, 'isAdmin')
 	&& str_contains($domsrc, 'function getMysqlDbAdmin')) {
-	ok('domain show Domain section has SQL Manager');
+	ok('domain show SQL Manager is admin-only');
 } else {
-	bad('domain show Domain section has SQL Manager');
+	bad('domain show SQL Manager is admin-only');
 }
 
 $pmaUrl = '';

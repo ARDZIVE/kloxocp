@@ -239,7 +239,9 @@ class databasecore extends Lxdb
 
 		try {
 			$dbadminUrl = $this->getDbAdminUrl();
-			if ($dbadminUrl) {
+			if ($dbadminUrl && (function_exists('kloxo_pma_login_is_admin')
+				? kloxo_pma_login_is_admin()
+				: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()))) {
 				$alist['property'][] = create_simpleObject(array('url' => $dbadminUrl,
 					'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin",
 					'target' => function_exists('kloxo_pma_link_attrs')
@@ -289,8 +291,13 @@ class databasecore extends Lxdb
 
 	static function createListNlist($parent, $view)
 	{
+		global $login;
+
 		$nlist['easyinstaller_flag'] = '5%';
-		$nlist['phpmyadmin_f'] = '5%';
+		if (function_exists('kloxo_pma_login_is_admin') ? kloxo_pma_login_is_admin()
+			: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin())) {
+			$nlist['phpmyadmin_f'] = '5%';
+		}
 		$nlist['parent_clname'] = '5%';
 		$nlist['syncserver'] = '5%';
 		$nlist['username'] =  '10%';
@@ -456,7 +463,13 @@ class mysqldb extends databasecore
 
 	function getStubUrl($name)
 	{
+		global $login;
+
 		if ($name == '__stub_phpmyadmin_url') {
+			if (!(function_exists('kloxo_pma_login_is_admin') ? kloxo_pma_login_is_admin()
+				: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()))) {
+				return null;
+			}
 
 			$dbadminUrl = $this->getDbAdminUrl();
 			$user = $this->username;
@@ -508,7 +521,9 @@ class mysqldb extends databasecore
 		$servernum = $this->getDbServerNum();
 	//	$pass = urlencode($pass);
 
-		if ($dbadminUrl) {
+		if ($dbadminUrl && (function_exists('kloxo_pma_login_is_admin')
+			? kloxo_pma_login_is_admin()
+			: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()))) {
 			$alist['property'][] = create_simpleObject(array('url' => $dbadminUrl,
 				'purl' => "c=mysqldb&a=updateform&sa=phpmyadmin", 'target' => "target='_blank'"));
 		}

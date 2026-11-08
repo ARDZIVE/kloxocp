@@ -181,10 +181,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     still get the MySQL logon form (signed CSRF; admin may leave the
     password blank). `KloxoPmaSignon` cookie path `/` so phpMyAdmin index
     can read it. There is no SignonScript; PMA uses SignonURL.
-    OS `root`@`localhost` stays unix_socket. Admin Home shows SQL Manager only in Basic
-    (`webmailanddb`), not as a second Domain tile. A client home Domain section
-    (`__title_domain_rec`) and a domain show Domain section
-    (`__title_domain_administer`) include SQL Manager (phpMyAdmin, new tab).
+    OS `root`@`localhost` stays unix_socket. SQL Manager (phpMyAdmin, new tab) is
+    **admin-only**: admin home Domain and Basic (`webmailanddb`). Clients do not
+    get the link.
     Live phpMyAdmin login
     after this change is unverified; re-run `install.sh` after pull.
     Add Database creates a real MariaDB database (`KloxoMariadb`: CREATE
@@ -521,9 +520,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `awstats_f`) keep blank headers: `get_classvar_description` no
     longer fills an empty type-b label with the class name `domain`.
     Live client Domains after deploy is **UNVERIFIED**.
-    Client Domain section has SQL Manager (home for non-admin; domain show
-    for the page a one-domain client often opens). Admin Home Domain does
-    not get a second tile. Live client SQL Manager after deploy is **UNVERIFIED**.
+    SQL Manager is admin-only (home Domain and Basic; domain show when the
+    login is admin). Clients have no SQL Manager link. Live SQL Manager after
+    deploy is **UNVERIFIED**.
     Admin Domains (`a=list&c=domain`) shows the Kloxo-MR add form
     (name, owner confirm, `/home/admin/` docroot, SSL/stats/
     Easy Installer/CGI/PHP, Add) even with no DNS template;

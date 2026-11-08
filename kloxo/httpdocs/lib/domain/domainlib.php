@@ -1427,10 +1427,12 @@ class Domaind extends DomainBase
 	//	$alist['__v_dialog_pass'] = 'a=updateform&sa=password';
 
 		$alist[] = 'a=list&c=addondomain';
-		// Client Domain section (and a one-domain shortcut to this page) needs SQL Manager.
-		try {
-			$this->getMysqlDbAdmin($alist);
-		} catch (Throwable $e) {
+		if (function_exists('kloxo_pma_login_is_admin') ? kloxo_pma_login_is_admin()
+			: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin())) {
+			try {
+				$this->getMysqlDbAdmin($alist);
+			} catch (Throwable $e) {
+			}
 		}
 
 		$web = $this->getObject('web');
