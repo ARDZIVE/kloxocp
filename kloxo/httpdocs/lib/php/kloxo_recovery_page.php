@@ -172,7 +172,9 @@ final class KloxoRecoveryPage
             : (string) ($r['active'] ?? 'unknown');
         $verb = $act === 'enable' ? 'Enable at boot' : ucfirst($act);
         if (!empty($r['ok'])) {
-            return $verb . ' ' . $name . ': OK (' . $state . ').';
+            $note = trim((string) ($r['retired'] ?? ''));
+
+            return ($note !== '' ? ucfirst($note) . '. ' : '') . $verb . ' ' . $name . ': OK (' . $state . ').';
         }
 
         return $verb . ' ' . $name . ' failed (' . $state . ')' . (($r['err'] ?? '') !== '' ? ': ' . $r['err'] : '.');

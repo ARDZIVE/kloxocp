@@ -36,6 +36,7 @@ final class KloxoRecovery
         'bind9' => 'bind9',
         'knot' => 'knot',
         'exim4' => 'exim4',
+        'postfix' => 'postfix',
         'dovecot' => 'dovecot',
         'rspamd' => 'rspamd',
         'pure-ftpd' => 'pure-ftpd',
@@ -51,6 +52,27 @@ final class KloxoRecovery
     ];
 
     public const ACTIONS = ['start', 'stop', 'restart', 'enable', 'disable'];
+
+    /**
+     * Switch Program pairs: only one of each pair may be active or enabled at boot.
+     * Starting, restarting or enabling one stops and disables the other.
+     *
+     * @var array<string,string>
+     */
+    private const EXCLUSIVE = [
+        'nginx' => 'apache2',
+        'apache2' => 'nginx',
+        'bind9' => 'knot',
+        'knot' => 'bind9',
+        'exim4' => 'postfix',
+        'postfix' => 'exim4',
+    ];
+
+    /** Other catalog name that must be inactive when this one is started. Empty if none. */
+    public static function rivalOf(string $name): string
+    {
+        return self::EXCLUSIVE[$name] ?? '';
+    }
 
     public static function rootDir(): string
     {
@@ -417,9 +439,59 @@ final class KloxoRecovery
     }
 
     /**
+     * Stop and disable the Switch Program pair of $name so both cannot run.
+     *
+     * @return array{err:string,retired:string}
+     */
+    private static function retireRival(string $bin, string $name): array
+    {
+        $rival = self::EXCLUSIVE[$name] ?? '';
+        if ($rival === '' || !isset(self::catalog()[$rival])) {
+            return ['err' => '', 'retired' => ''];
+        }
+        $unitBase = self::catalog()[$rival];
+        $unit = self::canonicalUnit($unitBase);
+        $show = self::run([$bin, 'show', '--no-pager', '-p', 'LoadState', '-p', 'ActiveState', '-p', 'UnitFileState', $unit], 5);
+        $row = self::parseShowBlock($show['out']);
+        if (($row['LoadState'] ?? '') !== 'loaded') {
+            return ['err' => '', 'retired' => ''];
+        }
+        $active = (string) ($row['ActiveState'] ?? '');
+        $boot = (string) ($row['UnitFileState'] ?? '');
+        $did = [];
+        if ($active === 'active') {
+            self::run([$bin, '--no-block', 'stop', $unit], 10);
+            $deadline = microtime(true) + 12;
+            do {
+                $active = self::activeState($bin, $unit);
+                if ($active !== 'active' && $active !== 'deactivating') {
+                    break;
+                }
+                usleep(250000);
+            } while (microtime(true) < $deadline);
+            if ($active === 'active') {
+                return ['err' => 'could not stop ' . $rival . ' (it must be inactive to start ' . $name . ')', 'retired' => ''];
+            }
+            KloxoWatchdog::hold($unitBase, self::rootDir());
+            $did[] = 'stopped ' . $rival;
+            $boot = self::unitFileState($bin, $unit);
+        }
+        if (self::isEnabledAtBoot($boot)) {
+            self::run([$bin, 'disable', $unit], 10);
+            $boot = self::unitFileState($bin, $unit);
+            if (!self::isEnabledAtBoot($boot)) {
+                KloxoWatchdog::hold($unitBase, self::rootDir());
+                $did[] = 'disabled ' . $rival . ' at boot';
+            }
+        }
+
+        return ['err' => '', 'retired' => implode('; ', $did)];
+    }
+
+    /**
      * Root side (runs inside kloxo-backend): control one unit and wait for it.
      *
-     * @return array{ok:bool,rc:int,euid:int,active:string,err:string,enabled?:string}
+     * @return array{ok:bool,rc:int,euid:int,active:string,err:string,enabled?:string,retired?:string}
      */
     public static function serverControl(string $act, string $name): array
     {
@@ -435,6 +507,17 @@ final class KloxoRecovery
             $res['err'] = 'systemctl not found';
 
             return $res;
+        }
+        if (in_array($act, ['start', 'restart', 'enable'], true)) {
+            $pair = self::retireRival($bin, $name);
+            if ($pair['err'] !== '') {
+                $res['err'] = $pair['err'];
+
+                return $res;
+            }
+            if ($pair['retired'] !== '') {
+                $res['retired'] = $pair['retired'];
+            }
         }
         $unitBase = self::catalog()[$name];
         $unit = self::canonicalUnit($unitBase);

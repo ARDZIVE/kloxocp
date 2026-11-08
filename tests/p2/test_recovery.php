@@ -56,10 +56,12 @@ case "$1" in
       n=${u%.service}
       canon=$n
       case "$n" in
-        bind9) canon=named; loaded=loaded ;;
-        nginx|mariadb|kloxo-web|kloxo-backend|apache2|php8.3-fpm) loaded=loaded ;;
+        bind9|named) canon=named; loaded=loaded ;;
+        nginx|mariadb|kloxo-web|kloxo-backend|apache2|php8.3-fpm|postfix|exim4) loaded=loaded ;;
         *) loaded=not-found ;;
       esac
+      [ -f "$S/loaded-$n" ] && loaded=loaded
+      [ -f "$S/loaded-$canon" ] && loaded=loaded
       act=inactive; [ -f "$S/active-$canon" ] && act=active
       boot=enabled; [ -f "$S/disabled-$canon" ] && boot=disabled
       if [ $value -eq 1 ]; then
@@ -137,6 +139,11 @@ check(!KloxoRecovery::mayAct('kloxo-web', 'stop') && !KloxoRecovery::mayAct('klo
 	'panel units: start only (stop/restart would end the page)');
 check(!KloxoRecovery::mayAct('sshd', 'stop') && !KloxoRecovery::mayAct('nginx; rm -rf /', 'start') && !KloxoRecovery::mayAct('nginx', 'mask'),
 	'unknown units and actions are refused');
+check(isset(KloxoRecovery::catalog()['postfix']) && KloxoRecovery::rivalOf('nginx') === 'apache2'
+	&& KloxoRecovery::rivalOf('apache2') === 'nginx' && KloxoRecovery::rivalOf('bind9') === 'knot'
+	&& KloxoRecovery::rivalOf('knot') === 'bind9' && KloxoRecovery::rivalOf('exim4') === 'postfix'
+	&& KloxoRecovery::rivalOf('postfix') === 'exim4' && KloxoRecovery::rivalOf('mariadb') === '',
+	'postfix is in the catalog; web/dns/smtp pairs are exclusive');
 
 // ---- states / control through the fake systemctl
 $st = [];
@@ -193,6 +200,40 @@ $r = KloxoRecovery::serverControl('restart', 'kloxo-web');
 check($r['ok'] === false && $r['err'] === 'refused' && (clearstatcache(true) || !is_file($state . '/calls.log')), 'restart kloxo-web refused before systemctl runs');
 $r = KloxoRecovery::serverControl('start', 'sshd');
 check($r['ok'] === false && $r['err'] === 'refused', 'unknown unit refused');
+touch($state . '/active-nginx');
+@unlink($state . '/active-apache2');
+@unlink($state . '/calls.log');
+$r = KloxoRecovery::serverControl('start', 'apache2');
+check($r['ok'] === true && active($state, 'apache2') && !active($state, 'nginx')
+	&& KloxoWatchdog::isHeld('nginx', KloxoRecovery::rootDir())
+	&& str_contains((string) ($r['retired'] ?? ''), 'stopped nginx'),
+	'start apache2 stops nginx so both are not active', json_encode($r));
+@unlink($state . '/calls.log');
+$r = KloxoRecovery::serverControl('start', 'nginx');
+check($r['ok'] === true && active($state, 'nginx') && !active($state, 'apache2')
+	&& KloxoWatchdog::isHeld('apache2', KloxoRecovery::rootDir()),
+	'start nginx stops apache2', json_encode($r));
+touch($state . '/active-exim4');
+@unlink($state . '/active-postfix');
+$r = KloxoRecovery::serverControl('start', 'postfix');
+check($r['ok'] === true && active($state, 'postfix') && !active($state, 'exim4')
+	&& KloxoWatchdog::isHeld('exim4', KloxoRecovery::rootDir()),
+	'start postfix stops exim4', json_encode($r));
+touch($state . '/loaded-knot');
+touch($state . '/active-named');
+@unlink($state . '/active-knot');
+$r = KloxoRecovery::serverControl('start', 'knot');
+check($r['ok'] === true && active($state, 'knot') && !active($state, 'named')
+	&& KloxoWatchdog::isHeld('bind9', KloxoRecovery::rootDir()),
+	'start knot stops bind9 (named) and holds the catalog name bind9', json_encode($r));
+@unlink($state . '/active-apache2');
+@unlink($state . '/active-postfix');
+@unlink($state . '/active-knot');
+@unlink($state . '/loaded-knot');
+foreach (glob($state . '/disabled-*') ?: [] as $f) {
+	@unlink($f);
+}
+touch($state . '/active-nginx');
 $j = KloxoRecovery::serverJournal('mariadb');
 check($j['ok'] && str_contains($j['text'], 'start failed'), 'journal: returns the unit log');
 $j = KloxoRecovery::serverJournal('../../etc/passwd');
@@ -238,6 +279,9 @@ check(!str_contains($res['body'], 'inactive / '), 'inactive units do not append 
 check(str_contains($res['body'], 'name="unit" value="bind9"')
 	&& !str_contains($res['body'], '<td>bind9</td><td colspan="5">not installed</td>'),
 	'logged in: bind9 has Start, not "not installed"');
+check(str_contains($res['body'], 'name="unit" value="postfix"')
+	&& !str_contains($res['body'], '<td>postfix</td><td colspan="5">not installed</td>'),
+	'logged in: postfix is listed');
 check(!str_contains($res['body'], 'value="kloxo-web"><input type="hidden" name="act" value="stop"'), 'no Stop button for the panel web server');
 check(!str_contains($res['body'], 'Enable at boot'), 'Enable at boot is hidden when units already start at boot');
 file_put_contents($state . '/disabled-mariadb', '');

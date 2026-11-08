@@ -541,8 +541,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   `Names`/`Id` so Debian `bind9.service` (an alias of `named.service`) is not listed as
   not installed; start/stop/journal use the canonical unit. An **Enable at boot**
   button (`systemctl enable`) is shown on a row whose UnitFileState is not already
-  enabled/static.   Tests: `tests/p2/test_recovery.php`
-  (66 checks, fake systemctl/journalctl, including the bind9→named alias);
+  enabled/static. The catalog includes **postfix**. Starting, restarting or
+  enabling nginx/apache2, bind9/knot or exim4/postfix stops and disables the
+  other of the pair (held so the watchdog does not bring it back). Tests: `tests/p2/test_recovery.php`
+  (fake systemctl/journalctl, including the bind9→named alias);
   a real backend was also run in a temp tree with the DB unreachable and a non-root client
   call round-tripped through it. The login, overview and journal pages use the panel
   red/beige/green (inline CSS; CSP still `style-src 'unsafe-inline'`). Overview columns
