@@ -19,6 +19,7 @@ include_once "$dir/lib/php/kloxo_fail2ban.php";
 include_once "$dir/lib/php/kloxo_authlog.php";
 include_once "$dir/lib/php/kloxo_apt.php";
 include_once "$dir/lib/php/kloxo_sqlite.php";
+include_once "$dir/lib/php/storage/bootstrap.php";
 include_once "$dir/lib/php/kloxo_mta.php";
 include_once "$dir/lib/php/kloxo_webcache.php";
 include_once "$dir/lib/php/kloxo_mailpolicy.php";

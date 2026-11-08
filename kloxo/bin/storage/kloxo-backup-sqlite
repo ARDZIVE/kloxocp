@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * VACUUM INTO backups of panel.sqlite and stats.sqlite. Keeps the last 7.
+ */
+
+require_once dirname(__DIR__, 2) . '/httpdocs/lib/php/storage/bootstrap.php';
+
+$files = KloxoSqliteBackup::run();
+foreach ($files as $f) {
+    fwrite(STDOUT, $f . "\n");
+}
+if ($files === []) {
+    fwrite(STDERR, "no databases to back up\n");
+    exit(1);
+}

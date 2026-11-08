@@ -22,7 +22,7 @@ check "init-panel-db --help" "${INITDB[@]}" --help
 check "init-panel-db --version" "${INITDB[@]}" --version
 check "php -l kloxo_sqlite.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_sqlite.php"
 helpdb="$("${INITDB[@]}" --help)"
-echo "$helpdb" | grep -q 'kloxo.sqlite' && ok "init-panel-db help names kloxo.sqlite" || bad "init-panel-db help names kloxo.sqlite"
+echo "$helpdb" | grep -q 'panel.sqlite' && ok "init-panel-db help names panel.sqlite" || bad "init-panel-db help names panel.sqlite"
 echo "$helpdb" | grep -q -- '--sqlite-only' && ok "init-panel-db help names --sqlite-only" || bad "init-panel-db help names --sqlite-only"
 check "install-hiawatha --help" bash "$HIA" --help
 check "install-hiawatha --dry-run" bash "$HIA" --dry-run --root="$ROOT/kloxo"
@@ -779,8 +779,10 @@ printf '#!/bin/sh\nexit 0\n' > "$FR/bin/git"
 chmod +x "$FR/bin/"*
 awk '/^fresh_wipe\(\) \{/{f=1} f{print} f&&/^\}/{exit}' "$ROOT/install.sh" \
   | sed -e "s# /etc/# $FR/etc/#g" -e "s# /usr/# $FR/usr/#g" -e "s# /root/# $FR/root/#g" -e "s# /script# $FR/script#g" \
+        -e "s# /var/lib/kloxo/# $FR/var/lib/kloxo/#g" \
         -e "s#^  rm -f /etc/#  rm -f $FR/etc/#" -e "s#\"/etc/#\"$FR/etc/#g" > "$FR/fn.sh"
-if [ -s "$FR/fn.sh" ] && ! grep -Eq '(^| )/(etc|usr|root|script)' "$FR/fn.sh"; then
+if [ -s "$FR/fn.sh" ] && ! grep -Eq '(^| )/(etc|usr|root|script)' "$FR/fn.sh" \
+  && ! grep -qE '[[:space:]]/var/lib/kloxo' "$FR/fn.sh"; then
   ok "fresh_wipe extracted with every absolute path remapped"
 else
   bad "fresh_wipe extraction" "$(grep -En '(^| )/(etc|usr|root|script)' "$FR/fn.sh" | head -5)"

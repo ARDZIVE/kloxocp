@@ -277,7 +277,7 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    stopped until started from Services. `--profile=full` installs Exim
    (default MTA) only — Postfix conflicts with Exim on `mail-transport-agent`
    and is apt-installed when Switch Program selects `smtp=postfix`.
-9. Loads the panel SQLite schema (`init-panel-db`: `etc/conf/kloxo.sqlite`; admin, `localhost` pserver,
+9. Loads the panel SQLite schema (`init-panel-db`: `/var/lib/kloxo/panel.sqlite`; admin, `localhost` pserver,
    `localhost` driver with `dns` = `bind`, `web` = `nginx`, and `smtp` = `exim`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
 10. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.

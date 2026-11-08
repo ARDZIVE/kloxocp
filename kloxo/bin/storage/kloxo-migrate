@@ -1,0 +1,17 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Apply pending panel and stats SQLite migrations (PRAGMA user_version).
+ */
+
+$lib = dirname(__DIR__, 2) . '/httpdocs/lib/php/storage/bootstrap.php';
+require_once $lib;
+
+$root = getenv('KLOXO_ROOT') ?: dirname(__DIR__, 2);
+KloxoMigrate::apply(KloxoStore::panel(true), KloxoMigrate::panelDir($root));
+KloxoMigrate::apply(KloxoStore::stats(true), KloxoMigrate::statsDir($root));
+fwrite(STDOUT, KloxoStore::panelPath() . ' user_version=' . KloxoMigrate::userVersion(KloxoStore::panel()) . "\n");
+fwrite(STDOUT, KloxoStore::statsPath() . ' user_version=' . KloxoMigrate::userVersion(KloxoStore::stats()) . "\n");

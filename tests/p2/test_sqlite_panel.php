@@ -1,6 +1,7 @@
 <?php
 /**
- * The panel's own database is SQLite (etc/conf/kloxo.sqlite): Hiawatha + PHP stay
+ * The panel's own database is SQLite (/var/lib/kloxo/panel.sqlite, or
+ * <root>/var/lib/kloxo/panel.sqlite in tests): Hiawatha + PHP stay
  * up with MariaDB and every other service stopped. Fake filesystem only; no MariaDB.
  */
 declare(strict_types=1);
@@ -66,10 +67,11 @@ $out = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
 fclose($pipes[1]);
 fclose($pipes[2]);
 $rc = proc_close($p);
-check($rc === 0 && str_contains($out, 'panel db ready') && is_file($tmp . '/etc/conf/kloxo.sqlite'),
+$panelFile = $tmp . '/var/lib/kloxo/panel.sqlite';
+check($rc === 0 && str_contains($out, 'panel db ready') && is_file($panelFile),
 	'init-panel-db --sqlite-only creates the panel file without MariaDB', $out);
 
-$live = KloxoSqlite::open($tmp . '/etc/conf/kloxo.sqlite');
+$live = KloxoSqlite::open($panelFile);
 check((int) $live->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn() === 1
 	&& (int) $live->query('SELECT COUNT(*) FROM general')->fetchColumn() >= 1
 	&& (int) $live->query("SELECT COUNT(*) FROM pserver WHERE nname = 'localhost'")->fetchColumn() === 1
@@ -90,8 +92,8 @@ ini_set('display_errors', '0');
 include_once $doc . '/lib/html/include.php';
 global $sgbl;
 check(isset($sgbl) && $sgbl->__var_database_type === 'sqlite'
-	&& str_contains((string) $sgbl->__var_dbf, 'kloxo.sqlite'),
-	'Sgbl uses sqlite and etc/conf/kloxo.sqlite');
+	&& str_contains((string) $sgbl->__var_dbf, 'panel.sqlite'),
+	'Sgbl uses sqlite and panel.sqlite');
 
 $prot = Service__Linux::protectedUnits();
 check(in_array('hiawatha', $prot, true) && in_array('kloxo-web', $prot, true)

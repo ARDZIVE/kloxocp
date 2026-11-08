@@ -1,0 +1,16 @@
+# Per-domain access/error logs. Raw logs stay on disk, never in SQLite.
+/var/log/kloxo/domains/*/access.log
+/var/log/kloxo/domains/*/error.log
+{
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    create 0640 lxlabs lxlabs
+    postrotate
+        /usr/bin/systemctl reload kloxo-web >/dev/null 2>&1 || true
+    endscript
+}

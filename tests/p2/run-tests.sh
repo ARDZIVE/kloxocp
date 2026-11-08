@@ -235,6 +235,13 @@ else
   bad "test_sqlite_panel.php"
 fi
 
+echo "== storage layer (WAL factory, migrations, regen, stats, VACUUM INTO)"
+if php "$HERE/test_storage.php"; then
+  ok "test_storage.php"
+else
+  bad "test_storage.php"
+fi
+
 echo "== removed MTA leftover (SysV script) on the Services list"
 if php "$HERE/test_mta_leftover.php"; then
   ok "test_mta_leftover.php"

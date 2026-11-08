@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 /**
- * The panel's own database is one SQLite file (etc/conf/kloxo.sqlite): the panel,
+ * The panel's own database is one SQLite file (/var/lib/kloxo/panel.sqlite): the panel,
  * kloxo-backend and the CLI tools keep working with MariaDB, Nginx, Apache and every
  * other service stopped. MariaDB stays only for customer databases, mail accounts and
- * phpMyAdmin.
+ * phpMyAdmin. Connections go through KloxoStore when that class is available.
  *
  * This file is standalone (no legacy panel includes) so init-panel-db and the tests
  * can use it:
@@ -22,8 +22,8 @@ declare(strict_types=1);
 
 final class KloxoSqlite
 {
-    /** Seconds a writer waits for another process (panel PHP, backend, CLI) to finish. */
-    public const BUSY_TIMEOUT_MS = 30000;
+    /** Milliseconds a writer waits for another process (panel PHP, backend, CLI). */
+    public const BUSY_TIMEOUT_MS = 5000;
 
     /** Table / column names the panel generates: never anything else in a statement. */
     public static function isIdent(string $name): bool
@@ -33,53 +33,74 @@ final class KloxoSqlite
 
     /**
      * Open (and with $create, create) the panel database.
-     *
-     * journal_mode stays DELETE (not WAL): the file is used by the PHP-FPM user (lxlabs) and by
-     * root (kloxo-backend, CLI); WAL's -wal/-shm files created by one of them would be
-     * unwritable for the other. A rollback journal is created with the owner of the database
-     * file and removed after every commit.
+     * Delegates to KloxoStore so every connection uses the same pragmas
+     * (WAL, busy_timeout=5000, foreign_keys, synchronous=NORMAL). WAL -wal/-shm
+     * are chmod 0600 and chowned to lxlabs so PHP-FPM and root can both write.
      */
     public static function open(string $path, bool $create = false): PDO
     {
+        if (class_exists('KloxoStore', false)) {
+            return KloxoStore::connect($path, $create);
+        }
+        $store = __DIR__ . '/storage/KloxoStore.php';
+        if (is_file($store)) {
+            require_once $store;
+            return KloxoStore::connect($path, $create);
+        }
         if (!$create && !is_file($path)) {
             throw new RuntimeException("panel database {$path} does not exist (run init-panel-db)");
         }
         if ($create) {
             $dir = dirname($path);
-            if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+            if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
                 throw new RuntimeException("cannot create {$dir}");
             }
+            @chmod($dir, 0700);
         }
         $pdo = new PDO('sqlite:' . $path, null, null, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
         ]);
+        $pdo->exec('PRAGMA journal_mode = WAL');
         $pdo->exec('PRAGMA busy_timeout = ' . self::BUSY_TIMEOUT_MS);
-        $pdo->exec('PRAGMA journal_mode = DELETE');
-        $pdo->exec('PRAGMA synchronous = FULL');
-        // MariaDB's IF(cond, a, b) as used by the installer's UPDATE statements
+        $pdo->exec('PRAGMA foreign_keys = ON');
+        $pdo->exec('PRAGMA synchronous = NORMAL');
         if (method_exists($pdo, 'sqliteCreateFunction')) {
             $pdo->sqliteCreateFunction('IF', static fn($c, $a, $b) => $c ? $a : $b, 3);
         }
+        self::secureFile($path);
 
         return $pdo;
     }
 
-    /** Owner and mode of the database file: lxlabs (PHP-FPM) read/write, root via the group. */
+    /** Owner and mode of the database file: 0600, directory 0700, owner lxlabs. */
     public static function secureFile(string $path, string $owner = 'lxlabs'): void
     {
+        if (class_exists('KloxoStore', false)) {
+            KloxoStore::securePath($path);
+            return;
+        }
         if (!is_file($path)) {
             return;
         }
-        @chmod($path, 0660);
+        @chmod($path, 0600);
         $dir = dirname($path);
+        @chmod($dir, 0700);
         if (function_exists('posix_getpwnam') && posix_getpwnam($owner) !== false) {
             @chown($path, $owner);
             @chgrp($path, $owner);
-            // the rollback journal lives next to the database: the directory must be writable
             @chown($dir, $owner);
             @chgrp($dir, $owner);
-            @chmod($dir, 0770);
+        }
+        foreach ([$path . '-wal', $path . '-shm'] as $side) {
+            if (is_file($side)) {
+                @chmod($side, 0600);
+                if (function_exists('posix_getpwnam') && posix_getpwnam($owner) !== false) {
+                    @chown($side, $owner);
+                    @chgrp($side, $owner);
+                }
+            }
         }
     }
 

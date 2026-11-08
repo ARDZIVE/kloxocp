@@ -20,6 +20,7 @@
 # Panel SQLite database and MariaDB app password generated at install
 /kloxo/etc/conf/kloxo.sqlite
 /kloxo/etc/conf/kloxo.pass
+/kloxo/var/lib/kloxo/
 
 # TLS material generated per install (never commit private keys)
 /kloxo/init/backend.key

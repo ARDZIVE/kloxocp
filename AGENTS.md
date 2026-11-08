@@ -172,10 +172,13 @@ absolute `systemctl --no-block` via argument-array `proc_open`
 of panel-critical units is refused on click (`mariadb`/`mysql`/`mysqld`/`mariadbd`,
 `kloxo-php`, `kloxo-web`, `kloxo-backend`, `kloxo-wrap`, `hiawatha`, `sqlite`/`sqlite3`)
 — Hiawatha (`kloxo-web`) and the panel SQLite file must stay up; stopping them is
-refused. The panel's own database is `etc/conf/kloxo.sqlite` (`Sgbl::__var_database_type=sqlite`,
-`KloxoSqlite`, `init-panel-db --sqlite-only`): login and the UI work with MariaDB
-and every other service stopped. MariaDB remains for customer databases, phpMyAdmin
-and mail. `tests/p2/test_sqlite_panel.php`. Live panel on SQLite after deploy is UNVERIFIED.
+refused. The panel's own database is `/var/lib/kloxo/panel.sqlite` (`Sgbl::__var_database_type=sqlite`,
+`KloxoStore` WAL factory, `KloxoSqlite`, `init-panel-db --sqlite-only`): login and the UI work with MariaDB
+and every other service stopped. Stats live in `/var/lib/kloxo/stats.sqlite`; raw domain logs stay
+under `/var/log/kloxo/domains/` (logrotate; never in SQLite). Hiawatha reads only rendered files
+(`kloxo-regen`: flock, `hiawatha -k -c`, rename or keep old). Nightly `VACUUM INTO` keeps 7
+(`kloxo-backup-sqlite`). `tests/p2/test_sqlite_panel.php`, `tests/p2/test_storage.php`. Live panel
+on SQLite after deploy is UNVERIFIED.
 Stopping MariaDB used to blank every page (`No such file or directory` missing DB socket);
 that path is the SQLite file now.
 Start/Stop/Restart icons stay visible for every row (headers Start / Stop / Restart);
@@ -287,6 +290,10 @@ bash tests/mail/run-tests.sh          # mail checks (needs MariaDB root socket; 
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Exim/Dovecot/Rspamd; see tests/mail/README.md)
 php kloxo/bin/mail/kloxo-mail help
 php kloxo/bin/kloxocp help            # status, doctor, snapshot, rollback; update exits 2
+php kloxo/bin/storage/kloxo-migrate   # panel.sqlite + stats.sqlite PRAGMA user_version
+php kloxo/bin/storage/kloxo-regen     # render Hiawatha config, validate, rename
+php kloxo/bin/storage/kloxo-stats     # incremental access-log aggregator
+php kloxo/bin/storage/kloxo-backup-sqlite  # VACUUM INTO, keep 7
 ```
 
 ## Hard rules

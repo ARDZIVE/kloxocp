@@ -1,0 +1,3 @@
+# Nightly SQLite VACUUM INTO (keep 7) and hourly stats from access logs.
+15 2 * * * root /usr/bin/php /opt/kloxo/bin/storage/kloxo-backup-sqlite >/dev/null 2>&1
+5 * * * * root /usr/bin/php /opt/kloxo/bin/storage/kloxo-stats >/dev/null 2>&1

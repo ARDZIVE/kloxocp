@@ -208,7 +208,12 @@ fresh_wipe() {
   fi
 
   rm -f /etc/fail2ban/jail.d/kloxo-cp.local /etc/fail2ban/filter.d/kloxo-panel.conf \
-    /etc/fail2ban/filter.d/kloxo-recovery.conf /etc/logrotate.d/kloxo-auth || true
+    /etc/fail2ban/filter.d/kloxo-recovery.conf /etc/logrotate.d/kloxo-auth \
+    /etc/logrotate.d/kloxo-domains /etc/cron.d/kloxo-storage || true
+  rm -f /var/lib/kloxo/panel.sqlite /var/lib/kloxo/stats.sqlite \
+    /var/lib/kloxo/panel.sqlite-wal /var/lib/kloxo/panel.sqlite-shm \
+    /var/lib/kloxo/stats.sqlite-wal /var/lib/kloxo/stats.sqlite-shm || true
+  rm -rf /var/lib/kloxo/backup || true
   systemctl reload fail2ban >/dev/null 2>&1 || true
 
   rm -f /script /usr/bin/lxphp.exe /usr/bin/lphp.exe /usr/local/sbin/kloxocp \
@@ -608,6 +613,18 @@ else
   die "$ROOT exists and is not a Kloxo program root"
 fi
 mkdir -p "$ROOT/etc/conf" "$ROOT/etc/flag" "$ROOT/pid" "$ROOT/log"
+install -d -m 0700 /var/lib/kloxo /var/lib/kloxo/backup
+install -d -m 0750 /var/log/kloxo /var/log/kloxo/domains /var/run/kloxo
+if id -u lxlabs >/dev/null 2>&1; then
+  chown lxlabs:lxlabs /var/lib/kloxo /var/lib/kloxo/backup /var/run/kloxo /var/log/kloxo /var/log/kloxo/domains || true
+fi
+export KLOXO_VAR_LIB=/var/lib/kloxo
+if [[ -f "$ROOT/file/logrotate/kloxo-domains" && -d /etc/logrotate.d ]]; then
+  install -m 0644 "$ROOT/file/logrotate/kloxo-domains" /etc/logrotate.d/kloxo-domains
+fi
+if [[ -f "$ROOT/file/cron/kloxo-storage" && -d /etc/cron.d ]]; then
+  install -m 0644 "$ROOT/file/cron/kloxo-storage" /etc/cron.d/kloxo-storage
+fi
 
 if ! id -u lxlabs >/dev/null 2>&1; then
   useradd --system --home /home/kloxo --shell /usr/sbin/nologin --user-group lxlabs
@@ -624,7 +641,11 @@ chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" \
   "$ROOT/bin/install/init-slave" \
   "$ROOT/bin/install/install-hiawatha" \
   "$ROOT/bin/install/install-phpmyadmin" \
-  "$ROOT/bin/install/install-site-php" || true
+  "$ROOT/bin/install/install-site-php" \
+  "$ROOT/bin/storage/kloxo-migrate" \
+  "$ROOT/bin/storage/kloxo-regen" \
+  "$ROOT/bin/storage/kloxo-stats" \
+  "$ROOT/bin/storage/kloxo-backup-sqlite" || true
 
 if [[ ! -f "$ROOT/init/backend.key" ]]; then
   php "$ROOT/bin/install/generate-tls-keys" --root="$ROOT" --hostname="$(hostname -f 2>/dev/null || hostname)"
@@ -900,7 +921,12 @@ if id -u lxlabs >/dev/null 2>&1; then
   if [[ -f "$ROOT/etc/conf/pma.pass" ]]; then
     chmod 0640 "$ROOT/etc/conf/pma.pass"
   fi
+  chown -R lxlabs:lxlabs /var/lib/kloxo || true
+  chmod 0700 /var/lib/kloxo || true
+  [[ -f /var/lib/kloxo/panel.sqlite ]] && chmod 0600 /var/lib/kloxo/panel.sqlite
+  [[ -f /var/lib/kloxo/stats.sqlite ]] && chmod 0600 /var/lib/kloxo/stats.sqlite
 fi
+php "$ROOT/bin/storage/kloxo-migrate" >/dev/null 2>&1 || true
 log "panel schema ready"
 
 # Recovery console login (a file, not the database): created on first install,

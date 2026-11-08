@@ -3,9 +3,10 @@
 declare(strict_types=1);
 
 /**
- * init-panel-db: create the Kloxo CP panel SQLite schema (etc/conf/kloxo.sqlite)
- * so the panel stays up with MariaDB and every other service stopped. MariaDB is
- * still bootstrapped when it is running (customer databases, phpMyAdmin, mail).
+ * init-panel-db: create the Kloxo CP panel SQLite schema
+ * (/var/lib/kloxo/panel.sqlite, or --data-dir / KLOXO_VAR_LIB) so the panel
+ * stays up with MariaDB and every other service stopped. MariaDB is still
+ * bootstrapped when it is running (customer databases, phpMyAdmin, mail).
  *
  * Copyright (C) 2026 Kloxo CP contributors
  *
@@ -18,7 +19,7 @@ declare(strict_types=1);
  * no shell strings. Idempotent: safe to re-run on a half-finished install.
  *
  * Usage:
- *   init-panel-db --root=DIR [--admin-password-env=VAR] [--db-socket=PATH]
+ *   init-panel-db --root=DIR [--data-dir=DIR] [--admin-password-env=VAR] [--db-socket=PATH]
  *   init-panel-db --print-schema-stats --root=DIR
  *   init-panel-db --help
  */
@@ -198,13 +199,15 @@ init-panel-db 0.1.0: create the Kloxo CP panel SQLite schema
 
   init-panel-db --root=DIR [--admin-password-env=VAR | --keep-admin-password]
                 [--db-socket=PATH] [--db-rootuser=root] [--db-name=kloxo] [--db-user=kloxo]
-                [--sqlite-only]
+                [--sqlite-only] [--data-dir=DIR]
   init-panel-db --print-schema-stats --root=DIR
   init-panel-db --self-test
   init-panel-db --help
 
-Writes <root>/etc/conf/kloxo.sqlite (0640, lxlabs) from db-structure-base.sql
-(and -update.sql). The panel UI and kloxo-backend use this file; they do not
+Writes panel.sqlite (0600, lxlabs) from db-structure-base.sql (and -update.sql)
+plus storage migrations. Default path is /var/lib/kloxo/panel.sqlite (root on
+Linux) or <root>/var/lib/kloxo/panel.sqlite. Override with --data-dir or
+KLOXO_VAR_LIB. The panel UI and kloxo-backend use this file; they do not
 need MariaDB. --sqlite-only skips MariaDB entirely.
 
 When MariaDB is up, also creates the kloxo / kloxo_pma users (CREATE USER +
@@ -262,20 +265,87 @@ TXT;
 
     private function sqlitePath(): string
     {
-        return $this->root . '/etc/conf/kloxo.sqlite';
+        return $this->dataDir() . '/panel.sqlite';
+    }
+
+    /** Panel + stats SQLite directory (never /tmp; local disk under /var/lib or --root). */
+    private function dataDir(): string
+    {
+        if (isset($this->opt['data-dir']) && $this->opt['data-dir'] !== true) {
+            $d = rtrim((string) $this->opt['data-dir'], '/');
+            if ($d === '' || str_contains($d, "\0") || str_contains($d, '..')) {
+                throw new IpdbException('Invalid --data-dir');
+            }
+            return $d;
+        }
+        $env = getenv('KLOXO_VAR_LIB');
+        if (is_string($env) && $env !== '' && !str_contains($env, "\0") && !str_contains($env, '..')) {
+            return rtrim($env, '/');
+        }
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0 && is_dir('/var/lib')) {
+            return '/var/lib/kloxo';
+        }
+
+        return $this->root . '/var/lib/kloxo';
+    }
+
+    private function storageBootstrap(): string
+    {
+        $fromRoot = dirname($this->sqliteLib()) . '/storage/bootstrap.php';
+        if (is_file($fromRoot)) {
+            return $fromRoot;
+        }
+
+        return dirname(__DIR__, 2) . '/httpdocs/lib/php/storage/bootstrap.php';
+    }
+
+    private function migrationsRoot(): string
+    {
+        $fromRoot = $this->root . '/file/storage/migrations';
+        if (is_dir($fromRoot . '/panel')) {
+            return $fromRoot;
+        }
+
+        return dirname(__DIR__, 2) . '/file/storage/migrations';
     }
 
     private function openSqlite(): PDO
     {
         $lib = $this->sqliteLib();
         if (!is_file($lib)) {
+            $lib = dirname(__DIR__, 2) . '/httpdocs/lib/php/kloxo_sqlite.php';
+        }
+        if (!is_file($lib)) {
             throw new IpdbException("Missing $lib");
         }
         require_once $lib;
+        $boot = $this->storageBootstrap();
+        if (is_file($boot)) {
+            require_once $boot;
+        }
+        putenv('KLOXO_VAR_LIB=' . $this->dataDir());
+        if (class_exists('KloxoStore', false)) {
+            KloxoStore::resetPool();
+        }
         $pdo = KloxoSqlite::open($this->sqlitePath(), true);
         KloxoSqlite::secureFile($this->sqlitePath());
+        $this->applyStorageMigrations($pdo);
 
         return $pdo;
+    }
+
+    private function applyStorageMigrations(PDO $pdo): void
+    {
+        if (!class_exists('KloxoMigrate', false)) {
+            return;
+        }
+        $root = $this->migrationsRoot();
+        if (is_dir($root . '/panel')) {
+            KloxoMigrate::apply($pdo, $root . '/panel');
+        }
+        if (is_dir($root . '/stats') && class_exists('KloxoStore', false)) {
+            KloxoMigrate::apply(KloxoStore::stats(true), $root . '/stats');
+        }
     }
 
     private function applySqliteSchema(PDO $pdo): void

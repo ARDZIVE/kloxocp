@@ -1,0 +1,22 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Cron-friendly stats aggregator. Incremental (inode/offset); safe to run twice.
+ */
+
+require_once dirname(__DIR__, 2) . '/httpdocs/lib/php/storage/bootstrap.php';
+
+$root = getenv('KLOXO_ROOT') ?: dirname(__DIR__, 2);
+KloxoMigrate::apply(KloxoStore::panel(true), KloxoMigrate::panelDir($root));
+KloxoMigrate::apply(KloxoStore::stats(true), KloxoMigrate::statsDir($root));
+$out = KloxoStatsAgg::create()->run();
+fwrite(STDOUT, sprintf(
+    "domains=%d bytes=%d requests=%d rolled=%d\n",
+    $out['domains'],
+    $out['bytes'],
+    $out['requests'],
+    $out['rolled']
+));

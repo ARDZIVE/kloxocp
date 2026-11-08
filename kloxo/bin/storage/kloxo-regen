@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Render Hiawatha config from panel.sqlite, validate, rename into place.
+ */
+
+require_once dirname(__DIR__, 2) . '/httpdocs/lib/php/storage/bootstrap.php';
+
+$root = getenv('KLOXO_ROOT') ?: dirname(__DIR__, 2);
+KloxoMigrate::apply(KloxoStore::panel(true), KloxoMigrate::panelDir($root));
+$r = KloxoRegen::fromEnv()->run();
+if (!$r['ok']) {
+    fwrite(STDERR, $r['error'] . "\n");
+    exit(1);
+}
+fwrite(STDOUT, "hiawatha config regenerated\n");

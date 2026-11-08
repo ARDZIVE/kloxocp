@@ -152,8 +152,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `tests/p3/` and `tests/install/` (php-cli; do not run the Ubuntu installer
     or a Hiawatha compile).
 15. **Ubuntu panel schema + Hiawatha:** `kloxo/bin/install/init-panel-db` writes
-    `etc/conf/kloxo.sqlite` from `file/sql/db-structure-base.sql` (`KloxoSqlite`;
-    `--sqlite-only` skips MariaDB). MariaDB is still created when it is up
+    `/var/lib/kloxo/panel.sqlite` from `file/sql/db-structure-base.sql` plus
+    `file/storage/migrations` (`KloxoStore` / `KloxoSqlite`; `--sqlite-only`
+    skips MariaDB; `--data-dir` / `KLOXO_VAR_LIB` for tests). Stats are
+    `/var/lib/kloxo/stats.sqlite`. MariaDB is still created when it is up
     (customer databases, phpMyAdmin, mail; 10.11 `CREATE USER` + `GRANT`).
     The panel UI does not need MariaDB. `kloxo/bin/install/install-hiawatha` pins
     Hiawatha 12.4. `create.php` calls `init-panel-db` and skips CentOS
