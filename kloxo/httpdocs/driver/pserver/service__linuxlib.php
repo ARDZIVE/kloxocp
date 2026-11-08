@@ -101,6 +101,7 @@ class Service__Linux extends Lxlclass
 		return array(
 			'mariadb', 'mysql', 'mysqld', 'mariadbd',
 			'kloxo-php', 'kloxo-web', 'kloxo-backend', 'kloxo-wrap', 'hiawatha',
+			'sqlite', 'sqlite3',
 		);
 	}
 

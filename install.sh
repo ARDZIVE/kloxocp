@@ -522,7 +522,7 @@ apt-get update -y || log "warn: apt-get update reported errors; continuing"
 # Rspamd (full profile), not bogofilter/spamassassin. Panel DB is MariaDB (the
 # Sqlite class is mysqli); slave-db.db is PHP serialize — do not apt-install sqlite.
 apt-get install -y ca-certificates git curl openssl rsync \
-  php-cli php-fpm php-mysql php-xml php-mbstring php-curl \
+  php-cli php-fpm php-mysql php-sqlite3 php-xml php-mbstring php-curl \
   mariadb-server nginx apache2 bind9 knot knot-dnsutils \
   pure-ftpd redis-server iproute2 ufw imagemagick \
   fail2ban python3-systemd nftables \

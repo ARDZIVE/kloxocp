@@ -46,36 +46,33 @@ class Sqlite
 			}
 		}
 
-		$user = $sgbl->__var_admin_user;
-		$db = $sgbl->__var_dbf;
-		try {
-			$pass = getAdminDbPass();
-		} catch (Throwable $e) {
-			throw kloxo_admin_db_pass_exception($e);
-		}
-
 		if ($sgbl->__var_database_type === 'mysql') {
-			$mysqlsrv = $this->__readserver;
-
-			// MR -- use unix socket instead tcp/ip socket
-			if ($mysqlsrv === 'localhost') {
-				// MR -- not use because found weird (like not work for fixweb)
-			//	$mysqlsrv = ':/var/lib/mysql/mysql.sock';
+			$user = $sgbl->__var_admin_user;
+			$db = $sgbl->__var_dbf;
+			try {
+				$pass = getAdminDbPass();
+			} catch (Throwable $e) {
+				throw kloxo_admin_db_pass_exception($e);
 			}
-
+			$mysqlsrv = $this->__readserver;
 			$gbl->$fdbvar = new mysqli($mysqlsrv, $user, $pass, $db) or dprint("Could not connect and select select {$db} MySQL database.\n");
 			self::$__database = 'mysql';
 		} else {
+			$db = $sgbl->__var_dbf;
 			try {
-				$gbl->$fdbvar = new PDO("sqlite:$db");
+				if (!class_exists('KloxoSqlite', false)) {
+					include_once __DIR__ . '/kloxo_sqlite.php';
+				}
+				$gbl->$fdbvar = KloxoSqlite::open((string) $db, false);
 				self::$__database = 'sqlite';
-			} catch (PDOException $e) {
+			} catch (Throwable $e) {
 				dprint("PDO Error: " . $e->getMessage() . "\n");
+				throw new lxException('Could not open the panel SQLite database (' . $e->getMessage() . '). Run init-panel-db.', '', 'kloxo.sqlite');
 			}
 		}
 
 		if (!$gbl->$fdbvar) {
-			die("Could not open database connection.");
+			throw new lxException('Could not open the panel database.', '', (string) $sgbl->__var_dbf);
 		}
 	}
 
@@ -136,13 +133,20 @@ class Sqlite
 
 			return $result;
 		} else {
-			$result = $res->prepare($string);
-
-			if ($result) {
-				$v = $result->execute();
-			} else {
-				$pdo_error_info = $res->errorInfo();
-				$error_message = $pdo_error_info[2];
+			if (class_exists('KloxoSqlite', false)) {
+				$translated = KloxoSqlite::translateQuery($string);
+				if ($translated === null) {
+					return true;
+				}
+				$string = $translated;
+			}
+			try {
+				$result = $res->query($string);
+			} catch (PDOException $e) {
+				$error_message = $e->getMessage();
+				dprint("Query error: {$error_message}\n");
+				log_database("Query failed: {$string}");
+				return false;
 			}
 		}
 	
@@ -289,6 +293,19 @@ class Sqlite
 			if ($sgbl->__var_database_type === 'mysql') {
 				$query = "SHOW COLUMNS FROM {$this->__sqtable}";
 			} else {
+				$table = (string) $this->__sqtable;
+				if (class_exists('KloxoSqlite') && KloxoSqlite::isIdent($table)) {
+					$res = array();
+					foreach ($gbl->$fdbvar->query('PRAGMA table_info(' . $table . ')') ?: array() as $row) {
+						$name = (string) ($row['name'] ?? '');
+						if ($name !== '') {
+							$res[$name] = $name;
+						}
+					}
+					$this->__column_type = $res;
+
+					return $this->__column_type;
+				}
 				$query = "select * from {$this->__sqtable} where nname = '__dummy__dummy__' ";
 			}
 		

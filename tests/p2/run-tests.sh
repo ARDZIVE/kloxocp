@@ -82,20 +82,22 @@ if grep -A20 'function getAdminDbPass' "$ROOT/kloxo/httpdocs/lib/html/lib.php" |
 else
   ok "getAdminDbPass does not throw generic Exception"
 fi
-if grep -A25 'function connect' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php" | grep -q 'kloxo_admin_db_pass_exception'; then
-  ok "Sqlite::connect wraps getAdminDbPass"
+if grep -A40 'function connect' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php" | grep -q 'KloxoSqlite::open' \
+  && grep -A40 'function connect' "$ROOT/kloxo/httpdocs/lib/php/sqlitelib.php" | grep -q 'kloxo_admin_db_pass_exception'; then
+  ok "Sqlite::connect opens the SQLite panel file (MariaDB branch still wraps getAdminDbPass)"
 else
-  bad "Sqlite::connect wraps getAdminDbPass"
+  bad "Sqlite::connect opens the SQLite panel file (MariaDB branch still wraps getAdminDbPass)"
 fi
 if grep -A50 'function do_remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'kloxo_admin_db_pass_exception'; then
   ok "do_remote_exec wraps getAdminDbPass"
 else
   bad "do_remote_exec wraps getAdminDbPass"
 fi
-if grep -A20 'function kloxo_import_sql_file' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -B2 -A5 'getAdminDbPass' | grep -q 'return false'; then
-  ok "kloxo_import_sql_file fails closed when getAdminDbPass throws"
+if grep -A80 'function kloxo_import_sql_file' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -q 'KloxoSqlite::applyScript' \
+  && grep -A80 'function kloxo_import_sql_file' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" | grep -q 'getAdminDbPass'; then
+  ok "kloxo_import_sql_file uses SQLite for the panel DB and still fails closed on a missing MariaDB password"
 else
-  bad "kloxo_import_sql_file fails closed when getAdminDbPass throws"
+  bad "kloxo_import_sql_file uses SQLite for the panel DB and still fails closed on a missing MariaDB password"
 fi
 if grep -A12 'function changeSuperAdminPass' "$ROOT/kloxo/httpdocs/lib/client/superclientlib.php" | grep -q 'could_not_change_superadmin_pass'; then
   ok "changeSuperAdminPass wraps getAdminDbPass"
@@ -224,6 +226,13 @@ if php "$HERE/test_dns_alias.php"; then
   ok "test_dns_alias.php"
 else
   bad "test_dns_alias.php"
+fi
+
+echo "== panel SQLite (Hiawatha stays up with MariaDB down)"
+if php "$HERE/test_sqlite_panel.php"; then
+  ok "test_sqlite_panel.php"
+else
+  bad "test_sqlite_panel.php"
 fi
 
 echo "== removed MTA leftover (SysV script) on the Services list"

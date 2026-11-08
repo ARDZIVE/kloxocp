@@ -20,6 +20,10 @@ check "php -l create.php" php -l "$ROOT/kloxo/bin/install/create.php"
 check "php -l initlib.php" php -l "$ROOT/kloxo/httpdocs/lib/html/initlib.php"
 check "init-panel-db --help" "${INITDB[@]}" --help
 check "init-panel-db --version" "${INITDB[@]}" --version
+check "php -l kloxo_sqlite.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_sqlite.php"
+helpdb="$("${INITDB[@]}" --help)"
+echo "$helpdb" | grep -q 'kloxo.sqlite' && ok "init-panel-db help names kloxo.sqlite" || bad "init-panel-db help names kloxo.sqlite"
+echo "$helpdb" | grep -q -- '--sqlite-only' && ok "init-panel-db help names --sqlite-only" || bad "init-panel-db help names --sqlite-only"
 check "install-hiawatha --help" bash "$HIA" --help
 check "install-hiawatha --dry-run" bash "$HIA" --dry-run --root="$ROOT/kloxo"
 fails "init-panel-db root with .. rejected" "${INITDB[@]}" --root="$ROOT/kloxo/../kloxo" --print-schema-stats

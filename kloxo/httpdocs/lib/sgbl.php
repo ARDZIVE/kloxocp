@@ -109,7 +109,10 @@ class Sgbl
 		$this->__var_quote_char = "'";
 		$this->__path_perl_path = "/usr/bin/perl";
 		$this->__path_kloxo_back_phpini = "/etc/kloxo-backup-php.ini";
-		$this->__var_database_type = "mysql";
+		// Panel data lives in etc/conf/kloxo.sqlite so Hiawatha/PHP keep working
+		// with MariaDB and every other service stopped. MariaDB is only for
+		// customer databases, phpMyAdmin and mail.
+		$this->__var_database_type = "sqlite";
 		$this->__path_mysqlclient_path = "mysql";
 		$this->__path_mysqldump_path = "mysqldump";
 		$this->__var_noaccess_shell = '/sbin/nologin';
@@ -202,7 +205,7 @@ class Sgbl
 		$this->__path_dbschema = "$this->__path_program_root/file/sql/.db_schema";
 
 		if ($this->__var_database_type === "sqlite") {
-			$this->__var_dbf = "{$this->__path_program_etc}/conf/db.db";
+			$this->__var_dbf = "{$this->__path_program_etc}/conf/kloxo.sqlite";
 		} else {
 			$this->__var_dbf = "kloxo";
 		}

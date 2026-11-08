@@ -17,6 +17,10 @@
 # phpMyAdmin MariaDB password generated at install
 /kloxo/etc/conf/pma.pass
 
+# Panel SQLite database and MariaDB app password generated at install
+/kloxo/etc/conf/kloxo.sqlite
+/kloxo/etc/conf/kloxo.pass
+
 # TLS material generated per install (never commit private keys)
 /kloxo/init/backend.key
 /kloxo/init/backend.crt

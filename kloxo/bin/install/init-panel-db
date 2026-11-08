@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 /**
- * init-panel-db: create the Kloxo CP panel MariaDB schema on Ubuntu 24.04 / 26.x.
+ * init-panel-db: create the Kloxo CP panel SQLite schema (etc/conf/kloxo.sqlite)
+ * so the panel stays up with MariaDB and every other service stopped. MariaDB is
+ * still bootstrapped when it is running (customer databases, phpMyAdmin, mail).
  *
  * Copyright (C) 2026 Kloxo CP contributors
  *
@@ -192,21 +194,24 @@ final class App
     private function help(): int
     {
         echo <<<TXT
-init-panel-db 0.1.0: create the Kloxo CP panel MariaDB schema
+init-panel-db 0.1.0: create the Kloxo CP panel SQLite schema
 
   init-panel-db --root=DIR [--admin-password-env=VAR | --keep-admin-password]
                 [--db-socket=PATH] [--db-rootuser=root] [--db-name=kloxo] [--db-user=kloxo]
+                [--sqlite-only]
   init-panel-db --print-schema-stats --root=DIR
   init-panel-db --self-test
   init-panel-db --help
 
-Loads kloxo/file/sql/db-structure-base.sql (and -update.sql) synchronously.
-Creates the kloxo database user with MariaDB 10.11 syntax (CREATE USER +
-GRANT; never GRANT ... IDENTIFIED BY). Writes <root>/etc/conf/kloxo.pass
-(0640, owned by lxlabs). Sets root@127.0.0.1 (password in
-<root>/etc/conf/pma.pass) so admin SQL Manager opens phpMyAdmin as root.
-root@localhost stays unix_socket. Also creates kloxo_pma as a fallback.
-Inserts admin / general rows if they are missing.
+Writes <root>/etc/conf/kloxo.sqlite (0640, lxlabs) from db-structure-base.sql
+(and -update.sql). The panel UI and kloxo-backend use this file; they do not
+need MariaDB. --sqlite-only skips MariaDB entirely.
+
+When MariaDB is up, also creates the kloxo / kloxo_pma users (CREATE USER +
+GRANT; never GRANT ... IDENTIFIED BY), writes kloxo.pass and pma.pass, and
+copies an existing MariaDB panel database into the SQLite file once. phpMyAdmin
+uses root@127.0.0.1; root@localhost stays unix_socket. Inserts admin / general
+rows if they are missing.
 
 Admin UI password: omitted flags seed the well-known default admin/admin
 (must be changed after first login). Override with --admin-password-env=VAR
@@ -250,6 +255,63 @@ TXT;
         return $missing === [] ? 0 : 1;
     }
 
+    private function sqliteLib(): string
+    {
+        return $this->root . '/httpdocs/lib/php/kloxo_sqlite.php';
+    }
+
+    private function sqlitePath(): string
+    {
+        return $this->root . '/etc/conf/kloxo.sqlite';
+    }
+
+    private function openSqlite(): PDO
+    {
+        $lib = $this->sqliteLib();
+        if (!is_file($lib)) {
+            throw new IpdbException("Missing $lib");
+        }
+        require_once $lib;
+        $pdo = KloxoSqlite::open($this->sqlitePath(), true);
+        KloxoSqlite::secureFile($this->sqlitePath());
+
+        return $pdo;
+    }
+
+    private function applySqliteSchema(PDO $pdo): void
+    {
+        $base = (string) file_get_contents($this->sqlPath('db-structure-base.sql'));
+        foreach (KloxoSqlite::schemaStatements($base) as $stmt) {
+            $pdo->exec($stmt);
+        }
+        $updPath = $this->sqlPath('db-structure-update.sql');
+        if (is_file($updPath)) {
+            $errors = KloxoSqlite::applyScript($pdo, (string) file_get_contents($updPath));
+            foreach ($errors as $err) {
+                fwrite(STDERR, "schema warning: $err\n");
+            }
+        }
+    }
+
+    private function isSqlite(PDO $pdo): bool
+    {
+        return $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+    }
+
+    /** @return list<string> */
+    private function columnNames(PDO $pdo, string $table): array
+    {
+        if ($this->isSqlite($pdo)) {
+            return KloxoSqlite::columns($pdo, $table);
+        }
+        $out = [];
+        foreach ($pdo->query('SHOW COLUMNS FROM `' . $table . '`') ?: [] as $row) {
+            $out[] = (string) ($row['Field'] ?? '');
+        }
+
+        return array_values(array_filter($out, static fn($c) => $c !== ''));
+    }
+
     private function init(): int
     {
         $this->dbName = $this->ident((string)($this->opt['db-name'] ?? 'kloxo'), 'database name');
@@ -260,30 +322,26 @@ TXT;
             throw new IpdbException('Invalid --db-rootuser');
         }
 
-        $passFile = $this->root . '/etc/conf/kloxo.pass';
-        $dbPass = $this->dbPassword($passFile);
-        $pdo = $this->openAdmin($rootUser, $dbPass);
-        $pdo->exec('USE `' . $this->dbName . '`');
-        $pdo->exec('SET SESSION innodb_strict_mode = 0');
-        try {
-            $pdo->exec("SET SESSION innodb_default_row_format = 'dynamic'");
-        } catch (PDOException $e) {
-            // older MariaDB: ignore
-        }
+        $pdo = $this->openSqlite();
+        $this->applySqliteSchema($pdo);
 
-        $base = (string)file_get_contents($this->sqlPath('db-structure-base.sql'));
-        foreach (SqlFile::statements($base) as $stmt) {
-            $this->execSchema($pdo, $stmt);
-        }
-        $updPath = $this->sqlPath('db-structure-update.sql');
-        if (is_file($updPath)) {
-            foreach (SqlFile::statements((string)file_get_contents($updPath)) as $stmt) {
-                $this->execSchema($pdo, $stmt);
+        $passFile = $this->root . '/etc/conf/kloxo.pass';
+        $pmaFile = $this->root . '/etc/conf/pma.pass';
+        $dbPass = $this->dbPassword($passFile);
+        $this->writePass($passFile, $dbPass);
+        $this->writePass($pmaFile, $this->dbPassword($pmaFile));
+        $sqliteOnly = isset($this->opt['sqlite-only']);
+        if (!$sqliteOnly) {
+            try {
+                $mysql = $this->openAdmin($rootUser, $dbPass);
+                $mysql->exec('USE `' . $this->dbName . '`');
+                $this->maybeCopyFromMysql($mysql, $pdo);
+                $this->ensurePmaUser($rootUser);
+            } catch (Throwable $e) {
+                fwrite(STDERR, "MariaDB skipped (panel SQLite is enough): " . $e->getMessage() . "\n");
             }
         }
 
-        $this->writePass($passFile, $dbPass);
-        $this->ensurePmaUser($rootUser);
         $this->seedAdmin($pdo, $adminPass);
         $this->syncAdminContactEmail($pdo);
         $this->seedAdminHome();
@@ -302,10 +360,28 @@ TXT;
 
         $client = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
         $general = (int)$pdo->query("SELECT COUNT(*) FROM general")->fetchColumn();
-        $tables = (int)$pdo->query('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ' . $pdo->quote($this->dbName))->fetchColumn();
-        echo "panel db ready: {$this->dbName} ($tables tables), admin row=$client, general rows=$general\n";
-        echo "db password file: $passFile\n";
+        $tables = count(KloxoSqlite::tables($pdo));
+        echo "panel db ready: {$this->sqlitePath()} ($tables tables), admin row=$client, general rows=$general\n";
+        echo "db password file: $passFile (MariaDB customer SQL / phpMyAdmin)\n";
         return ($client === 1 && $general >= 1 && $tables >= 40) ? 0 : 1;
+    }
+
+    private function maybeCopyFromMysql(PDO $mysql, PDO $sqlite): void
+    {
+        $n = (int) $sqlite->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
+        if ($n > 0) {
+            return;
+        }
+        try {
+            $has = (int) $mysql->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
+        } catch (PDOException $e) {
+            return;
+        }
+        if ($has < 1) {
+            return;
+        }
+        $copied = KloxoSqlite::copyFromMysql($mysql, $sqlite);
+        echo 'copied MariaDB panel rows into SQLite: ' . array_sum($copied) . "\n";
     }
 
     /**
@@ -726,7 +802,10 @@ TXT;
 
     private function seedAdminPriv(PDO $pdo): void
     {
-        $cols = $pdo->query("SHOW COLUMNS FROM client LIKE 'priv_q_%'")->fetchAll(PDO::FETCH_COLUMN);
+        $cols = array_values(array_filter(
+            $this->columnNames($pdo, 'client'),
+            static fn(string $c): bool => str_starts_with($c, 'priv_q_')
+        ));
         $sets = [];
         foreach ($cols as $col) {
             if (!is_string($col) || preg_match('/^priv_q_[A-Za-z0-9_]+$/', $col) !== 1) {
@@ -768,15 +847,23 @@ TXT;
         if ($pass === '') {
             throw new IpdbException('pma.pass is empty; cannot seed the database admin');
         }
+        $n = (int) $pdo->query("SELECT COUNT(*) FROM dbadmin WHERE nname = 'mysql___localhost'")->fetchColumn();
+        if ($n === 0) {
+            $stmt = $pdo->prepare(
+                "INSERT INTO dbadmin (nname, parent_clname, parent_cmlist, dbtype, dbadmin_name, dbpassword, syncserver)
+                 VALUES ('mysql___localhost', 'pserver-localhost', '', 'mysql', 'kloxo_pma', ?, 'localhost')"
+            );
+            $stmt->execute([$pass]);
+            return;
+        }
         $stmt = $pdo->prepare(
-            "INSERT INTO dbadmin (nname, parent_clname, parent_cmlist, dbtype, dbadmin_name, dbpassword, syncserver)
-             VALUES ('mysql___localhost', 'pserver-localhost', '', 'mysql', 'kloxo_pma', ?, 'localhost')
-             ON DUPLICATE KEY UPDATE
+            "UPDATE dbadmin SET
                 dbtype = 'mysql',
                 syncserver = 'localhost',
                 parent_clname = IF(parent_clname IS NULL OR parent_clname = '', 'pserver-localhost', parent_clname),
                 dbadmin_name = IF(dbadmin_name IS NULL OR dbadmin_name = '' OR dbadmin_name = 'root', 'kloxo_pma', dbadmin_name),
-                dbpassword = IF(dbpassword IS NULL OR dbpassword = '' OR dbadmin_name = 'kloxo_pma', VALUES(dbpassword), dbpassword)"
+                dbpassword = IF(dbpassword IS NULL OR dbpassword = '' OR dbadmin_name = 'kloxo_pma', ?, dbpassword)
+             WHERE nname = 'mysql___localhost'"
         );
         $stmt->execute([$pass]);
     }
@@ -1317,8 +1404,11 @@ TXT;
             try {
                 $pdo->exec("DELETE FROM service WHERE nname = 'pdns___localhost'");
                 $pdo->exec(
-                    "INSERT IGNORE INTO service (nname, parent_clname, parent_cmlist, servicename, description, grepstring, syncserver, oldsyncserver, olddeleteflag)
+                    ($this->isSqlite($pdo)
+                        ? "INSERT OR IGNORE INTO service (nname, parent_clname, parent_cmlist, servicename, description, grepstring, syncserver, oldsyncserver, olddeleteflag)
                      VALUES ('knot___localhost', 'pserver-localhost', '', 'knot', 'Knot DNS Server', 'knotd', 'localhost', '', '')"
+                        : "INSERT IGNORE INTO service (nname, parent_clname, parent_cmlist, servicename, description, grepstring, syncserver, oldsyncserver, olddeleteflag)
+                     VALUES ('knot___localhost', 'pserver-localhost', '', 'knot', 'Knot DNS Server', 'knotd', 'localhost', '', '')")
                 );
             } catch (PDOException $e) {
                 // no service table yet: the schema seed already carries the Knot row

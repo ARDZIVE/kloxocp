@@ -277,7 +277,7 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    stopped until started from Services. `--profile=full` installs Exim
    (default MTA) only — Postfix conflicts with Exim on `mail-transport-agent`
    and is apt-installed when Switch Program selects `smtp=postfix`.
-9. Loads the panel MariaDB schema (`init-panel-db`: admin, `localhost` pserver,
+9. Loads the panel SQLite schema (`init-panel-db`: `etc/conf/kloxo.sqlite`; admin, `localhost` pserver,
    `localhost` driver with `dns` = `bind`, `web` = `nginx`, and `smtp` = `exim`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
 10. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
@@ -418,7 +418,7 @@ run Hiawatha, the systemd units, or the live mail tests.
 
 **Does:** unpack the tree under `/opt/kloxo`, generate unique TLS keys, point `lxphp.exe`
 at distro PHP 8, create runtime directories, install OS packages, build pinned
-Hiawatha 12.4, load the panel MariaDB schema (`init-panel-db`: admin,
+Hiawatha 12.4, load the panel SQLite schema (`init-panel-db`: admin,
 `localhost` server and driver, appearance, `generalmisc_b`, Login Message, and
 `enablecronforall.flg`), install phpMyAdmin,
 prepare Apache and Knot DNS without starting them, start `kloxo-php` /
@@ -775,7 +775,7 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/kloxocp            operator CLI (status, doctor, snapshot, rollback)
   bin/mail/kloxo-mail    mail provisioning tool (PHP 8.3)
   bin/install/generate-tls-keys  unique TLS keys per install
-  bin/install/init-panel-db      Ubuntu MariaDB panel schema
+  bin/install/init-panel-db      Ubuntu panel SQLite schema (MariaDB for customer SQL)
   bin/install/init-slave         slave-db.db for a --slave host
   bin/install/install-hiawatha   pinned Hiawatha 12.4 source build
   bin/install/install-knot       Knot DNS base knot.conf + zone dir (unit stays disabled)

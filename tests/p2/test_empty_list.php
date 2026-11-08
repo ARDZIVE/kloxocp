@@ -238,20 +238,23 @@ try {
 
 $tmpSql = tempnam(sys_get_temp_dir(), 'kloxo-sql-');
 file_put_contents($tmpSql, "SELECT 1;\n");
+$oldDbf = $sgbl->__var_dbf;
+$sgbl->__var_dbf = sys_get_temp_dir() . '/kloxo-missing-' . uniqid('', true) . '.sqlite';
 try {
 	ob_start();
 	$imported = kloxo_import_sql_file($tmpSql);
 	ob_end_clean();
 	if ($imported === false) {
-		ok('kloxo_import_sql_file returns false when kloxo.pass is missing');
+		ok('kloxo_import_sql_file returns false when the panel SQLite file is missing');
 	} else {
-		bad('kloxo_import_sql_file returns false when kloxo.pass is missing', var_export($imported, true));
+		bad('kloxo_import_sql_file returns false when the panel SQLite file is missing', var_export($imported, true));
 	}
 } catch (Throwable $e) {
 	ob_end_clean();
-	bad('kloxo_import_sql_file returns false when kloxo.pass is missing', get_class($e) . ': ' . $e->getMessage());
+	bad('kloxo_import_sql_file returns false when the panel SQLite file is missing', get_class($e) . ': ' . $e->getMessage());
 }
 @unlink($tmpSql);
+$sgbl->__var_dbf = $oldDbf;
 $sgbl->__path_admin_pass = $oldPassPath;
 
 echo "$pass passed, $fail failed\n";

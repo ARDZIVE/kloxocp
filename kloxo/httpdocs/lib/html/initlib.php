@@ -16,7 +16,10 @@ function create_mysql_db($type, $opt, $admin_pass)
 		$req = new mysqli('localhost', $opt['db-rootuser'], $rootpass);
 
 	} else {
-		$req = new PDO("sqlite:$sgbl->__var_dbf");
+		if (!class_exists('KloxoSqlite', false)) {
+			include_once dirname(__DIR__) . '/php/kloxo_sqlite.php';
+		}
+		$req = KloxoSqlite::open((string) $sgbl->__var_dbf, true);
 	}
 
 

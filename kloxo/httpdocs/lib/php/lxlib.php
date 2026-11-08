@@ -4419,6 +4419,25 @@ function kloxo_import_sql_file($path)
 		return false;
 	}
 
+	$sql = (string) file_get_contents($path);
+	if ($sgbl->__var_database_type === 'sqlite') {
+		if (!class_exists('KloxoSqlite', false)) {
+			include_once __DIR__ . '/kloxo_sqlite.php';
+		}
+		try {
+			$pdo = KloxoSqlite::open((string) $sgbl->__var_dbf, false);
+			$errors = KloxoSqlite::applyScript($pdo, $sql);
+		} catch (Throwable $e) {
+			print($e->getMessage() . "\n");
+			return false;
+		}
+		foreach ($errors as $err) {
+			print("SQL warning ({$path}): {$err}\n");
+		}
+
+		return $errors === array();
+	}
+
 	$user = $sgbl->__var_admin_user;
 	$db = $sgbl->__var_dbf;
 	try {
@@ -4434,7 +4453,6 @@ function kloxo_import_sql_file($path)
 		return false;
 	}
 
-	$sql = file_get_contents($path);
 	$ok = true;
 
 	foreach (kloxo_split_sql_statements($sql) as $stmt) {
