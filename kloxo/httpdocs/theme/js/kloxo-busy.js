@@ -18,8 +18,8 @@
  * has loaded.
  *
  * It is not shown for navigations that leave the page showing (they would
- * never hide it): downloads, mailto:, links or forms with a target, multipart
- * (file upload) forms which have their own progress display, and links or
+ * never hide it): downloads, mailto:, links or forms with a target, forms
+ * with a chosen file (an upload has its own progress display), and links or
  * forms marked data-kloxo-nobusy. The modal is shown at once, not after a delay:
  * the browser keeps painting the old page's last frame until the new document
  * paints something, so a modal that is still fading in when the navigation
@@ -217,6 +217,18 @@
 		suppressUntil = Date.now() + 2000;
 	}
 
+	// The panel renders almost every form as multipart/form-data, so the encoding says
+	// nothing; only a form that is really uploading a file has its own progress display.
+	function hasChosenFile(f) {
+		var inputs = f.querySelectorAll ? f.querySelectorAll('input[type="file"]') : [];
+		for (var i = 0; i < inputs.length; i++) {
+			if (inputs[i].value) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	function opensElsewhere(el) {
 		var t = el.getAttribute('target');
 		return !!t && t !== '_self';
@@ -256,8 +268,7 @@
 		if (!f || !f.getAttribute) {
 			return;
 		}
-		var enctype = (f.getAttribute('enctype') || '').toLowerCase();
-		if (f.hasAttribute('data-kloxo-nobusy') || opensElsewhere(f) || enctype === 'multipart/form-data') {
+		if (f.hasAttribute('data-kloxo-nobusy') || opensElsewhere(f) || hasChosenFile(f)) {
 			suppress();
 			return;
 		}

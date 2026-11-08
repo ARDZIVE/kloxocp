@@ -62,10 +62,10 @@ if (str_contains($js, "addEventListener('beforeunload'") && str_contains($js, 's
 	bad('JS shows the modal on beforeunload, keeps it across the page change and hides it at DOMContentLoaded');
 }
 if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") && str_contains($js, 'mailto:')
-	&& str_contains($js, 'multipart/form-data') && str_contains($js, 'frm_subaction=download')) {
-	ok('JS skips downloads, mailto, targets and multipart uploads (they leave the page on screen)');
+	&& str_contains($js, 'hasChosenFile') && !str_contains($js, "enctype === 'multipart/form-data'") && str_contains($js, 'frm_subaction=download')) {
+	ok('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form (the panel renders all forms as multipart)');
 } else {
-	bad('JS skips downloads, mailto, targets and multipart uploads');
+	bad('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form');
 }
 if (!str_contains($js, 'animation')) {
 	ok('no fade-in delay (a modal still fading when the navigation commits is never seen)');
