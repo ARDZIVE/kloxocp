@@ -5,8 +5,10 @@
  * KloxoBusy.show(text) / KloxoBusy.hide()
  *
  * Service list icons (Sb, State, Start, Stop, Restart) show it on click and it
- * stays until the request finishes and the next page replaces this one (there
- * is no time-out); any link or form can opt in with data-kloxo-busy="text".
+ * stays until the request finishes (there is no time-out); the request runs
+ * in the background (fetch), then the page follows the server's redirect.
+ * Any link can opt in with data-kloxo-busy="text"; a form with the same
+ * attribute shows the modal on submit.
  */
 (function (win, doc) {
 	'use strict';
@@ -88,6 +90,43 @@
 		return (m && serviceObj.test(href)) ? texts[m[1]] : '';
 	}
 
+	/*
+	 * Run the action in the background and keep this page (and the modal) on screen.
+	 * A normal navigation swaps in the new document as soon as the server flushes
+	 * the page header (the action then still runs for seconds), which showed a blank
+	 * page with only the background image and no modal. The finished response ends
+	 * with <meta http-equiv="Refresh" content="0;URL=...">: follow that URL ourselves
+	 * once the whole response (= the action) is done.
+	 */
+	var refreshRe = /http-equiv\s*=\s*["']?refresh["']?\s+content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*([^"'>\s]+)/i;
+
+	function run(href, text) {
+		api.show(text);
+		if (!win.fetch) {
+			win.location.href = href;
+			return;
+		}
+		win.fetch(href, {credentials: 'same-origin', cache: 'no-store'}).then(function (res) {
+			return res.text().then(function (body) {
+				return {url: res.url, body: body};
+			});
+		}).then(function (r) {
+			var m = refreshRe.exec(r.body);
+			var target = m ? m[1].replace(/&amp;/g, '&') : '';
+			if (target && target.charAt(0) === '/' && target.charAt(1) !== '/') {
+				win.location.assign(target);
+				return;
+			}
+			// No redirect (an error page, for instance): show what the server sent.
+			doc.open();
+			doc.write(r.body);
+			doc.close();
+		}).catch(function () {
+			// The action may have run; never repeat it, just show the current state.
+			win.location.reload();
+		});
+	}
+
 	doc.addEventListener('click', function (ev) {
 		if (ev.defaultPrevented || ev.button > 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey) {
 			return;
@@ -101,7 +140,8 @@
 		}
 		var text = textFor(n);
 		if (text) {
-			api.show(text);
+			ev.preventDefault();
+			run(n.getAttribute('href'), text);
 		}
 	}, true);
 
