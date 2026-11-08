@@ -113,8 +113,8 @@ class pserver extends pservercore {
 			unset($param['imap4_driver']);
 		}
 	*/
-		// Only these six keys are drivers. Anything else in $param (use_pagespeed,
-		// use_apache24, __v_updateall_button...) must never reach switchDriver.
+		// Only these six keys are drivers. Anything else in $param (use_apache24,
+		// __v_updateall_button...) must never reach switchDriver.
 		$driverClasses = array('web', 'webcache', 'dns', 'spam', 'pop3', 'smtp');
 		$allowed = $this->switchProgramChoices();
 		$a = array();
@@ -164,25 +164,6 @@ class pserver extends pservercore {
 			if (file_exists($httpd24flag)) {
 				exec("'rm' -f {$httpd24flag}");
 			}
-		}
-
-		$pagespeedflag = "../etc/flag/use_pagespeed.flg";
-		$usepagespeed = isset($param['use_pagespeed'])
-			? $param['use_pagespeed']
-			: (file_exists($pagespeedflag) ? 'on' : 'off');
-
-		$pagespeedWas = file_exists($pagespeedflag) ? 'on' : 'off';
-
-		if ($usepagespeed === 'on') {
-			exec("echo '' > {$pagespeedflag}");
-		} else {
-			exec("'rm' -f {$pagespeedflag}");
-		}
-
-		// Reinstall the web server only when this setting really changed; doing it
-		// on every Update restarted the web server for an unrelated switch.
-		if ($pagespeedWas !== ($usepagespeed === 'on' ? 'on' : 'off')) {
-			setAllWebServerInstall();
 		}
 
 		// MR -- add 'pserver' on slavedb - read current server enough from slave_get_db

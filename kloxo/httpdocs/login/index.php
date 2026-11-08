@@ -156,6 +156,8 @@ table.content_title td {
 
 </style>
 
+<script src="/theme/js/kloxo-busy.js"></script>
+
 </head>
 
 <body>

@@ -1,14 +1,33 @@
 /*
  * Busy modal: a centred animated GIF spinner (theme/img/kloxo-spinner.gif)
- * while a long-running panel action executes.
+ * while the panel is working on a request. Included on every panel page
+ * (HtmlLib::print_include_jscript).
  *
  * KloxoBusy.show(text) / KloxoBusy.hide()
  *
- * Service list icons (Sb, State, Start, Stop, Restart) show it on click and it
- * stays until the request finishes (there is no time-out); the request runs
- * in the background (fetch), then the page follows the server's redirect.
- * Any link can opt in with data-kloxo-busy="text"; a form with the same
- * attribute shows the modal on submit.
+ * Every navigation away from a page shows it: link click, form submit, a
+ * script that sets location or calls form.submit() (all of them end in
+ * `beforeunload`). The modal then stays until the next page has received its
+ * whole HTML (DOMContentLoaded), with no time-out. Because the panel streams
+ * its pages (the header is flushed, then the action runs for seconds), the new
+ * document would otherwise replace the old one and take the modal with it; so
+ * the "busy" state is kept in sessionStorage and the new page shows the modal
+ * again from the first line of its <head>, before the body exists. A page that
+ * ends with <meta http-equiv="Refresh" content="0;URL=..."> (the panel's
+ * redirect after an action) keeps the modal up until the page it redirects to
+ * has loaded.
+ *
+ * It is not shown for navigations that leave the page showing (they would
+ * never hide it): downloads, mailto:, links or forms with a target, multipart
+ * (file upload) forms which have their own progress display, and links or
+ * forms marked data-kloxo-nobusy. The modal is shown at once, not after a delay:
+ * the browser keeps painting the old page's last frame until the new document
+ * paints something, so a modal that is still fading in when the navigation
+ * commits is never seen.
+ *
+ * Service list icons (Sb, State, Start, Stop, Restart) run their action in the
+ * background (fetch) and then follow the server's redirect. Any link or form
+ * can set its own text with data-kloxo-busy="text".
  */
 (function (win, doc) {
 	'use strict';
@@ -17,11 +36,70 @@
 		return;
 	}
 
+	var KEY = 'kloxo-busy';
+	var MAX_AGE = 15 * 60 * 1000;   // a flag older than this is a navigation that never finished
+	var DEFAULT_TEXT = 'Please wait...';
+
 	var overlay = null;
 	var label = null;
+	var suppressUntil = 0;
+
+	function store() {
+		try {
+			return win.sessionStorage;
+		} catch (e) {
+			return null;
+		}
+	}
+
+	function flagSet(text) {
+		var s = store();
+		if (s) {
+			try {
+				s.setItem(KEY, JSON.stringify({t: Date.now(), text: text}));
+			} catch (e) {
+				// storage full or disabled: the modal just will not survive the page change
+			}
+		}
+	}
+
+	function flagGet() {
+		var s = store();
+		if (!s) {
+			return null;
+		}
+		try {
+			var raw = s.getItem(KEY);
+			var f = raw ? JSON.parse(raw) : null;
+			if (f && typeof f.t === 'number' && Date.now() - f.t < MAX_AGE) {
+				return f;
+			}
+			if (raw) {
+				s.removeItem(KEY);
+			}
+		} catch (e) {
+			// unreadable flag: ignore
+		}
+		return null;
+	}
+
+	function flagClear() {
+		var s = store();
+		if (s) {
+			try {
+				s.removeItem(KEY);
+			} catch (e) {
+				// ignore
+			}
+		}
+	}
 
 	function build() {
-		if (overlay || !doc.body) {
+		if (overlay) {
+			return;
+		}
+		var host = doc.body || doc.documentElement;
+		if (!host) {
 			return;
 		}
 		var css = doc.createElement('style');
@@ -34,7 +112,7 @@
 			'text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4);font:14px Arial,Helvetica,sans-serif;color:#333}' +
 			'#kloxo-busy img{width:64px;height:64px;display:block;margin:0 auto 10px}'
 		));
-		doc.getElementsByTagName('head')[0].appendChild(css);
+		(doc.head || doc.getElementsByTagName('head')[0] || host).appendChild(css);
 
 		overlay = doc.createElement('div');
 		overlay.id = 'kloxo-busy';
@@ -49,16 +127,17 @@
 		box.appendChild(img);
 		box.appendChild(label);
 		overlay.appendChild(box);
-		doc.body.appendChild(overlay);
+		host.appendChild(overlay);
 	}
 
 	var api = {
+		/** @param {string=} text */
 		show: function (text) {
 			build();
 			if (!overlay) {
 				return;
 			}
-			label.textContent = text || 'Please wait...';
+			label.textContent = text || DEFAULT_TEXT;
 			overlay.className = 'on';
 		},
 		hide: function () {
@@ -68,6 +147,14 @@
 		}
 	};
 	win.KloxoBusy = api;
+
+	// The page we arrived on was left while busy: show the modal again at once.
+	var arrived = flagGet();
+	if (arrived) {
+		api.show(arrived.text);
+	}
+
+	// ---- Services icons: run in the background, then follow the redirect ----------------
 
 	// /display.php?frm_action=update&frm_subaction=stop&...&frm_o_o[1][class]=service&...
 	var serviceAct = /[?&]frm_subaction=(start|stop|restart|toggle_state|toggle_boot_state)(?:&|$)/;
@@ -80,28 +167,20 @@
 		toggle_boot_state: 'Changing boot state...'
 	};
 
-	function textFor(a) {
-		var t = a.getAttribute('data-kloxo-busy');
-		if (t) {
-			return t;
-		}
-		var href = a.getAttribute('href') || '';
+	function serviceText(href) {
 		var m = serviceAct.exec(href);
 		return (m && serviceObj.test(href)) ? texts[m[1]] : '';
 	}
 
 	/*
-	 * Run the action in the background and keep this page (and the modal) on screen.
-	 * A normal navigation swaps in the new document as soon as the server flushes
-	 * the page header (the action then still runs for seconds), which showed a blank
-	 * page with only the background image and no modal. The finished response ends
-	 * with <meta http-equiv="Refresh" content="0;URL=...">: follow that URL ourselves
-	 * once the whole response (= the action) is done.
+	 * The finished response ends with <meta http-equiv="Refresh" content="0;URL=...">:
+	 * follow that URL ourselves once the whole response (= the action) is done.
 	 */
 	var refreshRe = /http-equiv\s*=\s*["']?refresh["']?\s+content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*([^"'>\s]+)/i;
 
 	function run(href, text) {
 		api.show(text);
+		flagSet(text);
 		if (!win.fetch) {
 			win.location.href = href;
 			return;
@@ -118,6 +197,7 @@
 				return;
 			}
 			// No redirect (an error page, for instance): show what the server sent.
+			flagClear();
 			doc.open();
 			doc.write(r.body);
 			doc.close();
@@ -127,34 +207,112 @@
 		});
 	}
 
+	// ---- which navigations get the modal -------------------------------------------------
+
+	// Navigations that leave the page on screen (the modal would never hide).
+	var noNavigate = /^(?:mailto:|tel:|sms:|blob:|data:|#)/i;
+	var downloadUrl = /[?&]frm_subaction=download(?:&|$)|\/filedownload\.php/i;
+
+	function suppress() {
+		suppressUntil = Date.now() + 2000;
+	}
+
+	function opensElsewhere(el) {
+		var t = el.getAttribute('target');
+		return !!t && t !== '_self';
+	}
+
 	doc.addEventListener('click', function (ev) {
-		if (ev.defaultPrevented || ev.button > 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+		if (ev.defaultPrevented || ev.button > 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) {
 			return;
 		}
 		var n = ev.target;
 		while (n && n !== doc && !(n.tagName && n.tagName.toLowerCase() === 'a')) {
 			n = n.parentNode;
 		}
-		if (!n || n === doc || n.target === '_blank') {
+		if (!n || n === doc) {
 			return;
 		}
-		var text = textFor(n);
-		if (text) {
+		var href = n.getAttribute('href') || '';
+		if (n.hasAttribute('data-kloxo-nobusy') || n.hasAttribute('download') || opensElsewhere(n)
+			|| noNavigate.test(href) || downloadUrl.test(href)) {
+			suppress();
+			return;
+		}
+		var svc = serviceText(href);
+		if (svc) {
 			ev.preventDefault();
-			run(n.getAttribute('href'), text);
+			run(href, n.getAttribute('data-kloxo-busy') || svc);
+			return;
+		}
+		var own = n.getAttribute('data-kloxo-busy');
+		if (own) {
+			flagSet(own);   // beforeunload shows the modal with this text
 		}
 	}, true);
 
 	doc.addEventListener('submit', function (ev) {
 		var f = ev.target;
-		var t = f && f.getAttribute ? f.getAttribute('data-kloxo-busy') : '';
+		if (!f || !f.getAttribute) {
+			return;
+		}
+		var enctype = (f.getAttribute('enctype') || '').toLowerCase();
+		if (f.hasAttribute('data-kloxo-nobusy') || opensElsewhere(f) || enctype === 'multipart/form-data') {
+			suppress();
+			return;
+		}
+		var t = f.getAttribute('data-kloxo-busy');
 		if (t) {
+			flagSet(t);
 			api.show(t);
 		}
 	}, true);
 
-	// Back/forward cache restores the page with the modal still open.
-	win.addEventListener('pageshow', function () {
+	// Any other way of leaving the page (links, forms, location, form.submit()).
+	win.addEventListener('beforeunload', function () {
+		if (Date.now() < suppressUntil) {
+			return;
+		}
+		var f = flagGet();
+		var text = f ? f.text : DEFAULT_TEXT;
+		flagSet(text);
+		api.show(text);
+	});
+
+	// ---- hiding it ---------------------------------------------------------------------
+
+	// The page has all its HTML. If it is only a redirect page, stay busy for the next one.
+	function arrivedFully() {
+		var metas = doc.getElementsByTagName('meta');
+		for (var i = 0; i < metas.length; i++) {
+			var he = (metas[i].getAttribute('http-equiv') || '').toLowerCase();
+			var c = metas[i].getAttribute('content') || '';
+			if (he === 'refresh' && /^\s*[01]?\s*(?:;|$)/.test(c) && /url\s*=/i.test(c)) {
+				return;
+			}
+		}
+		flagClear();
 		api.hide();
+	}
+
+	if (doc.readyState === 'loading') {
+		doc.addEventListener('DOMContentLoaded', arrivedFully);
+	} else {
+		arrivedFully();
+	}
+	win.addEventListener('load', function () {
+		// DOMContentLoaded already hid it; this only covers a missed event.
+		if (doc.readyState === 'complete' && !doc.querySelector('meta[http-equiv="refresh" i]')) {
+			flagClear();
+			api.hide();
+		}
+	});
+
+	// Back/forward cache restores the page with the modal still open.
+	win.addEventListener('pageshow', function (ev) {
+		if (ev.persisted) {
+			flagClear();
+			api.hide();
+		}
 	});
 })(window, document);

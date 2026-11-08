@@ -44,7 +44,6 @@ function sp_params(array $cur, array $over = array()): array
 	foreach ($cur as $c => $v) {
 		$p[$c . '_driver'] = $v;
 	}
-	$p['use_pagespeed'] = 'off';
 
 	return array_merge($p, $over);
 }

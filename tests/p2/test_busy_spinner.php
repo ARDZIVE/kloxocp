@@ -47,6 +47,32 @@ if (str_contains($js, '/theme/img/kloxo-spinner.gif') && str_contains($js, 'Klox
 	bad('JS shows the GIF, hides on pageshow and never times out');
 }
 
+$login = (string) file_get_contents($doc . '/login/index.php');
+if (str_contains($login, '/theme/js/kloxo-busy.js')) {
+	ok('the login page includes kloxo-busy.js');
+} else {
+	bad('the login page includes kloxo-busy.js');
+}
+// Every navigation shows the modal and the new page shows it again from its <head> until it has all its HTML.
+if (str_contains($js, "addEventListener('beforeunload'") && str_contains($js, 'sessionStorage')
+	&& str_contains($js, "'DOMContentLoaded'") && str_contains($js, 'arrivedFully')
+	&& str_contains($js, 'doc.documentElement')) {
+	ok('JS shows the modal on beforeunload, keeps it across the page change and hides it at DOMContentLoaded');
+} else {
+	bad('JS shows the modal on beforeunload, keeps it across the page change and hides it at DOMContentLoaded');
+}
+if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") && str_contains($js, 'mailto:')
+	&& str_contains($js, 'multipart/form-data') && str_contains($js, 'frm_subaction=download')) {
+	ok('JS skips downloads, mailto, targets and multipart uploads (they leave the page on screen)');
+} else {
+	bad('JS skips downloads, mailto, targets and multipart uploads');
+}
+if (!str_contains($js, 'animation')) {
+	ok('no fade-in delay (a modal still fading when the navigation commits is never seen)');
+} else {
+	bad('no fade-in delay');
+}
+
 // The hrefs the Services list really renders must match the JS patterns.
 if (preg_match('~var serviceAct = /(.+)/;~', $js, $m1) && preg_match('~var serviceObj = /(.+)/;~', $js, $m2)) {
 	$act = '~' . str_replace('~', '\~', $m1[1]) . '~';

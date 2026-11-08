@@ -70,15 +70,14 @@ function child(string $tmp, string $scenario): array
 // 1. form
 $r = child($tmp, 'form');
 $v = $r['vlist'] ?? array();
-$ok = isset($v['web_driver'][1], $v['webcache_driver'][1], $v['dns_driver'][1], $v['spam_driver'][1], $v['pop3_driver'][1], $v['smtp_driver'][1])
+$ok = isset($v['web_driver'][1], $v['dns_driver'][1], $v['spam_driver'][1], $v['pop3_driver'][1], $v['smtp_driver'][1])
 	&& $v['web_driver'][1] === array('none', 'nginx', 'apache')
-	&& $v['webcache_driver'][1] === array('none', 'nginx')
 	&& $v['dns_driver'][1] === array('none', 'bind', 'knot')
 	&& $v['spam_driver'][1] === array('none', 'spamassassin')
 	&& $v['pop3_driver'][1] === array('none', 'dovecot')
 	&& $v['smtp_driver'][1] === array('none', 'exim', 'postfix')
-	&& isset($v['use_pagespeed']) && isset($v['__v_updateall_button']);
-$ok ? ok('form lists every program and renders without an exception') : bad('form lists every program and renders without an exception', $r['raw']);
+	&& !isset($v['webcache_driver']) && !isset($v['use_pagespeed']) && isset($v['__v_updateall_button']);
+$ok ? ok('form lists every program (no Cache list, no Use Pagespeed) and renders without an exception') : bad('form lists every program (no Cache list, no Use Pagespeed) and renders without an exception', $r['raw']);
 
 // 2. every offered program has a driver class
 $r = child($tmp, 'classes');

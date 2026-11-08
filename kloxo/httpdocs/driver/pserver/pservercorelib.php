@@ -1451,16 +1451,6 @@ STRIN;
 					}
 				}
 
-				if (file_exists("../etc/flag/use_pagespeed.flg")) {
-					$this->use_pagespeed = 'on';
-				} else {
-					$this->use_pagespeed = 'off';
-				}
-
-				$vlist['use_pagespeed'] = array('f', 'on', 'off');
-
-				$vlist['webcache_driver'] = array('s', $driver['webcache']);
-
 				$vlist['dns_driver'] = array('s', $driver['dns']);
 
 				$vlist['spam_driver'] = array('s', $driver['spam']);
