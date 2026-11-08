@@ -28,6 +28,7 @@ $tmp = sys_get_temp_dir() . '/kloxo-watchdog-test-' . getmypid();
 @mkdir($tmp . '/etc/conf', 0755, true);
 @mkdir($tmp . '/etc/slavedb', 0755, true);
 @mkdir($tmp . '/log', 0755, true);
+putenv('KLOXO_VAR_LIB=' . $tmp);
 
 /** Fake machine: units, open ports, a clock and recorded calls. */
 final class Fake
@@ -284,6 +285,24 @@ $o->data = ['admin' => ['contactemail' => 'admin@example.org']];
 file_put_contents($tmp . '/etc/slavedb/contactemail', str_replace('O:8:"stdClass"', 'O:6:"Remote"', serialize($o)));
 check(KloxoWatchdog::contactEmail($tmp) === 'admin@example.org' && KloxoWatchdog::contactEmail($tmp . '/none') === '',
 	'admin address is read from the panel file, not the database');
+check(KloxoWatchdog::validAddress('ops@example.net') === 'ops@example.net'
+	&& KloxoWatchdog::validAddress('ops@example.net, backup@example.net') === 'ops@example.net'
+	&& KloxoWatchdog::validAddress('Admin <ops@example.net>') === 'ops@example.net'
+	&& KloxoWatchdog::validAddress("ops@example.net\nBcc: x@y.z") === '',
+	'profile field may be one address, a list, or Name <addr>; header injection is refused');
+$vlib = $tmp . '/varlib';
+@mkdir($vlib, 0755, true);
+$pdo = new PDO('sqlite:' . $vlib . '/panel.sqlite');
+$pdo->exec('CREATE TABLE client (nname TEXT, contactemail TEXT)');
+$pdo->exec("INSERT INTO client (nname, contactemail) VALUES ('admin', 'ops@example.net')");
+putenv('KLOXO_VAR_LIB=' . $vlib);
+$emptyRoot = $tmp . '/r-sqlite';
+@mkdir($emptyRoot, 0755, true);
+check(KloxoWatchdog::contactEmail($emptyRoot) === 'ops@example.net',
+	'admin address in panel.sqlite is used when the slavedb file is missing');
+check(KloxoWatchdog::contactEmailFromFile($emptyRoot) === 'ops@example.net',
+	'reading sqlite copies the address into the slavedb file for the watchdog');
+putenv('KLOXO_VAR_LIB=' . $tmp);
 
 // ---- notification on a restart uses the contact address
 $f8 = new Fake();
@@ -321,6 +340,7 @@ $lib = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/html/lib.php');
 $cl = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/client/lxclient.php');
 $ipd = (string) file_get_contents($repo . '/kloxo/bin/install/init-panel-db');
 check(str_contains($lib, 'function save_admin_contactemail') && str_contains($lib, 'slave_save_db("contactemail"')
+	&& str_contains($lib, "__path_program_root") && str_contains($lib, "KloxoWatchdog::validAddress")
 	&& preg_match("/nname === 'admin'\\) \\{\\s*\\/\\/[^\\n]*\\n\\s*save_admin_contactemail\\(\\\$this->contactemail\\)/", $cl) === 1,
 	'saving the admin profile writes etc/slavedb/contactemail for the watchdog');
 check(str_contains($ipd, 'syncAdminContactEmail($pdo)') && str_contains($ipd, "'O:6:\"Remote\"'"),

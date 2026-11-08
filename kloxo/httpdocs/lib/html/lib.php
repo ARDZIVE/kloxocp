@@ -3260,14 +3260,16 @@ function save_admin_email($nolog = null)
 // the database (it must keep working while MariaDB is down).
 function save_admin_contactemail($email)
 {
-	$email = trim((string) $email);
+	$raw = trim((string) $email);
+	$mail = class_exists('KloxoWatchdog') ? KloxoWatchdog::validAddress($raw) : $raw;
 	// An emptied address is saved as empty so the watchdog stops using the old one.
-	if ($email !== '' && (filter_var($email, FILTER_VALIDATE_EMAIL) === false || preg_match('/[\r\n,;<>]/', $email))) {
+	// Non-empty junk is ignored so a previous good address is kept.
+	if ($raw !== '' && $mail === '') {
 		return;
 	}
 
 	$a = null;
-	$a['admin']['contactemail'] = $email;
+	$a['admin']['contactemail'] = $mail;
 	slave_save_db("contactemail", $a);
 }
 
@@ -4427,16 +4429,19 @@ function fix_mysql_root_password($server)
 
 function slave_save_db($file, $list)
 {
-//	global $login;
+	global $sgbl;
+
+	$file = basename((string) $file);
+	if ($file === '' || $file === '.' || $file === '..') {
+		return;
+	}
 
 	$rmt = new Remote();
 	$rmt->data = $list;
 
-	lxfile_mkdir("../etc/slavedb");
-	lfile_put_serialize("../etc/slavedb/$file", $rmt);
-
-//	rl_exec_get('localhost', $login->syncserver, 'lxfile_mkdir', array('../etc/slavedb'));
-//	rl_exec_get('localhost', $login->syncserver, 'lfile_put_serialize', array("../etc/slavedb/{$file}", $rmt));
+	$dir = rtrim((string) $sgbl->__path_program_root, '/') . '/etc/slavedb';
+	lxfile_mkdir($dir);
+	lfile_put_serialize($dir . '/' . $file, $rmt);
 }
 
 function securityBlanketExec($table, $nname, $variable, $func, $arglist)

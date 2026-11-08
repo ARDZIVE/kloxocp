@@ -26,6 +26,7 @@ $repo = dirname(__DIR__, 2);
 $tmp = sys_get_temp_dir() . '/kloxo-recovery-test-' . getmypid();
 @mkdir($tmp . '/etc/conf', 0755, true);
 putenv('KLOXO_ROOT=' . $tmp);
+putenv('KLOXO_VAR_LIB=' . $tmp);
 
 // Fake systemctl: state kept in files; `show` prints blocks like the real one.
 $state = $tmp . '/state';
@@ -231,6 +232,9 @@ $csrf = (string) $sess['csrf'];
 $res = KloxoRecoveryPage::handle($https, [], [], $sess, $ip, $now + 5);
 check($res['status'] === 200 && str_contains($res['body'], 'mariadb') && str_contains($res['body'], 'not installed')
 	&& str_contains($res['body'], 'name="csrf" value="' . $csrf . '"'), 'logged in: unit list with CSRF-protected buttons');
+check(str_contains($res['body'], '<th>Application</th><th>State</th><th>Actions</th><th>At boot</th><th>Watchdog</th><th>Log</th>'),
+	'overview puts Actions next to State so the buttons stay on screen');
+check(!str_contains($res['body'], 'inactive / '), 'inactive units do not append SubState');
 check(str_contains($res['body'], 'name="unit" value="bind9"')
 	&& !str_contains($res['body'], '<td>bind9</td><td colspan="5">not installed</td>'),
 	'logged in: bind9 has Start, not "not installed"');
@@ -239,7 +243,7 @@ check(!str_contains($res['body'], 'Enable at boot'), 'Enable at boot is hidden w
 file_put_contents($state . '/disabled-mariadb', '');
 $res = KloxoRecoveryPage::handle($https, [], [], $sess, $ip, $now + 5);
 check(str_contains($res['body'], 'name="act" value="enable"') && str_contains($res['body'], 'Enable at boot')
-	&& str_contains($res['body'], '>disabled</td>'),
+	&& str_contains($res['body'], '>disabled</'),
 	'logged in: Enable at boot is shown when the unit is disabled');
 $post = ['HTTPS' => 'on', 'REQUEST_METHOD' => 'POST'];
 $res = KloxoRecoveryPage::handle($post, [], ['do' => 'control', 'unit' => 'mariadb', 'act' => 'enable', 'csrf' => $csrf], $sess, $ip, $now + 6);

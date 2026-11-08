@@ -174,18 +174,101 @@ final class KloxoWatchdog
         return $cfg;
     }
 
-    /** Admin contact address kept by the panel as a file (no database needed). */
+    /** First usable address from a profile field (one address, a comma list, or "Name <addr>"). */
+    public static function validAddress(string $raw): string
+    {
+        foreach (preg_split('/[,;]+/', $raw) as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+            if (preg_match('/<([^>]+)>/', $part, $m) === 1) {
+                $part = trim($m[1]);
+            }
+            if (filter_var($part, FILTER_VALIDATE_EMAIL) !== false && preg_match('/[\r\n<>]/', $part) !== 1) {
+                return $part;
+            }
+        }
+
+        return '';
+    }
+
+    /** Admin contact address: slavedb file first, then panel.sqlite (the profile save). */
     public static function contactEmail(string $root): string
     {
+        $mail = self::contactEmailFromFile($root);
+        if ($mail !== '') {
+            return $mail;
+        }
+        $mail = self::contactEmailFromSqlite();
+        if ($mail !== '') {
+            self::writeContactEmail($root, $mail);
+
+            return $mail;
+        }
+
+        return '';
+    }
+
+    public static function contactEmailFromFile(string $root): string
+    {
         $f = rtrim($root, '/') . '/etc/slavedb/contactemail';
-        if (!is_file($f)) {
+        if (!is_file($f) || !is_readable($f)) {
             return '';
         }
         $o = @unserialize((string) @file_get_contents($f), ['allowed_classes' => false]);
         $a = is_object($o) ? (array) $o : (is_array($o) ? $o : []);
         $mail = $a['data']['admin']['contactemail'] ?? '';
 
-        return (is_string($mail) && filter_var($mail, FILTER_VALIDATE_EMAIL) !== false && !preg_match('/[\r\n,;<>]/', $mail)) ? $mail : '';
+        return is_string($mail) ? self::validAddress($mail) : '';
+    }
+
+    public static function panelSqlitePath(): string
+    {
+        $env = getenv('KLOXO_VAR_LIB');
+        if (is_string($env) && $env !== '' && !str_contains($env, "\0")) {
+            return rtrim($env, '/') . '/panel.sqlite';
+        }
+
+        return '/var/lib/kloxo/panel.sqlite';
+    }
+
+    public static function contactEmailFromSqlite(): string
+    {
+        $db = self::panelSqlitePath();
+        if (!is_readable($db)) {
+            return '';
+        }
+        try {
+            $pdo = new PDO('sqlite:' . $db, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ]);
+            $mail = (string) $pdo->query("SELECT contactemail FROM client WHERE nname = 'admin'")->fetchColumn();
+        } catch (Throwable $e) {
+            return '';
+        }
+
+        return self::validAddress($mail);
+    }
+
+    /** Same serialized Remote blob the panel writes; best-effort. */
+    public static function writeContactEmail(string $root, string $email): bool
+    {
+        $email = self::validAddress($email);
+        $dir = rtrim($root, '/') . '/etc/slavedb';
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return false;
+        }
+        $o = new stdClass();
+        $o->data = ['admin' => ['contactemail' => $email]];
+        $blob = str_replace('O:8:"stdClass"', 'O:6:"Remote"', serialize($o));
+        $tmp = $dir . '/.contactemail.' . getmypid();
+        if (@file_put_contents($tmp, $blob) === false) {
+            return false;
+        }
+        @chmod($tmp, 0644);
+
+        return @rename($tmp, $dir . '/contactemail');
     }
 
     /** Address that gets the mails: `notify` from watchdog.json, else the admin contact email. */

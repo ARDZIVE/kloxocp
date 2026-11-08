@@ -541,10 +541,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   `Names`/`Id` so Debian `bind9.service` (an alias of `named.service`) is not listed as
   not installed; start/stop/journal use the canonical unit. An **Enable at boot**
   button (`systemctl enable`) is shown on a row whose UnitFileState is not already
-  enabled/static. Tests: `tests/p2/test_recovery.php`
-  (fake systemctl/journalctl, including the bind9→named alias);
+  enabled/static.   Tests: `tests/p2/test_recovery.php`
+  (66 checks, fake systemctl/journalctl, including the bind9→named alias);
   a real backend was also run in a temp tree with the DB unreachable and a non-root client
-  call round-tripped through it. **UNVERIFIED:** real systemd as root, Hiawatha/FPM serving
+  call round-tripped through it. The login, overview and journal pages use the panel
+  red/beige/green (inline CSS; CSP still `style-src 'unsafe-inline'`). Overview columns
+  are Application, State, Actions, At boot, Watchdog, Log so Start/Stop stay on screen;
+  inactive units omit SubState; installed rows come first. Checked against HTML dumps
+  in a local browser. **UNVERIFIED:** real systemd as root, Hiawatha/FPM serving
   the page, a reboot with MariaDB failing, `/recovery` without trailing slash, live bind9
   row on Ubuntu.
   Known limit: it needs kloxo-backend to be running and MariaDB-independent; if
@@ -556,7 +560,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   restart, waits until it answers), respects boot grace, enabled-only, panel Watchdog screen
   off switches, `etc/conf/watchdog.json`, holds for units stopped on purpose
   (`KloxoRecovery::serverControl`, `Service__Linux::systemctlRunDetail`), max 3 restarts per
-  30 min then gives up with one mail (address from `etc/slavedb/contactemail`, no DB; the panel writes that file when the admin saves the profile (`Lxclient::postUpdate` -> `save_admin_contactemail`), `init-panel-db` copies an existing address; `kloxo-watchdog --test-mail`; recovery console warns when empty). The old
+  30 min then gives up with one mail (address from `etc/slavedb/contactemail`, falling back to `client.contactemail` in panel.sqlite; the panel writes that file under the program root when the admin saves the profile (`Lxclient::postUpdate` -> `save_admin_contactemail`), `init-panel-db` copies an existing address; `kloxo-watchdog --test-mail`; recovery console warns only when both are empty). The old
   `watchdog__sync::watchRun` (RHEL `/script/restart-*`, DB-driven notification) is a no-op so
   nothing restarts twice. Recovery console shows a Watchdog column. Tests:
   `tests/p2/test_watchdog.php` (fake collaborators), `test_recovery.php` hold/release, the old

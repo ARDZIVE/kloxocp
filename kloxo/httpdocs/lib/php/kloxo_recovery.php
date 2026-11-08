@@ -59,7 +59,7 @@ final class KloxoRecovery
             return rtrim($env, '/');
         }
 
-        return '/opt/kloxo';
+        return dirname(__DIR__, 3);
     }
 
     public static function credentialPath(?string $root = null): string

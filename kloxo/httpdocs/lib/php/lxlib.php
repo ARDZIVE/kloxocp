@@ -1042,6 +1042,7 @@ function getShellCommand($cmd, $arglist)
 	return $cmd;
 }
 
+#[AllowDynamicProperties]
 class Remote
 {
 	/*
