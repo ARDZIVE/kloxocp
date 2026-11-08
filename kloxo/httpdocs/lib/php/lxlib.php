@@ -3063,7 +3063,13 @@ function get_classvar_description($class, $var = null)
 		return null;
 	}
 	if (!isset($ret[2]) || $ret[2] === null || $ret[2] === '') {
-		$ret[2] = $class !== '' ? $class : $rvar;
+		// Icon/button columns (type "b") with no label must stay blank. Filling
+		// the class name made four Domains stubs print "domain" before Domain Name.
+		if (isset($ret[0]) && is_string($ret[0]) && csa($ret[0], 'b')) {
+			$ret[2] = '';
+		} else {
+			$ret[2] = $class !== '' ? $class : $rvar;
+		}
 	}
 	$ret['help'] = $ret[2];
 	if (cse($dvar, "_o") || cse($dvar, "_l")) {
@@ -3079,8 +3085,8 @@ function get_classvar_description($class, $var = null)
 	 }
 */
 
-	$k = trim($ret[2], "_\n ");
-	if (isset($g_language_desc->__description[$k])) {
+	$k = trim((string) $ret[2], "_\n ");
+	if ($k !== '' && isset($g_language_desc->__description[$k])) {
 		$ret[2] = $g_language_desc->__description[$k][0];
 		if (isset($g_language_mes->__helpvar[$rvar])) {
 			$ret['help'] = $g_language_mes->__helpvar[$rvar];

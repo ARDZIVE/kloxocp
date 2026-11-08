@@ -216,7 +216,10 @@ client or its parent (`admin — {Clients}` / `mesrob — {Domains}`,
 not `… — Clients — admin — {…}`). Client Domains (`a=list&c=domain`) keeps the
 Kloxo-MR columns (S, T, DNS/traffic/addon/phpinfo/view/DNS-check/preview/webmail/stats,
 Domain Name, Date, Document Root, Traffic) even when `priv` or `general`
-is missing. Live client Domains after deploy is UNVERIFIED.
+is missing; the icon stubs immediately before Domain Name (`pvview_f`,
+`check_dns_f`, `dnvview_f`, `webmail_f`, `awstats_f`) have blank titles
+(type-b empty labels no longer fall back to the class name `domain`).
+Live client Domains after deploy is UNVERIFIED.
 First-party `ereg*`/`split`
 and live theme `escape`/`document.all` are gone. Browser login as
 admin/admin against the live panel succeeded; every page still died

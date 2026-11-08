@@ -10441,7 +10441,11 @@ function uploadAbort(e) { // upload abort
 		$url = $_SERVER['PHP_SELF'];
 
 		if (!$desc) {
-			$desc = ucfirst($sortby);
+			// Type-b icon stubs (pvview_f, check_dns_f, …) have no title; do not
+			// fall back to the field name or the class ("domain").
+			if (!isset($descr[0]) || !is_string($descr[0]) || !char_search_a($descr[0], "b")) {
+				$desc = ucfirst($sortby);
+			}
 		}
 
 		$help = str_replace('"', '', $help);

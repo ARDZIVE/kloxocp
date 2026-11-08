@@ -3027,19 +3027,36 @@ try {
 }
 $domSrc = (string) file_get_contents($doc . '/lib/domain/domainlib.php');
 $htmlDomSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
+$lxlibDomSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+$blankHeads = array('pvview_f', 'check_dns_f', 'dnvview_f', 'webmail_f', 'awstats_f', 'stats_f');
+$blankOk = true;
+$blankGot = array();
+foreach ($blankHeads as $hk) {
+	$hd = get_classvar_description('domain', $hk);
+	$h2 = (is_array($hd) && isset($hd[2])) ? (string) $hd[2] : 'missing';
+	$blankGot[$hk] = $h2;
+	if ($h2 !== '') {
+		$blankOk = false;
+	}
+}
+$nameHead = get_classvar_description('domain', 'nname');
+$nameHeadOk = is_array($nameHead) && isset($nameHead[2]) && stripos((string) $nameHead[2], 'domain') !== false;
 $domListOk = $domNlistErr === '' && $domMissing === array() && $domOrderOk
 	&& $docDispErr === '' && $docDisp === 'example.com'
+	&& $blankOk && $nameHeadOk
 	&& str_contains($domSrc, 'checkButton(\'can_manage_dns\')')
 	&& str_contains($domSrc, 'checkButton(\'webhosting_flag\')')
-	&& str_contains($htmlDomSrc, 'printObjectElement {$class}.{$name}');
+	&& str_contains($htmlDomSrc, 'printObjectElement {$class}.{$name}')
+	&& str_contains($lxlibDomSrc, "csa(\$ret[0], 'b')");
 if ($domListOk) {
-	ok('client Domains list columns match Kloxo-MR (S/T/icons/Name/Date/Docroot/Traffic)');
+	ok('client Domains list columns match Kloxo-MR (S/T/icons with blank titles/Name/Date/Docroot/Traffic)');
 } else {
 	bad('client Domains list columns match Kloxo-MR (S/T/icons/Name/Date/Docroot/Traffic)',
 		$domNlistErr !== '' ? $domNlistErr
 			: ('keys=' . implode(',', $domKeys) . ' missing=' . implode(',', $domMissing)
 				. ' order=' . ($domOrderOk ? 'y' : 'n') . ' doc=' . (string) $docDisp
-				. ' docErr=' . $docDispErr));
+				. ' docErr=' . $docDispErr
+				. ' heads=' . json_encode($blankGot)));
 }
 $login = $domPrevLogin;
 $GLOBALS['login'] = $domPrevLogin;

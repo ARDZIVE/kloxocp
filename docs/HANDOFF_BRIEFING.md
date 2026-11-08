@@ -508,8 +508,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Client and admin Domains (`a=list&c=domain`) keep the Kloxo-MR
     columns (S, T, icon shortcuts, Domain Name, Date, Document Root,
     Traffic) when `priv` or `general` is missing; a cell error no
-    longer drops the rest of the row. Live client Domains after
-    deploy is **UNVERIFIED**.
+    longer drops the rest of the row. Icon stubs immediately before
+    Domain Name (`pvview_f`, `check_dns_f`, `dnvview_f`, `webmail_f`,
+    `awstats_f`) keep blank headers: `get_classvar_description` no
+    longer fills an empty type-b label with the class name `domain`.
+    Live client Domains after deploy is **UNVERIFIED**.
     Admin Domains (`a=list&c=domain`) shows the Kloxo-MR add form
     (name, owner confirm, `/home/admin/` docroot, SSL/stats/
     Easy Installer/CGI/PHP, Add) even with no DNS template;
