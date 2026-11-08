@@ -98,6 +98,16 @@ if (str_contains($msg, 'journalctl -u pdns')) {
 	bad('describeStartFailure points at journalctl when the journal is empty', $msg);
 }
 $src = (string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php');
+// `ok` is derived from `rc` in controlUnit (systemctlRunDetail never sets it), so a
+// start that failed afterwards (rc=1) reaches the lxException in Service::runDirect.
+$detail = (string) substr($src, (int) strpos($src, 'static function systemctlRunDetail'), (int) strpos($src, 'static function controlUnit') - (int) strpos($src, 'static function systemctlRunDetail'));
+if (!str_contains($detail, "'ok'")
+	&& str_contains($src, "\$got['ok'] = ((int) \$got['rc'] === 0);")
+	&& str_contains((string) file_get_contents($doc . '/driver/pserver/servicelib.php'), "empty(\$res['ok'])")) {
+	ok('a failed start (rc=1) gives ok=false and is raised as an error');
+} else {
+	bad('a failed start (rc=1) gives ok=false and is raised as an error');
+}
 if (str_contains($src, "self::journalTail(\$unit)") && str_contains($src, "'auto-restart'")) {
 	ok('systemctlRunDetail checks the unit is active after start/restart');
 } else {
