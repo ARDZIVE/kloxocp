@@ -182,7 +182,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     password blank). `KloxoPmaSignon` cookie path `/` so phpMyAdmin index
     can read it. There is no SignonScript; PMA uses SignonURL.
     OS `root`@`localhost` stays unix_socket. The SQL Manager **tile** (phpMyAdmin,
-    new tab) is **admin-only**: admin home Domain and Basic (`webmailanddb`).
+    new tab) is **admin-only**: pserver Basic (`webmailanddb`), not home Domain.
     A client (or admin) click on a specific database opens
     `kloxo-signon.php?db=<nname>` as that mysqldb's MariaDB user with
     phpMyAdmin `only_db` (never `kloxo_pma`).
@@ -523,8 +523,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `awstats_f`) keep blank headers: `get_classvar_description` no
     longer fills an empty type-b label with the class name `domain`.
     Live client Domains after deploy is **UNVERIFIED**.
-    SQL Manager tile is admin-only (home Domain and Basic; domain show when the
-    login is admin). Clients open SQL Manager from a database row as that
+    SQL Manager tile is admin-only (pserver Basic; not home Domain or domain
+    show). Clients open SQL Manager from a database row as that
     database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager
     after deploy is **UNVERIFIED**.
     Admin Domains (`a=list&c=domain`) shows the Kloxo-MR add form

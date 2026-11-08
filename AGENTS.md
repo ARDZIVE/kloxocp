@@ -45,7 +45,7 @@ disabled until selected. Admin SQL Manager opens phpMyAdmin in a new tab
 (`/thirdparty/phpMyAdmin/kloxo-signon.php`, `target="_blank"`): a live
 panel-admin session is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (not `root`: root@localhost is unix_socket, error 1698 over TCP) and
 redirected; otherwise the MySQL logon form is shown (panel admin may
-leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql. SQL Manager **tile** (phpMyAdmin, new tab) is **admin-only**: admin home Domain and Basic (`webmailanddb`). A client click on a database opens SQL Manager as that mysqldb's own MariaDB user with `only_db` (never `kloxo_pma`). Component Info
+leave the password blank; signed CSRF, sign-on cookie path `/`). Not mywebsql. SQL Manager **tile** (phpMyAdmin, new tab) is **admin-only**: pserver Basic (`webmailanddb`), not home Domain. A client click on a database opens SQL Manager as that mysqldb's own MariaDB user with `only_db` (never `kloxo_pma`). Component Info
 lists Ubuntu packages (nginx, apache2, bind9, knot, mariadb-server,
 pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y-cli/fpm) plus source-built Hiawatha, with
 on/off from dpkg. SMTP `none` / `exim` (default, `pg_smtp=exim`) / `postfix`
@@ -224,7 +224,7 @@ is missing; the icon stubs immediately before Domain Name (`pvview_f`,
 `check_dns_f`, `dnvview_f`, `webmail_f`, `awstats_f`) have blank titles
 (type-b empty labels no longer fall back to the class name `domain`).
 Live client Domains after deploy is UNVERIFIED.
-SQL Manager tile is admin-only (home Domain + Basic; domain show when the login is admin). Clients open a selected database in SQL Manager as that database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager after deploy is UNVERIFIED.
+SQL Manager tile is admin-only (pserver Basic; not home Domain or domain show). Clients open a selected database in SQL Manager as that database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager after deploy is UNVERIFIED.
 First-party `ereg*`/`split`
 and live theme `escape`/`document.all` are gone. Browser login as
 admin/admin against the live panel succeeded; every page still died

@@ -1427,13 +1427,6 @@ class Domaind extends DomainBase
 	//	$alist['__v_dialog_pass'] = 'a=updateform&sa=password';
 
 		$alist[] = 'a=list&c=addondomain';
-		if (function_exists('kloxo_pma_login_is_admin') ? kloxo_pma_login_is_admin()
-			: (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin())) {
-			try {
-				$this->getMysqlDbAdmin($alist);
-			} catch (Throwable $e) {
-			}
-		}
 
 		$web = $this->getObject('web');
 

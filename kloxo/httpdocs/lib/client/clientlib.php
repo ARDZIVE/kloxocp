@@ -569,13 +569,6 @@ class Client extends ClientBase
 			} catch (Throwable $e) {
 				$alist[] = "a=list&c=mysqldb";
 			}
-			// SQL Manager is admin-only (phpMyAdmin, new tab). Clients do not get this tile.
-			if ($this->isAdmin()) {
-				try {
-					$this->getMysqlDbAdmin($alist);
-				} catch (Throwable $e) {
-				}
-			}
 			$alist[] = "a=show&l[class]=ffile&l[nname]=/";
 			$alist['__v_dialog_defd'] = "a=updateform&sa=default_domain";
 

@@ -118,7 +118,7 @@ function kloxo_pma_db_href(string $nname, bool $local = true, string $server = '
 	return $base . $sep . 'db=' . rawurlencode($nname);
 }
 
-/** SQL Manager dashboard tile is admin-only (home Domain, Basic, domain show). */
+/** SQL Manager dashboard tile is admin-only (pserver Basic). */
 function kloxo_pma_login_is_admin(): bool
 {
 	global $login;
@@ -128,7 +128,7 @@ function kloxo_pma_login_is_admin(): bool
 
 /**
  * Dashboard tile for SQL Manager (phpMyAdmin in a new tab).
- * Admin Domain section and pserver Basic; not shown to clients.
+ * Admin pserver Basic; not on home Domain (that tile duplicated Basic).
  */
 function kloxo_pma_action_object(bool $local = true, string $server = 'localhost'): object
 {
