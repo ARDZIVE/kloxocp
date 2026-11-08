@@ -117,6 +117,18 @@ if (parse_url($url, PHP_URL_FRAGMENT) === null
 } else {
 	bad('redirect message with quotes, & and # arrives whole', (string) ($parsed['frm_emessage'] ?? ''));
 }
+$j = "Unable to bind UDP socket to '0.0.0.0:53': Address already in use\nFatal error: Unable to bind to UDP socket";
+$ss = "udp UNCONN 0 0 127.0.0.54:53 0.0.0.0:* users:((\"systemd-resolve\",pid=612,fd=14))\n"
+	. "udp UNCONN 0 0 127.0.0.53%lo:53 0.0.0.0:* users:((\"systemd-resolve\",pid=612,fd=13))\n"
+	. "tcp LISTEN 0 4096 [::]:53 [::]:*\n";
+$holders = Service__Linux::parsePortHolders($ss);
+if (Service__Linux::portInUseFromJournal($j) === 53
+	&& Service__Linux::portInUseFromJournal('Fatal error: bad setting') === 0
+	&& $holders === array('127.0.0.54:53 (systemd-resolve)', '127.0.0.53%lo:53 (systemd-resolve)', '[::]:53 (unknown process)')) {
+	ok('"Address already in use" names the port and who holds it');
+} else {
+	bad('"Address already in use" names the port and who holds it', json_encode($holders) . ' ' . Service__Linux::portInUseFromJournal($j));
+}
 $src = (string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php');
 // `ok` is derived from `rc` in controlUnit (systemctlRunDetail never sets it), so a
 // start that failed afterwards (rc=1) reaches the lxException in Service::runDirect.

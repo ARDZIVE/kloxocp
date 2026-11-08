@@ -620,6 +620,22 @@ else
   bad "install-pdns --fix-bind-settings disables bind-config"
 fi
 rm -rf "$PDNS_ETC"
+FAKE_BIN="$(mktemp -d)"
+printf '#!/bin/sh\necho "udp UNCONN 0 0 127.0.0.54:53 0.0.0.0:*"\necho "udp UNCONN 0 0 127.0.0.53%%lo:53 0.0.0.0:*"\n' > "$FAKE_BIN/ss"
+printf '#!/bin/sh\necho "2: eth0    inet 203.0.113.5/24 brd 203.0.113.255 scope global eth0"\n' > "$FAKE_BIN/ip"
+chmod +x "$FAKE_BIN/ss" "$FAKE_BIN/ip"
+if [ "$(PATH="$FAKE_BIN:$PATH" php "$PDNS" --print-local-address)" = "local-address=127.0.0.1, 203.0.113.5" ]; then
+  ok "install-pdns avoids the systemd-resolved stub with an explicit local-address"
+else
+  bad "install-pdns avoids the systemd-resolved stub with an explicit local-address"
+fi
+printf '#!/bin/sh\necho "udp UNCONN 0 0 0.0.0.0:53 0.0.0.0:*"\n' > "$FAKE_BIN/ss"
+if PATH="$FAKE_BIN:$PATH" php "$PDNS" --print-local-address | grep -q wildcard; then
+  ok "install-pdns keeps the wildcard when no 127.0.0.x stub listens"
+else
+  bad "install-pdns keeps the wildcard when no 127.0.0.x stub listens"
+fi
+rm -rf "$FAKE_BIN"
 fails "install-pdns --etc must be absolute" php "$PDNS" --fix-bind-settings --etc=relative --root="$ROOT/kloxo"
 if grep -q 'pdns-server' "$ROOT/install.sh" && grep -q 'pdns-backend-mysql' "$ROOT/install.sh" \
   && grep -q 'disable --now pdns' "$ROOT/install.sh" \

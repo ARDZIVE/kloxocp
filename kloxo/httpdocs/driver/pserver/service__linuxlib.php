@@ -225,6 +225,75 @@ class Service__Linux extends Lxlclass
 		return trim((string) $out);
 	}
 
+	/** Absolute ss binary, or empty if missing. */
+	static function ssBin()
+	{
+		foreach (array('/usr/bin/ss', '/bin/ss', '/usr/sbin/ss') as $bin) {
+			if (is_executable($bin)) {
+				return $bin;
+			}
+		}
+
+		return '';
+	}
+
+	/** Port a "bind ... Address already in use" journal line is about, or 0. */
+	static function portInUseFromJournal($journal)
+	{
+		foreach (preg_split('/\r\n|\r|\n/', (string) $journal) ?: array() as $l) {
+			if (stripos($l, 'already in use') !== false && preg_match('/:(\d{2,5})[\'":\s]/', $l, $m) === 1) {
+				$port = (int) $m[1];
+
+				return ($port > 0 && $port < 65536) ? $port : 0;
+			}
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Who listens on a port, from `ss -lnutp` output: "127.0.0.53%lo:53 (systemd-resolve)".
+	 *
+	 * @return list<string>
+	 */
+	static function parsePortHolders($ssOutput)
+	{
+		$seen = array();
+		foreach (preg_split('/\r\n|\r|\n/', (string) $ssOutput) ?: array() as $l) {
+			$f = preg_split('/\s+/', trim($l)) ?: array();
+			if (count($f) < 5 || !in_array($f[0], array('udp', 'tcp'), true)) {
+				continue;
+			}
+			$proc = preg_match('/\(\("([^"]+)"/', $l, $m) === 1 ? $m[1] : 'unknown process';
+			$seen[$f[4] . ' (' . $proc . ')'] = true;
+		}
+
+		return array_keys($seen);
+	}
+
+	/** @return list<string> */
+	static function portHolders($port)
+	{
+		$bin = self::ssBin();
+		$port = (int) $port;
+		if ($bin === '' || $port < 1 || $port > 65535) {
+			return array();
+		}
+		$p = @proc_open(
+			array($bin, '-H', '-l', '-n', '-u', '-t', '-p', 'sport', '=', ':' . $port),
+			array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('file', '/dev/null', 'w')),
+			$pipes
+		);
+		if (!is_resource($p)) {
+			return array();
+		}
+		$out = self::readPipeLimited($pipes[1], 5);
+		fclose($pipes[1]);
+		proc_close($p);
+
+		return self::parsePortHolders($out);
+	}
+
 	/**
 	 * Text for a unit that did not reach `active` after start/restart.
 	 * `systemctl --no-block start` returns 0 at once even when the daemon then
@@ -340,7 +409,14 @@ class Service__Linux extends Lxlclass
 			if ($state === 'failed' || $state === 'inactive'
 				|| ($state === 'activating' && $sub === 'auto-restart')) {
 				$res['rc'] = 1;
-				$res['err'] = self::describeStartFailure($unit, $state, self::journalTail($unit, 30));
+				$journal = self::journalTail($unit, 30);
+				$res['err'] = self::describeStartFailure($unit, $state, $journal);
+				$port = self::portInUseFromJournal($journal);
+				if ($port > 0) {
+					$who = self::portHolders($port);
+					$res['err'] .= ' | port ' . $port . ' is held by: '
+						. ($who === array() ? 'unknown (run: ss -lnutp sport = :' . $port . ')' : implode(', ', $who));
+				}
 			}
 		}
 
