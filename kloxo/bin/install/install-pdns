@@ -16,7 +16,7 @@ declare(strict_types=1);
  * argument-array proc_open, no shell strings. Does not enable or start pdns.
  *
  * Usage:
- *   install-pdns --root=DIR [--dry-run] [--force]
+ *   install-pdns --root=DIR [--etc=DIR] [--dry-run] [--force]
  */
 
 const IPDNS_VERSION = '0.1.0';
@@ -63,6 +63,7 @@ final class App
     /** @var array<string,string|true> */
     private array $opt = [];
     private string $root = '/opt/kloxo';
+    private string $etc = '/etc/powerdns';
 
     public function run(array $argv): int
     {
@@ -79,6 +80,10 @@ final class App
                 $this->opt['dry-run'] = true;
                 continue;
             }
+            if ($a === '--fix-bind-settings') {
+                $this->opt['fix-bind-settings'] = true;
+                continue;
+            }
             if ($a === '--force') {
                 $this->opt['force'] = true;
                 continue;
@@ -91,11 +96,18 @@ final class App
             throw new IpdnsException("Unknown argument: $a");
         }
         $this->root = $this->optRoot();
+        $this->etc = $this->optEtc();
         if (isset($this->opt['dry-run'])) {
             echo "plan: install-pdns {$this->root}\n";
             echo "  packages pdns-server pdns-backend-mysql (not started)\n";
             echo "  schema   powerdns MariaDB + /etc/powerdns/pdns.d/zz-kloxo-gmysql.conf\n";
             echo "  default  bind9 stays enabled; pdns stays disabled\n";
+            return 0;
+        }
+
+        if (isset($this->opt['fix-bind-settings'])) {
+            $n = count($this->disableBindBackendSettings());
+            echo $n === 0 ? "no BIND backend settings found\n" : "fixed $n file(s)\n";
             return 0;
         }
 
@@ -107,13 +119,18 @@ final class App
         echo <<<TXT
 install-pdns 0.1.0: prepare PowerDNS beside BIND (BIND stays default)
 
-  install-pdns --root=DIR [--force]
+  install-pdns --root=DIR [--etc=DIR] [--force]
   install-pdns --dry-run --root=DIR
+  install-pdns --fix-bind-settings [--etc=DIR]   only the bind-config clean-up
   install-pdns --help
 
 Installs pdns-server and pdns-backend-mysql if missing, creates the
 powerdns MariaDB schema, writes /etc/powerdns/pdns.d/zz-kloxo-gmysql.conf,
 and leaves the pdns unit disabled. Switch Program can then select pdns.
+Leftover BIND-backend settings (bind-config, launch=bind) in pdns.conf or
+pdns.d/*.conf are switched off, because pdns refuses to start with
+"Trying to set unknown setting 'bind-config'" when that backend is not installed.
+--etc=DIR is the PowerDNS config directory (default /etc/powerdns).
 
 TXT;
         return 0;
@@ -130,12 +147,24 @@ TXT;
         return rtrim($root, '/');
     }
 
+    private function optEtc(): string
+    {
+        $etc = isset($this->opt['etc']) && $this->opt['etc'] !== true
+            ? (string)$this->opt['etc'] : '/etc/powerdns';
+        if ($etc === '' || $etc[0] !== '/' || str_contains($etc, "\0") || str_contains($etc, '..')) {
+            throw new IpdnsException('Invalid --etc');
+        }
+
+        return rtrim($etc, '/');
+    }
+
     private function install(): int
     {
         $this->copyTree();
         $pass = $this->ensurePass();
         $this->ensureSchema($pass);
         $this->writeConf($pass);
+        $this->disableBindBackendSettings();
         $this->keepPdnsDisabled();
         echo "pdns ready (disabled); BIND remains the default DNS server\n";
         return 0;
@@ -234,16 +263,16 @@ TXT;
 
     private function writeConf(string $pass): void
     {
-        $dir = '/etc/powerdns/pdns.d';
-        if (!is_dir($dir)) {
+        $dir = $this->etc . '/pdns.d';
+        if (!is_dir($dir) && $this->etc === '/etc/powerdns') {
             $dir = '/etc/pdns';
         }
         if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
             throw new IpdnsException("Cannot create $dir");
         }
-        $file = is_dir('/etc/powerdns/pdns.d')
-            ? '/etc/powerdns/pdns.d/zz-kloxo-gmysql.conf'
-            : '/etc/pdns/pdns.conf';
+        $file = $dir === '/etc/pdns'
+            ? '/etc/pdns/pdns.conf'
+            : $dir . '/zz-kloxo-gmysql.conf';
         if (preg_match('/[\r\n#]/', $pass) === 1) {
             throw new IpdnsException('Invalid pdns password');
         }
@@ -272,6 +301,83 @@ TXT;
                 fwrite(STDERR, "warn: pdns_server --config-check: " . trim($err . ' ' . $out) . "\n");
             }
         }
+    }
+
+    /**
+     * Switch off BIND-backend settings left in the PowerDNS config. A package
+     * conffile such as pdns.d/bind.conf survives removal of pdns-backend-bind and
+     * then pdns exits with "Trying to set unknown setting 'bind-config'".
+     * A pdns.d file that holds only such settings is renamed to *.kloxo-disabled
+     * (pdns reads *.conf only); in other files the lines are commented out and a
+     * .kloxo-bak copy of the original is kept.
+     *
+     * @return list<string> files changed
+     */
+    private function disableBindBackendSettings(): array
+    {
+        $files = [];
+        if (is_file($this->etc . '/pdns.conf')) {
+            $files[] = $this->etc . '/pdns.conf';
+        }
+        $g = glob($this->etc . '/pdns.d/*.conf');
+        foreach ($g === false ? [] : $g as $f) {
+            if (basename($f) !== 'zz-kloxo-gmysql.conf') {
+                $files[] = $f;
+            }
+        }
+        $changed = [];
+        foreach ($files as $f) {
+            $raw = @file_get_contents($f);
+            if (!is_string($raw)) {
+                continue;
+            }
+            $lines = preg_split('/\r\n|\n|\r/', $raw) ?: [];
+            $bad = [];
+            $other = 0;
+            foreach ($lines as $i => $line) {
+                $t = trim($line);
+                if ($t === '' || $t[0] === '#' || $t[0] === ';') {
+                    continue;
+                }
+                if (preg_match('/^bind-[a-z0-9-]+\s*=/i', $t) === 1
+                    || preg_match('/^launch\s*\+?=.*\bbind\b/i', $t) === 1) {
+                    $bad[] = $i;
+                } else {
+                    $other++;
+                }
+            }
+            if ($bad === []) {
+                continue;
+            }
+            if ($other === 0 && str_contains($f, '/pdns.d/')) {
+                if (!@rename($f, $f . '.kloxo-disabled')) {
+                    throw new IpdnsException("Cannot disable $f");
+                }
+            } else {
+                if (!is_file($f . '.kloxo-bak') && !@copy($f, $f . '.kloxo-bak')) {
+                    throw new IpdnsException("Cannot back up $f");
+                }
+                foreach ($bad as $i) {
+                    $lines[$i] = '# disabled by Kloxo CP (BIND backend not installed): ' . $lines[$i];
+                }
+                $tmp = $f . '.tmp.' . getmypid();
+                $perm = @fileperms($f);
+                if (file_put_contents($tmp, implode("\n", $lines)) === false) {
+                    throw new IpdnsException("Cannot write $tmp");
+                }
+                if ($perm !== false) {
+                    @chmod($tmp, $perm & 0777);
+                }
+                if (!@rename($tmp, $f)) {
+                    @unlink($tmp);
+                    throw new IpdnsException("Cannot install $f");
+                }
+            }
+            $changed[] = $f;
+            echo "disabled BIND backend settings in $f\n";
+        }
+
+        return $changed;
     }
 
     private function keepPdnsDisabled(): void

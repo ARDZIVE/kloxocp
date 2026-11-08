@@ -606,6 +606,21 @@ check "php -l install-pdns" php -l "$PDNS"
 check "install-pdns --help" php "$PDNS" --help
 check "install-pdns --dry-run" php "$PDNS" --dry-run --root="$ROOT/kloxo"
 fails "install-pdns root with .. rejected" php "$PDNS" --root="$ROOT/kloxo/../kloxo"
+PDNS_ETC="$(mktemp -d)"
+mkdir -p "$PDNS_ETC/pdns.d"
+printf 'launch=bind\nbind-config=/etc/powerdns/named.conf\n' > "$PDNS_ETC/pdns.d/bind.conf"
+printf 'setuid=pdns\nbind-config=/etc/named.conf\nlaunch=gmysql\n' > "$PDNS_ETC/pdns.conf"
+printf 'local-port=53\n' > "$PDNS_ETC/pdns.d/other.conf"
+php "$PDNS" --fix-bind-settings --etc="$PDNS_ETC" --root="$ROOT/kloxo" >/dev/null
+if [ ! -e "$PDNS_ETC/pdns.d/bind.conf" ] && [ -e "$PDNS_ETC/pdns.d/bind.conf.kloxo-disabled" ] \
+  && [ -e "$PDNS_ETC/pdns.d/other.conf" ] && [ -e "$PDNS_ETC/pdns.conf.kloxo-bak" ] \
+  && ! grep -qE '^bind-config' "$PDNS_ETC/pdns.conf" && grep -q '^launch=gmysql' "$PDNS_ETC/pdns.conf"; then
+  ok "install-pdns --fix-bind-settings disables bind-config (pdns: unknown setting 'bind-config')"
+else
+  bad "install-pdns --fix-bind-settings disables bind-config"
+fi
+rm -rf "$PDNS_ETC"
+fails "install-pdns --etc must be absolute" php "$PDNS" --fix-bind-settings --etc=relative --root="$ROOT/kloxo"
 if grep -q 'pdns-server' "$ROOT/install.sh" && grep -q 'pdns-backend-mysql' "$ROOT/install.sh" \
   && grep -q 'disable --now pdns' "$ROOT/install.sh" \
   && grep -q 'install-pdns' "$ROOT/install.sh"; then
