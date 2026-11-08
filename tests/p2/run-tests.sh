@@ -219,6 +219,13 @@ else
   bad "test_service_toggle.php"
 fi
 
+echo "== DNS none disables BIND through its real unit (bind9 is an alias of named)"
+if php "$HERE/test_dns_alias.php"; then
+  ok "test_dns_alias.php"
+else
+  bad "test_dns_alias.php"
+fi
+
 echo "== removed MTA leftover (SysV script) on the Services list"
 if php "$HERE/test_mta_leftover.php"; then
   ok "test_mta_leftover.php"

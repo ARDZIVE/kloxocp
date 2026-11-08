@@ -28,6 +28,6 @@ class Smtp__postfix extends lxDriverClass
 
 	static function uninstallMe()
 	{
-		KloxoMta::retire(array('postfix'));
+		KloxoMta::turnOff(array('postfix'), false);
 	}
 }

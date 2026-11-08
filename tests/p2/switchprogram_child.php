@@ -20,6 +20,7 @@ ini_set('display_errors', '0');
 include_once $doc . '/lib/html/include.php';
 global $gbl, $sgbl, $login, $ghtml;
 
+KloxoMta::$assumeRoot = true;   // the test runs as a normal user; the real check is covered by 'nonroot'
 $base = array('web' => 'nginx', 'webcache' => 'none', 'dns' => 'bind', 'spam' => 'none', 'pop3' => 'dovecot', 'smtp' => 'exim');
 @mkdir('../etc/slavedb', 0755, true);
 
@@ -78,6 +79,23 @@ switch ($scenario) {
 		break;
 	case 'smtp':
 		sp_run('smtp', $base, array('smtp_driver' => 'postfix'));
+		break;
+	case 'allnone':
+		sp_run('allnone', $base, array('dns_driver' => 'none', 'spam_driver' => 'none', 'pop3_driver' => 'none', 'smtp_driver' => 'none'));
+		break;
+	case 'spam_none':
+		sp_run('spam_none', array_merge($base, array('spam' => 'spamassassin')), array('spam_driver' => 'none'));
+		break;
+	case 'nonroot':
+		KloxoMta::$assumeRoot = false;
+		sp_run('nonroot', $base, array('pop3_driver' => 'none'));
+		break;
+	case 'stuck':
+		// systemd keeps reporting dovecot as enabled whatever disable did
+		Service__Linux::$showProbe = static function (string $u, string $p): string {
+			return $u === 'dovecot' && $p === 'UnitFileState' ? 'enabled' : '';
+		};
+		sp_run('stuck', $base, array('pop3_driver' => 'none'));
 		break;
 	case 'pop3':
 		sp_run('pop3', array_merge($base, array('pop3' => 'none')), array('pop3_driver' => 'dovecot'));

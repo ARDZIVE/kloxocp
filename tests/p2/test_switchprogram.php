@@ -113,6 +113,32 @@ $iDisable = array_search('systemctl disable exim4', $after, true);
 	? ok('smtp exim -> postfix: Exim is daemon-reloaded and disabled again after its packages are removed (boot icon off)')
 	: bad('smtp exim -> postfix: Exim is daemon-reloaded and disabled again after its packages are removed', $calls);
 
+// 4c. everything but the web server set to none: each program that stays installed is stopped
+// AND disabled, Dovecot together with its .socket (a green Sb icon stayed after this)
+$r = child($tmp, 'allnone');
+$n = array_map(static fn($l) => preg_replace('/\s+/', ' ', trim($l)), preg_split('/\R/', trim((string) $r['calls'])) ?: array());
+($r['error'] === '' && ($r['slave']['pop3'] ?? '') === 'none' && ($r['slave']['smtp'] ?? '') === 'none'
+	&& in_array('systemctl stop dovecot', $n, true) && in_array('systemctl disable dovecot', $n, true)
+	&& in_array('systemctl disable dovecot.socket', $n, true) && in_array('systemctl disable exim', $n, true))
+	? ok('all programs besides the web server -> none: dovecot (and its socket) and the MTA are stopped and disabled')
+	: bad('all programs besides the web server -> none: dovecot (and its socket) and the MTA are stopped and disabled', json_encode($r));
+
+$r = child($tmp, 'spam_none');
+$n = array_map(static fn($l) => preg_replace('/\s+/', ' ', trim($l)), preg_split('/\R/', trim((string) $r['calls'])) ?: array());
+($r['error'] === '' && in_array('systemctl disable spamd', $n, true) && in_array('systemctl stop spamd', $n, true))
+	? ok('spam spamassassin -> none stops AND disables spamd (it was only stopped)')
+	: bad('spam spamassassin -> none stops AND disables spamd', json_encode($r));
+
+$r = child($tmp, 'nonroot');
+(str_contains($r['error'] ?? '', 'must run as root') && ($r['slave']['pop3'] ?? '') === 'dovecot')
+	? ok('not root (backend did not answer): clear error, choice kept, nothing silently skipped')
+	: bad('not root: clear error, choice kept', json_encode($r));
+
+$r = child($tmp, 'stuck');
+(str_contains($r['error'] ?? '', 'Could not turn off at boot: dovecot (UnitFileState=enabled') && ($r['slave']['pop3'] ?? '') === 'dovecot')
+	? ok('a unit systemd still reports enabled is reported with its UnitFileState, choice kept')
+	: bad('a unit systemd still reports enabled is reported', json_encode($r));
+
 // 5. pop3 none -> dovecot (installs packages; unchanged keys untouched)
 $r = child($tmp, 'pop3');
 ($r['error'] === '' && ($r['slave']['pop3'] ?? '') === 'dovecot' && str_contains($r['calls'], 'install dovecot-core'))

@@ -29,6 +29,6 @@ class Smtp__exim extends lxDriverClass
 
 	static function uninstallMe()
 	{
-		KloxoMta::retire(array(self::unitName()));
+		KloxoMta::turnOff(array(self::unitName()), false);
 	}
 }

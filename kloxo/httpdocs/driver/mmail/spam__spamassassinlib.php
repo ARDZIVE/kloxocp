@@ -43,9 +43,9 @@ class Spam__Spamassassin extends lxDriverClass
 
 	static function uninstallMe()
 	{
-		// Keep the packages; only stop the daemon (unit is spamd on 24.04+, spamassassin earlier).
-		lxshell_return('systemctl', 'stop', 'spamd');
-		lxshell_return('systemctl', 'stop', 'spamassassin');
+		// Keep the packages; stop the daemon AND take it off boot (unit is spamd on 24.04+,
+		// spamassassin earlier; before, it was only stopped and kept a green Sb icon).
+		KloxoMta::turnOff(array('spamd', 'spamassassin'));
 	}
 
 	function dbactionAdd()

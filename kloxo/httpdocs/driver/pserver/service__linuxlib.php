@@ -360,7 +360,16 @@ class Service__Linux extends Lxlclass
 			$args[] = '--no-block';
 		}
 		$args[] = $act;
-		$args[] = $unit;
+		// enable/disable refuse an alias name ("Refusing to operate on alias name or linked
+		// unit file", e.g. bind9 -> named): act on the real unit.
+		$target = $unit;
+		if (in_array($act, array('enable', 'disable'), true)) {
+			$id = self::systemdShow($unit, 'Id');
+			if ($id !== '' && self::isSafeUnit($id)) {
+				$target = $id;
+			}
+		}
+		$args[] = $target;
 		try {
 			$p = @proc_open($args, array(
 				0 => array('file', '/dev/null', 'r'),
