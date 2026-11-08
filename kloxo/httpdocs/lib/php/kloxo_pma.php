@@ -591,15 +591,27 @@ function kloxo_pma_panel_pdo(?string $root = null): ?PDO
 function kloxo_pma_signon_start(): void
 {
 	@ini_set('zlib.output_compression', '0');
+	@ini_set('session.use_strict_mode', '0');
+	@ini_set('session.cookie_path', '/');
 	if (session_status() === PHP_SESSION_ACTIVE) {
 		if (session_name() === 'KloxoPmaSignon') {
 			return;
 		}
 		session_write_close();
 	}
+	$p = kloxo_pma_signon_cookie_params();
 	session_name('KloxoPmaSignon');
-	session_set_cookie_params(kloxo_pma_signon_cookie_params());
-	session_start();
+	session_set_cookie_params($p);
+	session_start(array(
+		'cookie_lifetime' => $p['lifetime'],
+		'cookie_path' => $p['path'],
+		'cookie_domain' => $p['domain'],
+		'cookie_secure' => $p['secure'],
+		'cookie_httponly' => $p['httponly'],
+		'cookie_samesite' => $p['samesite'],
+		'use_strict_mode' => 0,
+		'use_only_cookies' => 1,
+	));
 }
 
 /**
@@ -646,6 +658,56 @@ function kloxo_pma_sso_marker_name(): string
 	return 'KloxoPmaSsoAt';
 }
 
+function kloxo_pma_sso_db_cookie_name(): string
+{
+	return 'KloxoPmaSsoDb';
+}
+
+/**
+ * phpMyAdmin SignonURL has no query string, so a rejected ?db= sign-on
+ * would otherwise show the admin kloxo_pma form. Keep the selected
+ * database for one minute across that bounce.
+ */
+function kloxo_pma_emit_sso_db_cookie(string $db): void
+{
+	if (headers_sent()) {
+		return;
+	}
+	$p = kloxo_pma_signon_cookie_params();
+	$name = kloxo_pma_sso_db_cookie_name();
+	if ($db === '' || !kloxo_pma_db_ident($db)) {
+		setcookie($name, '', array(
+			'expires' => time() - 3600,
+			'path' => '/',
+			'secure' => $p['secure'],
+			'httponly' => true,
+			'samesite' => 'Lax',
+		));
+
+		return;
+	}
+	setcookie($name, $db, array(
+		'expires' => time() + 60,
+		'path' => '/',
+		'secure' => $p['secure'],
+		'httponly' => true,
+		'samesite' => 'Lax',
+	));
+}
+
+/** Selected mysqldb from ?db=, POST, or the short-lived bounce cookie. */
+function kloxo_pma_pending_db(): string
+{
+	$n = kloxo_pma_request_db();
+	if ($n !== '') {
+		return $n;
+	}
+	$raw = $_COOKIE[kloxo_pma_sso_db_cookie_name()] ?? '';
+	$c = is_string($raw) ? trim($raw) : '';
+
+	return kloxo_pma_db_ident($c) ? $c : '';
+}
+
 /**
  * @return string error text when the login check failed (nothing is redirected);
  *                otherwise this function redirects and exits
@@ -665,9 +727,6 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 		return $bad;
 	}
 	kloxo_pma_signon_start();
-	if (function_exists('session_regenerate_id')) {
-		@session_regenerate_id(true);
-	}
 	$_SESSION['PMA_single_signon_user'] = $user;
 	$_SESSION['PMA_single_signon_password'] = $pass;
 	$_SESSION['PMA_single_signon_host'] = $host !== '' ? $host : '127.0.0.1';
@@ -681,6 +740,7 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 	$sid = session_id();
 	session_write_close();
 	kloxo_pma_emit_signon_cookie((string)$sid);
+	kloxo_pma_emit_sso_db_cookie($onlyDb);
 	if (!headers_sent()) {
 		$p = kloxo_pma_signon_cookie_params();
 		setcookie(kloxo_pma_sso_marker_name(), (string)time(), array(
@@ -691,11 +751,7 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 			'samesite' => 'Lax',
 		));
 		header('Cache-Control: no-store');
-		$loc = kloxo_pma_index_url();
-		if ($onlyDb !== '') {
-			$loc .= '?db=' . rawurlencode($onlyDb);
-		}
-		header('Location: ' . $loc, true, 302);
+		header('Location: ' . kloxo_pma_index_url(), true, 302);
 	}
 	exit;
 }
@@ -818,6 +874,9 @@ function kloxo_pma_signon_page(?string $root = null): void
 		if ($bounce !== '') {
 			// Do not sign in again: that is the redirect loop.
 			$error = $bounce;
+			if (kloxo_pma_pending_db() !== '') {
+				$user = '';
+			}
 		} elseif (kloxo_pma_request_db() !== '') {
 			kloxo_pma_try_db_sso($root);
 			$error = kloxo_pma_last_error();
@@ -908,7 +967,7 @@ function kloxo_pma_signon_form_html(?string $root = null, string $error = '', st
 		return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 	};
 	$err = $error !== '' ? '<p class="err">' . $esc($error) . '</p>' : '';
-	$db = kloxo_pma_request_db();
+	$db = kloxo_pma_pending_db();
 	$prefill = $user;
 	if ($db !== '' && ($prefill === 'kloxo_pma' || $prefill === 'root')) {
 		$prefill = '';

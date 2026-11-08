@@ -66,7 +66,9 @@ $check(str_contains($src, 'kloxo_pma_try_admin_sso')
 	&& str_contains($src, 'kloxo_pma_try_db_sso')
 	&& str_contains($src, 'kloxo_pma_write_signon_and_redirect')
 	&& str_contains($src, 'kloxo_pma_same_origin_nav')
-	&& str_contains($src, 'PMA_single_signon_cfgupdate'),
+	&& str_contains($src, 'PMA_single_signon_cfgupdate')
+	&& !str_contains($src, 'session_regenerate_id')
+	&& str_contains($src, "header('Location: ' . kloxo_pma_index_url(), true, 302)"),
 	'sign-on GET uses panel-admin SSO or per-database SSO then phpMyAdmin');
 $check(kloxo_pma_db_href('mesrob_wp') === kloxo_pma_url() . '?db=mesrob_wp',
 	'per-database SQL Manager href carries only the mysqldb nname');
@@ -88,6 +90,13 @@ $check(str_contains($dbForm, 'its own MariaDB user') && !str_contains($dbForm, '
 	&& str_contains($dbForm, 'name="kloxo_pma_db"'),
 	'per-database logon form does not offer the admin kloxo_pma account');
 unset($_GET['db']);
+$_COOKIE['KloxoPmaSsoDb'] = 'mesrob_wp';
+$bounceForm = kloxo_pma_signon_form_html('/tmp/kloxo-pma-missing', 'phpMyAdmin did not accept the sign-on session.', 'kloxo_pma');
+$check(kloxo_pma_pending_db() === 'mesrob_wp'
+	&& str_contains($bounceForm, 'its own MariaDB user') && !str_contains($bounceForm, 'full privileges')
+	&& str_contains($bounceForm, 'name="kloxo_pma_db"'),
+	'phpMyAdmin bounce after a database click still keeps that database, not kloxo_pma');
+unset($_COOKIE['KloxoPmaSsoDb']);
 $remote = kloxo_pma_href(false, 'bad host');
 $check(str_contains($remote, 'kloxo-signon.php') && !str_contains($remote, ' '), 'unsafe remote host does not invent a URL');
 $login = kloxo_pma_login('/tmp/kloxo-pma-missing');
