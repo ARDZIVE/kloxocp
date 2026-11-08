@@ -241,6 +241,12 @@ final class KloxoRecovery
         return true;
     }
 
+    /** systemd UnitFileState values that already start the unit at boot. */
+    public static function isEnabledAtBoot(string $unitFileState): bool
+    {
+        return in_array($unitFileState, ['enabled', 'enabled-runtime', 'static', 'indirect'], true);
+    }
+
     public static function systemctlBin(): string
     {
         if (defined('KLOXO_RECOVERY_SYSTEMCTL') && is_string(KLOXO_RECOVERY_SYSTEMCTL)
@@ -413,7 +419,7 @@ final class KloxoRecovery
     /**
      * Root side (runs inside kloxo-backend): control one unit and wait for it.
      *
-     * @return array{ok:bool,rc:int,euid:int,active:string,err:string}
+     * @return array{ok:bool,rc:int,euid:int,active:string,err:string,enabled?:string}
      */
     public static function serverControl(string $act, string $name): array
     {
@@ -461,6 +467,9 @@ final class KloxoRecovery
         } else {
             $res['active'] = self::activeState($bin, $unit);
         }
+        if (in_array($act, ['enable', 'disable'], true)) {
+            $res['enabled'] = self::unitFileState($bin, $unit);
+        }
         // A unit stopped here on purpose must not be brought back by the watchdog;
         // starting it again hands it back to the watchdog.
         if ($r['rc'] === 0) {
@@ -470,7 +479,10 @@ final class KloxoRecovery
                 KloxoWatchdog::release($unitBase, self::rootDir());
             }
         }
-        $res['ok'] = $r['rc'] === 0 && ($act === 'stop' ? $res['active'] !== 'active' : (in_array($act, ['enable', 'disable'], true) || $res['active'] === 'active'));
+        $bootOk = !isset($res['enabled'])
+            || ($act === 'enable' && self::isEnabledAtBoot($res['enabled']))
+            || ($act === 'disable' && !self::isEnabledAtBoot($res['enabled']));
+        $res['ok'] = $r['rc'] === 0 && $bootOk && ($act === 'stop' ? $res['active'] !== 'active' : (in_array($act, ['enable', 'disable'], true) || $res['active'] === 'active'));
         if (!$res['ok'] && $res['err'] === '') {
             $res['err'] = $euid > 0
                 ? 'ran as uid ' . $euid . ', not root: kloxo-backend did not handle the request'
@@ -485,6 +497,13 @@ final class KloxoRecovery
         $r = self::run([$bin, 'show', '--no-pager', '-p', 'ActiveState', '--value', $unit], 5);
 
         return trim($r['out']) !== '' ? trim($r['out']) : 'unknown';
+    }
+
+    private static function unitFileState(string $bin, string $unit): string
+    {
+        $r = self::run([$bin, 'show', '--no-pager', '-p', 'UnitFileState', '--value', $unit], 5);
+
+        return trim($r['out']);
     }
 
     /**

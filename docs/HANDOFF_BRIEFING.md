@@ -538,7 +538,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   DB-down mysqli error (2002/2003/2006/2013) with a 503 linking `/recovery/`; `kloxo-web` and
   MariaDB restart on failure.   `KloxoRecovery::states()` keys `systemctl show` blocks by the catalog name and by
   `Names`/`Id` so Debian `bind9.service` (an alias of `named.service`) is not listed as
-  not installed; start/stop/journal use the canonical unit. Tests: `tests/p2/test_recovery.php`
+  not installed; start/stop/journal use the canonical unit. An **Enable at boot**
+  button (`systemctl enable`) is shown on a row whose UnitFileState is not already
+  enabled/static. Tests: `tests/p2/test_recovery.php`
   (fake systemctl/journalctl, including the bind9→named alias);
   a real backend was also run in a temp tree with the DB unreachable and a non-root client
   call round-tripped through it. **UNVERIFIED:** real systemd as root, Hiawatha/FPM serving

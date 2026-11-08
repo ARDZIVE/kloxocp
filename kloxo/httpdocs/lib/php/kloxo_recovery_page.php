@@ -167,12 +167,15 @@ final class KloxoRecoveryPage
         if ($r === null) {
             return 'No answer from kloxo-backend. On the server run: systemctl restart kloxo-backend';
         }
-        $state = (string) ($r['active'] ?? 'unknown');
+        $state = in_array($act, ['enable', 'disable'], true)
+            ? (string) ($r['enabled'] ?? $r['active'] ?? 'unknown')
+            : (string) ($r['active'] ?? 'unknown');
+        $verb = $act === 'enable' ? 'Enable at boot' : ucfirst($act);
         if (!empty($r['ok'])) {
-            return ucfirst($act) . ' ' . $name . ': OK (' . $state . ').';
+            return $verb . ' ' . $name . ': OK (' . $state . ').';
         }
 
-        return ucfirst($act) . ' ' . $name . ' failed (' . $state . ')' . (($r['err'] ?? '') !== '' ? ': ' . $r['err'] : '.');
+        return $verb . ' ' . $name . ' failed (' . $state . ')' . (($r['err'] ?? '') !== '' ? ': ' . $r['err'] : '.');
     }
 
     private static function h(string $s): string
@@ -314,6 +317,12 @@ final class KloxoRecoveryPage
                     . '<input type="hidden" name="csrf" value="' . self::h($csrf) . '">'
                     . '<input type="hidden" name="unit" value="' . $n . '"><input type="hidden" name="act" value="' . $act . '">'
                     . '<button type="submit">' . ucfirst($act) . '</button></form>';
+            }
+            if (KloxoRecovery::mayAct($s['name'], 'enable') && !KloxoRecovery::isEnabledAtBoot($s['enabled'])) {
+                $h .= '<form method="post" action="/recovery/"><input type="hidden" name="do" value="control">'
+                    . '<input type="hidden" name="csrf" value="' . self::h($csrf) . '">'
+                    . '<input type="hidden" name="unit" value="' . $n . '"><input type="hidden" name="act" value="enable">'
+                    . '<button type="submit">Enable at boot</button></form>';
             }
             $h .= '</td><td><a href="/recovery/?journal=' . rawurlencode($s['name']) . '">log</a></td></tr>';
         }

@@ -60,9 +60,11 @@ case "$1" in
         *) loaded=not-found ;;
       esac
       act=inactive; [ -f "$S/active-$canon" ] && act=active
+      boot=enabled; [ -f "$S/disabled-$canon" ] && boot=disabled
       if [ $value -eq 1 ]; then
         case "$prop" in
           *Id*) echo "${canon}.service" ;;
+          *UnitFileState*) echo "$boot" ;;
           *) echo "$act" ;;
         esac
         continue
@@ -71,12 +73,14 @@ case "$1" in
       first=0
       names="${canon}.service"
       [ "$canon" != "$n" ] && names="$names $u"
-      echo "Id=${canon}.service"; echo "Names=$names"; echo "LoadState=$loaded"; echo "ActiveState=$act"; echo "SubState=x"; echo "UnitFileState=enabled"
+      echo "Id=${canon}.service"; echo "Names=$names"; echo "LoadState=$loaded"; echo "ActiveState=$act"; echo "SubState=x"; echo "UnitFileState=$boot"
     done
     ;;
   --no-block) shift; act=$1; n=${2%.service}
     case "$act" in start|restart) touch "$S/active-$n" ;; stop) rm -f "$S/active-$n" ;; esac ;;
-  reset-failed|enable|disable) : ;;
+  enable) n=${2%.service}; rm -f "$S/disabled-$n" ;;
+  disable) n=${2%.service}; touch "$S/disabled-$n" ;;
+  reset-failed) : ;;
 esac
 exit 0
 SH
@@ -166,6 +170,23 @@ check(str_contains($calls, 'start named.service') && str_contains($calls, 'reset
 $r = KloxoRecovery::serverControl('stop', 'bind9');
 check($r['ok'] === true && !active($state, 'named') && KloxoWatchdog::isHeld('bind9', KloxoRecovery::rootDir()),
 	'stop bind9: named inactive, hold is still the catalog name bind9');
+file_put_contents($state . '/disabled-mariadb', '');
+$st = [];
+foreach (KloxoRecovery::states() as $s) {
+	$st[$s['name']] = $s;
+}
+check(($st['mariadb']['enabled'] ?? '') === 'disabled' && !KloxoRecovery::isEnabledAtBoot($st['mariadb']['enabled']),
+	'states: UnitFileState disabled is not enabled at boot');
+@unlink($state . '/calls.log');
+$r = KloxoRecovery::serverControl('enable', 'mariadb');
+check($r['ok'] === true && ($r['enabled'] ?? '') === 'enabled' && !is_file($state . '/disabled-mariadb'),
+	'enable mariadb: UnitFileState becomes enabled', json_encode($r));
+file_put_contents($state . '/disabled-named', '');
+@unlink($state . '/calls.log');
+$r = KloxoRecovery::serverControl('enable', 'bind9');
+$calls = (string) file_get_contents($state . '/calls.log');
+check($r['ok'] === true && !is_file($state . '/disabled-named') && str_contains($calls, 'enable named.service'),
+	'enable bind9 acts on named.service (Debian alias)', json_encode($r) . ' ' . $calls);
 @unlink($state . '/calls.log');
 $r = KloxoRecovery::serverControl('restart', 'kloxo-web');
 check($r['ok'] === false && $r['err'] === 'refused' && (clearstatcache(true) || !is_file($state . '/calls.log')), 'restart kloxo-web refused before systemctl runs');
@@ -214,7 +235,17 @@ check(str_contains($res['body'], 'name="unit" value="bind9"')
 	&& !str_contains($res['body'], '<td>bind9</td><td colspan="5">not installed</td>'),
 	'logged in: bind9 has Start, not "not installed"');
 check(!str_contains($res['body'], 'value="kloxo-web"><input type="hidden" name="act" value="stop"'), 'no Stop button for the panel web server');
+check(!str_contains($res['body'], 'Enable at boot'), 'Enable at boot is hidden when units already start at boot');
+file_put_contents($state . '/disabled-mariadb', '');
+$res = KloxoRecoveryPage::handle($https, [], [], $sess, $ip, $now + 5);
+check(str_contains($res['body'], 'name="act" value="enable"') && str_contains($res['body'], 'Enable at boot')
+	&& str_contains($res['body'], '>disabled</td>'),
+	'logged in: Enable at boot is shown when the unit is disabled');
 $post = ['HTTPS' => 'on', 'REQUEST_METHOD' => 'POST'];
+$res = KloxoRecoveryPage::handle($post, [], ['do' => 'control', 'unit' => 'mariadb', 'act' => 'enable', 'csrf' => $csrf], $sess, $ip, $now + 6);
+check($res['status'] === 303 && !is_file($state . '/disabled-mariadb')
+	&& str_contains((string) $sess['flash'], 'Enable at boot mariadb: OK'),
+	'Enable at boot from the console enables the unit');
 $res = KloxoRecoveryPage::handle($post, [], ['do' => 'control', 'unit' => 'mariadb', 'act' => 'start', 'csrf' => 'forged'], $sess, $ip, $now + 6);
 check($res['status'] === 403 && !active($state, 'mariadb'), 'bad CSRF token: refused, nothing started');
 $res = KloxoRecoveryPage::handle($post, [], ['do' => 'control', 'unit' => 'mariadb', 'act' => 'start', 'csrf' => $csrf], $sess, $ip, $now + 7);
