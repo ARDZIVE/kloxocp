@@ -4140,7 +4140,8 @@ try {
 		&& count($nav) === 1 && isset($nav[0]['frm_action']) && $nav[0]['frm_action'] === 'show'
 		&& $listCrumbs === 0 && $showAfterFirst === 0
 		&& str_contains($navSrc, 'function kloxo_navig_is_login_object')
-		&& str_contains($navSrc, 'kloxo_navig_is_login_object($object)')
+		&& str_contains($navSrc, 'function kloxo_navig_skip_frm_entry')
+		&& str_contains($navSrc, 'kloxo_navig_skip_crumb($object)')
 		&& str_contains($navHtmlSrc, "\$menu0 === 'list'");
 	if ($navOk) {
 		ok('Clients list breadcrumb does not repeat Clients — admin');
@@ -4153,9 +4154,62 @@ try {
 				. ' list=' . (string) $listCrumbs
 				. ' extraShow=' . (string) $showAfterFirst);
 	}
+
+	$navCust = new Client(null, 'localhost', 'mesrob');
+	$navCust->nname = 'mesrob';
+	$navCust->cttype = 'customer';
+	$navCust->parent_clname = 'client-admin';
+	$login = $navCust;
+	$GLOBALS['login'] = $navCust;
+	$skipAdminEntry = kloxo_navig_skip_frm_entry(array('class' => 'client', 'nname' => 'admin'));
+	$skipSelfEntry = kloxo_navig_skip_frm_entry(array('class' => 'client', 'nname' => 'mesrob'));
+	$keepChildEntry = kloxo_navig_skip_frm_entry(array('class' => 'domain', 'nname' => 'example.com'));
+	$adminObj = new Client(null, 'localhost', 'admin');
+	$adminObj->nname = 'admin';
+	$adminObj->cttype = 'admin';
+	$skipAdminObj = kloxo_navig_skip_crumb($adminObj);
+	$ghtml->__http_vars['frm_action'] = 'list';
+	$ghtml->__http_vars['frm_o_cname'] = 'domain';
+	$ghtml->__http_vars['frm_o_o'] = array(
+		array('class' => 'client', 'nname' => 'admin'),
+		array('class' => 'client', 'nname' => 'mesrob'),
+	);
+	unset($ghtml->frm_action, $ghtml->frm_o_cname, $ghtml->frm_o_o, $ghtml->frm_consumedlogin);
+	createPrincipleObject();
+	$custNav = (isset($gbl->__navig) && is_array($gbl->__navig)) ? $gbl->__navig : array();
+	$custMenu = (isset($gbl->__navigmenu) && is_array($gbl->__navigmenu)) ? $gbl->__navigmenu : array();
+	$custList = 0;
+	$custExtraShow = 0;
+	foreach ($custMenu as $i => $m) {
+		$kind = (is_array($m) && isset($m[0])) ? $m[0] : '';
+		if ($kind === 'list') {
+			$custList++;
+		}
+		if ($i > 0 && $kind === 'show') {
+			$custExtraShow++;
+		}
+	}
+	$custOk = $skipAdminEntry === true && $skipSelfEntry === true && $keepChildEntry === false
+		&& $skipAdminObj === true
+		&& count($custNav) === 1 && isset($custNav[0]['frm_action']) && $custNav[0]['frm_action'] === 'show'
+		&& $custList === 0 && $custExtraShow === 0;
+	if ($custOk) {
+		ok('Client session breadcrumb does not show Clients — admin');
+	} else {
+		bad('Client session breadcrumb does not show Clients — admin',
+			'skipAdmin=' . ($skipAdminEntry ? 'y' : 'n')
+				. ' skipSelf=' . ($skipSelfEntry ? 'y' : 'n')
+				. ' keepDomain=' . ($keepChildEntry ? 'y' : 'n')
+				. ' skipObj=' . ($skipAdminObj ? 'y' : 'n')
+				. ' crumbs=' . count($custNav)
+				. ' list=' . (string) $custList
+				. ' extraShow=' . (string) $custExtraShow);
+	}
 } catch (Throwable $e) {
 	bad('Clients list breadcrumb does not repeat Clients — admin',
 		$e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+	bad('Client session breadcrumb does not show Clients — admin',
+		$e->getMessage());
 }
 $login = $navPrevLogin;
 $GLOBALS['login'] = $navPrevLogin;

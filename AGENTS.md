@@ -212,7 +212,8 @@ accepts a display name with spaces (sanitized to a plan id).
 Home keeps
 Find / Information / Resource on the left and the dashboard tiles
 on the right. The beige navigation crumb does not repeat the signed-in
-client (`admin — {Clients}`, not `admin — Clients — admin — {Clients}`).
+client or its parent (`admin — {Clients}` / `mesrob — {Domains}`,
+not `… — Clients — admin — {…}`).
 First-party `ereg*`/`split`
 and live theme `escape`/`document.all` are gone. Browser login as
 admin/admin against the live panel succeeded; every page still died

@@ -352,6 +352,126 @@ function kloxo_navig_is_login_object($object)
 	return false;
 }
 
+function kloxo_navig_login_is_admin()
+{
+	global $login;
+
+	if (!is_object($login)) {
+		return false;
+	}
+	try {
+		if (method_exists($login, 'isAdmin') && $login->isAdmin()) {
+			return true;
+		}
+	} catch (Throwable $e) {
+	}
+	try {
+		if (method_exists($login, 'isRootClient') && $login->isRootClient()) {
+			return true;
+		}
+	} catch (Throwable $e) {
+	}
+	$nname = isset($login->nname) ? (string) $login->nname : '';
+
+	return $nname === 'admin';
+}
+
+function kloxo_navig_skip_frm_entry($v)
+{
+	global $login;
+
+	if (!is_array($v) || !isset($v['class']) || !is_string($v['class'])) {
+		return false;
+	}
+	if (!is_object($login)) {
+		return false;
+	}
+	$class = strtolower($v['class']);
+	$nname = (isset($v['nname']) && is_scalar($v['nname'])) ? (string) $v['nname'] : '';
+	if ($nname === '') {
+		return false;
+	}
+	$loginClass = '';
+	try {
+		if (method_exists($login, 'getClass')) {
+			$loginClass = strtolower((string) $login->getClass());
+		}
+	} catch (Throwable $e) {
+		$loginClass = '';
+	}
+	$loginName = isset($login->nname) ? (string) $login->nname : '';
+	if ($loginClass !== '' && $class === $loginClass && $nname === $loginName) {
+		return true;
+	}
+	$entryCl = $class . '-' . $nname;
+	$loginParent = isset($login->parent_clname) ? (string) $login->parent_clname : '';
+	if ($loginParent !== '' && $entryCl === $loginParent) {
+		return true;
+	}
+	if ($class === 'client' && $nname === 'admin' && $loginClass === 'client'
+		&& $loginName !== 'admin' && !kloxo_navig_login_is_admin()) {
+		return true;
+	}
+
+	return false;
+}
+
+function kloxo_navig_is_ancestor_of_login($object)
+{
+	global $login;
+
+	if (!is_object($object) || !is_object($login) || kloxo_navig_is_login_object($object)) {
+		return false;
+	}
+	$objCl = '';
+	try {
+		if (method_exists($object, 'getClName')) {
+			$objCl = (string) $object->getClName();
+		}
+	} catch (Throwable $e) {
+		$objCl = '';
+	}
+	$loginParent = isset($login->parent_clname) ? (string) $login->parent_clname : '';
+	if ($objCl !== '' && $loginParent !== '' && $objCl === $loginParent) {
+		return true;
+	}
+	$p = (isset($login->__parent_o) && is_object($login->__parent_o)) ? $login->__parent_o : null;
+	$guard = 0;
+	while (is_object($p) && $guard < 20) {
+		$guard++;
+		try {
+			if ($objCl !== '' && method_exists($p, 'getClName') && (string) $p->getClName() === $objCl) {
+				return true;
+			}
+			if (isset($p->nname, $object->nname) && (string) $p->nname === (string) $object->nname
+				&& method_exists($p, 'getClass') && method_exists($object, 'getClass')
+				&& strtolower((string) $p->getClass()) === strtolower((string) $object->getClass())) {
+				return true;
+			}
+		} catch (Throwable $e) {
+		}
+		$p = (isset($p->__parent_o) && is_object($p->__parent_o)) ? $p->__parent_o : null;
+	}
+	try {
+		$objClass = method_exists($object, 'getClass') ? strtolower((string) $object->getClass()) : '';
+		$loginClass = method_exists($login, 'getClass') ? strtolower((string) $login->getClass()) : '';
+		$objName = isset($object->nname) ? (string) $object->nname : '';
+		$loginName = isset($login->nname) ? (string) $login->nname : '';
+		if ($objClass === 'client' && $objName === 'admin' && $loginClass === 'client'
+			&& $loginName !== 'admin' && !kloxo_navig_login_is_admin()) {
+			return true;
+		}
+	} catch (Throwable $e) {
+	}
+
+	return false;
+}
+
+function kloxo_navig_skip_crumb($object)
+{
+	return kloxo_navig_is_login_object($object) || kloxo_navig_is_ancestor_of_login($object);
+}
+
 function createPrincipleObject()
 {
 	global $gbl, $sgbl, $login, $ghtml; 
@@ -381,6 +501,13 @@ function createPrincipleObject()
 
 		foreach($p as $k => $v) {
 			$__tparent = $object;
+
+			// frm_o_o often includes the signed-in client and its parent
+			// (client-admin). That added "Clients — admin" for both admin and
+			// a customer session. The first crumb is already Home.
+			if (kloxo_navig_skip_frm_entry($v)) {
+				continue;
+			}
 			
 			if (isset($v['nname'])) {
 				$object = $object->getFromList($v['class'], $v['nname']);
@@ -394,9 +521,7 @@ function createPrincipleObject()
 				break;
 			}
 
-			// frm_o_o often repeats the signed-in client (admin). That added
-			// "Clients — admin" before {Clients}. The first crumb is already Home.
-			if (kloxo_navig_is_login_object($object)) {
+			if (kloxo_navig_skip_crumb($object)) {
 				continue;
 			}
 

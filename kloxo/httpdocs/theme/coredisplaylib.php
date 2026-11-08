@@ -2181,12 +2181,12 @@ function print_navigation($navig)
 			$menu0 = (isset($navigmenu[$k][0]) && is_string($navigmenu[$k][0])) ? $navigmenu[$k][0] : '';
 			$menuObj = (isset($navigmenu[$k][1]) && is_object($navigmenu[$k][1])) ? $navigmenu[$k][1] : null;
 			$nextObj = (isset($navigmenu[$k + 1][1]) && is_object($navigmenu[$k + 1][1])) ? $navigmenu[$k + 1][1] : null;
-			if ($k > 0 && $menuObj && function_exists('kloxo_navig_is_login_object')
-				&& kloxo_navig_is_login_object($menuObj)) {
+			if ($k > 0 && $menuObj && function_exists('kloxo_navig_skip_crumb')
+				&& kloxo_navig_skip_crumb($menuObj)) {
 				continue;
 			}
-			if ($k > 0 && $menu0 === 'list' && $nextObj && function_exists('kloxo_navig_is_login_object')
-				&& kloxo_navig_is_login_object($nextObj)) {
+			if ($k > 0 && $menu0 === 'list' && $nextObj && function_exists('kloxo_navig_skip_crumb')
+				&& kloxo_navig_skip_crumb($nextObj)) {
 				continue;
 			}
 			//You have to actually get only the filters of the parents of this object. But let us just print all the filters anyway.

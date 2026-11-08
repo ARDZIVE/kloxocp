@@ -707,9 +707,10 @@ Work in this order. Keep every change small, tested and committed separately. Do
    (`Mmail::getWebmailProgList`). Live webmail install on Ubuntu is
    **UNVERIFIED**.
    Home show no longer fatals on a null `used` object,
-   missing driver row, or admin `getParentO()`. The beige navigation
-   crumb skips the signed-in client in `frm_o_o`, so Clients is
-   `admin — {Clients}` (not `admin — Clients — admin — {Clients}`).
+   missing driver row, or admin `getParentO()`.    The beige navigation
+   crumb skips the signed-in client and its parent in `frm_o_o`, so
+   Clients is `admin — {Clients}` and a customer session is
+   `mesrob — {Domains}` (not `… — Clients — admin — {…}`).
    Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
    opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
