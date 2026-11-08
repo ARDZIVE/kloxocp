@@ -238,10 +238,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     row; start/stop/restart/boot use absolute `systemctl --no-block` with pipe
     timeouts via `Service::runServiceControl` on the icon click (so list
     children are not skipped by `login->was()`). Column headers are Start /
-    Stop / Restart. Stop/disable/restart of mariadb / kloxo-php / kloxo-web /
+    Stop / Restart. Stop/disable/restart of kloxo-php / kloxo-web /
     kloxo-backend / hiawatha is refused on click while those icons stay visible;
-    Sb/State toggles are view-only for them (stopping MariaDB blanks the UI with
-    socket "No such file or directory"). `Service__Linux` is always loaded with
+    Sb/State toggles are view-only for them. MariaDB is not protected (the panel
+    database is SQLite; customer DBs / phpMyAdmin / mail still use MariaDB).
+    `Service__Linux` is always loaded with
     the Service class so protection cannot be skipped. Live Services actions
     UNVERIFIED.
     File Manager Thumbnail/resize checks `/usr/bin/convert` (or `magick`),
@@ -535,10 +536,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   through `rl_exec_get` to kloxo-backend. `kloxo-backend` (master) now starts without the
   database (`db_degraded`) and loads it when it returns; `lx_exception_handler` answers a
   DB-down mysqli error (2002/2003/2006/2013) with a 503 linking `/recovery/`; `kloxo-web` and
-  MariaDB restart on failure. Tests: `tests/p2/test_recovery.php` (fake systemctl/journalctl);
+  MariaDB restart on failure.   `KloxoRecovery::states()` keys `systemctl show` blocks by the catalog name and by
+  `Names`/`Id` so Debian `bind9.service` (an alias of `named.service`) is not listed as
+  not installed; start/stop/journal use the canonical unit. Tests: `tests/p2/test_recovery.php`
+  (fake systemctl/journalctl, including the bind9→named alias);
   a real backend was also run in a temp tree with the DB unreachable and a non-root client
   call round-tripped through it. **UNVERIFIED:** real systemd as root, Hiawatha/FPM serving
-  the page, a reboot with MariaDB failing, `/recovery` without trailing slash.
+  the page, a reboot with MariaDB failing, `/recovery` without trailing slash, live bind9
+  row on Ubuntu.
   Known limit: it needs kloxo-backend to be running and MariaDB-independent; if
   `kloxo-backend` itself is dead the page says so and gives the `systemctl` command.
 

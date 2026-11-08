@@ -330,8 +330,8 @@ class Service extends Lxdb
 
 	function updateToggle_State($param)
 	{
-		// Turning a running critical unit off would stop MariaDB / panel PHP and
-		// blank every page with "No such file or directory" (missing DB socket).
+		// Turning a running critical unit off would stop Hiawatha / panel PHP
+		// and take the UI down. MariaDB is not critical (panel DB is SQLite).
 		$this->refreshLiveState();
 		$next = $this->isOn('state') ? 'off' : 'on';
 		$this->assertMayControl($next === 'on' ? 'start' : 'stop');

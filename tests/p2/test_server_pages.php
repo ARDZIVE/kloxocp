@@ -218,21 +218,23 @@ if ($sqlOk
 }
 
 $linuxSrc = (string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php');
-$protOk = Service__Linux::isProtectedUnit('mariadb')
-	&& Service__Linux::isProtectedUnit('mysqld')
+$protOk = !Service__Linux::isProtectedUnit('mariadb')
+	&& !Service__Linux::isProtectedUnit('mysqld')
 	&& Service__Linux::isProtectedUnit('kloxo-php')
 	&& Service__Linux::isProtectedUnit('kloxo-backend')
+	&& Service__Linux::isProtectedUnit('hiawatha')
 	&& !Service__Linux::isProtectedUnit('nginx')
 	&& !Service__Linux::isProtectedUnit('bind9')
 	&& Service__Linux::mayControlUnit('nginx', 'stop')
 	&& Service__Linux::mayControlUnit('mariadb', 'start')
-	&& !Service__Linux::mayControlUnit('mariadb', 'stop')
+	&& Service__Linux::mayControlUnit('mariadb', 'stop')
+	&& Service__Linux::mayControlUnit('mysqld', 'disable')
 	&& !Service__Linux::mayControlUnit('kloxo-php', 'restart')
 	&& str_contains($linuxSrc, "'--no-block'")
 	&& str_contains($linuxSrc, 'function mayControlUnit')
 	&& str_contains($debSrc, 'mayControlUnit');
-$svcCrit = new Service(null, 'localhost', 'mariadb___localhost');
-$svcCrit->servicename = 'mariadb';
+$svcCrit = new Service(null, 'localhost', 'kloxo-php___localhost');
+$svcCrit->servicename = 'kloxo-php';
 $svcCrit->install_state = 'on';
 $svcCrit->state = 'on';
 $svcCritStopBlocked = false;
@@ -248,6 +250,14 @@ $svcCritIcons = $svcCrit->isAction('button_start_f')
 	&& $svcCrit->isAction('button_restart_f')
 	&& !$svcCrit->isAction('state')
 	&& !$svcCrit->isAction('boot_state');
+$svcMaria = new Service(null, 'localhost', 'mariadb___localhost');
+$svcMaria->servicename = 'mariadb';
+$svcMaria->install_state = 'on';
+$svcMaria->state = 'on';
+$svcMariaClickable = $svcMaria->isAction('button_stop_f')
+	&& $svcMaria->isAction('button_restart_f')
+	&& $svcMaria->isAction('state')
+	&& $svcMaria->isAction('boot_state');
 $svcBtnLabels = Service::$__desc_button_start_f[2] === 'start'
 	&& Service::$__desc_button_stop_f[2] === 'stop'
 	&& Service::$__desc_button_restart_f[2] === 'restart';
@@ -258,19 +268,20 @@ $svcIconPath = str_contains($svcSrc, 'function runServiceControl')
 	&& str_contains($svcSrc, "case 'toggle_boot_state':")
 	&& is_array($svcCrit->updateform('start', array()))
 	&& isset($svcCrit->updateform('stop', array())['non_f']);
-if ($protOk && $svcCritStopBlocked && $svcCritIcons && $svcBtnLabels && $svcIconPath) {
-	ok('Services refuse stop/restart of MariaDB and panel units; systemctl uses --no-block');
+if ($protOk && $svcCritStopBlocked && $svcCritIcons && $svcMariaClickable && $svcBtnLabels && $svcIconPath) {
+	ok('Services refuse stop/restart of panel units; MariaDB can be stopped; systemctl uses --no-block');
 } else {
-	bad('Services refuse stop/restart of MariaDB and panel units; systemctl uses --no-block',
+	bad('Services refuse stop/restart of panel units; MariaDB can be stopped; systemctl uses --no-block',
 		'prot=' . ($protOk ? 'yes' : 'no') . ' stopBlocked=' . ($svcCritStopBlocked ? 'yes' : 'no')
-		. ' icons=' . ($svcCritIcons ? 'yes' : 'no') . ' labels=' . ($svcBtnLabels ? 'yes' : 'no')
+		. ' icons=' . ($svcCritIcons ? 'yes' : 'no') . ' mariaClick=' . ($svcMariaClickable ? 'yes' : 'no')
+		. ' labels=' . ($svcBtnLabels ? 'yes' : 'no')
 		. ' iconPath=' . ($svcIconPath ? 'yes' : 'no'));
 }
 
 // Stop/start/restart go to the root backend explicitly and report failure; the
 // generic object sync silently fell back to the non-root panel user.
 $linuxSrc2 = (string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php');
-$refusedCtl = Service__Linux::controlUnit('stop', 'mariadb');
+$refusedCtl = Service__Linux::controlUnit('stop', 'kloxo-php');
 $noBinCtl = Service__Linux::systemctlRunDetail('stop', 'nginx; id');
 $svcDirect = new Service(null, 'localhost', 'nginx___localhost');
 $svcDirect->servicename = 'nginx';

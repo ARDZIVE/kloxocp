@@ -287,7 +287,8 @@ final class KloxoRecoveryPage
         }
         if ($db !== null && $db['installed'] && $db['active'] !== 'active') {
             $h .= '<div class="alert"><strong>MariaDB is ' . self::h($db['active']) . '.</strong> '
-                . 'The panel cannot load until it runs. Use Start on the mariadb row, then check its log.</div>';
+                . 'Customer databases, phpMyAdmin and mail lookups will not work until it is started. '
+                . 'The panel itself stays up (SQLite). Use Start on the mariadb row, then check its log.</div>';
         }
         $root = KloxoRecovery::rootDir();
         $wd = KloxoWatchdog::readState($root);

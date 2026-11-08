@@ -53,12 +53,25 @@ case "$1" in
     first=1
     for u in $units; do
       n=${u%.service}
-      case "$n" in nginx|mariadb|kloxo-web|kloxo-backend|apache2|php8.3-fpm) loaded=loaded ;; *) loaded=not-found ;; esac
-      act=inactive; [ -f "$S/active-$n" ] && act=active
-      if [ $value -eq 1 ]; then echo "$act"; continue; fi
+      canon=$n
+      case "$n" in
+        bind9) canon=named; loaded=loaded ;;
+        nginx|mariadb|kloxo-web|kloxo-backend|apache2|php8.3-fpm) loaded=loaded ;;
+        *) loaded=not-found ;;
+      esac
+      act=inactive; [ -f "$S/active-$canon" ] && act=active
+      if [ $value -eq 1 ]; then
+        case "$prop" in
+          *Id*) echo "${canon}.service" ;;
+          *) echo "$act" ;;
+        esac
+        continue
+      fi
       [ $first -eq 0 ] && echo
       first=0
-      echo "Id=$u"; echo "LoadState=$loaded"; echo "ActiveState=$act"; echo "SubState=x"; echo "UnitFileState=enabled"
+      names="${canon}.service"
+      [ "$canon" != "$n" ] && names="$names $u"
+      echo "Id=${canon}.service"; echo "Names=$names"; echo "LoadState=$loaded"; echo "ActiveState=$act"; echo "SubState=x"; echo "UnitFileState=enabled"
     done
     ;;
   --no-block) shift; act=$1; n=${2%.service}
@@ -128,6 +141,11 @@ foreach (KloxoRecovery::states() as $s) {
 check(($st['nginx']['active'] ?? '') === 'active' && ($st['mariadb']['active'] ?? '') === 'inactive'
 	&& ($st['mariadb']['installed'] ?? false) === true && ($st['knot']['installed'] ?? true) === false,
 	'states: parses systemctl show blocks (active, inactive, not installed)');
+check(($st['bind9']['installed'] ?? false) === true && ($st['bind9']['active'] ?? '') === 'inactive',
+	'states: bind9 is installed even when systemd Id is named.service (Debian alias)');
+check(KloxoRecovery::canonicalUnit('bind9') === 'named.service'
+	&& KloxoRecovery::canonicalUnit('nginx') === 'nginx.service',
+	'canonicalUnit: bind9 resolves to named.service, nginx stays nginx.service');
 $r = KloxoRecovery::serverControl('start', 'mariadb');
 check($r['ok'] === true && $r['active'] === 'active' && active($state, 'mariadb'), 'start mariadb: reaches active', json_encode($r));
 $r = KloxoRecovery::serverControl('stop', 'mariadb');
@@ -139,6 +157,15 @@ check($r['ok'] === true, 'restart nginx', json_encode($r));
 $calls = (string) file_get_contents($state . '/calls.log');
 check(str_contains($calls, '--no-block start mariadb.service') && str_contains($calls, 'reset-failed mariadb.service'),
 	'start uses --no-block and clears a failed state first');
+@unlink($state . '/calls.log');
+$r = KloxoRecovery::serverControl('start', 'bind9');
+check($r['ok'] === true && active($state, 'named'), 'start bind9: reaches named.service (Debian alias)', json_encode($r));
+$calls = (string) file_get_contents($state . '/calls.log');
+check(str_contains($calls, 'start named.service') && str_contains($calls, 'reset-failed named.service'),
+	'start bind9 acts on the canonical named unit');
+$r = KloxoRecovery::serverControl('stop', 'bind9');
+check($r['ok'] === true && !active($state, 'named') && KloxoWatchdog::isHeld('bind9', KloxoRecovery::rootDir()),
+	'stop bind9: named inactive, hold is still the catalog name bind9');
 @unlink($state . '/calls.log');
 $r = KloxoRecovery::serverControl('restart', 'kloxo-web');
 check($r['ok'] === false && $r['err'] === 'refused' && (clearstatcache(true) || !is_file($state . '/calls.log')), 'restart kloxo-web refused before systemctl runs');
@@ -183,6 +210,9 @@ $csrf = (string) $sess['csrf'];
 $res = KloxoRecoveryPage::handle($https, [], [], $sess, $ip, $now + 5);
 check($res['status'] === 200 && str_contains($res['body'], 'mariadb') && str_contains($res['body'], 'not installed')
 	&& str_contains($res['body'], 'name="csrf" value="' . $csrf . '"'), 'logged in: unit list with CSRF-protected buttons');
+check(str_contains($res['body'], 'name="unit" value="bind9"')
+	&& !str_contains($res['body'], '<td>bind9</td><td colspan="5">not installed</td>'),
+	'logged in: bind9 has Start, not "not installed"');
 check(!str_contains($res['body'], 'value="kloxo-web"><input type="hidden" name="act" value="stop"'), 'no Stop button for the panel web server');
 $post = ['HTTPS' => 'on', 'REQUEST_METHOD' => 'POST'];
 $res = KloxoRecoveryPage::handle($post, [], ['do' => 'control', 'unit' => 'mariadb', 'act' => 'start', 'csrf' => 'forged'], $sess, $ip, $now + 6);
@@ -231,7 +261,9 @@ if (class_exists('mysqli_sql_exception')) {
 	ok('database-down detection: skipped (no mysqli)');
 }
 $html = KloxoRecovery::databaseDownHtml();
-check(str_contains($html, '/recovery/') && str_contains($html, 'MariaDB'), 'database-down page links to the recovery console');
+check(str_contains($html, '/recovery/') && str_contains($html, 'MariaDB')
+	&& str_contains($html, 'SQLite') && !str_contains($html, 'panel cannot load'),
+	'database-down page links to the recovery console; panel stays on SQLite');
 $lx = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/lxlib.php');
 $inc = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/html/include.php');
 check(str_contains($lx, 'KloxoRecovery::isDatabaseDown($e)') && str_contains($lx, 'http_response_code(503)')

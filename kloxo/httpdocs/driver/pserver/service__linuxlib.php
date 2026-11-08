@@ -91,15 +91,15 @@ class Service__Linux extends Lxlclass
 	}
 
 	/**
-	 * Units the panel must not stop/disable/restart: killing them blanks every
-	 * page (MariaDB socket "No such file or directory") or hangs the backend.
+	 * Units the panel must not stop/disable/restart: killing them takes the
+	 * control panel down (Hiawatha, panel PHP/backend, or the panel SQLite
+	 * file). MariaDB is not on this list: the panel database is SQLite.
 	 *
 	 * @return list<string>
 	 */
 	static function protectedUnits()
 	{
 		return array(
-			'mariadb', 'mysql', 'mysqld', 'mariadbd',
 			'kloxo-php', 'kloxo-web', 'kloxo-backend', 'kloxo-wrap', 'hiawatha',
 			'sqlite', 'sqlite3',
 		);

@@ -112,10 +112,10 @@
 		css.appendChild(doc.createTextNode(
 			'#kloxo-busy{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;' +
 			'background:rgba(0,0,0,.45);align-items:center;justify-content:center}' +
-			'#kloxo-busy.on{display:flex}' +
+			'#kloxo-busy.on{display:flex;align-items:center;justify-content:center}' +
 			'#kloxo-busy .kb-box{background:#fff;border-radius:8px;padding:22px 34px;min-width:200px;' +
 			'text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4);font:14px Arial,Helvetica,sans-serif;color:#333}' +
-			'#kloxo-busy img{width:64px;height:64px;display:block;margin:0 auto 10px}'
+			'#kloxo-busy img{width:64px;height:64px;display:block;margin:0 auto 10px;background:#fff}'
 		));
 		(doc.head || doc.getElementsByTagName('head')[0] || host).appendChild(css);
 
@@ -126,8 +126,10 @@
 		var box = doc.createElement('div');
 		box.className = 'kb-box';
 		var img = doc.createElement('img');
-		img.src = '/theme/img/kloxo-spinner.gif';
+		img.src = '/theme/img/kloxo-spinner.gif?v=2';
 		img.alt = '';
+		img.width = 64;
+		img.height = 64;
 		label = doc.createElement('div');
 		box.appendChild(img);
 		box.appendChild(label);

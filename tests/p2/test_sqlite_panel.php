@@ -104,6 +104,11 @@ check(Service__Linux::mayControlUnit('hiawatha', 'stop') === false
 	&& Service__Linux::mayControlUnit('kloxo-web', 'restart') === false
 	&& Service__Linux::mayControlUnit('hiawatha', 'start') === true,
 	'stop/disable/restart of Hiawatha and sqlite is refused; start is allowed');
+check(!in_array('mariadb', $prot, true) && !in_array('mysqld', $prot, true)
+	&& Service__Linux::isProtectedUnit('mariadb') === false
+	&& Service__Linux::mayControlUnit('mariadb', 'stop') === true
+	&& Service__Linux::mayControlUnit('mysqld', 'disable') === true,
+	'MariaDB is not a critical service; stop/disable from the panel is allowed');
 
 exec('rm -rf ' . escapeshellarg($tmp));
 printf("%d passed, %d failed\n", $pass, $fail);

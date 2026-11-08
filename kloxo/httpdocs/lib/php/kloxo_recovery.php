@@ -303,6 +303,29 @@ final class KloxoRecovery
     }
 
     /**
+     * systemd Id of a catalog unit. Debian bind9.service is an alias of
+     * named.service; enable/disable refuse the alias name.
+     */
+    public static function canonicalUnit(string $unitBase): string
+    {
+        $want = $unitBase . '.service';
+        $bin = self::systemctlBin();
+        if ($bin === '') {
+            return $want;
+        }
+        $r = self::run([$bin, 'show', '--no-pager', '-p', 'Id', '--value', $want], 5);
+        $id = trim($r['out']);
+        if ($id !== '' && preg_match('/^[A-Za-z0-9_.@-]+\.service$/', $id) === 1) {
+            return $id;
+        }
+        if ($id !== '' && preg_match('/^[A-Za-z0-9_.@-]+$/', $id) === 1) {
+            return $id . '.service';
+        }
+
+        return $want;
+    }
+
+    /**
      * Unit states, read without privileges.
      *
      * @return list<array{name:string,unit:string,installed:bool,active:string,sub:string,enabled:string,self:bool}>
@@ -312,20 +335,27 @@ final class KloxoRecovery
         $cat = self::catalog();
         $bin = self::systemctlBin();
         $info = [];
+        $asked = array_values($cat);
         if ($bin !== '') {
-            $units = array_map(static fn(string $u): string => $u . '.service', array_values($cat));
+            $units = array_map(static fn(string $u): string => $u . '.service', $asked);
+            // Names is required for aliases: `systemctl show bind9` returns
+            // Id=named.service. Indexing only by Id made bind9 look uninstalled.
             $r = self::run(array_merge([$bin, 'show', '--no-pager',
-                '-p', 'Id', '-p', 'LoadState', '-p', 'ActiveState', '-p', 'SubState', '-p', 'UnitFileState'], $units));
-            foreach (preg_split('/\n\s*\n/', trim($r['out'])) ?: [] as $block) {
-                $row = [];
-                foreach (preg_split('/\R/', $block) ?: [] as $line) {
-                    if (str_contains($line, '=')) {
-                        [$k, $v] = explode('=', $line, 2);
-                        $row[$k] = $v;
-                    }
+                '-p', 'Id', '-p', 'Names', '-p', 'LoadState', '-p', 'ActiveState',
+                '-p', 'SubState', '-p', 'UnitFileState'], $units));
+            $blocks = preg_split('/\n\s*\n/', trim($r['out'])) ?: [];
+            foreach ($blocks as $i => $block) {
+                $row = self::parseShowBlock((string) $block);
+                if ($row === []) {
+                    continue;
                 }
-                if (isset($row['Id'])) {
-                    $info[(string) preg_replace('/\.service$/', '', $row['Id'])] = $row;
+                if (isset($asked[$i])) {
+                    $info[$asked[$i]] = $row;
+                }
+                foreach (self::showBlockKeys($row) as $k) {
+                    if (!isset($info[$k])) {
+                        $info[$k] = $row;
+                    }
                 }
             }
         }
@@ -345,6 +375,39 @@ final class KloxoRecovery
         }
 
         return $out;
+    }
+
+    /** @return array<string,string> */
+    private static function parseShowBlock(string $block): array
+    {
+        $row = [];
+        foreach (preg_split('/\R/', $block) ?: [] as $line) {
+            if (str_contains($line, '=')) {
+                [$k, $v] = explode('=', $line, 2);
+                $row[$k] = $v;
+            }
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<string,string> $row
+     * @return list<string>
+     */
+    private static function showBlockKeys(array $row): array
+    {
+        $keys = [];
+        if (($row['Id'] ?? '') !== '') {
+            $keys[] = (string) preg_replace('/\.service$/', '', $row['Id']);
+        }
+        foreach (preg_split('/\s+/', (string) ($row['Names'] ?? '')) ?: [] as $n) {
+            if ($n !== '') {
+                $keys[] = (string) preg_replace('/\.service$/', '', $n);
+            }
+        }
+
+        return array_values(array_unique($keys));
     }
 
     /**
@@ -368,7 +431,7 @@ final class KloxoRecovery
             return $res;
         }
         $unitBase = self::catalog()[$name];
-        $unit = $unitBase . '.service';
+        $unit = self::canonicalUnit($unitBase);
         if (in_array($act, ['start', 'restart'], true)) {
             // A unit left "failed" refuses to start until reset.
             self::run([$bin, 'reset-failed', $unit], 5);
@@ -445,7 +508,7 @@ final class KloxoRecovery
         if (!is_executable($bin)) {
             return ['ok' => false, 'text' => 'journalctl not found', 'euid' => $euid];
         }
-        $r = self::run([$bin, '-u', self::catalog()[$name] . '.service', '-n', (string) $lines, '--no-pager', '-o', 'short-iso'], 8);
+        $r = self::run([$bin, '-u', self::canonicalUnit(self::catalog()[$name]), '-n', (string) $lines, '--no-pager', '-o', 'short-iso'], 8);
         $text = $r['out'] !== '' ? $r['out'] : $r['err'];
         $text = (string) preg_replace('/[^\x09\x0a\x20-\x7e]/', '?', $text);
 
@@ -520,10 +583,10 @@ final class KloxoRecovery
     /** Small 503 page that points to the recovery console. */
     public static function databaseDownHtml(): string
     {
-        return '<!doctype html><meta charset="utf-8"><title>Panel database unavailable</title>'
+        return '<!doctype html><meta charset="utf-8"><title>MariaDB unavailable</title>'
             . '<body style="font:15px sans-serif;max-width:40em;margin:3em auto">'
-            . '<h2>The panel database is not reachable</h2>'
-            . '<p>MariaDB is down, so the panel cannot load. Start it from the '
-            . '<a href="/recovery/">recovery console</a>. It does not need the database.</p></body>';
+            . '<h2>A MariaDB connection failed</h2>'
+            . '<p>The panel itself uses SQLite and stays up. Customer databases, phpMyAdmin or mail lookups need MariaDB. Start it from the '
+            . '<a href="/recovery/">recovery console</a>.</p></body>';
     }
 }
