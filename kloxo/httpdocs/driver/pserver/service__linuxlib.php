@@ -235,7 +235,17 @@ class Service__Linux extends Lxlclass
 	{
 		$lines = preg_split('/\r\n|\r|\n/', trim((string) $journal)) ?: array();
 		$lines = array_values(array_filter(array_map('trim', $lines), 'strlen'));
-		$tail = implode(' | ', array_slice($lines, -6));
+		// A restart loop repeats the same lines; the cause is usually an error-looking
+		// line before the last one, so list those first, then the final lines.
+		$hits = array();
+		foreach ($lines as $l) {
+			if (preg_match('/fatal|error|unable|cannot|can\'t|couldn\'t|failed|denied|already in use|refused|exiting|abort|not found|no such/i', $l) === 1) {
+				$hits[] = $l;
+			}
+		}
+		$hits = array_slice(array_values(array_unique($hits)), -4);
+		$last = array_slice($lines, -3);
+		$tail = implode(' | ', array_values(array_unique(array_merge($hits, $last))));
 		$txt = $unit . ' is ' . ($state !== '' ? $state : 'not running') . ' after start';
 		if ($tail !== '') {
 			$txt .= ': ' . $tail;
@@ -330,7 +340,7 @@ class Service__Linux extends Lxlclass
 			if ($state === 'failed' || $state === 'inactive'
 				|| ($state === 'activating' && $sub === 'auto-restart')) {
 				$res['rc'] = 1;
-				$res['err'] = self::describeStartFailure($unit, $state, self::journalTail($unit));
+				$res['err'] = self::describeStartFailure($unit, $state, self::journalTail($unit, 30));
 			}
 		}
 

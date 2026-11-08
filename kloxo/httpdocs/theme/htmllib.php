@@ -5979,6 +5979,17 @@ class HtmlLib
 <?php
 	}
 
+	/**
+	 * HTML-escape a message and URL-encode it for a redirect query string.
+	 * kloxo_html() turns ' into &#039; and & into &amp;: unencoded, the `&`
+	 * starts a new parameter and the `#` a URL fragment, so the alert was cut at
+	 * the first quote (e.g. a journal line "... controlsocket in '/run/...'").
+	 */
+	static function redirectQueryValue($value)
+	{
+		return urlencode(kloxo_html($value));
+	}
+
 	function print_redirect_back($message, $variable, $value = null)
 	{
 		global $gbl, $sgbl, $login;
@@ -5988,12 +5999,12 @@ class HtmlLib
 			$message = $message[0];
 		}
 
-		$message = str_replace(' ', '+', kloxo_html($message));
+		$message = self::redirectQueryValue($message);
 
 		$vstring = null;
 
 		if ($value) {
-			$value = str_replace(' ', '+', kloxo_html($value));
+			$value = self::redirectQueryValue($value);
 			$vstring = "&frm_m_emessage_data=$value";
 		}
 
@@ -6035,7 +6046,7 @@ class HtmlLib
 		$vstring = null;
 
 		if ($value) {
-			$value = kloxo_html($value);
+			$value = self::redirectQueryValue($value);
 			$vstring = "&frm_m_smessage_data=$value";
 		}
 

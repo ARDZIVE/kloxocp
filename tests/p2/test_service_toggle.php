@@ -97,6 +97,26 @@ if (str_contains($msg, 'journalctl -u pdns')) {
 } else {
 	bad('describeStartFailure points at journalctl when the journal is empty', $msg);
 }
+$journal = "Loaded config\nUnable to bind UDP socket to '0.0.0.0:53': Address already in use\nListening on controlsocket in '/run/pdns/pdns.controlsocket'\nstarted\nstopped";
+$msg = Service__Linux::describeStartFailure('pdns', 'activating', $journal);
+if (str_contains($msg, 'Address already in use') && str_contains($msg, 'controlsocket')) {
+	ok('describeStartFailure lists the error line even when it is not the last one');
+} else {
+	bad('describeStartFailure lists the error line even when it is not the last one', $msg);
+}
+
+// The alert text travels in the redirect URL: quotes, & and # must survive it.
+$q = HtmlLib::redirectQueryValue($msg);
+$parsed = array();
+$url = '/display.php?frm_action=list&frm_emessage=' . $q . '&frm_ev_list=pdns';
+parse_str((string) parse_url($url, PHP_URL_QUERY), $parsed);
+if (parse_url($url, PHP_URL_FRAGMENT) === null
+	&& ($parsed['frm_emessage'] ?? '') === kloxo_html($msg)
+	&& ($parsed['frm_ev_list'] ?? '') === 'pdns') {
+	ok('redirect message with quotes, & and # arrives whole');
+} else {
+	bad('redirect message with quotes, & and # arrives whole', (string) ($parsed['frm_emessage'] ?? ''));
+}
 $src = (string) file_get_contents($doc . '/driver/pserver/service__linuxlib.php');
 // `ok` is derived from `rc` in controlUnit (systemctlRunDetail never sets it), so a
 // start that failed afterwards (rc=1) reaches the lxException in Service::runDirect.
@@ -108,7 +128,7 @@ if (!str_contains($detail, "'ok'")
 } else {
 	bad('a failed start (rc=1) gives ok=false and is raised as an error');
 }
-if (str_contains($src, "self::journalTail(\$unit)") && str_contains($src, "'auto-restart'")) {
+if (str_contains($src, "self::journalTail(\$unit, 30)") && str_contains($src, "'auto-restart'")) {
 	ok('systemctlRunDetail checks the unit is active after start/restart');
 } else {
 	bad('systemctlRunDetail checks the unit is active after start/restart');
