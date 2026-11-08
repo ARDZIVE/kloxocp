@@ -3866,6 +3866,12 @@ class HtmlLib
 				} else {
 					$pname = $obj->perDisplay($name);
 				}
+				if (!is_array($pname) || !isset($pname[0], $pname[1])) {
+					$pname = array(0, 0, '');
+				}
+				if (!isset($pname[2])) {
+					$pname[2] = '';
+				}
 			} else {
 				$pname = $obj->display($name);
 
@@ -7378,8 +7384,11 @@ class HtmlLib
 			return;
 		}
 
-		if (!is_unlimited($maxval) && $maxval == 0) {
-			return;
+		if (!is_unlimited($maxval) && ($maxval === null || $maxval === '' || (is_numeric($maxval) && (float) $maxval == 0))) {
+			if ($varname !== 'sizeper') {
+				return;
+			}
+			$maxval = 0;
 		}
 
 		if ($tabwidth > 0 && $tabwidth != null) {

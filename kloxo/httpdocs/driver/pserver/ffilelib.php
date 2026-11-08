@@ -1217,11 +1217,82 @@ class Ffile extends Lxclass
 		return $perm;
 	}
 
+	static function requestSubaction()
+	{
+		global $ghtml;
+
+		if (!is_object($ghtml)) {
+			return '';
+		}
+		// frm_subaction lives in __http_vars and is read via __get.
+		// isset($ghtml->frm_subaction) is always false (no __isset).
+		if (isset($ghtml->__http_vars) && is_array($ghtml->__http_vars)
+			&& isset($ghtml->__http_vars['frm_subaction'])
+			&& is_string($ghtml->__http_vars['frm_subaction'])) {
+			return $ghtml->__http_vars['frm_subaction'];
+		}
+		$sa = $ghtml->frm_subaction;
+
+		return is_string($sa) ? $sa : '';
+	}
+
+	static function isDiskUsageView()
+	{
+		return self::requestSubaction() === 'diskspace';
+	}
+
+	static function listShowsDiskUsage($parent)
+	{
+		if (is_object($parent) && !empty($parent->duflag)) {
+			return true;
+		}
+
+		return self::isDiskUsageView();
+	}
+
+	function diskUsageTotal()
+	{
+		if (isset($this->__du_total) && is_numeric($this->__du_total) && (float) $this->__du_total > 0) {
+			return (float) $this->__du_total;
+		}
+		$p = null;
+		try {
+			$p = $this->getParentO();
+		} catch (Throwable $e) {
+			$p = null;
+		}
+		// Children set __parent_o to the client, not the directory. Only use
+		// a parent size when that parent is another ffile.
+		if (is_object($p) && isset($p->size) && is_numeric($p->size) && (float) $p->size > 0) {
+			$isFfile = (method_exists($p, 'getClass') && $p->getClass() === 'ffile')
+				|| (method_exists($p, 'get__table') && $p->get__table() === 'ffile');
+			if ($isFfile) {
+				return (float) $p->size;
+			}
+		}
+
+		return 0.0;
+	}
+
+	function formatSizePer()
+	{
+		$sz = (isset($this->size) && is_numeric($this->size)) ? (float) $this->size : 0.0;
+		$tot = $this->diskUsageTotal();
+		$pct = ($tot > 0.0) ? (int) round(($sz / $tot) * 100) : 0;
+
+		// Kloxo-MR Disk Usage: "16,384.00 (13%) / 0"
+		return number_format($sz, 2, '.', ',') . ' (' . $pct . '%) / 0';
+	}
+
 	function perDisplay($var)
 	{
 		if ($var === 'sizeper') {
-			return array($this->getParentO()->size, $this->size, "");
+			$sz = (isset($this->size) && is_numeric($this->size)) ? (float) $this->size : 0.0;
+
+			return array($this->diskUsageTotal(), $sz, '');
 		}
+
+		return array(0, 0, '');
 	}
 
 	function display($var)
@@ -1229,7 +1300,7 @@ class Ffile extends Lxclass
 		switch ($var) {
 
 			case "sizeper":
-				return $this->size;
+				return $this->formatSizePer();
 
 			case "pvrename":
 				return "rename";
@@ -1434,7 +1505,8 @@ class Ffile extends Lxclass
 			return null;
 		}
 
-		$duflag = $parent->duflag;
+		$duflag = self::listShowsDiskUsage($parent);
+		$parent->duflag = $duflag;
 
 		try {
 			$list = rl_exec_get($parent->__masterserver, $parent->__readserver, array("coreFfile", "get_full_stat"),
@@ -1478,6 +1550,26 @@ class Ffile extends Lxclass
 
 		}
 
+		if (!isset($parent->ffile_l) || !is_array($parent->ffile_l)) {
+			$parent->ffile_l = array();
+		}
+
+		$total = 0.0;
+		if (isset($parent->size) && is_numeric($parent->size) && (float) $parent->size > 0) {
+			$total = (float) $parent->size;
+		} else {
+			foreach ($parent->ffile_l as $child) {
+				if (is_object($child) && isset($child->size) && is_numeric($child->size)) {
+					$total += (float) $child->size;
+				}
+			}
+		}
+		foreach ($parent->ffile_l as $child) {
+			if (is_object($child)) {
+				$child->__du_total = $total;
+			}
+		}
+
 		$__tv = null;
 
 		return $__tv;
@@ -1486,8 +1578,6 @@ class Ffile extends Lxclass
 	function get()
 	{
 		global $gbl, $sgbl, $login, $ghtml;
-
-		static $st;
 
 		if (isset($this->download_f) && $this->download_f) {
 			$numlines = 'download';
@@ -1500,21 +1590,16 @@ class Ffile extends Lxclass
 			}
 		}
 
-		if ($st > 0) {
-?>
-	Called more than once
-<?php
+		$this->duflag = false;
+		if (is_object($gbl) && method_exists($gbl, 'getSessionV')) {
+			$sv = $gbl->getSessionV('ffile_duflag');
+			$this->duflag = ($sv === true || $sv === 'on' || $sv === 1 || $sv === '1');
 		}
-		$st++;
-
-		$this->duflag = (is_object($gbl) && method_exists($gbl, 'getSessionV'))
-			? $gbl->getSessionV('ffile_duflag') : false;
 		if (is_object($gbl) && method_exists($gbl, 'setSessionV')) {
 			$gbl->setSessionV('ffile_duflag', false);
 		}
 		// Disk Usage tab is a=show&sa=diskspace: enable % Of Tot for that view.
-		if (!$this->duflag && is_object($ghtml)
-			&& isset($ghtml->frm_subaction) && $ghtml->frm_subaction === 'diskspace') {
+		if (!$this->duflag && self::isDiskUsageView()) {
 			$this->duflag = true;
 		}
 		$this->numlines = $numlines;
@@ -1635,15 +1720,11 @@ class Ffile extends Lxclass
 			log_log("error", "ffile createListNlist: " . $e->getMessage());
 		}
 
-		$duflag = isset($parent->duflag) ? $parent->duflag : false;
-
 		$nlist["ttype"] = "2%";
 
-		if ($duflag) {
-			$nlist["size"] = "10%";
+		$nlist["size"] = "10%";
+		if (self::listShowsDiskUsage($parent)) {
 			$nlist["sizeper"] = "10%";
-		} else {
-			$nlist["size"] = "10%";
 		}
 
 		$nlist["nname"] = "70%";

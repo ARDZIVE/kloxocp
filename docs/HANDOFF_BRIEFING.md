@@ -267,7 +267,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Clicking **Ownership** keeps the path and shows Change Ownership
     (Current, User/Group, recursive, Change; `www-data` on Ubuntu).
     Clicking **Disk Usage** uses `a=show&sa=diskspace` (tab selected)
-    and shows the file list with Size and **% Of Tot**.     Clicking **Upload**
+    and shows the file list with Size and **% Of Tot** (`16,384.00 (13%) / 0`;
+    the column is enabled from the request subaction, not only a one-shot
+    session `duflag`). Clicking **Upload**
     keeps the path and shows local/http/ftp upload forms. Clicking
     **Thumbnail** uses `a=updateform&sa=thumbnail` (selected; not
     mixed-case `updateForm`) with Width/Height default 20 and Update.

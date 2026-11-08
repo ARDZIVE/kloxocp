@@ -119,7 +119,8 @@ Target All, Change Permssions Recursively, Change). Clicking **Ownership**
 keeps the path, selects that tab, and shows Change Ownership (Current,
 User/Group selects, Change Ownership Recursively, Change; web user is
 `www-data` on Ubuntu). Clicking **Disk Usage** goes to `a=show&sa=diskspace`
-(selected) and lists files with Size plus **% Of Tot**. Clicking **Upload**
+(selected) and lists files with Size plus **% Of Tot** (`16,384.00 (13%) / 0`;
+column is on that URL, not a one-shot session `duflag`). Clicking **Upload**
 keeps the path, selects that tab, and shows three forms (local Upload with
 overwrite warning + progress, Upload (http), Upload (ftp)). Clicking
 **Thumbnail** uses lowercase `a=updateform&sa=thumbnail` (selected) with

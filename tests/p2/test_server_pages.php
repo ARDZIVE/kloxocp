@@ -1849,24 +1849,51 @@ try {
 	$curDu = 'display.php?' . $ghtml->get_get_from_current_post(null);
 	$duSelect = $ghtml->compare_urls($curDu, is_string($fmDuUrl) ? $fmDuUrl : '');
 	$showOnDu = $ghtml->compare_urls($curDu, is_string($fmShowUrl) ? $fmShowUrl : '');
+	$ff->duflag = false;
+	$duFromUrl = Ffile::createListNlist($ff, null);
+	$viewFromUrl = Ffile::isDiskUsageView();
+	$issetMagic = isset($ghtml->frm_subaction);
+	$ghtml->__http_vars['frm_subaction'] = 'perm';
 	$ff->duflag = true;
-	$duNlist = Ffile::createListNlist($ff, null);
+	$duFromFlag = Ffile::createListNlist($ff, null);
 	$ff->duflag = false;
 	$plainNlist = Ffile::createListNlist($ff, null);
+	$ghtml->__http_vars['frm_subaction'] = 'diskspace';
+	$child = new Ffile(null, 'localhost', sys_get_temp_dir(), '/Maildir', 'nobody');
+	$child->size = 16384;
+	$child->__du_total = 126031;
+	$per = $child->perDisplay('sizeper');
+	$sizePerText = $child->display('sizeper');
 	$fmSrc = (string) file_get_contents($doc . '/driver/pserver/ffilelib.php');
+	$htmlSrcDu = (string) file_get_contents($doc . '/theme/htmllib.php');
+	$sizeperDesc = get_classvar_description('ffile', 'sizeper');
+	$descEn = (string) file_get_contents($doc . '/lang/en-us/desclib.php');
 	$fmDuOk = is_string($fmDuUrl) && str_contains($fmDuUrl, 'frm_subaction=diskspace')
 		&& str_contains($fmDuUrl, 'ffile')
 		&& $duSelect === true && $showOnDu === false
 		&& in_array('a=show&sa=diskspace', $ffProps['property'], true)
 		&& !in_array('a=update&sa=diskspace', $ffProps['property'], true)
-		&& is_array($duNlist) && array_key_exists('sizeper', $duNlist)
-		&& array_key_exists('size', $duNlist)
+		&& $viewFromUrl === true
+		&& $issetMagic === false
+		&& is_array($duFromUrl) && array_key_exists('sizeper', $duFromUrl)
+		&& array_key_exists('size', $duFromUrl)
+		&& array_keys($duFromUrl)[0] === 'ttype'
+		&& array_search('sizeper', array_keys($duFromUrl), true) === array_search('size', array_keys($duFromUrl), true) + 1
+		&& is_array($duFromFlag) && array_key_exists('sizeper', $duFromFlag)
 		&& is_array($plainNlist) && !array_key_exists('sizeper', $plainNlist)
+		&& is_array($per) && isset($per[0], $per[1]) && (float) $per[0] === 126031.0 && (float) $per[1] === 16384.0
+		&& $sizePerText === '16,384.00 (13%) / 0'
 		&& str_contains($fmSrc, 'a=show&sa=diskspace')
-		&& str_contains($fmSrc, "frm_subaction === 'diskspace'")
+		&& str_contains($fmSrc, 'function isDiskUsageView')
+		&& str_contains($fmSrc, "self::requestSubaction() === 'diskspace'")
+		&& !str_contains($fmSrc, 'Called more than once')
+		&& str_contains($htmlSrcDu, "\$varname !== 'sizeper'")
 		&& kloxo_content_tab_label('Update_diskspace', $fmDuUrl) === 'Disk Usage'
 		&& kloxo_content_tab_label('Disk Usage', $fmDuUrl) === 'Disk Usage'
-		&& kloxo_content_tab_label('home', $fmDuUrl) === 'Disk Usage';
+		&& kloxo_content_tab_label('home', $fmDuUrl) === 'Disk Usage'
+		&& is_array($sizeperDesc) && ($sizeperDesc[2] ?? '') === '%_of_tot'
+		&& str_contains($descEn, '"%_of_tot"')
+		&& str_contains($descEn, '"% Of Tot"');
 	if ($fmDuOk) {
 		ok('File Manager Disk Usage tab keeps path, selects, and shows % Of Tot');
 	} else {
@@ -1874,7 +1901,10 @@ try {
 			'duUrl=' . (is_string($fmDuUrl) ? $fmDuUrl : 'none')
 				. ' select=' . ($duSelect ? 'yes' : 'no')
 				. ' showSelect=' . ($showOnDu ? 'yes' : 'no')
-				. ' nlist=' . implode(',', array_keys(is_array($duNlist) ? $duNlist : array())));
+				. ' view=' . ($viewFromUrl ? 'yes' : 'no')
+				. ' issetMagic=' . ($issetMagic ? 'yes' : 'no')
+				. ' nlist=' . implode(',', array_keys(is_array($duFromUrl) ? $duFromUrl : array()))
+				. ' text=' . (is_string($sizePerText) ? $sizePerText : 'none'));
 	}
 
 	$fmUpUrl = $ghtml->getFullUrl('a=updateform&sa=upload');
