@@ -1296,6 +1296,10 @@ function __ac_desc_UpdateForm($object)
 	global $gbl, $sgbl, $login, $ghtml;
 
 	if (!$object) {
+		$ghtml->print_content_begin();
+		print("<div class=\"div_content\" style=\"padding:16px\">The requested form could not be loaded.</div>");
+		$ghtml->print_content_end();
+
 		return;
 	}
 

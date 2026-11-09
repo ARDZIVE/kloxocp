@@ -266,6 +266,21 @@ if (str_contains($sel, 'KloxoPhpver::fpmIds()')) {
 } else {
     $bad('PHP Selected lists only versions with php-fpm');
 }
+if (preg_match('/function postUpdate\s*\(\s*\)\s*\{(.*?)function /s', $sel, $pm) === 1
+    && !preg_match('/\bexec\s*\([^)]*fixweb/', $pm[1])
+    && str_contains($pm[1], 'createRestartFile')
+) {
+    $ok('Web Features Update does not block the page on /script/fixweb');
+} else {
+    $bad('Web Features Update does not block the page on /script/fixweb');
+}
+
+$fpmSrc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/kloxo_phpfpm.php');
+if (str_contains($fpmSrc, "'--no-block'")) {
+    $ok('FPM systemctl uses --no-block so a stuck unit cannot blank the panel');
+} else {
+    $bad('FPM systemctl uses --no-block so a stuck unit cannot blank the panel');
+}
 
 KloxoPhpfpm::$fsPrefix = '';
 KloxoPhpfpm::$runCmd = null;

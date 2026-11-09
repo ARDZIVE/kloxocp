@@ -172,9 +172,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `/etc/php/X.Y/fpm/pool.d/kloxo-<domain>.conf` with socket
     `/run/php/<domain>-phpX.Y.sock` (`KloxoPhpfpm`).     Domain Web Features PHP Selected sends `KloxoPhpfpm::applyDomain` to
     kloxo-backend via `rl_exec_get` (the panel user cannot write `/etc/php`).
-    A failed pool write is an `lxException` with the real reason. `validateWeb`
-    tests only the active web driver (nginx `-t` does not run
-    `apache2ctl configtest`). Webserver Configure
+    Update does not run `/script/fixweb` in the HTTP request (that printed
+    into the page and blocked until php-fpm/nginx finished, leaving only the
+    simplicity background). A failed pool write is an `lxException` with the
+    real reason. `validateWeb` tests only the active web driver. Webserver Configure
     Multiple PHP Install submits selected `phpX.Y` ids (dual-listbox
     Available and/or Selected) and queues `install-site-php --versions=`;
     Multiple PHP Remove lists installed `phpX.Y-fpm`. The old scanner only

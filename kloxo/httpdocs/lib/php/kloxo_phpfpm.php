@@ -715,6 +715,12 @@ final class KloxoPhpfpm
         if ($bin === '' && self::$runCmd === null) {
             return ['code' => 127, 'out' => 'systemctl not found'];
         }
+        $act = $args[0] ?? '';
+        if (in_array($act, ['start', 'stop', 'reload', 'restart', 'enable', 'disable', 'reload-or-restart'], true)
+            && !in_array('--no-block', $args, true)
+        ) {
+            array_splice($args, 1, 0, ['--no-block']);
+        }
 
         return self::run(array_merge([$bin !== '' ? $bin : 'systemctl'], $args));
     }

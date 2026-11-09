@@ -1550,10 +1550,12 @@ class Web extends Lxdb
 
 	function postUpdate()
 	{
-		// We need to write because reads everything from the database.
+		// Write first so the chosen PHP Selected is stored even if the
+		// later sync is slow. Do not run /script/fixweb here: it prints to
+		// the HTTP response and waits on php-fpm/nginx, which left the
+		// simplicity page as only the background image. login->was() already
+		// runs createConfFile for this domain.
 		$this->write();
-
-		exec("sh /script/fixweb --domain={$this->nname}");
 		createRestartFile('restart-web');
 	}
 
