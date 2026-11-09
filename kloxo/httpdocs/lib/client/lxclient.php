@@ -843,13 +843,16 @@ abstract class Lxclient extends Lxdb
 					throw new lxException($login->getThrow('can_not_set_own_limit'));
 				}
 				
-				$vlist['disable_per'] = array('s', array('off', '95', '100', '110', '120', '130', '150', '175', '200', '300'));
+				if (!isset($this->disable_per) || $this->disable_per === '' || $this->disable_per === null) {
+					$this->setDefaultValue('disable_per', (string) kloxo_disable_policy_default());
+				}
+				$vlist['disable_per'] = array('s', array('off', '90', '95', '100', '110', '120', '130', '150', '175', '200', '300'));
 
 				$this->disable_notify = null;
 
 				$vlist['disable_notify'] = array('f', array('on', 'off'));
 
-				if (file_exists("../etc/flag/disablenotifyforquota.flg")) {
+				if (kloxo_quota_notify_suppressed()) {
 					$this->setDefaultValue('disable_notify', 'on');
 				}
 
@@ -1089,11 +1092,7 @@ abstract class Lxclient extends Lxdb
 
 	function updateDisable_per($param)
 	{
-		if ($param['disable_notify'] === 'on') {
-			touch('../etc/flag/disablenotifyforquota.flg');
-		} else {
-			unlink('../etc/flag/disablenotifyforquota.flg');
-		}
+		kloxo_quota_notify_set(isset($param['disable_notify']) && $param['disable_notify'] === 'on');
 
 		return $param;
 	}

@@ -502,7 +502,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `no_dns_template`, creates `listpriv` when missing, sanitizes the
     display name before `validate_plan_name`, and does not consume
     parent quota like a client. Live plan-create after deploy is
-    **UNVERIFIED**. Command Center / Timezone / Switch
+    **UNVERIFIED**. Disable Policy disables an account when usage
+    reaches the percentage: General Disable Percentage (`dpercentage`,
+    default 110) unless the account or plan sets Disable When Usage
+    Reaches (`disable_per`, including `off`). Notify Policy
+    (`npercentage`, default 90) is the warning. `collectquota` uses
+    `kloxo_quota_policy_check` (PHP 8-safe string quotas). Tested:
+    `tests/p2/test_disable_policy.php`. Live collectquota after deploy
+    is **UNVERIFIED**. Command Center / Timezone / Switch
     Program / Cron Tasks / File Manager / HelpDesk forms no longer
     TypeError on empty lists. HelpDesk ticket show skips Find, lists
     Switch To Another, and Add Reply no longer TypeErrors on a missing

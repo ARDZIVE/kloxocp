@@ -140,6 +140,11 @@ if php "$HERE/test_quota_math.php"; then
 else
   bad "test_quota_math.php"
 fi
+if php "$HERE/test_disable_policy.php"; then
+  ok "test_disable_policy.php"
+else
+  bad "test_disable_policy.php"
+fi
 if php "$HERE/test_autoresponder_form.php"; then
   ok "test_autoresponder_form.php"
 else

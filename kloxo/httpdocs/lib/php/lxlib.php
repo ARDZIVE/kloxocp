@@ -1820,6 +1820,132 @@ function kloxo_quota_num($v)
 	return $n;
 }
 
+/** Usage as a percentage of the limit, or null when the limit does not apply. */
+function kloxo_quota_usage_percent($used, $priv): ?float
+{
+	if (is_unlimited($priv)) {
+		return null;
+	}
+	$p = kloxo_quota_num($priv);
+	if ($p <= 0) {
+		return null;
+	}
+
+	return (kloxo_quota_num($used) / $p) * 100.0;
+}
+
+function kloxo_generalmisc_value(string $key, $default)
+{
+	try {
+		global $login;
+		if (!is_object($login) || !method_exists($login, 'getObject')) {
+			return $default;
+		}
+		$g = $login->getObject('general');
+		if (!is_object($g) || !isset($g->generalmisc_b) || !is_object($g->generalmisc_b)) {
+			return $default;
+		}
+		$b = $g->generalmisc_b;
+		if (!isset($b->$key) || $b->$key === '' || $b->$key === null) {
+			return $default;
+		}
+
+		return $b->$key;
+	} catch (Throwable $e) {
+		return $default;
+	}
+}
+
+/** General Disable Policy (normal 110). */
+function kloxo_disable_policy_default(): int
+{
+	$n = (int) kloxo_quota_num(kloxo_generalmisc_value('dpercentage', 110));
+
+	return $n > 0 ? $n : 110;
+}
+
+/** General Notify Policy (normal 90). */
+function kloxo_notify_policy_percent(): int
+{
+	$n = (int) kloxo_quota_num(kloxo_generalmisc_value('npercentage', 90));
+
+	return $n > 0 ? $n : 90;
+}
+
+/**
+ * Percentage at which this account is disabled, or null when auto-disable is off.
+ * Per-account Disable When Usage Reaches overrides General Disable Percentage.
+ */
+function kloxo_disable_policy_percent($object): ?int
+{
+	if (is_object($object) && isset($object->disable_per) && $object->disable_per !== null
+		&& $object->disable_per !== '') {
+		$raw = $object->disable_per;
+		if (is_string($raw) && strtolower(trim($raw)) === 'off') {
+			return null;
+		}
+		if (is_numeric($raw)) {
+			$n = (int) $raw;
+
+			return $n > 0 ? $n : null;
+		}
+	}
+
+	return kloxo_disable_policy_default();
+}
+
+/**
+ * @return array{percent:?float, warn:bool, disable:bool}
+ */
+function kloxo_quota_policy_check($object, $used, $priv): array
+{
+	$percent = kloxo_quota_usage_percent($used, $priv);
+	if ($percent === null) {
+		return array('percent' => null, 'warn' => false, 'disable' => false);
+	}
+	$limit = kloxo_disable_policy_percent($object);
+
+	return array(
+		'percent' => $percent,
+		'warn' => $percent >= kloxo_notify_policy_percent(),
+		'disable' => ($limit !== null && $percent >= $limit),
+	);
+}
+
+function kloxo_quota_notify_flag_paths(): array
+{
+	return array(
+		'../etc/flag/disablenotifyforquota.flg',
+		'../etc/flag/disablesendnotifyforquota.flg',
+	);
+}
+
+function kloxo_quota_notify_suppressed(): bool
+{
+	foreach (kloxo_quota_notify_flag_paths() as $f) {
+		if (is_file($f)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function kloxo_quota_notify_set(bool $suppress): void
+{
+	foreach (kloxo_quota_notify_flag_paths() as $f) {
+		$dir = dirname($f);
+		if ($dir !== '' && $dir !== '.' && !is_dir($dir)) {
+			@mkdir($dir, 0755, true);
+		}
+		if ($suppress) {
+			@touch($f);
+		} elseif (is_file($f)) {
+			@unlink($f);
+		}
+	}
+}
+
 function isQuotaGreaterThanOrEq($used, $priv)
 {
 	if (is_unlimited($priv)) {
@@ -1864,10 +1990,12 @@ function isQuotaGreaterThan($used, $priv)
 
 function is_unlimited($val)
 {
-	if (strtolower($val) === 'unlimited' || strtolower($val) === 'na') {
-		return true;
+	if (is_array($val) || is_object($val) || $val === null || $val === '') {
+		return false;
 	}
-	return false;
+	$s = strtolower(trim((string) $val));
+
+	return ($s === 'unlimited' || $s === 'na');
 }
 
 function if_demo_throw()

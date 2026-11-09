@@ -1223,6 +1223,8 @@ TXT;
             'ticket_url' => '',
             'message_url' => '',
             'autoupdate' => 'off',
+            'dpercentage' => '110',
+            'npercentage' => '90',
         ];
     }
 

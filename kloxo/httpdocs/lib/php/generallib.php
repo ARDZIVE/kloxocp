@@ -414,11 +414,25 @@ class General extends Lxdb
 				break;
 
 			case "disableper" :
+				if (!isset($this->generalmisc_b) || !is_object($this->generalmisc_b)) {
+					$this->generalmisc_b = new generalmisc_b(null, null, 'general');
+				}
+				if (!isset($this->generalmisc_b->dpercentage) || $this->generalmisc_b->dpercentage === ''
+					|| $this->generalmisc_b->dpercentage === null) {
+					$this->generalmisc_b->setDefaultValue('dpercentage', '110');
+				}
 				$vlist['generalmisc_b-dpercentage'] = array('s', array('90', '95', '100', '105', '110', '120'));
 
 				break;
 
 			case "npercentage" :
+				if (!isset($this->generalmisc_b) || !is_object($this->generalmisc_b)) {
+					$this->generalmisc_b = new generalmisc_b(null, null, 'general');
+				}
+				if (!isset($this->generalmisc_b->npercentage) || $this->generalmisc_b->npercentage === ''
+					|| $this->generalmisc_b->npercentage === null) {
+					$this->generalmisc_b->setDefaultValue('npercentage', '90');
+				}
 				$vlist['generalmisc_b-npercentage'] = null;
 
 				break;

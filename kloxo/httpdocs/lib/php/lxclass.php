@@ -4925,10 +4925,12 @@ abstract class Lxclass
 
 		$name = ucfirst($sgbl->__var_program_name);
 
-		foreach ($gbl->__tmp_var_email_list as $k => $v) {
-			dprint("Sending {$v} to {$k}\n");
+		if (!empty($gbl->__tmp_var_email_list) && is_array($gbl->__tmp_var_email_list)) {
+			foreach ($gbl->__tmp_var_email_list as $k => $v) {
+				dprint("Sending {$v} to {$k}\n");
 
-			lx_mail(null, $k, "{$name} Message", $v);
+				lx_mail(null, $k, "{$name} Message", $v);
+			}
 		}
 	}
 
@@ -5037,7 +5039,7 @@ abstract class Lxclass
 				if ($ob) {
 					$res = $ob->collectVariableQuota($vlist);
 					foreach ($res as $var => $v) {
-						$fv[$var] += $v;
+						$fv[$var] = kloxo_quota_num($fv[$var] ?? 0) + kloxo_quota_num($v);
 					}
 				}
 			} else if (cse($c, "_l")) {
@@ -5053,7 +5055,7 @@ abstract class Lxclass
 								continue;
 							}
 
-							$fv[$var] += $v;
+							$fv[$var] = kloxo_quota_num($fv[$var] ?? 0) + kloxo_quota_num($v);
 						}
 					}
 				}
@@ -5071,7 +5073,7 @@ abstract class Lxclass
 			$fv[$var] = 0;
 
 			foreach ($list as $k => $v) {
-				$fv[$var] += $fv[$v];
+				$fv[$var] = kloxo_quota_num($fv[$var] ?? 0) + kloxo_quota_num($fv[$v] ?? 0);
 			}
 		}
 
@@ -5102,30 +5104,21 @@ abstract class Lxclass
 				$this->setUpdateSubaction('collectquotaupdate');
 			}
 
-			if ($this->isLxclient() && !$this->isHardQuota($var) && !is_unlimited($this->priv->$var) && cse($var, "_usage")) {
-				$per = $this->used->$var / $this->priv->$var;
-				$per *= 100;
-
-				if (cse($var, "_num")) {
-					$exce = 100;
-				} else {
-					$exce = 95;
-				}
-
-				if ($per > $exce) {
+			$privVal = (is_object($this->priv) && isset($this->priv->$var)) ? $this->priv->$var : '';
+			$usedVal = (is_object($this->used) && isset($this->used->$var)) ? $this->used->$var : 0;
+			if ($this->isLxclient() && !$this->isHardQuota($var) && cse($var, "_usage")) {
+				$chk = kloxo_quota_policy_check($this, $usedVal, $privVal);
+				$per = $chk['percent'];
+				if ($per !== null && $chk['warn']) {
 					$this->state = 'exceed';
-					$per = round($per);
-					if (!$sgbl->__var_just_db) {
-						$msg = "Warning: The Account {$this->nname} is using {$per}% of quota for {$var}.\n Limit: " .
-							"{$this->priv->$var}\nUsed: {$this->used->$var}\n";
-
-						if (!file_exists("../etc/flag/disablesendnotifyforquota.flg")) {
-							$this->notifyAll($msg, false);
-						}
+					$shown = (int) round($per);
+					if (empty($sgbl->__var_just_db) && !kloxo_quota_notify_suppressed()) {
+						$msg = "Warning: The Account {$this->nname} is using {$shown}% of quota for {$var}.\n Limit: " .
+							"{$privVal}\nUsed: {$usedVal}\n";
+						$this->notifyAll($msg, false);
 					}
 				}
-
-				if ($this->disable_per && !$this->isOff('disable_per') && $per > $this->disable_per) {
+				if (!empty($chk['disable'])) {
 					dprint("In {$this->nname} {$var} rexceeded... \n");
 					$rexceeded = true;
 				}
@@ -5138,10 +5131,8 @@ abstract class Lxclass
 			$this->updateDisable(null, 'quota');
 			$msg = "The Account {$this->nname} has been disabled due to overquota";
 
-			if (!$sgbl->__var_just_db) {
-				if (!file_exists("../etc/flag/disablesendnotifyforquota.flg")) {
-					$this->notifyAll($msg);
-				}
+			if (empty($sgbl->__var_just_db) && !kloxo_quota_notify_suppressed()) {
+				$this->notifyAll($msg);
 			}
 
 			print("$msg\n");
@@ -5183,11 +5174,13 @@ abstract class Lxclass
 			return;
 		}
 
-		if (!isset($gbl->__tmp_var_email_list)) {
-			$gbl->__tmp_var_email_list = null;
+		if (!isset($gbl->__tmp_var_email_list) || !is_array($gbl->__tmp_var_email_list)) {
+			$gbl->__tmp_var_email_list = array();
 		}
 
-		$gbl->__tmp_var_email_list[$this->contactemail] .= "\n {$msg}";
+		$prev = isset($gbl->__tmp_var_email_list[$this->contactemail])
+			? (string) $gbl->__tmp_var_email_list[$this->contactemail] : '';
+		$gbl->__tmp_var_email_list[$this->contactemail] = $prev . "\n {$msg}";
 
 		// Send Only one level up.
 
@@ -5197,8 +5190,10 @@ abstract class Lxclass
 
 		$pp = $this->getParentO();
 
-		if (isset($pp->contactemail) && $pp->contactemail) {
-			$gbl->__tmp_var_email_list[$pp->contactemail] .= "\n {$msg}";
+		if (is_object($pp) && isset($pp->contactemail) && $pp->contactemail) {
+			$pprev = isset($gbl->__tmp_var_email_list[$pp->contactemail])
+				? (string) $gbl->__tmp_var_email_list[$pp->contactemail] : '';
+			$gbl->__tmp_var_email_list[$pp->contactemail] = $pprev . "\n {$msg}";
 		}
 
 	}

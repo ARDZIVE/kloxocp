@@ -13,7 +13,7 @@ if (!isset($cmd['just-db'])) {
 	$sgbl->__var_just_db = false;
 	try {
 		storeinGblvariables();
-	} catch (Exception $e) {
+	} catch (Throwable $e) {
 		print($e->getMessage());
 		print("\n");
 	}
@@ -38,7 +38,7 @@ function collectquota_main()
 		$login->metadbaction = 'writeonly';
 		$login->was();
 		print_time('collect', 'Time Taken To Collect Quota');
-	} catch (Exception $e) {
+	} catch (Throwable $e) {
 		print("Caught Execption\n");
 		print($e->getMessage());
 		print("\n");
@@ -149,8 +149,9 @@ function getTotalUsage($class, $list)
 				dprintr("$k: \n");
 				dprintr($tvar);
 			}
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			print("Could not get Remote Disk Usage $k\n");
+			$tvar = array();
 		}
 		$var = lx_array_merge(array($var, $tvar));
 	}
