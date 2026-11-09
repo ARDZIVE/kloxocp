@@ -754,10 +754,11 @@ if grep -q "skin_name = 'simplicity'" "$ROOT/kloxo/httpdocs/lib/php/lxclass.php"
 else
   bad "admin appearance falls back to simplicity/default"
 fi
-if grep -q "/var/log/mail.log" "$ROOT/kloxo/httpdocs/lib/domain/clientmail.php"; then
-  ok "clientmail reads Ubuntu mail.log"
+if grep -q "/var/log/exim4/mainlog" "$ROOT/kloxo/httpdocs/lib/domain/clientmail.php" \
+  && grep -q "/var/log/mail.log" "$ROOT/kloxo/httpdocs/lib/domain/clientmail.php"; then
+  ok "clientmail reads Ubuntu Exim mainlog and mail.log"
 else
-  bad "clientmail reads Ubuntu mail.log"
+  bad "clientmail reads Ubuntu Exim mainlog and mail.log"
 fi
 if grep -qE 'exec\(|yum update|yum clean' "$ROOT/kloxo/bin/update.php"; then
   bad "legacy update.php does not call yum"

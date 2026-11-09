@@ -237,6 +237,8 @@ as a second installed service while MariaDB is present. A distinct MySQL
 package unit (different FragmentPath) stays disabled until started from Services.
 FTP Sessions lists `ftpsession` under localhost `pserver`, not a parentless client list.
 Mails Per Client lists under the selected pserver and shows Switch To Another.
+It reads `/var/log/exim4/mainlog` (then `mail.log` / `maillog`) and counts Exim
+authenticated and local submissions plus Postfix `from=` for the last two days.
 Admin Servers can add a remote host (hostname or IPv4 plus the slave password)
 on the list page; there is no separate Add Server tab. Adding a domain no longer fails with
 `Unsupported operand types: string + int`: quota counters (`priv`/`used`) are strings (`''`, `Unlimited`), and

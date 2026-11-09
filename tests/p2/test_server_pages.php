@@ -739,6 +739,43 @@ try {
 	bad('Mails Per Client uses the selected server name', $e->getMessage());
 }
 
+$now = date('Y-m-d H:i:s');
+$eximAuth = $now . ' 1abc-0001-Xx <= user@mesrob.com H=1.2.3.4 [1.2.3.4] P=esmtpsa A=dovecot_plain:user@mesrob.com S=100';
+$eximLocal = $now . ' 1abc-0002-Xy <= form@mesrob.com U=www-data P=local S=80';
+$eximIn = $now . ' 1abc-0003-Xz <= spam@evil.test H=evil.test [9.9.9.9] P=esmtp S=200';
+$eximBounce = $now . ' 1abc-0004-Xa <= <> H=x [1.1.1.1] P=esmtp S=10';
+$eximOut = $now . ' 1abc-0001-Xx => dest@example.com R=dnslookup T=remote_smtp';
+$pf = date('M j H:i:s') . ' host postfix/qmgr[1]: 1: from=<alice@mesrob.com>, size=10, nrcpt=1 (queue active)';
+$old = '2001-01-01 00:00:00 1old <= old@mesrob.com U=www-data P=local S=10';
+if (clientmail::lineSender($eximAuth) === 'user@mesrob.com'
+	&& clientmail::lineSender($eximLocal) === 'form@mesrob.com'
+	&& clientmail::lineSender($eximIn) === ''
+	&& clientmail::lineSender($eximBounce) === ''
+	&& clientmail::lineSender($eximOut) === ''
+	&& clientmail::lineSender($pf) === 'alice@mesrob.com') {
+	ok('Mails Per Client counts Exim auth/local and Postfix from, not inbound or bounces');
+} else {
+	bad('Mails Per Client counts Exim auth/local and Postfix from, not inbound or bounces',
+		clientmail::lineSender($eximAuth) . '|' . clientmail::lineSender($eximLocal) . '|' . clientmail::lineSender($eximIn) . '|' . clientmail::lineSender($pf));
+}
+
+$tmpLog = $root . '/../tests/p2/clientmail-test.log';
+file_put_contents($tmpLog, $eximAuth . "\n" . $eximLocal . "\n" . $eximAuth . "\n" . $eximIn . "\n" . $old . "\n");
+$prevLog = clientmail::$logFile;
+clientmail::$logFile = $tmpLog;
+$rows = clientmail::readtotallog();
+clientmail::$logFile = $prevLog;
+@unlink($tmpLog);
+if (is_array($rows)
+	&& isset($rows['user@mesrob.com']['mailnum']) && (int) $rows['user@mesrob.com']['mailnum'] === 2
+	&& isset($rows['form@mesrob.com']['mailnum']) && (int) $rows['form@mesrob.com']['mailnum'] === 1
+	&& !isset($rows['spam@evil.test'])
+	&& !isset($rows['old@mesrob.com'])) {
+	ok('Mails Per Client aggregates the last two days from Exim mainlog');
+} else {
+	bad('Mails Per Client aggregates the last two days from Exim mainlog', var_export($rows, true));
+}
+
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
 	&& str_contains($src, "'sshconfig', 'lxguard', 'ufwfirewall', 'fail2ban', 'sshclient', 'ffile', 'ticket', 'notification'")

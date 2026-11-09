@@ -7,6 +7,9 @@ class clientmail extends lxclass {
 	static $__desc_mailnum = array("n", "",  "number_of_mails");
 	static $__acdesc_list = array("n", "",  "mails_per_client");
 
+	/** @var string Override for tests. */
+	public static $logFile = '';
+
 	function get() {}
 
 	function write() {}
@@ -49,7 +52,17 @@ class clientmail extends lxclass {
 	{
 		$sync = self::serverNameForParent($parent);
 		try {
-			$res = rl_exec_get(null, $sync,  array("clientmail", "readtotallog"), array());
+			$res = rl_exec_get(null, $sync, array('clientmail', 'readtotallog'), array());
+			if (is_array($res)) {
+				return $res;
+			}
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'clientmail: ' . $e->getMessage());
+			}
+		}
+		try {
+			$res = self::readtotallog();
 		} catch (Throwable $e) {
 			return array();
 		}
@@ -59,7 +72,10 @@ class clientmail extends lxclass {
 
 	static function mailLogPath()
 	{
-		foreach (array('/var/log/mail.log', '/var/log/maillog') as $p) {
+		if (is_string(self::$logFile) && self::$logFile !== '' && is_readable(self::$logFile)) {
+			return self::$logFile;
+		}
+		foreach (array('/var/log/exim4/mainlog', '/var/log/mail.log', '/var/log/maillog') as $p) {
 			if (is_readable($p)) {
 				return $p;
 			}
@@ -70,21 +86,10 @@ class clientmail extends lxclass {
 
 	static function readtotallog()
 	{
-		$list = self::readsmtpLog();
-		$nlist = self::readMaillog();
-		if (!is_array($list)) {
-			$list = array();
-		}
-		if (!is_array($nlist)) {
-			$nlist = array();
-		}
-		$total = lx_merge_good($list, $nlist);
-		if (!is_array($total)) {
-			return array();
-		}
-
+		$total = self::countFromLog();
 		$res = array();
-		foreach($total as $k => $v) {
+		foreach ($total as $k => $v) {
+			$re = array();
 			$re['clientname'] = $k;
 			$re['nname'] = $k;
 			$re['mailnum'] = $v;
@@ -101,6 +106,128 @@ class clientmail extends lxclass {
 		return $alist;
 	}
 
+	/**
+	 * Count mail submissions in the last two days.
+	 * Exim `<=` (auth id preferred), Postfix from=<>, qmail relay, lx-sending.
+	 *
+	 * @return array<string,int>
+	 */
+	static function countFromLog()
+	{
+		$total = array();
+		$path = self::mailLogPath();
+		if ($path === '') {
+			return $total;
+		}
+		$fp = @fopen($path, 'r');
+		if (!is_resource($fp)) {
+			return $total;
+		}
+		$since = time() - 2 * 24 * 3600;
+		$n = 0;
+		while (!feof($fp)) {
+			if (++$n > 2000000) {
+				break;
+			}
+			$s = fgets($fp);
+			if (!is_string($s)) {
+				break;
+			}
+			$s = trim($s);
+			if ($s === '') {
+				continue;
+			}
+			$t = self::lineTime($s);
+			if ($t !== null && $t < $since) {
+				continue;
+			}
+			$id = self::lineSender($s);
+			if ($id === '') {
+				continue;
+			}
+			if (!isset($total[$id])) {
+				$total[$id] = 1;
+			} else {
+				$total[$id]++;
+			}
+		}
+		fclose($fp);
+
+		return $total;
+	}
+
+	/** @return int|null unix time, or null when the line has no date */
+	static function lineTime($s)
+	{
+		if (!is_string($s) || $s === '') {
+			return null;
+		}
+		if (preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/', $s, $m) === 1) {
+			$t = strtotime($m[1]);
+
+			return ($t !== false) ? $t : null;
+		}
+		if (preg_match('/^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})/', $s, $m) === 1) {
+			$year = (int) date('Y');
+			$t = strtotime($m[1] . ' ' . $year);
+			if ($t !== false && $t > time() + 86400) {
+				$t = strtotime($m[1] . ' ' . ($year - 1));
+			}
+
+			return ($t !== false) ? $t : null;
+		}
+
+		return null;
+	}
+
+	static function lineSender($s)
+	{
+		if (!is_string($s) || $s === '') {
+			return '';
+		}
+		if (preg_match('/\sA=[A-Za-z0-9_]+:(\S+)/', $s, $m) === 1) {
+			return self::cleanId($m[1]);
+		}
+		if (preg_match('/\s<=\s+(\S+)/', $s, $m) === 1
+			&& (strpos($s, ' P=local') !== false || preg_match('/\sU=[A-Za-z0-9._-]+/', $s) === 1)) {
+			return self::cleanId($m[1]);
+		}
+		if (preg_match('/postfix\/(?:qmgr|cleanup).*from=<([^>]+)>/', $s) === 1) {
+			preg_match('/from=<([^>]+)>/', $s, $m);
+
+			return self::cleanId(isset($m[1]) ? $m[1] : '');
+		}
+		if (function_exists('csa') && csa($s, 'client allowed to relay')) {
+			$v = function_exists('strfrom') ? strfrom($s, 'rcpt: from <') : $s;
+			$v = function_exists('strtilfirst') ? strtilfirst($v, '>') : $v;
+			$parts = explode(':', $v);
+			$id = isset($parts[1]) ? $parts[1] : $v;
+
+			return self::cleanId($id);
+		}
+		if (function_exists('csa') && csa($s, 'lx-sending')) {
+			$v = function_exists('strfrom') ? strfrom($s, 'mail for') : $s;
+
+			return self::cleanId($v);
+		}
+
+		return '';
+	}
+
+	static function cleanId($id)
+	{
+		$id = trim((string) $id);
+		$id = trim($id, '<>');
+		if ($id === '' || $id === '<>' || $id === 'MAILER-DAEMON') {
+			return '';
+		}
+		if (strlen($id) > 200 || strpbrk($id, " \t\n\r") !== false) {
+			return '';
+		}
+
+		return $id;
+	}
+
 	static function openMailLog()
 	{
 		$path = self::mailLogPath();
@@ -114,102 +241,11 @@ class clientmail extends lxclass {
 
 	static function readsmtpLog()
 	{
-		$total = array();
-		$fp = self::openMailLog();
-		if ($fp === false) {
-			return $total;
-		}
-
-		$date = time() - 24 * 3600 * 2;
-		$fsize = lxfile_size(self::mailLogPath());
-		$pos = lxlabsFindRightPosition($fp, $fsize, $date, time());
-
-		if ($pos === -1) {
-			rewind($fp);
-		}
-
-		while (!feof($fp)) {
-			$s = fgets($fp);
-			if (!is_string($s)) {
-				break;
-			}
-			$s = trim($s);
-
-			if (csa($s, "client allowed to relay")) {
-				$v = strfrom($s, "rcpt: from <");
-				$v = strtilfirst($v, ">");
-				$s = explode(":", $v);
-				$id = isset($s[1]) ? $s[1] : '';
-				if ($id === '') {
-					continue;
-				}
-				if (!isset($total[$id])) {
-					$total[$id] = 1;
-				} else {
-					$total[$id]++;
-				}
-				continue;
-			}
-
-			if (preg_match('/postfix\/(?:qmgr|cleanup).*from=<([^>]+)>/', $s, $m) === 1) {
-				$id = $m[1];
-				if ($id === '' || $id === '<>') {
-					continue;
-				}
-				if (!isset($total[$id])) {
-					$total[$id] = 1;
-				} else {
-					$total[$id]++;
-				}
-			}
-		}
-
-		fclose($fp);
-
-		return $total;
+		return self::countFromLog();
 	}
 
 	static function readMaillog()
 	{
-		$total = array();
-		$fp = self::openMailLog();
-		if ($fp === false) {
-			return $total;
-		}
-
-		$date = time() - 24 * 3600 * 2;
-		$pos = FindRightPosition($fp, $fsize = lxfile_size(self::mailLogPath()), $date, time(), array("mailtraffic", "getTimeFromOriginalQmailString"));
-		if ($pos === -1 || $pos === false) {
-			rewind($fp);
-		}
-
-		if (!is_resource($fp)) {
-			return $total;
-		}
-
-		while (!feof($fp)) {
-			$s = fgets($fp);
-			if (!is_string($s)) {
-				break;
-			}
-			$s = trim($s);
-
-			if (!csa($s, "lx-sending")) {
-				continue;
-			}
-
-			$v = strfrom($s, "mail for");
-			$id = $v;
-
-			if (!isset($total[$id])) {
-				$total[$id] = 1;
-			} else {
-				$total[$id]++;
-			}
-		}
-
-		fclose($fp);
-
-		return $total;
+		return array();
 	}
 }
