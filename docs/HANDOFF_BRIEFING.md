@@ -170,7 +170,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (`https://packages.sury.org/php/`, deb822 Signed-By, suite = Ubuntu
     VERSION_CODENAME; not `ppa:ondrej/php`). Per-domain PHP-FPM pools live in
     `/etc/php/X.Y/fpm/pool.d/kloxo-<domain>.conf` with socket
-    `/run/php/<domain>-phpX.Y.sock` (`KloxoPhpfpm`). Webserver Configure
+    `/run/php/<domain>-phpX.Y.sock` (`KloxoPhpfpm`). Domain Web Features
+    PHP Selected must run as root via kloxo-backend; a failed pool write is
+    an `lxException` with the real reason (not "Could not connect to server
+    [localhost]"). `validateWeb` tests only the active web driver (nginx
+    `-t` does not run `apache2ctl configtest`). Webserver Configure
     Multiple PHP Install submits selected `phpX.Y` ids (dual-listbox
     Available and/or Selected) and queues `install-site-php --versions=`;
     Multiple PHP Remove lists installed `phpX.Y-fpm`. The old scanner only

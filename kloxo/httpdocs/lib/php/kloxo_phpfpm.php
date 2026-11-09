@@ -366,6 +366,9 @@ final class KloxoPhpfpm
             throw new KloxoPhpfpmException('invalid PHP series');
         }
         $bin = self::p(KloxoPhpver::fpmBin('php' . $s));
+        if (self::$runCmd === null && ($bin === '' || !is_executable($bin))) {
+            throw new KloxoPhpfpmException('php-fpm' . $s . ' is not installed');
+        }
         $conf = self::p('/etc/php/' . $s . '/fpm/php-fpm.conf');
         $argv = [$bin !== '' ? $bin : 'php-fpm' . $s, '-t'];
         if (is_file($conf)) {
@@ -378,21 +381,31 @@ final class KloxoPhpfpm
         }
     }
 
-    public static function validateWeb(): void
+    public static function validateWeb(string $driver = 'nginx'): void
     {
-        $nginx = self::firstExec(['/usr/sbin/nginx', '/usr/bin/nginx']);
-        if ($nginx !== '') {
-            $r = self::run([$nginx, '-t']);
-            if ($r['code'] !== 0) {
-                throw new KloxoPhpfpmException('nginx -t failed: ' . self::oneLine($r['out']));
-            }
+        $d = strtolower(trim($driver));
+        if ($d === 'none' || $d === '') {
+            return;
         }
-        $apache = self::firstExec(['/usr/sbin/apache2ctl', '/usr/sbin/apachectl']);
-        if ($apache !== '') {
+        if ($d === 'apache' || $d === 'apache2' || $d === 'httpd') {
+            $apache = self::firstExec(['/usr/sbin/apache2ctl', '/usr/sbin/apachectl']);
+            if ($apache === '') {
+                return;
+            }
             $r = self::run([$apache, 'configtest']);
             if ($r['code'] !== 0) {
                 throw new KloxoPhpfpmException('apache configtest failed: ' . self::oneLine($r['out']));
             }
+
+            return;
+        }
+        $nginx = self::firstExec(['/usr/sbin/nginx', '/usr/bin/nginx']);
+        if ($nginx === '') {
+            return;
+        }
+        $r = self::run([$nginx, '-t']);
+        if ($r['code'] !== 0) {
+            throw new KloxoPhpfpmException('nginx -t failed: ' . self::oneLine($r['out']));
         }
     }
 

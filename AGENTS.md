@@ -81,7 +81,10 @@ Customer sites default to the newest installed PHP-FPM; extra series
 (`install-site-php`, deb822 Signed-By; not ppa:ondrej/php) and can be
 chosen on Webserver Configure (PHP Used / PHP Branch list phpX.Y — not php52m).
 Each domain stores `php_selected` and gets a pool in `/etc/php/X.Y/fpm/pool.d/`
-with socket `/run/php/<domain>-phpX.Y.sock`. Webserver Configure section forms (PHP Used/Branch,
+with socket `/run/php/<domain>-phpX.Y.sock`. Web Features PHP Selected runs as
+root via kloxo-backend (a pool failure is the real reason, not "Could not
+connect to server [localhost]"); nginx `-t` does not run Apache configtest.
+Webserver Configure section forms (PHP Used/Branch,
 Multiple PHP, PHP Type, Apache optimize, MySQL convert, fix ownership,
 Pagespeed) load without the panel DB; Multiple PHP Install queues
 `install-site-php` for the selected `phpX.Y` ids (job under `$ROOT/log/`,

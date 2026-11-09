@@ -178,10 +178,71 @@ if (str_contains($ng, 'unix:$var_phpsock') && !str_contains($ng, '/opt/configs/p
 $web = (string) file_get_contents($root . '/kloxo/httpdocs/driver/web/web__lib.php');
 if (str_contains($web, 'case "webfeatures":') && str_contains($web, 'syncUbuntuPhpPool')
     && str_contains($web, 'KloxoPhpfpm::switchDomain') && str_contains($web, 'KloxoPhpfpm::removeDomain')
+    && str_contains($web, 'posix_geteuid') && str_contains($web, 'new lxException')
+    && str_contains($web, 'validateUbuntuWebConfig')
 ) {
     $ok('domain PHP change regenerates the pool; delete removes it');
 } else {
     $bad('domain PHP change regenerates the pool; delete removes it');
+}
+
+@mkdir($base . '/usr/sbin', 0755, true);
+foreach (['nginx', 'apache2ctl'] as $b) {
+    $p = $base . '/usr/sbin/' . $b;
+    file_put_contents($p, "#!/bin/sh\n");
+    @chmod($p, 0755);
+}
+$calls = [];
+KloxoPhpfpm::$runCmd = static function (array $argv) use (&$calls): array {
+    $calls[] = $argv;
+
+    return ['code' => 0, 'out' => 'syntax ok'];
+};
+KloxoPhpfpm::validateWeb('nginx');
+$ng = [];
+$ap = [];
+foreach ($calls as $a) {
+    $bin = (string) ($a[0] ?? '');
+    if (str_contains($bin, 'nginx')) {
+        $ng[] = $bin;
+    }
+    if (str_contains($bin, 'apache')) {
+        $ap[] = $bin;
+    }
+}
+$calls = [];
+KloxoPhpfpm::validateWeb('apache');
+foreach ($calls as $a) {
+    $bin = (string) ($a[0] ?? '');
+    if (str_contains($bin, 'nginx')) {
+        $ng[] = 'also-nginx';
+    }
+    if (str_contains($bin, 'apache')) {
+        $ap[] = $bin;
+    }
+}
+if ($ng === [$base . '/usr/sbin/nginx'] && $ap !== [] && !in_array('also-nginx', $ng, true)) {
+    $ok('validateWeb tests only the selected web server');
+} else {
+    $bad('validateWeb tests only the selected web server');
+}
+
+$remote = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/remotelib.php');
+if (str_contains($remote, 'function kloxo_rethrow_local_action')
+    && str_contains($remote, 'kloxo_rethrow_local_action($e, $machine)')
+    && str_contains($remote, 'kloxo_rethrow_local_action($le, $machine)')
+    && str_contains($remote, 'catch (Throwable $e)')
+) {
+    $ok('local-action failures keep the real error instead of could_not_connect');
+} else {
+    $bad('local-action failures keep the real error instead of could_not_connect');
+}
+
+$sel = (string) file_get_contents($root . '/kloxo/httpdocs/driver/web/weblib.php');
+if (str_contains($sel, 'KloxoPhpver::fpmIds()')) {
+    $ok('PHP Selected lists only versions with php-fpm');
+} else {
+    $bad('PHP Selected lists only versions with php-fpm');
 }
 
 KloxoPhpfpm::$fsPrefix = '';

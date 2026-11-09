@@ -161,6 +161,8 @@ class web__ extends lxDriverClass
 
 		self::setCreateConfFile($input);
 
+		$this->validateUbuntuWebConfig();
+
 		$this->setLogfile();
 
 		$st = "/home/kloxo/httpd/default/{$input['domainname']}";
@@ -214,6 +216,8 @@ class web__ extends lxDriverClass
 
 	function syncUbuntuPhpPool()
 	{
+		global $login;
+
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
@@ -230,13 +234,61 @@ class web__ extends lxDriverClass
 		if ($series === '') {
 			return;
 		}
-		KloxoPhpfpm::switchDomain((string) $domain, (string) $user, $series);
-		try {
-			KloxoPhpfpm::cronWrapper((string) $domain, KloxoPhpver::cliBin((string) $id));
-		} catch (Throwable $e) {
-			log_log('error', 'php cron wrapper: ' . $e->getMessage());
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
+		if ($euid !== 0) {
+			throw new lxException(
+				'Could not change PHP version: kloxo-backend did not answer, so the pool would be written as the panel user',
+				'',
+				$domain
+			);
 		}
-		KloxoPhpfpm::validateWeb();
+		try {
+			KloxoPhpfpm::switchDomain((string) $domain, (string) $user, $series);
+			try {
+				KloxoPhpfpm::cronWrapper((string) $domain, KloxoPhpver::cliBin((string) $id));
+			} catch (Throwable $e) {
+				log_log('error', 'php cron wrapper: ' . $e->getMessage());
+			}
+		} catch (lxException $e) {
+			throw $e;
+		} catch (Throwable $e) {
+			log_log('error', 'php pool: ' . $e->getMessage());
+			$msg = trim($e->getMessage());
+			if ($msg === '') {
+				$msg = 'Could not change PHP version';
+			}
+			if (is_object($login) && $msg === $login->getThrow('could_not_connect_to_server')) {
+				$msg = 'Could not change PHP version';
+			}
+			throw new lxException($msg, '', $domain);
+		}
+	}
+
+	function validateUbuntuWebConfig()
+	{
+		global $gbl;
+
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
+		if (!KloxoIpaddr::isUbuntu()) {
+			return;
+		}
+		$sync = isset($this->main->__syncserver) ? $this->main->__syncserver : 'localhost';
+		$driver = '';
+		if (isset($gbl) && is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
+			$driver = (string) $gbl->getSyncClass('localhost', $sync, 'web');
+		}
+		try {
+			KloxoPhpfpm::validateWeb($driver !== '' ? $driver : 'nginx');
+		} catch (lxException $e) {
+			throw $e;
+		} catch (Throwable $e) {
+			$msg = trim($e->getMessage());
+			if ($msg === '') {
+				$msg = 'web config check failed';
+			}
+			throw new lxException($msg, '', $this->getDomainname());
+		}
 	}
 
 	static function addPhpFpmConfig($user)

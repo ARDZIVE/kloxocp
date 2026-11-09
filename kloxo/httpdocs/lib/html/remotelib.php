@@ -81,7 +81,7 @@ function do_the_action($rmt, $res)
 	//	fprint("in do the action");
 	//	fprint($ddata);
 		$res->ddata = $ddata;
-	} catch (Exception $e) {
+	} catch (Throwable $e) {
 		if ($e instanceof lxexception) {
 			$res->exception = $e;
 		} else {
@@ -95,7 +95,8 @@ function do_the_action($rmt, $res)
 			dprint($e->getMessage());
 			dprint($e->getTraceAsString());
 
-			$res->exception = new lxException($e->getMessage(), $code);
+			$msg = trim($e->getMessage());
+			$res->exception = new lxException($msg !== '' ? $msg : 'backend_action_failed', $code);
 		}
 
 		$res->ddata = null;
@@ -284,6 +285,30 @@ function do_remote_exec($machine, $rmt, $cmdtype, $nname, $dbaction)
 }
 
 /**
+ * Turn a local-action failure into lxException so the UI shows the real
+ * reason. A RuntimeException used to be reported as "Could not connect to
+ * server [localhost]".
+ */
+function kloxo_rethrow_local_action($e, $machine)
+{
+	global $login;
+
+	if ($e instanceof lxException) {
+		throw $e;
+	}
+	$msg = trim((string) $e->getMessage());
+	if ($msg === '') {
+		$msg = (is_object($login) && method_exists($login, 'getThrow'))
+			? $login->getThrow('could_not_connect_to_server')
+			: 'Could not connect to server';
+	}
+	if (function_exists('log_log')) {
+		log_log('error', 'do_local_action: ' . $msg);
+	}
+	throw new lxException($msg, '', $machine);
+}
+
+/**
  * @return void
  * @param
  * @param
@@ -309,8 +334,7 @@ function remote_exec($machine, $cmd)
 		} catch (lxException $e) {
 			throw $e;
 		} catch (Throwable $e) {
-			log_log("error", "do_local_action: " . $e->getMessage());
-			throw new lxException($login->getThrow('could_not_connect_to_server'), '', $machine);
+			kloxo_rethrow_local_action($e, $machine);
 		}
 	}
 
@@ -346,8 +370,7 @@ function remote_exec($machine, $cmd)
 			} catch (lxException $le) {
 				throw $le;
 			} catch (Throwable $le) {
-				log_log("error", "do_local_action: " . $le->getMessage());
-				throw new lxException($login->getThrow('could_not_connect_to_server'), '', $machine);
+				kloxo_rethrow_local_action($le, $machine);
 			}
 		}
 		throw $e;
@@ -873,7 +896,16 @@ function process_server_input($total)
 	if ($rmt) {
 		$rmt->authenticated = true;
 		save_slave_name($rmt);
-		$res = do_remote($rmt);
+		try {
+			$res = do_remote($rmt);
+		} catch (Throwable $e) {
+			$res = new Remote();
+			$res->message = $e->getMessage();
+			$res->exception = ($e instanceof lxException)
+				? $e
+				: new lxException(trim($e->getMessage()) !== '' ? $e->getMessage() : 'backend_action_failed', '');
+			$res->ddata = null;
+		}
 	} else {
 		$res = new Remote();
 		$res->message = "Got Error From Your End";

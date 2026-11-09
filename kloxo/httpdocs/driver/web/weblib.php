@@ -1835,7 +1835,7 @@ class Web extends Lxdb
 		$active = KloxoPhpver::activeId();
 		$t = "--PHP Used-- (use '{$active}')";
 
-		$p = getMultiplePhpList();
+		$p = KloxoPhpver::fpmIds();
 		if (file_exists('../etc/flag/enablemultiplephp.flg') || count($p) > 1) {
 			$l = array_merge(array($t), $p);
 		} else {

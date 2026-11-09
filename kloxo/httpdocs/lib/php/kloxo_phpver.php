@@ -45,6 +45,19 @@ final class KloxoPhpver
         return $ids;
     }
 
+    /** @return list<string> installed ids that have a php-fpmX.Y binary */
+    public static function fpmIds(): array
+    {
+        $ids = [];
+        foreach (self::installed() as $row) {
+            if (($row['fpm'] ?? '') !== '') {
+                $ids[] = $row['id'];
+            }
+        }
+
+        return $ids;
+    }
+
     /**
      * @return list<array{id:string,bin:string,fpm:string,kind:string}>
      */
