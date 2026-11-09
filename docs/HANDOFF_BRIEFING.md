@@ -428,8 +428,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Alert popups (`kloxo-error-box`) no longer share `id="showimage"`
     with Generate Password, so Esc and Close hide the visible box.
     Simplicity Status toast (`#div_cfstatus`) peeks `frm_emessage` /
-    `frm_smessage` without consuming them, auto-opens for 15s, and the
-    content area still prints green/red inline alerts. Unread tickets no
+    `frm_smessage` without consuming them and auto-opens for 15s. All
+    panel toasts (Status, `print_inline_alert`, login, form-load
+    failures, password-force warning) use `.kloxo-toast`: fixed top-centre,
+    white background, light shadow, icon coloured for info (blue),
+    success (green), warning (amber), error (red). Simplicity content does
+    not print a second copy of the Status message. Unread tickets no
     longer set `you_have_unread_ticket`; a red dot on the top-left Ticket
     pill (`#div_ticket`) marks them instead (`checkTicketUnread`). Live toast
     and unread-dot after deploy are **UNVERIFIED**.

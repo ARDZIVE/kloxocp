@@ -309,6 +309,21 @@
 	word-break: break-word;
 }
 
+#div_cfstatus.kloxo-toast.div_header_message_status {
+	width: auto;
+	color: #222;
+	background: #fff;
+	position: fixed;
+	z-index: 10065;
+	top: 12px;
+	left: 50%;
+	right: auto;
+	transform: translateX(-50%);
+	margin-top: 0;
+	border: 0;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
 .div_fixed_right {
 	position: relative;
 }

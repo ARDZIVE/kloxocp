@@ -5895,6 +5895,7 @@ class HtmlLib
 		$this->print_jscript_source($helptext_path);
 		$this->print_jscript_source($preop_path);
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js")));
+		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-toast.js")));
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-sitephp.js")));
 
 		if (!$login->getSpecialObject('sp_specialplay')->isOn('enable_ajax') && ($header !== 'left_panel')) {
@@ -5947,6 +5948,8 @@ class HtmlLib
 		$this->print_css_source($style_path);
 		$this->print_css_source($ext_all_path);
 		$this->print_css_source($common_path);
+		$toast_css = str_replace(getcwd(), "", getLinkCustomfile("/theme/css", "kloxo-toast.css"));
+		$this->print_css_source($toast_css);
 
 		$l = @ getdate();
 		$hours = $l['hours'];
@@ -9272,16 +9275,66 @@ function uploadAbort(e) { // upload abort
 <?php
 	}
 
-	function print_inline_alert($body_html, $kind = 'alert')
+	/**
+	 * Coloured circle icon for a toast kind (original SVG, not Font Awesome).
+	 *
+	 * @return string
+	 */
+	static function toastIconHtml($kind)
+	{
+		$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind('', (string) $kind) : 'info';
+		$fill = array(
+			'info' => '#3498db',
+			'success' => '#27ae60',
+			'warning' => '#f39c12',
+			'error' => '#e74c3c',
+		);
+		$c = $fill[$kind];
+		if ($kind === 'success') {
+			$mark = '<path d="M7 12.5l3 3 7-7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+		} elseif ($kind === 'warning') {
+			$mark = '<path d="M12 4.5 L21 20 H3 Z" fill="' . $c . '"/><rect x="11" y="9" width="2" height="6" fill="#fff"/><rect x="11" y="16.5" width="2" height="2" fill="#fff"/>';
+			return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">'
+				. $mark . '</svg>';
+		} elseif ($kind === 'error') {
+			$mark = '<path d="M8 8 L16 16 M16 8 L8 16" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>';
+		} else {
+			$mark = '<rect x="11" y="10" width="2" height="7" rx="1" fill="#fff"/><rect x="11" y="7" width="2" height="2" rx="1" fill="#fff"/>';
+		}
+
+		return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">'
+			. '<circle cx="12" cy="12" r="10" fill="' . $c . '"/>' . $mark . '</svg>';
+	}
+
+	function print_toast($body_html, $kind = 'info', $id = '', $display = null)
 	{
 		if (!is_string($body_html) || $body_html === '') {
 			return;
 		}
-		$kind = ($kind === 'info') ? 'info' : 'alert';
-		$class = ($kind === 'info') ? 'kloxo-inline-alert kloxo-inline-info' : 'kloxo-inline-alert';
+		$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind('', (string) $kind) : 'info';
+		$legacy = 'kloxo-inline-alert';
+		if ($kind === 'info') {
+			$legacy .= ' kloxo-inline-info';
+		}
+		$role = ($kind === 'error' || $kind === 'warning') ? 'alert' : 'status';
+		$idAttr = ($id !== '') ? ' id="' . htmlspecialchars((string) $id, ENT_QUOTES) . '"' : '';
+		$open = ($display === 'block' || $display === 'flex') ? ' kloxo-status-toast-open' : '';
+		$style = '';
+		if ($display !== null && $display !== '') {
+			$style = ' style="display:' . htmlspecialchars((string) $display, ENT_QUOTES) . ';"';
+		}
+		$icon = self::toastIconHtml($kind);
 ?>
-		<div class="<?= $class ?>" role="alert"><?= $body_html ?></div>
+		<div<?= $idAttr ?> class="kloxo-toast kloxo-toast-<?= htmlspecialchars($kind, ENT_QUOTES) ?> <?= $legacy ?><?= $open ?>" role="<?= $role ?>"<?= $style ?>>
+			<span class="kloxo-toast-icon"><?= $icon ?></span>
+			<div class="kloxo-toast-body"><?= $body_html ?></div>
+		</div>
 <?php
+	}
+
+	function print_inline_alert($body_html, $kind = 'alert')
+	{
+		$this->print_toast($body_html, $kind);
 	}
 
 	function isSimplicitySkin()
@@ -9306,7 +9359,7 @@ function uploadAbort(e) { // upload abort
 		global $g_language_mes;
 
 		$img_path = get_general_image_path();
-		// Status tooltip only peeks; content print_message consumes and shows the toast.
+		// Status toast peeks; content print_message consumes. Simplicity does not print a second toast.
 		$peek = ($skin_name === 'simplicity');
 
 		$cgi_message = $this->cgi("frm_emessage");
@@ -9329,20 +9382,21 @@ function uploadAbort(e) { // upload abort
 			$message = "<span style='color:green'><b>Information: </b></span> ";
 			$style = 'border: 1px solid green; background:#fff;';
 			$fontstyle = 'color: #000';
+			$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind((string) $cgi_frm_smessage, 'info') : 'info';
+			$this->__toast_kind = $kind;
 			$mess = $this->format_message($mess, $value, true);
 
 			if ($peek) {
 				$plainMess = preg_replace("/<.*?>/", "", $mess);
-				$plainMessage = preg_replace("/<.*?>/", "", $message);
 
-				return $plainMessage . " " . $plainMess;
+				return is_string($plainMess) ? trim($plainMess) : '';
 			}
 
 			unset($this->__http_vars['frm_smessage']);
 			unset($this->__http_vars['frm_m_smessage_data']);
 
-			if ($this->isSimplicitySkin()) {
-				$this->print_inline_alert($message . ' ' . $this->convert_message($mess), 'info');
+			if (!$this->isSimplicitySkin()) {
+				$this->print_inline_alert($this->convert_message($mess), $kind);
 			}
 			$this->print_on_status_bar("$message $mess");
 
@@ -9366,6 +9420,8 @@ function uploadAbort(e) { // upload abort
 			$message = "<span style='color:red'><b>Alert: </b></span> ";
 			$style = 'border: 1px solid red; background:#fee;';
 			$fontstyle = 'color: #000';
+			$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind((string) $cgi_message, 'error') : 'error';
+			$this->__toast_kind = $kind;
 
 			// In the status bar, you should print with mainframe. But in the main page, it should be simple url.
 			$pmess = $this->format_message($mess, $value, false);
@@ -9373,30 +9429,20 @@ function uploadAbort(e) { // upload abort
 			if ($peek) {
 				$pmess = $this->format_message($mess, $value, true);
 				$pmess = substr($pmess, 0, 270);
-				$message = preg_replace("/<.*?>/", "", $message);
 				$pmess = preg_replace("/<.*?>/", "", $pmess);
 
-				return $message . " " . $pmess . "...";
+				return is_string($pmess) ? trim($pmess) . '...' : '';
 			}
 
 			unset($this->__http_vars['frm_emessage']);
 			unset($this->__http_vars['frm_m_emessage_data']);
 
-			if ($this->isSimplicitySkin()) {
-				// Inline toast — fixed Error Box sat on the password form and later pages.
-				$this->print_inline_alert($message . ' ' . $this->convert_message($pmess), 'alert');
-				$pmessBar = $this->format_message($mess, $value, true);
-				$pmessBar = substr($pmessBar, 0, 270);
-				$this->print_on_status_bar("$message $pmessBar...");
-
-				return '';
+			if (!$this->isSimplicitySkin()) {
+				$this->print_inline_alert($this->convert_message($pmess), $kind);
 			}
-
-			$this->show_error_message($pmess, $message, $imgfile, $color, $style, $fontstyle);
-
-			$pmess = $this->format_message($mess, $value, true);
-			$pmess = substr($pmess, 0, 270);
-			$this->print_on_status_bar("$message $pmess...");
+			$pmessBar = $this->format_message($mess, $value, true);
+			$pmessBar = substr($pmessBar, 0, 270);
+			$this->print_on_status_bar("$message $pmessBar...");
 		}
 
 		return '';

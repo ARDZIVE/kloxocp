@@ -1661,6 +1661,39 @@ function kloxo_skip_find_show_class($class)
 	return in_array(strtolower((string)$class), $skip, true);
 }
 
+/**
+ * Toast type for a panel message key: info, success, warning, or error.
+ * $channel is 'info' / 'success' / 'warning' / 'error' / 'alert' (alias of error)
+ * or 's' (frm_smessage) / 'e' (frm_emessage).
+ */
+function kloxo_toast_kind($key, $channel = 'info')
+{
+	$k = strtolower(trim((string) $key));
+	$ch = strtolower(trim((string) $channel));
+	if ($ch === 'alert' || $ch === 'e') {
+		$ch = 'error';
+	} elseif ($ch === 's') {
+		$ch = 'info';
+	}
+	if (preg_match('/success|successfully|added_successfully|backup_completed|restore_started|ufw_rule_added|deleted|updated|created|completed/', $k) === 1) {
+		return 'success';
+	}
+	if (preg_match('/warn|not_set|not_correct|expire|license_will_expire|security_warning|limit/', $k) === 1) {
+		return 'warning';
+	}
+	if (in_array($ch, array('success', 'warning', 'error', 'info'), true) && $k === '') {
+		return $ch;
+	}
+	if ($ch === 'error') {
+		return 'error';
+	}
+	if ($ch === 'success' || $ch === 'warning') {
+		return $ch;
+	}
+
+	return 'info';
+}
+
 function kloxo_string($value)
 {
 	if (is_string($value)) {

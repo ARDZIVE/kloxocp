@@ -240,6 +240,11 @@ if php "$HERE/test_busy_spinner.php"; then
 else
   bad "test_busy_spinner.php"
 fi
+if php "$HERE/test_toast.php"; then
+  ok "test_toast.php"
+else
+  bad "test_toast.php"
+fi
 if php "$HERE/test_service_toggle.php"; then
   ok "test_service_toggle.php"
 else

@@ -1,0 +1,85 @@
+/* Panel toasts: one look for Status, print_inline_alert, and login.
+   Beat .kloxo-inline-alert / .kloxo-inline-info in common.css. */
+div.kloxo-toast.kloxo-inline-alert,
+.kloxo-toast {
+	position: fixed;
+	z-index: 10065;
+	top: 12px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	min-width: 280px;
+	max-width: min(640px, calc(100vw - 24px));
+	margin: 0;
+	padding: 12px 16px;
+	background: #fff;
+	color: #222;
+	border: 0;
+	border-radius: 6px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+	box-sizing: border-box;
+	white-space: normal;
+	word-break: break-word;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
+	font-size: 9pt;
+	line-height: 1.35;
+}
+
+.kloxo-toast-icon {
+	flex: 0 0 auto;
+	width: 20px;
+	height: 20px;
+	margin-top: 1px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.kloxo-toast-icon svg {
+	display: block;
+}
+
+.kloxo-toast-body {
+	flex: 1 1 auto;
+	min-width: 0;
+	color: #222;
+}
+
+.kloxo-toast-info {
+	border-left: 4px solid #3498db;
+}
+
+.kloxo-toast-success {
+	border-left: 4px solid #27ae60;
+}
+
+.kloxo-toast-warning {
+	border-left: 4px solid #f39c12;
+}
+
+.kloxo-toast-error {
+	border-left: 4px solid #e74c3c;
+}
+
+#div_cfstatus.kloxo-toast {
+	width: auto;
+	right: auto;
+	margin-top: 0;
+	color: #222;
+	background: #fff;
+	border: 0;
+}
+
+.kloxo-password-force .kloxo-toast,
+.kloxo-password-force div.kloxo-toast.kloxo-inline-alert {
+	position: relative;
+	top: auto;
+	left: auto;
+	transform: none;
+	z-index: 1;
+	max-width: none;
+	margin: 0 0 10px 0;
+	min-width: 0;
+}

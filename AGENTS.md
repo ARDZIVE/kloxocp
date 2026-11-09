@@ -32,8 +32,10 @@ change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it; the form posts to the logged-in client and
 does not inherit the page underneath, which made Update throw unsettable
 `old_password_f` on Services). Simplicity Status toast auto-opens for
-alerts/info and content shows matching inline alerts (Status peek does not
-consume the message). Unread HelpDesk tickets do not set `you_have_unread_ticket`
+alerts/info (`#div_cfstatus` and `print_inline_alert` share `.kloxo-toast`:
+top-centre, white, light shadow, typed icon info/success/warning/error;
+`kloxo-toast.js` hides after 15s). Status peek does not consume the message;
+content does not print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
 (`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
 screen shows **10.1-2026110601** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).

@@ -156,7 +156,9 @@ table.content_title td {
 
 </style>
 
+<link rel="stylesheet" type="text/css" href="/theme/css/kloxo-toast.css"/>
 <script src="/theme/js/kloxo-busy.js"></script>
+<script src="/theme/js/kloxo-toast.js"></script>
 
 </head>
 

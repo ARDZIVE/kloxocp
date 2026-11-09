@@ -545,7 +545,7 @@ function __ac_desc_show($object)
 		} catch (Throwable $e) {
 			log_log("error", "do_updateform $k: " . $e->getMessage());
 			if (is_object($object) && method_exists($object, 'getClass') && $object->getClass() === 'phpini') {
-				print('<div class="div_content" style="padding:16px">The requested form could not be loaded.</div>');
+				$ghtml->print_inline_alert('The requested form could not be loaded.', 'error');
 			}
 		}
 	}
@@ -1308,7 +1308,7 @@ function __ac_desc_UpdateForm($object)
 
 	if (!$object) {
 		$ghtml->print_content_begin();
-		print("<div class=\"div_content\" style=\"padding:16px\">The requested form could not be loaded.</div>");
+		$ghtml->print_inline_alert('The requested form could not be loaded.', 'error');
 		$ghtml->print_content_end();
 
 		return;
@@ -1371,11 +1371,10 @@ function __ac_desc_UpdateForm($object)
 		if ($msg === '') {
 			$msg = 'The requested form could not be loaded.';
 		}
-		print('<div class="div_content" style="padding:16px">'
-			. htmlspecialchars($msg . ($val !== '' ? ' ' . $val : ''), ENT_QUOTES) . '</div>');
+		$ghtml->print_inline_alert(htmlspecialchars($msg . ($val !== '' ? ' ' . $val : ''), ENT_QUOTES), 'error');
 	} catch (Throwable $e) {
 		log_log("error", "do_updateform: " . $e->getMessage());
-		print('<div class="div_content" style="padding:16px">The requested form could not be loaded.</div>');
+		$ghtml->print_inline_alert('The requested form could not be loaded.', 'error');
 	}
 
 	$ghtml->print_content_end();
@@ -2481,7 +2480,9 @@ function password_contact_check()
 				<div class="kloxo-modal-title" id="kloxo-password-force-title"><?= htmlspecialchars($title, ENT_QUOTES) ?></div>
 			</div>
 			<div class="kloxo-modal-body">
-				<div class="kloxo-inline-alert" role="alert"><span style="color:red"><b>Alert: </b></span><?= htmlspecialchars($warn, ENT_QUOTES) ?></div>
+<?php
+		$ghtml->print_inline_alert(htmlspecialchars((string) $warn, ENT_QUOTES), 'warning');
+?>
 <?php
 		try {
 			$ghtml->print_message();
@@ -2518,7 +2519,7 @@ function password_contact_check()
 			}
 		} catch (Throwable $e) {
 			log_log("error", "password force form: " . $e->getMessage());
-			echo '<div class="kloxo-inline-alert" role="alert">The password form could not be opened. Use Logout and sign in again.</div>';
+			$ghtml->print_inline_alert('The password form could not be opened. Use Logout and sign in again.', 'error');
 		}
 ?>
 			</div>
