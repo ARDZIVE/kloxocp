@@ -177,13 +177,35 @@ if (str_contains($ng, 'unix:$var_phpsock') && !str_contains($ng, '/opt/configs/p
 
 $web = (string) file_get_contents($root . '/kloxo/httpdocs/driver/web/web__lib.php');
 if (str_contains($web, 'case "webfeatures":') && str_contains($web, 'syncUbuntuPhpPool')
-    && str_contains($web, 'KloxoPhpfpm::switchDomain') && str_contains($web, 'KloxoPhpfpm::removeDomain')
+    && str_contains($web, "array('KloxoPhpfpm', 'applyDomain')") && str_contains($web, 'rl_exec_get')
+    && str_contains($web, 'KloxoPhpfpm::removeDomain')
     && str_contains($web, 'posix_geteuid') && str_contains($web, 'new lxException')
     && str_contains($web, 'validateUbuntuWebConfig')
 ) {
     $ok('domain PHP change regenerates the pool; delete removes it');
 } else {
     $bad('domain PHP change regenerates the pool; delete removes it');
+}
+
+$got = KloxoPhpfpm::applyDomain('noroot.example', 'alice', '8.3', 'php8.3');
+$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 1;
+$wrote = is_file($base . '/etc/php/8.3/fpm/pool.d/kloxo-noroot.example.conf');
+if ($euid !== 0 && is_array($got) && empty($got['ok']) && ($got['error'] ?? '') === 'not root' && !$wrote) {
+    $ok('applyDomain refuses to write pools when not root');
+} elseif ($euid === 0 && is_array($got) && !empty($got['ok'])) {
+    $ok('applyDomain refuses to write pools when not root');
+} else {
+    $bad('applyDomain refuses to write pools when not root');
+}
+
+$inc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/include.php');
+$def = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/definecore.php');
+if (str_contains($inc, 'kloxo_phpfpm.php') && str_contains($inc, 'kloxo_phpver.php')
+    && str_contains($def, "gl_class_array['kloxophpfpm']")
+) {
+    $ok('backend autoloads KloxoPhpfpm for applyDomain');
+} else {
+    $bad('backend autoloads KloxoPhpfpm for applyDomain');
 }
 
 @mkdir($base . '/usr/sbin', 0755, true);

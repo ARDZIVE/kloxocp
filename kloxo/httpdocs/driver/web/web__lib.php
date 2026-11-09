@@ -216,8 +216,6 @@ class web__ extends lxDriverClass
 
 	function syncUbuntuPhpPool()
 	{
-		global $login;
-
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
@@ -234,20 +232,40 @@ class web__ extends lxDriverClass
 		if ($series === '') {
 			return;
 		}
+		$server = 'localhost';
+		if (isset($this->main->syncserver) && is_string($this->main->syncserver) && $this->main->syncserver !== '') {
+			$server = $this->main->syncserver;
+		} elseif (isset($this->main->__syncserver) && is_string($this->main->__syncserver) && $this->main->__syncserver !== '') {
+			$server = $this->main->__syncserver;
+		}
+		$args = array((string) $domain, (string) $user, $series, (string) $id);
 		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
-		if ($euid !== 0) {
-			throw new lxException(
-				'Could not change PHP version: kloxo-backend did not answer, so the pool would be written as the panel user',
-				'',
-				$domain
-			);
+		// Panel PHP-FPM is lxlabs. A full web-object sync is large and often
+		// never reaches kloxo-backend; send only this call (same pattern as
+		// Service__Linux::controlUnit).
+		if ($euid !== 0 && function_exists('rl_exec_get')) {
+			try {
+				$got = rl_exec_get(null, $server, array('KloxoPhpfpm', 'applyDomain'), $args);
+			} catch (lxException $e) {
+				throw $e;
+			} catch (Throwable $e) {
+				throw new lxException('Could not change PHP version: ' . $e->getMessage(), '', $domain);
+			}
+			if (!is_array($got) || empty($got['ok'])) {
+				$why = 'kloxo-backend (127.0.0.1:7776) did not handle the request';
+				if (is_array($got) && isset($got['error']) && (string) $got['error'] !== '' && (string) $got['error'] !== 'not root') {
+					$why = (string) $got['error'];
+				}
+				throw new lxException('Could not change PHP version: ' . $why, '', $domain);
+			}
+
+			return;
 		}
 		try {
-			KloxoPhpfpm::switchDomain((string) $domain, (string) $user, $series);
-			try {
-				KloxoPhpfpm::cronWrapper((string) $domain, KloxoPhpver::cliBin((string) $id));
-			} catch (Throwable $e) {
-				log_log('error', 'php cron wrapper: ' . $e->getMessage());
+			$got = KloxoPhpfpm::applyDomain($args[0], $args[1], $args[2], $args[3]);
+			if (!is_array($got) || empty($got['ok'])) {
+				$why = (is_array($got) && isset($got['error'])) ? (string) $got['error'] : 'applyDomain failed';
+				throw new lxException('Could not change PHP version: ' . $why, '', $domain);
 			}
 		} catch (lxException $e) {
 			throw $e;
@@ -255,9 +273,6 @@ class web__ extends lxDriverClass
 			log_log('error', 'php pool: ' . $e->getMessage());
 			$msg = trim($e->getMessage());
 			if ($msg === '') {
-				$msg = 'Could not change PHP version';
-			}
-			if (is_object($login) && $msg === $login->getThrow('could_not_connect_to_server')) {
 				$msg = 'Could not change PHP version';
 			}
 			throw new lxException($msg, '', $domain);

@@ -255,6 +255,34 @@ final class KloxoPhpfpm
         return $touch;
     }
 
+    /**
+     * Root-side entry for Web Features PHP Selected. Returns ok=false when
+     * not root so the panel can send this through kloxo-backend instead of
+     * writing /etc/php as lxlabs.
+     *
+     * @return array{ok:bool,euid:int,error?:string,touched?:list<string>}
+     */
+    public static function applyDomain(string $domain, string $user, string $series, string $phpId = ''): array
+    {
+        $euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+        if ($euid !== 0) {
+            return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
+        }
+        $touched = self::switchDomain($domain, $user, $series);
+        if ($phpId !== '') {
+            include_once __DIR__ . '/kloxo_phpver.php';
+            try {
+                self::cronWrapper($domain, KloxoPhpver::cliBin($phpId));
+            } catch (Throwable $e) {
+                if (function_exists('log_log')) {
+                    log_log('error', 'php cron wrapper: ' . $e->getMessage());
+                }
+            }
+        }
+
+        return ['ok' => true, 'euid' => $euid, 'touched' => $touched];
+    }
+
     public static function removeDomain(string $domain): array
     {
         $old = self::domainSeries($domain);
