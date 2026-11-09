@@ -961,19 +961,15 @@ class Service__Linux extends Lxlclass
 		return false;
 	}
 
-	/** systemd-style "active (running)" / "inactive (dead)" / "not installed". */
+	/** systemd ActiveState only: "active" / "inactive" / "not installed". */
 	static function formatStatus($active, $sub, $installed)
 	{
+		unset($sub);
 		if (!$installed) {
 			return 'not installed';
 		}
-		$active = is_string($active) && $active !== '' ? $active : 'unknown';
-		$sub = is_string($sub) ? $sub : '';
-		if ($sub !== '' && $sub !== $active) {
-			return $active . ' (' . $sub . ')';
-		}
 
-		return $active;
+		return is_string($active) && $active !== '' ? $active : 'unknown';
 	}
 
 	static function getServiceDetails($list)

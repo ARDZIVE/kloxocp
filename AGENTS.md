@@ -202,7 +202,7 @@ qualifies a blank or short nameserver to `ns1.<template>.dnst`, and writes defau
 `dns_record_a`. Secondary NS is validated separately from primary.
 FTP Configure is `serverftp` under localhost, not Backup FTP Configuration;
 the beige tab is labelled **FTP Configure**.
-The Services list shows the catalog (installed or not), same idea as recovery: a **Status** column with exact systemd `ActiveState (SubState)` (for example `active (running)` / `not installed`). Missing packages stay dull. Ubuntu `postfix.service` is often an alias of `postfix@-.service`; `hiawatha` resolves to `kloxo-web`. `systemctl --system` is used so a user bus does not hide system units. The catalog includes **fail2ban**, **ufw**, **redis-server**, kloxo-webcache/webproxy/backend/watchdog as well as nginx/apache2/bind9/knot/exim4/postfix/dovecot/rspamd/mariadb/php-fpm/kloxo-php/hiawatha/pure-ftpd; running
+The Services list shows the catalog (installed or not), same idea as recovery: a **Status** column with systemd `ActiveState` only (for example `active` / `inactive` / `not installed`, no SubState in parentheses). Missing packages stay dull. Ubuntu `postfix.service` is often an alias of `postfix@-.service`; `hiawatha` resolves to `kloxo-web`. `systemctl --system` is used so a user bus does not hide system units. The catalog includes **fail2ban**, **ufw**, **redis-server**, kloxo-webcache/webproxy/backend/watchdog as well as nginx/apache2/bind9/knot/exim4/postfix/dovecot/rspamd/mariadb/php-fpm/kloxo-php/hiawatha/pure-ftpd; running
 and boot status come from systemd `ActiveState` / `UnitFileState`
 (aliases: bind9/named, mariadb/mysqld, phpX.Y-fpm). Duplicate RHEL/Debian
 names collapse to one row (`apache2` not `httpd`, `bind9` not `named`,

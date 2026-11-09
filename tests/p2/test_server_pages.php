@@ -275,16 +275,17 @@ $svcObjStatus->install_state = 'on';
 $svcObjStatus->active_state = 'active';
 $svcObjStatus->sub_state = 'running';
 $svcListSrc = (string) file_get_contents($doc . '/driver/pserver/servicelib.php');
-if (($stProbe['nginx']['status_f'] ?? '') === 'active (running)'
+if (($stProbe['nginx']['status_f'] ?? '') === 'active'
 	&& ($stProbe['missing']['status_f'] ?? '') === 'not installed'
-	&& $svcObjStatus->display('status_f') === 'active (running)'
+	&& $svcObjStatus->display('status_f') === 'active'
 	&& str_contains($svcListSrc, '$nlist["status_f"]')
-	&& Service__Linux::formatStatus('inactive', 'dead', true) === 'inactive (dead)'
+	&& Service__Linux::formatStatus('inactive', 'dead', true) === 'inactive'
+	&& Service__Linux::formatStatus('active', 'exited', true) === 'active'
 	&& Service__Linux::formatStatus('', '', false) === 'not installed'
 	&& in_array('kloxo-web', Service__Linux::unitCandidates('hiawatha'), true)) {
-	ok('Services list shows exact systemd status like the recovery console');
+	ok('Services Status column is systemd ActiveState without SubState');
 } else {
-	bad('Services list shows exact systemd status like the recovery console',
+	bad('Services Status column is systemd ActiveState without SubState',
 		json_encode($stProbe));
 }
 

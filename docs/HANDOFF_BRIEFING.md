@@ -534,8 +534,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     start/stop/restart; a missing `knot___localhost` row no longer
     blanks the page (`Service::canGetSingle` + `initThisObject`).
     The Services list keeps the catalog (installed or dull), matching recovery,
-    with a **Status** column of exact systemd `ActiveState (SubState)` (for
-    example `active (running)`). Debian will not co-install Postfix with Exim;
+    with a **Status** column of systemd `ActiveState` only (for example
+    `active` / `inactive` / `not installed`, no SubState in parentheses). Debian will not co-install Postfix with Exim;
     that row stays dull until Switch Program SMTP=postfix. Ubuntu
     `postfix.service` is often an alias of `postfix@-.service`; `hiawatha`
     resolves to `kloxo-web`. `systemctl --system` is used. Running/boot state
