@@ -1200,7 +1200,7 @@ class Web extends Lxdb
 			. '.kloxo-phpinfo .p{text-align:left}'
 			. '.kloxo-phpinfo .e{background-color:#ccf;width:300px;font-weight:bold}'
 			. '.kloxo-phpinfo .h{background-color:#99c;font-weight:bold}'
-			. '.kloxo-phpinfo .v{background-color:#ddd;max-width:300px;overflow-x:auto;word-wrap:break-word}'
+			. '.kloxo-phpinfo .v{background-color:#ddd;overflow-x:auto;word-wrap:break-word;white-space:normal}'
 			. '.kloxo-phpinfo .v i{color:#999}'
 			. '.kloxo-phpinfo img{float:right;border:0}'
 			. '.kloxo-phpinfo hr{width:934px;background-color:#ccc;border:0;height:1px}';
@@ -1226,6 +1226,49 @@ class Web extends Lxdb
 		return '<div class="kloxo-phpinfo"><div class="center">' . $body . '</div></div>';
 	}
 
+	static function phpInfoIsContinuation($line)
+	{
+		$t = ltrim((string) $line, " \t,");
+		if ($t === '') {
+			return false;
+		}
+
+		return str_starts_with($t, '/')
+			|| str_starts_with($t, "'")
+			|| str_starts_with($t, '"')
+			|| str_starts_with($t, '--')
+			|| str_contains($t, '.ini');
+	}
+
+	static function phpInfoJoinValue($existing, $more)
+	{
+		$existing = rtrim((string) $existing);
+		$more = ltrim((string) $more, " \t,");
+		if ($more === '') {
+			return $existing;
+		}
+		if ($existing === '') {
+			return $more;
+		}
+		$joined = (str_contains($existing, '.ini') || str_contains($more, '.ini'))
+			? ($existing . ', ' . $more)
+			: (rtrim($existing, ',') . ' ' . $more);
+		if (!str_contains($joined, '.ini')) {
+			return $joined;
+		}
+		$bits = preg_split('/\s*,\s*/', $joined);
+		$bits = is_array($bits) ? $bits : array();
+		$out = array();
+		foreach ($bits as $b) {
+			$b = trim((string) $b);
+			if ($b !== '') {
+				$out[] = $b;
+			}
+		}
+
+		return implode(', ', $out);
+	}
+
 	static function phpInfoTextToHtml($text)
 	{
 		$lines = preg_split("/\r\n|\n|\r/", is_string($text) ? $text : '');
@@ -1238,6 +1281,8 @@ class Web extends Lxdb
 		$out = array('<div class="kloxo-phpinfo"><div class="center">');
 		$inTable = false;
 		$titleDone = false;
+		$pendingKey = null;
+		$pendingVals = array();
 		$close = static function () use (&$inTable, &$out): void {
 			if ($inTable) {
 				$out[] = '</table>';
@@ -1250,38 +1295,55 @@ class Web extends Lxdb
 				$inTable = true;
 			}
 		};
+		$flush = static function () use (&$pendingKey, &$pendingVals, $open, $esc, &$out): void {
+			if ($pendingKey === null) {
+				return;
+			}
+			$open();
+			$out[] = '<tr><td class="e">' . $esc($pendingKey) . '</td>';
+			foreach ($pendingVals as $v) {
+				$out[] = '<td class="v">' . $esc($v) . '</td>';
+			}
+			$out[] = '</tr>';
+			$pendingKey = null;
+			$pendingVals = array();
+		};
 		foreach ($lines as $line) {
 			$trim = trim(rtrim((string) $line, "\r"));
 			if ($trim === '' || $trim === 'phpinfo()') {
 				continue;
 			}
 			if (!str_contains($trim, '=>')) {
+				if ($pendingKey !== null && self::phpInfoIsContinuation($trim)) {
+					$last = count($pendingVals) - 1;
+					if ($last >= 0) {
+						$pendingVals[$last] = self::phpInfoJoinValue($pendingVals[$last], $trim);
+					}
+					continue;
+				}
+				$flush();
 				$close();
 				$out[] = '<h2>' . $esc($trim) . '</h2>';
 				continue;
 			}
+			$flush();
 			$parts = array_map('trim', explode('=>', $trim, 3));
 			if (!$titleDone && count($parts) === 2 && strcasecmp($parts[0], 'PHP Version') === 0) {
 				$out[] = '<h1 class="p">PHP Version ' . $esc($parts[1]) . '</h1>';
 				$titleDone = true;
 				continue;
 			}
-			$open();
 			if (count($parts) >= 2 && strcasecmp($parts[0], 'Directive') === 0
 				&& strcasecmp($parts[1], 'Local Value') === 0) {
+				$open();
 				$out[] = '<tr class="h"><th>Directive</th><th>Local Value</th>'
 					. (isset($parts[2]) ? '<th>Master Value</th>' : '') . '</tr>';
 				continue;
 			}
-			$out[] = '<tr>';
-			$first = true;
-			foreach ($parts as $p) {
-				$cls = $first ? 'e' : 'v';
-				$first = false;
-				$out[] = '<td class="' . $cls . '">' . $esc($p) . '</td>';
-			}
-			$out[] = '</tr>';
+			$pendingKey = $parts[0];
+			$pendingVals = array_slice($parts, 1);
 		}
+		$flush();
 		$close();
 		$out[] = '</div></div>';
 

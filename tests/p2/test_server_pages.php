@@ -3755,6 +3755,25 @@ if (str_contains($convPi, '&lt;script&gt;')
 	bad('PHPinfo HTML uses native phpinfo classes and escapes text',
 		substr(preg_replace('/\s+/', ' ', $convPi . ' | ' . $fragPi), 0, 200));
 }
+$iniPi = Web::phpInfoTextToHtml(
+	"phpinfo()\nPHP Version => 7.4.33\n"
+	. "Additional .ini files parsed => /etc/php/7.4/cli/conf.d/10-mysqlnd.ini,\n"
+	. "/etc/php/7.4/cli/conf.d/10-opcache.ini,\n"
+	. "/etc/php/7.4/cli/conf.d/10-pdo.ini\n"
+	. "PHP API => 20190902\nCore\n"
+);
+$iniCell = '10-mysqlnd.ini, /etc/php/7.4/cli/conf.d/10-opcache.ini, /etc/php/7.4/cli/conf.d/10-pdo.ini';
+if (str_contains($iniPi, $iniCell)
+	&& substr_count($iniPi, 'Additional .ini files parsed') === 1
+	&& substr_count($iniPi, 'class="v">') >= 2
+	&& !str_contains($iniPi, '<h2>/etc/php')
+	&& strpos($iniPi, 'Additional .ini files parsed') < strpos($iniPi, 'PHP API')
+	&& strpos($iniPi, 'PHP API') < strpos($iniPi, '<h2>Core</h2>')) {
+	ok('PHPinfo keeps additional .ini files in one table cell');
+} else {
+	bad('PHPinfo keeps additional .ini files in one table cell',
+		substr(preg_replace('/\s+/', ' ', $iniPi), 0, 280));
+}
 
 $coErr = '';
 $coForm = null;
