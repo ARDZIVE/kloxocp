@@ -186,7 +186,7 @@ characterization-test harness is the first port step.
   is not on Ubuntu 24.04; FastCGI id is `PHP`). Live start on a 24.04 VM is **UNVERIFIED**.
 * **Mail:** the legacy qmail-toaster stack (+ courier, vpopmail, SpamAssassin, bogofilter, ezmlm) is replaced by Exim + Dovecot + Rspamd; see `docs/MAIL_DESIGN.md`. Connecting it to the legacy UI drivers (`driver/mmail`) is still open.
 * **DNS drivers (P1 done):** selectable `none`, `bind`, `knot`. BIND is the default
-  running server. PowerDNS was removed and replaced by Knot DNS (`knot`, `knot-dnsutils`; `install-knot`),
+  running server. PowerDNS was removed and replaced by Knot DNS (`knot`, `knot-dnsutils`, `knot-dnssecutils`; `install-knot`),
   unit disabled until Switch Program selects it. Zones are generated as files and validated
   with `kzonecheck`/`knotc conf-check` before an atomic install; there is no SQL backend and no
   DNS database account any more (the old `powerdns` MariaDB user and `etc/conf/pdns.pass` are gone).

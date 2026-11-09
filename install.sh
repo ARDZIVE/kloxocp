@@ -528,7 +528,7 @@ apt-get update -y || log "warn: apt-get update reported errors; continuing"
 # Sqlite class is mysqli); slave-db.db is PHP serialize — do not apt-install sqlite.
 apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-sqlite3 php-xml php-mbstring php-curl \
-  mariadb-server nginx apache2 bind9 knot knot-dnsutils \
+  mariadb-server nginx apache2 bind9 knot knot-dnsutils knot-dnssecutils \
   pure-ftpd redis-server iproute2 ufw imagemagick \
   fail2ban python3-systemd nftables \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
@@ -758,8 +758,41 @@ prepare_webfront() {
     || log "warn: install-webfront failed; webcache/webproxy stay down"
 }
 
+php_ext_loaded() {
+  local bin="${1:-php}" ext="${2:-pdo_sqlite}"
+  command -v "$bin" >/dev/null 2>&1 || return 1
+  "$bin" -r "exit(extension_loaded('$ext') ? 0 : 1);" >/dev/null 2>&1
+}
+
+# Panel SQLite (init-panel-db) needs pdo_sqlite on the PHP that runs it.
+# PHP Branch / PHP Used can point /usr/bin/php at a Sury series without sqlite3.
+ensure_installer_php() {
+  local ver
+  if php_ext_loaded php pdo_sqlite; then
+    return 0
+  fi
+  ver="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
+  if [[ "$ver" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    wait_for_apt_locks
+    apt-get install -y "php${ver}-sqlite3" "php${ver}-mysql" \
+      || log "warn: could not apt-get install php${ver}-sqlite3 php${ver}-mysql"
+    if php_ext_loaded php pdo_sqlite; then
+      log "installed php${ver}-sqlite3 for installer PHP"
+      return 0
+    fi
+  fi
+  die "PHP PDO sqlite driver missing (apt-get install php${ver:-}-sqlite3). PHP Branch may have switched /usr/bin/php to a version without sqlite3."
+}
+
 prepare_knot() {
   chmod 0755 "$ROOT/bin/install/install-knot" || true
+  # Ubuntu 24.04+ ships kzonecheck in knot-dnssecutils, not knot-dnsutils.
+  if [[ ! -x /usr/sbin/knotc && ! -x /usr/bin/knotc ]] \
+    || [[ ! -x /usr/sbin/kzonecheck && ! -x /usr/bin/kzonecheck ]]; then
+    wait_for_apt_locks
+    apt-get install -y knot knot-dnsutils knot-dnssecutils \
+      || log "warn: could not apt-get install knot knot-dnsutils knot-dnssecutils"
+  fi
   php "$ROOT/bin/install/install-knot" --root="$ROOT" \
     || log "warn: install-knot failed; Switch Program can retry"
   standby_off knot
@@ -888,6 +921,7 @@ if ! wait_mariadb; then
   die "MariaDB is not accepting unix_socket logins as root"
 fi
 prepare_knot
+ensure_installer_php
 
 # Re-running the installer on an existing panel must not reset a password the
 # owner already changed: keep it unless KLOXO_ADMIN_PASSWORD is given.

@@ -124,8 +124,8 @@ if grep -q 'pure-ftpd redis-server iproute2 ufw imagemagick' "$ROOT/install.sh" 
   && grep -q 'enable --now pure-ftpd' "$ROOT/install.sh" \
   && grep -q 'enable --now nginx mariadb' "$ROOT/install.sh" \
   && grep -q 'Default SQL is MariaDB' "$ROOT/install.sh" \
-  && ! grep -E 'apt-get install -y.*(bogofilter|spamassassin|sqlite3)' "$ROOT/install.sh" \
-  && ! grep -E '^[[:space:]]*apt-get install -y.*(php-sqlite|sqlite3)' "$ROOT/install.sh"; then
+  && ! grep -E 'apt-get install -y.*(bogofilter|spamassassin)' "$ROOT/install.sh" \
+  && ! grep -E '(^|[[:space:]])sqlite3([[:space:]]|$)' "$ROOT/install.sh"; then
   ok "install.sh defaults to full; packages pure-ftpd/redis/imagemagick; MariaDB default SQL"
 else
   bad "install.sh defaults to full; packages pure-ftpd/redis/imagemagick; MariaDB default SQL"
@@ -405,6 +405,12 @@ if grep -q 'PDO as' "$ROOT/kloxo/bin/install/init-panel-db"; then
 else
   ok "init-panel-db does not print PDO-as-root warnings"
 fi
+if grep -q 'could not find driver' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'php{$ver}-sqlite3' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db names phpX.Y-sqlite3 when PDO sqlite is missing"
+else
+  bad "init-panel-db names phpX.Y-sqlite3 when PDO sqlite is missing"
+fi
 if grep -q 'wait_mariadb' "$ROOT/install.sh"; then
   ok "install.sh waits for MariaDB"
 else
@@ -620,9 +626,10 @@ check "install-knot --help" php "$KNOT" --help
 check "install-knot --dry-run" php "$KNOT" --dry-run --root="$ROOT/kloxo"
 fails "install-knot root with .. rejected" php "$KNOT" --root="$ROOT/kloxo/../kloxo"
 fails "install-knot --base must be absolute" php "$KNOT" --base=relative --root="$ROOT/kloxo"
-if grep -q 'bind9 knot knot-dnsutils' "$ROOT/install.sh" \
+if grep -q 'bind9 knot knot-dnsutils knot-dnssecutils' "$ROOT/install.sh" \
   && grep -q 'install-knot' "$ROOT/install.sh" \
-  && grep -q 'standby_off knot' "$ROOT/install.sh"; then
+  && grep -q 'standby_off knot' "$ROOT/install.sh" \
+  && grep -q 'ensure_installer_php' "$ROOT/install.sh"; then
   ok "install.sh packages knot and leaves it disabled"
 else
   bad "install.sh packages knot and leaves it disabled"

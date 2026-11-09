@@ -8,7 +8,8 @@ declare(strict_types=1);
  * Copyright (C) 2026 Kloxo CP contributors
  * GNU Affero General Public License v3. See LICENSE.txt.
  *
- * BIND stays the default DNS server. Knot (packages knot, knot-dnsutils) is
+ * BIND stays the default DNS server. Knot (packages knot, knot-dnsutils,
+ * knot-dnssecutils) is
  * installed by install.sh; this script gives it a valid generated knot.conf
  * (explicit listen addresses, never the wildcard: systemd-resolved owns
  * 127.0.0.53:53 on Ubuntu) and the zone directory, validates the result with
@@ -73,15 +74,24 @@ final class IknotApp
 
         if (isset($this->opt['dry-run'])) {
             echo "plan: install-knot {$root}\n";
-            echo "  packages knot knot-dnsutils (installed by install.sh; not started)\n";
+            echo "  packages knot knot-dnsutils knot-dnssecutils (installed by install.sh; not started)\n";
             echo '  conf     ' . $base . KloxoKnot::CONF . " (listen on this host's addresses, port 53)\n";
             echo '  zones    ' . $base . KloxoKnot::ZONE_DIR . " (existing *.zone files are kept)\n";
             echo "  default  bind stays enabled; knot stays disabled until Switch Program\n";
             return 0;
         }
 
-        if (KloxoKnot::bin('knotc', $opt) === '' || KloxoKnot::bin('kzonecheck', $opt) === '') {
-            throw new IknotException('knotc / kzonecheck not found: apt-get install knot knot-dnsutils');
+        $missing = [];
+        if (KloxoKnot::bin('knotc', $opt) === '') {
+            $missing[] = 'knotc (package knot)';
+        }
+        if (KloxoKnot::bin('kzonecheck', $opt) === '') {
+            $missing[] = 'kzonecheck (package knot-dnssecutils)';
+        }
+        if ($missing !== []) {
+            throw new IknotException(
+                implode('; ', $missing) . ' not found: apt-get install knot knot-dnsutils knot-dnssecutils'
+            );
         }
 
         $dir = $base . KloxoKnot::ZONE_DIR;

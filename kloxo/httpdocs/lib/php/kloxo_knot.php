@@ -30,6 +30,8 @@ final class KloxoKnot
 	public const CONF = '/etc/knot/knot.conf';
 	public const ZONE_DIR = '/var/lib/knot/zones';
 	public const UNIT = 'knot';
+	/** Ubuntu 24.04+: kzonecheck lives in knot-dnssecutils, not knot-dnsutils. */
+	public const PACKAGES = ['knot', 'knot-dnsutils', 'knot-dnssecutils'];
 
 	/** Set when a zone file changed and the server has not been reloaded yet. */
 	public static bool $pendingReload = false;
@@ -696,7 +698,7 @@ final class KloxoKnot
 
 		$chk = self::bin('kzonecheck', $opt);
 		if ($chk === '') {
-			throw new KloxoKnotException('kzonecheck not found (is the knot package installed?)');
+			throw new KloxoKnotException('kzonecheck not found (apt-get install knot-dnssecutils)');
 		}
 		self::ensureZoneDir($dir);
 		$tmp = $dir . '/.' . $domain . '.check.' . getmypid();
@@ -742,7 +744,7 @@ final class KloxoKnot
 
 		$kc = self::bin('knotc', $opt);
 		if ($kc === '') {
-			throw new KloxoKnotException('knotc not found (is the knot package installed?)');
+			throw new KloxoKnotException('knotc not found (apt-get install knot)');
 		}
 		$tmp = $conf . '.check.' . getmypid();
 		self::atomicWrite($tmp, str_replace(self::ZONE_DIR, $dir, $text), 0640);

@@ -25,6 +25,10 @@ class dns__knot extends dns__
 
 	static function installMe()
 	{
+		if (KloxoKnot::bin('knotc') === '' || KloxoKnot::bin('kzonecheck') === '') {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_apt.php';
+			KloxoApt::install(KloxoKnot::PACKAGES);
+		}
 		// Give the daemon a valid knot.conf (listen addresses, current zones) before
 		// Switch Program enables the unit.
 		try {

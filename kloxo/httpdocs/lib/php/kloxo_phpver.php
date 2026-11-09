@@ -29,7 +29,7 @@ final class KloxoPhpver
 
     /** phpX.Y-* packages installed with each series (cli/fpm/common plus extensions). */
     public const DEFAULT_EXTENSIONS = [
-        'cli', 'fpm', 'common', 'mysql', 'xml', 'mbstring', 'curl', 'zip', 'gd', 'intl', 'bcmath', 'opcache', 'soap',
+        'cli', 'fpm', 'common', 'mysql', 'sqlite3', 'xml', 'mbstring', 'curl', 'zip', 'gd', 'intl', 'bcmath', 'opcache', 'soap',
     ];
 
     public const SURY_URI = 'https://packages.sury.org/php/';

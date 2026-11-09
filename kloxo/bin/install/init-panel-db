@@ -327,7 +327,19 @@ TXT;
         if (class_exists('KloxoStore', false)) {
             KloxoStore::resetPool();
         }
-        $pdo = KloxoSqlite::open($this->sqlitePath(), true);
+        try {
+            $pdo = KloxoSqlite::open($this->sqlitePath(), true);
+        } catch (PDOException $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'could not find driver') !== false) {
+                $ver = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+                throw new IpdbException(
+                    "PHP PDO sqlite driver missing for PHP {$ver}. apt-get install php{$ver}-sqlite3"
+                    . ' (PHP Branch may have switched /usr/bin/php away from distro PHP)'
+                );
+            }
+            throw new IpdbException($msg);
+        }
         KloxoSqlite::secureFile($this->sqlitePath());
         $this->applyStorageMigrations($pdo);
 

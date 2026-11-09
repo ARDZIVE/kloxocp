@@ -8663,7 +8663,7 @@ function setAllDnsServerInstall($nolog = null)
 	$list = getAllRealDnsDriverList();
 
 	$ds = array('bind' => 'bind bind-utils bind-libs', 'djbdns' => 'djbdns',
-		'nsd' => 'nsd', 'knot' => 'knot knot-dnsutils',
+		'nsd' => 'nsd', 'knot' => 'knot knot-dnsutils knot-dnssecutils',
 		'yadifa' => 'yadifa yadifa-tools');
 
 

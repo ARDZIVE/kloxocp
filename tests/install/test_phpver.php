@@ -118,6 +118,7 @@ if (in_array('5.6', $series, true) && in_array('7.4', $series, true) && in_array
 }
 if (KloxoPhpver::DEFAULT_EXTENSIONS !== [] && in_array('fpm', KloxoPhpver::DEFAULT_EXTENSIONS, true)
     && in_array('cli', KloxoPhpver::DEFAULT_EXTENSIONS, true) && in_array('common', KloxoPhpver::DEFAULT_EXTENSIONS, true)
+    && in_array('sqlite3', KloxoPhpver::DEFAULT_EXTENSIONS, true)
     && str_contains(KloxoPhpver::SURY_URI, 'packages.sury.org/php')) {
     $ok('registry lists default extensions and the Sury URI');
 } else {

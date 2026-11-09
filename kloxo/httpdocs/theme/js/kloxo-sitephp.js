@@ -20,8 +20,8 @@
 	var timer = null;
 	var hideTimer = null;
 	var wired = false;
-	var lastBusy = false;
 	var sessionJobs = false;
+	var shownPct = {};
 
 	function $(id) {
 		return doc.getElementById(id);
@@ -131,12 +131,32 @@
 		}
 	}
 
+	function ensureStyle() {
+		var s;
+		if ($('kloxo-sitephp-style')) {
+			return;
+		}
+		s = doc.createElement('style');
+		s.id = 'kloxo-sitephp-style';
+		s.appendChild(doc.createTextNode(
+			'@keyframes kloxo-sitephp-stripe{from{background-position:0 0}to{background-position:28px 0}}' +
+			'@keyframes kloxo-sitephp-shine{from{left:-40%}to{left:100%}}' +
+			'.kloxo-sitephp-track{position:relative;height:18px;border:1px solid #888;background:#eee;overflow:hidden}' +
+			'.kloxo-sitephp-fill{height:100%;background:#66cc00}' +
+			'.kloxo-sitephp-fill.is-failed{background:#c44}' +
+			'.kloxo-sitephp-fill.is-busy{min-width:28%;background-image:repeating-linear-gradient(-45deg,#58b800 0 10px,#7ad000 10px 20px);background-size:28px 18px;animation:kloxo-sitephp-stripe .6s linear infinite}' +
+			'.kloxo-sitephp-track.is-busy:after{content:"";position:absolute;top:0;left:-40%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);animation:kloxo-sitephp-shine 1.1s ease-in-out infinite}'
+		));
+		(doc.head || doc.documentElement).appendChild(s);
+	}
+
 	function ensureBox() {
 		var box = $('kloxo-sitephp-box');
 		var installForm;
 		var host;
 		var title;
 		var rows;
+		ensureStyle();
 		if (box) {
 			return box;
 		}
@@ -162,74 +182,133 @@
 		return box;
 	}
 
-	function renderJobs(jobs) {
-		var box = ensureBox();
-		var rows = $('kloxo-sitephp-rows');
-		var i;
-		var j;
-		var row;
+	function displayPct(j, busy) {
+		var id = j.id || 'php';
+		var real = Math.max(0, Math.min(100, parseInt(j.pct, 10) || 0));
+		var prev;
+		var next;
+		if (!busy || j.state === 'ok' || j.state === 'failed') {
+			shownPct[id] = real;
+			return real;
+		}
+		prev = typeof shownPct[id] === 'number' ? shownPct[id] : real;
+		next = Math.max(real, Math.min(92, prev + 3));
+		shownPct[id] = next;
+		return next;
+	}
+
+	function upsertRow(rows, j, busy) {
+		var id = j.id || 'php';
+		var pct = displayPct(j, busy);
+		var running = busy && j.state !== 'ok' && j.state !== 'failed';
+		var row = rows.querySelector('[data-php="' + id + '"]');
 		var cap;
 		var track;
 		var fill;
 		var txt;
+		var fillClass;
+		var trackClass;
+		if (!row) {
+			row = doc.createElement('div');
+			row.setAttribute('data-php', id);
+			row.style.cssText = 'margin:0 0 10px 0;';
+			cap = doc.createElement('div');
+			cap.className = 'kloxo-sitephp-cap';
+			cap.style.cssText = 'font-size:12px;margin:0 0 3px 0;';
+			track = doc.createElement('div');
+			track.className = 'kloxo-sitephp-track';
+			fill = doc.createElement('div');
+			fill.className = 'kloxo-sitephp-fill';
+			txt = doc.createElement('div');
+			txt.className = 'kloxo-sitephp-txt';
+			txt.style.cssText = 'position:absolute;left:8px;top:0;z-index:1;line-height:18px;font-size:11px;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;right:8px;';
+			track.appendChild(fill);
+			track.appendChild(txt);
+			row.appendChild(cap);
+			row.appendChild(track);
+			rows.appendChild(row);
+		} else {
+			cap = row.querySelector('.kloxo-sitephp-cap');
+			track = row.querySelector('.kloxo-sitephp-track');
+			fill = row.querySelector('.kloxo-sitephp-fill');
+			txt = row.querySelector('.kloxo-sitephp-txt');
+		}
+		cap.textContent = id + '  ' + pct + '%';
+		if (fill.style.width !== pct + '%') {
+			fill.style.width = pct + '%';
+		}
+		fillClass = 'kloxo-sitephp-fill' + (j.state === 'failed' ? ' is-failed' : '') + (running ? ' is-busy' : '');
+		trackClass = 'kloxo-sitephp-track' + (running ? ' is-busy' : '');
+		if (fill.className !== fillClass) {
+			fill.className = fillClass;
+		}
+		if (track.className !== trackClass) {
+			track.className = trackClass;
+		}
+		if (txt.textContent !== (j.action || '')) {
+			txt.textContent = j.action || '';
+		}
+	}
+
+	function renderJobs(jobs, busy) {
+		var box = ensureBox();
+		var rows = $('kloxo-sitephp-rows');
+		var i;
+		var id;
+		var keep = {};
+		var kids;
 		if (!box || !rows) {
 			return;
 		}
 		if (!jobs || jobs.length === 0) {
 			box.style.display = 'none';
 			rows.textContent = '';
+			shownPct = {};
 			return;
 		}
 		box.style.display = 'block';
-		rows.textContent = '';
 		for (i = 0; i < jobs.length; i++) {
-			j = jobs[i];
-			row = doc.createElement('div');
-			row.style.cssText = 'margin:0 0 10px 0;';
-			cap = doc.createElement('div');
-			cap.style.cssText = 'font-size:12px;margin:0 0 3px 0;';
-			cap.appendChild(doc.createTextNode((j.id || 'php') + '  ' + (j.pct || 0) + '%'));
-			track = doc.createElement('div');
-			track.style.cssText = 'position:relative;height:18px;border:1px solid #888;background:#eee;';
-			fill = doc.createElement('div');
-			fill.style.cssText = 'height:100%;width:' + Math.max(0, Math.min(100, parseInt(j.pct, 10) || 0))
-				+ '%;background:' + (j.state === 'failed' ? '#c44' : '#66cc00') + ';';
-			txt = doc.createElement('div');
-			txt.style.cssText = 'position:absolute;left:8px;top:0;line-height:18px;font-size:11px;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;right:8px;';
-			txt.appendChild(doc.createTextNode(j.action || ''));
-			track.appendChild(fill);
-			track.appendChild(txt);
-			row.appendChild(cap);
-			row.appendChild(track);
-			rows.appendChild(row);
+			id = jobs[i].id || 'php';
+			keep[id] = true;
+			upsertRow(rows, jobs[i], !!busy);
 		}
-	}
-
-	function jobsDone(jobs) {
-		var i;
-		if (!jobs || jobs.length === 0) {
-			return false;
-		}
-		for (i = 0; i < jobs.length; i++) {
-			if (jobs[i].state !== 'ok' && jobs[i].state !== 'failed') {
-				return false;
+		kids = rows.querySelectorAll('[data-php]');
+		for (i = 0; i < kids.length; i++) {
+			if (!keep[kids[i].getAttribute('data-php')]) {
+				rows.removeChild(kids[i]);
 			}
 		}
-		return true;
 	}
 
-	function hideWhenDone(jobs, busy) {
+	function hasFailed(jobs) {
+		var i;
+		for (i = 0; i < (jobs || []).length; i++) {
+			if (jobs[i].state === 'failed') {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function hideWhenDone(jobs, busy, install, remove) {
 		if (hideTimer) {
 			win.clearTimeout(hideTimer);
 			hideTimer = null;
 		}
-		if (busy || !jobsDone(jobs)) {
+		if (busy || !sessionJobs) {
 			return;
 		}
-		hideTimer = win.setTimeout(function () {
-			renderJobs([]);
-			sessionJobs = false;
-		}, 5000);
+		syncLists(install, remove);
+		if (hasFailed(jobs)) {
+			renderJobs(jobs, false);
+			hideTimer = win.setTimeout(function () {
+				renderJobs([]);
+				sessionJobs = false;
+			}, 4000);
+			return;
+		}
+		renderJobs([]);
+		sessionJobs = false;
 	}
 
 	function poll() {
@@ -255,15 +334,14 @@
 			busy = !!data.busy;
 			if (busy) {
 				sessionJobs = true;
+				if ((data.jobs || []).length > 0) {
+					renderJobs(data.jobs, true);
+				} else {
+					renderJobs([{id: 'php', state: 'running', pct: 20, action: data.message || 'working'}], true);
+				}
+			} else {
+				hideWhenDone(data.jobs || [], busy, data.install, data.remove);
 			}
-			if (sessionJobs || busy) {
-				renderJobs(data.jobs || []);
-			}
-			if (!busy && sessionJobs) {
-				syncLists(data.install, data.remove);
-			}
-			hideWhenDone(data.jobs || [], busy);
-			lastBusy = busy;
 			schedule(busy);
 		};
 		req.send();
@@ -306,7 +384,7 @@
 		if (jobs.length === 0) {
 			jobs.push({id: 'php', state: 'queued', pct: 5, action: action});
 		}
-		renderJobs(jobs);
+		renderJobs(jobs, true);
 		if (timer) {
 			win.clearTimeout(timer);
 		}
@@ -342,7 +420,8 @@
 			if (/frm_emessage=/.test(href)) {
 				m = href.match(/frm_emessage=([^&]+)/);
 				key = m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : 'request failed';
-				renderJobs([{id: 'php', state: 'failed', pct: 100, action: key.replace(/_/g, ' ')}]);
+				sessionJobs = true;
+				hideWhenDone([{id: 'php', state: 'failed', pct: 100, action: key.replace(/_/g, ' ')}], false, null, null);
 			}
 		});
 		return f;

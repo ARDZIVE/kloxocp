@@ -285,14 +285,16 @@ $cf2 = is_file($tmp2 . '/etc/knot/knot.conf') ? (string) file_get_contents($tmp2
 check($rc === 0 && str_contains($cf2, 'listen: [ 192.0.2.9@53, 127.0.0.1@53 ]'), 'install-knot writes knot.conf with explicit listen', $err . $out);
 check(str_contains($cf2, 'domain: keep.net') && is_file($tmp2 . '/var/lib/knot/zones/keep.net.zone'), 'install-knot keeps and lists existing zone files');
 [$rc, , $err] = $run(['--base=' . $tmp2, '--bindirs=' . $tmp . '/nobin']);
-check($rc === 1 && str_contains($err, 'apt-get install knot'), 'install-knot says what to install when knot is missing', $err);
+check($rc === 1 && str_contains($err, 'apt-get install knot') && str_contains($err, 'knot-dnssecutils'), 'install-knot says what to install when knot is missing', $err);
 
 echo "== source invariants\n";
 $src = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/kloxo_knot.php');
 check(str_contains($src, 'declare(strict_types=1)'), 'strict_types');
 check(!preg_match('/\b(shell_exec|exec|system|passthru|popen|eval)\s*\(/', $src), 'no shell string execution in kloxo_knot.php');
 $drv = (string) file_get_contents($repo . '/kloxo/httpdocs/driver/dns/dns__knotlib.php');
+check(KloxoKnot::PACKAGES === ['knot', 'knot-dnsutils', 'knot-dnssecutils'], 'Knot packages include knot-dnssecutils (kzonecheck)');
 check(str_contains($drv, 'class dns__knot extends dns__') && str_contains($drv, 'KloxoKnot::installZone') && str_contains($drv, 'KloxoKnot::applyConf'), 'dns__knot driver uses KloxoKnot');
+check(str_contains($drv, 'KloxoApt::install') && str_contains($drv, 'KloxoKnot::PACKAGES'), 'dns__knot installMe apt-installs Knot packages when binaries are missing');
 check(str_contains((string) file_get_contents($repo . '/kloxo/httpdocs/lib/html/driver_definecore.php'), "dns__knot'] =  \"driver/dns/dns__knotlib.php\""), 'dns__knot registered');
 check(trim((string) file_get_contents($repo . '/kloxo/etc/list/set.dns.lst')) === 'bind,knot', 'Switch Program DNS list is bind,knot');
 check(!is_file($repo . '/kloxo/httpdocs/driver/dns/dns__pdnslib.php') && !is_dir($repo . '/kloxo/file/pdns') && !is_file($repo . '/kloxo/bin/install/install-pdns'), 'PowerDNS driver, templates and installer are gone');

@@ -485,7 +485,7 @@ apt install -y \
   nginx \
   apache2 \
   bind9 \
-  knot knot-dnsutils \
+  knot knot-dnsutils knot-dnssecutils \
   pure-ftpd \
   redis-server \
   iproute2 \
