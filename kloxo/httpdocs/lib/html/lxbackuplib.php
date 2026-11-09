@@ -266,14 +266,21 @@ class lxbackup extends Lxdb
 				} else {
 					$vlist['upload_to_ftp'] = array('M', "Ftp Server Not Set");
 				}
-			/*
-				if (!$parent->checkIfLockedForAction('backup')) {
-					if ($this->backupstage === 'doing') {
-						$this->backupstage = 'program_interrupted';
+				$stage = isset($this->backupstage) ? (string) $this->backupstage : '';
+				if ($stage === 'doing') {
+					$locked = false;
+					if (is_object($parent) && method_exists($parent, 'checkIfLockedForAction')) {
+						try {
+							$locked = (bool) $parent->checkIfLockedForAction('backup');
+						} catch (Throwable $e) {
+							$locked = false;
+						}
+					}
+					if (!$locked) {
+						$stage = 'program_interrupted';
 					}
 				}
-			*/
-				$this->backupstage = fix_nname_to_be_variable(isset($this->backupstage) ? $this->backupstage : '');
+				$this->backupstage = fix_nname_to_be_variable($stage);
 				$vlist['backupstage'] = array('M', null);
 				$vlist['backup_to_file_f'] = null;
 
@@ -576,8 +583,32 @@ class lxbackup extends Lxdb
 		}
 
 		if ($this->backuptype === 'backup') {
-			rl_exec_get(null, null, array("lxbackup", "execbackupphp"), array($pclass, $pname, $param));
-			throw new lxException($login->getThrow("backup_has_been_scheduled"));
+			@set_time_limit(0);
+			@ignore_user_abort(true);
+			$stage = '';
+			try {
+				$got = rl_exec_get(null, null, array("lxbackup", "execbackupphp"),
+					array($pclass, $pname, $param), false);
+				$stage = is_string($got) ? $got : '';
+			} catch (Throwable $e) {
+				$stage = 'Failed due to: ' . $e->getMessage();
+			}
+			if ($stage === '' || $stage === 'doing') {
+				$stage = 'Failed due to: backup did not finish';
+			}
+			$this->backupstage = $stage;
+			$this->dbaction = 'update';
+			$this->write();
+			if ($stage === 'done') {
+				$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
+					? $ghtml->getFullUrl('a=show') : 'a=show';
+				if (is_object($gbl)) {
+					$gbl->__this_redirect = $url . '&frm_smessage=backup_completed';
+				}
+
+				return $param;
+			}
+			throw new lxException($login->getThrow('backup_failed'), '', $stage);
 		} else {
 			$fromFile = isset($param['backup_from_file_f']) ? (string) $param['backup_from_file_f'] : '';
 			$fromFtp = isset($param['backup_ftp_file_f']) ? (string) $param['backup_ftp_file_f'] : '';
@@ -657,7 +688,44 @@ class lxbackup extends Lxdb
 			$param = array();
 		}
 		$fname = isset($param['backup_to_file_f']) ? (string) $param['backup_to_file_f'] : 'kloxo';
-		KloxoBackup::launchBackup((string) $class, (string) $name, $fname, $param);
+		@set_time_limit(0);
+		$r = KloxoBackup::runBackup((string) $class, (string) $name, $fname, $param);
+		$stage = self::readBackupStage((string) $class, (string) $name);
+		if ($stage === '' || $stage === 'doing') {
+			$out = (string) ($r['out'] ?? '');
+			if (str_contains($out, 'Backup has been saved')) {
+				$stage = 'done';
+			} elseif (preg_match('/Backup failed due to:\s*(.*)/', $out, $m)) {
+				$stage = 'Failed due to: ' . trim($m[1]);
+			} else {
+				$stage = 'Failed due to: backup did not finish';
+			}
+		}
+
+		return $stage;
+	}
+
+	static function readBackupStage($class, $name)
+	{
+		$class = (string) $class;
+		$name = (string) $name;
+		if ($class === '' || $name === '' || !class_exists($class)) {
+			return '';
+		}
+		try {
+			$object = new $class(null, 'localhost', $name);
+			$object->get();
+			if (!method_exists($object, 'getObject')) {
+				return '';
+			}
+			$backup = $object->getObject('lxbackup');
+			if (is_object($backup) && isset($backup->backupstage)) {
+				return (string) $backup->backupstage;
+			}
+		} catch (Throwable $e) {
+		}
+
+		return '';
 	}
 
 	function createBackupFileName($name)

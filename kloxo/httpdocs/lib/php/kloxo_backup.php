@@ -280,8 +280,17 @@ final class KloxoBackup
 	}
 
 	/**
+	 * Backup Now: run backup.php and wait until it finishes.
+	 *
 	 * @param array<string,mixed> $extra
+	 * @return array{code:int,out:string}
 	 */
+	public static function runBackup(string $class, string $name, string $filePrefix, array $extra = array()): array
+	{
+		return self::run(self::backupArgv($class, $name, $filePrefix, $extra));
+	}
+
+	/** Scheduled / background backup (cron). Backup Now must use runBackup(). */
 	public static function launchBackup(string $class, string $name, string $filePrefix, array $extra = array()): void
 	{
 		self::launch(self::backupArgv($class, $name, $filePrefix, $extra), 'backup');

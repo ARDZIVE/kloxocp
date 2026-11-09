@@ -812,9 +812,11 @@ Work in this order. Keep every change small, tested and committed separately. Do
     `client-<name>`. Backup Now stores the archive in the File Manager tab
     directory (`/home/kloxo/client/<name>/__backup/`, `KloxoBackup::ensureDir`
     / `installFile`, chown `lxlabs`); Restore From File reads that same folder.
-    Tested: `tests/p2/test_backup.php` (fakes + a local tar + File Manager
-    store). Live Backup Now / Restore From File / File Manager listing after
-    deploy is **UNVERIFIED**.
+    Backup Now waits for `backup.php` (`KloxoBackup::runBackup`) and sets Last
+    Backup Status to `done` or the failure; it is not scheduled. Tested:
+    `tests/p2/test_backup.php` (fakes + a local tar + File Manager store). Live
+    Backup Now / Restore From File / File Manager listing after deploy is
+    **UNVERIFIED**.
    Mail Server Settings has exactly three content tabs **Mail Server Settings**
    (selected on `sa=update`), **SMTP Protection** (was Spamdyke), **Whitelist IPs**
    (`ServerMail::servermailPropertyTabs` forced); Switch To Another via

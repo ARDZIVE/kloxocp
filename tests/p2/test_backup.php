@@ -85,6 +85,18 @@ try {
 	$threw = true;
 }
 check($threw, 'restore file with NUL is rejected');
+$prevRun = KloxoBackup::$runCmd;
+$runNow = array();
+KloxoBackup::$runCmd = static function (array $argv) use (&$runNow): array {
+	$runNow = $argv;
+	return array('code' => 0, 'out' => "Backup has been saved in /home/kloxo/client/admin/__backup/\n");
+};
+$ran = KloxoBackup::runBackup('client', 'admin', 'now');
+check($ran['code'] === 0
+	&& $runNow === KloxoBackup::backupArgv('client', 'admin', 'now')
+	&& str_contains((string) $ran['out'], 'Backup has been saved'),
+	'runBackup waits on backup.php (same argv as Backup Now)');
+KloxoBackup::$runCmd = $prevRun;
 
 echo "== MariaDB dump argv (no live mysqldump)\n";
 $dump = KloxoBackup::dumpArgv('/usr/bin/mysqldump', 'acme_wp', 'kloxo_pma', 's3cret');
@@ -212,16 +224,22 @@ check(str_contains($lx, 'catch (Throwable')
 	'backup/restore object loops catch Throwable not only Exception');
 check(str_contains($lx, "!is_array(\$res) || !isset(\$res['file'])"),
 	'backMeUp skips getFromFileserv when the driver returned nothing');
-check(str_contains($bak, 'KloxoBackup::launchBackup')
+check(str_contains($bak, 'KloxoBackup::runBackup')
 	&& str_contains($bak, 'KloxoBackup::launchRestore')
 	&& str_contains($bak, 'function backupParent')
 	&& str_contains($bak, 'function fileManagerDir'),
-	'execbackupphp/execrestorephp launch via KloxoBackup; parent is resolved');
+	'Backup Now waits on runBackup; restore still launches in the background');
+check(!str_contains($bak, 'backup_has_been_scheduled')
+	&& str_contains($bak, 'backup_completed')
+	&& str_contains($bak, 'KloxoBackup::runBackup'),
+	'Backup Now is not scheduled; it waits and reports completed or failed');
+check(str_contains($kb = (string) file_get_contents($doc . '/lib/php/kloxo_backup.php'), 'function runBackup')
+	&& str_contains($kb, 'function launchBackup'),
+	'runBackup waits; launchBackup remains for cron');
 check(str_contains($bak, 'KloxoBackup::installFile')
 	&& str_contains($bak, 'KloxoBackup::ensureDir')
 	&& str_contains($bak, 'fileManagerDir()'),
 	'Backup Now and File Manager share KloxoBackup::ensureDir');
-$kb = (string) file_get_contents($doc . '/lib/php/kloxo_backup.php');
 check(str_contains($kb, 'function ensureDir')
 	&& str_contains($kb, 'function installFile')
 	&& str_contains($kb, 'chownLxlabs'),
