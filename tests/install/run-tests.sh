@@ -183,13 +183,20 @@ check "install-site-php --help" bash "$SITEPHP" --help
 check "install-site-php --dry-run" bash "$SITEPHP" --dry-run --root="$ROOT/kloxo"
 fails "install-site-php root with .. rejected" bash "$SITEPHP" --root="$ROOT/kloxo/../kloxo"
 if grep -q 'install-site-php' "$ROOT/install.sh" \
-  && grep -q 'WANTED_OLD=(5.6 7.4)' "$SITEPHP" \
-  && grep -q 'ppa:ondrej/php' "$SITEPHP" \
+  && grep -q 'WANTED_EXTRA=(8.3 7.4 5.6)' "$SITEPHP" \
+  && grep -q 'packages.sury.org/php' "$SITEPHP" \
+  && grep -q 'Signed-By' "$SITEPHP" \
+  && ! grep -q 'add-apt-repository -y' "$SITEPHP" \
   && grep -q 'kloxo-php is not changed' "$SITEPHP"; then
-  ok "install.sh installs site PHP 5.6, 7.4, and latest via ondrej"
+  ok "install.sh installs site PHP via distro apt then packages.sury.org"
 else
-  bad "install.sh installs site PHP 5.6, 7.4, and latest via ondrej"
+  bad "install.sh installs site PHP via distro apt then packages.sury.org"
 fi
+php -r 'require "'"$ROOT"'/kloxo/httpdocs/lib/php/kloxo_phpver.php"; echo implode(" ", KloxoPhpver::installableSeries());' \
+  | grep -qx '8.6 8.5 8.4 8.3 8.2 8.1 7.4 5.6' \
+  && grep -q 'ALLOW_VERS=(8.6 8.5 8.4 8.3 8.2 8.1 7.4 5.6)' "$SITEPHP" \
+  && ok "install-site-php ALLOW_VERS matches KloxoPhpver registry" \
+  || bad "install-site-php ALLOW_VERS matches KloxoPhpver registry"
 if grep -q 'function setActiveId' "$ROOT/kloxo/httpdocs/lib/php/kloxo_phpver.php" \
   && grep -q 'KloxoPhpver::setActiveId' "$ROOT/kloxo/httpdocs/driver/web/serverweb__lib.php" \
   && grep -q 'KloxoPhpver::phpUsedChoices' "$ROOT/kloxo/httpdocs/driver/web/serverweblib.php" \
@@ -548,6 +555,7 @@ else
   bad "PHP lists use distro php-fpm discovery"
 fi
 check "php -l kloxo_phpver.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_phpver.php"
+check "php -l kloxo_phpfpm.php" php -l "$ROOT/kloxo/httpdocs/lib/php/kloxo_phpfpm.php"
 check "KloxoPhpver ids" php "$HERE/test_phpver.php"
 if grep -q 'KloxoPhpver::distroModuleRows' "$ROOT/kloxo/httpdocs/driver/pserver/phpmodule__linuxlib.php"; then
   ok "PHP Module Status scans Ubuntu mods-available"
@@ -586,9 +594,9 @@ else
   bad "install.sh --slave writes slave-db and starts kloxo-backend"
 fi
 if awk '/INSTALL_TYPE" == "slave"/{s=1} s && /install-site-php/{ok=1} s && /print_slave_box/{exit !ok}' "$ROOT/install.sh"; then
-  ok "install.sh --slave also installs site PHP 5.6 / 7.4 / latest"
+  ok "install.sh --slave also installs site PHP"
 else
-  bad "install.sh --slave also installs site PHP 5.6 / 7.4 / latest"
+  bad "install.sh --slave also installs site PHP"
 fi
 check "php -l init-slave" php -l "$ROOT/kloxo/bin/install/init-slave"
 check "init-slave --self-test" php "$ROOT/kloxo/bin/install/init-slave" --self-test
@@ -832,8 +840,8 @@ fails "install.sh --fresh without a terminal and without --yes is refused" bash 
 check "install.sh --fresh --dry-run" bash "$ROOT/install.sh" --fresh --dry-run
 grep -q 'type YES' "$ROOT/install.sh" && ok "fresh: asks for YES on a terminal" || bad "fresh: confirmation"
 
-echo "== install-site-php: dead ondrej PPA (functions run with fake curl/apt, sandboxed paths)"
-SP="$T/sitephp"; mkdir -p "$SP/bin" "$SP/sources" "$SP/osrel"
+echo "== install-site-php: Sury repo (functions run with fake curl/apt, sandboxed paths)"
+SP="$T/sitephp"; mkdir -p "$SP/bin" "$SP/sources" "$SP/keyrings" "$SP/osrel"
 printf 'VERSION_CODENAME=resolute\n' > "$SP/osrel/os-release"
 cat > "$SP/bin/apt-cache" <<'EOS'
 #!/bin/sh
@@ -846,40 +854,55 @@ cat > "$SP/bin/apt-get" <<EOS
 echo "apt-get \$*" >> "$SP/calls"
 exit 0
 EOS
-cat > "$SP/bin/add-apt-repository" <<EOS
+cat > "$SP/bin/gpg" <<'EOS'
 #!/bin/sh
-echo "add-apt-repository \$*" >> "$SP/calls"
+cat >/dev/null
 exit 0
 EOS
 cat > "$SP/bin/curl" <<EOS
 #!/bin/sh
-[ -f "$SP/ppa-ok" ] && exit 0
-exit 22
+[ -f "$SP/sury-ok" ] || exit 22
+out=""
+prev=""
+for a in "\$@"; do
+  [ "\$prev" = "-o" ] && out="\$a"
+  prev="\$a"
+done
+[ -n "\$out" ] && printf 'dummy-key' > "\$out"
+exit 0
 EOS
 chmod +x "$SP/bin/"*
 awk '/^codename\(\) \{/{f=1} /^pkgs_for\(\) \{/{f=0} f{print}' "$ROOT/kloxo/bin/install/install-site-php" \
-  | sed -e "s#/etc/os-release#$SP/osrel/os-release#g" -e "s#/etc/apt/sources.list.d/#$SP/sources/#g" > "$SP/fn.sh"
+  | sed -e "s#/etc/os-release#$SP/osrel/os-release#g" \
+        -e "s#/etc/apt/sources.list.d/#$SP/sources/#g" \
+        -e "s#/etc/apt/keyrings/#$SP/keyrings/#g" > "$SP/fn.sh"
 { echo 'log() { echo "$*" >> "'"$SP"'/log"; }'; echo 'apt_has() { apt-cache show "$1" >/dev/null 2>&1; }'; cat "$SP/fn.sh"; } > "$SP/fn2.sh"
 if [ -s "$SP/fn.sh" ] && ! grep -Eq '(^| )/etc/(apt|os-release)' "$SP/fn.sh"; then ok "site-php functions extracted with paths remapped"; else bad "site-php extraction"; fi
 run_sp() { ( PATH="$SP/bin:$PATH"; . "$SP/fn2.sh"; "$@" ) >/dev/null 2>&1; }
-: > "$SP/calls"; : > "$SP/log"; touch "$SP/sources/ondrej-ubuntu-php-resolute.sources" "$SP/sources/ubuntu.sources"
-if ! run_sp ensure_sury 8.4 && [ ! -e "$SP/sources/ondrej-ubuntu-php-resolute.sources" ] && [ -e "$SP/sources/ubuntu.sources" ] \
-  && ! grep -q add-apt-repository "$SP/calls" && grep -q 'apt-get update' "$SP/calls" && grep -q 'has no packages for Ubuntu resolute' "$SP/log"; then
-  ok "PPA 404 for the release: leftover ondrej source removed, no PPA added, apt left healthy, ensure_sury reports failure"
+: > "$SP/calls"; : > "$SP/log"; touch "$SP/sources/ondrej-ubuntu-php-resolute.sources" "$SP/sources/ubuntu.sources" "$SP/sources/sury-php.sources"
+if ! run_sp ensure_sury 8.4 && [ ! -e "$SP/sources/ondrej-ubuntu-php-resolute.sources" ] && [ ! -e "$SP/sources/sury-php.sources" ] \
+  && [ -e "$SP/sources/ubuntu.sources" ] && ! grep -q add-apt-repository "$SP/calls" && grep -q 'apt-get update' "$SP/calls" \
+  && grep -q 'packages.sury.org/php has no Release for Ubuntu resolute' "$SP/log"; then
+  ok "Sury 404 for the release: leftover ondrej and Sury sources removed, apt left healthy, ensure_sury reports failure"
 else
-  bad "PPA 404 handling" "$(cat "$SP/calls" "$SP/log")"
+  bad "Sury 404 handling" "$(cat "$SP/calls" "$SP/log")"
 fi
 : > "$SP/calls"
 if run_sp ensure_sury 8.5 && [ ! -s "$SP/calls" ]; then
-  ok "a series the distro already ships needs no PPA"
+  ok "a series the distro already ships needs no Sury"
 else
-  bad "distro series needs no PPA" "$(cat "$SP/calls")"
+  bad "distro series needs no Sury" "$(cat "$SP/calls")"
 fi
-: > "$SP/calls"; touch "$SP/ppa-ok"
-if run_sp ensure_sury 8.4 && grep -q 'add-apt-repository -y ppa:ondrej/php' "$SP/calls"; then
-  ok "PPA published for the release: it is added"
+: > "$SP/calls"; : > "$SP/log"; touch "$SP/sury-ok"
+if run_sp ensure_sury 8.4 && grep -q 'packages.sury.org/php' "$SP/sources/sury-php.sources" \
+  && grep -q 'Suites: resolute' "$SP/sources/sury-php.sources" \
+  && grep -q 'Architectures: amd64 arm64' "$SP/sources/sury-php.sources" \
+  && grep -q 'Signed-By:' "$SP/sources/sury-php.sources" \
+  && [ -s "$SP/keyrings/sury-php.gpg" ] \
+  && ! grep -q add-apt-repository "$SP/calls"; then
+  ok "Sury published for the release: deb822 source and keyring are installed"
 else
-  bad "PPA published" "$(cat "$SP/calls")"
+  bad "Sury published" "$(cat "$SP/calls" "$SP/log"; ls -la "$SP/sources" "$SP/keyrings" 2>/dev/null || true)"
 fi
 grep -q 'install-site-php.status' "$ROOT/kloxo/bin/install/install-site-php" && grep -q 'trap finish_status EXIT' "$ROOT/kloxo/bin/install/install-site-php" \
   && ok "install-site-php writes its result to log/install-site-php.status" || bad "install-site-php status file"

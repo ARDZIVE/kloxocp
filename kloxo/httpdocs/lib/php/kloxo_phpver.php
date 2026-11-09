@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 /**
  * Discover PHP versions the panel can list on Ubuntu (apt) and leftover
- * CentOS /opt/*m trees. Does not install or switch PHP.
+ * CentOS /opt/*m trees. The installable catalog and Sury repo probe live here
+ * so version numbers are not scattered. Does not install packages (see
+ * install-site-php) and does not write pools (see KloxoPhpfpm).
  *
  * Copyright (C) 2026 Kloxo CP contributors
  * GNU Affero General Public License v3 or later. See LICENSE.txt.
@@ -11,13 +13,26 @@ declare(strict_types=1);
 
 final class KloxoPhpver
 {
-    /** @var list<string> newest first; 5.6 and 7.4 are EOL site runtimes */
+    /** @var list<string> newest first; used only to detect what is already installed */
     private const DISTRO_SERIES = [
         '8.6', '8.5', '8.4', '8.3', '8.2', '8.1', '8.0', '7.4', '7.3', '7.2', '7.1', '7.0', '5.6',
     ];
 
-    /** Versions Webserver Configure can install (install-site-php / ondrej). */
-    private const INSTALLABLE_SERIES = ['8.6', '8.5', '8.4', '8.3', '7.4', '5.6'];
+    /**
+     * Versions Webserver Configure / install-site-php may install.
+     * Extra series come from packages.sury.org (not ppa:ondrej/php).
+     *
+     * @var list<string>
+     */
+    private const INSTALLABLE_SERIES = ['8.6', '8.5', '8.4', '8.3', '8.2', '8.1', '7.4', '5.6'];
+
+    /** phpX.Y-* packages installed with each series (cli/fpm/common plus extensions). */
+    public const DEFAULT_EXTENSIONS = [
+        'cli', 'fpm', 'common', 'mysql', 'xml', 'mbstring', 'curl', 'zip', 'gd', 'intl', 'bcmath', 'opcache', 'soap',
+    ];
+
+    public const SURY_URI = 'https://packages.sury.org/php/';
+    public const SURY_KEY_URL = 'https://packages.sury.org/php/apt.gpg';
 
     /** @return list<string> ids such as php8.3, php8.5, php73m */
     public static function installedIds(): array
@@ -66,21 +81,23 @@ final class KloxoPhpver
                 ];
             }
         }
-        foreach (glob('/opt/*m/usr/bin/php') ?: [] as $bin) {
-            if (!is_string($bin) || !self::isExec($bin)) {
-                continue;
+        if (!self::isUbuntuHost()) {
+            foreach (glob('/opt/*m/usr/bin/php') ?: [] as $bin) {
+                if (!is_string($bin) || !self::isExec($bin)) {
+                    continue;
+                }
+                $id = str_replace(['/opt/', '/usr/bin/php'], '', $bin);
+                if ($id === '' || isset($seen[$id])) {
+                    continue;
+                }
+                $seen[$id] = true;
+                $out[] = [
+                    'id' => $id,
+                    'bin' => $bin,
+                    'fpm' => '',
+                    'kind' => 'optm',
+                ];
             }
-            $id = str_replace(['/opt/', '/usr/bin/php'], '', $bin);
-            if ($id === '' || isset($seen[$id])) {
-                continue;
-            }
-            $seen[$id] = true;
-            $out[] = [
-                'id' => $id,
-                'bin' => $bin,
-                'fpm' => '',
-                'kind' => 'optm',
-            ];
         }
 
         return $out;
@@ -104,13 +121,17 @@ final class KloxoPhpver
     }
 
     /**
-     * Test hooks (null in production): fn(string $series): bool for apt, fn(): bool for the PPA.
+     * Test hooks (null in production): fn(string $series): bool for apt, fn(): bool for Sury.
      *
      * @var callable|null
      */
     public static $aptProbe = null;
     /** @var callable|null */
+    public static $suryProbe = null;
+    /** @var callable|null kept so older tests can inject a Sury answer */
     public static $ppaProbe = null;
+    /** @var callable|null fn(list<string> $argv): int for update-alternatives */
+    public static $alternativesRun = null;
     /** @var array<string,bool> */
     private static array $aptMemo = [];
 
@@ -165,11 +186,14 @@ final class KloxoPhpver
     }
 
     /**
-     * Does ppa:ondrej/php publish packages for this Ubuntu release? The answer is
-     * cached for a day in etc/conf/sitephp-ppa.json (a new release often has none for weeks).
+     * Does packages.sury.org/php publish a Release file for this Ubuntu
+     * codename? Cached a day in etc/conf/sitephp-sury.json.
      */
-    public static function ppaPublished(): bool
+    public static function suryPublished(): bool
     {
+        if (self::$suryProbe !== null) {
+            return (bool) (self::$suryProbe)();
+        }
         if (self::$ppaProbe !== null) {
             return (bool) (self::$ppaProbe)();
         }
@@ -177,7 +201,7 @@ final class KloxoPhpver
         if ($c === '') {
             return false;
         }
-        $cache = self::programRoot() . '/etc/conf/sitephp-ppa.json';
+        $cache = self::programRoot() . '/etc/conf/sitephp-sury.json';
         $old = null;
         if (is_file($cache)) {
             $j = json_decode((string) @file_get_contents($cache), true);
@@ -188,8 +212,9 @@ final class KloxoPhpver
                 $old = (bool) $j['ok'];
             }
         }
+        $url = self::SURY_URI . 'dists/' . rawurlencode($c) . '/Release';
         $ctx = stream_context_create(['http' => ['method' => 'HEAD', 'timeout' => 5, 'ignore_errors' => true]]);
-        $r = @file_get_contents('https://ppa.launchpadcontent.net/ondrej/php/ubuntu/dists/' . $c . '/Release', false, $ctx);
+        $r = @file_get_contents($url, false, $ctx);
         $hdr = function_exists('http_get_last_response_headers')
             ? (http_get_last_response_headers() ?? [])
             : ($http_response_header ?? []);
@@ -206,10 +231,16 @@ final class KloxoPhpver
         return $ok;
     }
 
-    /** Can this series be installed here (distro/enabled repo, or a PPA that serves this release)? */
+    /** @deprecated use suryPublished(); kept as an alias for older tests */
+    public static function ppaPublished(): bool
+    {
+        return self::suryPublished();
+    }
+
+    /** Can this series be installed here (distro/enabled repo, or Sury for this release)? */
     public static function installable(string $series): bool
     {
-        return self::aptHas($series) || self::ppaPublished();
+        return self::aptHas($series) || self::suryPublished();
     }
 
     /** @return list<string> catalog ids not yet installed and installable on this release */
@@ -262,7 +293,7 @@ final class KloxoPhpver
         if ($notInstalled !== [] && self::availableToInstall() === []) {
             $c = self::codename();
             $parts[] = 'The other versions (' . implode(', ', $notInstalled) . ') cannot be installed on this server'
-                . ($c !== '' ? ' (Ubuntu ' . $c . ')' : '') . ': Ubuntu does not ship them and ppa:ondrej/php has no packages for this release yet.';
+                . ($c !== '' ? ' (Ubuntu ' . $c . ')' : '') . ': Ubuntu does not ship them and packages.sury.org/php has no packages for this release.';
         }
         $last = self::lastInstall($statusFile);
         if ($last !== null) {
@@ -606,6 +637,111 @@ final class KloxoPhpver
         }
 
         return $out;
+    }
+
+    public static function isUbuntuHost(): bool
+    {
+        if (!class_exists('KloxoIpaddr', false)) {
+            $f = __DIR__ . '/kloxo_ipaddr.php';
+            if (is_readable($f)) {
+                include_once $f;
+            }
+        }
+        if (class_exists('KloxoIpaddr', false)) {
+            return KloxoIpaddr::isUbuntu();
+        }
+        $t = is_readable('/etc/os-release') ? (string) @file_get_contents('/etc/os-release') : '';
+
+        return (bool) preg_match('/^ID=ubuntu/m', $t);
+    }
+
+    public static function cliBin(string $id): string
+    {
+        $ver = self::idToSeries($id);
+        if ($ver === '') {
+            return '/usr/bin/php';
+        }
+        $p = '/usr/bin/php' . $ver;
+
+        return self::isExec($p) ? $p : '/usr/bin/php';
+    }
+
+    public static function fpmBin(string $id): string
+    {
+        $ver = self::idToSeries($id);
+
+        return $ver !== '' ? '/usr/sbin/php-fpm' . $ver : '';
+    }
+
+    public static function fpmUnit(string $id): string
+    {
+        $ver = self::idToSeries($id);
+
+        return $ver !== '' ? 'php' . $ver . '-fpm' : '';
+    }
+
+    /**
+     * Point Debian update-alternatives at this series (php, phar, php-config, phpize).
+     * Missing binaries are skipped. Returns false only when the CLI binary itself is missing.
+     */
+    public static function setDefaultCli(string $id): bool
+    {
+        $ver = self::idToSeries($id);
+        if ($ver === '') {
+            return false;
+        }
+        $php = '/usr/bin/php' . $ver;
+        if (!self::isExec($php) && self::$alternativesRun === null) {
+            return false;
+        }
+        $map = [
+            'php' => $php,
+            'phar' => '/usr/bin/phar' . $ver,
+            'phar.phar' => '/usr/bin/phar.phar' . $ver,
+            'php-config' => '/usr/bin/php-config' . $ver,
+            'phpize' => '/usr/bin/phpize' . $ver,
+        ];
+        $ok = true;
+        foreach ($map as $name => $path) {
+            if ($name !== 'php' && !self::isExec($path) && self::$alternativesRun === null) {
+                continue;
+            }
+            if (self::runAlternatives(['--set', $name, $path]) !== 0 && $name === 'php') {
+                $ok = false;
+            }
+        }
+
+        return $ok;
+    }
+
+    /** @param list<string> $args */
+    private static function runAlternatives(array $args): int
+    {
+        if (self::$alternativesRun !== null) {
+            return (int) (self::$alternativesRun)($args);
+        }
+        $bin = '/usr/bin/update-alternatives';
+        if (!is_executable($bin)) {
+            $bin = '/usr/sbin/update-alternatives';
+        }
+        if (!is_executable($bin)) {
+            return 127;
+        }
+        $argv = array_merge([$bin], $args);
+        $p = @proc_open($argv, [
+            0 => ['file', '/dev/null', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes);
+        if (!is_resource($p)) {
+            return 127;
+        }
+        stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return proc_close($p);
     }
 
     private static function isExec(string $path): bool

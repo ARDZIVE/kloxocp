@@ -200,6 +200,11 @@ if php "$HERE/test_webcache.php"; then
 else
   bad "test_webcache.php"
 fi
+if php "$HERE/test_phpfpm.php"; then
+  ok "test_phpfpm.php"
+else
+  bad "test_phpfpm.php"
+fi
 if php "$HERE/test_knot.php"; then
   ok "test_knot.php"
 else

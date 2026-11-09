@@ -17,7 +17,7 @@
 # lxphp.exe wrappers, kloxo-php systemd unit, pinned Hiawatha 12.4 build,
 # panel MariaDB schema via init-panel-db (also seeds the local database admin
 # row; a re-run keeps an existing admin UI password), phpMyAdmin under httpdocs/thirdparty,
-# site PHP-FPM 5.6 / 7.4 / latest (install-site-php; default latest),
+# site PHP-FPM (install-site-php: distro latest plus extras from packages.sury.org),
 # Knot DNS packaged and prepared (disabled; BIND stays default on 53),
 # Apache packaged and prepared (disabled; Nginx stays default on 80/443),
 # MariaDB enabled as the default SQL (mysqld/mysql aliases not separately enabled),
@@ -297,7 +297,7 @@ plan: Kloxo CP ${KCP_VERSION}
   profile $PROFILE
   type    $INSTALL_TYPE
   fresh   $([ "$FRESH" -eq 1 ] && echo 'yes: previous install is removed first' || echo no)
-  sitephp 5.6, 7.4, latest (install-site-php; default latest)
+  sitephp distro latest plus extras from packages.sury.org (install-site-php)
   dns     bind9 enabled (default); knot prepared and disabled
   web     nginx enabled (default); apache2 prepared and disabled
   cache   kloxo-webcache :8080 and kloxo-webproxy :30080 (nginx; no varnish/squid)
@@ -835,7 +835,7 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
   prepare_apache
   prepare_webfront
   prepare_knot
-  log "installing site PHP 5.6, 7.4, and latest (default) on this slave"
+  log "installing site PHP (distro latest plus extras from packages.sury.org) on this slave"
   if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
     log "warn: extra site PHP versions failed; Webserver Configure can retry"
   fi
@@ -952,7 +952,7 @@ else
 fi
 
 bash "$ROOT/bin/install/install-phpmyadmin" --root="$ROOT"
-log "installing site PHP 5.6, 7.4, and latest (default); panel kloxo-php is unchanged"
+log "installing site PHP (distro latest plus extras from packages.sury.org); panel kloxo-php is unchanged"
 if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
   log "warn: extra site PHP versions failed; Webserver Configure can retry"
 fi

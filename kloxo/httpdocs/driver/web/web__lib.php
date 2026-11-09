@@ -157,6 +157,8 @@ class web__ extends lxDriverClass
 		$input['driverlist'] = getAllRealWebDriverList();
 		$input['driver'] = getWebDriverList();
 
+		$this->syncUbuntuPhpPool();
+
 		self::setCreateConfFile($input);
 
 		$this->setLogfile();
@@ -210,6 +212,33 @@ class web__ extends lxDriverClass
 		return $ret;
 	}
 
+	function syncUbuntuPhpPool()
+	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
+		if (!KloxoIpaddr::isUbuntu()) {
+			return;
+		}
+		$domain = $this->getDomainname();
+		$user = $this->getUser();
+		if (!$domain || !$user) {
+			return;
+		}
+		$id = $this->getPhpSelected();
+		$series = KloxoPhpver::idToSeries((string) $id);
+		if ($series === '') {
+			return;
+		}
+		KloxoPhpfpm::switchDomain((string) $domain, (string) $user, $series);
+		try {
+			KloxoPhpfpm::cronWrapper((string) $domain, KloxoPhpver::cliBin((string) $id));
+		} catch (Throwable $e) {
+			log_log('error', 'php cron wrapper: ' . $e->getMessage());
+		}
+		KloxoPhpfpm::validateWeb();
+	}
+
 	static function addPhpFpmConfig($user)
 	{
 		// MR -- that mean 'ini' type config
@@ -239,6 +268,12 @@ class web__ extends lxDriverClass
 
 	function createPhpFpmConfig($forwhat = null, $foruser = null)
 	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		if (KloxoIpaddr::isUbuntu()) {
+			$this->syncUbuntuPhpPool();
+			return;
+		}
+
 		$input = array();
 
 		$input['userlist'] = $this->getUserList();
@@ -1205,6 +1240,15 @@ class web__ extends lxDriverClass
 		if (class_exists('KloxoWebcache')) {
 			KloxoWebcache::removeRecord((string) $domainname);
 		}
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
+		if (KloxoIpaddr::isUbuntu() && $domainname) {
+			try {
+				KloxoPhpfpm::removeDomain((string) $domainname);
+			} catch (Throwable $e) {
+				log_log('error', 'php-fpm pool remove: ' . $e->getMessage());
+			}
+		}
 
 		$list = getAllWebDriverList();
 
@@ -1347,6 +1391,7 @@ class web__ extends lxDriverClass
 
 				case "create_config":
 				case "addondomain":
+				case "webfeatures":
 					$this->createConfFile();
 					break;
 

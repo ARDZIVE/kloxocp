@@ -16,7 +16,8 @@ if (KloxoPhpver::isDistroId('php8.3') && KloxoPhpver::isDistroId('php8.5') && Kl
 }
 $cat = KloxoPhpver::catalogIds();
 if (in_array('php5.6', $cat, true) && in_array('php7.4', $cat, true) && in_array('php8.3', $cat, true)
-    && !in_array('php52m', $cat, true)) {
+    && in_array('php8.1', $cat, true) && in_array('php8.2', $cat, true) && in_array('php8.4', $cat, true)
+    && in_array('php8.5', $cat, true) && !in_array('php52m', $cat, true)) {
     $ok('catalogIds is Ubuntu phpX.Y not php52m');
 } else {
     $bad('catalogIds is Ubuntu phpX.Y not php52m');
@@ -109,11 +110,18 @@ if (is_array($rem) && !in_array('php52m', $rem, true) && !in_array('--PHP Branch
 }
 
 $series = KloxoPhpver::installableSeries();
-if (in_array('5.6', $series, true) && in_array('7.4', $series, true) && in_array('8.3', $series, true)
-    && !in_array('5.2', $series, true)) {
+if (in_array('5.6', $series, true) && in_array('7.4', $series, true) && in_array('8.1', $series, true)
+    && in_array('8.2', $series, true) && in_array('8.3', $series, true) && !in_array('5.2', $series, true)) {
     $ok('installableSeries matches install-site-php');
 } else {
     $bad('installableSeries matches install-site-php');
+}
+if (KloxoPhpver::DEFAULT_EXTENSIONS !== [] && in_array('fpm', KloxoPhpver::DEFAULT_EXTENSIONS, true)
+    && in_array('cli', KloxoPhpver::DEFAULT_EXTENSIONS, true) && in_array('common', KloxoPhpver::DEFAULT_EXTENSIONS, true)
+    && str_contains(KloxoPhpver::SURY_URI, 'packages.sury.org/php')) {
+    $ok('registry lists default extensions and the Sury URI');
+} else {
+    $bad('registry lists default extensions and the Sury URI');
 }
 
 $rows = KloxoPhpver::parseModListing(
@@ -152,22 +160,22 @@ if (is_array($live)) {
 echo $fail === 0 ? "phpver tests ok\n" : "phpver tests failed\n";
 // ---- install availability (probes injected; nothing touches apt or the network)
 KloxoPhpver::$aptProbe = static fn(string $v): bool => $v === '8.5';
-KloxoPhpver::$ppaProbe = static fn(): bool => false;
+KloxoPhpver::$suryProbe = static fn(): bool => false;
 $a = KloxoPhpver::availableToInstall();
 if (!in_array('php8.4', $a, true) && !in_array('php7.4', $a, true) && !in_array('php5.6', $a, true)) {
-    $ok('no PPA for this release: versions apt cannot supply are not offered');
+    $ok('no Sury for this release: versions apt cannot supply are not offered');
 } else {
-    $bad('no PPA for this release: versions apt cannot supply are not offered');
+    $bad('no Sury for this release: versions apt cannot supply are not offered');
 }
-KloxoPhpver::$ppaProbe = static fn(): bool => true;
+KloxoPhpver::$suryProbe = static fn(): bool => true;
 $a = KloxoPhpver::availableToInstall();
 if (in_array('php5.6', $a, true) && in_array('php7.4', $a, true) && in_array('php8.4', $a, true)
-    && count(array_diff($a, KloxoPhpver::catalogIds())) === 0) {
-    $ok('PPA publishes for this release: catalog versions are offered');
+    && in_array('php8.1', $a, true) && count(array_diff($a, KloxoPhpver::catalogIds())) === 0) {
+    $ok('Sury publishes for this release: catalog versions are offered');
 } else {
-    $bad('PPA publishes for this release: catalog versions are offered');
+    $bad('Sury publishes for this release: catalog versions are offered');
 }
-KloxoPhpver::$ppaProbe = static fn(): bool => false;
+KloxoPhpver::$suryProbe = static fn(): bool => false;
 $tmpStatus = sys_get_temp_dir() . '/kloxo-phpver-status-' . getmypid();
 file_put_contents($tmpStatus, "1794031272|failed|php8.4 not installed: <b>no</b> packages\n");
 $l = KloxoPhpver::lastInstall($tmpStatus);
@@ -185,6 +193,7 @@ if (KloxoPhpver::lastInstall($tmpStatus) === null && KloxoPhpver::lastInstall($t
 }
 @unlink($tmpStatus);
 KloxoPhpver::$aptProbe = null;
+KloxoPhpver::$suryProbe = null;
 KloxoPhpver::$ppaProbe = null;
 
 exit($fail === 0 ? 0 : 1);

@@ -11,10 +11,19 @@ declare(strict_types=1);
 
 final class KloxoComponent
 {
-    /** @var list<string> */
-    private const PHP_SERIES = [
-        '8.5', '8.4', '8.3', '8.2', '8.1', '8.0', '7.4', '5.6',
-    ];
+    /** @return list<string> */
+    private static function phpSeries(): array
+    {
+        $f = __DIR__ . '/kloxo_phpver.php';
+        if (!class_exists('KloxoPhpver', false) && is_readable($f)) {
+            include_once $f;
+        }
+        if (class_exists('KloxoPhpver', false)) {
+            return KloxoPhpver::installableSeries();
+        }
+
+        return ['8.5', '8.4', '8.3', '8.2', '8.1', '7.4', '5.6'];
+    }
 
     /**
      * Packages the panel cares about, in screenshot-style types.
@@ -46,7 +55,7 @@ final class KloxoComponent
             ['name' => 'proftpd-basic', 'type' => 'ftp', 'kind' => 'deb'],
             ['name' => 'vsftpd', 'type' => 'ftp', 'kind' => 'deb'],
         ];
-        foreach (self::PHP_SERIES as $ver) {
+        foreach (self::phpSeries() as $ver) {
             $rows[] = ['name' => 'php' . $ver . '-cli', 'type' => 'php-branch', 'kind' => 'deb'];
             $rows[] = ['name' => 'php' . $ver . '-fpm', 'type' => 'php-branch', 'kind' => 'deb'];
         }

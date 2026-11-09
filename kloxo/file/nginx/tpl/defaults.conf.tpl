@@ -11,6 +11,16 @@ if (!isset($phpselected)) {
 	$phpselected = 'php';
 }
 
+if (!function_exists('kloxo_fpm_sock')) {
+	$__webphp = '/opt/kloxo/httpdocs/lib/php/kloxo_web.php';
+	if (is_readable($__webphp)) {
+		include_once $__webphp;
+	}
+}
+$defaultSock = function_exists('kloxo_fpm_sock')
+	? kloxo_fpm_sock((string)$phpselected, 'www-data', '')
+	: '/run/php/kloxo-default.sock';
+
 if (!isset($timeout)) {
 	$timeout = '300';
 }
@@ -171,6 +181,7 @@ server {
 	set $var_user 'apache';
 	set $var_fpmport '<?=$fpmportapache;?>';
 	set $var_phpselected 'php';
+	set $var_phpsock '<?=$defaultSock;?>';
 <?php
 		//if ((!$reverseproxy) || (($reverseproxy) && ($webselected === 'front-end'))) {
 ?>

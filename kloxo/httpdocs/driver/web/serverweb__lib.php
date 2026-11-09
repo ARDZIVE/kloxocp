@@ -573,6 +573,7 @@ class serverweb__ extends lxDriverClass
 		$sel = preg_replace('/(.*)\_\(as\_(.*)\)/', '$1', (string)$sel);
 		if (KloxoPhpver::isDistroId($sel)) {
 			KloxoPhpver::setActiveId($sel);
+			KloxoPhpver::setDefaultCli($sel);
 			createRestartFile("restart-php-fpm");
 			createRestartFile("restart-web");
 			return;
@@ -626,6 +627,7 @@ class serverweb__ extends lxDriverClass
 
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 		if (KloxoPhpver::setActiveId((string)$v)) {
+			KloxoPhpver::setDefaultCli((string)$v);
 			createRestartFile("restart-php-fpm");
 			createRestartFile("restart-web");
 			return;

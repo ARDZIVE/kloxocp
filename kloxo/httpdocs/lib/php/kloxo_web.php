@@ -92,10 +92,42 @@ function kloxo_apache_token(string $s): string
 	return (string)preg_replace('/[^A-Za-z0-9._*-]+/', '', $s);
 }
 
-function kloxo_apache_sock(string $phpselected, string $user): string
+function kloxo_fpm_sock(string $phpselected, string $user, string $domain = ''): string
 {
+	$phpfpm = __DIR__ . '/kloxo_phpfpm.php';
+	$phpver = __DIR__ . '/kloxo_phpver.php';
+	if (!class_exists('KloxoPhpfpm', false) && is_readable($phpfpm)) {
+		include_once $phpver;
+		include_once $phpfpm;
+	}
+	if (class_exists('KloxoPhpfpm', false)) {
+		try {
+			if ($domain !== '') {
+				return KloxoPhpfpm::socketPath($phpselected, $user, $domain);
+			}
+			$series = '';
+			if (class_exists('KloxoPhpver', false)) {
+				$id = KloxoPhpver::isDistroId($phpselected) ? $phpselected : KloxoPhpver::activeId();
+				$series = KloxoPhpver::idToSeries($id);
+			}
+			if ($series !== '') {
+				return KloxoPhpfpm::distroSocket($series);
+			}
+		} catch (Throwable $e) {
+		}
+	}
 	$php = kloxo_apache_token($phpselected !== '' ? $phpselected : 'php');
 	$u = kloxo_apache_token($user);
+	if ($domain !== '') {
+		$d = kloxo_apache_token($domain);
+
+		return '/run/php/' . $d . '-' . $php . '.sock';
+	}
 
 	return '/opt/configs/php-fpm/sock/' . $php . '-' . $u . '.sock';
+}
+
+function kloxo_apache_sock(string $phpselected, string $user, string $domain = ''): string
+{
+	return kloxo_fpm_sock($phpselected, $user, $domain);
 }

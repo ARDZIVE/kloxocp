@@ -33,6 +33,19 @@ if (!isset($phpselected)) {
 	$phpselected = 'php';
 }
 
+if (!function_exists('kloxo_fpm_sock')) {
+	$__webphp = '/opt/kloxo/httpdocs/lib/php/kloxo_web.php';
+	if (is_readable($__webphp)) {
+		include_once $__webphp;
+	}
+}
+$domainSock = function_exists('kloxo_fpm_sock')
+	? kloxo_fpm_sock((string)$phpselected, (string)$user, (string)$domainname)
+	: '/run/php/' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$domainname) . '-' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$phpselected) . '.sock';
+$defaultSock = function_exists('kloxo_fpm_sock')
+	? kloxo_fpm_sock('php', 'www-data', '')
+	: $domainSock;
+
 if (!isset($timeout)) {
 	$timeout = '300';
 }
@@ -254,6 +267,7 @@ server {
 	set $var_user 'apache';
 	set $var_fpmport '<?=$fpmportapache;?>';
 	set $var_phpselected 'php';
+	set $var_phpsock '<?=$defaultSock;?>';
 
 	include '<?=getLinkCustomfile($globalspath, "php-fpm_standard{$switches[$count]}.conf");?>';
 }
@@ -303,6 +317,7 @@ server {
 	set $var_user 'apache';
 	set $var_fpmport '<?=$fpmportapache;?>';
 	set $var_phpselected 'php';
+	set $var_phpsock '<?=$defaultSock;?>';
 <?php
 		if ($enablestats) {
 ?>
@@ -364,6 +379,7 @@ server {
 	set $var_user 'apache';
 	set $var_fpmport '<?=$fpmportapache;?>';
 	set $var_phpselected 'php';
+	set $var_phpsock '<?=$defaultSock;?>';
 
 	include '<?=getLinkCustomfile($globalspath, "php-fpm_standard{$switches[$count]}.conf");?>';
 <?php
@@ -556,6 +572,7 @@ server {
 	set $var_user '<?=$user;?>';
 	set $var_fpmport '<?=$fpmport;?>';
 	set $var_phpselected '<?=$phpselected;?>';
+	set $var_phpsock '<?=$domainSock;?>';
 
 	<?=$conn_timeout;?>
 
@@ -755,6 +772,7 @@ server {
 	set $var_user '<?=$user;?>';
 	set $var_fpmport '<?=$fpmport;?>';
 	set $var_phpselected '<?=$phpselected;?>';
+	set $var_phpsock '<?=$domainSock;?>';
 
 	<?=$conn_timeout;?>
 

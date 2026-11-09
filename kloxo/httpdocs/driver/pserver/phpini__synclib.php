@@ -32,6 +32,12 @@ class phpini__sync extends Lxdriverclass
 
 		$input['phpmlist'] = getMultiplePhpList();
 
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		if (KloxoIpaddr::isUbuntu()) {
+			$this->createIniFileUbuntu($pclass, $user, $input);
+			return;
+		}
+
 		$phpini_path = "/opt/configs/phpini/tpl";
 		$apache_path = "/opt/configs/apache/tpl";
 
@@ -222,6 +228,38 @@ class phpini__sync extends Lxdriverclass
 			}
 		}
 
+		createRestartFile("restart-php-fpm");
+	}
+
+	function createIniFileUbuntu($pclass, $user, $input)
+	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
+		$phpini_path = "/opt/configs/phpini/tpl";
+		$phpini_cont = file_get_contents(getLinkCustomfile($phpini_path, "php.ini.tpl"));
+		if ($pclass === 'client' && $user !== '' && $user !== 'apache' && $user !== 'www-data') {
+			$maxchildren = db_get_value("client", $user, "priv_q_phpfcgiprocess_num");
+			if (($maxchildren === 'Unlimited') || ($maxchildren === '-')) {
+				$maxchildren = '6';
+			}
+			$input['maxchildren'] = $maxchildren;
+			$input['phpinipath'] = "/home/kloxo/client/{$user}";
+			$phpini_parse = getParseInlinePhp($phpini_cont, $input);
+			$phpini_target = "/home/kloxo/client/{$user}/php.ini";
+			$dir = dirname($phpini_target);
+			if (!is_dir($dir)) {
+				@mkdir($dir, 0755, true);
+			}
+			if (is_file($phpini_target)) {
+				@copy($phpini_target, $phpini_target . '.bak.' . gmdate('YmdHis'));
+			}
+			file_put_contents($phpini_target, $phpini_parse);
+			try {
+				KloxoPhpfpm::refreshUserFlags((string) $user, $input);
+			} catch (Throwable $e) {
+				log_log('error', 'php-fpm pool flags: ' . $e->getMessage());
+				throw $e;
+			}
+		}
 		createRestartFile("restart-php-fpm");
 	}
 

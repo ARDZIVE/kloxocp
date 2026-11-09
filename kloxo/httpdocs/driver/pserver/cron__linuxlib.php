@@ -90,6 +90,7 @@ class cron__Linux extends lxDriverClass
 			if ($command === '') {
 				continue;
 			}
+			$command = $this->pinCronPhp($command, $username);
 
 			$ttype = isset($v['ttype']) ? $v['ttype'] : '';
 			if ($ttype === 'simple') {
@@ -147,5 +148,32 @@ class cron__Linux extends lxDriverClass
 		lxshell_return("/usr/bin/crontab", "-u", $username, $tfile);
 
 		lunlink($tfile);
+	}
+
+	function pinCronPhp($command, $username)
+	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
+		if (!KloxoIpaddr::isUbuntu()) {
+			return $command;
+		}
+		$cli = KloxoPhpver::cliBin(KloxoPhpver::activeId());
+		foreach (glob('/etc/php/*/fpm/pool.d/kloxo-*.conf') ?: [] as $f) {
+			if (!is_string($f) || !is_file($f)) {
+				continue;
+			}
+			$txt = (string) @file_get_contents($f);
+			if (!preg_match('/^user\\s*=\\s*' . preg_quote($username, '/') . '\\s*$/m', $txt)) {
+				continue;
+			}
+			$series = basename(dirname($f, 3));
+			if (preg_match('/^\\d+\\.\\d+$/', $series) === 1) {
+				$cli = KloxoPhpver::cliBin('php' . $series);
+				break;
+			}
+		}
+
+		return KloxoPhpfpm::rewriteCronPhp((string) $command, $cli);
 	}
 }

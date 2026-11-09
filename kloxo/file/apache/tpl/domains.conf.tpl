@@ -75,8 +75,8 @@ foreach (array_unique($aliases) as $a) {
 }
 
 $sock = function_exists('kloxo_apache_sock')
-	? kloxo_apache_sock((string)$phpselected, $user)
-	: '/opt/configs/php-fpm/sock/' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$phpselected) . '-' . preg_replace('/[^A-Za-z0-9._-]+/', '', $user) . '.sock';
+	? kloxo_apache_sock((string)$phpselected, $user, (string)$domain)
+	: '/run/php/' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$domain) . '-' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$phpselected) . '.sock';
 
 $certbase = '/home/kloxo/ssl/' . $domain;
 if (!empty($certnamelist) && is_array($certnamelist)) {

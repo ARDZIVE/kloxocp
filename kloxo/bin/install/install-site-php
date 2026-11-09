@@ -1,8 +1,7 @@
 #!/bin/bash
-# Install customer-site PHP-FPM versions on Ubuntu: 5.6 (5.6.40), 7.4 (7.4.33),
-# and the newest phpX.Y-fpm apt can see (the default). The panel FPM (kloxo-php)
-# is not touched. Old 5.6 / 7.4 are EOL; they exist only so a site can be
-# switched from Webserver Configure.
+# Install customer-site PHP-FPM versions on Ubuntu. Distro packages first;
+# extra series come from Ondřej Surý's APT repo (https://packages.sury.org/php/,
+# deb822 + signed-by keyring). The panel FPM (kloxo-php) is not touched.
 #
 # Copyright (C) 2026 Kloxo CP contributors
 # GNU Affero General Public License v3. See LICENSE.txt.
@@ -11,35 +10,40 @@ set -euo pipefail
 ROOT="${KLOXO_ROOT:-/opt/kloxo}"
 FORCE=0
 DRY=0
-WANTED_OLD=(5.6 7.4)
 # Newest first. 8.6 is listed so a later stable is picked without a code change.
+# Keep in sync with KloxoPhpver::INSTALLABLE_SERIES (asserted by tests).
 LATEST_CANDIDATES=(8.6 8.5 8.4 8.3)
-ALLOW_VERS=(8.6 8.5 8.4 8.3 7.4 5.6)
+ALLOW_VERS=(8.6 8.5 8.4 8.3 8.2 8.1 7.4 5.6)
+WANTED_EXTRA=(8.3 7.4 5.6)
 ONLY_VERS=()
-EXTS=(cli fpm mysql xml mbstring curl zip gd intl bcmath opcache soap)
+EXTS=(cli fpm common mysql xml mbstring curl zip gd intl bcmath opcache soap)
+SURY_URI="https://packages.sury.org/php/"
+SURY_KEY_URL="https://packages.sury.org/php/apt.gpg"
+SURY_SOURCES="/etc/apt/sources.list.d/sury-php.sources"
+SURY_KEYRING="/etc/apt/keyrings/sury-php.gpg"
 
 usage() {
   cat <<EOF
-install-site-php: customer-site PHP-FPM (5.6, 7.4, latest)
+install-site-php: customer-site PHP-FPM (distro latest plus extra series from Sury)
 
   sudo bash install-site-php [--root=DIR] [--force] [--dry-run] [--versions=X.Y,X.Y]
 
   --root=DIR         program root (default: ${ROOT})
-  --versions=X.Y,... only these series (5.6, 7.4, 8.3, 8.4, 8.5, 8.6)
+  --versions=X.Y,... only these series (from the registry: ${ALLOW_VERS[*]})
   --force            reinstall even if php-fpm binaries already exist
   --dry-run          print the plan and exit
   --help
 
-Uses Ubuntu distro packages first. If a wanted series is missing, adds
-ppa:ondrej/php (Ondřej Surý) when that PPA publishes packages for this Ubuntu
-release; otherwise the series is skipped (no broken apt source is left behind).
-The result is written to ROOT/log/install-site-php.status. The panel keeps using kloxo-php.
+Uses Ubuntu distro packages first. If a wanted series is missing, configures
+https://packages.sury.org/php/ for this Ubuntu codename (deb822 Signed-By
+keyring; no apt-key, no add-apt-repository, no ppa:ondrej/php). Fails with a
+clear error if the repo or package is missing. The result is written to
+ROOT/log/install-site-php.status. The panel keeps using kloxo-php.
 EOF
 }
 
 log() { printf '%s\n' "$*"; }
 
-# One line the panel shows on Webserver Configure: epoch|state|message
 STATUS_STATE="failed"
 STATUS_MSG="stopped before finishing (see install-site-php.log)"
 write_status() {
@@ -81,23 +85,30 @@ codename() {
   printf '%s' "$c"
 }
 
-# True when ppa:ondrej/php publishes packages for this Ubuntu release
-# (a new release often has none for weeks: the PPA answers 404).
-ppa_published() {
+# True when packages.sury.org/php publishes a Release file for this Ubuntu suite.
+sury_published() {
   local c url
   c="$(codename)"
   [[ "$c" =~ ^[a-z]+$ ]] || return 1
-  url="https://ppa.launchpadcontent.net/ondrej/php/ubuntu/dists/${c}/Release"
+  url="https://packages.sury.org/php/dists/${c}/Release"
   curl -fsI --max-time 20 "$url" >/dev/null 2>&1
 }
 
-# A leftover ondrej source for a release the PPA does not serve makes every
-# later `apt-get update` fail (E: ... does not have a Release file).
-drop_dead_ppa() {
+# Leftover Launchpad PPA for a release it does not serve breaks every apt-get update.
+drop_dead_ondrej() {
   local f
   for f in /etc/apt/sources.list.d/ondrej-*php*.sources /etc/apt/sources.list.d/ondrej-*php*.list; do
     [[ -e "$f" ]] || continue
-    log "removing ${f}: ppa:ondrej/php has no packages for Ubuntu $(codename)"
+    log "removing ${f}: ppa:ondrej/php is not used; extra PHP comes from packages.sury.org"
+    rm -f -- "$f"
+  done
+}
+
+drop_dead_sury() {
+  local f
+  for f in /etc/apt/sources.list.d/sury-php.sources /etc/apt/sources.list.d/sury-php.list; do
+    [[ -e "$f" ]] || continue
+    log "removing ${f}: packages.sury.org/php has no packages for Ubuntu $(codename)"
     rm -f -- "$f"
   done
 }
@@ -106,10 +117,58 @@ apt_update() {
   apt-get update -y || log "warn: apt-get update reported errors"
 }
 
-# Needs the PPA only for series the distro does not carry. Returns 1 (and
-# leaves apt healthy) when the PPA cannot serve this release.
+host_arch() {
+  local a
+  a="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+  case "$a" in
+    amd64|x86_64) printf 'amd64' ;;
+    arm64|aarch64) printf 'arm64' ;;
+    *) printf '%s' "$a" ;;
+  esac
+}
+
+write_sury_sources() {
+  local c keydir tmp keyring sources
+  c="$(codename)"
+  [[ "$c" =~ ^[a-z]+$ ]] || { log "cannot read Ubuntu VERSION_CODENAME"; return 1; }
+  keyring="/etc/apt/keyrings/sury-php.gpg"
+  sources="/etc/apt/sources.list.d/sury-php.sources"
+  keydir="$(dirname "$keyring")"
+  mkdir -p "$keydir" "$(dirname "$sources")"
+  tmp="$(mktemp)"
+  if ! curl -fsSL --max-time 30 "https://packages.sury.org/php/apt.gpg" -o "$tmp"; then
+    rm -f -- "$tmp"
+    log "could not download Sury signing key from https://packages.sury.org/php/apt.gpg"
+    return 1
+  fi
+  if [[ ! -s "$tmp" ]]; then
+    rm -f -- "$tmp"
+    log "Sury signing key from https://packages.sury.org/php/apt.gpg was empty"
+    return 1
+  fi
+  if grep -q 'BEGIN PGP' "$tmp" 2>/dev/null; then
+    gpg --dearmor < "$tmp" > "$keyring"
+  else
+    cp -f -- "$tmp" "$keyring"
+  fi
+  rm -f -- "$tmp"
+  chmod 0644 "$keyring"
+  cat > "$sources" <<EOF
+Types: deb
+URIs: https://packages.sury.org/php/
+Suites: ${c}
+Components: main
+Architectures: amd64 arm64
+Signed-By: ${keyring}
+EOF
+  chmod 0644 "$sources"
+}
+
+# Needs Sury only for series the distro does not carry. Returns 1 (and leaves
+# apt healthy) when Sury cannot serve this release.
 ensure_sury() {
-  local v
+  local v c arch keyring sources
+  drop_dead_ondrej
   for v in "$@"; do
     apt_has "php${v}-fpm" || break
     v=""
@@ -117,22 +176,40 @@ ensure_sury() {
   if [[ -z "${v:-}" ]]; then
     return 0
   fi
-  if ! ppa_published; then
-    drop_dead_ppa
+  c="$(codename)"
+  arch="$(host_arch)"
+  keyring="/etc/apt/keyrings/sury-php.gpg"
+  sources="/etc/apt/sources.list.d/sury-php.sources"
+  if ! sury_published; then
+    drop_dead_sury
     apt_update
-    log "ppa:ondrej/php has no packages for Ubuntu $(codename); only the PHP versions Ubuntu itself ships can be installed"
+    log "packages.sury.org/php has no Release for Ubuntu ${c} (${arch}); only the PHP versions Ubuntu itself ships can be installed"
     return 1
   fi
-  log "adding ppa:ondrej/php for PHP versions the distro does not ship (EOL ones are for customer sites only)"
-  apt-get install -y software-properties-common ca-certificates gnupg apt-transport-https curl
-  add-apt-repository -y ppa:ondrej/php
-  apt_update
+  if [[ -s "$sources" && -s "$keyring" ]] && grep -q 'packages.sury.org/php' "$sources" \
+    && grep -q "Suites: ${c}" "$sources"; then
+    log "Sury PHP repo already configured for Ubuntu ${c}"
+    apt_update
+    return 0
+  fi
+  log "configuring https://packages.sury.org/php/ (suite ${c}, amd64 arm64) for PHP versions the distro does not ship"
+  apt-get install -y ca-certificates gnupg curl
+  write_sury_sources || return 1
+  if ! apt-get update -y; then
+    drop_dead_sury
+    apt_update
+    log "apt-get update failed after adding packages.sury.org/php suite ${c}; source removed so apt stays healthy"
+    return 1
+  fi
 }
 
 pkgs_for() {
   local ver="$1" e p
-  printf 'php%s-fpm' "$ver"
+  printf 'php%s-fpm php%s-cli php%s-common' "$ver" "$ver" "$ver"
   for e in "${EXTS[@]}"; do
+    case "$e" in
+      cli|fpm|common) continue ;;
+    esac
     p="php${ver}-${e}"
     if apt_has "$p"; then
       printf ' %s' "$p"
@@ -143,34 +220,22 @@ pkgs_for() {
 wire_include() {
   local ver="$1"
   local conf="/etc/php/${ver}/fpm/php-fpm.conf"
-  local pdir="${ROOT}/file/php-fpm"
-  local pooldir="/opt/configs/php-fpm/conf/php${ver}/php-fpm.d"
-  local sockdir="/opt/configs/php-fpm/sock"
-  local line="include=/opt/configs/php-fpm/conf/php${ver}/php-fpm.d/*.conf"
-  mkdir -p "$pooldir" "$sockdir"
+  local pooldir="/etc/php/${ver}/fpm/pool.d"
+  local sockdir="/run/php"
+  local oldinc="include=/opt/configs/php-fpm/conf/php${ver}/php-fpm.d/*.conf"
+  mkdir -p "$pooldir" "$sockdir" /var/log/php
   chmod 0775 "$sockdir" || true
-  if [[ ! -f "${pooldir}/default.conf" ]]; then
-    cat > "${pooldir}/default.conf" <<EOF
-[php${ver}-default]
-listen = /opt/configs/php-fpm/sock/php${ver}-apache.sock
-listen.owner = www-data
-listen.group = www-data
-listen.mode = 0660
-user = www-data
-group = www-data
-pm = ondemand
-pm.max_children = 5
-pm.process_idle_timeout = 10s
-EOF
-  fi
-  if [[ -f "$conf" ]] && ! grep -F -q "$line" "$conf"; then
-    printf '\n; Kloxo CP site pools\n%s\n' "$line" >> "$conf"
+  if [[ -f "$conf" ]] && grep -F -q "$oldinc" "$conf"; then
+    # Move site pools to native pool.d; drop the CentOS-era include.
+    grep -F -v "$oldinc" "$conf" > "${conf}.kloxo-tmp" && mv "${conf}.kloxo-tmp" "$conf"
   fi
   if [[ -x "/usr/sbin/php-fpm${ver}" ]]; then
-    "/usr/sbin/php-fpm${ver}" -t >/dev/null
+    if ! "/usr/sbin/php-fpm${ver}" -t >/dev/null; then
+      die "php-fpm${ver} -t failed after wiring pool.d"
+    fi
   fi
   systemctl enable "php${ver}-fpm" >/dev/null 2>&1 || true
-  systemctl restart "php${ver}-fpm" || systemctl start "php${ver}-fpm" || true
+  systemctl restart "php${ver}-fpm" || systemctl start "php${ver}-fpm" || die "could not start php${ver}-fpm"
 }
 
 write_default_flag() {
@@ -182,6 +247,22 @@ write_default_flag() {
   : > "${flagdir}/enablemultiplephp.flg"
 }
 
+set_cli_default() {
+  local ver="$1" n p
+  [[ -x "/usr/bin/php${ver}" ]] || return 0
+  for n in php phar phar.phar php-config phpize; do
+    case "$n" in
+      php) p="/usr/bin/php${ver}" ;;
+      phar) p="/usr/bin/phar${ver}" ;;
+      phar.phar) p="/usr/bin/phar.phar${ver}" ;;
+      php-config) p="/usr/bin/php-config${ver}" ;;
+      phpize) p="/usr/bin/phpize${ver}" ;;
+    esac
+    [[ -e "$p" ]] || continue
+    update-alternatives --set "$n" "$p" >/dev/null 2>&1 || true
+  done
+}
+
 vers_ok() {
   local v a
   for v in "$@"; do
@@ -190,7 +271,7 @@ vers_ok() {
         continue 2
       fi
     done
-    die "unsupported PHP series: $v"
+    die "unsupported PHP series: $v (registry: ${ALLOW_VERS[*]})"
   done
 }
 
@@ -216,9 +297,9 @@ if [[ "$DRY" -eq 1 ]]; then
   cat <<EOF
 plan: install customer-site PHP-FPM
   root     $ROOT
-  versions ${ONLY_VERS[*]:-5.6 (5.6.40), 7.4 (7.4.33), plus newest of: ${LATEST_CANDIDATES[*]}}
-  repo     distro apt, then ppa:ondrej/php only if it publishes for this Ubuntu release
-  default  newest installed phpX.Y-fpm
+  versions ${ONLY_VERS[*]:-distro latest of: ${LATEST_CANDIDATES[*]}; extras: ${WANTED_EXTRA[*]}}
+  repo     distro apt, then ${SURY_URI} suite \$(VERSION_CODENAME) (deb822 Signed-By)
+  default  newest installed phpX.Y-fpm (update-alternatives)
   panel    kloxo-php is not changed
 EOF
   exit 0
@@ -230,16 +311,15 @@ export DEBIAN_FRONTEND=noninteractive
 write_status running "installing ${ONLY_VERS[*]:-site PHP}"
 trap finish_status EXIT
 
-# Heal a leftover ondrej source from an earlier run on a release the PPA does not serve.
-if compgen -G "/etc/apt/sources.list.d/ondrej-*php*" >/dev/null && ! ppa_published; then
-  drop_dead_ppa
+drop_dead_ondrej
+if compgen -G "/etc/apt/sources.list.d/sury-php*" >/dev/null && ! sury_published; then
+  drop_dead_sury
 fi
 apt_update
-# Series that must come from the PPA when the distro lacks them.
 if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
   ensure_sury "${ONLY_VERS[@]}" || true
 else
-  ensure_sury "${WANTED_OLD[@]}" || true
+  ensure_sury "${WANTED_EXTRA[@]}" || true
 fi
 
 install_one() {
@@ -248,8 +328,12 @@ install_one() {
     log "php${ver}-fpm already present"
     return 0
   fi
+  if ! apt_has "php${ver}-fpm"; then
+    die "php${ver}-fpm is not in apt for Ubuntu $(codename) ($(host_arch)) after configuring ${SURY_URI}"
+  fi
   # shellcheck disable=SC2046
   apt-get install -y $(pkgs_for "$ver")
+  have_fpm "$ver" || die "php${ver}-fpm package installed but /usr/sbin/php-fpm${ver} is missing"
 }
 
 if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
@@ -257,15 +341,15 @@ if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
   skipped=()
   for v in "${ONLY_VERS[@]}"; do
     if ! apt_has "php${v}-fpm" && ! have_fpm "$v"; then
-      log "warn: php${v}-fpm is not available for Ubuntu $(codename); skip"
+      log "error: php${v}-fpm is not available for Ubuntu $(codename) ($(host_arch))"
       skipped+=("$v")
       continue
     fi
     if install_one "$v" && have_fpm "$v"; then
-      wire_include "$v" || log "warn: php${v}-fpm could not be wired into the panel pools"
+      wire_include "$v"
       done_list+=("$v")
     else
-      log "warn: php${v}-fpm install failed"
+      log "error: php${v}-fpm install failed"
       skipped+=("$v")
     fi
   done
@@ -279,7 +363,7 @@ if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
     exit 0
   fi
   STATUS_STATE="failed"
-  STATUS_MSG="${skipped[*]} not installed: not in Ubuntu $(codename) and ppa:ondrej/php has no packages for it"
+  STATUS_MSG="${skipped[*]} not installed: not in Ubuntu $(codename) and ${SURY_URI} has no package for it"
   log "$STATUS_MSG"
   exit 1
 fi
@@ -294,22 +378,31 @@ fi
 
 install_one "$latest"
 skipped=()
-for v in "${WANTED_OLD[@]}"; do
+for v in "${WANTED_EXTRA[@]}"; do
+  if [[ "$v" == "$latest" ]]; then
+    continue
+  fi
   if apt_has "php${v}-fpm"; then
-    install_one "$v" || { log "warn: php${v}-fpm install failed (EOL packages)"; skipped+=("$v"); }
+    if install_one "$v"; then
+      :
+    else
+      log "error: php${v}-fpm install failed"
+      skipped+=("$v")
+    fi
   else
-    log "warn: php${v}-fpm is not in apt for Ubuntu $(codename); skip"
+    log "error: php${v}-fpm is not in apt for Ubuntu $(codename); skip"
     skipped+=("$v")
   fi
 done
 
-for v in "$latest" "${WANTED_OLD[@]}"; do
+for v in "$latest" "${WANTED_EXTRA[@]}"; do
   if have_fpm "$v"; then
     wire_include "$v"
   fi
 done
 
 write_default_flag "$latest"
+set_cli_default "$latest"
 log "site PHP default is php${latest} (Webserver Configure can select the others that are installed)"
 STATUS_STATE="ok"
 STATUS_MSG="php${latest} installed"
