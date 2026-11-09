@@ -92,13 +92,14 @@ kloxo-backend (`rl_exec_get`; the panel user cannot systemd-run or apt);
 if 7776 does not answer, the backend 30s loop and kloxo-watchdog run the
 job; that queues `install-site-php` for the selected `phpX.Y` ids (job
 under `$ROOT/log/`, not `/tmp`, because `kloxo-backend` uses `PrivateTmp`);
-the Webserver Configure page stays open and shows apt steps live
-(`theme/js/kloxo-sitephp.js` polls `theme/lbin/sitephp-progress.php`,
-admin-only JSON of `install-site-php.log`);
+the Webserver Configure page stays open and shows a progress bar per
+phpX.Y (`theme/js/kloxo-sitephp.js` polls `theme/lbin/sitephp-progress.php`,
+admin-only JSON of `log/sitephp.jobs`); when a job finishes the version
+moves between Multiple PHP Install and Multiple PHP Remove;
 Multiple PHP Remove sends
 `KloxoPhpver::queueRemove` (`apt-get purge` of `phpX.Y-fpm` and
 `phpX.Y-cli` as root, no lxlabs fallback) so they
-appear on Multiple PHP Remove; the same live log shows the purge steps; Apache optimize writes
+leave Remove and reappear on Install; the same progress bars show the purge; Apache optimize writes
 `kloxo-optimize.conf`; PHP Type on Ubuntu is proxy_fcgi + mpm_event/worker;
 fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share exactly two beige tabs
 (**PHP Configure** / **Advanced PHP Configure**; `phpiniPropertyTabs`, forced; no parent Home/Domain

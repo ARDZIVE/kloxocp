@@ -53,6 +53,33 @@ write_status() {
   chmod 0644 "$f" 2>/dev/null || true
 }
 finish_status() { write_status "$STATUS_STATE" "$STATUS_MSG"; }
+set_job() {
+  local id="$1" st="$2" pct="$3" act="$4"
+  local f="${ROOT}/log/sitephp.jobs" tmp line nid
+  mkdir -p "${ROOT}/log" 2>/dev/null || return 0
+  tmp="${f}.tmp"
+  : > "$tmp"
+  if [[ -f "$f" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      nid="${line%%|*}"
+      if [[ "$nid" != "$id" ]]; then
+        printf '%s\n' "$line" >> "$tmp"
+      fi
+    done < "$f"
+  fi
+  printf '%s|%s|%s|%s\n' "$id" "$st" "$pct" "$act" >> "$tmp"
+  mv "$tmp" "$f" 2>/dev/null || true
+  chmod 0644 "$f" 2>/dev/null || true
+}
+init_jobs() {
+  local v f="${ROOT}/log/sitephp.jobs"
+  mkdir -p "${ROOT}/log" 2>/dev/null || return 0
+  : > "$f"
+  for v in "$@"; do
+    printf 'php%s|queued|5|Waiting to start\n' "$v" >> "$f"
+  done
+  chmod 0644 "$f" 2>/dev/null || true
+}
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 have_fpm() {
@@ -115,6 +142,12 @@ drop_dead_sury() {
 
 apt_update() {
   log "apt-get update"
+  local v
+  if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
+    for v in "${ONLY_VERS[@]}"; do
+      set_job "php${v}" running 20 "Updating package lists"
+    done
+  fi
   apt-get update -y || log "warn: apt-get update reported errors"
 }
 
@@ -236,8 +269,10 @@ wire_include() {
     fi
   fi
   log "enable and restart php${ver}-fpm"
+  set_job "php${ver}" running 85 "Starting php${ver}-fpm"
   systemctl enable "php${ver}-fpm" >/dev/null 2>&1 || true
   systemctl restart "php${ver}-fpm" || systemctl start "php${ver}-fpm" || die "could not start php${ver}-fpm"
+  set_job "php${ver}" ok 100 "Installed php${ver}"
 }
 
 write_default_flag() {
@@ -311,6 +346,9 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 
 write_status running "installing ${ONLY_VERS[*]:-site PHP}"
+if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
+  init_jobs "${ONLY_VERS[@]}"
+fi
 trap finish_status EXIT
 
 drop_dead_ondrej
@@ -327,17 +365,21 @@ fi
 install_one() {
   local ver="$1"
   log "php${ver}: checking"
+  set_job "php${ver}" running 30 "Preparing php${ver}"
   if have_fpm "$ver" && [[ "$FORCE" -eq 0 ]]; then
     log "php${ver}-fpm already present"
+    set_job "php${ver}" ok 100 "Already installed"
     return 0
   fi
   if ! apt_has "php${ver}-fpm"; then
+    set_job "php${ver}" failed 100 "php${ver}-fpm is not in apt"
     die "php${ver}-fpm is not in apt for Ubuntu $(codename) ($(host_arch)) after configuring ${SURY_URI}"
   fi
   log "apt-get install php${ver}-fpm and extensions"
+  set_job "php${ver}" running 50 "Installing php${ver}-fpm"
   # shellcheck disable=SC2046
   apt-get install -y $(pkgs_for "$ver")
-  have_fpm "$ver" || die "php${ver}-fpm package installed but /usr/sbin/php-fpm${ver} is missing"
+  have_fpm "$ver" || { set_job "php${ver}" failed 100 "php${ver}-fpm binary missing"; die "php${ver}-fpm package installed but /usr/sbin/php-fpm${ver} is missing"; }
 }
 
 if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
@@ -346,6 +388,7 @@ if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
   for v in "${ONLY_VERS[@]}"; do
     if ! apt_has "php${v}-fpm" && ! have_fpm "$v"; then
       log "error: php${v}-fpm is not available for Ubuntu $(codename) ($(host_arch))"
+      set_job "php${v}" failed 100 "Not available for this Ubuntu"
       skipped+=("$v")
       continue
     fi
@@ -354,6 +397,7 @@ if [[ ${#ONLY_VERS[@]} -gt 0 ]]; then
       done_list+=("$v")
     else
       log "error: php${v}-fpm install failed"
+      set_job "php${v}" failed 100 "Install failed"
       skipped+=("$v")
     fi
   done

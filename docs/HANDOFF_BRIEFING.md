@@ -184,9 +184,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     30s loop and kloxo-watchdog;
     Multiple PHP Remove sends `KloxoPhpver::queueRemove` the same way
     (no in-process fallback as lxlabs) and lists installed `phpX.Y-fpm`.
-    Update on either form stays on Webserver Configure and tails
-    `log/install-site-php.log` in a progress box (`kloxo-sitephp.js`,
-    admin-only `theme/lbin/sitephp-progress.php`). The old scanner only
+    Update on either form stays on Webserver Configure and shows a
+    progress bar per phpX.Y (`kloxo-sitephp.js`, admin-only
+    `theme/lbin/sitephp-progress.php`, `log/sitephp.jobs`). When a job
+    finishes the version moves between the Install and Remove lists
+    (installed = phpX.Y cli or fpm binary; a leftover `/etc/php/X.Y`
+    dir after purge does not keep it on Remove). The old scanner only
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL
@@ -890,12 +893,12 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    `could_not_execute [install-site-php]`). Root writes a job under
    `$ROOT/log/` (not `/tmp`: `kloxo-backend` has `PrivateTmp=true`) and
    `systemd-run`s it, or falls back to background bash as root.
-   Multiple PHP Remove lists actually installed `phpX.Y-fpm` (binaries or
-   `/etc/php/X.Y/fpm`) and sends `KloxoPhpver::queueRemove` the same
+   Multiple PHP Remove lists actually installed `phpX.Y` (cli or fpm
+   binary) and sends `KloxoPhpver::queueRemove` the same
    way (root `apt-get purge` of `phpX.Y-fpm` and `phpX.Y-cli` via a job
    under `$ROOT/log/`; `rl_exec_get` does not fall back to the panel user).
-   The same page shows apt install/remove steps as they run (progress
-   box + JSON poll; the HTTP request does not run apt). Each section form loads without
+   The same page shows a progress bar per version; after success the
+   id leaves that list and appears on the other. Each section form loads without
    a DB password. Apache optimize writes
    `/etc/apache2/conf-available/kloxo-optimize.conf` (validate `apache2ctl
    -t`, roll back on failure). PHP Type on Ubuntu enables mpm_event or

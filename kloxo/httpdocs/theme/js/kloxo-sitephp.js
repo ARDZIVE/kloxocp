@@ -1,10 +1,11 @@
 /*
- * Live install/remove steps on Webserver Configure (Multiple PHP Install
+ * Per-version progress bars on Webserver Configure (Multiple PHP Install
  * and Multiple PHP Remove). The apt job runs as root in the background;
  * this page stays put and polls /theme/lbin/sitephp-progress.php.
  *
- * Forms post into a hidden iframe (data-kloxo-nobusy) so the busy spinner
- * does not cover the log, and the rest of the page does not navigate away.
+ * When a job finishes, the install and remove dual-listboxes are refreshed
+ * from the server so a removed phpX.Y reappears under Install, and the
+ * reverse. Forms post into a hidden iframe (data-kloxo-nobusy).
  */
 (function (win, doc) {
 	'use strict';
@@ -17,8 +18,9 @@
 	var POLL_IDLE_MS = 2500;
 	var URL = '/theme/lbin/sitephp-progress.php';
 	var timer = null;
-	var stickBottom = true;
 	var wired = false;
+	var lastBusy = false;
+	var sessionJobs = false;
 
 	function $(id) {
 		return doc.getElementById(id);
@@ -35,66 +37,168 @@
 		return null;
 	}
 
+	function dual(kind) {
+		var hid = doc.querySelector('input[type="hidden"][name$="multiple_php_' + kind + '"]');
+		var name;
+		if (!hid) {
+			return null;
+		}
+		name = hid.id || hid.name;
+		return {
+			hidden: hid,
+			avail: $('ts_' + name + '1'),
+			sel: $('ts_' + name + '2')
+		};
+	}
+
+	function fillSelect(sel, ids, skip, pruneOnly) {
+		var have = {};
+		var i;
+		var id;
+		if (!sel) {
+			return;
+		}
+		skip = skip || {};
+		for (i = 0; i < ids.length; i++) {
+			have[ids[i]] = true;
+		}
+		for (i = sel.options.length - 1; i >= 0; i--) {
+			id = sel.options[i].value;
+			if (!have[id] || skip[id]) {
+				sel.remove(i);
+			}
+		}
+		if (pruneOnly) {
+			return;
+		}
+		for (i = 0; i < ids.length; i++) {
+			id = ids[i];
+			if (skip[id]) {
+				continue;
+			}
+			if (selectHas(sel, id)) {
+				continue;
+			}
+			sel.add(new Option(id, id));
+		}
+	}
+
+	function selectHas(sel, id) {
+		var i;
+		for (i = 0; i < sel.options.length; i++) {
+			if (sel.options[i].value === id) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function selectedMap(sel) {
+		var out = {};
+		var i;
+		if (!sel) {
+			return out;
+		}
+		for (i = 0; i < sel.options.length; i++) {
+			out[sel.options[i].value] = true;
+		}
+		return out;
+	}
+
+	function syncLists(installIds, removeIds) {
+		var inst = dual('install');
+		var rem = dual('remove');
+		if (!Array.isArray(installIds)) {
+			installIds = [];
+		}
+		if (!Array.isArray(removeIds)) {
+			removeIds = [];
+		}
+		if (inst) {
+			fillSelect(inst.sel, installIds, {}, true);
+			fillSelect(inst.avail, installIds, selectedMap(inst.sel), false);
+			if (typeof createFormVariable === 'function' && inst.hidden && inst.sel) {
+				createFormVariable(inst.hidden.form && inst.hidden.form.name, inst.hidden.name, inst.sel);
+			}
+		}
+		if (rem) {
+			fillSelect(rem.sel, removeIds, {}, true);
+			fillSelect(rem.avail, removeIds, selectedMap(rem.sel), false);
+			if (typeof createFormVariable === 'function' && rem.hidden && rem.sel) {
+				createFormVariable(rem.hidden.form && rem.hidden.form.name, rem.hidden.name, rem.sel);
+			}
+		}
+	}
+
 	function ensureBox() {
 		var box = $('kloxo-sitephp-box');
 		var installForm;
-		var removeForm;
 		var host;
 		var title;
-		var status;
-		var pre;
+		var rows;
 		if (box) {
 			return box;
 		}
-		installForm = findForm('multiple_php_install');
-		removeForm = findForm('multiple_php_remove');
-		host = installForm || removeForm;
+		installForm = findForm('multiple_php_install') || findForm('multiple_php_remove');
+		host = installForm;
 		if (!host || !host.parentNode) {
 			return null;
 		}
 		box = doc.createElement('div');
 		box.id = 'kloxo-sitephp-box';
 		box.setAttribute('data-kloxo-nobusy', '1');
-		box.style.cssText = 'margin:8px 0 16px 0;border:1px solid #aaa;background:#102018;color:#d8f5e0;padding:10px;';
+		box.style.cssText = 'display:none;margin:8px 0 16px 0;border:1px solid #aaa;background:#f8fff8;padding:10px;';
 		title = doc.createElement('div');
-		title.style.cssText = 'font-weight:bold;color:#222;background:#dfe;margin:-10px -10px 8px -10px;padding:8px 10px;border-bottom:1px solid #aaa;';
-		title.appendChild(doc.createTextNode('PHP install / remove progress'));
-		status = doc.createElement('div');
-		status.id = 'kloxo-sitephp-status';
-		status.style.cssText = 'margin:0 0 8px 0;font-size:12px;color:#9ee6b0;';
-		status.appendChild(doc.createTextNode('No job running.'));
-		pre = doc.createElement('pre');
-		pre.id = 'kloxo-sitephp-log';
-		pre.setAttribute('aria-live', 'polite');
-		pre.style.cssText = 'margin:0;max-height:280px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:12px/1.35 monospace;background:#0b1610;color:#d8f5e0;padding:8px;';
-		pre.appendChild(doc.createTextNode('Steps appear here when you click Update on Multiple PHP Install or Multiple PHP Remove.'));
-		pre.addEventListener('scroll', function () {
-			stickBottom = (pre.scrollHeight - pre.scrollTop - pre.clientHeight) < 40;
-		});
+		title.style.cssText = 'font-weight:bold;background:#dfe;margin:-10px -10px 10px -10px;padding:8px 10px;border-bottom:1px solid #aaa;';
+		title.appendChild(doc.createTextNode('PHP progress'));
+		rows = doc.createElement('div');
+		rows.id = 'kloxo-sitephp-rows';
 		box.appendChild(title);
-		box.appendChild(status);
-		box.appendChild(pre);
+		box.appendChild(rows);
 		host.parentNode.insertBefore(box, host);
 		return box;
 	}
 
-	function setView(state, message, logText) {
-		var status = $('kloxo-sitephp-status');
-		var pre = $('kloxo-sitephp-log');
-		var label;
-		if (!status || !pre) {
+	function renderJobs(jobs) {
+		var box = ensureBox();
+		var rows = $('kloxo-sitephp-rows');
+		var i;
+		var j;
+		var row;
+		var cap;
+		var track;
+		var fill;
+		var txt;
+		if (!box || !rows) {
 			return;
 		}
-		label = state || 'idle';
-		if (message) {
-			label += ' — ' + message;
+		if (!jobs || jobs.length === 0) {
+			box.style.display = 'none';
+			rows.textContent = '';
+			return;
 		}
-		status.textContent = label;
-		if (typeof logText === 'string' && logText !== '') {
-			pre.textContent = logText;
-		}
-		if (stickBottom) {
-			pre.scrollTop = pre.scrollHeight;
+		box.style.display = 'block';
+		rows.textContent = '';
+		for (i = 0; i < jobs.length; i++) {
+			j = jobs[i];
+			row = doc.createElement('div');
+			row.style.cssText = 'margin:0 0 10px 0;';
+			cap = doc.createElement('div');
+			cap.style.cssText = 'font-size:12px;margin:0 0 3px 0;';
+			cap.appendChild(doc.createTextNode((j.id || 'php') + '  ' + (j.pct || 0) + '%'));
+			track = doc.createElement('div');
+			track.style.cssText = 'position:relative;height:18px;border:1px solid #888;background:#eee;';
+			fill = doc.createElement('div');
+			fill.style.cssText = 'height:100%;width:' + Math.max(0, Math.min(100, parseInt(j.pct, 10) || 0))
+				+ '%;background:' + (j.state === 'failed' ? '#c44' : '#66cc00') + ';';
+			txt = doc.createElement('div');
+			txt.style.cssText = 'position:absolute;left:8px;top:0;line-height:18px;font-size:11px;color:#222;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;right:8px;';
+			txt.appendChild(doc.createTextNode(j.action || ''));
+			track.appendChild(fill);
+			track.appendChild(txt);
+			row.appendChild(cap);
+			row.appendChild(track);
+			rows.appendChild(row);
 		}
 	}
 
@@ -103,6 +207,7 @@
 		req.open('GET', URL + '?t=' + Date.now(), true);
 		req.onreadystatechange = function () {
 			var data;
+			var busy;
 			if (req.readyState !== 4) {
 				return;
 			}
@@ -117,8 +222,18 @@
 			if (!data || data.ok === false) {
 				return;
 			}
-			setView(data.state || 'idle', data.message || '', data.log || '');
-			schedule(!!data.busy);
+			busy = !!data.busy;
+			if (busy) {
+				sessionJobs = true;
+			}
+			if (sessionJobs || busy) {
+				renderJobs(data.jobs || []);
+			}
+			if (lastBusy && !busy) {
+				syncLists(data.install, data.remove);
+			}
+			lastBusy = busy;
+			schedule(busy);
 		};
 		req.send();
 	}
@@ -130,12 +245,37 @@
 		timer = win.setTimeout(poll, busy ? POLL_BUSY_MS : POLL_IDLE_MS);
 	}
 
-	function startNow(kind) {
+	function selectedFromForm(form) {
+		var box;
+		var i;
+		var ids = [];
+		if (!form) {
+			return ids;
+		}
+		box = form.querySelector('select[id$="2"]');
+		if (box && box.options) {
+			for (i = 0; i < box.options.length; i++) {
+				if (box.options[i].value) {
+					ids.push(box.options[i].value);
+				}
+			}
+		}
+		return ids;
+	}
+
+	function startNow(kind, ids) {
+		var jobs = [];
+		var i;
+		var action = kind === 'remove' ? 'Waiting to start removal' : 'Waiting to start install';
+		sessionJobs = true;
 		ensureBox();
-		setView('queued', kind === 'remove'
-			? 'Remove requested. Waiting for root to start apt…'
-			: 'Install requested. Waiting for root to start apt…',
-			'');
+		for (i = 0; i < ids.length; i++) {
+			jobs.push({id: ids[i], state: 'queued', pct: 5, action: action});
+		}
+		if (jobs.length === 0) {
+			jobs.push({id: 'php', state: 'queued', pct: 5, action: action});
+		}
+		renderJobs(jobs);
 		if (timer) {
 			win.clearTimeout(timer);
 		}
@@ -171,7 +311,7 @@
 			if (/frm_emessage=/.test(href)) {
 				m = href.match(/frm_emessage=([^&]+)/);
 				key = m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : 'request failed';
-				setView('failed', key.replace(/_/g, ' '), '');
+				renderJobs([{id: 'php', state: 'failed', pct: 100, action: key.replace(/_/g, ' ')}]);
 			}
 		});
 		return f;
@@ -191,7 +331,7 @@
 					return;
 				}
 			}
-			startNow(kind);
+			startNow(kind, selectedFromForm(form));
 		});
 	}
 
@@ -205,7 +345,6 @@
 			return;
 		}
 		wired = true;
-		ensureBox();
 		wireForm(installForm, 'install');
 		wireForm(removeForm, 'remove');
 		poll();

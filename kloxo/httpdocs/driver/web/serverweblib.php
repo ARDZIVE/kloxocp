@@ -170,16 +170,10 @@ class serverweb extends lxdb
 				$this->multiple_php_install = null;
 				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 				$avail = KloxoPhpver::asSelectList(KloxoPhpver::availableToInstall());
+				$vlist['multiple_php_install'] = array('U', $avail);
 				$note = KloxoPhpver::installNote();
-				if ($avail === array()) {
-					$vlist['multiple_php_install'] = array('M', $note !== ''
-						? '(nothing to install) ' . $note
-						: '(all catalog versions are already installed)');
-				} else {
-					$vlist['multiple_php_install'] = array('U', $avail);
-					if ($note !== '') {
-						$vlist['multiple_php_install_note'] = array('M', $note);
-					}
+				if ($note !== '' && KloxoPhpver::availableToInstall() === array()) {
+					$vlist['multiple_php_install_note'] = array('M', $note);
 				}
 
 				break;
@@ -188,11 +182,7 @@ class serverweb extends lxdb
 				$this->multiple_php_remove = null;
 				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 				$have = KloxoPhpver::asSelectList(KloxoPhpver::removableIds());
-				if ($have === array()) {
-					$vlist['multiple_php_remove'] = array('M', '(no extra phpX.Y-fpm is installed yet)');
-				} else {
-					$vlist['multiple_php_remove'] = array('U', $have);
-				}
+				$vlist['multiple_php_remove'] = array('U', $have);
 
 				break;
 

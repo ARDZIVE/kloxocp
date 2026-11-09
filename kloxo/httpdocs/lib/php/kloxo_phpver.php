@@ -69,8 +69,7 @@ final class KloxoPhpver
         foreach (self::DISTRO_SERIES as $ver) {
             $cli = '/usr/bin/php' . $ver;
             $fpm = '/usr/sbin/php-fpm' . $ver;
-            $fpmDir = '/etc/php/' . $ver . '/fpm';
-            if (!self::isExec($cli) && !self::isExec($fpm) && !is_dir($fpmDir)) {
+            if (!self::isExec($cli) && !self::isExec($fpm)) {
                 continue;
             }
             $id = 'php' . $ver;
@@ -373,16 +372,121 @@ final class KloxoPhpver
         @chmod($f, 0644);
     }
 
+    public static function jobsPath(?string $root = null): string
+    {
+        return rtrim($root ?? self::programRoot(), '/') . '/log/sitephp.jobs';
+    }
+
+    /** php8.4 or 8.4 → php8.4; anything else → ''. */
+    public static function normalizePhpId(string $v): string
+    {
+        $v = trim($v);
+        if (preg_match('/^php(\d+\.\d+)$/', $v, $m) === 1) {
+            return 'php' . $m[1];
+        }
+        if (preg_match('/^(\d+\.\d+)$/', $v, $m) === 1) {
+            return 'php' . $m[1];
+        }
+
+        return '';
+    }
+
     /**
-     * JSON for Webserver Configure: current job and the live apt log.
+     * @param list<string> $items php8.4 or 8.4
+     * @return list<array{id:string,state:string,pct:int,action:string}>
+     */
+    public static function queuedJobs(string $op, array $items): array
+    {
+        $action = ($op === 'remove') ? 'Waiting to start removal' : 'Waiting to start install';
+        $out = [];
+        foreach ($items as $it) {
+            $id = self::normalizePhpId((string) $it);
+            if ($id === '') {
+                continue;
+            }
+            $out[] = ['id' => $id, 'state' => 'queued', 'pct' => 5, 'action' => $action];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array{id?:string,state?:string,pct?:int,action?:string}> $jobs
+     */
+    public static function writeJobs(array $jobs, ?string $file = null): void
+    {
+        $allow = ['queued' => true, 'running' => true, 'ok' => true, 'failed' => true];
+        $lines = [];
+        foreach ($jobs as $j) {
+            $id = self::normalizePhpId((string) ($j['id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $state = (string) ($j['state'] ?? 'queued');
+            if (!isset($allow[$state])) {
+                $state = 'queued';
+            }
+            $pct = (int) ($j['pct'] ?? 0);
+            if ($pct < 0) {
+                $pct = 0;
+            }
+            if ($pct > 100) {
+                $pct = 100;
+            }
+            $action = trim((string) preg_replace('/[^\x20-\x7e]/', '?', (string) ($j['action'] ?? '')));
+            $action = str_replace(['<', '>', '&', '"', "'", '|'], '', $action);
+            $lines[] = $id . '|' . $state . '|' . $pct . '|' . substr($action, 0, 120);
+        }
+        $f = $file ?? self::jobsPath();
+        $dir = dirname($f);
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return;
+        }
+        @file_put_contents($f, implode("\n", $lines) . ($lines === [] ? '' : "\n"), LOCK_EX);
+        @chmod($f, 0644);
+    }
+
+    /**
+     * @return list<array{id:string,state:string,pct:int,action:string}>
+     */
+    public static function readJobs(?string $file = null): array
+    {
+        $f = $file ?? self::jobsPath();
+        if (!is_file($f) || !is_readable($f)) {
+            return [];
+        }
+        $out = [];
+        $seen = [];
+        foreach (file($f, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            if (preg_match('/^(php\d+\.\d+)\|(queued|running|ok|failed)\|(\d{1,3})\|(.*)$/', $line, $m) !== 1) {
+                continue;
+            }
+            $id = $m[1];
+            if (isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $pct = (int) $m[3];
+            if ($pct > 100) {
+                $pct = 100;
+            }
+            $action = trim((string) preg_replace('/[^\x20-\x7e]/', '?', $m[4]));
+            $action = str_replace(['<', '>', '&', '"', "'"], '', $action);
+            $out[] = ['id' => $id, 'state' => $m[2], 'pct' => $pct, 'action' => substr($action, 0, 120)];
+        }
+
+        return $out;
+    }
+
+    /**
+     * JSON for Webserver Configure: per-version bars and the current install/remove lists.
      *
-     * @return array{ok:bool,op:string,state:string,message:string,at:int,items:list<string>,busy:bool,log:string}
+     * @return array{ok:bool,op:string,state:string,message:string,at:int,items:list<string>,busy:bool,jobs:list<array{id:string,state:string,pct:int,action:string}>,install:list<string>,remove:list<string>}
      */
     public static function liveProgress(?string $root = null): array
     {
         $base = rtrim($root ?? self::programRoot(), '/');
         $statusFile = $base . '/log/install-site-php.status';
-        $logFile = $base . '/log/install-site-php.log';
         $req = $base . '/log/sitephp.request';
         $claimed = $req . '.running';
         $installLock = $base . '/log/kloxo-site-php-install.lock';
@@ -457,12 +561,25 @@ final class KloxoPhpver
         }
 
         if ($items !== []) {
+            $norm = [];
+            foreach ($items as $it) {
+                $id = self::normalizePhpId((string) $it);
+                if ($id !== '') {
+                    $norm[] = $id;
+                }
+            }
+            $items = $norm;
             $label = implode(', ', $items);
             if ($message !== '' && strpos($message, $label) === false) {
                 $message = $label . ': ' . $message;
             } elseif ($message === '') {
                 $message = $label;
             }
+        }
+
+        $jobs = self::readJobs(self::jobsPath($base));
+        if ($jobs === [] && $items !== []) {
+            $jobs = self::queuedJobs($op === 'idle' ? 'install' : $op, $items);
         }
 
         return [
@@ -473,7 +590,9 @@ final class KloxoPhpver
             'at' => $at,
             'items' => $items,
             'busy' => ($state === 'queued' || $state === 'running'),
-            'log' => self::tailLog($logFile),
+            'jobs' => $jobs,
+            'install' => self::availableToInstall(),
+            'remove' => self::removableIds(),
         ];
     }
 
@@ -652,6 +771,7 @@ final class KloxoPhpver
             : implode(',', $body['ids'] ?? []);
         self::beginLiveLog('=== ' . $op . ' ' . $label . ' queued ' . gmdate('Y-m-d H:i:s') . ' UTC ===');
         self::writeStatus('queued', $op . ' ' . $label);
+        self::writeJobs(self::queuedJobs($op, $op === 'install' ? ($body['versions'] ?? []) : ($body['ids'] ?? [])));
 
         return ['ok' => true, 'path' => $path];
     }
@@ -770,6 +890,11 @@ final class KloxoPhpver
         }
         self::beginLiveLog('=== install php ' . $versArg . ' starting ' . gmdate('Y-m-d H:i:s') . ' UTC ===', $log);
         self::writeStatus('running', 'installing ' . $versArg, $paths['logDir'] . '/install-site-php.status');
+        $startJobs = [];
+        foreach ($clean as $s) {
+            $startJobs[] = ['id' => 'php' . $s, 'state' => 'running', 'pct' => 10, 'action' => 'Starting install'];
+        }
+        self::writeJobs($startJobs, $paths['logDir'] . '/sitephp.jobs');
 
         $run = self::startPhpJob($job);
         if (empty($run['ok'])) {
@@ -806,31 +931,56 @@ final class KloxoPhpver
                 return '';
             }
         }
-        $cmd = '/usr/bin/apt-get -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confold purge';
-        foreach ($pkgs as $p) {
-            $cmd .= ' ' . escapeshellarg($p);
-        }
         $status = dirname($log) . '/install-site-php.status';
         if ($status === '' || strpos($status, "\n") !== false || strpos($status, "\0") !== false) {
             return '';
         }
-        $human = implode(' ', $pkgs);
-        $header = '=== removing ' . $human . ' ===';
-        $done = '=== finished removing ' . $human . ' ===';
-        $run = $cmd . ' >>' . escapeshellarg($log) . " 2>&1\n";
+        $vers = [];
+        foreach ($pkgs as $p) {
+            if (preg_match('/^php(\d+\.\d+)-(?:fpm|cli)$/', $p, $m) === 1) {
+                $vers[$m[1]] = true;
+            }
+        }
+        $vers = array_keys($vers);
+        if ($vers === []) {
+            return '';
+        }
+        $jobsFile = dirname($log) . '/sitephp.jobs';
+        if (strpos($jobsFile, "\n") !== false || strpos($jobsFile, "\0") !== false) {
+            return '';
+        }
+        $human = implode(' ', $vers);
+        $init = '';
+        foreach ($vers as $v) {
+            $init .= 'php' . $v . "|queued|5|Waiting to start removal\n";
+        }
+        $loop = '';
+        foreach ($vers as $v) {
+            $one = '/usr/bin/apt-get -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confold purge '
+                . escapeshellarg('php' . $v . '-fpm') . ' ' . escapeshellarg('php' . $v . '-cli')
+                . ' >>' . escapeshellarg($log) . " 2>&1\n";
+            $loop .= 'set_job ' . escapeshellarg('php' . $v) . " running 25 'Removing php{$v}-fpm'\n"
+                . 'stamp running ' . escapeshellarg('removing php' . $v) . "\n"
+                . 'if command -v stdbuf >/dev/null 2>&1; then' . "\n"
+                . '  stdbuf -oL -eL ' . $one
+                . "else\n"
+                . '  ' . $one
+                . "fi\n"
+                . 'set_job ' . escapeshellarg('php' . $v) . " ok 100 'Removed php{$v}'\n";
+        }
 
         return "#!/bin/bash\nset -euo pipefail\n"
             . "export DEBIAN_FRONTEND=noninteractive\n"
             . 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
+            . 'JOBS=' . escapeshellarg($jobsFile) . "\n"
             . 'stamp() { printf \'%s|%s|%s\\n\' "$(date +%s)" "$1" "$2" > ' . escapeshellarg($status) . " 2>/dev/null || true; }\n"
-            . 'printf "%s\\n" ' . escapeshellarg($header) . ' >>' . escapeshellarg($log) . "\n"
+            . 'set_job() { local id="$1" st="$2" pct="$3" act="$4" tmp="${JOBS}.tmp" line nid;'
+            . ' : > "$tmp"; if [[ -f "$JOBS" ]]; then while IFS= read -r line; do nid="${line%%|*}";'
+            . ' if [[ "$nid" != "$id" ]]; then printf \'%s\\n\' "$line" >> "$tmp"; fi; done < "$JOBS"; fi;'
+            . ' printf \'%s|%s|%s|%s\\n\' "$id" "$st" "$pct" "$act" >> "$tmp"; mv "$tmp" "$JOBS"; }\n'
+            . 'printf "%s" ' . escapeshellarg($init) . ' > "$JOBS"' . "\n"
             . 'stamp running ' . escapeshellarg('removing ' . $human) . "\n"
-            . 'if command -v stdbuf >/dev/null 2>&1; then' . "\n"
-            . '  stdbuf -oL -eL ' . $run
-            . "else\n"
-            . '  ' . $run
-            . "fi\n"
-            . 'printf "%s\\n" ' . escapeshellarg($done) . ' >>' . escapeshellarg($log) . "\n"
+            . $loop
             . 'stamp ok ' . escapeshellarg('removed ' . $human) . "\n";
     }
 
@@ -888,6 +1038,13 @@ final class KloxoPhpver
         $human = implode(' ', $pkgs);
         self::beginLiveLog('=== removing ' . $human . ' starting ' . gmdate('Y-m-d H:i:s') . ' UTC ===', $log);
         self::writeStatus('running', 'removing ' . $human, $logDir . '/install-site-php.status');
+        $rmJobs = [];
+        foreach ($pkgs as $p) {
+            if (preg_match('/^php(\d+\.\d+)-fpm$/', (string) $p, $m) === 1) {
+                $rmJobs[] = ['id' => 'php' . $m[1], 'state' => 'running', 'pct' => 10, 'action' => 'Starting removal'];
+            }
+        }
+        self::writeJobs($rmJobs, $logDir . '/sitephp.jobs');
         $run = self::startPhpJob($job);
         if (empty($run['ok'])) {
             @unlink($job);

@@ -2932,10 +2932,8 @@ try {
 	$avail = $inst['multiple_php_install'][1] ?? array();
 	$rmType = $rmform['multiple_php_remove'][0] ?? '';
 	$rmlist = $rmform['multiple_php_remove'][1] ?? array();
-	$availOk = ($availType === 'M' && is_string($avail))
-		|| ($availType === 'U' && is_array($avail) && $avail !== [] && !isset($avail[0]) && !in_array('php52m', $avail, true));
-	$rmOk = ($rmType === 'M' && is_string($rmlist))
-		|| ($rmType === 'U' && is_array($rmlist) && $rmlist !== [] && !isset($rmlist[0]) && !in_array('php52m', $rmlist, true));
+	$availOk = ($availType === 'U' && is_array($avail) && !isset($avail[0]) && !in_array('php52m', $avail, true));
+	$rmOk = ($rmType === 'U' && is_array($rmlist) && !isset($rmlist[0]) && !in_array('php52m', $rmlist, true));
 	if ($allForms && is_array($usedList) && $usedList !== [] && !in_array('--PHP Branch--', $usedList, true)
 		&& $availOk && $rmOk) {
 		ok('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m');
@@ -3066,18 +3064,25 @@ $sitephpLiveOk = str_contains($htmlSrc, '"kloxo-sitephp.js"')
 	&& str_contains($sitephpJs, '/theme/lbin/sitephp-progress.php')
 	&& str_contains($sitephpJs, 'data-kloxo-nobusy')
 	&& str_contains($sitephpJs, 'kloxo-sitephp-frame')
+	&& str_contains($sitephpJs, 'kloxo-sitephp-rows')
+	&& str_contains($sitephpJs, 'syncLists')
 	&& str_contains($sitephpJs, 'multiple_php_install')
 	&& str_contains($sitephpJs, 'multiple_php_remove')
+	&& !str_contains($sitephpJs, 'kloxo-sitephp-log')
 	&& str_contains($sitephpEp, 'isAdmin')
 	&& str_contains($sitephpEp, 'KloxoPhpver::liveProgress')
 	&& str_contains($phpVerSrc, 'function liveProgress')
-	&& str_contains($phpVerSrc, 'function tailLog')
+	&& str_contains($phpVerSrc, 'function writeJobs')
+	&& str_contains($phpVerSrc, 'function readJobs')
+	&& !str_contains($phpVerSrc, 'is_dir($fpmDir)')
+	&& str_contains($webSrc, "array('U', \$avail)")
+	&& str_contains($webSrc, "array('U', \$have)")
 	&& str_contains($webSync, 'lxInfoException')
 	&& str_contains((string) file_get_contents($doc . '/theme/coredisplaylib.php'), 'lxInfoException');
 if ($sitephpLiveOk) {
-	ok('Webserver Configure shows live PHP install/remove steps on the same page');
+	ok('Webserver Configure shows a per-version PHP progress bar and swaps install/remove lists');
 } else {
-	bad('Webserver Configure shows live PHP install/remove steps on the same page');
+	bad('Webserver Configure shows a per-version PHP progress bar and swaps install/remove lists');
 }
 if (str_contains($htmlSrc, '$v2 = array();')
 	&& str_contains($htmlSrc, "function print_multiselect")
