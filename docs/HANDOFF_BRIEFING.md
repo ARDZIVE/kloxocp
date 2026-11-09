@@ -164,9 +164,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (empty value made PHP-settings alerts look up `pserver-`). IP list on
     Ubuntu is read from `ip -4 addr` (`lib/php/kloxo_ipaddr.php`); the panel
     does not write ifcfg or `/etc/network/interfaces`. `phpini` sync queries
-    `php_type` (not `php-type`). PHP Used lists apt php-fpm (`kloxo_phpver.php`,
-    including 5.6 / 7.4 / latest; default is newest). `install-site-php` adds
-    those versions via distro apt then `ppa:ondrej/php`. Webserver Configure
+    `php_type` (not `php-type`).     PHP Used lists apt php-fpm (`kloxo_phpver.php`,
+    including 5.6 / 7.4 / 8.1–8.5 / latest; default is newest). `install-site-php` adds
+    those versions via distro apt then Ondřej Surý's APT repo
+    (`https://packages.sury.org/php/`, deb822 Signed-By, suite = Ubuntu
+    VERSION_CODENAME; not `ppa:ondrej/php`). Per-domain PHP-FPM pools live in
+    `/etc/php/X.Y/fpm/pool.d/kloxo-<domain>.conf` with socket
+    `/run/php/<domain>-phpX.Y.sock` (`KloxoPhpfpm`). Webserver Configure
     Multiple PHP Install submits selected `phpX.Y` ids (dual-listbox
     Available and/or Selected) and queues `install-site-php --versions=`;
     Multiple PHP Remove lists installed `phpX.Y-fpm`. The old scanner only
@@ -858,9 +862,11 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
 1. **Answered:** multi-server (master/slave) is required in v1. Slave TLS 7779 binds all interfaces; plaintext 7776 stays loopback; C1 envelope stays. Live two-machine add-server is **UNVERIFIED** until a second Ubuntu host is available.
 2. Repo/org name, domain, logo, and trademark check for "Kloxo CP".
 3. A **test server**: fresh Ubuntu 24.04 VM with root and a domain with controllable DNS (needed to verify install, updates and mail deliverability).
-4. **Answered:** customer-site PHP is 5.6 (5.6.40), 7.4 (7.4.33), and the
-   newest `phpX.Y-fpm` apt can see (default). `install-site-php` uses the
-   distro first, then `ppa:ondrej/php`. The panel FPM stays `kloxo-php`.
+4. **Answered:** customer-site PHP is the catalog in `KloxoPhpver`
+   (8.1–8.5, 7.4, 5.6, plus a later 8.6 slot) with the newest
+   `phpX.Y-fpm` apt can see as the default. `install-site-php` uses the
+   distro first, then `https://packages.sury.org/php/` (deb822, suite =
+   VERSION_CODENAME, amd64+arm64). The panel FPM stays `kloxo-php`.
    Webserver Configure keeps the Kloxo-MR section layout (PHP Used, PHP
    Branch, Multiple PHP already-installed/enable/install/remove, PHP Type
    for Apache, Apache optimize, MySQL convert, fix ownership, Pagespeed)

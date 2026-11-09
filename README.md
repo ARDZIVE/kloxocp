@@ -47,7 +47,7 @@ Fresh install (wipe the previous Kloxo CP and start over; on a server that alrea
 sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; rm -f /tmp/kloxocp-install.sh; apt-get -o DPkg::Lock::Timeout=600 update; apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh --fresh'
 ```
 
-The one-liners run `apt-get update` with `;` (not `&&`), so a broken third-party apt source cannot stop the install. On Ubuntu 26.04 `ppa:ondrej/php` has no packages yet (404); `install.sh` removes a leftover ondrej source that the PPA does not serve for your release and then updates apt cleanly.
+The one-liners run `apt-get update` with `;` (not `&&`), so a broken third-party apt source cannot stop the install. Extra site PHP versions use `https://packages.sury.org/php/` (suite = Ubuntu codename, for example `resolute`). A leftover `ppa:ondrej/php` source from an older install is removed so `apt-get update` stays healthy.
 
 `--fresh` asks you to type `YES` first (add `--yes` to skip the question, for
 example from a script; it refuses to run without a terminal otherwise). It stops
@@ -127,7 +127,7 @@ details are under [Installation](#installation).
 | Panel PHP | Distro PHP-FPM as user `lxlabs` on `127.0.0.1:39000` |
 | Customer websites | **Nginx + PHP-FPM** default; Apache 2.4 + PHP-FPM (`proxy_fcgi`, no mod_php) packaged and selectable |
 | Webcache / webproxy | nginx frontends `kloxo-webcache` **:8080** and `kloxo-webproxy` **:30080** (to `127.0.0.1:80`; not Varnish/Squid) |
-| Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 installed beside it. Multiple PHP Install queues under `$ROOT/log/`. On a release where `ppa:ondrej/php` has no packages (Ubuntu 26.04 today: only php8.5 from Ubuntu), 5.6/7.4 and other versions cannot be installed: Multiple PHP Install offers only what apt or a published PPA can supply, shows why, and shows the last attempt (`log/install-site-php.status`); a leftover dead PPA source is removed so `apt-get update` keeps working. Tested with fake curl/apt in a sandbox; a live install of extra versions on Ubuntu 24.04 is unverified. |
+| Site PHP | Newest installed PHP-FPM by default; extra series from `packages.sury.org/php` (deb822, Ubuntu suite). Per-domain pools under `/etc/php/X.Y/fpm/pool.d/` with socket `/run/php/<domain>-phpX.Y.sock`. Multiple PHP Install queues under `$ROOT/log/`. Offers only versions apt or Sury can supply; last attempt in `log/install-site-php.status`. Tested with fake curl/apt and fake php-fpm; a live install of extra versions on Ubuntu 26.04 is unverified. |
 | DNS | **BIND 9** default; Knot DNS packaged and prepared, disabled until selected |
 | SMTP / hosted mail | **Exim + Dovecot + Rspamd + MariaDB** (see `docs/MAIL_DESIGN.md`) |
 | Switch Program | Web **Nginx** (Apache selectable); Web Cache **none** (default) / `nginx`; DNS **BIND** (Knot DNS selectable); Spam `none` / `spamassassin` (apt, on demand); POP3/IMAP `none` / **dovecot**; SMTP `none` / **exim** (default) / `postfix` (apt-swaps Exim; cannot co-install). Content tab labelled **Switch Program**. |
@@ -168,7 +168,7 @@ the Change Password modal is required (Esc/Close cannot skip it).
 | UFW Firewall | Security-section button. **UFW enabled by default** at install. Default rules carry their purpose as the comment (SSH, HTTP, SMTP, IMAP...). List-only show; Add Rule / Edit on separate pages (TCP/UDP/ICMP, optional Comment). Toolbar Refresh / Add Rule / Delete with multi-select. No Family column (IPv4+IPv6 collapsed). Actions: edit / suspend|unsuspend / delete; suspended rows show a red ●. Live UFW after deploy is unverified. |
 | HelpDesk | A Welcome ticket is seeded on install. Ticket show: Switch To Another, Ticket / Add Reply / Escalate. |
 | Component Info | Ubuntu package names (nginx, apache2, bind9, knot, mariadb-server, pure-ftpd, redis-server, exim4, postfix, dovecot, rspamd, phpX.Y, source-built Hiawatha). |
-| Site PHP | Newest installed PHP-FPM by default; 5.6.40 and 7.4.33 beside it (Webserver Configure). Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |
+| Site PHP | Newest installed PHP-FPM by default; extra series from Sury (`packages.sury.org/php`). Per-domain PHP-FPM. Multiple PHP Install queues `install-site-php` under `$ROOT/log/` (not `/tmp`). |
 | Recovery console | `https://<server>:7777/recovery/` (HTTPS only). Works without MariaDB, Nginx or Apache: it is served by the panel's own Hiawatha + PHP-FPM and logs in with its own **recovery password** (a hash in `etc/conf/recovery.json`; the installer prints the password once and saves it to `/root/kloxo-recovery-password`; reset with `php /opt/kloxo/bin/kloxocp recovery-password --generate`). Lists the server applications (nginx, apache2, mariadb, bind9, knot, exim4, dovecot, rspamd, pure-ftpd, redis-server, ufw, phpX.Y-fpm, the Kloxo units) with Start / Stop / Restart and a log view; panel units can only be started (stopping them would end the page). Five wrong passwords lock an address for 15 minutes. The panel stays up with MariaDB down (SQLite). A MariaDB connection error on a customer-DB page still links here. Root actions go through `kloxo-backend`. Tested with fake systemctl and a local backend only; live use is unverified. |
 | Watchdog | The `kloxo-watchdog` service (installed and enabled by `install.sh`, independent of the panel and MariaDB) checks the server applications every minute and restarts one that crashed or stopped answering on its port; after 3 restarts in 30 minutes it stops trying and mails the admin once. Applications you stopped yourself (recovery console or Services page) are left alone until you start them again. Switch a service off on the panel's Watchdog screen, or tune `etc/conf/watchdog.json`. It mails the admin contact email (the address entered in the panel profile; or `notify` in `etc/conf/watchdog.json`) when it restarts a service, when a restart fails and when it gives up; `kloxo-watchdog --test-mail` checks delivery, and the recovery console warns while no address is set. `kloxo-watchdog --status` shows what it did; log in `log/watchdog.log`. Tested with a fake systemd/clock/mailer only; a live crash-and-restart on Ubuntu is unverified. |
 | Fail2Ban | Installed by `install.sh` (`fail2ban`, `python3-systemd`, `nftables`) and configured by `bin/install/install-fail2ban`; the address you ran the installer from over SSH is whitelisted so you cannot lock yourself out. Security > **Fail2Ban** (admin only) lists every situation it can watch as a jail: SSH, repeat offenders (recidive), the panel login and the recovery console (their failures go to `log/auth-failures.log`, rotated weekly), Exim, Dovecot, Postfix, Nginx auth and bot searches, Apache auth/noscript/botsearch/overflows, Pure-FTPd and MariaDB. Each row shows whether it can run on this server (program installed, filter and log present), its state, limits, failed/banned counters, and play/pause and edit icons (Max Retry, Find Time, Ban Time per jail). Ban IP, Unban, Unban All, Reload, Settings (defaults and the whitelist) and a Recent Activity list from `/var/log/fail2ban.log` are on the same page. Bans use the nftables action, so they are not mixed into the UFW rule list; LxGuard and the Block IP list still work and only overlap in purpose. The jail file `/etc/fail2ban/jail.d/kloxo-cp.local` is generated from `etc/conf/fail2ban.json`, checked with `fail2ban-client -t`, installed atomically and rolled back (file and saved settings) if Fail2Ban refuses it. The watchdog keeps the `fail2ban` unit running. Tested with a fake `fail2ban-client`/systemctl and the filter regexes translated to PHP (`tests/p2/test_fail2ban.php`, `test_server_pages.php`); a real Fail2Ban, nftables, the journal matches, live bans and a live install on Ubuntu are unverified. |
@@ -281,10 +281,10 @@ On a fresh Ubuntu 24.04 (PHP 8.3) or 26.x (PHP 8.5) host, as root:
    `localhost` driver with `dns` = `bind`, `web` = `nginx`, and `smtp` = `exim`, simplicity appearance,
    `generalmisc_b`). Writes `/opt/kloxo/etc/conf/kloxo.pass` (`0640`, `lxlabs`).
 10. Installs phpMyAdmin under `httpdocs/thirdparty/phpMyAdmin`.
-11. Installs customer-site PHP-FPM **5.6** (5.6.40), **7.4** (7.4.33), and
-    the newest `phpX.Y-fpm` apt can see (`install-site-php`; default is that
-    newest). Old versions are only for legacy sites (Webserver Configure →
-    PHP Used). The panel FPM stays `kloxo-php`.
+11. Installs customer-site PHP-FPM: the newest `phpX.Y-fpm` apt can see, then
+    extra catalog versions from `https://packages.sury.org/php/` (`install-site-php`;
+    default is that newest). Per-domain pools; Webserver Configure → PHP Used
+    and each domain's PHP Selected. The panel FPM stays `kloxo-php`.
 12. Restarts FPM, waits until port 39000 is listening, creates the Hiawatha
     work directories, bounces `kloxo-web`, and pings `/fcgi-ping.php`.
 13. Starts `kloxo-backend` (PHP lxserver). A master binds TLS 7779 and
@@ -787,7 +787,7 @@ kloxo/            panel source; installs to /opt/kloxo
   bin/install/install-apache     Apache 2.4 PHP-FPM vhosts (unit stays disabled)
   bin/install/install-webfront   nginx webcache :8080 and webproxy :30080
   bin/install/install-phpmyadmin phpMyAdmin under httpdocs/thirdparty
-  bin/install/install-site-php   site PHP-FPM 5.6 / 7.4 / latest
+  bin/install/install-site-php   site PHP-FPM (distro + packages.sury.org)
 install.sh        Ubuntu 24.04 / 26.x bootstrap (clone + apt + layout + TLS)
 tests/            mail, tls, remote, security, p1, p2, p3, install
 docs/             handoff, audit, design, mail stack, changelog, legacy notes
