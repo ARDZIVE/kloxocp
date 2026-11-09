@@ -2539,6 +2539,12 @@ function do_display_init()
 	}
 
 	createPrincipleObject();
+
+	if (function_exists('kloxo_is_file_download') && kloxo_is_file_download()) {
+		$gbl->__this_redirect = null;
+
+		return;
+	}
 ?>
 	<html>
 	<head>
@@ -2639,6 +2645,9 @@ function do_display_init()
 function do_display_exec()
 {
 	display_exec();
+	if (function_exists('kloxo_is_file_download') && kloxo_is_file_download()) {
+		return;
+	}
 ?>
 
 	</div>

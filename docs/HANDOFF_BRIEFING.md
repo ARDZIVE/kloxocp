@@ -795,6 +795,9 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `checkButton('backupschedule_flag')` for the select). Clicking **File Manager**
    keeps lxbackup+ffile path with `goback=1` tab hrefs so only File Manager is
    selected; list toolbar is T Hidden / Remove / Copy and columns match Kloxo-MR.
+   File download (`sa=download`) skips the panel HTML chrome and sends
+   `Content-Disposition: attachment` (`kloxo_send_download_headers`) so a `.tgz`
+   is saved instead of shown as text.
     Clicking **Upload** selects that tab and shows the three Kloxo-MR multi-upload
     forms (local overwrite warning + file, HTTP URL, FTP credentials/file). File
     Manager and Upload create `__backup/` in-process when kloxo-backend is down

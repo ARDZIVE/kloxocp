@@ -1759,6 +1759,38 @@ if (is_string($perm) && $perm !== ''
 	bad('File Manager list columns and toolbar search match Kloxo-MR', isset($nlist['error']) ? $nlist['error'] : '');
 }
 
+$ffSrc = (string) file_get_contents($doc . '/driver/pserver/ffilelib.php');
+$dispSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$fdlSrc = (string) file_get_contents($doc . '/theme/lbin/filedownload.php');
+$dlName = function_exists('kloxo_download_filename')
+	? kloxo_download_filename('/home/kloxo/client/admin/__backup/kloxo-admin-2026-11-09-1.tgz')
+	: '';
+$dlBad = function_exists('kloxo_download_filename')
+	? kloxo_download_filename("x\r\n\"evil.tgz")
+	: '';
+$prevGhtmlDl = $ghtml ?? null;
+$ghtml = new stdClass();
+$ghtml->frm_action = 'update';
+$ghtml->frm_subaction = 'download';
+$isDl = function_exists('kloxo_is_file_download') && kloxo_is_file_download();
+$ghtml->frm_subaction = 'show';
+$notDl = function_exists('kloxo_is_file_download') && !kloxo_is_file_download();
+$ghtml = $prevGhtmlDl;
+if ($dlName === 'kloxo-admin-2026-11-09-1.tgz'
+	&& $dlBad === 'xevil.tgz'
+	&& $isDl && $notDl
+	&& str_contains($ffSrc, 'kloxo_send_download_headers')
+	&& str_contains($fdlSrc, 'kloxo_send_download_headers')
+	&& str_contains($dispSrc, 'kloxo_is_file_download')
+	&& str_contains($htmlsrc, 'pvdownload')
+	&& str_contains($htmlsrc, ' download=')) {
+	ok('File Manager download sends the archive as an attachment, not HTML');
+} else {
+	bad('File Manager download sends the archive as an attachment, not HTML',
+		'name=' . $dlName . ' bad=' . $dlBad . ' isDl=' . ($isDl ? '1' : '0')
+			. ' notDl=' . ($notDl ? '1' : '0'));
+}
+
 $fmTabs = array(
 	kloxo_content_tab_label('Update_perm', 'a=updateform&sa=perm'),
 	kloxo_content_tab_label('Update_own', 'a=updateform&sa=own'),

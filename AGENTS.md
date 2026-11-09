@@ -134,6 +134,8 @@ root, with in-process fallback. File Manager beige tabs are File Manager,
 Permissions, Ownership, Disk Usage, Upload, Thumbnail. On show the first
 tab is **File Manager** (selected; not Home) with the list toolbar and
 columns (T/Size/File Name/Modified/Owner/Permissions/Rename/Download).
+Download sends `Content-Disposition: attachment` with no panel HTML around the
+bytes (`kloxo_send_download_headers`; `do_display_init` skips the page chrome).
 Clicking **Permissions** keeps the ffile path, selects that tab, and shows
 the Kloxo-MR Change Permissions form (User/Group/Others matrix, Totals,
 Target All, Change Permssions Recursively, Change). Clicking **Ownership**

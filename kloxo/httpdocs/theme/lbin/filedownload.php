@@ -25,12 +25,9 @@ if ($res['ip'] !== $ip) {
 }
 */
 
-$size = $filepass['size'];
-
-while (@ob_end_clean());                                 
-header("Content-Disposition: attachment; filename={$filepass['realname']}");
-header('Content-Type: application/octet-stream');
-header("Content-Length: $size");
+$size = isset($filepass['size']) && is_numeric($filepass['size']) ? (int) $filepass['size'] : 0;
+$fname = isset($filepass['realname']) ? (string) $filepass['realname'] : 'download';
+kloxo_send_download_headers($fname, $size);
 printFromFileServ('localhost', $filepass);
 
 

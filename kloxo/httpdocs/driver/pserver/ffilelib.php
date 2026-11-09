@@ -322,33 +322,37 @@ class Ffile extends Lxclass
 		$this->download_f = true;
 		$this->get();
 		$ret = $this->serverfile_data;
+		if (!is_array($ret) || !isset($ret['file'])) {
+			throw new lxException($login->getThrow('could_not_download_here'), '',
+				isset($this->nname) ? (string) $this->nname : '');
+		}
 
-		while (@ob_end_clean()) {
-			// no action
+		$fname = isset($this->base) ? (string) $this->base : '';
+		if ($fname === '' && isset($this->nname)) {
+			$fname = (string) $this->nname;
+		}
+		$size = 0;
+		if (isset($ret['size']) && is_numeric($ret['size'])) {
+			$size = (int) $ret['size'];
+		} elseif (isset($this->size) && is_numeric($this->size)) {
+			$size = (int) $this->size;
 		}
 
 		if ($this->isLocalhost('__readserver') || $gen->isOn('masterdownload')) {
-			header("Content-Disposition: attachment; filename=$this->base");
-			header('Content-Type: application/octet-stream');
-			header("Content-Transfer-Encoding: binary");
-			header("Content-Length: $this->size");
+			kloxo_send_download_headers($fname, $size);
 			printFromFileServ($this->__readserver, $ret);
-
 			flush();
-
-			exit;
-		} else {
-			$url = getFQDNforServer($this->__readserver);
-			$ret['realname'] = $this->base;
-			$ob = new Remote();
-			$ob->filepass = $ret;
-			$var = base64_encode(serialize($ob));
-			$url = "http://$url:{$sgbl->__var_prog_port}/theme/lbin/filedownload.php?frm_info=$var";
-			header("Location: $url");
-		//	$ghtml->print_redirect($url);
-
 			exit;
 		}
+
+		$url = getFQDNforServer($this->__readserver);
+		$ret['realname'] = kloxo_download_filename($fname);
+		$ob = new Remote();
+		$ob->filepass = $ret;
+		$var = base64_encode(serialize($ob));
+		$url = "http://$url:{$sgbl->__var_prog_port}/theme/lbin/filedownload.php?frm_info=$var";
+		header("Location: $url");
+		exit;
 	}
 
 	function updateRename($param)

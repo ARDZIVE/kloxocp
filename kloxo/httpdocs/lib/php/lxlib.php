@@ -2820,6 +2820,43 @@ function isModifyAction()
 	return true;
 }
 
+function kloxo_is_file_download(): bool
+{
+	global $ghtml;
+	if (!is_object($ghtml)) {
+		return false;
+	}
+	$action = strtolower((string) ($ghtml->frm_action ?? ''));
+	$sub = strtolower((string) ($ghtml->frm_subaction ?? ''));
+
+	return $action === 'update' && $sub === 'download';
+}
+
+function kloxo_download_filename(string $name): string
+{
+	$base = basename(str_replace("\0", '', $name));
+	$base = str_replace(array("\r", "\n", '"', '\\'), '', $base);
+	$base = trim($base);
+
+	return $base !== '' ? $base : 'download';
+}
+
+function kloxo_send_download_headers(string $filename, int $size = 0): void
+{
+	while (ob_get_level() > 0) {
+		@ob_end_clean();
+	}
+	$filename = kloxo_download_filename($filename);
+	header('Content-Type: application/octet-stream');
+	header('X-Content-Type-Options: nosniff');
+	header('Content-Transfer-Encoding: binary');
+	header('Cache-Control: no-store');
+	header('Content-Disposition: attachment; filename="' . $filename . '"');
+	if ($size > 0) {
+		header('Content-Length: ' . $size);
+	}
+}
+
 function lget_class($object)
 {
 	if (!is_object($object)) {

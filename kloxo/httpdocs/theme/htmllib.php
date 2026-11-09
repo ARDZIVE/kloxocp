@@ -4197,7 +4197,17 @@ class HtmlLib
 
 			$this->print_input_vars($post);
 ?>
-				<a class="insidelist" <?= $target ?> <?= $urlhelp ?> href="<?= $url ?>"> <?= $pname ?> </a></span>
+<?php
+			$downloadAttr = '';
+			if ($name === 'pvdownload') {
+				$dn = (is_object($obj) && isset($obj->base)) ? basename((string) $obj->base) : '';
+				$dn = str_replace(array('"', "\r", "\n"), '', $dn);
+				$downloadAttr = $dn !== ''
+					? ' download="' . htmlspecialchars($dn, ENT_QUOTES) . '"'
+					: ' download';
+			}
+?>
+				<a class="insidelist" <?= $target ?> <?= $urlhelp ?> <?= $downloadAttr ?> href="<?= $url ?>"> <?= $pname ?> </a></span>
 			</td>
 <?php
 
