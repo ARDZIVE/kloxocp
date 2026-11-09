@@ -183,7 +183,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     does not answer, the panel drops `log/sitephp.request` for the backend
     30s loop and kloxo-watchdog;
     Multiple PHP Remove sends `KloxoPhpver::queueRemove` the same way
-    (no in-process fallback as lxlabs) and lists installed `phpX.Y-fpm`.
+    (no in-process fallback as lxlabs). The Remove list is installed
+    extra `phpX.Y` (cli or fpm binary) except PHP Used. Purge is the
+    whole series (`phpX.Y`, fpm/cli/common/extensions, `--auto-remove`)
+    after `systemctl stop phpX.Y-fpm`; ok only when the binaries are gone.
     Update on either form stays on Webserver Configure and shows a
     progress bar per phpX.Y (`kloxo-sitephp.js`, admin-only
     `theme/lbin/sitephp-progress.php`, `log/sitephp.jobs`; the progress
@@ -899,9 +902,9 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    `could_not_execute [install-site-php]`). Root writes a job under
    `$ROOT/log/` (not `/tmp`: `kloxo-backend` has `PrivateTmp=true`) and
    `systemd-run`s it, or falls back to background bash as root.
-   Multiple PHP Remove lists actually installed `phpX.Y` (cli or fpm
-   binary) and sends `KloxoPhpver::queueRemove` the same
-   way (root `apt-get purge` of `phpX.Y-fpm` and `phpX.Y-cli` via a job
+   Multiple PHP Remove lists installed extra `phpX.Y` (cli or fpm
+   binary; PHP Used is omitted) and sends `KloxoPhpver::queueRemove` the same
+   way (root `apt-get purge --auto-remove` of the `phpX.Y` series via a job
    under `$ROOT/log/`; `rl_exec_get` does not fall back to the panel user).
    The same page shows a progress bar per version; after success the
    id leaves that list and appears on the other. Each section form loads without

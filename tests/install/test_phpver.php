@@ -254,13 +254,28 @@ if (!defined('KLOXO_APT_TEST_BIN')) {
 	define('KLOXO_APT_TEST_BIN', $aptBin);
 }
 require_once $root . '/kloxo/httpdocs/lib/php/kloxo_apt.php';
-$removed = KloxoPhpver::removeVersions(['php8.1', '8.2']);
-if (($removed['ok'] ?? false) === true
-	&& isset($removed['packages'])
-	&& $removed['packages'] === ['php8.1-fpm', 'php8.1-cli', 'php8.2-fpm', 'php8.2-cli']) {
-	$ok('removeVersions as root apt-removes phpX.Y-fpm and phpX.Y-cli');
+$seriesPkgs = KloxoPhpver::packagesForSeries('8.1');
+if (in_array('php8.1', $seriesPkgs, true)
+	&& in_array('php8.1-fpm', $seriesPkgs, true)
+	&& in_array('php8.1-cli', $seriesPkgs, true)
+	&& in_array('php8.1-common', $seriesPkgs, true)
+	&& KloxoPhpver::packagesForSeries('nope') === []) {
+	$ok('packagesForSeries lists phpX.Y plus fpm/cli/common');
 } else {
-	$bad('removeVersions as root apt-removes phpX.Y-fpm and phpX.Y-cli');
+	$bad('packagesForSeries lists phpX.Y plus fpm/cli/common');
+}
+
+$removed = KloxoPhpver::removeVersions(['php8.1', '8.2']);
+$rmPkgs = $removed['packages'] ?? [];
+if (($removed['ok'] ?? false) === true
+	&& in_array('php8.1', $rmPkgs, true)
+	&& in_array('php8.1-fpm', $rmPkgs, true)
+	&& in_array('php8.1-cli', $rmPkgs, true)
+	&& in_array('php8.2-fpm', $rmPkgs, true)
+	&& in_array('php8.2-cli', $rmPkgs, true)) {
+	$ok('removeVersions as root apt-removes the phpX.Y series packages');
+} else {
+	$bad('removeVersions as root apt-removes the phpX.Y series packages');
 }
 
 @unlink($jobFile);
@@ -270,9 +285,12 @@ $qrm = KloxoPhpver::queueRemove(['php8.1']);
 $rmJob = $tmpRoot . '/log/kloxo-site-php-remove.sh';
 $rmBody = is_file($rmJob) ? (string) file_get_contents($rmJob) : '';
 if (($qrm['ok'] ?? false) === true
-	&& str_contains($rmBody, 'purge')
+	&& str_contains($rmBody, 'purge --auto-remove')
+	&& str_contains($rmBody, 'systemctl stop')
+	&& str_contains($rmBody, 'remove_ver')
 	&& str_contains($rmBody, escapeshellarg('php8.1-fpm'))
 	&& str_contains($rmBody, escapeshellarg('php8.1-cli'))
+	&& str_contains($rmBody, 'Could not remove php')
 	&& ($sysCalls[0][0] ?? '') === '/usr/bin/systemd-run') {
 	$ok('queueRemove as root writes a purge job and systemd-run');
 } else {
@@ -358,6 +376,32 @@ if (($doneLive['busy'] ?? true) === false
 } else {
 	$bad('liveProgress finishes a leftover queued bar after the job is done');
 }
+$idleFail = KloxoPhpver::completeIdleJobs(
+	[['id' => 'php8.1', 'state' => 'queued', 'pct' => 5, 'action' => 'Waiting to start removal']],
+	'remove',
+	['at' => 1, 'state' => 'ok', 'message' => 'removed php8.1'],
+	[],
+	['php8.1']
+);
+if (($idleFail[0]['state'] ?? '') === 'failed'
+	&& str_contains((string) ($idleFail[0]['action'] ?? ''), 'Could not remove')) {
+	$ok('completeIdleJobs fails a remove bar when phpX.Y is still installed');
+} else {
+	$bad('completeIdleJobs fails a remove bar when phpX.Y is still installed');
+}
+$idleOk = KloxoPhpver::completeIdleJobs(
+	[['id' => 'php8.1', 'state' => 'queued', 'pct' => 5, 'action' => 'Waiting to start removal']],
+	'remove',
+	['at' => 1, 'state' => 'ok', 'message' => 'removed php8.1'],
+	['php8.1'],
+	[]
+);
+if (($idleOk[0]['state'] ?? '') === 'ok'
+	&& str_contains((string) ($idleOk[0]['action'] ?? ''), 'Removed')) {
+	$ok('completeIdleJobs succeeds a remove bar when phpX.Y left the Remove list');
+} else {
+	$bad('completeIdleJobs succeeds a remove bar when phpX.Y left the Remove list');
+}
 @unlink($liveDir . '/log/install-site-php.status');
 @unlink($liveDir . '/log/sitephp.jobs');
 @rmdir($liveDir . '/log');
@@ -369,14 +413,23 @@ $rmWrapLive = KloxoPhpver::sitePhpRemoveWrap(
 	$tmpRoot . '/log/kloxo-site-php-remove.lock',
 	$tmpRoot . '/log/kloxo-site-php-remove.sh'
 );
+$rmWrapFile = $tmpRoot . '/log/kloxo-site-php-remove-syntax.sh';
+file_put_contents($rmWrapFile, $rmWrapLive);
+$rmWrapBash = [];
+@exec('bash -n ' . escapeshellarg($rmWrapFile) . ' 2>&1', $rmWrapBash, $rmWrapCode);
 if (str_contains($rmWrapLive, 'set_job')
 	&& str_contains($rmWrapLive, 'sitephp.jobs')
 	&& str_contains($rmWrapLive, escapeshellarg('php8.1-fpm'))
-	&& str_contains($rmWrapLive, 'stdbuf -oL -eL')) {
+	&& str_contains($rmWrapLive, 'purge --auto-remove')
+	&& str_contains($rmWrapLive, 'systemctl stop')
+	&& str_contains($rmWrapLive, '/usr/sbin/php-fpm')
+	&& str_contains($rmWrapLive, 'stdbuf -oL -eL')
+	&& (int) $rmWrapCode === 0) {
 	$ok('remove wrapper updates per-version jobs and line-buffers apt');
 } else {
 	$bad('remove wrapper updates per-version jobs and line-buffers apt');
 }
+@unlink($rmWrapFile);
 
 KloxoPhpver::$euidProbe = null;
 KloxoPhpver::$programRootProbe = null;

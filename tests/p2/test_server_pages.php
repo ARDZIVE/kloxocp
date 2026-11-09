@@ -2988,6 +2988,7 @@ if (!str_contains($webSrc, 'getCleanRpmBranchListOnList')
 	&& str_contains($webSync, 'install-site-php')
 	&& str_contains($webSync, "phpverBackend('queueInstall'")
 	&& str_contains($webSync, "phpverBackend('queueRemove'")
+	&& str_contains($webSync, 'protectedRemoveIds')
 	&& !str_contains($webSync, "\$lock = '/tmp/kloxo-site-php-install.lock'")) {
 	ok('Webserver Configure does not parse CentOS php.lst or cat httpd');
 } else {
@@ -3023,7 +3024,10 @@ $phpFallbackOk = str_contains($phpVerSrc, 'function queueInstall')
 	&& str_contains($phpVerSrc, 'function startPhpJob')
 	&& str_contains($phpVerSrc, "lxshell_background('bash', \$job)")
 	&& str_contains($phpVerSrc, 'kloxo-site-php-install.sh')
-	&& str_contains($phpVerSrc, 'kloxo-site-php-remove.sh');
+	&& str_contains($phpVerSrc, 'kloxo-site-php-remove.sh')
+	&& str_contains($phpVerSrc, 'function packagesForSeries')
+	&& str_contains($phpVerSrc, 'function protectedRemoveIds')
+	&& str_contains($phpVerSrc, 'purge --auto-remove');
 if ($phpJobOk) {
 	ok('Multiple PHP Install queues install-site-php outside PrivateTmp /tmp');
 } else {

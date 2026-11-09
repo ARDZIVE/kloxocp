@@ -100,9 +100,12 @@ queued bar after apt is done is completed to 100% (`completeIdleJobs`)
 instead of staying at “Waiting to start removal”; the bars animate until
 the lock is gone, then the lists refresh and the progress box is hidden;
 Multiple PHP Remove sends
-`KloxoPhpver::queueRemove` (`apt-get purge` of `phpX.Y-fpm` and
-`phpX.Y-cli` as root, no lxlabs fallback) so they
-leave Remove and reappear on Install; the same progress bars show the purge; Apache optimize writes
+`KloxoPhpver::queueRemove` (`apt-get purge --auto-remove` of the `phpX.Y`
+metapackage, `phpX.Y-fpm`/`cli`/`common` and the other series packages as
+root, after stopping `phpX.Y-fpm`; no lxlabs fallback) so they
+leave Remove and reappear on Install; PHP Used stays off the Remove list
+so Update does not abort extras; the job only marks ok when the cli/fpm
+binaries are gone; the same progress bars show the purge; Apache optimize writes
 `kloxo-optimize.conf`; PHP Type on Ubuntu is proxy_fcgi + mpm_event/worker;
 fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share exactly two beige tabs
 (**PHP Configure** / **Advanced PHP Configure**; `phpiniPropertyTabs`, forced; no parent Home/Domain

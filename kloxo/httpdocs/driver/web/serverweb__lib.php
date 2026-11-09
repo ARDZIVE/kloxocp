@@ -825,12 +825,20 @@ class serverweb__ extends lxDriverClass
 			throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
 		}
 
-		$active = KloxoPhpver::activeId();
+		$skip = array_fill_keys(KloxoPhpver::protectedRemoveIds(), true);
+		if (isset($this->main->php_used) && is_string($this->main->php_used) && $this->main->php_used !== '') {
+			$skip[$this->main->php_used] = true;
+		}
+		$keep = array();
 		foreach ($list as $v) {
-			if ($v === $active || (isset($this->main->php_used) && $v === $this->main->php_used)) {
-				throw new lxException($login->getThrow('php_already_in_used'), '', $v);
+			if (!isset($skip[$v])) {
+				$keep[] = $v;
 			}
 		}
+		if ($keep === array()) {
+			throw new lxException($login->getThrow('php_already_in_used'), '', implode(',', $list));
+		}
+		$list = $keep;
 
 		if (KloxoIpaddr::isUbuntu()) {
 			list($got, $server) = $this->phpverBackend('queueRemove', $list);

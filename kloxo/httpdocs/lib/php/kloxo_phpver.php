@@ -635,7 +635,7 @@ final class KloxoPhpver
                 continue;
             }
             if ($wantRemove) {
-                $ok = !$onRemove || $lastOk;
+                $ok = !$onRemove;
                 $jobs[$i]['state'] = $ok ? 'ok' : 'failed';
                 $jobs[$i]['pct'] = 100;
                 $jobs[$i]['action'] = $ok ? ('Removed ' . $id) : ('Could not remove ' . $id);
@@ -961,8 +961,9 @@ final class KloxoPhpver
     }
 
     /**
-     * Wrapper that purges phpX.Y-fpm and phpX.Y-cli (so the version leaves
-     * Multiple PHP Remove). Package names must already be validated.
+     * Wrapper that purges the phpX.Y metapackage, phpX.Y-fpm/cli and the
+     * other series packages (so the version leaves Multiple PHP Remove).
+     * Package names must already be validated.
      *
      * @param list<string> $packages
      */
@@ -971,7 +972,7 @@ final class KloxoPhpver
         $pkgs = [];
         foreach ($packages as $p) {
             $p = (string) $p;
-            if (preg_match('/^php\d+\.\d+-(fpm|cli)$/', $p) !== 1) {
+            if (preg_match('/^php\d+\.\d+(-[a-z0-9]+)?$/', $p) !== 1) {
                 return '';
             }
             $pkgs[] = $p;
@@ -991,7 +992,7 @@ final class KloxoPhpver
         }
         $vers = [];
         foreach ($pkgs as $p) {
-            if (preg_match('/^php(\d+\.\d+)-(?:fpm|cli)$/', $p, $m) === 1) {
+            if (preg_match('/^php(\d+\.\d+)/', $p, $m) === 1) {
                 $vers[$m[1]] = true;
             }
         }
@@ -1003,43 +1004,112 @@ final class KloxoPhpver
         if (strpos($jobsFile, "\n") !== false || strpos($jobsFile, "\0") !== false) {
             return '';
         }
+        $byVer = [];
+        foreach ($vers as $v) {
+            $byVer[$v] = [];
+        }
+        foreach ($pkgs as $p) {
+            if (preg_match('/^php(\d+\.\d+)/', $p, $m) === 1) {
+                $byVer[$m[1]][] = $p;
+            }
+        }
+        foreach ($vers as $v) {
+            foreach (self::packagesForSeries($v) as $p) {
+                $byVer[$v][] = $p;
+            }
+            $byVer[$v] = array_values(array_unique($byVer[$v]));
+        }
         $human = implode(' ', $vers);
         $init = '';
         foreach ($vers as $v) {
             $init .= 'php' . $v . "|queued|5|Waiting to start removal\n";
         }
-        $loop = '';
+        $lines = [
+            '#!/bin/bash',
+            'set -uo pipefail',
+            'export DEBIAN_FRONTEND=noninteractive',
+            'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT',
+            'JOBS=' . escapeshellarg($jobsFile),
+            'LOG=' . escapeshellarg($log),
+            'stamp() { printf \'%s|%s|%s\\n\' "$(date +%s)" "$1" "$2" > ' . escapeshellarg($status) . ' 2>/dev/null || true; }',
+            'set_job() {',
+            '  local id="$1" st="$2" pct="$3" act="$4" tmp="${JOBS}.tmp" line nid',
+            '  : > "$tmp"',
+            '  if [[ -f "$JOBS" ]]; then',
+            '    while IFS= read -r line || [[ -n "$line" ]]; do',
+            '      nid="${line%%|*}"',
+            '      if [[ "$nid" != "$id" ]]; then',
+            '        printf \'%s\\n\' "$line" >> "$tmp"',
+            '      fi',
+            '    done < "$JOBS"',
+            '  fi',
+            '  printf \'%s|%s|%s|%s\\n\' "$id" "$st" "$pct" "$act" >> "$tmp"',
+            '  mv "$tmp" "$JOBS"',
+            '}',
+            'apt_purge() {',
+            '  local bin=/usr/bin/apt-get',
+            '  [[ -x "$bin" ]] || bin=/usr/sbin/apt-get',
+            '  [[ -x "$bin" ]] || return 1',
+            '  if command -v stdbuf >/dev/null 2>&1; then',
+            '    stdbuf -oL -eL "$bin" -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confold purge --auto-remove "$@" >>"$LOG" 2>&1',
+            '  else',
+            '    "$bin" -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confold purge --auto-remove "$@" >>"$LOG" 2>&1',
+            '  fi',
+            '}',
+            'remove_ver() {',
+            '  local ver="$1"',
+            '  shift',
+            '  local id="php${ver}" p',
+            '  local pkgs=("$@")',
+            '  set_job "$id" running 20 "Stopping php${ver}-fpm"',
+            '  if command -v systemctl >/dev/null 2>&1; then',
+            '    systemctl stop "php${ver}-fpm" >/dev/null 2>&1 || true',
+            '    systemctl disable "php${ver}-fpm" >/dev/null 2>&1 || true',
+            '  fi',
+            '  set_job "$id" running 40 "Removing php${ver} packages"',
+            '  stamp running "removing php${ver}"',
+            '  if command -v dpkg-query >/dev/null 2>&1; then',
+            '    while IFS= read -r p || [[ -n "$p" ]]; do',
+            '      case "$p" in',
+            '        php${ver}|php${ver}-*|libapache2-mod-php${ver}) pkgs+=("$p") ;;',
+            '      esac',
+            '    done < <(dpkg-query -W -f=\'${Package}\\n\' 2>/dev/null || true)',
+            '  fi',
+            '  if [[ ${#pkgs[@]} -gt 0 ]]; then',
+            '    apt_purge "${pkgs[@]}" || true',
+            '  fi',
+            '  for p in /usr/bin/php${ver} /usr/sbin/php-fpm${ver}; do',
+            '    if [[ -e "$p" ]] && command -v dpkg-query >/dev/null 2>&1 && ! dpkg-query -S "$p" >/dev/null 2>&1; then',
+            '      rm -f -- "$p"',
+            '    fi',
+            '  done',
+            '  if [[ -x /usr/bin/php${ver} || -x /usr/sbin/php-fpm${ver} ]]; then',
+            '    set_job "$id" failed 100 "Could not remove php${ver}"',
+            '    stamp failed "could not remove php${ver}"',
+            '    return 1',
+            '  fi',
+            '  set_job "$id" ok 100 "Removed php${ver}"',
+            '  return 0',
+            '}',
+            'printf "%s" ' . escapeshellarg($init) . ' > "$JOBS"',
+            'stamp running ' . escapeshellarg('removing ' . $human),
+            'failed=0',
+        ];
         foreach ($vers as $v) {
-            $one = '/usr/bin/apt-get -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confold purge '
-                . escapeshellarg('php' . $v . '-fpm') . ' ' . escapeshellarg('php' . $v . '-cli')
-                . ' >>' . escapeshellarg($log) . " 2>&1\n";
-            $loop .= 'set_job ' . escapeshellarg('php' . $v) . " running 25 'Removing php{$v}-fpm'\n"
-                . 'stamp running ' . escapeshellarg('removing php' . $v) . "\n"
-                . 'if command -v stdbuf >/dev/null 2>&1; then' . "\n"
-                . '  stdbuf -oL -eL ' . $one
-                . "else\n"
-                . '  ' . $one
-                . "fi\n"
-                . 'set_job ' . escapeshellarg('php' . $v) . " ok 100 'Removed php{$v}'\n";
+            $args = [escapeshellarg($v)];
+            foreach ($byVer[$v] as $p) {
+                $args[] = escapeshellarg($p);
+            }
+            $lines[] = 'remove_ver ' . implode(' ', $args) . ' || failed=1';
         }
+        $lines[] = 'if [[ "$failed" -eq 1 ]]; then stamp failed ' . escapeshellarg('could not remove ' . $human) . '; exit 1; fi';
+        $lines[] = 'stamp ok ' . escapeshellarg('removed ' . $human);
 
-        return "#!/bin/bash\nset -euo pipefail\n"
-            . "export DEBIAN_FRONTEND=noninteractive\n"
-            . 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
-            . 'JOBS=' . escapeshellarg($jobsFile) . "\n"
-            . 'stamp() { printf \'%s|%s|%s\\n\' "$(date +%s)" "$1" "$2" > ' . escapeshellarg($status) . " 2>/dev/null || true; }\n"
-            . 'set_job() { local id="$1" st="$2" pct="$3" act="$4" tmp="${JOBS}.tmp" line nid;'
-            . ' : > "$tmp"; if [[ -f "$JOBS" ]]; then while IFS= read -r line; do nid="${line%%|*}";'
-            . ' if [[ "$nid" != "$id" ]]; then printf \'%s\\n\' "$line" >> "$tmp"; fi; done < "$JOBS"; fi;'
-            . ' printf \'%s|%s|%s|%s\\n\' "$id" "$st" "$pct" "$act" >> "$tmp"; mv "$tmp" "$JOBS"; }\n'
-            . 'printf "%s" ' . escapeshellarg($init) . ' > "$JOBS"' . "\n"
-            . 'stamp running ' . escapeshellarg('removing ' . $human) . "\n"
-            . $loop
-            . 'stamp ok ' . escapeshellarg('removed ' . $human) . "\n";
+        return implode("\n", $lines) . "\n";
     }
 
     /**
-     * Queue apt purge of phpX.Y-fpm/cli as root (kloxo-backend GET).
+     * Queue apt purge of the phpX.Y series as root (kloxo-backend GET).
      *
      * @param mixed $ids phpX.Y ids
      * @return array{ok:bool,euid?:int,error?:string}
@@ -1093,10 +1163,17 @@ final class KloxoPhpver
         self::beginLiveLog('=== removing ' . $human . ' starting ' . gmdate('Y-m-d H:i:s') . ' UTC ===', $log);
         self::writeStatus('running', 'removing ' . $human, $logDir . '/install-site-php.status');
         $rmJobs = [];
+        $seenJob = [];
         foreach ($pkgs as $p) {
-            if (preg_match('/^php(\d+\.\d+)-fpm$/', (string) $p, $m) === 1) {
-                $rmJobs[] = ['id' => 'php' . $m[1], 'state' => 'running', 'pct' => 10, 'action' => 'Starting removal'];
+            if (preg_match('/^php(\d+\.\d+)/', (string) $p, $m) !== 1) {
+                continue;
             }
+            $id = 'php' . $m[1];
+            if (isset($seenJob[$id])) {
+                continue;
+            }
+            $seenJob[$id] = true;
+            $rmJobs[] = ['id' => $id, 'state' => 'running', 'pct' => 10, 'action' => 'Starting removal'];
         }
         self::writeJobs($rmJobs, $logDir . '/sitephp.jobs');
         $run = self::startPhpJob($job);
@@ -1110,7 +1187,45 @@ final class KloxoPhpver
     }
 
     /**
-     * phpX.Y-fpm and phpX.Y-cli for each requested id (so installed() drops it).
+     * phpX.Y metapackage plus cli/fpm/common/extensions for one series.
+     *
+     * @return list<string>
+     */
+    public static function packagesForSeries(string $ver): array
+    {
+        if (preg_match('/^\d+\.\d+$/', $ver) !== 1) {
+            return [];
+        }
+        $pkgs = ['php' . $ver];
+        foreach (self::DEFAULT_EXTENSIONS as $ext) {
+            $e = (string) $ext;
+            if (preg_match('/^[a-z0-9]+$/', $e) !== 1) {
+                continue;
+            }
+            $pkgs[] = 'php' . $ver . '-' . $e;
+        }
+
+        return $pkgs;
+    }
+
+    /**
+     * PHP Used / default series: stay on the server, never on Multiple PHP Remove.
+     *
+     * @return list<string>
+     */
+    public static function protectedRemoveIds(): array
+    {
+        $id = self::activeId();
+        if (!self::isDistroId($id) || $id === 'php') {
+            return [];
+        }
+
+        return [$id];
+    }
+
+    /**
+     * phpX.Y plus fpm/cli/common/extensions for each requested id.
+     * PHP Used is skipped so a mixed selection can still purge extras.
      *
      * @param mixed $ids
      * @return array{packages:list<string>,error:string}
@@ -1118,31 +1233,45 @@ final class KloxoPhpver
     public static function packagesToRemove($ids): array
     {
         $pkgs = [];
-        $active = self::activeId();
+        $protected = array_fill_keys(self::protectedRemoveIds(), true);
         if (!is_array($ids)) {
             return ['packages' => [], 'error' => 'no packages'];
         }
+        $any = false;
+        $skippedAll = true;
         foreach ($ids as $v) {
             $id = (string) $v;
-            if ($id === $active) {
-                return ['packages' => [], 'error' => 'php already in use'];
-            }
             $ver = self::idToSeries($id);
             if ($ver === '' && preg_match('/^\d+\.\d+$/', $id) === 1) {
                 $ver = $id;
+                $id = 'php' . $ver;
             }
-            if ($ver !== '' && preg_match('/^\d+\.\d+$/', $ver) === 1) {
-                $pkgs[] = 'php' . $ver . '-fpm';
-                $pkgs[] = 'php' . $ver . '-cli';
+            if ($ver === '' || preg_match('/^\d+\.\d+$/', $ver) !== 1) {
+                continue;
+            }
+            $any = true;
+            if (isset($protected[$id])) {
+                continue;
+            }
+            $skippedAll = false;
+            foreach (self::packagesForSeries($ver) as $p) {
+                $pkgs[] = $p;
             }
         }
         $pkgs = array_values(array_unique($pkgs));
+        if ($pkgs === []) {
+            if ($any && $skippedAll) {
+                return ['packages' => [], 'error' => 'php already in use'];
+            }
 
-        return ['packages' => $pkgs, 'error' => $pkgs === [] ? 'no packages' : ''];
+            return ['packages' => [], 'error' => 'no packages'];
+        }
+
+        return ['packages' => $pkgs, 'error' => ''];
     }
 
     /**
-     * Remove phpX.Y-fpm as root (kloxo-backend GET). Panel PHP-FPM is lxlabs.
+     * Remove a phpX.Y series as root (kloxo-backend GET). Panel PHP-FPM is lxlabs.
      *
      * @param mixed $ids phpX.Y ids
      * @return array{ok:bool,euid?:int,error?:string,packages?:list<string>}
@@ -1198,16 +1327,19 @@ final class KloxoPhpver
 
     /**
      * Installed phpX.Y ids the Multiple PHP Remove list can offer.
+     * PHP Used stays off this list so Update does not abort the extras.
      *
      * @return list<string>
      */
     public static function removableIds(): array
     {
+        $skip = array_fill_keys(self::protectedRemoveIds(), true);
         $ids = [];
         foreach (self::installedIds() as $id) {
-            if (self::isDistroId($id) && $id !== 'php') {
-                $ids[] = $id;
+            if (!self::isDistroId($id) || $id === 'php' || isset($skip[$id])) {
+                continue;
             }
+            $ids[] = $id;
         }
 
         return $ids;
