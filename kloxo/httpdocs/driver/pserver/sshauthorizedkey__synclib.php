@@ -2,93 +2,124 @@
 
 class sshauthorizedkey__sync extends Lxdriverclass
 {
-	function writeAuthorizedKey($key)
+	/** Tests point every absolute path under this directory. Never set from input. */
+	public static $fsPrefix = '';
+
+	const KEY_TYPES = array(
+		'ssh-ed25519',
+		'ssh-rsa',
+		'ssh-dss',
+		'ecdsa-sha2-nistp256',
+		'ecdsa-sha2-nistp384',
+		'ecdsa-sha2-nistp521',
+		'sk-ssh-ed25519@openssh.com',
+		'sk-ecdsa-sha2-nistp256@openssh.com',
+	);
+
+	static function homeDir($username)
 	{
-		$username = $this->main->username;
+		$user = trim((string) $username);
+		$prefix = (string) self::$fsPrefix;
+		if ($prefix !== '') {
+			$prefix = rtrim($prefix, '/');
 
-	//	lxfile_mkdir($username, "/root/.ssh");
-	//	lxuser_chmod($username, "/root/.ssh", "0755");
-
-		if (!file_exists('/root/.ssh')) {
-			exec("mkdir -p /root/.ssh");
+			return ($user === '' || $user === 'root') ? ($prefix . '/root') : ($prefix . '/home/' . $user);
+		}
+		if ($user === '' || $user === 'root') {
+			return '/root';
+		}
+		if (function_exists('posix_getpwnam')) {
+			$p = @posix_getpwnam($user);
+			if (is_array($p) && !empty($p['dir'])) {
+				return (string) $p['dir'];
+			}
 		}
 
-		$f = "/root/.ssh/{$username}.authorized_keys";
+		return '/home/' . $user;
+	}
 
-		file_put_contents($f, $key);
+	static function authorizedKeysPath($username)
+	{
+		return self::homeDir($username) . '/.ssh/authorized_keys';
+	}
 
-	//	lxuser_chmod($username, $f, "0644");
-
-		$t = '';
-
-		$dirs = glob("/root/.ssh/*.authorized_keys");
-
-		foreach ($dirs as $k => $v) {
-			$x = file_get_contents($v);
-			$y = explode(" ", $x);
-			$z = explode("@", $y[2]);
-
-			$a = gethostname();
-			$b = explode(".", $a);
-
-			$s['user'] = $z[0];
-			$s['hostname'] = $a;
-			$s['host'] = $b[0];
-			$s['file'] = $v;
-
-			$t .= "Host " . $b[0] . "\n";
-			$t .= "HostName " . $a . "\n";
-			$t .= "IdentityFile " . str_replace("/root/", "~/", $v) . "\n";
-			$t .= "User " . $z[0] . "\n\n";
+	/**
+	 * @return array{type:string,key:string,hostname:string,full_key:string,nname:string}|null
+	 */
+	static function parseLine($line)
+	{
+		$l = trim(str_replace("\r", '', (string) $line));
+		if ($l === '' || $l[0] === '#') {
+			return null;
+		}
+		if (strlen($l) > 32768) {
+			return null;
+		}
+		$types = implode('|', array_map(function ($t) {
+			return preg_quote($t, '/');
+		}, self::KEY_TYPES));
+		if (preg_match('/(?:^|\s)(' . $types . ')\s+([A-Za-z0-9+\/=]+)(?:\s+(.*))?$/', $l, $m) !== 1) {
+			return null;
+		}
+		$key = $m[2];
+		if (strlen($key) < 32) {
+			return null;
+		}
+		$comment = isset($m[3]) ? trim($m[3]) : '';
+		$nname = fix_nname_to_be_variable_without_lowercase($key);
+		if (!is_string($nname) || $nname === '') {
+			return null;
 		}
 
-		file_put_contents("/root/.ssh/config", $t);
+		return array(
+			'type' => $m[1],
+			'key' => $key,
+			'hostname' => $comment,
+			'full_key' => $l,
+			'nname' => $nname,
+		);
 	}
 
 	static function readAuthorizedKey($username)
 	{
-		$f = "/root/.ssh/{$username}.authorized_keys";
-
-		if (file_exists($f)) {
-			$c = file_get_contents($f);
-			return is_string($c) ? $c : '';
+		$f = self::authorizedKeysPath($username);
+		if (!is_file($f) || !is_readable($f)) {
+			return '';
 		}
+		$c = file_get_contents($f);
 
-		return '';
+		return is_string($c) ? $c : '';
 	}
 
-	static function readProtoAuthorizedKey($username)
+	static function writeAuthorizedKeyFile($username, $body)
 	{
-		if (!is_dir('/root') || !is_writable('/root')) {
-			return '';
-		}
-
-		$s = "/root/{$username}.id.rsa";
-		foreach (glob("{$s}*") ?: array() as $old) {
-			if (is_file($old)) {
-				@unlink($old);
+		$home = self::homeDir($username);
+		$dir = $home . '/.ssh';
+		if (!is_dir($dir)) {
+			if (!@mkdir($dir, 0700, true) && !is_dir($dir)) {
+				throw new lxException('could_not_save_file', '', $dir);
 			}
 		}
-
-		$r = randomString(10);
-		lxshell_return("ssh-keygen", "-t", "rsa", "-b", '4096', "-N", $r, "-f", $s);
-
-		$f = "{$s}.pub";
-		if (!is_file($f)) {
-			return '';
+		@chmod($dir, 0700);
+		$target = $dir . '/authorized_keys';
+		$tmp = $target . '.kloxo-new';
+		$text = (string) $body;
+		if ($text !== '' && substr($text, -1) !== "\n") {
+			$text .= "\n";
 		}
-
-		$pub = file_get_contents($f);
-		if (!is_string($pub) || $pub === '') {
-			return '';
+		if (@file_put_contents($tmp, $text) === false) {
+			throw new lxException('could_not_save_file', '', $target);
 		}
-
-		if ($username !== '' && str_contains($pub, 'lxlabs@')) {
-			$pub = str_replace('lxlabs@', $username . '@', $pub);
-			file_put_contents($f, $pub);
+		@chmod($tmp, 0600);
+		if (!@rename($tmp, $target)) {
+			@unlink($tmp);
+			throw new lxException('could_not_save_file', '', $target);
 		}
+	}
 
-		return $pub;
+	function writeAuthorizedKey($key)
+	{
+		self::writeAuthorizedKeyFile($this->main->username, $key);
 	}
 
 	function getCurrentAuthKey()
@@ -97,13 +128,17 @@ class sshauthorizedkey__sync extends Lxdriverclass
 		if (!is_array($res)) {
 			return array();
 		}
-
+		$server = isset($this->main->syncserver) ? (string) $this->main->syncserver : '';
+		$want = (string) $this->main->nname;
 		$output = array();
-		foreach($res as $k => $v) {
-			if ("{$this->main->syncserver}___{$v['nname']}" === $this->main->nname) {
+		foreach ($res as $v) {
+			if (!is_array($v) || !isset($v['nname'], $v['full_key'])) {
 				continue;
 			}
-
+			$id = ($server !== '') ? ($server . '___' . $v['nname']) : (string) $v['nname'];
+			if ($id === $want) {
+				continue;
+			}
 			$output[] = $v['full_key'];
 		}
 
@@ -112,59 +147,59 @@ class sshauthorizedkey__sync extends Lxdriverclass
 
 	function dbactionAdd()
 	{
-		// MR -- no need because no append
-	//	$output = $this->getCurrentAuthKey();
-
-		$output[] = $this->main->full_key;
-		$output = implode("\n", $output);
-		$this->writeAuthorizedKey($output);
+		$username = isset($this->main->username) ? (string) $this->main->username : '';
+		$new = trim((string) ($this->main->full_key ?? ''));
+		$parsed = self::parseLine($new);
+		if ($parsed === null) {
+			throw new lxException('invalid_ssh_authorized_key', 'full_key');
+		}
+		$raw = self::readAuthorizedKey($username);
+		$lines = preg_split("/\r\n|\n|\r/", $raw);
+		if (!is_array($lines)) {
+			$lines = array();
+		}
+		$out = array();
+		foreach ($lines as $line) {
+			$line = rtrim((string) $line, "\r");
+			if (trim($line) === '') {
+				continue;
+			}
+			$p = self::parseLine($line);
+			if ($p !== null && $p['key'] === $parsed['key']) {
+				return;
+			}
+			$out[] = $line;
+		}
+		$out[] = $parsed['full_key'];
+		self::writeAuthorizedKeyFile($username, implode("\n", $out));
 	}
 
 	function dbactionDelete()
 	{
 		$output = $this->getCurrentAuthKey();
-		$output = implode("\n", $output);
-		$this->writeAuthorizedKey($output);
+		self::writeAuthorizedKeyFile(
+			isset($this->main->username) ? (string) $this->main->username : '',
+			implode("\n", $output)
+		);
 	}
 
 	static function getAuthorizedKey($username, $type = null)
 	{
-		if ($type === 'proto') {
-			$v = self::readProtoAuthorizedKey($username);
-		} else {
-			$v = self::readAuthorizedKey($username);
-		}
-
-		if (!$v) {
+		unset($type);
+		$v = self::readAuthorizedKey($username);
+		if ($v === '') {
 			return array();
 		}
-
-		$list = explode("\n", $v);
 		$res = array();
-
-		foreach($list as $l) {
-			$l = trim($l);
-
-			if (!$l) { continue; }
-
-			$l = trimSpaces($l);
-			$vv = explode(" ", $l);
-			if (!isset($vv[1])) {
+		foreach (preg_split("/\r\n|\n|\r/", $v) as $l) {
+			$r = self::parseLine($l);
+			if ($r === null) {
 				continue;
 			}
-
-			$r['nname'] = fix_nname_to_be_variable_without_lowercase($vv[1]);
-			$r['full_key'] = $l;
-			$r['key'] = $vv[1];
-			$r['hostname'] = isset($vv[2]) ? $vv[2] : '';
-
-			$r['username'] = $username;
-			$r['type'] = $vv[0];
-
+			$r['username'] = (string) $username;
 			$res[$r['nname']] = $r;
 		}
 
 		return $res;
-	}	
+	}
 }
-

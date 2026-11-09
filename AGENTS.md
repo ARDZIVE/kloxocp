@@ -183,7 +183,7 @@ File Manager listing after deploy is UNVERIFIED. LxGuard first beige tab is **Lx
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend
-(no Java applet, no NOPASSWD sudoers). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). HelpDesk ticket show skips Find and lists Switch To Another. List/driver calls guard a missing
+(no Java applet, no NOPASSWD sudoers). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). HelpDesk ticket show skips Find and lists Switch To Another. SSH Authorized Keys under localhost lists `/root/.ssh/authorized_keys` (via kloxo-backend); Add pastes a public key and appends; it does not generate keys or write `~/.ssh/config` (`tests/p2/test_sshauthorizedkey.php`; live UNVERIFIED). List/driver calls guard a missing
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.
@@ -341,6 +341,7 @@ bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload + 
 php tests/p2/test_mariadb.php         # Add Database MariaDB SQL (no live server)
 php tests/p2/test_backup.php          # admin/client Backup Now / Restore argv + dump (no live server)
 php tests/p2/test_disable_policy.php  # Disable Policy percentage / warn / disable (no live collectquota)
+php tests/p2/test_sshauthorizedkey.php # SSH Authorized Keys ~/.ssh/authorized_keys parse/add/delete
 bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
 bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)
 php kloxo/bin/install/init-panel-db --help

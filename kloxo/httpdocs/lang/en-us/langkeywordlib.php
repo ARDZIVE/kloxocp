@@ -498,6 +498,7 @@ $__throw["certificate_key_file_corrupted"] = "Certificate key file corrupted";
 $__throw["key_crt_files_needed"] = "Key crt files needed";
 
 $__throw["invalid_ssh_port"] = "invalid SSH Port";
+$__throw["invalid_ssh_authorized_key"] = "Not a valid SSH public key";
 $__throw["could_not_write_config_file"] = "Could not write config file";
 
 $__throw["need_to_add_at_least_one_ip_to_vps_for_logging_in"] = "Need to add at least one IP to VPS for logging in";

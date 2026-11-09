@@ -1,6 +1,6 @@
 <?php
 
-class sshauthorizedkey extends lxclass 
+class sshauthorizedkey extends lxclass
 {
 	static $__desc = array("", "",  "SSH_authorized_key");
 	static $__desc_nname = array("n", "",  "key");
@@ -11,20 +11,40 @@ class sshauthorizedkey extends lxclass
 	static $__desc_full_key = array("t", "",  "full_key");
 
 	function get() {}
-	
+
 	function write() {}
+
+	static function unixUser($parent)
+	{
+		if (!is_object($parent)) {
+			return 'root';
+		}
+		if (isset($parent->username) && is_string($parent->username) && $parent->username !== '') {
+			return $parent->username;
+		}
+		try {
+			if (method_exists($parent, 'getClass') && $parent->getClass() === 'pserver') {
+				return 'root';
+			}
+		} catch (Throwable $e) {
+		}
+		if (isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+			return $parent->nname;
+		}
+
+		return 'root';
+	}
 
 	static function createListAlist($parent, $class)
 	{
 		$alist[] = "a=list&c=$class";
-	//	$alist[] = "a=addform&c=$class&dta[var]=type&dta[val]=snormal";
-		
+
 		return $alist;
 	}
 
 	static function getTextAreaProperties($var)
 	{
-		return array("height" => 30, "width" => "90%");
+		return array("height" => 8, "width" => "90%");
 	}
 
 	static function addListForm($parent, $class)
@@ -34,21 +54,7 @@ class sshauthorizedkey extends lxclass
 
 	static function addform($parent, $class, $typetd = null)
 	{
-		$full = '';
-		try {
-			$user = is_object($parent) && isset($parent->username) ? (string) $parent->username : '';
-			$x = sshauthorizedkey__sync::getAuthorizedKey($user, 'proto');
-			if (is_array($x) && $x !== array()) {
-				$y = reset($x);
-				if (is_array($y) && isset($y['full_key'])) {
-					$full = (string) $y['full_key'];
-				}
-			}
-		} catch (Throwable $e) {
-			$full = '';
-		}
-
-		$vlist['full_key'] = array("t", $full);
+		$vlist['full_key'] = array("t", '');
 		$ret['variable'] = $vlist;
 		$ret['action'] = 'add';
 
@@ -57,27 +63,38 @@ class sshauthorizedkey extends lxclass
 
 	static function add($parent, $class, $param)
 	{
-		$param['full_key'] = trim($param['full_key']);
-		
+		global $login;
+
+		$param['full_key'] = trim((string) ($param['full_key'] ?? ''));
+		if (sshauthorizedkey__sync::parseLine($param['full_key']) === null) {
+			throw new lxException($login->getThrow('invalid_ssh_authorized_key'), 'full_key');
+		}
+
 		return $param;
 	}
 
 	function postAdd()
 	{
 		$parent = $this->getParentO();
-		$this->username = $parent->username;
-		$this->syncserver = $parent->syncserver;
-		$this->nname = fix_nname_to_be_variable_without_lowercase($this->full_key);
+		$this->username = self::unixUser($parent);
+		if (is_object($parent) && isset($parent->syncserver) && $parent->syncserver !== '') {
+			$this->syncserver = $parent->syncserver;
+		} elseif (is_object($parent) && method_exists($parent, 'getClass')
+			&& $parent->getClass() === 'pserver' && isset($parent->nname)) {
+			$this->syncserver = $parent->nname;
+		} else {
+			$this->syncserver = 'localhost';
+		}
+		$parsed = sshauthorizedkey__sync::parseLine($this->full_key);
+		$this->nname = is_array($parsed) ? $parsed['nname'] : fix_nname_to_be_variable_without_lowercase($this->full_key);
 	}
 
 	static function createListNlist($parent, $view)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-		
 		$nlist['hostname'] = '5%';
 		$nlist['type'] = '3%';
 		$nlist['key'] = '100%';
-		
+
 		return $nlist;
 	}
 
@@ -85,32 +102,51 @@ class sshauthorizedkey extends lxclass
 
 	static function initThisList($parent, $class)
 	{
-		$slave = $parent->nname;
-
-	//	if ($parent->is__table('client')) {
-		if ($parent->getClass() === 'client') {
-			$slave = $parent->websyncserver;
+		$slave = 'localhost';
+		try {
+			if (is_object($parent) && method_exists($parent, 'getClass') && $parent->getClass() === 'client'
+				&& isset($parent->websyncserver) && $parent->websyncserver !== '') {
+				$slave = $parent->websyncserver;
+			} elseif (is_object($parent) && isset($parent->nname) && method_exists($parent, 'getClass')
+				&& $parent->getClass() === 'pserver') {
+				$slave = $parent->nname;
+			} elseif (is_object($parent) && isset($parent->syncserver) && $parent->syncserver !== '') {
+				$slave = $parent->syncserver;
+			}
+		} catch (Throwable $e) {
+			$slave = 'localhost';
 		}
 
-	//	if ($parent->is__table('vps')) {
-		if ($parent->getClass() === 'vps') {
-			$slave = $parent->syncserver;
+		$user = self::unixUser($parent);
+		$res = array();
+		try {
+			$got = rl_exec_get(null, $slave, array('sshauthorizedkey__sync', 'getAuthorizedKey'), array($user));
+			if (is_array($got)) {
+				$res = $got;
+			}
+		} catch (Throwable $e) {
+			$res = array();
 		}
-
-
-	//	$res = rl_exec_get(null, $slave, array('sshauthorizedkey__sync', 'getAuthorizedKey'), array($parent->username));
-		$res = sshauthorizedkey__sync::getAuthorizedKey($parent->username);
 
 		if (!is_array($res) || $res === array()) {
 			return array();
 		}
 
-		foreach($res as &$r) {
+		foreach ($res as &$r) {
+			if (!is_array($r) || !isset($r['nname'])) {
+				continue;
+			}
 			$r['nname'] = "{$slave}___{$r['nname']}";
 			$r['syncserver'] = $slave;
-			$r['parent_clname'] = $parent->getClName();
+			try {
+				$r['parent_clname'] = is_object($parent) && method_exists($parent, 'getClName')
+					? $parent->getClName() : '';
+			} catch (Throwable $e) {
+				$r['parent_clname'] = '';
+			}
 		}
-		
+		unset($r);
+
 		return $res;
 	}
 }

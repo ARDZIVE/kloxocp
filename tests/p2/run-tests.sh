@@ -160,6 +160,11 @@ if php "$HERE/test_menu_title.php"; then
 else
   bad "test_menu_title.php"
 fi
+if php "$HERE/test_sshauthorizedkey.php"; then
+  ok "test_sshauthorizedkey.php"
+else
+  bad "test_sshauthorizedkey.php"
+fi
 if php "$HERE/test_server_pages.php"; then
   ok "test_server_pages.php"
 else

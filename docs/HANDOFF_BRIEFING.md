@@ -518,8 +518,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Switch To Another, and Add Reply no longer TypeErrors on a missing
     parent state or notify failure. `init-panel-db` seeds HelpDesk
     category Welcome and ticket 1 (Created By Kloxo, Subject
-    Welcome to Kloxo, date = install time). SSH authorized keys no longer call
-    `key()` on a missing list.     Ubuntu Services uses
+    Welcome to Kloxo, date = install time). SSH Authorized Keys under localhost
+    reads and writes `/root/.ssh/authorized_keys` (a client uses that Unix
+    user's `~/.ssh/authorized_keys`) via kloxo-backend; Add appends a pasted
+    public key; the form does not run `ssh-keygen` or write `~/.ssh/config`.
+    Tested: `tests/p2/test_sshauthorizedkey.php`. Live add/list after deploy
+    is **UNVERIFIED**.     Ubuntu Services uses
     `Service__Debian::getServiceDetails` and `systemctl` for
     start/stop/restart; a missing `knot___localhost` row no longer
     blanks the page (`Service::canGetSingle` + `initThisObject`).
