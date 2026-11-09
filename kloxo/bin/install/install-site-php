@@ -114,6 +114,7 @@ drop_dead_sury() {
 }
 
 apt_update() {
+  log "apt-get update"
   apt-get update -y || log "warn: apt-get update reported errors"
 }
 
@@ -234,6 +235,7 @@ wire_include() {
       die "php-fpm${ver} -t failed after wiring pool.d"
     fi
   fi
+  log "enable and restart php${ver}-fpm"
   systemctl enable "php${ver}-fpm" >/dev/null 2>&1 || true
   systemctl restart "php${ver}-fpm" || systemctl start "php${ver}-fpm" || die "could not start php${ver}-fpm"
 }
@@ -324,6 +326,7 @@ fi
 
 install_one() {
   local ver="$1"
+  log "php${ver}: checking"
   if have_fpm "$ver" && [[ "$FORCE" -eq 0 ]]; then
     log "php${ver}-fpm already present"
     return 0
@@ -331,6 +334,7 @@ install_one() {
   if ! apt_has "php${ver}-fpm"; then
     die "php${ver}-fpm is not in apt for Ubuntu $(codename) ($(host_arch)) after configuring ${SURY_URI}"
   fi
+  log "apt-get install php${ver}-fpm and extensions"
   # shellcheck disable=SC2046
   apt-get install -y $(pkgs_for "$ver")
   have_fpm "$ver" || die "php${ver}-fpm package installed but /usr/sbin/php-fpm${ver} is missing"

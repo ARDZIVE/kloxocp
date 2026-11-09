@@ -3016,6 +3016,8 @@ $phpWrapOk = is_string($phpWrap) && $phpWrap !== ''
 	&& str_contains($phpWrap, 'trap "rm -f -- ')
 	&& str_contains($phpWrap, escapeshellarg($phpJob['lock']))
 	&& str_contains($phpWrap, escapeshellarg($phpJob['job']))
+	&& str_contains($phpWrap, 'stdbuf -oL -eL')
+	&& str_contains($phpWrap, '=== install php ')
 	&& !str_contains($phpWrap, "trap 'rm -f ");
 $phpVerSrc = (string)file_get_contents($doc . '/lib/php/kloxo_phpver.php');
 $phpFallbackOk = str_contains($phpVerSrc, 'function queueInstall')
@@ -3058,6 +3060,25 @@ if ($phpBackendOk) {
 
 $htmlSrc = (string)file_get_contents($doc . '/theme/htmllib.php');
 $jsSrc = (string)file_get_contents($doc . '/theme/js/lxa.js');
+$sitephpJs = (string) file_get_contents($doc . '/theme/js/kloxo-sitephp.js');
+$sitephpEp = (string) file_get_contents($doc . '/theme/lbin/sitephp-progress.php');
+$sitephpLiveOk = str_contains($htmlSrc, '"kloxo-sitephp.js"')
+	&& str_contains($sitephpJs, '/theme/lbin/sitephp-progress.php')
+	&& str_contains($sitephpJs, 'data-kloxo-nobusy')
+	&& str_contains($sitephpJs, 'kloxo-sitephp-frame')
+	&& str_contains($sitephpJs, 'multiple_php_install')
+	&& str_contains($sitephpJs, 'multiple_php_remove')
+	&& str_contains($sitephpEp, 'isAdmin')
+	&& str_contains($sitephpEp, 'KloxoPhpver::liveProgress')
+	&& str_contains($phpVerSrc, 'function liveProgress')
+	&& str_contains($phpVerSrc, 'function tailLog')
+	&& str_contains($webSync, 'lxInfoException')
+	&& str_contains((string) file_get_contents($doc . '/theme/coredisplaylib.php'), 'lxInfoException');
+if ($sitephpLiveOk) {
+	ok('Webserver Configure shows live PHP install/remove steps on the same page');
+} else {
+	bad('Webserver Configure shows live PHP install/remove steps on the same page');
+}
 if (str_contains($htmlSrc, '$v2 = array();')
 	&& str_contains($htmlSrc, "function print_multiselect")
 	&& str_contains($jsSrc, 'function multiSelectCommitForm')

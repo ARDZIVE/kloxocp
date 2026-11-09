@@ -701,7 +701,7 @@ class serverweb__ extends lxDriverClass
 
 		lxshell_background("sh", $c);
 
-		throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
+		throw new lxInfoException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
 	}
 
 	/**
@@ -810,7 +810,7 @@ class serverweb__ extends lxDriverClass
 			throw new lxException($login->getThrow('could_not_execute'), '', 'install-site-php: ' . $why);
 		}
 
-		throw new lxException($login->getThrow('install_process_running_in_background'), '', $server);
+		throw new lxInfoException($login->getThrow('install_process_running_in_background'), '', $server);
 	}
 
 	function set_multiple_php_remove()
@@ -850,7 +850,7 @@ class serverweb__ extends lxDriverClass
 					: 'kloxo-backend (127.0.0.1:7776) did not handle the request as root';
 				throw new lxException($login->getThrow('could_not_execute'), '', 'php remove: ' . $why);
 			}
-			throw new lxException($login->getThrow('remove_process_running_in_background'), '', $server);
+			throw new lxInfoException($login->getThrow('remove_process_running_in_background'), '', $server);
 		}
 
 		foreach ($list as $v) {

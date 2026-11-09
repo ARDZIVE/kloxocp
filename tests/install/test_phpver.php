@@ -191,6 +191,13 @@ if (KloxoPhpver::lastInstall($tmpStatus) === null && KloxoPhpver::lastInstall($t
 } else {
     $bad('a missing or malformed status file is ignored');
 }
+file_put_contents($tmpStatus, "1794031272|queued|install 8.4\n");
+$q = KloxoPhpver::lastInstall($tmpStatus);
+if ($q !== null && $q['state'] === 'queued' && str_contains(KloxoPhpver::installNote($tmpStatus), 'queued')) {
+    $ok('queued status is parsed for the live progress UI');
+} else {
+    $bad('queued status is parsed for the live progress UI');
+}
 @unlink($tmpStatus);
 KloxoPhpver::$aptProbe = null;
 KloxoPhpver::$suryProbe = null;
@@ -294,6 +301,50 @@ if (($asRoot['ok'] ?? false) === true && !is_file($reqPath)
 	$bad('runDroppedRequest as root consumes the request and queues install');
 }
 
+$liveDir = $tmpRoot . '/liveprog';
+@mkdir($liveDir . '/log', 0755, true);
+file_put_contents($liveDir . '/log/install-site-php.status', "1794032000|running|installing 8.4\n");
+file_put_contents($liveDir . '/log/install-site-php.log', "=== install php 8.4 starting ===\nGet:1 php8.4-fpm\n");
+file_put_contents($liveDir . '/log/kloxo-site-php-install.lock', (string) time());
+$live = KloxoPhpver::liveProgress($liveDir);
+$liveLog = KloxoPhpver::tailLog($liveDir . '/log/install-site-php.log');
+if (($live['ok'] ?? false) === true && ($live['busy'] ?? false) === true
+	&& ($live['state'] ?? '') === 'running'
+	&& str_contains((string) ($live['log'] ?? ''), 'Get:1 php8.4-fpm')
+	&& str_contains($liveLog, 'Get:1 php8.4-fpm')) {
+	$ok('liveProgress tails the apt log while a job is running');
+} else {
+	$bad('liveProgress tails the apt log while a job is running');
+}
+file_put_contents($liveDir . '/log/sitephp.request', json_encode(['op' => 'remove', 'ids' => ['php8.1']]) . "\n");
+@unlink($liveDir . '/log/kloxo-site-php-install.lock');
+$queuedLive = KloxoPhpver::liveProgress($liveDir);
+if (($queuedLive['state'] ?? '') === 'queued' && ($queuedLive['op'] ?? '') === 'remove'
+	&& ($queuedLive['busy'] ?? false) === true) {
+	$ok('liveProgress reports a dropped remove request as queued');
+} else {
+	$bad('liveProgress reports a dropped remove request as queued');
+}
+@unlink($liveDir . '/log/sitephp.request');
+@unlink($liveDir . '/log/install-site-php.status');
+@unlink($liveDir . '/log/install-site-php.log');
+@rmdir($liveDir . '/log');
+@rmdir($liveDir);
+
+$rmWrapLive = KloxoPhpver::sitePhpRemoveWrap(
+	['php8.1-fpm', 'php8.1-cli'],
+	$tmpRoot . '/log/install-site-php.log',
+	$tmpRoot . '/log/kloxo-site-php-remove.lock',
+	$tmpRoot . '/log/kloxo-site-php-remove.sh'
+);
+if (str_contains($rmWrapLive, '=== removing ')
+	&& str_contains($rmWrapLive, 'stamp running')
+	&& str_contains($rmWrapLive, 'stdbuf -oL -eL')) {
+	$ok('remove wrapper prints live steps and line-buffers apt');
+} else {
+	$bad('remove wrapper prints live steps and line-buffers apt');
+}
+
 KloxoPhpver::$euidProbe = null;
 KloxoPhpver::$programRootProbe = null;
 KloxoPhpver::$runCmd = null;
@@ -303,6 +354,8 @@ KloxoPhpver::$runCmd = null;
 @unlink($tmpRoot . '/log/kloxo-site-php-install.lock');
 @unlink($tmpRoot . '/log/sitephp.request');
 @unlink($tmpRoot . '/log/sitephp.request.running');
+@unlink($tmpRoot . '/log/install-site-php.log');
+@unlink($tmpRoot . '/log/install-site-php.status');
 @unlink($tmpRoot . '/bin/install/install-site-php');
 @unlink($aptBin);
 @rmdir($tmpRoot . '/bin/install');

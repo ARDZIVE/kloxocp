@@ -2777,7 +2777,11 @@ function lx_frm_inc()
 		}
 		$eval = (is_object($e) && isset($e->value)) ? $e->value : null;
 
-		$ghtml->print_redirect_back($e->getMessage(), $evlist, $eval);
+		if ($e instanceof lxInfoException) {
+			$ghtml->print_redirect_back_success($e->getMessage(), $evlist, $eval);
+		} else {
+			$ghtml->print_redirect_back($e->getMessage(), $evlist, $eval);
+		}
 
 		exit;
 	}

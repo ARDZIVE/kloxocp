@@ -305,13 +305,176 @@ final class KloxoPhpver
             return null;
         }
         $line = trim((string) @file_get_contents($f));
-        if (preg_match('/^(\d{9,11})\|(running|ok|partial|failed)\|(.*)$/', $line, $m) !== 1) {
+        if (preg_match('/^(\d{9,11})\|(queued|running|ok|partial|failed)\|(.*)$/', $line, $m) !== 1) {
             return null;
         }
         $msg = trim((string) preg_replace('/[^\x20-\x7e]/', '?', $m[3]));
         $msg = str_replace(['<', '>', '&', '"', "'"], '', $msg);
 
         return ['at' => (int) $m[1], 'state' => $m[2], 'message' => substr($msg, 0, 300)];
+    }
+
+    /**
+     * Last N bytes of the install/remove log, ASCII-only, for the live UI.
+     */
+    public static function tailLog(?string $file = null, int $maxBytes = 48000): string
+    {
+        $f = $file ?? (self::programRoot() . '/log/install-site-php.log');
+        if (!is_file($f) || !is_readable($f)) {
+            return '';
+        }
+        $size = (int) @filesize($f);
+        if ($size <= 0) {
+            return '';
+        }
+        $fh = @fopen($f, 'rb');
+        if ($fh === false) {
+            return '';
+        }
+        if ($size > $maxBytes) {
+            fseek($fh, -$maxBytes, SEEK_END);
+            $skip = fgets($fh);
+            unset($skip);
+        }
+        $raw = (string) stream_get_contents($fh);
+        fclose($fh);
+        $raw = str_replace("\r", "\n", $raw);
+        $raw = (string) preg_replace('/\x1b\[[0-9;]*[A-Za-z]/', '', $raw);
+        $raw = (string) preg_replace('/[^\x09\x0a\x20-\x7e]/', '?', $raw);
+
+        return $raw;
+    }
+
+    public static function writeStatus(string $state, string $message, ?string $file = null): void
+    {
+        $allow = ['queued' => true, 'running' => true, 'ok' => true, 'partial' => true, 'failed' => true];
+        if (!isset($allow[$state])) {
+            return;
+        }
+        $msg = trim((string) preg_replace('/[^\x20-\x7e]/', '?', $message));
+        $msg = str_replace(['<', '>', '&', '"', "'", '|'], '', $msg);
+        $f = $file ?? (self::programRoot() . '/log/install-site-php.status');
+        $dir = dirname($f);
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return;
+        }
+        @file_put_contents($f, (string) time() . '|' . $state . '|' . substr($msg, 0, 300) . "\n", LOCK_EX);
+        @chmod($f, 0644);
+    }
+
+    public static function beginLiveLog(string $header, ?string $log = null): void
+    {
+        $f = $log ?? (self::programRoot() . '/log/install-site-php.log');
+        $dir = dirname($f);
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return;
+        }
+        @file_put_contents($f, rtrim($header) . "\n", LOCK_EX);
+        @chmod($f, 0644);
+    }
+
+    /**
+     * JSON for Webserver Configure: current job and the live apt log.
+     *
+     * @return array{ok:bool,op:string,state:string,message:string,at:int,items:list<string>,busy:bool,log:string}
+     */
+    public static function liveProgress(?string $root = null): array
+    {
+        $base = rtrim($root ?? self::programRoot(), '/');
+        $statusFile = $base . '/log/install-site-php.status';
+        $logFile = $base . '/log/install-site-php.log';
+        $req = $base . '/log/sitephp.request';
+        $claimed = $req . '.running';
+        $installLock = $base . '/log/kloxo-site-php-install.lock';
+        $removeLock = $base . '/log/kloxo-site-php-remove.lock';
+
+        $op = 'idle';
+        $state = 'idle';
+        $message = '';
+        $at = 0;
+        $items = [];
+
+        $readReq = static function (string $p) use (&$op, &$items): bool {
+            if (!is_file($p) || !is_readable($p)) {
+                return false;
+            }
+            $data = json_decode((string) @file_get_contents($p), true);
+            if (!is_array($data) || !isset($data['op'])) {
+                return false;
+            }
+            $op = (string) $data['op'];
+            if ($op === 'install' && isset($data['versions']) && is_array($data['versions'])) {
+                foreach ($data['versions'] as $v) {
+                    $items[] = (string) $v;
+                }
+            } elseif ($op === 'remove' && isset($data['ids']) && is_array($data['ids'])) {
+                foreach ($data['ids'] as $v) {
+                    $items[] = (string) $v;
+                }
+            }
+
+            return true;
+        };
+
+        if ($readReq($req)) {
+            $state = 'queued';
+            $message = 'waiting for kloxo-backend or kloxo-watchdog to start as root';
+            $at = (int) @filemtime($req);
+        } elseif ($readReq($claimed)) {
+            $state = 'running';
+            $message = 'starting';
+            $at = (int) @filemtime($claimed);
+        }
+
+        if (is_file($removeLock)) {
+            $op = ($op === 'idle') ? 'remove' : $op;
+            $state = 'running';
+            $at = max($at, (int) @filemtime($removeLock));
+            if ($message === '') {
+                $message = 'removing packages';
+            }
+        }
+        if (is_file($installLock)) {
+            $op = ($op === 'idle') ? 'install' : $op;
+            $state = 'running';
+            $at = max($at, (int) @filemtime($installLock));
+            if ($message === '') {
+                $message = 'install-site-php running';
+            }
+        }
+
+        $last = self::lastInstall($statusFile);
+        $lockBusy = is_file($installLock) || is_file($removeLock) || is_file($req) || is_file($claimed);
+        if ($last !== null && !$lockBusy) {
+            $state = $last['state'];
+            $message = $last['message'];
+            $at = $last['at'];
+            if ($op === 'idle') {
+                $op = (strpos($message, 'remov') !== false) ? 'remove' : 'install';
+            }
+        } elseif ($last !== null && $state === 'running' && $last['message'] !== '') {
+            $message = $last['message'];
+        }
+
+        if ($items !== []) {
+            $label = implode(', ', $items);
+            if ($message !== '' && strpos($message, $label) === false) {
+                $message = $label . ': ' . $message;
+            } elseif ($message === '') {
+                $message = $label;
+            }
+        }
+
+        return [
+            'ok' => true,
+            'op' => $op,
+            'state' => $state,
+            'message' => $message,
+            'at' => $at,
+            'items' => $items,
+            'busy' => ($state === 'queued' || $state === 'running'),
+            'log' => self::tailLog($logFile),
+        ];
     }
 
     /**
@@ -334,7 +497,7 @@ final class KloxoPhpver
         }
         $last = self::lastInstall($statusFile);
         if ($last !== null) {
-            $label = ['running' => 'still running', 'ok' => 'finished', 'partial' => 'partly done', 'failed' => 'failed'][$last['state']];
+            $label = ['queued' => 'queued', 'running' => 'still running', 'ok' => 'finished', 'partial' => 'partly done', 'failed' => 'failed'][$last['state']];
             $parts[] = 'Last install attempt ' . $label . ' (' . gmdate('Y-m-d H:i', $last['at']) . ' UTC): ' . $last['message'] . '.';
         }
 
@@ -384,12 +547,20 @@ final class KloxoPhpver
             return '';
         }
 
-        return "#!/bin/bash\nset -euo pipefail\n"
-            . 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
-            . '/bin/bash ' . escapeshellarg($script)
+        $start = '=== install php ' . $versArg . ' starting ===';
+        $run = '/bin/bash ' . escapeshellarg($script)
             . ' --root=' . escapeshellarg($root)
             . ' --versions=' . escapeshellarg($versArg)
             . ' >>' . escapeshellarg($log) . " 2>&1\n";
+
+        return "#!/bin/bash\nset -euo pipefail\n"
+            . 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
+            . 'printf "%s\\n" ' . escapeshellarg($start) . ' >>' . escapeshellarg($log) . "\n"
+            . 'if command -v stdbuf >/dev/null 2>&1; then' . "\n"
+            . '  stdbuf -oL -eL ' . $run
+            . "else\n"
+            . '  ' . $run
+            . "fi\n";
     }
 
     public static function requestPath(): string
@@ -475,6 +646,12 @@ final class KloxoPhpver
 
             return ['ok' => false, 'error' => 'could not write ' . $path];
         }
+
+        $label = ($op === 'install')
+            ? implode(',', $body['versions'] ?? [])
+            : implode(',', $body['ids'] ?? []);
+        self::beginLiveLog('=== ' . $op . ' ' . $label . ' queued ' . gmdate('Y-m-d H:i:s') . ' UTC ===');
+        self::writeStatus('queued', $op . ' ' . $label);
 
         return ['ok' => true, 'path' => $path];
     }
@@ -591,11 +768,14 @@ final class KloxoPhpver
 
             return ['ok' => false, 'euid' => 0, 'error' => 'could not write ' . $lock];
         }
+        self::beginLiveLog('=== install php ' . $versArg . ' starting ' . gmdate('Y-m-d H:i:s') . ' UTC ===', $log);
+        self::writeStatus('running', 'installing ' . $versArg, $paths['logDir'] . '/install-site-php.status');
 
         $run = self::startPhpJob($job);
         if (empty($run['ok'])) {
             @unlink($job);
             @unlink($lock);
+            self::writeStatus('failed', 'could not start install-site-php', $paths['logDir'] . '/install-site-php.status');
         }
 
         return $run;
@@ -630,11 +810,28 @@ final class KloxoPhpver
         foreach ($pkgs as $p) {
             $cmd .= ' ' . escapeshellarg($p);
         }
+        $status = dirname($log) . '/install-site-php.status';
+        if ($status === '' || strpos($status, "\n") !== false || strpos($status, "\0") !== false) {
+            return '';
+        }
+        $human = implode(' ', $pkgs);
+        $header = '=== removing ' . $human . ' ===';
+        $done = '=== finished removing ' . $human . ' ===';
+        $run = $cmd . ' >>' . escapeshellarg($log) . " 2>&1\n";
 
         return "#!/bin/bash\nset -euo pipefail\n"
             . "export DEBIAN_FRONTEND=noninteractive\n"
             . 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
-            . $cmd . ' >>' . escapeshellarg($log) . " 2>&1\n";
+            . 'stamp() { printf \'%s|%s|%s\\n\' "$(date +%s)" "$1" "$2" > ' . escapeshellarg($status) . " 2>/dev/null || true; }\n"
+            . 'printf "%s\\n" ' . escapeshellarg($header) . ' >>' . escapeshellarg($log) . "\n"
+            . 'stamp running ' . escapeshellarg('removing ' . $human) . "\n"
+            . 'if command -v stdbuf >/dev/null 2>&1; then' . "\n"
+            . '  stdbuf -oL -eL ' . $run
+            . "else\n"
+            . '  ' . $run
+            . "fi\n"
+            . 'printf "%s\\n" ' . escapeshellarg($done) . ' >>' . escapeshellarg($log) . "\n"
+            . 'stamp ok ' . escapeshellarg('removed ' . $human) . "\n";
     }
 
     /**
@@ -688,10 +885,14 @@ final class KloxoPhpver
 
             return ['ok' => false, 'euid' => 0, 'error' => 'could not write ' . $lock];
         }
+        $human = implode(' ', $pkgs);
+        self::beginLiveLog('=== removing ' . $human . ' starting ' . gmdate('Y-m-d H:i:s') . ' UTC ===', $log);
+        self::writeStatus('running', 'removing ' . $human, $logDir . '/install-site-php.status');
         $run = self::startPhpJob($job);
         if (empty($run['ok'])) {
             @unlink($job);
             @unlink($lock);
+            self::writeStatus('failed', 'could not start php remove', $logDir . '/install-site-php.status');
         }
 
         return $run;

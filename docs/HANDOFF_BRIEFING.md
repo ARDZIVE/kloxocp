@@ -183,7 +183,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     does not answer, the panel drops `log/sitephp.request` for the backend
     30s loop and kloxo-watchdog;
     Multiple PHP Remove sends `KloxoPhpver::queueRemove` the same way
-    (no in-process fallback as lxlabs) and lists installed `phpX.Y-fpm`. The old scanner only
+    (no in-process fallback as lxlabs) and lists installed `phpX.Y-fpm`.
+    Update on either form stays on Webserver Configure and tails
+    `log/install-site-php.log` in a progress box (`kloxo-sitephp.js`,
+    admin-only `theme/lbin/sitephp-progress.php`). The old scanner only
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL
@@ -890,7 +893,9 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    Multiple PHP Remove lists actually installed `phpX.Y-fpm` (binaries or
    `/etc/php/X.Y/fpm`) and sends `KloxoPhpver::queueRemove` the same
    way (root `apt-get purge` of `phpX.Y-fpm` and `phpX.Y-cli` via a job
-   under `$ROOT/log/`; `rl_exec_get` does not fall back to the panel user). Each section form loads without
+   under `$ROOT/log/`; `rl_exec_get` does not fall back to the panel user).
+   The same page shows apt install/remove steps as they run (progress
+   box + JSON poll; the HTTP request does not run apt). Each section form loads without
    a DB password. Apache optimize writes
    `/etc/apache2/conf-available/kloxo-optimize.conf` (validate `apache2ctl
    -t`, roll back on failure). PHP Type on Ubuntu enables mpm_event or
