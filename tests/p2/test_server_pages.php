@@ -771,12 +771,14 @@ if (function_exists('kloxo_skip_find_class')
 $showSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 if (function_exists('kloxo_skip_find_show_class')
 	&& kloxo_skip_find_show_class('mailaccount')
+	&& kloxo_skip_find_show_class('smessage')
 	&& !kloxo_skip_find_class('mailaccount')
+	&& !kloxo_skip_find_class('smessage')
 	&& !kloxo_skip_find_show_class('client')
 	&& str_contains($showSrc, 'kloxo_skip_find_show_class($show_class)')) {
-	ok('Mail Account show page drops the Find box while mail account lists keep their search');
+	ok('Mail Account and Message show pages drop the Find box while their lists keep search');
 } else {
-	bad('Mail Account show page drops the Find box while mail account lists keep their search');
+	bad('Mail Account and Message show pages drop the Find box while their lists keep search');
 }
 
 $welcomeDefault = Notification::defaultWelcomeMessage();

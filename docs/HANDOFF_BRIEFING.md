@@ -439,7 +439,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Log Manager, Driver Configuration, PHP Configuration,
     Backup/Restore, Webserver Configure, SSH Configure, LxGuard,
     SSH Terminal, File Manager, HelpDesk ticket show, Notification,
-    Update, client Manage DNS, and client PHPinfo no longer show the left-column Find box.
+    Message show, Update, client Manage DNS, and client PHPinfo no longer show
+    the left-column Find box (Message lists keep the search toolbar).
     SSH Configure has one beige tab labelled **SSH Configure** (not Home).
     Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
     **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,

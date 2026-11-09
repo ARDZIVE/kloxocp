@@ -1656,7 +1656,7 @@ function kloxo_skip_find_class($class)
  */
 function kloxo_skip_find_show_class($class)
 {
-	static $skip = array('mailaccount');
+	static $skip = array('mailaccount', 'smessage');
 
 	return in_array(strtolower((string)$class), $skip, true);
 }
