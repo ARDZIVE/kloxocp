@@ -449,8 +449,74 @@ final class KloxoBackup
 	}
 
 	/**
-	 * Extract a .tgz/.tar/.zip archive into $dest. $members are optional paths
-	 * inside the archive (globs only when they contain *).
+	 * True when an archive member path cannot escape $dest (no .., absolute,
+	 * drive letter, NUL, or option-like names).
+	 */
+	public static function archiveMemberIsSafe(string $member): bool
+	{
+		if (str_contains($member, "\0")) {
+			return false;
+		}
+		$m = str_replace('\\', '/', $member);
+		$m = preg_replace('#^(?:\./)+#', '', $m) ?? $m;
+		if ($m === '' || $m === '.' || $m === '..') {
+			return false;
+		}
+		if ($m[0] === '/' || $m[0] === '-') {
+			return false;
+		}
+		if (preg_match('#^[A-Za-z]:/#', $m) === 1) {
+			return false;
+		}
+		foreach (explode('/', $m) as $part) {
+			if ($part === '' && $m[0] === '/') {
+				return false;
+			}
+			if ($part === '..') {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Restore metadata: PHP-serialized Remote/lxclass graph from kloxo.file.
+	 * Rejects namespaced classes, Phar/C custom serializers, and internals.
+	 *
+	 * @return mixed
+	 */
+	public static function unserializeMetadata(string $raw)
+	{
+		if ($raw === '') {
+			throw new KloxoBackupException('backup file corrupted');
+		}
+		$found = self::serializedClasses($raw);
+		$allow = array();
+		foreach ($found as $c) {
+			if (($c['kind'] ?? '') !== 'O') {
+				throw new KloxoBackupException('backup file corrupted');
+			}
+			$name = (string) ($c['name'] ?? '');
+			if (!self::isAllowedBackupClass($name)) {
+				throw new KloxoBackupException('backup file corrupted');
+			}
+			$allow[] = $name;
+		}
+		$opts = array('allowed_classes' => $allow === array() ? false : array_values(array_unique($allow)));
+		$rem = @unserialize($raw, $opts);
+		if ($rem === false && $raw !== serialize(false)) {
+			throw new KloxoBackupException('backup file corrupted');
+		}
+
+		return $rem;
+	}
+
+	/**
+	 * Extract a .tgz/.tar/.zip archive into $dest. Only members whose paths
+	 * stay under $dest are extracted; glob members and symlink members are
+	 * refused. $members limits the extract to those names (must themselves
+	 * be safe).
 	 *
 	 * @param list<string> $members
 	 */
@@ -462,15 +528,50 @@ final class KloxoBackup
 		if (!is_dir($dest)) {
 			@mkdir($dest, 0700, true);
 		}
+		if (!is_dir($dest)) {
+			throw new KloxoBackupException('invalid archive or destination');
+		}
+		$listed = self::listArchiveMembers($archive);
+		$safe = array();
+		foreach ($listed as $entry) {
+			$name = (string) ($entry['name'] ?? '');
+			if (!self::archiveMemberIsSafe($name)) {
+				throw new KloxoBackupException('archive contains an unsafe path');
+			}
+			if (!empty($entry['link'])) {
+				continue;
+			}
+			$safe[] = $name;
+		}
+		$extract = $safe;
+		if ($members !== array()) {
+			$want = array();
+			foreach ($members as $m) {
+				$m = str_replace(array(';', "\n", "\r", "\0"), '', (string) $m);
+				if ($m === '' || str_contains($m, '*') || !self::archiveMemberIsSafe($m)) {
+					throw new KloxoBackupException('archive contains an unsafe path');
+				}
+				$want[] = $m;
+			}
+			$extract = array();
+			foreach ($safe as $n) {
+				if (in_array($n, $want, true) || in_array(preg_replace('#^(?:\./)+#', '', $n), $want, true)) {
+					$extract[] = $n;
+				}
+			}
+			if ($extract === array()) {
+				throw new KloxoBackupException('could not untar ' . basename($archive));
+			}
+		}
+		if ($extract === array()) {
+			return;
+		}
 		$type = self::archiveType($archive);
 		if ($type === 'zip') {
 			$unzip = self::firstExec(array('/usr/bin/unzip', '/bin/unzip', 'unzip'));
 			$argv = array($unzip !== '' ? $unzip : 'unzip', '-oq', $archive, '-d', $dest);
-			foreach ($members as $m) {
-				$m = str_replace(array(';', "\n", "\0"), '', $m);
-				if ($m !== '') {
-					$argv[] = $m;
-				}
+			foreach ($extract as $m) {
+				$argv[] = $m;
 			}
 			$r = self::run($argv);
 			if (($r['code'] ?? 1) !== 0) {
@@ -484,28 +585,206 @@ final class KloxoBackup
 		if ($type === 'tgz') {
 			array_splice($argv, 1, 0, '-z');
 		}
-		$needWild = false;
-		$clean = array();
-		foreach ($members as $m) {
-			$m = str_replace(array(';', "\n", "\0"), '', $m);
-			if ($m === '') {
-				continue;
-			}
-			if (str_contains($m, '*')) {
-				$needWild = true;
-			}
-			$clean[] = $m;
-		}
-		if ($needWild) {
-			$argv[] = '--wildcards';
-		}
-		foreach ($clean as $m) {
+		$argv[] = '--';
+		foreach ($extract as $m) {
 			$argv[] = $m;
 		}
 		$r = self::run($argv);
 		if (($r['code'] ?? 1) !== 0) {
 			throw new KloxoBackupException('could not untar ' . basename($archive));
 		}
+	}
+
+	/**
+	 * @return list<array{name:string,link:bool}>
+	 */
+	public static function listArchiveMembers(string $archive): array
+	{
+		$type = self::archiveType($archive);
+		if ($type === 'zip') {
+			return self::listZipMembers($archive);
+		}
+
+		return self::listTarMembers($archive, $type === 'tgz');
+	}
+
+	/** @return list<array{kind:string,name:string}> */
+	public static function serializedClasses(string $raw): array
+	{
+		$out = array();
+		$i = 0;
+		$n = strlen($raw);
+		while ($i < $n) {
+			while ($i < $n && ($raw[$i] === '{' || $raw[$i] === '}' || $raw[$i] === ';' || $raw[$i] === ':')) {
+				$i++;
+			}
+			if ($i >= $n) {
+				break;
+			}
+			$t = $raw[$i];
+			if ($t === 'N') {
+				$i++;
+				continue;
+			}
+			if ($t === 'R' || $t === 'r' || $t === 'i' || $t === 'd' || $t === 'b') {
+				$semi = strpos($raw, ';', $i);
+				if ($semi === false) {
+					break;
+				}
+				$i = $semi + 1;
+				continue;
+			}
+			if ($t === 's' && ($raw[$i + 1] ?? '') === ':') {
+				if (preg_match('/\Gs:(\d+):"/', $raw, $m, 0, $i) !== 1) {
+					throw new KloxoBackupException('backup file corrupted');
+				}
+				$len = (int) $m[1];
+				$start = $i + strlen($m[0]);
+				if ($start + $len > $n) {
+					throw new KloxoBackupException('backup file corrupted');
+				}
+				$i = $start + $len;
+				if ($i < $n && $raw[$i] === '"') {
+					$i++;
+				}
+				continue;
+			}
+			if ($t === 'a' && preg_match('/\Ga:\d+:{/', $raw, $m, 0, $i) === 1) {
+				$i += strlen($m[0]);
+				continue;
+			}
+			if (($t === 'O' || $t === 'C' || $t === 'E') && ($raw[$i + 1] ?? '') === ':') {
+				if (preg_match('/\G[OCE]:(\d+):"/', $raw, $m, 0, $i) !== 1) {
+					throw new KloxoBackupException('backup file corrupted');
+				}
+				$len = (int) $m[1];
+				$start = $i + strlen($m[0]);
+				if ($start + $len > $n) {
+					throw new KloxoBackupException('backup file corrupted');
+				}
+				$name = substr($raw, $start, $len);
+				$i = $start + $len;
+				if ($i < $n && $raw[$i] === '"') {
+					$i++;
+				}
+				$out[] = array('kind' => $t, 'name' => $name);
+				if ($t === 'C' || $t === 'E') {
+					if (preg_match('/\G:(\d+):{/', $raw, $mm, 0, $i) === 1) {
+						$pay = (int) $mm[1];
+						$i += strlen($mm[0]) + $pay;
+					}
+				}
+				continue;
+			}
+			$i++;
+		}
+
+		return $out;
+	}
+
+	public static function isAllowedBackupClass(string $name): bool
+	{
+		if ($name === 'Remote' || $name === 'stdClass') {
+			return true;
+		}
+		if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
+			return false;
+		}
+		$deny = array(
+			'phar', 'pdo', 'sqlite3', 'simplexmlelement', 'splfileobject',
+			'splfileinfo', 'directoryiterator', 'filesystemiterator',
+			'soapclient', 'phpmailer', 'smtp', 'pop3', 'imagick',
+		);
+
+		return !in_array(strtolower($name), $deny, true);
+	}
+
+	/** @return list<array{name:string,link:bool}> */
+	private static function listTarMembers(string $archive, bool $gzip): array
+	{
+		$tar = self::firstExec(array('/usr/bin/tar', '/bin/tar', 'tar'));
+		$bin = $tar !== '' ? $tar : 'tar';
+		$argv = array($bin, '-t', '-f', $archive);
+		if ($gzip) {
+			array_splice($argv, 1, 0, '-z');
+		}
+		$r = self::run($argv, null, null, true);
+		if (($r['code'] ?? 1) !== 0) {
+			throw new KloxoBackupException('could not list ' . basename($archive));
+		}
+		$names = array();
+		foreach (preg_split("/\r\n|\n|\r/", (string) ($r['out'] ?? '')) as $line) {
+			$name = trim($line);
+			if ($name === '' || str_starts_with($name, 'tar:')) {
+				continue;
+			}
+			$names[] = $name;
+		}
+		$links = array();
+		$vArgv = $argv;
+		$tPos = array_search('-t', $vArgv, true);
+		if ($tPos !== false) {
+			$vArgv[$tPos] = '-tv';
+			$vr = self::run($vArgv, null, null, true);
+			if (($vr['code'] ?? 1) === 0) {
+				foreach (preg_split("/\r\n|\n|\r/", (string) ($vr['out'] ?? '')) as $line) {
+					$line = trim($line);
+					if ($line === '' || ($line[0] !== 'l' && $line[0] !== 'h')) {
+						continue;
+					}
+					foreach ($names as $n) {
+						if ($n !== '' && str_contains($line, $n)) {
+							$links[$n] = true;
+						}
+					}
+				}
+			}
+		}
+		$out = array();
+		foreach ($names as $name) {
+			$out[] = array('name' => $name, 'link' => isset($links[$name]));
+		}
+
+		return $out;
+	}
+
+	/** @return list<array{name:string,link:bool}> */
+	private static function listZipMembers(string $archive): array
+	{
+		if (class_exists('ZipArchive')) {
+			$z = new ZipArchive();
+			if ($z->open($archive) === true) {
+				$out = array();
+				for ($i = 0; $i < $z->numFiles; $i++) {
+					$stat = $z->statIndex($i);
+					if (!is_array($stat) || !isset($stat['name'])) {
+						continue;
+					}
+					$name = str_replace('\\', '/', (string) $stat['name']);
+					$mode = isset($stat['external']) ? (((int) $stat['external']) >> 16) : 0;
+					$link = ($mode & 0120000) === 0120000;
+					$out[] = array('name' => $name, 'link' => $link);
+				}
+				$z->close();
+
+				return $out;
+			}
+		}
+		$unzip = self::firstExec(array('/usr/bin/unzip', '/bin/unzip', 'unzip'));
+		$r = self::run(array($unzip !== '' ? $unzip : 'unzip', '-Z1', $archive), null, null, true);
+		if (($r['code'] ?? 1) !== 0) {
+			throw new KloxoBackupException('could not list ' . basename($archive));
+		}
+		$out = array();
+		foreach (preg_split("/\r\n|\n|\r/", (string) ($r['out'] ?? '')) as $line) {
+			$name = str_replace('\\', '/', trim($line));
+			if ($name === '') {
+				continue;
+			}
+			$out[] = array('name' => $name, 'link' => false);
+		}
+
+		return $out;
 	}
 
 	public static function archiveType(string $file): string
@@ -557,7 +836,7 @@ final class KloxoBackup
 	 * @param list<string> $argv
 	 * @return array{code:int,out:string}
 	 */
-	private static function run(array $argv, ?string $stdoutFile = null, ?string $stdinFile = null): array
+	private static function run(array $argv, ?string $stdoutFile = null, ?string $stdinFile = null, bool $stdoutOnly = false): array
 	{
 		if (self::$runCmd !== null) {
 			$r = (self::$runCmd)($argv);
@@ -596,7 +875,9 @@ final class KloxoBackup
 			fclose($pipes[2]);
 		}
 
-		return array('code' => proc_close($p), 'out' => trim($out . "\n" . $err));
+		$combined = $stdoutOnly ? $out : ($out . "\n" . $err);
+
+		return array('code' => proc_close($p), 'out' => trim($combined));
 	}
 
 	/**

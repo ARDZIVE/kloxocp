@@ -65,6 +65,24 @@ if (sshauthorizedkey__sync::authorizedKeysPath('root') === $tmp . '/root/.ssh/au
 		sshauthorizedkey__sync::authorizedKeysPath('root'));
 }
 
+$badUsers = array('../etc', 'alice/../bob', 'alice/foo', "alice\0root", 'alice;root', '/root');
+$rejected = 0;
+foreach ($badUsers as $u) {
+	try {
+		sshauthorizedkey__sync::homeDir($u);
+	} catch (Throwable $e) {
+		if ($e->getMessage() === 'invalid_ssh_username' || str_contains($e->getMessage(), 'SSH user')) {
+			$rejected++;
+		}
+	}
+}
+if ($rejected === count($badUsers)) {
+	ok('homeDir rejects usernames with /, .., NUL or other path characters');
+} else {
+	bad('homeDir rejects usernames with /, .., NUL or other path characters',
+		'rejected ' . (string) $rejected . ' of ' . (string) count($badUsers));
+}
+
 if (sshauthorizedkey__sync::getAuthorizedKey('root') === array()) {
 	ok('missing authorized_keys is an empty list');
 } else {

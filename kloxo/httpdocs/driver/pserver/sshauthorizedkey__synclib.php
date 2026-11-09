@@ -16,26 +16,57 @@ class sshauthorizedkey__sync extends Lxdriverclass
 		'sk-ecdsa-sha2-nistp256@openssh.com',
 	);
 
-	static function homeDir($username)
+	static function validUnixUser($username)
 	{
 		$user = trim((string) $username);
+		if ($user === '' || $user === 'root') {
+			return 'root';
+		}
+		if (str_contains($user, "\0") || str_contains($user, '/') || str_contains($user, '\\')
+			|| str_contains($user, '..')) {
+			self::throwInvalidUnixUser();
+		}
+		if (preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $user) !== 1) {
+			self::throwInvalidUnixUser();
+		}
+
+		return $user;
+	}
+
+	static function homeDir($username)
+	{
+		$user = self::validUnixUser($username);
 		$prefix = (string) self::$fsPrefix;
 		if ($prefix !== '') {
 			$prefix = rtrim($prefix, '/');
 
-			return ($user === '' || $user === 'root') ? ($prefix . '/root') : ($prefix . '/home/' . $user);
+			return $user === 'root' ? ($prefix . '/root') : ($prefix . '/home/' . $user);
 		}
-		if ($user === '' || $user === 'root') {
+		if ($user === 'root') {
 			return '/root';
 		}
 		if (function_exists('posix_getpwnam')) {
 			$p = @posix_getpwnam($user);
-			if (is_array($p) && !empty($p['dir'])) {
-				return (string) $p['dir'];
+			if (is_array($p) && !empty($p['dir']) && is_string($p['dir'])
+				&& !str_contains($p['dir'], "\0")) {
+				$home = rtrim($p['dir'], '/');
+				$real = @realpath($home);
+				if (is_string($real) && $real !== '/' && (str_starts_with($real . '/', '/home/')
+					|| $real === '/root')) {
+					return $real;
+				}
 			}
 		}
 
 		return '/home/' . $user;
+	}
+
+	static function throwInvalidUnixUser()
+	{
+		if (class_exists('lxException')) {
+			throw new lxException('invalid_ssh_username', 'username');
+		}
+		throw new InvalidArgumentException('invalid_ssh_username');
 	}
 
 	static function authorizedKeysPath($username)

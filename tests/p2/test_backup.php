@@ -176,9 +176,103 @@ if ($tarBin !== '') {
 	} else {
 		check(false, 'extractArchive pulls kloxo.file and kloxo.metadata from a tgz', 'could not create sample tgz');
 	}
+	} else {
+		check(true, 'extractArchive skipped (no tar on this host)');
+	}
+
+echo "== tar slip and restore metadata\n";
+check(KloxoBackup::archiveMemberIsSafe('kloxo.file')
+	&& KloxoBackup::archiveMemberIsSafe('client/alice/web')
+	&& !KloxoBackup::archiveMemberIsSafe('../escaped')
+	&& !KloxoBackup::archiveMemberIsSafe('/etc/passwd')
+	&& !KloxoBackup::archiveMemberIsSafe('foo/../../etc/passwd')
+	&& !KloxoBackup::archiveMemberIsSafe("x\0y"),
+	'archiveMemberIsSafe rejects traversal, absolute and NUL');
+$slipDir = $base . '/slipdest';
+@mkdir($slipDir, 0700, true);
+$outside = $base . '/escaped';
+@unlink($outside);
+$slip = $base . '/slip.tgz';
+$py = trim((string) shell_exec('command -v python3'));
+if ($py !== '' && $tarBin !== '') {
+	$pyCode = <<<'PY'
+import tarfile, io, sys
+t = tarfile.open(sys.argv[1], "w:gz")
+i = tarfile.TarInfo("../escaped")
+b = b"pwned"
+i.size = len(b)
+t.addfile(i, io.BytesIO(b))
+t.close()
+PY;
+	$p = @proc_open(array($py, '-c', $pyCode, $slip),
+		array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
+	if (is_resource($p)) {
+		stream_get_contents($pipes[1]);
+		stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		proc_close($p);
+	}
+	$threw = false;
+	try {
+		KloxoBackup::extractArchive($slip, $slipDir);
+	} catch (KloxoBackupException $e) {
+		$threw = true;
+	}
+	check($threw && !is_file($outside) && !is_file($slipDir . '/escaped'),
+		'extractArchive refuses a tar member that escapes the dest dir');
 } else {
-	check(true, 'extractArchive skipped (no tar on this host)');
+	check(true, 'extractArchive tar-slip skipped (no python3 or tar)');
 }
+if (class_exists('ZipArchive')) {
+	$zfile = $base . '/slip.zip';
+	$z = new ZipArchive();
+	if ($z->open($zfile, ZipArchive::CREATE) === true) {
+		$z->addFromString('../escaped', 'pwned');
+		$z->close();
+		$threw = false;
+		try {
+			KloxoBackup::extractArchive($zfile, $slipDir);
+		} catch (KloxoBackupException $e) {
+			$threw = true;
+		}
+		check($threw && !is_file($outside),
+			'extractArchive refuses a zip member that escapes the dest dir');
+	} else {
+		check(true, 'extractArchive zip-slip skipped (could not write zip)');
+	}
+} else {
+	check(true, 'extractArchive zip-slip skipped (no ZipArchive)');
+}
+$okMeta = serialize((object) array('bobject' => 'x', 'version' => '10.1'));
+$got = KloxoBackup::unserializeMetadata($okMeta);
+check(is_object($got) && isset($got->bobject) && $got->bobject === 'x',
+	'unserializeMetadata accepts a stdClass backup object');
+$threw = false;
+try {
+	KloxoBackup::unserializeMetadata('O:29:"GuzzleHttp\\Psr7\\FnStream":0:{}');
+} catch (KloxoBackupException $e) {
+	$threw = true;
+}
+check($threw, 'unserializeMetadata rejects a namespaced gadget class');
+$threw = false;
+try {
+	KloxoBackup::unserializeMetadata('C:4:"Phar":0:{}');
+} catch (KloxoBackupException $e) {
+	$threw = true;
+}
+check($threw, 'unserializeMetadata rejects a Phar custom serializer');
+$threw = false;
+try {
+	KloxoBackup::unserializeMetadata('O:9:"PHPMailer":0:{}');
+} catch (KloxoBackupException $e) {
+	$threw = true;
+}
+check($threw, 'unserializeMetadata rejects PHPMailer');
+$embedded = serialize(array('note' => 'O:4:"Phar":0:{}'));
+$arr = KloxoBackup::unserializeMetadata($embedded);
+check(is_array($arr) && ($arr['note'] ?? '') === 'O:4:"Phar":0:{}',
+	'a gadget string inside a serialized array is not treated as an object');
 
 echo "== File Manager store\n";
 $adminFm = KloxoBackup::ensureDir('client', 'admin');
@@ -244,6 +338,14 @@ check(str_contains($kb, 'function ensureDir')
 	&& str_contains($kb, 'function installFile')
 	&& str_contains($kb, 'chownLxlabs'),
 	'KloxoBackup ensureDir/installFile chown archives to lxlabs');
+check(str_contains($kb, 'function archiveMemberIsSafe')
+	&& str_contains($kb, 'function unserializeMetadata')
+	&& str_contains($kb, 'allowed_classes')
+	&& !str_contains($kb, '--wildcards'),
+	'extract lists members, refuses traversal, no tar wildcards');
+check(str_contains($bak, 'KloxoBackup::unserializeMetadata')
+	&& str_contains((string) file_get_contents($doc . '/lib/html/lib.php'), 'KloxoBackup::unserializeMetadata'),
+	'restore metadata does not raw-unserialize kloxo.file');
 check(str_contains($bak, '$this->write();')
 	&& strpos($bak, '$this->write();') < strpos($bak, 'execbackupphp'),
 	'Backup Now writes the lxbackup row before starting backup.php');

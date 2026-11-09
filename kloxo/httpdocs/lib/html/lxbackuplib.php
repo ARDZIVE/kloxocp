@@ -163,10 +163,18 @@ class lxbackup extends Lxdb
 		}
 
 		$raw = file_get_contents($filename);
-		$rem = is_string($raw) && $raw !== '' ? @unserialize($raw) : false;
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+		}
+		try {
+			$rem = is_string($raw) && $raw !== '' ? KloxoBackup::unserializeMetadata($raw) : false;
+		} catch (Throwable $e) {
+			lxfile_tmp_rm_rec($tmpdir);
+			throw new lxException($login->getThrow('backup_file_corrupted'), '', $filename);
+		}
 		lxfile_tmp_rm_rec($tmpdir);
 
-		if (!$rem) {
+		if (!is_object($rem)) {
 			throw new lxException($login->getThrow('backup_file_corrupted'), '', $filename);
 		}
 

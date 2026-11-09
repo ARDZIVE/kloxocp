@@ -522,6 +522,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     reads and writes `/root/.ssh/authorized_keys` (a client uses that Unix
     user's `~/.ssh/authorized_keys`) via kloxo-backend; Add appends a pasted
     public key; the form does not run `ssh-keygen` or write `~/.ssh/config`.
+    `homeDir()` / `unixUser()` accept only `root` or
+    `^[A-Za-z_][A-Za-z0-9_-]{0,31}$` (no `/`, `..`, or NUL).
     Tested: `tests/p2/test_sshauthorizedkey.php`. Live add/list after deploy
     is **UNVERIFIED**.     Ubuntu Services uses
     `Service__Debian::getServiceDetails` and `systemctl` for
@@ -830,8 +832,14 @@ Work in this order. Keep every change small, tested and committed separately. Do
     directory (`/home/kloxo/client/<name>/__backup/`, `KloxoBackup::ensureDir`
     / `installFile`, chown `lxlabs`); Restore From File reads that same folder.
     Backup Now waits for `backup.php` (`KloxoBackup::runBackup`) and sets Last
-    Backup Status to `done` or the failure; it is not scheduled. Tested:
-    `tests/p2/test_backup.php` (fakes + a local tar + File Manager store). Live
+    Backup Status to `done` or the failure; it is not scheduled.
+    `extractArchive` lists members and refuses `../`, absolute paths and
+    option-like names (no tar `--wildcards`); symlink members are skipped.
+    Restore metadata (`getMetaData`, `getObjectFromFileWithThrow`) uses
+    `KloxoBackup::unserializeMetadata` (`allowed_classes` of Remote / stdClass
+    / first-party identifiers; namespaced classes, Phar/`C:` and PHPMailer
+    rejected). Tested: `tests/p2/test_backup.php` (fakes + a local tar + File
+    Manager store + crafted tar/zip slip + gadget unserialize). Live
     Backup Now / Restore From File / File Manager listing after deploy is
     **UNVERIFIED**.
    Mail Server Settings has exactly three content tabs **Mail Server Settings**

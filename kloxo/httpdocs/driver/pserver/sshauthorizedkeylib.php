@@ -16,23 +16,23 @@ class sshauthorizedkey extends lxclass
 
 	static function unixUser($parent)
 	{
-		if (!is_object($parent)) {
-			return 'root';
-		}
-		if (isset($parent->username) && is_string($parent->username) && $parent->username !== '') {
-			return $parent->username;
-		}
-		try {
-			if (method_exists($parent, 'getClass') && $parent->getClass() === 'pserver') {
-				return 'root';
+		$name = 'root';
+		if (is_object($parent)) {
+			if (isset($parent->username) && is_string($parent->username) && $parent->username !== '') {
+				$name = $parent->username;
+			} else {
+				$isServer = false;
+				try {
+					$isServer = method_exists($parent, 'getClass') && $parent->getClass() === 'pserver';
+				} catch (Throwable $e) {
+				}
+				if (!$isServer && isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+					$name = $parent->nname;
+				}
 			}
-		} catch (Throwable $e) {
-		}
-		if (isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
-			return $parent->nname;
 		}
 
-		return 'root';
+		return sshauthorizedkey__sync::validUnixUser($name);
 	}
 
 	static function createListAlist($parent, $class)

@@ -2264,9 +2264,17 @@ function getObjectFromFileWithThrow($file)
 {
 	global $login;
 
-	$rem = unserialize(lfile_get_contents($file));
+	$raw = lfile_get_contents($file);
+	if (!class_exists('KloxoBackup', false)) {
+		include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+	}
+	try {
+		$rem = is_string($raw) && $raw !== '' ? KloxoBackup::unserializeMetadata($raw) : false;
+	} catch (Throwable $e) {
+		throw new lxException($login->getThrow('corrupted_file'), '', $file);
+	}
 
-	if (!$rem) {
+	if (!is_object($rem)) {
 		throw new lxException($login->getThrow('corrupted_file'), '', $file);
 	}
 

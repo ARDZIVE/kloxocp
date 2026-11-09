@@ -171,9 +171,11 @@ and Upload under Backup create `__backup/` locally if kloxo-backend is down, kee
 `ttype=directory` for `/`, and the address bar is `(Backup / Restore: …) /`.
 Schedule privilege is read from the parent client (`checkButton`). Backup Now /
 Restore for admin and client go through `KloxoBackup` (absolute backup.php /
-restore.php, argument-array mysqldump, `/var/vmail` mail packs, Ubuntu
+restore.php, argument-array mysqldump, `/var/vmail` mail     packs, Ubuntu
 `www-data` on restore; PHP 8 `unbackup` constant and null fileserv crashes
-fixed). Backup Now writes the archive into the same `__backup/` directory the
+fixed). Restore lists archive members and refuses `../` / absolute paths
+(`KloxoBackup::extractArchive`); `kloxo.file` is unserialized with an
+allow-list (`unserializeMetadata`), not a raw `unserialize`. Backup Now writes the archive into the same `__backup/` directory the
 File Manager tab lists (`KloxoBackup::ensureDir` / `installFile`, owned by
 `lxlabs`); Restore From File picks from that folder. Backup Now waits for
 `backup.php` (`KloxoBackup::runBackup`) and then sets Last Backup Status to
@@ -183,7 +185,7 @@ File Manager listing after deploy is UNVERIFIED. LxGuard first beige tab is **Lx
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend
-(no Java applet, no NOPASSWD sudoers). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). HelpDesk ticket show skips Find and lists Switch To Another. SSH Authorized Keys under localhost lists `/root/.ssh/authorized_keys` (via kloxo-backend); Add pastes a public key and appends; it does not generate keys or write `~/.ssh/config` (`tests/p2/test_sshauthorizedkey.php`; live UNVERIFIED). List/driver calls guard a missing
+(no Java applet, no NOPASSWD sudoers). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). HelpDesk ticket show skips Find and lists Switch To Another. SSH Authorized Keys under localhost lists `/root/.ssh/authorized_keys` (via kloxo-backend); Add pastes a public key and appends; it does not generate keys or write `~/.ssh/config`; Unix usernames are restricted (`^[A-Za-z_][A-Za-z0-9_-]{0,31}$`, no `/` or `..`) (`tests/p2/test_sshauthorizedkey.php`; live UNVERIFIED). List/driver calls guard a missing
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.
