@@ -270,5 +270,34 @@ if ($childErr === null && is_array($childForm) && isset($childForm['disable_per'
 		$childErr instanceof Throwable ? $childErr->getMessage() : var_export($childForm, true));
 }
 
+global $ghtml;
+if (!is_object($ghtml) && class_exists('HtmlLib')) {
+	$ghtml = new HtmlLib();
+}
+if (is_object($ghtml)) {
+	$ghtml->frm_subaction = 'disable_per';
+}
+$tabClient = new Client(null, 'localhost', 'admin');
+$tabProps = array('property' => array());
+$tabClient->createShowPropertyList($tabProps);
+$want = class_exists('Lxclient') && is_callable(array('Lxclient', 'disablePolicyPropertyTabs'))
+	? Lxclient::disablePolicyPropertyTabs() : array();
+if (($tabProps['property'] ?? null) === $want && count($want) === 1
+	&& ($want[0] ?? '') === 'a=updateform&sa=disable_per') {
+	ok('Disable Policy has exactly one tab');
+} else {
+	bad('Disable Policy has exactly one tab', var_export($tabProps, true));
+}
+$desc = (string) file_get_contents($doc . '/lang/en-us/desclib.php');
+$core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$cliSrc = (string) file_get_contents($doc . '/lib/client/clientlib.php');
+if (str_contains($desc, '"Disable Policy"')
+	&& str_contains($core, 'disablePolicyPropertyTabs')
+	&& str_contains($cliSrc, "frm_subaction === 'disable_per'")) {
+	ok('Disable Policy tab label is Disable Policy and is forced on that page');
+} else {
+	bad('Disable Policy tab label is Disable Policy and is forced on that page');
+}
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

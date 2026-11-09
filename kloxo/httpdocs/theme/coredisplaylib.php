@@ -754,6 +754,17 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = General::generalPropertyTabs();
 	}
 
+	$disablePolicyForced = false;
+	if (($class === 'client' || $class === 'lxclient') && $sa === 'disable_per'
+		&& class_exists('Lxclient') && is_callable(array('Lxclient', 'disablePolicyPropertyTabs'))) {
+		$prlist['property'] = Lxclient::disablePolicyPropertyTabs();
+		$disablePolicyForced = true;
+	} elseif ($class === 'general' && $sa === 'disableper'
+		&& class_exists('General') && is_callable(array('General', 'disablePolicyPropertyTabs'))) {
+		$prlist['property'] = General::disablePolicyPropertyTabs();
+		$disablePolicyForced = true;
+	}
+
 	if ($class === 'sshconfig' && class_exists('sshconfig') && is_callable(array('sshconfig', 'sshconfigPropertyTabs'))) {
 		$prlist['property'] = sshconfig::sshconfigPropertyTabs();
 	}
@@ -836,7 +847,7 @@ function kloxo_print_object_property_tabs($object)
 		&& $class !== 'lxguard' && $class !== 'ufwfirewall' && $class !== 'fail2ban'
 		&& $class !== 'lxbackup' && !$isBackupPage && !$backupUrl
 		&& $class !== 'servermail' && $class !== 'mail_graylist_wlist_a' && !$mailUrl
-		&& !$generalForced) {
+		&& !$generalForced && !$disablePolicyForced) {
 		$parent = (is_object($object) && method_exists($object, 'getParentO'))
 			? $object->getParentO() : null;
 		if (is_object($parent) && method_exists($parent, 'createShowPropertyList')) {

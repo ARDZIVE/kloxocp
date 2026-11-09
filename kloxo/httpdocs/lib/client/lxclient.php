@@ -71,6 +71,13 @@ abstract class Lxclient extends Lxdb
 	static $__acdesc_update_login_options = array("", "", "login_options");
 	static $__acdesc_update_demo_status = array("", "", "demo_status");
 	static $__acdesc_update_disable_per = array("", "", "disable_policy");
+
+	static function disablePolicyPropertyTabs()
+	{
+		return array(
+			'a=updateform&sa=disable_per',
+		);
+	}
 	static $__acdesc_update_miscinfo = array("", "", "details");
 	static $__acdesc_update_resendwelcome = array("", "", "resend_welcome_message");
 	static $__acdesc_update_dologin = array("", "", "login_as");

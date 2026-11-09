@@ -185,6 +185,8 @@ class Client extends ClientBase
 			$alist['property'][] = "a=updateform&sa=login_options&o=sp_specialplay";
 		} elseif ($ghtml->frm_subaction === 'limit') {
 			$alist['property'][] = "a=updateform&sa=limit";
+		} elseif ($ghtml->frm_subaction === 'disable_per') {
+			$alist['property'] = Lxclient::disablePolicyPropertyTabs();
 		} elseif ($ghtml->frm_subaction === 'dnstemplatelist') {
 			$alist['property'][] = "a=updateform&sa=dnstemplatelist";
 		} elseif ($ghtml->frm_subaction === 'custombutton') {

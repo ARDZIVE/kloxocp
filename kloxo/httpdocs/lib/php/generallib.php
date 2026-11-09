@@ -179,6 +179,13 @@ class General extends Lxdb
 		);
 	}
 
+	static function disablePolicyPropertyTabs()
+	{
+		return array(
+			'a=updateform&sa=disableper',
+		);
+	}
+
 //Lists
 
 	function createExtraVariables()
@@ -240,6 +247,12 @@ class General extends Lxdb
 
 		if ($ghtml->frm_subaction === 'generalsetting') {
 			$alist['property'] = self::generalPropertyTabs();
+
+			return $alist;
+		}
+
+		if ($ghtml->frm_subaction === 'disableper') {
+			$alist['property'] = self::disablePolicyPropertyTabs();
 
 			return $alist;
 		}

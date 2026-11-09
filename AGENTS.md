@@ -241,7 +241,7 @@ on the list page; there is no separate Add Server tab. Adding a domain no longer
 account when usage reaches the percentage: General Disable Percentage
 (`dpercentage`, default 110) unless the account/plan sets Disable When Usage
 Reaches (`disable_per`, including `off`); Notify Policy (`npercentage`, default
-90) is the warning. Admin Home → Disable Policy is that panel-wide percentage
+90) is the warning. Admin Home → Disable Policy is that panel-wide percentage (exactly one beige tab **Disable Policy**)
 (plus Disable notify), not `can_not_set_own_limit`; a customer opening it on
 themselves still cannot set their own tripwire. `collectquota` uses
 `kloxo_quota_policy_check` (PHP 8-safe; `tests/p2/test_disable_policy.php`). Live

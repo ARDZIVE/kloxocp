@@ -508,7 +508,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Reaches (`disable_per`, including `off`). Notify Policy
     (`npercentage`, default 90) is the warning. Admin Home → Disable
     Policy is that panel-wide percentage plus Disable notify (admin is
-    never auto-disabled); a customer opening Disable Policy on
+    never auto-disabled); the page has exactly one beige tab
+    **Disable Policy** (`Lxclient::disablePolicyPropertyTabs`); a customer opening Disable Policy on
     themselves still gets `can_not_set_own_limit`. `collectquota` uses
     `kloxo_quota_policy_check` (PHP 8-safe string quotas). Tested:
     `tests/p2/test_disable_policy.php`. Live collectquota / admin
