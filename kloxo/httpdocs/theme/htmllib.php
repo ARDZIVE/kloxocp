@@ -1575,6 +1575,15 @@ class HtmlLib
 		if (!isset($descr['help'])) {
 			$descr['help'] = $descr[2];
 		}
+		$labelUrl = is_string($url) ? $url : $resolvedHref;
+		if (function_exists('kloxo_content_tab_label') && function_exists('kloxo_url_subaction')
+			&& kloxo_url_subaction($labelUrl) === 'phpinfo') {
+			$mapped = kloxo_content_tab_label((string) $descr[2], $labelUrl);
+			if ($mapped !== '') {
+				$descr[2] = $mapped;
+				$descr['desc'] = $mapped;
+			}
+		}
 
 		$this->save_non_existant_image($image);
 

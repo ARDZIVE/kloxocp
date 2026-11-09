@@ -3715,6 +3715,8 @@ if ($tpPi === null
 	&& str_contains($domSrcPi, 'n=web&a=show&sa=phpinfo')
 	&& !str_contains($domSrcPi, 'n=web&a=update&sa=phpinfo')
 	&& str_contains($webSrcPi, 'function phpInfoText')
+	&& str_contains($webSrcPi, 'function phpInfoHtml')
+	&& str_contains($webSrcPi, '__acdesc_show_phpinfo')
 	&& str_contains($webSrcPi, 'proc_open')
 	&& str_contains($webSrcPi, "a=show&sa=phpinfo")
 	&& !str_contains($webSrcPi, '__kloxo/phpinfo.php')
@@ -3722,16 +3724,30 @@ if ($tpPi === null
 	&& $tabPiUpdate === 'PHPinfo'
 	&& kloxo_skip_find_class('web')
 	&& $piErr === ''
-	&& str_contains($htmlPi, '<pre')
+	&& str_contains($htmlPi, 'kloxo-phpinfo')
+	&& str_contains($htmlPi, '<table')
 	&& str_contains($htmlPi, 'Site PHP')
+	&& !str_contains($htmlPi, '<pre')
 	&& !str_contains($htmlPi, 'Critical internal error')) {
-	ok('Client PHPinfo shows site php -i instead of parent_clname fatal');
+	ok('Client PHPinfo tile is PHPinfo and the page is HTML');
 } else {
-	bad('Client PHPinfo shows site php -i instead of parent_clname fatal',
+	bad('Client PHPinfo tile is PHPinfo and the page is HTML',
 		'tp=' . var_export($tpPi, true) . ' gp=' . var_export($gpPi, true)
 			. ' tab=' . $tabPi . ' err=' . $piErr
 			. ' html=' . substr(trim(preg_replace('/\s+/', ' ', $htmlPi)), 0, 180)
 			. ' fatal=' . substr($fatalPi, 0, 80));
+}
+$convPi = Web::phpInfoTextToHtml("phpinfo()\nPHP Version => <script>alert(1)</script>\nCore\nallow_url_fopen => On => On");
+$fragPi = Web::phpInfoCgiToFragment('<html><body><script>x()</script><table><tr><td>OK</td></tr></table></body></html>');
+if (str_contains($convPi, '&lt;script&gt;')
+	&& !str_contains($convPi, '<script>')
+	&& str_contains($convPi, '<h2>Core</h2>')
+	&& str_contains($fragPi, '<table')
+	&& !str_contains($fragPi, '<script')) {
+	ok('PHPinfo HTML conversion escapes text and keeps phpinfo tables');
+} else {
+	bad('PHPinfo HTML conversion escapes text and keeps phpinfo tables',
+		substr(preg_replace('/\s+/', ' ', $convPi . ' | ' . $fragPi), 0, 200));
 }
 
 $coErr = '';

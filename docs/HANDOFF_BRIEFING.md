@@ -316,8 +316,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `getTrueParentO` / `getParentO` treat `client-admin` as root
     (`isRootClient`: cttype admin, `isAdmin()`, or client nname
     `admin`) and never print `no parent_clname`. Client PHPinfo is
-    in-panel `n=web&a=show&sa=phpinfo` (`php -i` of the site PHP
-    via argument-array `proc_open`); old `a=update&sa=phpinfo`
+    in-panel `n=web&a=show&sa=phpinfo` (HTML: `php-cgi -i` when present,
+    else `php -i` rendered as tables; Domain Home tile label **PHPinfo**,
+    `__acdesc_show_phpinfo`); old `a=update&sa=phpinfo`
     redirects there. Live PHPinfo after deploy is **UNVERIFIED**.
     `init-panel-db` seeds `/home/admin`. Mail To on Cron
     Tasks does not sync the client/pserver through that socket; crontab
@@ -443,8 +444,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     memory only (no `write()` / `setUpdateSubaction`), so `login->was()`
     does not sync the zone after a GET. Record lists skip non-objects;
     `do_list_class` on show is try/caught. Live Manage DNS after deploy is **UNVERIFIED**.
-    Client PHPinfo (`n=web&a=show&sa=phpinfo`) prints site `php -i`
-    in the beige PHPinfo tab; `Web::createExtraVariables` is null-safe
+    Client PHPinfo (`n=web&a=show&sa=phpinfo`) prints site PHP as HTML
+    in the beige PHPinfo tab (Domain Home **web** tile is labelled
+    **PHPinfo**); `Web::createExtraVariables` is null-safe
     when the true parent is the admin client. Live PHPinfo after deploy is **UNVERIFIED**.
     Change Owner (`a=updateform&sa=changeowner`) lists candidate clients
     without calling methods on a null parent; `getList` failures fall

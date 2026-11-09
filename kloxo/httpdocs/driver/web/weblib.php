@@ -374,6 +374,7 @@ class Web extends Lxdb
 	static $__acdesc_update_hotlink_protection = array("", "", "hotlink_protection");
 	static $__acdesc_update_extra_tag = array("", "", "add_extra_tags");
 	static $__acdesc_update_phpinfo = array("", "", "phpinfo");
+	static $__acdesc_show_phpinfo = array("", "", "phpinfo");
 	static $__acdesc_update_docroot = array("", "", "document_root");
 	static $__acdesc_update_run_stats = array("", "", "run_stats");
 	static $__acdesc_update_lighty_rewrite = array("", "", "lighttpd_rewrite_rule");
@@ -1108,24 +1109,144 @@ class Web extends Lxdb
 
 	function phpInfoText()
 	{
-		$bin = $this->phpInfoBinary();
+		$out = $this->runPhpInfoCommand(array($this->phpInfoBinary(), '-d', 'display_errors=0', '-i'));
+
+		return $out !== '' ? $out : 'phpinfo produced no output.';
+	}
+
+	function phpInfoCgiBinary()
+	{
+		$cli = $this->phpInfoBinary();
+		$cands = array();
+		if (preg_match('/php(\d+\.\d+)$/', $cli, $m) === 1) {
+			$cands[] = '/usr/bin/php-cgi' . $m[1];
+			$cands[] = '/usr/lib/cgi-bin/php' . $m[1];
+		}
+		$dir = dirname($cli);
+		$base = basename($cli);
+		$cands[] = $dir . '/' . str_replace('php', 'php-cgi', $base);
+		$cands[] = $dir . '/php-cgi';
+		$cands[] = '/usr/bin/php-cgi';
+		$seen = array();
+		foreach ($cands as $bin) {
+			if ($bin === '' || isset($seen[$bin])) {
+				continue;
+			}
+			$seen[$bin] = true;
+			if (is_executable($bin)) {
+				return $bin;
+			}
+		}
+
+		return '';
+	}
+
+	function phpInfoHtml()
+	{
+		$cgi = $this->phpInfoCgiBinary();
+		if ($cgi !== '') {
+			$raw = $this->runPhpInfoCommand(array($cgi, '-d', 'display_errors=0', '-i'));
+			$frag = self::phpInfoCgiToFragment($raw);
+			if ($frag !== '') {
+				return $frag;
+			}
+		}
+
+		return self::phpInfoTextToHtml($this->phpInfoText());
+	}
+
+	function runPhpInfoCommand($argv)
+	{
+		if (!is_array($argv) || $argv === array()) {
+			return '';
+		}
+		$bin = (string) ($argv[0] ?? '');
 		if ($bin === '' || !is_executable($bin)) {
-			return 'PHP binary not found.';
+			return '';
 		}
 		$p = @proc_open(
-			array($bin, '-d', 'display_errors=0', '-i'),
-			array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
+			$argv,
+			array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
 			$pipes
 		);
 		if (!is_resource($p)) {
-			return 'Could not run phpinfo.';
+			return '';
 		}
 		$out = stream_get_contents($pipes[1]);
 		fclose($pipes[1]);
-		fclose($pipes[2]);
+		if (isset($pipes[2]) && is_resource($pipes[2])) {
+			stream_get_contents($pipes[2]);
+			fclose($pipes[2]);
+		}
 		proc_close($p);
 
-		return is_string($out) && $out !== '' ? $out : 'phpinfo produced no output.';
+		return is_string($out) ? $out : '';
+	}
+
+	static function phpInfoCgiToFragment($html)
+	{
+		$raw = is_string($html) ? $html : '';
+		if ($raw === '' || (stripos($raw, '<table') === false && stripos($raw, '<body') === false)) {
+			return '';
+		}
+		$style = '';
+		if (preg_match('/<style\b[^>]*>(.*?)<\/style>/is', $raw, $sm) === 1) {
+			$style = '<style>' . $sm[1] . '</style>';
+		}
+		$body = $raw;
+		if (preg_match('/<body\b[^>]*>(.*)<\/body>/is', $raw, $bm) === 1) {
+			$body = $bm[1];
+		}
+		$body = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $body);
+		$allow = '<table><tbody><thead><tr><td><th><h1><h2><h3><a><img><hr><br><p><i><b><u><font><div><span><style>';
+		$body = strip_tags((string) $body, $allow);
+
+		return '<div class="kloxo-phpinfo">' . $style . $body . '</div>';
+	}
+
+	static function phpInfoTextToHtml($text)
+	{
+		$lines = preg_split("/\r\n|\n|\r/", is_string($text) ? $text : '');
+		if (!is_array($lines)) {
+			$lines = array();
+		}
+		$out = array('<div class="kloxo-phpinfo"><table>');
+		$inTable = true;
+		$close = static function () use (&$inTable, &$out): void {
+			if ($inTable) {
+				$out[] = '</table>';
+				$inTable = false;
+			}
+		};
+		$open = static function () use (&$inTable, &$out): void {
+			if (!$inTable) {
+				$out[] = '<table>';
+				$inTable = true;
+			}
+		};
+		foreach ($lines as $line) {
+			$line = rtrim((string) $line, "\r");
+			$trim = trim($line);
+			if ($trim === '' || $trim === 'phpinfo()') {
+				continue;
+			}
+			if (!str_contains($line, '=>')) {
+				$close();
+				$out[] = '<h2>' . htmlspecialchars($trim, ENT_QUOTES) . '</h2>';
+				continue;
+			}
+			$open();
+			$parts = array_map('trim', explode('=>', $line, 3));
+			$out[] = '<tr>';
+			foreach ($parts as $p) {
+				$out[] = '<td>' . htmlspecialchars($p, ENT_QUOTES) . '</td>';
+			}
+			$out[] = '</tr>';
+		}
+		$close();
+		$out[] = '</div>';
+
+		return implode('', $out);
 	}
 
 	function showRawPrint($subaction = null)
@@ -1134,11 +1255,19 @@ class Web extends Lxdb
 			return;
 		}
 		$bin = htmlspecialchars($this->phpInfoBinary(), ENT_QUOTES);
-		$text = htmlspecialchars($this->phpInfoText(), ENT_QUOTES);
+		$html = $this->phpInfoHtml();
 		echo '<div style="padding:12px 16px 24px;text-align:left">';
 		echo '<p style="margin:0 0 8px">Site PHP: <code>' . $bin . '</code></p>';
-		echo '<pre style="margin:0;white-space:pre-wrap;font-size:12px;line-height:1.35">'
-			. $text . '</pre></div>';
+		echo '<style type="text/css">'
+			. '.kloxo-phpinfo{font:13px/1.35 sans-serif;color:#222}'
+			. '.kloxo-phpinfo table{border-collapse:collapse;width:100%;margin:0 0 16px}'
+			. '.kloxo-phpinfo td,.kloxo-phpinfo th{border:1px solid #ccc;padding:4px 8px;vertical-align:top}'
+			. '.kloxo-phpinfo td:first-child{font-weight:bold;width:30%}'
+			. '.kloxo-phpinfo h1,.kloxo-phpinfo h2{font:bold 15px sans-serif;margin:16px 0 8px;'
+			. 'background:#9999cc;color:#fff;padding:6px 8px}'
+			. '</style>';
+		echo $html;
+		echo '</div>';
 	}
 
 	static function createSession($ar)
