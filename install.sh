@@ -923,14 +923,13 @@ fi
 prepare_knot
 ensure_installer_php
 
-# Re-running the installer on an existing panel must not reset a password the
-# owner already changed: keep it unless KLOXO_ADMIN_PASSWORD is given.
+# Re-running the installer on an existing panel must not reset the admin UI
+# password. The login hash lives in panel.sqlite (not MariaDB kloxo.client).
+# Keep it unless KLOXO_ADMIN_PASSWORD is given.
 keep_admin=0
-if [[ -z "${KLOXO_ADMIN_PASSWORD:-}" && -s "$ROOT/etc/conf/kloxo.pass" ]]; then
-  # only when an admin row really exists (not a half-finished first install)
-  if [[ "$(mariadb -N -B -e "SELECT COUNT(*) FROM kloxo.client WHERE nname='admin'" 2>/dev/null || true)" == "1" ]]; then
-    keep_admin=1
-  fi
+if [[ -z "${KLOXO_ADMIN_PASSWORD:-}" ]] \
+  && [[ -s /var/lib/kloxo/panel.sqlite || -s "$ROOT/var/lib/kloxo/panel.sqlite" ]]; then
+  keep_admin=1
 fi
 admin_env="${KLOXO_ADMIN_PASSWORD:-admin}"
 if [[ "$admin_env" != "admin" && ${#admin_env} -lt 8 ]]; then
@@ -938,8 +937,8 @@ if [[ "$admin_env" != "admin" && ${#admin_env} -lt 8 ]]; then
 fi
 if [[ "$keep_admin" -eq 1 ]]; then
   log "existing install: keeping the current admin password (set KLOXO_ADMIN_PASSWORD to change it)"
-  KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
-      --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --keep-admin-password --db-rootuser=root
+  php "$ROOT/bin/install/init-panel-db" \
+      --root="$ROOT" --keep-admin-password --db-rootuser=root
 else
   install -d -m 0700 /root
   printf '%s\n' "$admin_env" > /root/kloxo-admin-password

@@ -388,10 +388,12 @@ sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Time
 ```
 
 A re-run on an existing panel **keeps the current admin password** (the
-installer prints "unchanged"). Set `KLOXO_ADMIN_PASSWORD='...'` (at least 8
-characters) on the `sudo` call only when you want to change it. A first
-install, or a half-finished one with no admin row, still seeds `admin` /
-`admin` (the UI then requires a change).
+installer prints "unchanged") when `/var/lib/kloxo/panel.sqlite` already
+exists. It does not look at MariaDB `kloxo.client`. Set
+`KLOXO_ADMIN_PASSWORD='...'` (at least 8 characters) on the `sudo` call
+only when you want to change it. A first install, or a half-finished one
+with no SQLite file, still seeds `admin` / `admin` (the UI then requires
+a change).
 
 `raw.githubusercontent.com` can serve a cached copy for a few minutes after a
 push. The command appends `?nocache=<unix time>` to the URL so each run asks

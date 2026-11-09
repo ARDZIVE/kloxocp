@@ -219,8 +219,9 @@ rows if they are missing.
 Admin UI password: omitted flags seed the well-known default admin/admin
 (must be changed after first login). Override with --admin-password-env=VAR
 (preferred) or --admin-password= (visible in ps). Custom passwords must be
-at least 8 characters. With --keep-admin-password an existing admin row keeps
-its current password (re-runs and updates); a missing admin row is still
+at least 8 characters. An existing admin row keeps its current password unless
+a new one is given (--admin-password-env / --admin-password). --keep-admin-password
+does the same even when a dummy password is passed. A missing admin row is still
 created with the password above.
 
 Also seeds the database administrator row (dbadmin, mysql___localhost) with the
@@ -786,11 +787,23 @@ TXT;
         }
     }
 
+    private function wantKeepAdminPassword(int $existing): bool
+    {
+        if ($existing < 1) {
+            return false;
+        }
+        if (isset($this->opt['keep-admin-password'])) {
+            return true;
+        }
+        // Re-run with no new password given: never clobber the live hash.
+        return !isset($this->opt['admin-password']) && !isset($this->opt['admin-password-env']);
+    }
+
     private function seedAdmin(PDO $pdo, string $adminPass): void
     {
         $n = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
         $hash = $this->md5Crypt($adminPass);
-        if ($n > 0 && isset($this->opt['keep-admin-password'])) {
+        if ($this->wantKeepAdminPassword($n)) {
             // Re-run on an existing install: do not reset a password the
             // owner already changed.
             $pdo->exec(

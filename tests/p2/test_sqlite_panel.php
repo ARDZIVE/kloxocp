@@ -78,6 +78,45 @@ check((int) $live->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->f
 	&& (string) $live->query("SELECT dbadmin_name FROM dbadmin WHERE nname = 'mysql___localhost'")->fetchColumn() === 'kloxo_pma',
 	'seeded admin, general, localhost and dbadmin rows');
 
+$hash0 = (string) $live->query("SELECT password FROM client WHERE nname = 'admin'")->fetchColumn();
+$reopen = static function () use ($panelFile) {
+	if (class_exists('KloxoStore', false)) {
+		KloxoStore::resetPool();
+	}
+
+	return KloxoSqlite::open($panelFile);
+};
+$runDb = static function (array $extra) use ($repo, $tmp): array {
+	$cmd = array_merge(
+		array(PHP_BINARY, $repo . '/kloxo/bin/install/init-panel-db', '--root=' . $tmp, '--sqlite-only'),
+		$extra
+	);
+	$p = proc_open($cmd, array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
+	$out = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+	fclose($pipes[1]);
+	fclose($pipes[2]);
+
+	return array(proc_close($p), $out);
+};
+putenv('KLOXO_ADMIN_PASSWORD=admin');
+[$rcKeep, $outKeep] = $runDb(array('--keep-admin-password', '--admin-password-env=KLOXO_ADMIN_PASSWORD'));
+$live = $reopen();
+$hashKeep = (string) $live->query("SELECT password FROM client WHERE nname = 'admin'")->fetchColumn();
+check($rcKeep === 0 && $hashKeep === $hash0 && $hash0 !== '',
+	're-run with --keep-admin-password does not reset the admin hash', $outKeep);
+[$rcBare, $outBare] = $runDb(array());
+$live = $reopen();
+$hashBare = (string) $live->query("SELECT password FROM client WHERE nname = 'admin'")->fetchColumn();
+check($rcBare === 0 && $hashBare === $hash0,
+	're-run with no password flags keeps the existing admin hash', $outBare);
+putenv('KLOXO_ADMIN_PASSWORD=Changed9x');
+[$rcSet, $outSet] = $runDb(array('--admin-password-env=KLOXO_ADMIN_PASSWORD'));
+$live = $reopen();
+$hashSet = (string) $live->query("SELECT password FROM client WHERE nname = 'admin'")->fetchColumn();
+check($rcSet === 0 && $hashSet !== $hash0 && $hashSet !== '',
+	'explicit KLOXO_ADMIN_PASSWORD still updates the admin hash', $outSet);
+putenv('KLOXO_ADMIN_PASSWORD');
+
 putenv('KLOXO_ROOT=' . $tmp);
 $_SERVER['DOCUMENT_ROOT'] = $tmp . '/httpdocs';
 // The panel tree's include.php still points at the real program root via KLOXO_ROOT

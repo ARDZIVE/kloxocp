@@ -774,7 +774,10 @@ else
 fi
 
 if grep -q -- '--keep-admin-password' "$ROOT/install.sh" \
-  && grep -q "keep-admin-password" "$ROOT/kloxo/bin/install/init-panel-db"; then
+  && grep -q "keep-admin-password" "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'panel.sqlite' "$ROOT/install.sh" \
+  && ! grep -q 'FROM kloxo.client WHERE nname' "$ROOT/install.sh" \
+  && grep -q 'function wantKeepAdminPassword' "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "install.sh re-run keeps an existing admin password (--keep-admin-password)"
 else
   bad "install.sh re-run keeps an existing admin password (--keep-admin-password)"
