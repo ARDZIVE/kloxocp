@@ -218,14 +218,44 @@ class clientmail extends lxclass {
 	{
 		$id = trim((string) $id);
 		$id = trim($id, '<>');
-		if ($id === '' || $id === '<>' || $id === 'MAILER-DAEMON') {
+		if ($id === '' || $id === '<>' || strcasecmp($id, 'MAILER-DAEMON') === 0) {
 			return '';
 		}
 		if (strlen($id) > 200 || strpbrk($id, " \t\n\r") !== false) {
 			return '';
 		}
+		if (!self::isClientAddress($id)) {
+			return '';
+		}
 
 		return $id;
+	}
+
+	/**
+	 * Real mailbox (user@domain.tld). Drops Unix-user@hostname (root@srv, lxlabs@srv).
+	 */
+	static function isClientAddress($id)
+	{
+		if (preg_match('/^([A-Za-z0-9._+-]+)@([A-Za-z0-9.-]+)$/', (string) $id, $m) !== 1) {
+			return false;
+		}
+		$local = strtolower($m[1]);
+		$dom = strtolower(rtrim($m[2], '.'));
+		static $system = array(
+			'root', 'lxlabs', 'www-data', 'debian-exim', 'mail', 'postfix', 'nobody',
+			'daemon', 'bin', 'sys', 'ubuntu', 'messagebus', 'systemd-network', 'exim',
+		);
+		if (in_array($local, $system, true)) {
+			return false;
+		}
+		if ($dom === '' || strpos($dom, '.') === false) {
+			return false;
+		}
+		if ($dom === 'localhost' || $dom === 'localhost.localdomain' || $dom === 'localdomain') {
+			return false;
+		}
+
+		return true;
 	}
 
 	static function openMailLog()

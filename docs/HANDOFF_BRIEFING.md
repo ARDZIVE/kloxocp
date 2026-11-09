@@ -597,7 +597,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (`/var/log/exim4/mainlog`, then `mail.log` / `maillog`). Counts Exim
     SMTP-auth (`A=dovecot_plain:user@domain`) and local (`P=local`)
     submissions plus Postfix `from=<>` in the last two days, not inbound
-    or bounces. Live Mails Per Client after deploy is **UNVERIFIED**.
+    or bounces. Only real `user@domain.tld` rows (not `lxlabs@srv` /
+    `root@srv`). Live Mails Per Client after deploy is **UNVERIFIED**.
     DNS Template menu and dashboard tiles list `dnstemplate` (not
     `lxbackup`); opening the list no longer throws `no_ip_address`
     when the IP table is empty.     The list tab keeps the add form;
