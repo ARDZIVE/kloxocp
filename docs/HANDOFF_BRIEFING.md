@@ -316,8 +316,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `getTrueParentO` / `getParentO` treat `client-admin` as root
     (`isRootClient`: cttype admin, `isAdmin()`, or client nname
     `admin`) and never print `no parent_clname`. Client PHPinfo is
-    in-panel `n=web&a=show&sa=phpinfo` (HTML: `php-cgi -i` when present,
-    else `php -i` rendered as tables; Domain Home tile label **PHPinfo**,
+    in-panel `n=web&a=show&sa=phpinfo` (native phpinfo look: PHP 8
+    `.e`/`.v`/`.h` tables and stylesheet; `php-cgi -i` when present,
+    else `php -i` rendered the same way; Domain Home tile **PHPinfo**,
     `__acdesc_show_phpinfo`); old `a=update&sa=phpinfo`
     redirects there. Live PHPinfo after deploy is **UNVERIFIED**.
     `init-panel-db` seeds `/home/admin`. Mail To on Cron

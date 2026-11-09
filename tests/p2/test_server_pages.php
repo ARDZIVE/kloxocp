@@ -3726,7 +3726,8 @@ if ($tpPi === null
 	&& $piErr === ''
 	&& str_contains($htmlPi, 'kloxo-phpinfo')
 	&& str_contains($htmlPi, '<table')
-	&& str_contains($htmlPi, 'Site PHP')
+	&& str_contains($htmlPi, 'class="e"')
+	&& str_contains($htmlPi, 'background-color:#ccf')
 	&& !str_contains($htmlPi, '<pre')
 	&& !str_contains($htmlPi, 'Critical internal error')) {
 	ok('Client PHPinfo tile is PHPinfo and the page is HTML');
@@ -3737,16 +3738,21 @@ if ($tpPi === null
 			. ' html=' . substr(trim(preg_replace('/\s+/', ' ', $htmlPi)), 0, 180)
 			. ' fatal=' . substr($fatalPi, 0, 80));
 }
-$convPi = Web::phpInfoTextToHtml("phpinfo()\nPHP Version => <script>alert(1)</script>\nCore\nallow_url_fopen => On => On");
-$fragPi = Web::phpInfoCgiToFragment('<html><body><script>x()</script><table><tr><td>OK</td></tr></table></body></html>');
+$convPi = Web::phpInfoTextToHtml("phpinfo()\nPHP Version => <script>alert(1)</script>\nCore\nDirective => Local Value => Master Value\nallow_url_fopen => On => On");
+$fragPi = Web::phpInfoCgiToFragment('<html><body><script>x()</script><table><tr><td class="e">OK</td><td class="v">1</td></tr></table></body></html>');
 if (str_contains($convPi, '&lt;script&gt;')
 	&& !str_contains($convPi, '<script>')
+	&& str_contains($convPi, '<h1 class="p">PHP Version')
 	&& str_contains($convPi, '<h2>Core</h2>')
+	&& str_contains($convPi, 'class="e"')
+	&& str_contains($convPi, 'class="v"')
+	&& str_contains($convPi, 'class="h"')
+	&& str_contains($fragPi, 'class="e"')
 	&& str_contains($fragPi, '<table')
 	&& !str_contains($fragPi, '<script')) {
-	ok('PHPinfo HTML conversion escapes text and keeps phpinfo tables');
+	ok('PHPinfo HTML uses native phpinfo classes and escapes text');
 } else {
-	bad('PHPinfo HTML conversion escapes text and keeps phpinfo tables',
+	bad('PHPinfo HTML uses native phpinfo classes and escapes text',
 		substr(preg_replace('/\s+/', ' ', $convPi . ' | ' . $fragPi), 0, 200));
 }
 

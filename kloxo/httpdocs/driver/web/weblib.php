@@ -1183,25 +1183,47 @@ class Web extends Lxdb
 		return is_string($out) ? $out : '';
 	}
 
+	/** PHP 8 phpinfo() stylesheet, scoped so it does not restyle the panel. */
+	static function phpInfoNativeCss()
+	{
+		return '.kloxo-phpinfo{background-color:#fff;color:#222;font-family:sans-serif}'
+			. '.kloxo-phpinfo pre{margin:0;font-family:monospace}'
+			. '.kloxo-phpinfo a:link{color:#009;text-decoration:none;background-color:#fff}'
+			. '.kloxo-phpinfo a:hover{text-decoration:underline}'
+			. '.kloxo-phpinfo table{border-collapse:collapse;border:0;width:934px;box-shadow:1px 2px 3px #ccc}'
+			. '.kloxo-phpinfo .center{text-align:center}'
+			. '.kloxo-phpinfo .center table{margin:1em auto;text-align:left}'
+			. '.kloxo-phpinfo .center th{text-align:center !important}'
+			. '.kloxo-phpinfo td,.kloxo-phpinfo th{border:1px solid #666;font-size:75%;vertical-align:baseline;padding:4px 5px}'
+			. '.kloxo-phpinfo h1{font-size:150%}'
+			. '.kloxo-phpinfo h2{font-size:125%}'
+			. '.kloxo-phpinfo .p{text-align:left}'
+			. '.kloxo-phpinfo .e{background-color:#ccf;width:300px;font-weight:bold}'
+			. '.kloxo-phpinfo .h{background-color:#99c;font-weight:bold}'
+			. '.kloxo-phpinfo .v{background-color:#ddd;max-width:300px;overflow-x:auto;word-wrap:break-word}'
+			. '.kloxo-phpinfo .v i{color:#999}'
+			. '.kloxo-phpinfo img{float:right;border:0}'
+			. '.kloxo-phpinfo hr{width:934px;background-color:#ccc;border:0;height:1px}';
+	}
+
 	static function phpInfoCgiToFragment($html)
 	{
 		$raw = is_string($html) ? $html : '';
 		if ($raw === '' || (stripos($raw, '<table') === false && stripos($raw, '<body') === false)) {
 			return '';
 		}
-		$style = '';
-		if (preg_match('/<style\b[^>]*>(.*?)<\/style>/is', $raw, $sm) === 1) {
-			$style = '<style>' . $sm[1] . '</style>';
-		}
 		$body = $raw;
 		if (preg_match('/<body\b[^>]*>(.*)<\/body>/is', $raw, $bm) === 1) {
 			$body = $bm[1];
 		}
-		$body = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $body);
-		$allow = '<table><tbody><thead><tr><td><th><h1><h2><h3><a><img><hr><br><p><i><b><u><font><div><span><style>';
-		$body = strip_tags((string) $body, $allow);
+		$body = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', (string) $body);
+		$body = preg_replace('/<iframe\b[^>]*>.*?<\/iframe>/is', '', (string) $body);
+		$body = preg_replace('/on\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', (string) $body);
+		if (stripos($body, '<table') === false) {
+			return '';
+		}
 
-		return '<div class="kloxo-phpinfo">' . $style . $body . '</div>';
+		return '<div class="kloxo-phpinfo"><div class="center">' . $body . '</div></div>';
 	}
 
 	static function phpInfoTextToHtml($text)
@@ -1210,8 +1232,12 @@ class Web extends Lxdb
 		if (!is_array($lines)) {
 			$lines = array();
 		}
-		$out = array('<div class="kloxo-phpinfo"><table>');
-		$inTable = true;
+		$esc = static function ($s) {
+			return htmlspecialchars((string) $s, ENT_QUOTES);
+		};
+		$out = array('<div class="kloxo-phpinfo"><div class="center">');
+		$inTable = false;
+		$titleDone = false;
 		$close = static function () use (&$inTable, &$out): void {
 			if ($inTable) {
 				$out[] = '</table>';
@@ -1225,26 +1251,39 @@ class Web extends Lxdb
 			}
 		};
 		foreach ($lines as $line) {
-			$line = rtrim((string) $line, "\r");
-			$trim = trim($line);
+			$trim = trim(rtrim((string) $line, "\r"));
 			if ($trim === '' || $trim === 'phpinfo()') {
 				continue;
 			}
-			if (!str_contains($line, '=>')) {
+			if (!str_contains($trim, '=>')) {
 				$close();
-				$out[] = '<h2>' . htmlspecialchars($trim, ENT_QUOTES) . '</h2>';
+				$out[] = '<h2>' . $esc($trim) . '</h2>';
+				continue;
+			}
+			$parts = array_map('trim', explode('=>', $trim, 3));
+			if (!$titleDone && count($parts) === 2 && strcasecmp($parts[0], 'PHP Version') === 0) {
+				$out[] = '<h1 class="p">PHP Version ' . $esc($parts[1]) . '</h1>';
+				$titleDone = true;
 				continue;
 			}
 			$open();
-			$parts = array_map('trim', explode('=>', $line, 3));
+			if (count($parts) >= 2 && strcasecmp($parts[0], 'Directive') === 0
+				&& strcasecmp($parts[1], 'Local Value') === 0) {
+				$out[] = '<tr class="h"><th>Directive</th><th>Local Value</th>'
+					. (isset($parts[2]) ? '<th>Master Value</th>' : '') . '</tr>';
+				continue;
+			}
 			$out[] = '<tr>';
+			$first = true;
 			foreach ($parts as $p) {
-				$out[] = '<td>' . htmlspecialchars($p, ENT_QUOTES) . '</td>';
+				$cls = $first ? 'e' : 'v';
+				$first = false;
+				$out[] = '<td class="' . $cls . '">' . $esc($p) . '</td>';
 			}
 			$out[] = '</tr>';
 		}
 		$close();
-		$out[] = '</div>';
+		$out[] = '</div></div>';
 
 		return implode('', $out);
 	}
@@ -1254,20 +1293,9 @@ class Web extends Lxdb
 		if ($subaction !== 'phpinfo') {
 			return;
 		}
-		$bin = htmlspecialchars($this->phpInfoBinary(), ENT_QUOTES);
 		$html = $this->phpInfoHtml();
-		echo '<div style="padding:12px 16px 24px;text-align:left">';
-		echo '<p style="margin:0 0 8px">Site PHP: <code>' . $bin . '</code></p>';
-		echo '<style type="text/css">'
-			. '.kloxo-phpinfo{font:13px/1.35 sans-serif;color:#222}'
-			. '.kloxo-phpinfo table{border-collapse:collapse;width:100%;margin:0 0 16px}'
-			. '.kloxo-phpinfo td,.kloxo-phpinfo th{border:1px solid #ccc;padding:4px 8px;vertical-align:top}'
-			. '.kloxo-phpinfo td:first-child{font-weight:bold;width:30%}'
-			. '.kloxo-phpinfo h1,.kloxo-phpinfo h2{font:bold 15px sans-serif;margin:16px 0 8px;'
-			. 'background:#9999cc;color:#fff;padding:6px 8px}'
-			. '</style>';
+		echo '<style type="text/css">' . self::phpInfoNativeCss() . '</style>';
 		echo $html;
-		echo '</div>';
 	}
 
 	static function createSession($ar)
