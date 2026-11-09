@@ -61,6 +61,18 @@ function do_server_stuff()
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
+	// Site PHP install/remove requests dropped by the panel (lxlabs cannot apt).
+	if (function_exists('posix_geteuid') && posix_geteuid() === 0
+		&& class_exists('KloxoPhpver', false) && method_exists('KloxoPhpver', 'runDroppedRequest')) {
+		try {
+			KloxoPhpver::runDroppedRequest();
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'sitephp job: ' . $e->getMessage());
+			}
+		}
+	}
+
 //	dprint("in Do server stuff\n");
 
 	try {

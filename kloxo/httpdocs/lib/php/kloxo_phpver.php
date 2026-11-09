@@ -392,6 +392,141 @@ final class KloxoPhpver
             . ' >>' . escapeshellarg($log) . " 2>&1\n";
     }
 
+    public static function requestPath(): string
+    {
+        return self::programRoot() . '/log/sitephp.request';
+    }
+
+    /**
+     * Panel (lxlabs) drops a validated job for root to run. kloxo-backend's
+     * 30s loop and kloxo-watchdog pick this up when GET to 7776 cannot.
+     *
+     * @param mixed $payload install: list of X.Y; remove: list of phpX.Y
+     * @return array{ok:bool,error?:string,path?:string}
+     */
+    public static function dropRequest(string $op, $payload): array
+    {
+        if ($op !== 'install' && $op !== 'remove') {
+            return ['ok' => false, 'error' => 'bad op'];
+        }
+        $body = ['op' => $op, 'at' => time()];
+        if ($op === 'install') {
+            $vers = [];
+            $allow = array_fill_keys(self::installableSeries(), true);
+            if (is_array($payload)) {
+                foreach ($payload as $s) {
+                    $s = (string) $s;
+                    if (preg_match('/^\d+\.\d+$/', $s) === 1 && isset($allow[$s])) {
+                        $vers[] = $s;
+                    }
+                }
+            }
+            $vers = array_values(array_unique($vers));
+            if ($vers === []) {
+                return ['ok' => false, 'error' => 'no versions'];
+            }
+            $body['versions'] = $vers;
+        } else {
+            $built = self::packagesToRemove($payload);
+            if (($built['error'] ?? '') !== '') {
+                return ['ok' => false, 'error' => $built['error']];
+            }
+            if (!is_array($payload) || $payload === []) {
+                return ['ok' => false, 'error' => 'no packages'];
+            }
+            $ids = [];
+            foreach ($payload as $id) {
+                $id = (string) $id;
+                if (preg_match('/^php\d+\.\d+$/', $id) === 1) {
+                    $ids[] = $id;
+                } elseif (preg_match('/^\d+\.\d+$/', $id) === 1) {
+                    $ids[] = 'php' . $id;
+                }
+            }
+            $ids = array_values(array_unique($ids));
+            if ($ids === []) {
+                return ['ok' => false, 'error' => 'no packages'];
+            }
+            $body['ids'] = $ids;
+        }
+        $path = self::requestPath();
+        $dir = dirname($path);
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return ['ok' => false, 'error' => 'could not create ' . $dir];
+        }
+        $running = $path . '.running';
+        foreach ([$path, $running] as $p) {
+            if (is_file($p)) {
+                $age = time() - (int) @filemtime($p);
+                if ($age >= 0 && $age < 1800) {
+                    return ['ok' => false, 'error' => 'other install running'];
+                }
+                @unlink($p);
+            }
+        }
+        $tmp = $path . '.tmp';
+        $json = json_encode($body, JSON_UNESCAPED_SLASHES);
+        if (!is_string($json) || @file_put_contents($tmp, $json . "\n", LOCK_EX) === false) {
+            return ['ok' => false, 'error' => 'could not write ' . $path];
+        }
+        @chmod($tmp, 0640);
+        if (!@rename($tmp, $path)) {
+            @unlink($tmp);
+
+            return ['ok' => false, 'error' => 'could not write ' . $path];
+        }
+
+        return ['ok' => true, 'path' => $path];
+    }
+
+    /**
+     * Root: consume sitephp.request and queueInstall / queueRemove.
+     *
+     * @return array{ok:bool,euid?:int,error?:string,skipped?:bool}
+     */
+    public static function runDroppedRequest(): array
+    {
+        $euid = self::effectiveUid();
+        if ($euid !== 0) {
+            return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
+        }
+        $path = self::requestPath();
+        $running = $path . '.running';
+        if (is_file($running)) {
+            $age = time() - (int) @filemtime($running);
+            if ($age >= 0 && $age < 1800) {
+                return ['ok' => false, 'euid' => 0, 'error' => 'other install running'];
+            }
+            @unlink($running);
+        }
+        if (!is_file($path)) {
+            return ['ok' => true, 'euid' => 0, 'skipped' => true];
+        }
+        if (!@rename($path, $running)) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'could not claim request'];
+        }
+        $raw = (string) @file_get_contents($running);
+        $data = json_decode($raw, true);
+        if (!is_array($data) || !isset($data['op'])) {
+            @unlink($running);
+
+            return ['ok' => false, 'euid' => 0, 'error' => 'bad request'];
+        }
+        $op = (string) $data['op'];
+        if ($op === 'install') {
+            $got = self::queueInstall($data['versions'] ?? []);
+        } elseif ($op === 'remove') {
+            $got = self::queueRemove($data['ids'] ?? []);
+        } else {
+            @unlink($running);
+
+            return ['ok' => false, 'euid' => 0, 'error' => 'bad op'];
+        }
+        @unlink($running);
+
+        return $got;
+    }
+
     /**
      * Queue install-site-php as root (kloxo-backend GET). Panel PHP-FPM is
      * lxlabs and cannot systemd-run or apt.
@@ -457,32 +592,141 @@ final class KloxoPhpver
             return ['ok' => false, 'euid' => 0, 'error' => 'could not write ' . $lock];
         }
 
-        $started = false;
-        $systemd = '/usr/bin/systemd-run';
-        $canSystemd = self::$runCmd !== null || is_executable($systemd);
-        if ($canSystemd) {
-            $code = self::runArgv([
-                $systemd,
-                '--no-block',
-                '--collect',
-                '--unit=kloxo-site-php-install-' . (string) getmypid() . '-' . (string) time(),
-                '/bin/bash',
-                $job,
-            ]);
-            $started = ($code === 0);
+        $run = self::startPhpJob($job);
+        if (empty($run['ok'])) {
+            @unlink($job);
+            @unlink($lock);
         }
-        if (!$started) {
-            if (function_exists('lxshell_background')) {
-                lxshell_background('bash', $job);
-            } else {
-                @unlink($job);
-                @unlink($lock);
 
-                return ['ok' => false, 'euid' => 0, 'error' => 'could not start job'];
+        return $run;
+    }
+
+    /**
+     * Wrapper that purges phpX.Y-fpm and phpX.Y-cli (so the version leaves
+     * Multiple PHP Remove). Package names must already be validated.
+     *
+     * @param list<string> $packages
+     */
+    public static function sitePhpRemoveWrap(array $packages, string $log, string $lock, string $job): string
+    {
+        $pkgs = [];
+        foreach ($packages as $p) {
+            $p = (string) $p;
+            if (preg_match('/^php\d+\.\d+-(fpm|cli)$/', $p) !== 1) {
+                return '';
+            }
+            $pkgs[] = $p;
+        }
+        $pkgs = array_values(array_unique($pkgs));
+        if ($pkgs === []) {
+            return '';
+        }
+        foreach ([$log, $lock, $job] as $p) {
+            if ($p === '' || strpos($p, "\n") !== false || strpos($p, "\0") !== false) {
+                return '';
             }
         }
+        $cmd = '/usr/bin/apt-get -y -o DPkg::Lock::Timeout=300 -o Dpkg::Options::=--force-confold purge';
+        foreach ($pkgs as $p) {
+            $cmd .= ' ' . escapeshellarg($p);
+        }
 
-        return ['ok' => true, 'euid' => 0];
+        return "#!/bin/bash\nset -euo pipefail\n"
+            . "export DEBIAN_FRONTEND=noninteractive\n"
+            . 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
+            . $cmd . ' >>' . escapeshellarg($log) . " 2>&1\n";
+    }
+
+    /**
+     * Queue apt purge of phpX.Y-fpm/cli as root (kloxo-backend GET).
+     *
+     * @param mixed $ids phpX.Y ids
+     * @return array{ok:bool,euid?:int,error?:string}
+     */
+    public static function queueRemove($ids): array
+    {
+        $euid = self::effectiveUid();
+        if ($euid !== 0) {
+            return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
+        }
+        $built = self::packagesToRemove($ids);
+        if (($built['error'] ?? '') !== '') {
+            return ['ok' => false, 'euid' => 0, 'error' => $built['error']];
+        }
+        $pkgs = $built['packages'] ?? [];
+        if ($pkgs === []) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'no packages'];
+        }
+        $root = self::programRoot();
+        if ($root === '' || strpos($root, '..') !== false || strpos($root, "\n") !== false) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'file_not_found:' . $root];
+        }
+        $logDir = $root . '/log';
+        $job = $logDir . '/kloxo-site-php-remove.sh';
+        $lock = $logDir . '/kloxo-site-php-remove.lock';
+        $log = $logDir . '/install-site-php.log';
+        $installLock = $logDir . '/kloxo-site-php-install.lock';
+        if (!is_dir($logDir) && !@mkdir($logDir, 0755, true) && !is_dir($logDir)) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'could not create ' . $logDir];
+        }
+        foreach ([$lock, $installLock] as $l) {
+            if (is_file($l)) {
+                $age = time() - (int) @filemtime($l);
+                if ($age >= 0 && $age < 1800) {
+                    return ['ok' => false, 'euid' => 0, 'error' => 'other install running'];
+                }
+                @unlink($l);
+            }
+        }
+        $wrap = self::sitePhpRemoveWrap($pkgs, $log, $lock, $job);
+        if ($wrap === '' || @file_put_contents($job, $wrap) === false) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'could not write ' . $job];
+        }
+        @chmod($job, 0700);
+        if (@file_put_contents($lock, (string) time()) === false) {
+            @unlink($job);
+
+            return ['ok' => false, 'euid' => 0, 'error' => 'could not write ' . $lock];
+        }
+        $run = self::startPhpJob($job);
+        if (empty($run['ok'])) {
+            @unlink($job);
+            @unlink($lock);
+        }
+
+        return $run;
+    }
+
+    /**
+     * phpX.Y-fpm and phpX.Y-cli for each requested id (so installed() drops it).
+     *
+     * @param mixed $ids
+     * @return array{packages:list<string>,error:string}
+     */
+    public static function packagesToRemove($ids): array
+    {
+        $pkgs = [];
+        $active = self::activeId();
+        if (!is_array($ids)) {
+            return ['packages' => [], 'error' => 'no packages'];
+        }
+        foreach ($ids as $v) {
+            $id = (string) $v;
+            if ($id === $active) {
+                return ['packages' => [], 'error' => 'php already in use'];
+            }
+            $ver = self::idToSeries($id);
+            if ($ver === '' && preg_match('/^\d+\.\d+$/', $id) === 1) {
+                $ver = $id;
+            }
+            if ($ver !== '' && preg_match('/^\d+\.\d+$/', $ver) === 1) {
+                $pkgs[] = 'php' . $ver . '-fpm';
+                $pkgs[] = 'php' . $ver . '-cli';
+            }
+        }
+        $pkgs = array_values(array_unique($pkgs));
+
+        return ['packages' => $pkgs, 'error' => $pkgs === [] ? 'no packages' : ''];
     }
 
     /**
@@ -497,24 +741,11 @@ final class KloxoPhpver
         if ($euid !== 0) {
             return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
         }
-        $pkgs = [];
-        $active = self::activeId();
-        if (is_array($ids)) {
-            foreach ($ids as $v) {
-                $id = (string) $v;
-                if ($id === $active) {
-                    return ['ok' => false, 'euid' => 0, 'error' => 'php already in use'];
-                }
-                $ver = self::idToSeries($id);
-                if ($ver === '' && preg_match('/^\d+\.\d+$/', $id) === 1) {
-                    $ver = $id;
-                }
-                if ($ver !== '' && preg_match('/^\d+\.\d+$/', $ver) === 1) {
-                    $pkgs[] = 'php' . $ver . '-fpm';
-                }
-            }
+        $built = self::packagesToRemove($ids);
+        if (($built['error'] ?? '') !== '') {
+            return ['ok' => false, 'euid' => 0, 'error' => $built['error']];
         }
-        $pkgs = array_values(array_unique($pkgs));
+        $pkgs = $built['packages'] ?? [];
         if ($pkgs === []) {
             return ['ok' => false, 'euid' => 0, 'error' => 'no packages'];
         }
@@ -942,6 +1173,34 @@ final class KloxoPhpver
         }
 
         return $ok;
+    }
+
+    /** @return array{ok:bool,euid?:int,error?:string} */
+    private static function startPhpJob(string $job): array
+    {
+        $started = false;
+        $systemd = '/usr/bin/systemd-run';
+        $canSystemd = self::$runCmd !== null || is_executable($systemd);
+        if ($canSystemd) {
+            $code = self::runArgv([
+                $systemd,
+                '--no-block',
+                '--collect',
+                '--unit=kloxo-site-php-' . (string) getmypid() . '-' . (string) time(),
+                '/bin/bash',
+                $job,
+            ]);
+            $started = ($code === 0);
+        }
+        if (!$started) {
+            if (function_exists('lxshell_background')) {
+                lxshell_background('bash', $job);
+            } else {
+                return ['ok' => false, 'euid' => 0, 'error' => 'could not start job'];
+            }
+        }
+
+        return ['ok' => true, 'euid' => 0];
     }
 
     /** @param list<string> $cmd */

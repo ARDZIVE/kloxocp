@@ -245,7 +245,7 @@ class web__ extends lxDriverClass
 		// Service__Linux::controlUnit).
 		if ($euid !== 0 && function_exists('rl_exec_get')) {
 			try {
-				$got = rl_exec_get(null, $server, array('KloxoPhpfpm', 'applyDomain'), $args);
+				$got = rl_exec_get(null, $server, array('KloxoPhpfpm', 'applyDomain'), $args, false);
 			} catch (lxException $e) {
 				throw $e;
 			} catch (Throwable $e) {

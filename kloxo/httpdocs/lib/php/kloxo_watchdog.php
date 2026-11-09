@@ -412,6 +412,24 @@ final class KloxoWatchdog
         }
     }
 
+    /**
+     * Root: run a site-PHP install/remove request the panel dropped because
+     * it cannot apt. Does not load panel classes; execs the CLI helper.
+     */
+    private function runSitePhpJob(): void
+    {
+        $req = $this->root . '/log/sitephp.request';
+        $bin = $this->root . '/bin/install/run-site-php-job';
+        if (!is_file($req) || !is_file($bin)) {
+            return;
+        }
+        $php = '/usr/bin/php';
+        if (defined('PHP_BINARY') && is_string(PHP_BINARY) && PHP_BINARY !== '' && is_executable(PHP_BINARY)) {
+            $php = PHP_BINARY;
+        }
+        ($this->run)([$php, $bin, '--root=' . $this->root]);
+    }
+
     // ------------------------------------------------------------------ cycle
 
     /**
@@ -421,6 +439,7 @@ final class KloxoWatchdog
      */
     public function cycle(): array
     {
+        $this->runSitePhpJob();
         $cfg = self::config($this->root);
         $events = [];
         if (($this->uptime)() < $cfg['grace']) {

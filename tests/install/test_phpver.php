@@ -198,12 +198,12 @@ KloxoPhpver::$ppaProbe = null;
 
 KloxoPhpver::$euidProbe = 1000;
 $notRoot = KloxoPhpver::queueInstall(['8.1']);
-$rmNotRoot = KloxoPhpver::removeVersions(['php8.1']);
+$rmNotRoot = KloxoPhpver::queueRemove(['php8.1']);
 if (($notRoot['ok'] ?? true) === false && ($notRoot['error'] ?? '') === 'not root'
 	&& ($rmNotRoot['ok'] ?? true) === false && ($rmNotRoot['error'] ?? '') === 'not root') {
-	$ok('queueInstall/removeVersions refuse when not root');
+	$ok('queueInstall/queueRemove refuse when not root');
 } else {
-	$bad('queueInstall/removeVersions refuse when not root');
+	$bad('queueInstall/queueRemove refuse when not root');
 }
 
 $tmpRoot = sys_get_temp_dir() . '/kloxo-phpver-job-' . getmypid();
@@ -248,17 +248,61 @@ if (!defined('KLOXO_APT_TEST_BIN')) {
 require_once $root . '/kloxo/httpdocs/lib/php/kloxo_apt.php';
 $removed = KloxoPhpver::removeVersions(['php8.1', '8.2']);
 if (($removed['ok'] ?? false) === true
-	&& isset($removed['packages']) && $removed['packages'] === ['php8.1-fpm', 'php8.2-fpm']) {
-	$ok('removeVersions as root apt-removes phpX.Y-fpm');
+	&& isset($removed['packages'])
+	&& $removed['packages'] === ['php8.1-fpm', 'php8.1-cli', 'php8.2-fpm', 'php8.2-cli']) {
+	$ok('removeVersions as root apt-removes phpX.Y-fpm and phpX.Y-cli');
 } else {
-	$bad('removeVersions as root apt-removes phpX.Y-fpm');
+	$bad('removeVersions as root apt-removes phpX.Y-fpm and phpX.Y-cli');
+}
+
+@unlink($jobFile);
+@unlink($lockFile);
+$sysCalls = [];
+$qrm = KloxoPhpver::queueRemove(['php8.1']);
+$rmJob = $tmpRoot . '/log/kloxo-site-php-remove.sh';
+$rmBody = is_file($rmJob) ? (string) file_get_contents($rmJob) : '';
+if (($qrm['ok'] ?? false) === true
+	&& str_contains($rmBody, 'purge')
+	&& str_contains($rmBody, escapeshellarg('php8.1-fpm'))
+	&& str_contains($rmBody, escapeshellarg('php8.1-cli'))
+	&& ($sysCalls[0][0] ?? '') === '/usr/bin/systemd-run') {
+	$ok('queueRemove as root writes a purge job and systemd-run');
+} else {
+	$bad('queueRemove as root writes a purge job and systemd-run');
+}
+
+KloxoPhpver::$euidProbe = 1000;
+@unlink($tmpRoot . '/log/kloxo-site-php-remove.lock');
+@unlink($tmpRoot . '/log/kloxo-site-php-install.lock');
+$dropped = KloxoPhpver::dropRequest('install', ['8.2']);
+$reqPath = $tmpRoot . '/log/sitephp.request';
+$asUser = KloxoPhpver::runDroppedRequest();
+if (($dropped['ok'] ?? false) === true && is_file($reqPath)
+	&& str_contains((string) file_get_contents($reqPath), '"8.2"')
+	&& ($asUser['ok'] ?? true) === false && ($asUser['error'] ?? '') === 'not root'
+	&& is_file($reqPath)) {
+	$ok('dropRequest writes a job the panel user cannot run');
+} else {
+	$bad('dropRequest writes a job the panel user cannot run');
+}
+KloxoPhpver::$euidProbe = 0;
+$asRoot = KloxoPhpver::runDroppedRequest();
+if (($asRoot['ok'] ?? false) === true && !is_file($reqPath)
+	&& is_file($tmpRoot . '/log/kloxo-site-php-install.sh')) {
+	$ok('runDroppedRequest as root consumes the request and queues install');
+} else {
+	$bad('runDroppedRequest as root consumes the request and queues install');
 }
 
 KloxoPhpver::$euidProbe = null;
 KloxoPhpver::$programRootProbe = null;
 KloxoPhpver::$runCmd = null;
-@unlink($jobFile);
-@unlink($lockFile);
+@unlink($rmJob);
+@unlink($tmpRoot . '/log/kloxo-site-php-remove.lock');
+@unlink($tmpRoot . '/log/kloxo-site-php-install.sh');
+@unlink($tmpRoot . '/log/kloxo-site-php-install.lock');
+@unlink($tmpRoot . '/log/sitephp.request');
+@unlink($tmpRoot . '/log/sitephp.request.running');
 @unlink($tmpRoot . '/bin/install/install-site-php');
 @unlink($aptBin);
 @rmdir($tmpRoot . '/bin/install');

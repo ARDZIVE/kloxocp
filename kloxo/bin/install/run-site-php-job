@@ -1,0 +1,36 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Root helper: consume log/sitephp.request and queue install-site-php or
+ * apt purge. Called by kloxo-backend's loop and by kloxo-watchdog.
+ *
+ * Usage: run-site-php-job [--root=DIR]
+ */
+
+$root = dirname(__DIR__, 2);
+foreach (array_slice($argv, 1) as $a) {
+    if (str_starts_with($a, '--root=')) {
+        $root = rtrim(substr($a, 7), '/');
+    } elseif ($a === '--help' || $a === '-h') {
+        fwrite(STDOUT, "run-site-php-job [--root=DIR]\n");
+        exit(0);
+    }
+}
+if ($root === '' || $root[0] !== '/' || !is_readable($root . '/httpdocs/lib/php/kloxo_phpver.php')) {
+    fwrite(STDERR, "error: not a Kloxo program root\n");
+    exit(1);
+}
+if (function_exists('posix_geteuid') && posix_geteuid() !== 0) {
+    fwrite(STDERR, "error: must run as root\n");
+    exit(1);
+}
+require_once $root . '/httpdocs/lib/php/kloxo_phpver.php';
+KloxoPhpver::$programRootProbe = $root;
+$r = KloxoPhpver::runDroppedRequest();
+if (empty($r['ok'])) {
+    fwrite(STDERR, 'error: ' . (string) ($r['error'] ?? 'failed') . "\n");
+    exit(1);
+}
+exit(0);

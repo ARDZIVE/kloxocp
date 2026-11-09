@@ -464,6 +464,7 @@ $__throw["secondary_php_not_work_for"] = "Secondary PHP not work for";
 $__throw["only_work_for_php-type_for_php-fpm_or_proxy_fcgi"] = "Only work for PHP-Type for php-fpm or proxy_fcgi";
 $__throw["other_install_process_still_running"] = "Other install process still running";
 $__throw["install_process_running_in_background"] = "Install process running in background";
+$__throw["remove_process_running_in_background"] = "Remove process running in background";
 $__throw["php_already_in_used"] = "Already use by *PHP Used*";
 $__throw["php_switch_not_supported_on_ubuntu"] = "Multiple PHP install from this page is not supported on Ubuntu; run install-site-php or use Webserver Configure";
 

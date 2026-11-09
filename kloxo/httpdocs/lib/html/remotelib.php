@@ -363,7 +363,11 @@ function remote_exec($machine, $cmd)
 	try {
 		$rmt = do_remote_exec($machine, $cmd, $cmdtype, $nname, $dbaction);
 	} catch (Throwable $e) {
-		if (isLocalhost($machine)) {
+		// File Manager and similar still fall back in-process so a down
+		// backend cannot blank the page. Privileged work (PHP install/remove,
+		// FPM pools) sets no_local_fallback: retrying as lxlabs would hide
+		// the real error behind "kloxo-backend did not handle the request".
+		if (isLocalhost($machine) && empty($cmd->no_local_fallback)) {
 			log_log("error", "localhost backend: " . $e->getMessage());
 			try {
 				return do_local_action($cmd);
@@ -958,6 +962,16 @@ function do_local_action($rmt)
 			//   http://bugs.php.net/bug.php?id=51329
 			if (is_array($rmt->func) && count($rmt->func) > 0) {
 				$class = $rmt->func[0];
+				if (!class_exists($class, false)) {
+					global $gl_class_array;
+					$key = strtolower((string) $class);
+					if (isset($gl_class_array[$key])) {
+						$path = function_exists('getreal') ? getreal($gl_class_array[$key]) : $gl_class_array[$key];
+						if (is_string($path) && $path !== '' && is_readable($path)) {
+							include_once $path;
+						}
+					}
+				}
 				class_exists($class);
 			}
 
@@ -971,7 +985,7 @@ function do_local_action($rmt)
 	}
 }
 
-function rl_exec_get($masterserver, $slaveserver, $func, $arglist = null)
+function rl_exec_get($masterserver, $slaveserver, $func, $arglist = null, $local_fallback = true)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
@@ -979,6 +993,9 @@ function rl_exec_get($masterserver, $slaveserver, $func, $arglist = null)
 	$rmt->action = 'get';
 	$rmt->func = $func;
 	$rmt->arglist = $arglist;
+	if (!$local_fallback) {
+		$rmt->no_local_fallback = true;
+	}
 
 	return rl_exec($masterserver, $slaveserver, $rmt);
 }

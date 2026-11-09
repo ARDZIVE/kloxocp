@@ -369,6 +369,16 @@ $out = (string) stream_get_contents($pipes[1]);
 $rc = proc_close($p);
 check($rc === 0 && str_contains($out, 'mariadb') && str_contains($out, 'last='), 'kloxo-watchdog --status prints the state', $out);
 
+$jobRoot = $tmp . '/sitephp';
+@mkdir($jobRoot . '/log', 0755, true);
+@mkdir($jobRoot . '/bin/install', 0755, true);
+file_put_contents($jobRoot . '/log/sitephp.request', "{\"op\":\"install\",\"versions\":[\"8.1\"]}\n");
+file_put_contents($jobRoot . '/bin/install/run-site-php-job', "#!/bin/sh\nexit 0\n");
+$fj = new Fake();
+$fj->wd($jobRoot)->cycle();
+$phpJob = array_values(array_filter($fj->calls, static fn(string $c): bool => str_contains($c, 'run-site-php-job')));
+check($phpJob !== [], 'watchdog runs a dropped site-PHP job as root', implode(' | ', $fj->calls));
+
 exec('rm -rf ' . escapeshellarg($tmp));
 printf("%d passed, %d failed\n", $pass, $fail);
 exit($fail === 0 ? 0 : 1);

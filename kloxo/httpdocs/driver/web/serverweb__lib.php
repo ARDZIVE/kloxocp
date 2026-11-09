@@ -734,10 +734,11 @@ class serverweb__ extends lxDriverClass
 	}
 
 	/**
-	 * Panel PHP-FPM is lxlabs. Privileged PHP install/remove is a small GET
-	 * to kloxo-backend (same pattern as KloxoPhpfpm::applyDomain).
+	 * Panel PHP-FPM is lxlabs. Write a validated request file, then ask
+	 * kloxo-backend (root) to run it. If 7776 does not answer, the file stays
+	 * for the backend 30s loop / kloxo-watchdog.
 	 *
-	 * @param string $method queueInstall|removeVersions
+	 * @param string $method queueInstall|queueRemove
 	 * @param mixed $arg
 	 * @return array{0:mixed,1:string} [result, server]
 	 */
@@ -750,21 +751,40 @@ class serverweb__ extends lxDriverClass
 		if (isset($this->main->syncserver) && is_string($this->main->syncserver) && $this->main->syncserver !== '') {
 			$server = $this->main->syncserver;
 		}
-		$euid = function_exists('posix_geteuid') ? (int)posix_geteuid() : 0;
-		if ($euid !== 0 && function_exists('rl_exec_get')) {
-			try {
-				$got = rl_exec_get(null, $server, array('KloxoPhpver', $method), array($arg));
-			} catch (lxException $e) {
-				throw $e;
-			} catch (Throwable $e) {
-				throw new lxException($login->getThrow('could_not_execute'), '', $method . ': ' . $e->getMessage());
+		$op = ($method === 'queueRemove') ? 'remove' : 'install';
+		$drop = KloxoPhpver::dropRequest($op, $arg);
+		if (!is_array($drop) || empty($drop['ok'])) {
+			$err = (is_array($drop) && isset($drop['error'])) ? (string) $drop['error'] : 'could not queue';
+			if ($err === 'no versions' || $err === 'no packages') {
+				throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
 			}
-
-			return array($got, $server);
+			if ($err === 'other install running') {
+				throw new lxException($login->getThrow('other_install_process_still_running'), '', $server);
+			}
+			throw new lxException($login->getThrow('could_not_execute'), '', $method . ': ' . $err);
 		}
-		$got = call_user_func(array('KloxoPhpver', $method), $arg);
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
+		if ($euid === 0) {
+			return array(KloxoPhpver::runDroppedRequest(), $server);
+		}
+		if (function_exists('rl_exec_get')) {
+			$calls = array(
+				array('KloxoPhpver', 'runDroppedRequest', array()),
+				array('KloxoPhpver', $method, array($arg)),
+			);
+			foreach ($calls as $c) {
+				try {
+					$got = rl_exec_get(null, $server, array($c[0], $c[1]), $c[2], false);
+				} catch (Throwable $e) {
+					$got = null;
+				}
+				if (is_array($got) && !empty($got['ok'])) {
+					return array($got, $server);
+				}
+			}
+		}
 
-		return array($got, $server);
+		return array(array('ok' => true, 'queued' => true), $server);
 	}
 
 	function startSitePhpInstall($vers)
@@ -813,20 +833,24 @@ class serverweb__ extends lxDriverClass
 		}
 
 		if (KloxoIpaddr::isUbuntu()) {
-			list($got, $server) = $this->phpverBackend('removeVersions', $list);
+			list($got, $server) = $this->phpverBackend('queueRemove', $list);
 			if (!is_array($got) || empty($got['ok'])) {
 				$err = (is_array($got) && isset($got['error'])) ? (string)$got['error'] : '';
 				if ($err === 'php already in use') {
 					throw new lxException($login->getThrow('php_already_in_used'), '', implode(',', $list));
 				}
+				if ($err === 'no packages' || $err === 'no versions') {
+					throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
+				}
+				if ($err === 'other install running') {
+					throw new lxException($login->getThrow('other_install_process_still_running'), '', $server);
+				}
 				$why = ($err !== '' && $err !== 'not root')
 					? $err
-					: 'kloxo-backend (127.0.0.1:7776) did not handle the request';
+					: 'kloxo-backend (127.0.0.1:7776) did not handle the request as root';
 				throw new lxException($login->getThrow('could_not_execute'), '', 'php remove: ' . $why);
 			}
-			createRestartFile("restart-php-fpm");
-			createRestartFile("restart-web");
-			return;
+			throw new lxException($login->getThrow('remove_process_running_in_background'), '', $server);
 		}
 
 		foreach ($list as $v) {

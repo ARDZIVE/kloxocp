@@ -179,9 +179,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Multiple PHP Install submits selected `phpX.Y` ids (dual-listbox
     Available and/or Selected) and sends `KloxoPhpver::queueInstall` to
     kloxo-backend (`rl_exec_get`; the panel user cannot systemd-run or apt)
-    which queues `install-site-php --versions=` under `$ROOT/log/`;
-    Multiple PHP Remove sends `KloxoPhpver::removeVersions` the same way
-    and lists installed `phpX.Y-fpm`. The old scanner only
+    which queues `install-site-php --versions=` under `$ROOT/log/`. If 7776
+    does not answer, the panel drops `log/sitephp.request` for the backend
+    30s loop and kloxo-watchdog;
+    Multiple PHP Remove sends `KloxoPhpver::queueRemove` the same way
+    (no in-process fallback as lxlabs) and lists installed `phpX.Y-fpm`. The old scanner only
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL
@@ -886,8 +888,9 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    `$ROOT/log/` (not `/tmp`: `kloxo-backend` has `PrivateTmp=true`) and
    `systemd-run`s it, or falls back to background bash as root.
    Multiple PHP Remove lists actually installed `phpX.Y-fpm` (binaries or
-   `/etc/php/X.Y/fpm`) and sends `KloxoPhpver::removeVersions` the same
-   way (`KloxoApt::remove` of `phpX.Y-fpm`). Each section form loads without
+   `/etc/php/X.Y/fpm`) and sends `KloxoPhpver::queueRemove` the same
+   way (root `apt-get purge` of `phpX.Y-fpm` and `phpX.Y-cli` via a job
+   under `$ROOT/log/`; `rl_exec_get` does not fall back to the panel user). Each section form loads without
    a DB password. Apache optimize writes
    `/etc/apache2/conf-available/kloxo-optimize.conf` (validate `apache2ctl
    -t`, roll back on failure). PHP Type on Ubuntu enables mpm_event or

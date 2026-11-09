@@ -2985,11 +2985,11 @@ if (!str_contains($webSrc, 'getCleanRpmBranchListOnList')
 	&& str_contains($webSync, 'function startSitePhpInstall')
 	&& str_contains($webSync, 'function sitePhpInstallPaths')
 	&& str_contains($webSync, 'function phpverBackend')
-	&& str_contains($webSync, "array('KloxoPhpver', \$method)")
+	&& str_contains($webSync, 'dropRequest')
 	&& str_contains($webSync, 'KloxoPhpver::parseRequestedIds')
 	&& str_contains($webSync, 'install-site-php')
 	&& str_contains($webSync, "phpverBackend('queueInstall'")
-	&& str_contains($webSync, "phpverBackend('removeVersions'")
+	&& str_contains($webSync, "phpverBackend('queueRemove'")
 	&& !str_contains($webSync, "\$lock = '/tmp/kloxo-site-php-install.lock'")) {
 	ok('Webserver Configure does not parse CentOS php.lst or cat httpd');
 } else {
@@ -3019,10 +3019,11 @@ $phpWrapOk = is_string($phpWrap) && $phpWrap !== ''
 	&& !str_contains($phpWrap, "trap 'rm -f ");
 $phpVerSrc = (string)file_get_contents($doc . '/lib/php/kloxo_phpver.php');
 $phpFallbackOk = str_contains($phpVerSrc, 'function queueInstall')
-	&& str_contains($phpVerSrc, 'function removeVersions')
-	&& str_contains($phpVerSrc, 'if (!$started)')
+	&& str_contains($phpVerSrc, 'function queueRemove')
+	&& str_contains($phpVerSrc, 'function startPhpJob')
 	&& str_contains($phpVerSrc, "lxshell_background('bash', \$job)")
-	&& str_contains($phpVerSrc, 'kloxo-site-php-install.sh');
+	&& str_contains($phpVerSrc, 'kloxo-site-php-install.sh')
+	&& str_contains($phpVerSrc, 'kloxo-site-php-remove.sh');
 if ($phpJobOk) {
 	ok('Multiple PHP Install queues install-site-php outside PrivateTmp /tmp');
 } else {
@@ -3040,9 +3041,14 @@ if ($phpFallbackOk) {
 } else {
 	bad('Multiple PHP Install falls back to lxshell_background only when systemd-run did not start');
 }
+$lxserverSrc = (string)file_get_contents($doc . '/lib/html/lxserverlib.php');
 $phpBackendOk = str_contains($webSync, "phpverBackend('queueInstall'")
-	&& str_contains($webSync, "phpverBackend('removeVersions'")
-	&& str_contains($webSync, 'rl_exec_get')
+	&& str_contains($webSync, "phpverBackend('queueRemove'")
+	&& str_contains($webSync, 'dropRequest')
+	&& str_contains($webSync, 'runDroppedRequest')
+	&& str_contains($webSync, "'queued'")
+	&& str_contains($lxserverSrc, 'runDroppedRequest')
+	&& str_contains((string)file_get_contents($doc . '/lib/html/remotelib.php'), 'no_local_fallback')
 	&& !str_contains($webSync, "throw new lxException(\$login->getThrow('could_not_execute'), '', 'install-site-php')");
 if ($phpBackendOk) {
 	ok('Multiple PHP Install/Remove run as root via kloxo-backend GET');

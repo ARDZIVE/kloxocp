@@ -642,6 +642,7 @@ chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" \
   "$ROOT/bin/install/install-hiawatha" \
   "$ROOT/bin/install/install-phpmyadmin" \
   "$ROOT/bin/install/install-site-php" \
+  "$ROOT/bin/install/run-site-php-job" \
   "$ROOT/bin/storage/kloxo-migrate" \
   "$ROOT/bin/storage/kloxo-regen" \
   "$ROOT/bin/storage/kloxo-stats" \
