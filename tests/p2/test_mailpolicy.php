@@ -312,6 +312,52 @@ if ($postconf === '') {
 	check($rc5 !== 0 && str_contains($e5, '--mta'), 'unknown MTA is refused');
 }
 
+echo "== Exim overlay (no mail.ini / hosted-mail apply)\n";
+$ovOn = KloxoMailPolicy::eximOverlay($full);
+check(str_contains($ovOn['main'], 'acl_smtp_rcpt = acl_kloxo_rcpt')
+	&& str_contains($ovOn['main'], 'hostlist kloxo_policy_whitelist')
+	&& str_contains($ovOn['acl'], 'acl_kloxo_rcpt:')
+	&& str_contains($ovOn['acl'], 'accept  acl = acl_check_rcpt'),
+	'Exim overlay wires SMTP protection into Debian split config and keeps acl_check_rcpt');
+$ovOff = KloxoMailPolicy::eximOverlay($off);
+check(!str_contains($ovOff['main'], 'acl_smtp_rcpt') && !str_contains($ovOff['acl'], 'acl_kloxo_rcpt:'),
+	'policy off: Exim overlay is empty (files are removed)');
+$ovRoot = $tmp . '/exim-ov';
+@mkdir($ovRoot . '/etc/exim4/conf.d/main', 0755, true);
+@mkdir($ovRoot . '/etc/exim4/conf.d/acl', 0755, true);
+$ovPol = $tmp . '/exim-ov-policy.json';
+file_put_contents($ovPol, json_encode($full));
+$tool = $root . '/kloxo/bin/mail/kloxo-mail';
+$phpBin = KloxoMailPolicy::phpBinary();
+$p = proc_open([$phpBin, $tool, 'policy:apply', '--mta=exim', '--policy=' . $ovPol, '--root=' . $ovRoot, '--no-reload'],
+	[0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+$o = is_resource($p) ? (string) stream_get_contents($pipes[1]) : '';
+$e = is_resource($p) ? (string) stream_get_contents($pipes[2]) : '';
+if (is_resource($p)) {
+	fclose($pipes[1]);
+	fclose($pipes[2]);
+}
+$rc = is_resource($p) ? proc_close($p) : 1;
+$ovMain = $ovRoot . '/etc/exim4/conf.d/main/01_kloxo-smtp-policy';
+$ovAcl = $ovRoot . '/etc/exim4/conf.d/acl/00_kloxo-smtp-policy';
+check($rc === 0 && is_file($ovMain) && is_file($ovAcl) && str_contains((string) file_get_contents($ovAcl), 'acl_kloxo_connect:'),
+	'policy:apply --mta=exim without mail.ini writes the Debian overlay', $e . $o);
+file_put_contents($ovPol, json_encode($off));
+$p = proc_open([$phpBin, $tool, 'policy:apply', '--mta=exim', '--policy=' . $ovPol, '--root=' . $ovRoot, '--no-reload'],
+	[0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+if (is_resource($p)) {
+	stream_get_contents($pipes[1]);
+	stream_get_contents($pipes[2]);
+	fclose($pipes[1]);
+	fclose($pipes[2]);
+	proc_close($p);
+}
+check(!is_file($ovMain) && !is_file($ovAcl), 'policy off removes the Exim overlay files');
+$mpSrc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/kloxo_mailpolicy.php');
+check(str_contains($mpSrc, 'function phpBinary') && str_contains($mpSrc, 'php-fpm')
+	&& str_contains($mpSrc, "rl_exec_get(null, 'localhost', array('KloxoMailPolicy', 'apply')"),
+	'panel apply uses php-cli (not php-fpm) and kloxo-backend when not root');
+
 echo "== Panel hand-off\n";
 $fakeRoot = $tmp . '/panel';
 @mkdir($fakeRoot . '/bin/mail', 0755, true);

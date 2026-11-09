@@ -752,8 +752,8 @@ final class App
         $this->confPath = (string)($this->opt['conf'] ?? getenv('KLOXO_MAIL_CONF') ?: '/etc/kloxo/mail.ini');
 
         try {
-            if ($cmd === 'policy:show' || ($cmd === 'policy:apply' && ($this->opt['mta'] ?? '') !== 'exim')) {
-                // no mail database needed (Postfix has no hosted-mail templates here)
+            if ($cmd === 'policy:show' || $cmd === 'policy:apply') {
+                // SMTP protection does not need the hosted-mail database.
                 $this->c = is_file($this->confPath) ? Conf::load($this->confPath) : new Conf();
             } elseif (!in_array($cmd, ['help', '--help', 'version', 'init'], true)) {
                 $this->c = Conf::load($this->confPath);
@@ -766,6 +766,9 @@ final class App
         } catch (PDOException $e) {
             fwrite(STDERR, 'database error: ' . $e->getMessage() . "\n");
             return 2;
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'error: ' . $e->getMessage() . "\n");
+            return 1;
         }
     }
 
@@ -1447,8 +1450,13 @@ TXT;
         $this->policyPath();
         switch ($mta) {
             case 'exim':
-                // the policy is part of the generated Exim configuration
-                return $this->apply();
+                if ($this->canFullMailApply()) {
+                    $this->db = new Db($this->c);
+
+                    return $this->apply();
+                }
+
+                return $this->policyApplyEximOverlay();
             case 'postfix':
                 $p = $this->renderer()->policy();
                 $root = rtrim((string)($this->opt['root'] ?? '/'), '/');
@@ -1468,6 +1476,95 @@ TXT;
             default:
                 throw new KmException('Give --mta=exim, --mta=postfix or --mta=none');
         }
+    }
+
+    /** Full `kloxo-mail apply` needs a completed mail.ini (hostname + Rspamd). */
+    private function canFullMailApply(): bool
+    {
+        $h = (string)$this->c->get('hostname');
+        $hash = (string)$this->c->get('rspamd_ctrl_hash');
+
+        return $h !== '' && $hash !== '' && is_file($this->confPath);
+    }
+
+    /**
+     * SMTP protection for Debian/Ubuntu Exim (split conf.d) when hosted-mail
+     * templates have not been installed yet.
+     */
+    private function policyApplyEximOverlay(): int
+    {
+        $root = rtrim((string)($this->opt['root'] ?? '/'), '/');
+        $live = $root === '';
+        $p = $this->renderer()->policy();
+        $ov = KloxoMailPolicy::eximOverlay($p);
+        $mainRel = 'etc/exim4/conf.d/main/01_kloxo-smtp-policy';
+        $aclRel = 'etc/exim4/conf.d/acl/00_kloxo-smtp-policy';
+        $main = $root . '/' . $mainRel;
+        $acl = $root . '/' . $aclRel;
+        $written = [];
+        if ($p['enabled']) {
+            foreach ([$main, $acl] as $path) {
+                $dir = dirname($path);
+                if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+                    throw new KmException("Cannot create $dir");
+                }
+            }
+            file_put_contents($main, $ov['main']);
+            file_put_contents($acl, $ov['acl']);
+            chmod($main, 0644);
+            chmod($acl, 0644);
+            $written[] = $mainRel;
+            $written[] = $aclRel;
+            if (KloxoMailPolicy::needsPostgrey($p)) {
+                $pg = $root . '/etc/default/postgrey';
+                if (!is_dir(dirname($pg)) && !mkdir(dirname($pg), 0755, true) && !is_dir(dirname($pg))) {
+                    throw new KmException('Cannot create ' . dirname($pg));
+                }
+                file_put_contents($pg, KloxoMailPolicy::postgreyDefaults($p));
+                chmod($pg, 0644);
+                $written[] = 'etc/default/postgrey';
+            }
+        } else {
+            foreach ([$main, $acl] as $path) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+        }
+        if ($live && !isset($this->opt['no-reload'])) {
+            if (KloxoMailPolicy::needsPostgrey($p) && $p['enabled']) {
+                Proc::run(['systemctl', 'enable', 'postgrey']);
+                Proc::run(['systemctl', 'reload-or-restart', 'postgrey']);
+            }
+            if (is_executable('/usr/sbin/update-exim4.conf')) {
+                [$rc, $out, $err] = Proc::run(['/usr/sbin/update-exim4.conf']);
+                if ($rc !== 0) {
+                    throw new KmException('update-exim4.conf failed: ' . substr(trim($err !== '' ? $err : $out), 0, 400));
+                }
+            }
+            $exim = $this->eximBin();
+            if ($exim !== null) {
+                [$rc, $out, $err] = Proc::run([$exim, '-bV']);
+                if ($rc !== 0) {
+                    foreach ([$main, $acl] as $path) {
+                        @unlink($path);
+                    }
+                    if (is_executable('/usr/sbin/update-exim4.conf')) {
+                        Proc::run(['/usr/sbin/update-exim4.conf']);
+                    }
+                    throw new KmException('exim -bV failed: ' . substr(trim($err !== '' ? $err : $out), 0, 800));
+                }
+            }
+            [$rc, $out, $err] = Proc::run(['systemctl', 'reload-or-restart', 'exim4']);
+            if ($rc !== 0) {
+                throw new KmException("reload of exim4 failed ($err)");
+            }
+        }
+        $msg = $p['enabled']
+            ? ('Exim SMTP protection overlay: ' . count($written) . ' files')
+            : 'Exim SMTP protection overlay removed';
+
+        return $this->say(['installed' => $written, 'overlay' => true], $msg);
     }
 
     private function rmTree(string $path): void

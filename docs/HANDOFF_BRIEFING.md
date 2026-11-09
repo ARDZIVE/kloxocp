@@ -855,7 +855,9 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Settings after re-install is **UNVERIFIED**.
    SMTP Protection replaces Spamdyke (the Mail Server Settings tab that was called Spamdyke; Spamdyke itself is
    not installed or used). The settings are saved as `/etc/kloxo/mail-policy.json` (`KloxoMailPolicy`,
-   `lib/php/kloxo_mailpolicy.php`) and installed by `kloxo-mail policy:apply --mta=exim|postfix` for the SMTP server
+   `lib/php/kloxo_mailpolicy.php`) and installed by `kloxo-mail policy:apply --mta=exim|postfix`
+   as root via kloxo-backend (php-cli). Exim without `mail.ini` uses a Debian
+   `conf.d` overlay for the SMTP server
    chosen in Switch Program (`pg_servermail` follows `pg_smtp`; drivers `servermail__exim`/`__postfix`/`__none`;
    `migrateServermailDriver` fixes older installs; selecting another SMTP re-applies the saved policy). Exim: the
    settings render into `exim4.conf` (connect `delay`, `$recipients_count`, rDNS/RBL/`verify = sender` rules, `$h_` header

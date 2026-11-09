@@ -286,8 +286,8 @@ that tab and lists `mail_graylist_wlist_a` (add Whitelist IP + list column). Liv
 Mail Server Settings after deploy is UNVERIFIED.
 SMTP Protection replaces Spamdyke (the Mail Server Settings tab that was called Spamdyke; Spamdyke itself is
 not installed or used). The settings are saved as `/etc/kloxo/mail-policy.json` (`KloxoMailPolicy`,
-`lib/php/kloxo_mailpolicy.php`) and installed by `kloxo-mail policy:apply --mta=exim|postfix` for the SMTP server
-chosen in Switch Program (`pg_servermail` follows `pg_smtp`; drivers `servermail__exim`/`__postfix`/`__none`;
+`lib/php/kloxo_mailpolicy.php`) and installed by `kloxo-mail policy:apply --mta=exim|postfix` as root via kloxo-backend (php-cli, not php-fpm). Exim without a completed `mail.ini` uses a Debian `conf.d` overlay (`acl_kloxo_*` then `acl_check_rcpt`); a full `kloxo-mail apply` still runs when hostname and Rspamd are configured. Chosen
+in Switch Program (`pg_servermail` follows `pg_smtp`; drivers `servermail__exim`/`__postfix`/`__none`;
 `migrateServermailDriver` fixes older installs; selecting another SMTP re-applies the saved policy). Exim: the
 settings render into `exim4.conf` (connect `delay`, `$recipients_count`, rDNS/RBL/`verify = sender` rules, `$h_` header
 rules, whitelist hostlist; no policy file = old behaviour). Postfix: `postconf`/`postconf -M` edits with state file, backup,
