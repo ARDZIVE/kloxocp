@@ -2444,6 +2444,8 @@ $bakUpOk = str_contains($bakUpHtml, 'WARNING: Existing file will be overwritten'
 	&& str_contains($bakUpHtml, 'download_ftp_f');
 $bakImplode = str_contains($bakSrc, 'KloxoBackup::launchRestore')
 	&& str_contains($bakSrc, 'KloxoBackup::launchBackup')
+	&& str_contains($bakSrc, 'function fileManagerDir')
+	&& str_contains($bakSrc, 'KloxoBackup::installFile')
 	&& str_contains($bakSrc, 'MakeSureDirectoryExists')
 	&& str_contains($bakLib, 'function kloxo_ffile_is_backup_list')
 	&& str_contains((string) file_get_contents($doc . '/lib/html/lib.php'), 'method_exists($session, \'write\')')

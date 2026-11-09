@@ -171,7 +171,10 @@ Schedule privilege is read from the parent client (`checkButton`). Backup Now /
 Restore for admin and client go through `KloxoBackup` (absolute backup.php /
 restore.php, argument-array mysqldump, `/var/vmail` mail packs, Ubuntu
 `www-data` on restore; PHP 8 `unbackup` constant and null fileserv crashes
-fixed). Live Backup Now / Restore From File after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
+fixed). Backup Now writes the archive into the same `__backup/` directory the
+File Manager tab lists (`KloxoBackup::ensureDir` / `installFile`, owned by
+`lxlabs`); Restore From File picks from that folder. Live Backup Now / Restore
+From File / File Manager listing after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend

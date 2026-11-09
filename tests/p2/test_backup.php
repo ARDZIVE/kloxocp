@@ -1,9 +1,9 @@
 <?php
 /**
  * Admin and client Backup / Restore: PHP 8 launch argv, MariaDB dump argv,
- * /var/vmail pack, tgz metadata extract, unbackup list. Fake commands only.
- * NOT covered: a live backup.php run, kloxo-backend, real mysqldump, a panel
- * form submit, or restore of a production archive.
+ * /var/vmail pack, tgz metadata extract, unbackup list, File Manager store.
+ * Fake commands only. NOT covered: a live backup.php run, kloxo-backend,
+ * real mysqldump, a panel form submit, or restore of a production archive.
  * php-cli only.
  */
 declare(strict_types=1);
@@ -168,6 +168,31 @@ if ($tarBin !== '') {
 	check(true, 'extractArchive skipped (no tar on this host)');
 }
 
+echo "== File Manager store\n";
+$adminFm = KloxoBackup::ensureDir('client', 'admin');
+$aliceFm = KloxoBackup::ensureDir('client', 'alice');
+check($adminFm === $base . '/home/kloxo/client/admin/__backup' && is_dir($adminFm),
+	'ensureDir creates the admin File Manager folder');
+check($aliceFm === $base . '/home/kloxo/client/alice/__backup' && is_dir($aliceFm),
+	'ensureDir creates the client File Manager folder');
+$elsewhere = $base . '/elsewhere.tgz';
+file_put_contents($elsewhere, 'archive');
+$stored = KloxoBackup::installFile($elsewhere, 'client', 'alice');
+check($stored === $aliceFm . '/elsewhere.tgz' && is_file($stored) && !is_file($elsewhere),
+	'installFile moves the archive into the client File Manager folder');
+$inplace = $adminFm . '/kloxo-admin-2026-01-01-1.tgz';
+file_put_contents($inplace, 'in-place');
+$again = KloxoBackup::installFile($inplace, 'client', 'admin');
+check($again === $inplace && is_file($inplace),
+	'installFile keeps an archive already in the File Manager folder');
+$threw = false;
+try {
+	KloxoBackup::installFile($adminFm . '/..', 'client', 'admin');
+} catch (KloxoBackupException $e) {
+	$threw = true;
+}
+check($threw, 'installFile rejects a path whose basename is ..');
+
 echo "== source invariants\n";
 $lx = (string) file_get_contents($doc . '/lib/php/lxclass.php');
 $bak = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
@@ -189,8 +214,18 @@ check(str_contains($lx, "!is_array(\$res) || !isset(\$res['file'])"),
 	'backMeUp skips getFromFileserv when the driver returned nothing');
 check(str_contains($bak, 'KloxoBackup::launchBackup')
 	&& str_contains($bak, 'KloxoBackup::launchRestore')
-	&& str_contains($bak, 'function backupParent'),
+	&& str_contains($bak, 'function backupParent')
+	&& str_contains($bak, 'function fileManagerDir'),
 	'execbackupphp/execrestorephp launch via KloxoBackup; parent is resolved');
+check(str_contains($bak, 'KloxoBackup::installFile')
+	&& str_contains($bak, 'KloxoBackup::ensureDir')
+	&& str_contains($bak, 'fileManagerDir()'),
+	'Backup Now and File Manager share KloxoBackup::ensureDir');
+$kb = (string) file_get_contents($doc . '/lib/php/kloxo_backup.php');
+check(str_contains($kb, 'function ensureDir')
+	&& str_contains($kb, 'function installFile')
+	&& str_contains($kb, 'chownLxlabs'),
+	'KloxoBackup ensureDir/installFile chown archives to lxlabs');
 check(str_contains($bak, '$this->write();')
 	&& strpos($bak, '$this->write();') < strpos($bak, 'execbackupphp'),
 	'Backup Now writes the lxbackup row before starting backup.php');

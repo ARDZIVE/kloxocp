@@ -41,26 +41,27 @@ class lxbackup extends Lxdb
 	static $__acdesc_update_restore_from_file = array("", "", "Restore From File");
 	static $__acdesc_update_restore_from_ftp = array("", "", "Restore From FTP");
 
+	function fileManagerDir()
+	{
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+		}
+		$parent = $this->backupParent();
+		$table = (is_object($parent) && method_exists($parent, 'get__table')) ? $parent->get__table() : 'client';
+		$pname = (is_object($parent) && isset($parent->nname) && $parent->nname !== '')
+			? (string) $parent->nname : 'admin';
+
+		return KloxoBackup::ensureDir($table, $pname);
+	}
+
 	function getFfileFromVirtualList($name)
 	{
-		global $sgbl;
-
-		$parent = null;
-		try {
-			$parent = $this->getParentO();
-		} catch (Throwable $e) {
-			$parent = null;
-		}
+		$parent = $this->backupParent();
 
 		$name = coreFfile::getRealpath($name);
 		$name = "/$name";
 
-		$home = (is_object($sgbl) && isset($sgbl->__path_program_home) && is_string($sgbl->__path_program_home)
-			&& $sgbl->__path_program_home !== '') ? $sgbl->__path_program_home : '/home/kloxo';
-		$table = (is_object($parent) && method_exists($parent, 'get__table')) ? $parent->get__table() : 'client';
-		$pname = (is_object($parent) && isset($parent->nname) && $parent->nname !== '')
-			? (string) $parent->nname : 'admin';
-		$root = "{$home}/{$table}/{$pname}/__backup/";
+		$root = $this->fileManagerDir() . '/';
 
 		$syncserver = "localhost";
 		if (is_object($parent) && method_exists($parent, 'isClient') && !$parent->isClient()
@@ -69,9 +70,9 @@ class lxbackup extends Lxdb
 		}
 
 		try {
-			rl_exec_get(null, $syncserver, array("lxbackup", "MakeSureDirectoryExists"), array("$root/"));
+			rl_exec_get(null, $syncserver, array("lxbackup", "MakeSureDirectoryExists"), array($root));
 		} catch (Throwable $e) {
-			self::MakeSureDirectoryExists("$root/");
+			self::MakeSureDirectoryExists($root);
 		}
 
 		$ffile = new Ffile(null, $syncserver, $root, $name, 'lxlabs');
@@ -174,8 +175,12 @@ class lxbackup extends Lxdb
 
 	function backupcheckForConsistency($tree, $param)
 	{
+		global $login;
 
-		$parent = $this->getParentO();
+		$parent = $this->backupParent();
+		if (!is_object($parent)) {
+			throw new lxException($login->getThrow('no_parent'), '', 'restore');
+		}
 
 		print_time("create_tmp_dir");
 		$file = $this->getFtpOrLocal($param);
@@ -533,7 +538,7 @@ class lxbackup extends Lxdb
 			throw new lxException($login->getThrow('going_on'), '', $type);
 		}
 
-		$bpath = KloxoBackup::backupDir($parent->get__table(), (string) $parent->nname);
+		$bpath = KloxoBackup::ensureDir($parent->get__table(), (string) $parent->nname);
 
 		if ($type === 'backup') {
 			if ($parent->get__table() === 'vps') {
@@ -607,9 +612,7 @@ class lxbackup extends Lxdb
 			$param['backup_to_file_f'] = 'kloxo';
 		}
 
-		$home = (is_object($sgbl) && isset($sgbl->__path_program_home) && is_string($sgbl->__path_program_home)
-			&& $sgbl->__path_program_home !== '') ? $sgbl->__path_program_home : KloxoBackup::programHome();
-		$bpath = "{$home}/{$parent->get__table()}/{$parent->nname}/__backup";
+		$bpath = $this->fileManagerDir();
 		$bfile = "{$bpath}/{$this->createBackupFileName($param['backup_to_file_f'])}.tgz";
 
 		if (lxfile_exists($bfile)) {
@@ -681,17 +684,25 @@ class lxbackup extends Lxdb
 		$progname = $sgbl->__var_program_name;
 		$cprogname = ucfirst($progname);
 
-		$parent = $this->getParentO();
+		$parent = $this->backupParent();
+		if (!is_object($parent)) {
+			throw new lxException('no_parent', '', 'backup');
+		}
 
-		$bpath = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup";
+		$table = $parent->get__table();
+		$pname = (string) $parent->nname;
+		$bpath = KloxoBackup::ensureDir($table, $pname);
 		$bfile = $this->createBackupFileName($param['backup_to_file_f']);
-		$fbfile = "{$bpath}/{$bfile}.{$parent->getZiptype()}";
+		$zip = method_exists($parent, 'getZiptype') ? $parent->getZiptype() : 'tgz';
+		$fbfile = "{$bpath}/{$bfile}.{$zip}";
 
 		if ($parent->isSimpleBackup()) {
 			$parent->doSimpleBackup($fbfile, $param);
 		} else {
 			$parent->doCoreBackup($fbfile, $param);
 		}
+
+		$fbfile = KloxoBackup::installFile($fbfile, $table, $pname);
 
 		$object = clone($this);
 		lxclass::clearChildrenAndParent($object);
@@ -739,9 +750,9 @@ class lxbackup extends Lxdb
 
 	static function clear_extra_backups($class, $name, $object)
 	{
-		global $sgbl, $login;
+		global $login;
 
-		$bpath = "{$sgbl->__path_program_home}/{$class}/{$name}/__backup";
+		$bpath = KloxoBackup::ensureDir((string) $class, (string) $name);
 		$list = lscandir_without_dot($bpath);
 		$dellist = self::getDeleteList($object, $list);
 
@@ -863,11 +874,7 @@ class lxbackup extends Lxdb
 
 	function getFtpOrLocal($param)
 	{
-		global $sgbl;
-
-		$parent = $this->getParentO();
-
-		$bpath = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup";
+		$bpath = $this->fileManagerDir();
 
 		if (!empty($param['backup_ftp_file_f'])) {
 		/*
@@ -940,7 +947,10 @@ class lxbackup extends Lxdb
 		$progname = $sgbl->__var_program_name;
 		$cprogname = ucfirst($progname);
 
-		$parent = $this->getParentO();
+		$parent = $this->backupParent();
+		if (!is_object($parent)) {
+			throw new lxException('no_parent', '', 'restore');
+		}
 
 		if ($parent->isSimpleBackup()) {
 			$parent->doSimpleRestore($file, $param);

@@ -104,6 +104,54 @@ final class KloxoBackup
 		return self::programHome() . '/' . $table . '/' . $name . '/__backup';
 	}
 
+	/**
+	 * Directory listed by Backup / Restore → File Manager. Creates it and
+	 * gives it to lxlabs so the panel can list and download archives.
+	 */
+	public static function ensureDir(string $table, string $name): string
+	{
+		$dir = self::p(self::backupDir($table, $name));
+		if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+			throw new KloxoBackupException('could not create File Manager backup directory');
+		}
+		self::chownLxlabs($dir, 0755);
+
+		return $dir;
+	}
+
+	/**
+	 * Put an archive into the File Manager folder (same path Backup Now and
+	 * the File Manager tab use). Moves if it was written elsewhere.
+	 */
+	public static function installFile(string $path, string $table, string $name): string
+	{
+		$dir = self::ensureDir($table, $name);
+		$base = basename($path);
+		if ($base === '' || $base === '.' || $base === '..' || str_contains($base, "\0")) {
+			throw new KloxoBackupException('invalid backup filename');
+		}
+		$dest = $dir . '/' . $base;
+		if (is_file($path)) {
+			$srcReal = @realpath($path);
+			$dstReal = is_file($dest) ? @realpath($dest) : false;
+			if ($srcReal === false || $dstReal === false || $srcReal !== $dstReal) {
+				if ($path !== $dest) {
+					if (!@rename($path, $dest) && !@copy($path, $dest)) {
+						throw new KloxoBackupException('could not store backup in File Manager');
+					}
+					if (is_file($path) && $path !== $dest) {
+						@unlink($path);
+					}
+				}
+			}
+		}
+		if (is_file($dest)) {
+			self::chownLxlabs($dest, 0640);
+		}
+
+		return $dest;
+	}
+
 	public static function webGroup(): string
 	{
 		if (class_exists('KloxoIpaddr', false) && is_callable(array('KloxoIpaddr', 'isUbuntu'))
@@ -593,5 +641,14 @@ final class KloxoBackup
 		}
 
 		return $path;
+	}
+
+	private static function chownLxlabs(string $path, int $mode): void
+	{
+		@chmod($path, $mode);
+		if (function_exists('posix_getpwnam') && @posix_getpwnam('lxlabs')) {
+			@chown($path, 'lxlabs');
+			@chgrp($path, 'lxlabs');
+		}
 	}
 }

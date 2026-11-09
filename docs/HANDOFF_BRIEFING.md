@@ -807,10 +807,14 @@ Work in this order. Keep every change small, tested and committed separately. Do
     packs for mmail, Ubuntu `www-data` on client restore. PHP 8 crashes that
     aborted every run are fixed (`getRpmBranchList('unbackup')`, `Throwable` in
     the object loops, no `getFromFileserv` on a null driver result, tgz
-    metadata extract instead of unzip). `lxbackup` writes the row before
+    metadata extract instead of unzip).     `lxbackup` writes the row before
     launching the job and resolves the parent from `client-admin` /
-    `client-<name>`. Tested: `tests/p2/test_backup.php` (fakes + a local tar).
-    Live Backup Now / Restore From File after deploy is **UNVERIFIED**.
+    `client-<name>`. Backup Now stores the archive in the File Manager tab
+    directory (`/home/kloxo/client/<name>/__backup/`, `KloxoBackup::ensureDir`
+    / `installFile`, chown `lxlabs`); Restore From File reads that same folder.
+    Tested: `tests/p2/test_backup.php` (fakes + a local tar + File Manager
+    store). Live Backup Now / Restore From File / File Manager listing after
+    deploy is **UNVERIFIED**.
    Mail Server Settings has exactly three content tabs **Mail Server Settings**
    (selected on `sa=update`), **SMTP Protection** (was Spamdyke), **Whitelist IPs**
    (`ServerMail::servermailPropertyTabs` forced); Switch To Another via
