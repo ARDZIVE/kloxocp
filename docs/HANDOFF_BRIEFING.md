@@ -429,8 +429,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     with Generate Password, so Esc and Close hide the visible box.
     Simplicity Status toast (`#div_cfstatus`) peeks `frm_emessage` /
     `frm_smessage` without consuming them, auto-opens for 15s, and the
-    content area still prints green/red inline alerts. Live toast after
-    deploy is **UNVERIFIED**.
+    content area still prints green/red inline alerts. Unread tickets no
+    longer set `you_have_unread_ticket`; a red dot on the top-left Ticket
+    pill (`#div_ticket`) marks them instead (`checkTicketUnread`). Live toast
+    and unread-dot after deploy are **UNVERIFIED**.
     `convert_message` does not index a missing `frm_o_o[0]`.
     Theme CSS links include a filemtime query so a browser
     cannot keep the old simplicity sheet after deploy.

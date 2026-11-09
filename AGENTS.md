@@ -33,7 +33,9 @@ inside; Esc/Close cannot skip it; the form posts to the logged-in client and
 does not inherit the page underneath, which made Update throw unsettable
 `old_password_f` on Services). Simplicity Status toast auto-opens for
 alerts/info and content shows matching inline alerts (Status peek does not
-consume the message). Admin Servers list seeds `localhost`. The Update
+consume the message). Unread HelpDesk tickets do not set `you_have_unread_ticket`
+(no Status toast or inline text); a red dot sits on the top-left Ticket pill
+(`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
 screen shows **10.1-2026110601** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and

@@ -2638,11 +2638,6 @@ abstract class Lxclass
 		global $gbl, $sgbl, $login, $ghtml;
 
 		if ($this->isLogin() && $this->isLxclient() && !isset($ghtml->__http_vars['frm_emessage'])) {
-			if (($count = $this->checkTicketUnread())) {
-				$ghtml->__http_vars['frm_smessage'] = 'you_have_unread_ticket';
-				$ghtml->__http_vars['frm_m_smessage_data'] = $count;
-			}
-
 			if (($count = $this->checkMessageUnread())) {
 				$ghtml->__http_vars['frm_smessage'] = 'you_have_unread_message';
 				$ghtml->__http_vars['frm_m_smessage_data'] = $count;

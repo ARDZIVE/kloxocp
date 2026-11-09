@@ -2635,6 +2635,26 @@ if (is_array($tkSw) && isset($tkSw['1']) && is_object($tkSw['1'])
 	bad('HelpDesk ticket show skips Find, lists Switch To Another, and Add Reply', $why);
 }
 
+$lxclassSrc = (string) file_get_contents($doc . '/lib/php/lxclass.php');
+$topbarLeft = (string) file_get_contents($doc . '/theme/skin/simplicity/default/topbar_left.php');
+$unreadCss = (string) file_get_contents($doc . '/theme/css/common.css')
+	. (string) file_get_contents($doc . '/theme/skin/simplicity/default/css/menu.css');
+$unreadFn = strpos($lxclassSrc, 'function getAnyErrorMessage');
+$unreadEnd = strpos($lxclassSrc, 'function object_print', $unreadFn !== false ? $unreadFn : 0);
+$unreadBlock = ($unreadFn !== false && $unreadEnd !== false)
+	? substr($lxclassSrc, $unreadFn, $unreadEnd - $unreadFn)
+	: $lxclassSrc;
+if (!str_contains($unreadBlock, 'you_have_unread_ticket')
+	&& str_contains($topbarLeft, 'checkTicketUnread')
+	&& str_contains($topbarLeft, 'kloxo-unread-dot')
+	&& str_contains($topbarLeft, 'kloxo-has-unread')
+	&& str_contains($unreadCss, '.kloxo-unread-dot')
+	&& str_contains($unreadCss, '#e74c3c')) {
+	ok('Unread tickets show a red dot on the Ticket pill, not a textual toast');
+} else {
+	bad('Unread tickets show a red dot on the Ticket pill, not a textual toast');
+}
+
 $escForm = null;
 $escFormErr = '';
 try {
