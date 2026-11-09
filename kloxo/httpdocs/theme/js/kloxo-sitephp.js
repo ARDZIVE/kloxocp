@@ -147,13 +147,15 @@
 		}
 		box = doc.createElement('div');
 		box.id = 'kloxo-sitephp-box';
+		box.className = 'kloxo-sitephp-box';
 		box.setAttribute('data-kloxo-nobusy', '1');
-		box.style.cssText = 'display:none;margin:8px 0 16px 0;border:1px solid #aaa;background:#f8fff8;padding:10px;';
+		box.style.cssText = 'display:none;width:600px;margin:0 auto 16px auto;border:1px solid #aaa;background:#fff;padding:0;box-sizing:content-box;';
 		title = doc.createElement('div');
-		title.style.cssText = 'font-weight:bold;background:#dfe;margin:-10px -10px 10px -10px;padding:8px 10px;border-bottom:1px solid #aaa;';
+		title.style.cssText = 'font-weight:bold;background:#dfe;padding:8px 10px;border-bottom:1px solid #aaa;';
 		title.appendChild(doc.createTextNode('PHP progress'));
 		rows = doc.createElement('div');
 		rows.id = 'kloxo-sitephp-rows';
+		rows.style.cssText = 'padding:10px;';
 		box.appendChild(title);
 		box.appendChild(rows);
 		host.parentNode.insertBefore(box, host);

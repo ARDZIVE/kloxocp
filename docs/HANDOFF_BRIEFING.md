@@ -186,7 +186,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (no in-process fallback as lxlabs) and lists installed `phpX.Y-fpm`.
     Update on either form stays on Webserver Configure and shows a
     progress bar per phpX.Y (`kloxo-sitephp.js`, admin-only
-    `theme/lbin/sitephp-progress.php`, `log/sitephp.jobs`). When a job
+    `theme/lbin/sitephp-progress.php`, `log/sitephp.jobs`; the progress
+    box is 600px centered like the other updateform blocks). When a job
     finishes the version moves between the Install and Remove lists
     (installed = phpX.Y cli or fpm binary; a leftover `/etc/php/X.Y`
     dir after purge does not keep it on Remove). A leftover
