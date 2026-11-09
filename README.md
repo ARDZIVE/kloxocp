@@ -66,8 +66,19 @@ The UI requires a password change before anything else.
 Recovery console (panel down, MariaDB down): `https://<ip>:7777/recovery/` —
 password printed at install and saved in `/root/kloxo-recovery-password`.
 
-A re-run of the same command updates the clone to current `main` and keeps
-the admin password unless you set `KLOXO_ADMIN_PASSWORD`.
+### Update
+
+After the last commit is on GitHub `main`, re-run the installer on the server
+(as root). It fetches that commit, resets `/usr/local/src/kloxo-cp`, and
+installs into `/opt/kloxo`. The admin password is kept unless you set
+`KLOXO_ADMIN_PASSWORD`.
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh
+sudo bash /tmp/kloxocp-install.sh
+```
+
+`kloxocp update` is not built (exits 2). Signed apt packages are not published.
 
 ### After install
 
@@ -86,8 +97,6 @@ php /opt/kloxo/bin/kloxocp doctor
 php /opt/kloxo/bin/kloxocp snapshot
 php /opt/kloxo/bin/kloxocp rollback
 ```
-
-`kloxocp update` is not built (exits 2). Signed apt packages are not published.
 
 ## License
 
