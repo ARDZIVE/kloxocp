@@ -506,10 +506,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     reaches the percentage: General Disable Percentage (`dpercentage`,
     default 110) unless the account or plan sets Disable When Usage
     Reaches (`disable_per`, including `off`). Notify Policy
-    (`npercentage`, default 90) is the warning. `collectquota` uses
+    (`npercentage`, default 90) is the warning. Admin Home → Disable
+    Policy is that panel-wide percentage plus Disable notify (admin is
+    never auto-disabled); a customer opening Disable Policy on
+    themselves still gets `can_not_set_own_limit`. `collectquota` uses
     `kloxo_quota_policy_check` (PHP 8-safe string quotas). Tested:
-    `tests/p2/test_disable_policy.php`. Live collectquota after deploy
-    is **UNVERIFIED**. Command Center / Timezone / Switch
+    `tests/p2/test_disable_policy.php`. Live collectquota / admin
+    Disable Policy form after deploy is **UNVERIFIED**. Command Center / Timezone / Switch
     Program / Cron Tasks / File Manager / HelpDesk forms no longer
     TypeError on empty lists. HelpDesk ticket show skips Find, lists
     Switch To Another, and Add Reply no longer TypeErrors on a missing

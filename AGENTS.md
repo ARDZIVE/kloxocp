@@ -239,8 +239,11 @@ on the list page; there is no separate Add Server tab. Adding a domain no longer
 account when usage reaches the percentage: General Disable Percentage
 (`dpercentage`, default 110) unless the account/plan sets Disable When Usage
 Reaches (`disable_per`, including `off`); Notify Policy (`npercentage`, default
-90) is the warning. `collectquota` uses `kloxo_quota_policy_check` (PHP 8-safe;
-`tests/p2/test_disable_policy.php`). Live collectquota after deploy is UNVERIFIED.
+90) is the warning. Admin Home → Disable Policy is that panel-wide percentage
+(plus Disable notify), not `can_not_set_own_limit`; a customer opening it on
+themselves still cannot set their own tripwire. `collectquota` uses
+`kloxo_quota_policy_check` (PHP 8-safe; `tests/p2/test_disable_policy.php`). Live
+collectquota / admin Disable Policy form after deploy is UNVERIFIED.
 The rest of the domain-add path (DB writes,
 web/DNS/mail sync) was not run without a live panel DB; live Add Domain after deploy is UNVERIFIED. Mail Account > Set Auto Responder with no autoresponders shows "First add some autoresponders" as a green info message, not an error (`lxInfoException` in `lib/php/lxlib.php`, caught in `theme/coredisplaylib.php` and printed with `print_inline_alert(..., 'info')`; the Set / Enable / Disable Auto Responder pages show the same five beige tabs as the Auto Responders list (`Mailaccount::createShowPropertyList`; which tab is highlighted in the browser is UNVERIFIED); other `lxException` text from `do_updateform` is printed plain instead of "The requested form could not be loaded."; `tests/p2/test_autoresponder_form.php`; live UNVERIFIED). Mail Account dashboard tiles (Password, Limit, Mail Forwards, Filter Configure, Configure, Spam Training, Auto Responders, Webmail) use local Font Awesome Free SVGs (`HtmlLib::mailTileFaName`/`faTileIcon`, `theme/fontawesome/svgs/solid/`; `tests/p2/test_mail_tile_icons.php`; browser look UNVERIFIED). Adding a client does
 not implode() a string (contact email / coma_* lists), does not TypeError

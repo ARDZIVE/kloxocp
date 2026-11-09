@@ -839,14 +839,20 @@ abstract class Lxclient extends Lxdb
 				return $vlist;
 
 			case "disable_per":
-				if ($this->islogin()) {
+				// A customer must not raise their own tripwire. Admin on
+				// themselves edits the panel-wide Disable Percentage.
+				if ($this->isOwnAccount() && !$this->isAdmin()) {
 					throw new lxException($login->getThrow('can_not_set_own_limit'));
 				}
-				
-				if (!isset($this->disable_per) || $this->disable_per === '' || $this->disable_per === null) {
-					$this->setDefaultValue('disable_per', (string) kloxo_disable_policy_default());
+
+				if ($this->isAdmin() && $this->isOwnAccount()) {
+					$raw = kloxo_disable_policy_normalize(kloxo_generalmisc_value('dpercentage', '110'));
+					$this->disable_per = ($raw !== null) ? $raw : '110';
+				} elseif (!isset($this->disable_per) || $this->disable_per === '' || $this->disable_per === null) {
+					$def = kloxo_disable_policy_default();
+					$this->setDefaultValue('disable_per', $def === null ? 'off' : (string) $def);
 				}
-				$vlist['disable_per'] = array('s', array('off', '90', '95', '100', '110', '120', '130', '150', '175', '200', '300'));
+				$vlist['disable_per'] = array('s', kloxo_disable_policy_choices());
 
 				$this->disable_notify = null;
 
@@ -1093,6 +1099,12 @@ abstract class Lxclient extends Lxdb
 	function updateDisable_per($param)
 	{
 		kloxo_quota_notify_set(isset($param['disable_notify']) && $param['disable_notify'] === 'on');
+
+		if ($this->isAdmin() && $this->isOwnAccount() && isset($param['disable_per'])) {
+			kloxo_disable_policy_save($param['disable_per']);
+			$this->disable_per = '';
+			unset($param['disable_per']);
+		}
 
 		return $param;
 	}

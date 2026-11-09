@@ -1856,12 +1856,76 @@ function kloxo_generalmisc_value(string $key, $default)
 	}
 }
 
-/** General Disable Policy (normal 110). */
-function kloxo_disable_policy_default(): int
+/** Select values for Disable Percentage / Disable When Usage Reaches. */
+function kloxo_disable_policy_choices(): array
 {
-	$n = (int) kloxo_quota_num(kloxo_generalmisc_value('dpercentage', 110));
+	return array('off', '90', '95', '100', '105', '110', '120', '130', '150', '175', '200', '300');
+}
 
-	return $n > 0 ? $n : 110;
+/** 'off' or a positive integer string, or null when the value is not usable. */
+function kloxo_disable_policy_normalize($value): ?string
+{
+	if ($value === null) {
+		return null;
+	}
+	$raw = strtolower(trim((string) $value));
+	if ($raw === 'off') {
+		return 'off';
+	}
+	if ($raw === '' || !is_numeric($raw)) {
+		return null;
+	}
+	$n = (int) $raw;
+
+	return $n > 0 ? (string) $n : null;
+}
+
+/** General Disable Policy (normal 110). null when auto-disable is off. */
+function kloxo_disable_policy_default(): ?int
+{
+	$raw = kloxo_disable_policy_normalize(kloxo_generalmisc_value('dpercentage', 110));
+	if ($raw === null) {
+		return 110;
+	}
+	if ($raw === 'off') {
+		return null;
+	}
+
+	return (int) $raw;
+}
+
+/** Persist General Disable Percentage (`dpercentage`). */
+function kloxo_disable_policy_save($value): void
+{
+	global $login;
+
+	$store = kloxo_disable_policy_normalize($value);
+	if ($store === null) {
+		return;
+	}
+	try {
+		if (!is_object($login) || !method_exists($login, 'getObject')) {
+			return;
+		}
+		$g = $login->getObject('general');
+		if (!is_object($g)) {
+			return;
+		}
+		if (!isset($g->generalmisc_b) || !is_object($g->generalmisc_b)) {
+			$g->generalmisc_b = class_exists('generalmisc_b')
+				? new generalmisc_b(null, null, 'general')
+				: new stdClass();
+		}
+		$g->generalmisc_b->dpercentage = $store;
+		if (method_exists($g, 'setUpdateSubaction')) {
+			$g->setUpdateSubaction();
+		}
+		if (method_exists($g, 'write')) {
+			$g->write();
+		}
+	} catch (Throwable $e) {
+		throw new lxException('could_not_save_file', '', 'dpercentage');
+	}
 }
 
 /** General Notify Policy (normal 90). */

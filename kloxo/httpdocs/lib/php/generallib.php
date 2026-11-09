@@ -421,7 +421,7 @@ class General extends Lxdb
 					|| $this->generalmisc_b->dpercentage === null) {
 					$this->generalmisc_b->setDefaultValue('dpercentage', '110');
 				}
-				$vlist['generalmisc_b-dpercentage'] = array('s', array('90', '95', '100', '105', '110', '120'));
+				$vlist['generalmisc_b-dpercentage'] = array('s', kloxo_disable_policy_choices());
 
 				break;
 
