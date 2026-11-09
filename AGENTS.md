@@ -86,10 +86,13 @@ kloxo-backend (`rl_exec_get`; a pool failure is the real reason);
 nginx `-t` does not run Apache configtest.
 Webserver Configure section forms (PHP Used/Branch,
 Multiple PHP, PHP Type, Apache optimize, MySQL convert, fix ownership,
-Pagespeed) load without the panel DB; Multiple PHP Install queues
-`install-site-php` for the selected `phpX.Y` ids (job under `$ROOT/log/`,
-not `/tmp`, because `kloxo-backend` uses `PrivateTmp`) so they appear on
-Multiple PHP Remove; Apache optimize writes
+Pagespeed) load without the panel DB; Multiple PHP Install sends
+`KloxoPhpver::queueInstall` to kloxo-backend (`rl_exec_get`; the panel
+user cannot systemd-run or apt) which queues `install-site-php` for the
+selected `phpX.Y` ids (job under `$ROOT/log/`, not `/tmp`, because
+`kloxo-backend` uses `PrivateTmp`); Multiple PHP Remove sends
+`KloxoPhpver::removeVersions` (`KloxoApt` of `phpX.Y-fpm`) so they
+appear on Multiple PHP Remove; Apache optimize writes
 `kloxo-optimize.conf`; PHP Type on Ubuntu is proxy_fcgi + mpm_event/worker;
 fix-ownership is `--select=chown`. The panel itself stays on distro PHP. PHP Configure and Advanced PHP Configure share exactly two beige tabs
 (**PHP Configure** / **Advanced PHP Configure**; `phpiniPropertyTabs`, forced; no parent Home/Domain

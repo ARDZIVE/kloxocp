@@ -705,123 +705,92 @@ class serverweb__ extends lxDriverClass
 	}
 
 	/**
-	 * Paths for a queued install-site-php job.
-	 * Job/lock live under program log (not /tmp): kloxo-backend.service
-	 * sets PrivateTmp=true, so a /tmp script is invisible to systemd-run.
+	 * Paths for a queued install-site-php job. Delegates to KloxoPhpver.
 	 *
 	 * @return array{root:string,script:string,logDir:string,job:string,lock:string,log:string}
 	 */
 	static function sitePhpInstallPaths($root)
 	{
-		$root = rtrim((string)$root, '/');
-		$logDir = $root . '/log';
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
 
-		return array(
-			'root' => $root,
-			'script' => $root . '/bin/install/install-site-php',
-			'logDir' => $logDir,
-			'job' => $logDir . '/kloxo-site-php-install.sh',
-			'lock' => $logDir . '/kloxo-site-php-install.lock',
-			'log' => $logDir . '/install-site-php.log',
+		return KloxoPhpver::sitePhpInstallPaths((string)$root);
+	}
+
+	/**
+	 * Build the wrapper script body. Delegates to KloxoPhpver.
+	 */
+	static function sitePhpInstallWrap($script, $root, $versArg, $log, $lock, $job)
+	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+
+		return KloxoPhpver::sitePhpInstallWrap(
+			(string)$script,
+			(string)$root,
+			(string)$versArg,
+			(string)$log,
+			(string)$lock,
+			(string)$job
 		);
 	}
 
 	/**
-	 * Build the wrapper script body. trap uses a double-quoted body so
-	 * escapeshellarg() quotes stay valid (single-quoted trap bodies break).
+	 * Panel PHP-FPM is lxlabs. Privileged PHP install/remove is a small GET
+	 * to kloxo-backend (same pattern as KloxoPhpfpm::applyDomain).
+	 *
+	 * @param string $method queueInstall|removeVersions
+	 * @param mixed $arg
+	 * @return array{0:mixed,1:string} [result, server]
 	 */
-	static function sitePhpInstallWrap($script, $root, $versArg, $log, $lock, $job)
+	function phpverBackend($method, $arg)
 	{
-		foreach (array($script, $root, $log, $lock, $job) as $p) {
-			if (!is_string($p) || $p === '' || strpos($p, "\n") !== false || strpos($p, "\0") !== false) {
-				return '';
-			}
-		}
-		if (!is_string($versArg) || preg_match('/^[0-9.]+(,[0-9.]+)*$/', $versArg) !== 1) {
-			return '';
-		}
+		global $login;
 
-		return "#!/bin/bash\nset -euo pipefail\n"
-			. 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
-			. '/bin/bash ' . escapeshellarg($script)
-			. ' --root=' . escapeshellarg($root)
-			. ' --versions=' . escapeshellarg($versArg)
-			. ' >>' . escapeshellarg($log) . " 2>&1\n";
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+		$server = 'localhost';
+		if (isset($this->main->syncserver) && is_string($this->main->syncserver) && $this->main->syncserver !== '') {
+			$server = $this->main->syncserver;
+		}
+		$euid = function_exists('posix_geteuid') ? (int)posix_geteuid() : 0;
+		if ($euid !== 0 && function_exists('rl_exec_get')) {
+			try {
+				$got = rl_exec_get(null, $server, array('KloxoPhpver', $method), array($arg));
+			} catch (lxException $e) {
+				throw $e;
+			} catch (Throwable $e) {
+				throw new lxException($login->getThrow('could_not_execute'), '', $method . ': ' . $e->getMessage());
+			}
+
+			return array($got, $server);
+		}
+		$got = call_user_func(array('KloxoPhpver', $method), $arg);
+
+		return array($got, $server);
 	}
 
 	function startSitePhpInstall($vers)
 	{
-		global $login, $sgbl;
+		global $login;
 
-		$root = (isset($sgbl) && !empty($sgbl->__path_program_root))
-			? (string)$sgbl->__path_program_root
-			: dirname(__DIR__, 3);
-		if (strpos($root, '..') !== false || strpos($root, "\n") !== false) {
-			throw new lxException($login->getThrow('file_not_found'), '', $root);
-		}
-		$paths = self::sitePhpInstallPaths($root);
-		$script = $paths['script'];
-		if (!is_file($script)) {
-			throw new lxException($login->getThrow('file_not_found'), '', $script);
-		}
-		$versArg = implode(',', $vers);
-		if (preg_match('/^[0-9.]+(,[0-9.]+)*$/', $versArg) !== 1) {
-			throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
-		}
-
-		$job = $paths['job'];
-		$lock = $paths['lock'];
-		$log = $paths['log'];
-		// Clear stale /tmp lock from older panel builds (PrivateTmp-safe path is below).
-		@unlink('/tmp/kloxo-site-php-install.lock');
-		if (!is_dir($paths['logDir']) && !@mkdir($paths['logDir'], 0755, true) && !is_dir($paths['logDir'])) {
-			throw new lxException($login->getThrow('could_not_execute'), '', $paths['logDir']);
-		}
-		if (is_file($lock)) {
-			$age = time() - (int)@filemtime($lock);
-			if ($age >= 0 && $age < 1800) {
-				throw new lxException($login->getThrow('other_install_process_still_running'), '', $this->main->syncserver);
+		list($got, $server) = $this->phpverBackend('queueInstall', $vers);
+		if (!is_array($got) || empty($got['ok'])) {
+			$err = (is_array($got) && isset($got['error'])) ? (string)$got['error'] : '';
+			if ($err === 'no versions') {
+				throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
 			}
-			@unlink($lock);
-			@unlink($job);
-		}
-
-		$wrap = self::sitePhpInstallWrap($script, $paths['root'], $versArg, $log, $lock, $job);
-		if ($wrap === '' || @file_put_contents($job, $wrap) === false) {
-			throw new lxException($login->getThrow('could_not_execute'), '', $job);
-		}
-		@chmod($job, 0700);
-		if (@file_put_contents($lock, (string)time()) === false) {
-			@unlink($job);
-			throw new lxException($login->getThrow('could_not_execute'), '', $lock);
-		}
-
-		$euid = function_exists('posix_geteuid') ? (int)posix_geteuid() : 0;
-		$started = false;
-		$systemd = '/usr/bin/systemd-run';
-		if ($euid === 0 && is_executable($systemd)) {
-			$code = $this->runArgv(array(
-				$systemd,
-				'--no-block',
-				'--collect',
-				'--unit=kloxo-site-php-install-' . (string)getmypid() . '-' . (string)time(),
-				'/bin/bash',
-				$job,
-			));
-			$started = ($code === 0);
-		}
-		// Fallback only when systemd-run did not start the job (do not double-run).
-		if (!$started) {
-			if ($euid !== 0) {
-				@unlink($job);
-				@unlink($lock);
-				throw new lxException($login->getThrow('could_not_execute'), '', 'install-site-php');
+			if ($err === 'other install running') {
+				throw new lxException($login->getThrow('other_install_process_still_running'), '', $server);
 			}
-			// Same PrivateTmp as kloxo-backend: background child can still run apt.
-			lxshell_background('bash', $job);
+			if ($err === 'file_not_found' || strncmp($err, 'file_not_found:', 15) === 0) {
+				$path = ($err === 'file_not_found') ? '' : substr($err, 15);
+				throw new lxException($login->getThrow('file_not_found'), '', $path);
+			}
+			$why = ($err !== '' && $err !== 'not root')
+				? $err
+				: 'kloxo-backend (127.0.0.1:7776) did not handle the request';
+			throw new lxException($login->getThrow('could_not_execute'), '', 'install-site-php: ' . $why);
 		}
 
-		throw new lxException($login->getThrow('install_process_running_in_background'), '', $this->main->syncserver);
+		throw new lxException($login->getThrow('install_process_running_in_background'), '', $server);
 	}
 
 	function set_multiple_php_remove()
@@ -844,12 +813,16 @@ class serverweb__ extends lxDriverClass
 		}
 
 		if (KloxoIpaddr::isUbuntu()) {
-			foreach ($list as $v) {
-				$ver = KloxoPhpver::idToSeries((string)$v);
-				if ($ver === '' || preg_match('/^\d+\.\d+$/', $ver) !== 1) {
-					continue;
+			list($got, $server) = $this->phpverBackend('removeVersions', $list);
+			if (!is_array($got) || empty($got['ok'])) {
+				$err = (is_array($got) && isset($got['error'])) ? (string)$got['error'] : '';
+				if ($err === 'php already in use') {
+					throw new lxException($login->getThrow('php_already_in_used'), '', implode(',', $list));
 				}
-				$this->runArgv(array('apt-get', 'remove', '-y', 'php' . $ver . '-fpm'));
+				$why = ($err !== '' && $err !== 'not root')
+					? $err
+					: 'kloxo-backend (127.0.0.1:7776) did not handle the request';
+				throw new lxException($login->getThrow('could_not_execute'), '', 'php remove: ' . $why);
 			}
 			createRestartFile("restart-php-fpm");
 			createRestartFile("restart-web");

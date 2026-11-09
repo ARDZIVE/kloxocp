@@ -175,10 +175,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Update does not run `/script/fixweb` in the HTTP request (that printed
     into the page and blocked until php-fpm/nginx finished, leaving only the
     simplicity background). A failed pool write is an `lxException` with the
-    real reason. `validateWeb` tests only the active web driver. Webserver Configure
+    real reason. `validateWeb` tests only the active web driver.     Webserver Configure
     Multiple PHP Install submits selected `phpX.Y` ids (dual-listbox
-    Available and/or Selected) and queues `install-site-php --versions=`;
-    Multiple PHP Remove lists installed `phpX.Y-fpm`. The old scanner only
+    Available and/or Selected) and sends `KloxoPhpver::queueInstall` to
+    kloxo-backend (`rl_exec_get`; the panel user cannot systemd-run or apt)
+    which queues `install-site-php --versions=` under `$ROOT/log/`;
+    Multiple PHP Remove sends `KloxoPhpver::removeVersions` the same way
+    and lists installed `phpX.Y-fpm`. The old scanner only
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL
@@ -877,12 +880,14 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    for Apache, Apache optimize, MySQL convert, fix ownership, Pagespeed)
    with Ubuntu `phpX.Y` ids, not `php52m`. Multiple PHP Install submits
    the dual-listbox selection (Available highlights and/or Selected) as
-   `phpX.Y` ids and queues `install-site-php --versions=` via a job under
-   `$ROOT/log/` (not `/tmp`: `kloxo-backend` has `PrivateTmp=true`, which
-   made `systemd-run` fail with `could_not_execute [install-site-php]`);
-   falls back to background bash as root when `systemd-run` is unavailable.
+   `phpX.Y` ids and sends `KloxoPhpver::queueInstall` to kloxo-backend
+   (`rl_exec_get`; panel FPM is lxlabs and used to throw
+   `could_not_execute [install-site-php]`). Root writes a job under
+   `$ROOT/log/` (not `/tmp`: `kloxo-backend` has `PrivateTmp=true`) and
+   `systemd-run`s it, or falls back to background bash as root.
    Multiple PHP Remove lists actually installed `phpX.Y-fpm` (binaries or
-   `/etc/php/X.Y/fpm`). Each section form loads without
+   `/etc/php/X.Y/fpm`) and sends `KloxoPhpver::removeVersions` the same
+   way (`KloxoApt::remove` of `phpX.Y-fpm`). Each section form loads without
    a DB password. Apache optimize writes
    `/etc/apache2/conf-available/kloxo-optimize.conf` (validate `apache2ctl
    -t`, roll back on failure). PHP Type on Ubuntu enables mpm_event or

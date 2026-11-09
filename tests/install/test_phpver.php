@@ -196,4 +196,74 @@ KloxoPhpver::$aptProbe = null;
 KloxoPhpver::$suryProbe = null;
 KloxoPhpver::$ppaProbe = null;
 
+KloxoPhpver::$euidProbe = 1000;
+$notRoot = KloxoPhpver::queueInstall(['8.1']);
+$rmNotRoot = KloxoPhpver::removeVersions(['php8.1']);
+if (($notRoot['ok'] ?? true) === false && ($notRoot['error'] ?? '') === 'not root'
+	&& ($rmNotRoot['ok'] ?? true) === false && ($rmNotRoot['error'] ?? '') === 'not root') {
+	$ok('queueInstall/removeVersions refuse when not root');
+} else {
+	$bad('queueInstall/removeVersions refuse when not root');
+}
+
+$tmpRoot = sys_get_temp_dir() . '/kloxo-phpver-job-' . getmypid();
+@mkdir($tmpRoot . '/bin/install', 0755, true);
+@mkdir($tmpRoot . '/log', 0755, true);
+file_put_contents($tmpRoot . '/bin/install/install-site-php', "#!/bin/bash\n");
+$sysCalls = [];
+KloxoPhpver::$euidProbe = 0;
+KloxoPhpver::$programRootProbe = $tmpRoot;
+KloxoPhpver::$runCmd = static function (array $argv) use (&$sysCalls): int {
+	$sysCalls[] = $argv;
+
+	return 0;
+};
+$queued = KloxoPhpver::queueInstall(['8.1', '8.1', 'nope']);
+$jobFile = $tmpRoot . '/log/kloxo-site-php-install.sh';
+$lockFile = $tmpRoot . '/log/kloxo-site-php-install.lock';
+$jobBody = is_file($jobFile) ? (string) file_get_contents($jobFile) : '';
+$sysBin = (string) ($sysCalls[0][0] ?? '');
+$sysJob = (string) ($sysCalls[0][5] ?? '');
+if (($queued['ok'] ?? false) === true
+	&& is_file($jobFile) && is_file($lockFile)
+	&& str_contains($jobBody, '--versions=' . escapeshellarg('8.1'))
+	&& $sysBin === '/usr/bin/systemd-run' && $sysJob === $jobFile) {
+	$ok('queueInstall as root writes a PrivateTmp-safe job and systemd-run');
+} else {
+	$bad('queueInstall as root writes a PrivateTmp-safe job and systemd-run');
+}
+$empty = KloxoPhpver::queueInstall([]);
+if (($empty['ok'] ?? true) === false && ($empty['error'] ?? '') === 'no versions') {
+	$ok('queueInstall rejects an empty version list');
+} else {
+	$bad('queueInstall rejects an empty version list');
+}
+
+$aptBin = $tmpRoot . '/fake-apt-get';
+file_put_contents($aptBin, "#!/bin/sh\necho apt-ok\nexit 0\n");
+@chmod($aptBin, 0755);
+if (!defined('KLOXO_APT_TEST_BIN')) {
+	define('KLOXO_APT_TEST_BIN', $aptBin);
+}
+require_once $root . '/kloxo/httpdocs/lib/php/kloxo_apt.php';
+$removed = KloxoPhpver::removeVersions(['php8.1', '8.2']);
+if (($removed['ok'] ?? false) === true
+	&& isset($removed['packages']) && $removed['packages'] === ['php8.1-fpm', 'php8.2-fpm']) {
+	$ok('removeVersions as root apt-removes phpX.Y-fpm');
+} else {
+	$bad('removeVersions as root apt-removes phpX.Y-fpm');
+}
+
+KloxoPhpver::$euidProbe = null;
+KloxoPhpver::$programRootProbe = null;
+KloxoPhpver::$runCmd = null;
+@unlink($jobFile);
+@unlink($lockFile);
+@unlink($tmpRoot . '/bin/install/install-site-php');
+@unlink($aptBin);
+@rmdir($tmpRoot . '/bin/install');
+@rmdir($tmpRoot . '/bin');
+@rmdir($tmpRoot . '/log');
+@rmdir($tmpRoot);
+
 exit($fail === 0 ? 0 : 1);

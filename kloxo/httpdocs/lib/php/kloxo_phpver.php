@@ -4,8 +4,9 @@ declare(strict_types=1);
 /**
  * Discover PHP versions the panel can list on Ubuntu (apt) and leftover
  * CentOS /opt/*m trees. The installable catalog and Sury repo probe live here
- * so version numbers are not scattered. Does not install packages (see
- * install-site-php) and does not write pools (see KloxoPhpfpm).
+ * so version numbers are not scattered. Extra series are queued as root
+ * via queueInstall / removeVersions (kloxo-backend GET; the panel user
+ * cannot apt). Pools are KloxoPhpfpm.
  *
  * Copyright (C) 2026 Kloxo CP contributors
  * GNU Affero General Public License v3 or later. See LICENSE.txt.
@@ -145,12 +146,35 @@ final class KloxoPhpver
     public static $ppaProbe = null;
     /** @var callable|null fn(list<string> $argv): int for update-alternatives */
     public static $alternativesRun = null;
+    /** @var int|null test: pretend posix_geteuid() */
+    public static $euidProbe = null;
+    /** @var string|null test: pretend program root */
+    public static $programRootProbe = null;
+    /** @var callable|null fn(list<string> $argv): int for systemd-run */
+    public static $runCmd = null;
     /** @var array<string,bool> */
     private static array $aptMemo = [];
 
     private static function programRoot(): string
     {
+        if (is_string(self::$programRootProbe) && self::$programRootProbe !== '') {
+            return rtrim(self::$programRootProbe, '/');
+        }
+        global $sgbl;
+        if (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root)) {
+            return rtrim((string) $sgbl->__path_program_root, '/');
+        }
+
         return dirname(__DIR__, 3);
+    }
+
+    private static function effectiveUid(): int
+    {
+        if (self::$euidProbe !== null) {
+            return (int) self::$euidProbe;
+        }
+
+        return function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
     }
 
     /** Ubuntu release codename (resolute, noble, ...), or ''. */
@@ -315,6 +339,199 @@ final class KloxoPhpver
         }
 
         return implode(' ', $parts);
+    }
+
+    /**
+     * Paths for a queued install-site-php job.
+     * Job/lock live under program log (not /tmp): kloxo-backend.service
+     * sets PrivateTmp=true, so a /tmp script is invisible to systemd-run.
+     *
+     * @return array{root:string,script:string,logDir:string,job:string,lock:string,log:string}
+     */
+    public static function sitePhpInstallPaths(string $root): array
+    {
+        $root = rtrim($root, '/');
+        $logDir = $root . '/log';
+
+        return [
+            'root' => $root,
+            'script' => $root . '/bin/install/install-site-php',
+            'logDir' => $logDir,
+            'job' => $logDir . '/kloxo-site-php-install.sh',
+            'lock' => $logDir . '/kloxo-site-php-install.lock',
+            'log' => $logDir . '/install-site-php.log',
+        ];
+    }
+
+    /**
+     * Build the wrapper script body. trap uses a double-quoted body so
+     * escapeshellarg() quotes stay valid (single-quoted trap bodies break).
+     */
+    public static function sitePhpInstallWrap(
+        string $script,
+        string $root,
+        string $versArg,
+        string $log,
+        string $lock,
+        string $job
+    ): string {
+        foreach ([$script, $root, $log, $lock, $job] as $p) {
+            if ($p === '' || strpos($p, "\n") !== false || strpos($p, "\0") !== false) {
+                return '';
+            }
+        }
+        if (preg_match('/^[0-9.]+(,[0-9.]+)*$/', $versArg) !== 1) {
+            return '';
+        }
+
+        return "#!/bin/bash\nset -euo pipefail\n"
+            . 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
+            . '/bin/bash ' . escapeshellarg($script)
+            . ' --root=' . escapeshellarg($root)
+            . ' --versions=' . escapeshellarg($versArg)
+            . ' >>' . escapeshellarg($log) . " 2>&1\n";
+    }
+
+    /**
+     * Queue install-site-php as root (kloxo-backend GET). Panel PHP-FPM is
+     * lxlabs and cannot systemd-run or apt.
+     *
+     * @param mixed $vers list of X.Y series
+     * @return array{ok:bool,euid?:int,error?:string}
+     */
+    public static function queueInstall($vers): array
+    {
+        $euid = self::effectiveUid();
+        if ($euid !== 0) {
+            return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
+        }
+        $clean = [];
+        if (is_array($vers)) {
+            $allow = array_fill_keys(self::installableSeries(), true);
+            foreach ($vers as $s) {
+                $s = (string) $s;
+                if (preg_match('/^\d+\.\d+$/', $s) === 1 && isset($allow[$s])) {
+                    $clean[] = $s;
+                }
+            }
+        }
+        $clean = array_values(array_unique($clean));
+        if ($clean === []) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'no versions'];
+        }
+        $root = self::programRoot();
+        if ($root === '' || strpos($root, '..') !== false || strpos($root, "\n") !== false) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'file_not_found:' . $root];
+        }
+        $paths = self::sitePhpInstallPaths($root);
+        $script = $paths['script'];
+        if (!is_file($script)) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'file_not_found:' . $script];
+        }
+        $versArg = implode(',', $clean);
+        $job = $paths['job'];
+        $lock = $paths['lock'];
+        $log = $paths['log'];
+        if (self::$programRootProbe === null) {
+            @unlink('/tmp/kloxo-site-php-install.lock');
+        }
+        if (!is_dir($paths['logDir']) && !@mkdir($paths['logDir'], 0755, true) && !is_dir($paths['logDir'])) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'could not create ' . $paths['logDir']];
+        }
+        if (is_file($lock)) {
+            $age = time() - (int) @filemtime($lock);
+            if ($age >= 0 && $age < 1800) {
+                return ['ok' => false, 'euid' => 0, 'error' => 'other install running'];
+            }
+            @unlink($lock);
+            @unlink($job);
+        }
+        $wrap = self::sitePhpInstallWrap($script, $paths['root'], $versArg, $log, $lock, $job);
+        if ($wrap === '' || @file_put_contents($job, $wrap) === false) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'could not write ' . $job];
+        }
+        @chmod($job, 0700);
+        if (@file_put_contents($lock, (string) time()) === false) {
+            @unlink($job);
+
+            return ['ok' => false, 'euid' => 0, 'error' => 'could not write ' . $lock];
+        }
+
+        $started = false;
+        $systemd = '/usr/bin/systemd-run';
+        $canSystemd = self::$runCmd !== null || is_executable($systemd);
+        if ($canSystemd) {
+            $code = self::runArgv([
+                $systemd,
+                '--no-block',
+                '--collect',
+                '--unit=kloxo-site-php-install-' . (string) getmypid() . '-' . (string) time(),
+                '/bin/bash',
+                $job,
+            ]);
+            $started = ($code === 0);
+        }
+        if (!$started) {
+            if (function_exists('lxshell_background')) {
+                lxshell_background('bash', $job);
+            } else {
+                @unlink($job);
+                @unlink($lock);
+
+                return ['ok' => false, 'euid' => 0, 'error' => 'could not start job'];
+            }
+        }
+
+        return ['ok' => true, 'euid' => 0];
+    }
+
+    /**
+     * Remove phpX.Y-fpm as root (kloxo-backend GET). Panel PHP-FPM is lxlabs.
+     *
+     * @param mixed $ids phpX.Y ids
+     * @return array{ok:bool,euid?:int,error?:string,packages?:list<string>}
+     */
+    public static function removeVersions($ids): array
+    {
+        $euid = self::effectiveUid();
+        if ($euid !== 0) {
+            return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
+        }
+        $pkgs = [];
+        $active = self::activeId();
+        if (is_array($ids)) {
+            foreach ($ids as $v) {
+                $id = (string) $v;
+                if ($id === $active) {
+                    return ['ok' => false, 'euid' => 0, 'error' => 'php already in use'];
+                }
+                $ver = self::idToSeries($id);
+                if ($ver === '' && preg_match('/^\d+\.\d+$/', $id) === 1) {
+                    $ver = $id;
+                }
+                if ($ver !== '' && preg_match('/^\d+\.\d+$/', $ver) === 1) {
+                    $pkgs[] = 'php' . $ver . '-fpm';
+                }
+            }
+        }
+        $pkgs = array_values(array_unique($pkgs));
+        if ($pkgs === []) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'no packages'];
+        }
+        if (!class_exists('KloxoApt', false)) {
+            $apt = __DIR__ . '/kloxo_apt.php';
+            if (is_readable($apt)) {
+                include_once $apt;
+            }
+        }
+        if (!class_exists('KloxoApt', false)) {
+            return ['ok' => false, 'euid' => 0, 'error' => 'KloxoApt missing'];
+        }
+        $r = KloxoApt::remove($pkgs);
+        $r['euid'] = 0;
+        $r['packages'] = $pkgs;
+
+        return $r;
     }
 
     /**
@@ -725,6 +942,38 @@ final class KloxoPhpver
         }
 
         return $ok;
+    }
+
+    /** @param list<string> $cmd */
+    private static function runArgv(array $cmd): int
+    {
+        if (self::$runCmd !== null) {
+            return (int) (self::$runCmd)($cmd);
+        }
+        if ($cmd === [] || !is_string($cmd[0]) || $cmd[0] === '') {
+            return 127;
+        }
+        $bin = $cmd[0];
+        if ($bin[0] !== '/') {
+            return 127;
+        }
+        if (!is_executable($bin)) {
+            return 127;
+        }
+        $p = @proc_open($cmd, [
+            0 => ['file', '/dev/null', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes);
+        if (!is_resource($p)) {
+            return 127;
+        }
+        stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return proc_close($p);
     }
 
     /** @param list<string> $args */
