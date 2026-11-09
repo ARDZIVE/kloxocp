@@ -254,7 +254,17 @@ class client__sync extends lxDriverClass {
 		lxfile_generic_chown($docd, $this->main->username);
 	//	lxuser_unzip_with_throw($this->main->username, $fullpath, $docd);
 		lxshell_unzip('__system__', $fullpath, $docd);
-		lxfile_generic_chown($fullpath, "{$this->main->username}:apache");
+		$wgroup = 'apache';
+		if (!class_exists('KloxoBackup', false)) {
+			$bak = dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+			if (is_file($bak)) {
+				include_once $bak;
+			}
+		}
+		if (class_exists('KloxoBackup', false)) {
+			$wgroup = KloxoBackup::webGroup();
+		}
+		lxfile_generic_chown($fullpath, "{$this->main->username}:{$wgroup}");
 		lxfile_generic_chmod($fullpath, "0751");
 	}
 }

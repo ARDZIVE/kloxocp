@@ -801,8 +801,16 @@ Work in this order. Keep every change small, tested and committed separately. Do
     (`getFfileFromVirtualList`), keep `ttype=directory` for `/`, and print
     Address `(Backup / Restore: …) /`. Forms still render when `sp_specialplay`
     or `c_session` is missing (`get_image_path`, `getCSRFToken`,
-    `print_content_begin`). Restore `implode(",", $val)` is PHP 8-safe.
-    Live Backup / Restore after re-install is **UNVERIFIED**.
+    `print_content_begin`). Backup Now / Restore (admin and client) go through
+    `KloxoBackup` (`lib/php/kloxo_backup.php`): absolute `bin/common/backup.php`
+    / `restore.php`, argument-array `mysqldump`/`mysql`/`tar`, `/var/vmail`
+    packs for mmail, Ubuntu `www-data` on client restore. PHP 8 crashes that
+    aborted every run are fixed (`getRpmBranchList('unbackup')`, `Throwable` in
+    the object loops, no `getFromFileserv` on a null driver result, tgz
+    metadata extract instead of unzip). `lxbackup` writes the row before
+    launching the job and resolves the parent from `client-admin` /
+    `client-<name>`. Tested: `tests/p2/test_backup.php` (fakes + a local tar).
+    Live Backup Now / Restore From File after deploy is **UNVERIFIED**.
    Mail Server Settings has exactly three content tabs **Mail Server Settings**
    (selected on `sa=update`), **SMTP Protection** (was Spamdyke), **Whitelist IPs**
    (`ServerMail::servermailPropertyTabs` forced); Switch To Another via

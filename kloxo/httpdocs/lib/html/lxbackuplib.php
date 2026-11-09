@@ -1,5 +1,9 @@
 <?php
 
+if (!class_exists('KloxoBackup', false)) {
+	include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+}
+
 class lxbackup extends Lxdb
 {
 	static $__desc = array("", "", "backup");
@@ -112,12 +116,7 @@ class lxbackup extends Lxdb
 	{
 		global $login;
 
-		$parent = null;
-		try {
-			$parent = $this->getParentO();
-		} catch (Throwable $e) {
-			$parent = null;
-		}
+		$parent = $this->backupParent();
 		if (is_object($parent) && isset($parent->priv) && is_object($parent->priv)
 			&& method_exists($parent->priv, 'isOn') && !$parent->priv->isOn('backup_flag')) {
 			throw new lxException($login->getThrow('no_permission_to_backup'));
@@ -157,7 +156,13 @@ class lxbackup extends Lxdb
 			$filename = recursively_get_file($tmpdir, "lxadmin.file");
 		}
 
-		$rem = unserialize(file_get_contents($filename));
+		if (!is_string($filename) || $filename === '' || !is_file($filename)) {
+			lxfile_tmp_rm_rec($tmpdir);
+			throw new lxException($login->getThrow('backup_file_corrupted'), '', $file);
+		}
+
+		$raw = file_get_contents($filename);
+		$rem = is_string($raw) && $raw !== '' ? @unserialize($raw) : false;
 		lxfile_tmp_rm_rec($tmpdir);
 
 		if (!$rem) {
@@ -186,7 +191,7 @@ class lxbackup extends Lxdb
 		print_time("check_cons");
 		$trulist = null;
 
-		if ($param['_accountselect']) {
+		if (isset($param['_accountselect']) && $param['_accountselect']) {
 			$trulist = $param['_accountselect'];
 		}
 
@@ -232,21 +237,15 @@ class lxbackup extends Lxdb
 	{
 		global $gbl, $sgbl, $login;
 
-		$parent = null;
-		try {
-			$parent = $this->getParentO();
-		} catch (Throwable $e) {
-			$parent = null;
-		}
+		$parent = $this->backupParent();
 
 		$tree = createTreeObject('name', null, null, null, null, null, null);
 		if (is_object($gbl)) {
 			$gbl->__var_restore_tree = $tree;
 		}
 
-		if ($this->rm_username) {
+		if (!empty($this->rm_username)) {
 			$this->rm_username = fix_meta_character($this->rm_username);
-
 		}
 
 		$vlist = array();
@@ -490,16 +489,40 @@ class lxbackup extends Lxdb
 		return (is_array($parts) && isset($parts[1]) && $parts[1] !== '') ? $parts[1] : $n;
 	}
 
+	function backupParent()
+	{
+		try {
+			$parent = $this->getParentO();
+			if (is_object($parent)) {
+				return $parent;
+			}
+		} catch (Throwable $e) {
+		}
+
+		$n = isset($this->nname) ? (string) $this->nname : '';
+		if ($n !== '' && function_exists('getParentNameAndClass')) {
+			$parts = getParentNameAndClass($n);
+			if (is_array($parts) && isset($parts[0], $parts[1]) && $parts[0] !== '' && $parts[1] !== ''
+				&& class_exists($parts[0])) {
+				try {
+					$parent = new $parts[0]($this->__masterserver, $this->__readserver, $parts[1]);
+					$parent->get();
+					$this->__parent_o = $parent;
+
+					return $parent;
+				} catch (Throwable $e) {
+				}
+			}
+		}
+
+		return null;
+	}
+
 	function updateBackupRestore($param, $type)
 	{
 		global $gbl, $login, $ghtml;
 
-		$parent = null;
-		try {
-			$parent = $this->getParentO();
-		} catch (Throwable $e) {
-			$parent = null;
-		}
+		$parent = $this->backupParent();
 		if (!is_object($parent)) {
 			throw new lxException($login->getThrow('no_parent'), '', $type);
 		}
@@ -510,7 +533,7 @@ class lxbackup extends Lxdb
 			throw new lxException($login->getThrow('going_on'), '', $type);
 		}
 
-		$bpath = "__path_program_home/{$parent->get__table()}/{$parent->nname}/__backup";
+		$bpath = KloxoBackup::backupDir($parent->get__table(), (string) $parent->nname);
 
 		if ($type === 'backup') {
 			if ($parent->get__table() === 'vps') {
@@ -521,7 +544,7 @@ class lxbackup extends Lxdb
 			}
 		}
 
-		// There is a timing issue here. The backup.php program should be run only AFTEr the update is fully complete.
+		// Write the stage first; backup.php must see the saved object.
 		if (is_array($param)) {
 			foreach ($param as $k => $v) {
 				$this->$k = $v;
@@ -532,27 +555,37 @@ class lxbackup extends Lxdb
 		$this->backuptype = $type;
 		$this->metadbaction = 'writeonly';
 		$this->dbaction = 'update';
+		$this->write();
+
+		$pclass = $parent->get__table();
+		$pname = (string) $parent->nname;
+		if (!empty($this->parent_clname) && method_exists($this, 'getParentClass')) {
+			$pc = $this->getParentClass();
+			$pn = $this->getParentName();
+			if (is_string($pc) && $pc !== '') {
+				$pclass = $pc;
+			}
+			if (is_string($pn) && $pn !== '') {
+				$pname = $pn;
+			}
+		}
 
 		if ($this->backuptype === 'backup') {
-			rl_exec_get(null, null, array("lxbackup", "execbackupphp"), array($this->getParentClass(), $this->getParentName(), $param));
-			$this->write();
+			rl_exec_get(null, null, array("lxbackup", "execbackupphp"), array($pclass, $pname, $param));
 			throw new lxException($login->getThrow("backup_has_been_scheduled"));
 		} else {
-			$bpath = "__path_program_home/{$parent->get__table()}/{$parent->nname}/__backup";
-			// MR -- if no exists for backup_from_file_f mean exists backup_ftp_file_f
 			$fromFile = isset($param['backup_from_file_f']) ? (string) $param['backup_from_file_f'] : '';
 			$fromFtp = isset($param['backup_ftp_file_f']) ? (string) $param['backup_ftp_file_f'] : '';
 			$fname = ($fromFile !== '') ? $fromFile : '_RESTORE_' . basename($fromFtp);
-			$fname = str_replace("/", "", $fname);
-			$fname = str_replace(";", "", $fname);
-			$fname = str_replace(" ", "", $fname);
+			$fname = str_replace(array("/", ";", " "), "", $fname);
 			$file = "{$bpath}/{$fname}";
 
-			rl_exec_get(null, null, array("lxbackup", "execrestorephp"), array($this->getParentClass(), $this->getParentName(), $file, $param));
+			rl_exec_get(null, null, array("lxbackup", "execrestorephp"), array($pclass, $pname, $file, $param));
 
-			$url = $ghtml->getFullUrl('a=show');
-			$gbl->__this_redirect = "$url&frm_smessage=restore_started";
-			$this->write();
+			$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl') ? $ghtml->getFullUrl('a=show') : 'a=show';
+			if (is_object($gbl)) {
+				$gbl->__this_redirect = "$url&frm_smessage=restore_started";
+			}
 
 			return null;
 		}
@@ -562,9 +595,21 @@ class lxbackup extends Lxdb
 	{
 		global $sgbl, $login;
 
-		$parent = $this->getParentO();
+		$parent = $this->backupParent();
+		if (!is_object($parent)) {
+			throw new lxException($login->getThrow('no_parent'), '', 'backup');
+		}
 
-		$bpath = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup";
+		if (!is_array($param)) {
+			$param = array();
+		}
+		if (!isset($param['backup_to_file_f']) || trim((string) $param['backup_to_file_f']) === '') {
+			$param['backup_to_file_f'] = 'kloxo';
+		}
+
+		$home = (is_object($sgbl) && isset($sgbl->__path_program_home) && is_string($sgbl->__path_program_home)
+			&& $sgbl->__path_program_home !== '') ? $sgbl->__path_program_home : KloxoBackup::programHome();
+		$bpath = "{$home}/{$parent->get__table()}/{$parent->nname}/__backup";
 		$bfile = "{$bpath}/{$this->createBackupFileName($param['backup_to_file_f'])}.tgz";
 
 		if (lxfile_exists($bfile)) {
@@ -592,40 +637,32 @@ class lxbackup extends Lxdb
 
 	static function execrestorephp($class, $name, $file, $param)
 	{
-		global $sgbl;
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+		}
 		$val = (isset($param['_accountselect']) && is_array($param['_accountselect']))
 			? $param['_accountselect'] : array();
-		$res = implode(",", $val);
-		$res = str_replace("-", ":", $res);
-	//	$res = str_replace("_s_vv_p_", ":", $res);
-
-		lxshell_background($sgbl->__path_php_path, "../bin/common/restore.php", "--class={$class}",
-			"--name={$name}", "--restore", "--accounts={$res}", "--priority=low", $file);
+		KloxoBackup::launchRestore((string) $class, (string) $name, (string) $file, $val);
 	}
 
 	static function execbackupphp($class, $name, $param)
 	{
-		global $sgbl;
-
-		$string = '';
-
-		foreach ($param as $k => $v) {
-			if (csb($k, "backupextra_")) {
-				$string .= " --v-$k=$v";
-			}
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__) . '/php/kloxo_backup.php';
 		}
-
-		$fname = $param['backup_to_file_f'];
-		$fname = str_replace(";", "", $fname);
-		$fname = str_replace("/", "", $fname);
-
-		lxshell_background($sgbl->__path_php_path, "../bin/common/backup.php", "--class={$class}",
-			"--name={$name}", "--v-backup_file_name={$fname}", $string);
+		if (!is_array($param)) {
+			$param = array();
+		}
+		$fname = isset($param['backup_to_file_f']) ? (string) $param['backup_to_file_f'] : 'kloxo';
+		KloxoBackup::launchBackup((string) $class, (string) $name, $fname, $param);
 	}
 
 	function createBackupFileName($name)
 	{
-		$parent = $this->getParentO();
+		$parent = $this->backupParent();
+		if (!is_object($parent)) {
+			$parent = (object) array('nname' => 'admin');
+		}
 
 		$name = str_replace("/", "", $name);
 		$name = str_replace(";", "", $name);
@@ -702,7 +739,7 @@ class lxbackup extends Lxdb
 
 	static function clear_extra_backups($class, $name, $object)
 	{
-		global $sgbl;
+		global $sgbl, $login;
 
 		$bpath = "{$sgbl->__path_program_home}/{$class}/{$name}/__backup";
 		$list = lscandir_without_dot($bpath);
@@ -776,6 +813,10 @@ class lxbackup extends Lxdb
 		$aname = strfrom($object->nname, "-");
 		$aname = "-$aname";
 
+		if (!is_array($list)) {
+			return array();
+		}
+
 		foreach ($list as $k => &$__l) {
 			$__l = basename($__l);
 		//	if (csb($__l, "$progname-scheduled") && csa($__l, $aname)) {
@@ -796,7 +837,7 @@ class lxbackup extends Lxdb
 		}
 
 		if (!$newlist) {
-			return;
+			return array();
 		}
 
 		ksort($newlist);
@@ -828,7 +869,7 @@ class lxbackup extends Lxdb
 
 		$bpath = "{$sgbl->__path_program_home}/{$parent->get__table()}/{$parent->nname}/__backup";
 
-		if ($param['backup_ftp_file_f']) {
+		if (!empty($param['backup_ftp_file_f'])) {
 		/*
 			$file = tempnam("/tmp/", "__lx_temperoryftp_file");
 			lunlink($file);
@@ -840,7 +881,7 @@ class lxbackup extends Lxdb
 			$file = "{$bpath}/{$file}";
 			$this->download_from_server($param['backup_ftp_file_f'], $file);
 		} else {
-			$file = $param['backup_from_file_f'];
+			$file = isset($param['backup_from_file_f']) ? (string) $param['backup_from_file_f'] : '';
 			$file = str_replace(";", "", $file);
 			$file = str_replace("/", "", $file);
 			$file = str_replace(" ", "", $file);
@@ -865,18 +906,28 @@ class lxbackup extends Lxdb
 		mkdir($vd);
 		lxfile_generic_chmod($vd, "0700");
 
-		if ($real) {
-			lxshell_unzip_with_throw($vd, $file);
-		} else {
-			if ($sgbl->isKloxoForRestore()) {
-				try {
-					lxshell_unzip_with_throw($vd, $file, array("*$progname.file", "*$progname.metadata"));
-				} catch (Exception $e) {
-					lxshell_unzip_with_throw($vd, $file, array("*lxadmin.file", "*lxadmin.metadata"));
-				}
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+		}
+
+		try {
+			if ($real) {
+				KloxoBackup::extractArchive($file, $vd);
 			} else {
-				lxshell_unzip_with_throw($vd, $file, array("*$progname.file", "*$progname.metadata"));
+				$members = array("{$progname}.file", "{$progname}.metadata");
+				try {
+					KloxoBackup::extractArchive($file, $vd, $members);
+				} catch (Throwable $e) {
+					if ($sgbl->isKloxoForRestore()) {
+						KloxoBackup::extractArchive($file, $vd, array("lxadmin.file", "lxadmin.metadata"));
+					} else {
+						throw $e;
+					}
+				}
 			}
+		} catch (Throwable $e) {
+			lxfile_tmp_rm_rec($vd);
+			throw new lxException($login->getThrow('could_not_unzip_file'), '', "dir: {$vd}; file: {$file}");
 		}
 
 		return $vd;

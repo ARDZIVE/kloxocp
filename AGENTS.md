@@ -167,9 +167,11 @@ Password/File Name + overwrite). Bare Home tab label maps to **Backup / Restore*
 when current object is lxbackup (same frm_o_o path fix as PHP Configure). File Manager
 and Upload under Backup create `__backup/` locally if kloxo-backend is down, keep
 `ttype=directory` for `/`, and the address bar is `(Backup / Restore: …) /`.
-Schedule privilege is read from the parent client (`checkButton`); restore
-`implode` uses glue-first order. Live Backup FTP/Schedule/File Manager/Upload
-after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
+Schedule privilege is read from the parent client (`checkButton`). Backup Now /
+Restore for admin and client go through `KloxoBackup` (absolute backup.php /
+restore.php, argument-array mysqldump, `/var/vmail` mail packs, Ubuntu
+`www-data` on restore; PHP 8 `unbackup` constant and null fileserv crashes
+fixed). Live Backup Now / Restore From File after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend
@@ -320,6 +322,7 @@ bash tests/security/run-tests.sh      # P0.4/P0.5 source invariants (php-cli onl
 bash tests/p1/run-tests.sh            # P1 stack-shrink source invariants (php-cli only)
 bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload + UFW (php-cli only)
 php tests/p2/test_mariadb.php         # Add Database MariaDB SQL (no live server)
+php tests/p2/test_backup.php          # admin/client Backup Now / Restore argv + dump (no live server)
 bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
 bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)
 php kloxo/bin/install/init-panel-db --help

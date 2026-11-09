@@ -111,6 +111,38 @@ class Mmail extends Lxdb
 		return true;
 	}
 
+	function backMeUp($backupdir, $id)
+	{
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
+		try {
+			$name = KloxoBackup::packMailDomain((string) $this->nname, (string) $backupdir, (string) $id);
+			if ($name !== '') {
+				return $name;
+			}
+		} catch (Throwable $e) {
+			log_log('backup', 'mail pack ' . $this->nname . ': ' . $e->getMessage());
+		}
+
+		return parent::backMeUp($backupdir, $id);
+	}
+
+	function restoreMeUp($bdir, $id)
+	{
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
+		try {
+			if (KloxoBackup::unpackMailDomain((string) $this->nname, (string) $bdir, (string) $id)) {
+				return;
+			}
+		} catch (Throwable $e) {
+			log_log('restore', 'mail unpack ' . $this->nname . ': ' . $e->getMessage());
+		}
+		parent::restoreMeUp($bdir, $id);
+	}
+
 	function createMailaccountList()
 	{
 		$mlist = $this->getList('mailaccount');

@@ -301,9 +301,11 @@ function lxshell_zip_core($updateflag, $dir, $zipname, $filelist)
 		case 'tar':
 			$command = "tar -cf";
 			$command2 = '--ignore-failed-read';
+			break;
 		case 'p7z':
 			$command = "7za a -y";
 			$command2 = '';
+			break;
 		case 'rar':
 			$command = "rar a -y";
 			$command2 = '';

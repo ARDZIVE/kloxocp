@@ -2998,7 +2998,7 @@ abstract class Lxclass
 		$this->fixIndividualParentName();
 		$this->fixbackupMysqlProblem();
 
-		if ($this->isCoreBackup() && $trulist && ($trulist[0] !== 'all') && !array_search_bool($this->getClName(), $trulist)) {
+		if ($this->isCoreBackup() && is_array($trulist) && $trulist && (($trulist[0] ?? '') !== 'all') && !array_search_bool($this->getClName(), $trulist)) {
 			$this->AddMEssageOnlyIfClientDomain("Not Selected");
 			$this->dbaction == 'clean';
 			$coreflag = true;
@@ -5820,6 +5820,13 @@ abstract class Lxclass
 
 		$filename = $this->getBackupFileNameForObject($id);
 
+		if (!is_array($res) || !isset($res['file'])) {
+			dprint("No fileserv result for {$this->get__table()}:{$this->nname}\n");
+			log_log("backup", "No fileserv result for {$this->get__table()}:{$this->nname}");
+
+			return $filename;
+		}
+
 		getFromFileserv($this->getDataServer(), $res, "{$backupdir}/{$filename}");
 		return $filename;
 	}
@@ -5988,7 +5995,7 @@ abstract class Lxclass
 			print("Restoring backup for {$ob->nname}.....\n");
 		}
 
-		$ob->checkForConsistency(null, $param['_accountselect'], true);
+		$ob->checkForConsistency(null, isset($param['_accountselect']) ? $param['_accountselect'] : null, true);
 
 		// Restore the currenct client's quota. The person who is doing the restoring souldn't able to escape his new quota.
 		if ($this->isLogin()) {
@@ -6036,7 +6043,7 @@ abstract class Lxclass
 			throw new lxException($login->getThrow('objectclassname_does_not_match'), '', "{$ob->getClName()} - {$this->getClName()}");
 		}
 
-		$gbl->__var_serverlist = $param['switchserverlist'];
+		$gbl->__var_serverlist = isset($param['switchserverlist']) ? $param['switchserverlist'] : null;
 
 		if ($gbl->__var_list_flag) {
 			print("Contents of the backfile: Owner: {$ob->nname}.....\n");
@@ -6045,13 +6052,10 @@ abstract class Lxclass
 		}
 
 		try {
-			$ob->checkForConsistency(null, $param['_accountselect'], true);
-		} catch (Exception $e) {
-		//	lxfile_tmp_rm_rec($vd);
-		//	throw $e;
+			$ob->checkForConsistency(null, isset($param['_accountselect']) ? $param['_accountselect'] : null, true);
+		} catch (Throwable $e) {
 			print("Error '{$e}'\n");
 			log_log("restore", "Error '{$e}");
-
 		}
 
 		// Restore the currenct client's quota. The person who is doing the restoring 
@@ -6072,16 +6076,16 @@ abstract class Lxclass
 		if (!$gbl->__var_list_flag) {
 			$ob->was();
 
-			foreach ($sgbl->__var_objectrestorelist as $d) {
+			foreach ((array) ($sgbl->__var_objectrestorelist ?? array()) as $d) {
+				if (!is_object($d)) {
+					continue;
+				}
 
 				try {
 					print("Taking restore of '{$d->get__table()}:{$d->nname}'\n");
 					log_log("restore", "Taking restore of '{$d->get__table()}:{$d->nname}'");
-					$d->restoreMeUp($vd, $rem->ddate);				
-				} catch (Exception $e) {
-				//	lxfile_tmp_rm_rec($vd);
-				//	throw $e;
-
+					$d->restoreMeUp($vd, $rem->ddate);
+				} catch (Throwable $e) {
 					print("Failed for taking restore of '{$d->get__table()}:{$d->nname}'\n");
 					log_log("restore", "- Alert: Failed restore of '{$d->get__table()}:{$d->nname}'\n");
 				}
@@ -6125,41 +6129,48 @@ abstract class Lxclass
 		lfile_put_contents("{$vd}/{$progname}.file", serialize($rem));
 		print("Done\n");
 
-		try {
-			// MR - use getRpmBranchList for the trick find out array
-			$unbackuper = getRpmBranchList(unbackup);
+		$unbackuper = array();
+		if (class_exists('KloxoBackup', false) || is_file(dirname(__DIR__) . '/php/kloxo_backup.php')) {
+			if (!class_exists('KloxoBackup', false)) {
+				include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+			}
+			$unbackuper = KloxoBackup::unbackupNames();
+		} else {
+			$unbackuper = getRpmBranchList('unbackup');
+		}
+		if (!is_array($unbackuper)) {
+			$unbackuper = array();
+		}
 
-			foreach ((array)$gbl->__var_objectbackuplist as $d) {
-				$e = true;
-
-				foreach ($unbackuper as $b) {
-					if (($d->get__table() === 'client') && ($d->nname === $b)) {
-						$e = false;
-					}
-				}
-
-				if ($e) {
-					// MR -- bypass to make xxx@yyy.zzz.tgz file
-					if (strpos($d->nname, '@') !== false) { continue; }
-
-				//	if (($d->get__table() === 'client') && ($d->nname === 'backuper')) { continue; }
-				//	if (($d->get__table() === 'client') && ($d->nname === 'rpms')) { continue; }
-
-					print("Taking backup of '{$d->get__table()}:{$d->nname}'\n");
-					log_log("backup", "Taking backup of '{$d->get__table()}:{$d->nname}'");
-					$d->backMeUp($vd, $rem->ddate);
+		foreach ((array) ($gbl->__var_objectbackuplist ?? array()) as $d) {
+			if (!is_object($d)) {
+				continue;
+			}
+			$e = true;
+			foreach ($unbackuper as $b) {
+				if (($d->get__table() === 'client') && ($d->nname === $b)) {
+					$e = false;
 				}
 			}
 
-			print("Wait for zipping (and send to remote server if enable) process...\n");
+			if (!$e) {
+				continue;
+			}
+			if (strpos((string) $d->nname, '@') !== false) {
+				continue;
+			}
 
-		} catch (Exception $e) {
-		//	lxfile_tmp_rm_rec($vd);
-		//	throw $e;
-
-			print("Failed for taking backup of '{$d->get__table()}:{$d->nname}'\n");
-			log_log("backup", "- Alert: Failed backup of '{$d->get__table()}:{$d->nname}'\n");
+			try {
+				print("Taking backup of '{$d->get__table()}:{$d->nname}'\n");
+				log_log("backup", "Taking backup of '{$d->get__table()}:{$d->nname}'");
+				$d->backMeUp($vd, $rem->ddate);
+			} catch (Throwable $ex) {
+				print("Failed for taking backup of '{$d->get__table()}:{$d->nname}'\n");
+				log_log("backup", "- Alert: Failed backup of '{$d->get__table()}:{$d->nname}'\n");
+			}
 		}
+
+		print("Wait for zipping (and send to remote server if enable) process...\n");
 
 		$list = lscandir_without_dot($vd);
 
@@ -6678,6 +6689,18 @@ class lxDriverClass extends Lxclass
 	{
 		if_demo_throw_exception();
 	}
+
+	function do_backup()
+	{
+		$dir = sys_get_temp_dir() . '/kloxo-backup-empty-' . getmypid();
+		if (!is_dir($dir)) {
+			@mkdir($dir, 0700, true);
+		}
+
+		return array($dir, array());
+	}
+
+	function do_restore($docd) { }
 
 	function do_backup_cleanup($list) { return; }
 

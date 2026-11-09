@@ -2442,9 +2442,9 @@ $bakUpOk = str_contains($bakUpHtml, 'WARNING: Existing file will be overwritten'
 	&& str_contains($bakUpHtml, 'upload_file_f')
 	&& str_contains($bakUpHtml, 'download_url_f')
 	&& str_contains($bakUpHtml, 'download_ftp_f');
-$bakImplode = str_contains($bakSrc, 'implode(",", $val)')
+$bakImplode = str_contains($bakSrc, 'KloxoBackup::launchRestore')
+	&& str_contains($bakSrc, 'KloxoBackup::launchBackup')
 	&& str_contains($bakSrc, 'MakeSureDirectoryExists')
-	&& str_contains($bakSrc, 'lxshell_background')
 	&& str_contains($bakLib, 'function kloxo_ffile_is_backup_list')
 	&& str_contains((string) file_get_contents($doc . '/lib/html/lib.php'), 'method_exists($session, \'write\')')
 	&& str_contains($bakLib, "icon_name");

@@ -61,15 +61,14 @@ function backup_main()
 		exit;
 	}
 
-	if (($opt['priority']) && ($opt['priority'] === 'low')) {
+	if (!empty($opt['priority']) && $opt['priority'] === 'low') {
 	//	sleep(20);
 	}
 
-	if ($opt['v-backup_file_name']) {
+	if (!empty($opt['v-backup_file_name'])) {
 		$param['backup_to_file_f'] = $opt['v-backup_file_name'];
 	} else {
-	//	$param['backup_to_file_f'] = "$progname-scheduled";
-		$param['backup_to_file_f'] = "kloxo70-scheduled";
+		$param['backup_to_file_f'] = "kloxo-scheduled";
 	}
 
 	foreach($opt as $k => $v) {
@@ -84,12 +83,22 @@ function backup_main()
 	try {
 		$backup->doUpdateBackup($param);
 		$backup->backupstage = 'done';
-		print("Backup has been saved in {$sgbl->__path_program_home}/{$backup->getParentO()->get__table()}/{$backup->getParentO()->nname}/__backup/{$param['backup_to_file_f']}\n");
-	} catch (exception $e) {
-		$mess = "{$e->__full_message}\n";
+		$parent = null;
+		try {
+			$parent = $backup->getParentO();
+		} catch (Throwable $e) {
+			$parent = $object;
+		}
+		$table = (is_object($parent) && method_exists($parent, 'get__table')) ? $parent->get__table() : 'client';
+		$pname = (is_object($parent) && isset($parent->nname)) ? $parent->nname : $name;
+		print("Backup has been saved in {$sgbl->__path_program_home}/{$table}/{$pname}/__backup/\n");
+	} catch (Throwable $e) {
+		$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
 		$backup->backupstage = "Failed due to: {$mess}";
 		print("Backup failed due to: {$mess}\n");
-		mail($object->contactemail, "Backup Failed..", "Backup Failed for {$object->nname} with the Message {$mess}");
+		if (isset($object->contactemail) && is_string($object->contactemail) && $object->contactemail !== '') {
+			@mail($object->contactemail, "Backup Failed..", "Backup Failed for {$object->nname} with the Message {$mess}");
+		}
 	}
 
 	clearLxbackup($backup);

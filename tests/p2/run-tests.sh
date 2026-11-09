@@ -215,6 +215,11 @@ if php "$HERE/test_mariadb.php"; then
 else
   bad "test_mariadb.php"
 fi
+if php "$HERE/test_backup.php"; then
+  ok "test_backup.php"
+else
+  bad "test_backup.php"
+fi
 if php "$HERE/test_knot_driver.php"; then
   ok "test_knot_driver.php"
 else

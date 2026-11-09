@@ -116,39 +116,10 @@ class Mysqldb__mysql extends lxDriverClass
 
 	static function take_dump($dbname, $dbuser, $dbpass, $docf)
 	{
-		// Issue #671 - Fixed backup-restore issue
-
-		global $gbl, $sgbl, $login, $ghtml;
-
-		$arg[0] = $sgbl->__path_mysqldump_path;
-		$arg[1] = "--add-drop-table";
-		$arg[2] = "-u";
-		$arg[3] = $dbuser;
-		$arg[4] = $dbname;
-
-		if ($dbpass) {
-			$arg[5] = "-p'{$dbpass}'";
-		} else {
-			$arg[5] = "";
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
 		}
-
-		$cmd = implode(" ", $arg);
-	/*
-		$output = null;
-		$ret = null;
-
-		exec("exec $cmd > $docf", $output, $ret);
-	*/
-
-		$link = new mysqli('localhost', $dbadmin, $dbpass);
-		$result = $link->query("CREATE DATABASE IF NOT EXISTS {$dbname}");
-
-		try {
-			system("{$cmd} > {$docf}");
-		} catch (Exception $e) {
-			throw new lxException('Error: ' . $e->getMessage(), $dbname);
-		}
-
+		KloxoBackup::dumpMysql((string) $dbname, (string) $dbuser, (string) $dbpass, (string) $docf);
 	}
 
 	static function drop_all_table($dbname, $dbuser, $dbpass)
@@ -169,79 +140,39 @@ class Mysqldb__mysql extends lxDriverClass
 
 	static function restore_dump($dbname, $dbuser, $dbpass, $docf)
 	{
-		// Issue #671 - Fixed backup-restore issue
-
-		global $gbl, $sgbl, $login, $ghtml;
-
-		self::drop_all_table($dbname, $dbuser, $dbpass);
-
-		$arg[0] = $sgbl->__path_mysqlclient_path;
-		$arg[1] = "-u";
-		$arg[2] = $dbuser;
-
-		if ($dbpass) {
-			$arg[3] = "-p'{$dbpass}'";
-		} else {
-			$arg[3] = "";
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
 		}
-
-		$arg[4] = $dbname;
-
-		// MR -- missing this!
-		$cmd = implode(" ", $arg);
-
-		try {
-			// MR -- remove 'engine=' to make portable
-			system("sed -i 's/engine=\([a-zA-z0-9]*\) //gi' {$docf}");
-			system("{$cmd} < {$docf}");
-		} catch (Exception $e) {
-			throw new lxException('Error: ' . $e->getMessage(), $dbname);
-		}
+		KloxoBackup::restoreMysql((string) $dbname, (string) $dbuser, (string) $dbpass, (string) $docf);
 	}
 
 	function do_backup()
 	{
-		// Issue #671 - Fixed backup-restore issue
+		global $login;
 
-		global $gbl, $sgbl, $login, $ghtml;
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
 
-		$dbadmin = $this->main->__var_dbadmin;
-		$dbpass = $this->main->__var_dbpassword;
-		$dbname = $this->main->dbname;
+		$dbadmin = isset($this->main->__var_dbadmin) ? (string) $this->main->__var_dbadmin : '';
+		$dbpass = isset($this->main->__var_dbpassword) ? (string) $this->main->__var_dbpassword : '';
+		$dbname = isset($this->main->dbname) ? (string) $this->main->dbname : '';
 
 		$vd = tempnam("/tmp", "mysqldump");
 		lunlink($vd);
-		mkdir($vd);
+		mkdir($vd, 0700);
 
 		$docf = "{$vd}/mysql-{$dbname}.dump";
 
-		$arg[0] = $sgbl->__path_mysqldump_path;
-		$arg[1] = "--add-drop-table";
-		$arg[2] = "-u";
-		$arg[3] = $dbadmin;
-
-		if ($dbpass) {
-			$arg[4] = "-p'{$dbpass}'";
-		} else {
-			$arg[4] = "";
-		}
-
-		$arg[5] = $this->main->dbname;
-
-		$cmd = implode(" ", $arg);
-
-		$link = new mysqli('localhost', $dbadmin, $dbpass);
-		$result = $link->query("CREATE DATABASE IF NOT EXISTS {$dbname}");
-
 		try {
-			// MR -- remove 'engine=' to make portable
-			system("{$cmd} > {$docf}");
-			system("sed -i 's/engine=\([a-zA-z0-9]*\) //gi' {$docf}");
-		} catch (Exception $e) {
+			KloxoBackup::dumpMysql($dbname, $dbadmin, $dbpass, $docf);
+		} catch (Throwable $e) {
 			lxfile_tmp_rm_rec($vd);
-
-		//	throw new lxException('Error: ' . $e->getMessage(), $dbname);
 			log_log("backup", "- Error '{$e->getMessage()}' for '{$dbname}'");
+			if (is_object($login) && method_exists($login, 'getThrow')) {
+				throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
+			}
+			throw $e;
 		}
 
 		return array($vd, array(basename($docf)));
@@ -268,55 +199,50 @@ class Mysqldb__mysql extends lxDriverClass
 
 	function do_restore($docd)
 	{
-		// Issue #671 - Fixed backup-restore issue
+		global $login;
 
-		global $gbl, $sgbl, $login, $ghtml;
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
 
-		$dbadmin = $this->main->__var_dbadmin;
-		$dbpass = $this->main->__var_dbpassword;
-		$dbname = $this->main->dbname;
+		$dbadmin = isset($this->main->__var_dbadmin) ? (string) $this->main->__var_dbadmin : '';
+		$dbpass = isset($this->main->__var_dbpassword) ? (string) $this->main->__var_dbpassword : '';
+		$dbname = isset($this->main->dbname) ? (string) $this->main->dbname : '';
 
 		$vd = tempnam("/tmp", "mysqldump");
-
 		lunlink($vd);
-		mkdir($vd);
+		mkdir($vd, 0700);
 
-	//	$docf = "$vd/mysql-{$this->main->dbname}.dump";
-		$docf = "$vd/mysql-{$dbname}.dump";
-
-	//	$ret = lxshell_unzip_with_throw($vd, $docd);
-		$ret = lxshell_unzip('__system__', $vd, $docd);
-
-		if (!lxfile_exists($docf)) {
-		//	throw new lxException($login->getThrow('could_not_find_matching_dumpfile_for_db'), '', $docf);
-			log_log("restore", "- Not match $docf file for database");
-		}
-
-		$arg[0] = $sgbl->__path_mysqlclient_path;
-		$arg[1] = "-u";
-		$arg[2] = $dbadmin;
-
-		if ($dbpass) {
-			$arg[3] = "-p'{$dbpass}'";
-		} else {
-			$arg[3] = "";
-		}
-
-		$arg[4] = $dbname;
-
-		$cmd = implode(" ", $arg);
-
-		$link = new mysqli('localhost', $dbadmin, $dbpass);
-		$result = $link->query("CREATE DATABASE IF NOT EXISTS {$dbname}");
+		$docf = "{$vd}/mysql-{$dbname}.dump";
 
 		try {
-			system("{$cmd} < {$docf}");
-
-			lunlink($docf);
-			lxfile_tmp_rm_rec($vd);
-		} catch (Exception $e) {
-			throw new lxException('Error: ' . $e->getMessage(), $dbname);
+			if (!class_exists('KloxoBackup', false)) {
+				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+			}
+			KloxoBackup::extractArchive($docd, $vd);
+		} catch (Throwable $e) {
+			lxshell_unzip('__system__', $vd, $docd);
 		}
+
+		if (!lxfile_exists($docf)) {
+			log_log("restore", "- Not match $docf file for database");
+			lxfile_tmp_rm_rec($vd);
+
+			return;
+		}
+
+		try {
+			KloxoBackup::restoreMysql($dbname, $dbadmin, $dbpass, $docf);
+		} catch (Throwable $e) {
+			lxfile_tmp_rm_rec($vd);
+			if (is_object($login) && method_exists($login, 'getThrow')) {
+				throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
+			}
+			throw $e;
+		}
+
+		lunlink($docf);
+		lxfile_tmp_rm_rec($vd);
 	}
 
 	function doSyncToSystemPre()

@@ -118,11 +118,13 @@ function restore_main()
 	try {
 		$backup->doUpdateRestore($file, $param);
 		$backup->restorestage = 'done';
-	} catch (exception $e) {
-		log_error("Restore Failed. Reason: {$e->__full_message} \n");
-		print("Restore Failed. Reason: {$e->__full_message} \n");
-		$mess = $e->__full_message;
-		mail($object->contactemail, "Restore Failed..", "Restore Failed for $object->nname with the Message $mess");
+	} catch (Throwable $e) {
+		$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
+		log_error("Restore Failed. Reason: {$mess} \n");
+		print("Restore Failed. Reason: {$mess} \n");
+		if (isset($object->contactemail) && is_string($object->contactemail) && $object->contactemail !== '') {
+			@mail($object->contactemail, "Restore Failed..", "Restore Failed for {$object->nname} with the Message {$mess}");
+		}
 		$backup->restorestage = "Restore failed due to $mess";
 	}
 

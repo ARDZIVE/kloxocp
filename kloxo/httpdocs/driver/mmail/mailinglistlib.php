@@ -80,7 +80,8 @@ class Mailinglist extends Lxdb
 
 	function extraBackup()
 	{
-		return true;
+		// ezmlm is gone; mailing-list files are not packed.
+		return false;
 	}
 
 	function createShowPropertyList(&$alist)
