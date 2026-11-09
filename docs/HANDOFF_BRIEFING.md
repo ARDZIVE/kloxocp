@@ -189,7 +189,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `theme/lbin/sitephp-progress.php`, `log/sitephp.jobs`). When a job
     finishes the version moves between the Install and Remove lists
     (installed = phpX.Y cli or fpm binary; a leftover `/etc/php/X.Y`
-    dir after purge does not keep it on Remove). The old scanner only
+    dir after purge does not keep it on Remove). A leftover
+    `queued`/`running` jobs row after the lock is gone is completed to
+    100% (`completeIdleJobs`; the bar no longer stays at
+    “Waiting to start removal”); the page hides it after a few seconds. The old scanner only
     saw `/opt/*m`. phpMyAdmin is not in the tree; `install-phpmyadmin`
     installs a self-contained 5.2.3 tarball under
     `httpdocs/thirdparty/phpMyAdmin` (Hiawatha 405 otherwise).     Admin SQL

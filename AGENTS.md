@@ -95,7 +95,9 @@ under `$ROOT/log/`, not `/tmp`, because `kloxo-backend` uses `PrivateTmp`);
 the Webserver Configure page stays open and shows a progress bar per
 phpX.Y (`theme/js/kloxo-sitephp.js` polls `theme/lbin/sitephp-progress.php`,
 admin-only JSON of `log/sitephp.jobs`); when a job finishes the version
-moves between Multiple PHP Install and Multiple PHP Remove;
+moves between Multiple PHP Install and Multiple PHP Remove; a leftover
+queued bar after apt is done is completed to 100% (`completeIdleJobs`)
+instead of staying at “Waiting to start removal”;
 Multiple PHP Remove sends
 `KloxoPhpver::queueRemove` (`apt-get purge` of `phpX.Y-fpm` and
 `phpX.Y-cli` as root, no lxlabs fallback) so they

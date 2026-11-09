@@ -18,6 +18,7 @@
 	var POLL_IDLE_MS = 2500;
 	var URL = '/theme/lbin/sitephp-progress.php';
 	var timer = null;
+	var hideTimer = null;
 	var wired = false;
 	var lastBusy = false;
 	var sessionJobs = false;
@@ -202,6 +203,33 @@
 		}
 	}
 
+	function jobsDone(jobs) {
+		var i;
+		if (!jobs || jobs.length === 0) {
+			return false;
+		}
+		for (i = 0; i < jobs.length; i++) {
+			if (jobs[i].state !== 'ok' && jobs[i].state !== 'failed') {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	function hideWhenDone(jobs, busy) {
+		if (hideTimer) {
+			win.clearTimeout(hideTimer);
+			hideTimer = null;
+		}
+		if (busy || !jobsDone(jobs)) {
+			return;
+		}
+		hideTimer = win.setTimeout(function () {
+			renderJobs([]);
+			sessionJobs = false;
+		}, 5000);
+	}
+
 	function poll() {
 		var req = new XMLHttpRequest();
 		req.open('GET', URL + '?t=' + Date.now(), true);
@@ -229,9 +257,10 @@
 			if (sessionJobs || busy) {
 				renderJobs(data.jobs || []);
 			}
-			if (lastBusy && !busy) {
+			if (!busy && sessionJobs) {
 				syncLists(data.install, data.remove);
 			}
+			hideWhenDone(data.jobs || [], busy);
 			lastBusy = busy;
 			schedule(busy);
 		};

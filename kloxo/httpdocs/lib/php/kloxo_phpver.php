@@ -549,15 +549,16 @@ final class KloxoPhpver
 
         $last = self::lastInstall($statusFile);
         $lockBusy = is_file($installLock) || is_file($removeLock) || is_file($req) || is_file($claimed);
+        if ($last !== null && $lockBusy && $state === 'running' && $last['message'] !== '') {
+            $message = $last['message'];
+        }
         if ($last !== null && !$lockBusy) {
-            $state = $last['state'];
             $message = $last['message'];
             $at = $last['at'];
             if ($op === 'idle') {
                 $op = (strpos($message, 'remov') !== false) ? 'remove' : 'install';
             }
-        } elseif ($last !== null && $state === 'running' && $last['message'] !== '') {
-            $message = $last['message'];
+            $state = in_array($last['state'], ['ok', 'partial', 'failed'], true) ? $last['state'] : 'ok';
         }
 
         if ($items !== []) {
@@ -577,9 +578,18 @@ final class KloxoPhpver
             }
         }
 
+        $installNow = self::availableToInstall();
+        $removeNow = self::removableIds();
         $jobs = self::readJobs(self::jobsPath($base));
         if ($jobs === [] && $items !== []) {
             $jobs = self::queuedJobs($op === 'idle' ? 'install' : $op, $items);
+        }
+        if (!$lockBusy) {
+            $done = self::completeIdleJobs($jobs, $op, $last, $installNow, $removeNow);
+            if ($done !== $jobs) {
+                self::writeJobs($done, self::jobsPath($base));
+            }
+            $jobs = $done;
         }
 
         return [
@@ -589,11 +599,55 @@ final class KloxoPhpver
             'message' => $message,
             'at' => $at,
             'items' => $items,
-            'busy' => ($state === 'queued' || $state === 'running'),
+            'busy' => $lockBusy,
             'jobs' => $jobs,
-            'install' => self::availableToInstall(),
-            'remove' => self::removableIds(),
+            'install' => $installNow,
+            'remove' => $removeNow,
         ];
+    }
+
+    /**
+     * A leftover queued/running bar after the lock is gone must not stay at 5%.
+     *
+     * @param list<array{id:string,state:string,pct:int,action:string}> $jobs
+     * @param array{at:int,state:string,message:string}|null $last
+     * @param list<string> $install
+     * @param list<string> $remove
+     * @return list<array{id:string,state:string,pct:int,action:string}>
+     */
+    public static function completeIdleJobs(array $jobs, string $op, ?array $last, array $install, array $remove): array
+    {
+        $wantRemove = ($op === 'remove')
+            || ($last !== null && strpos($last['message'], 'remov') !== false);
+        $failed = ($last !== null && $last['state'] === 'failed');
+        $lastOk = ($last !== null && in_array($last['state'], ['ok', 'partial'], true));
+        foreach ($jobs as $i => $j) {
+            $st = (string) ($j['state'] ?? '');
+            if ($st === 'ok' || $st === 'failed') {
+                continue;
+            }
+            $id = (string) ($j['id'] ?? 'php');
+            $onRemove = in_array($id, $remove, true);
+            if ($failed) {
+                $jobs[$i]['state'] = 'failed';
+                $jobs[$i]['pct'] = 100;
+                $jobs[$i]['action'] = ($last['message'] !== '' ? $last['message'] : ('Could not change ' . $id));
+                continue;
+            }
+            if ($wantRemove) {
+                $ok = !$onRemove || $lastOk;
+                $jobs[$i]['state'] = $ok ? 'ok' : 'failed';
+                $jobs[$i]['pct'] = 100;
+                $jobs[$i]['action'] = $ok ? ('Removed ' . $id) : ('Could not remove ' . $id);
+            } else {
+                $ok = $onRemove || $lastOk;
+                $jobs[$i]['state'] = $ok ? 'ok' : 'failed';
+                $jobs[$i]['pct'] = 100;
+                $jobs[$i]['action'] = $ok ? ('Installed ' . $id) : ('Could not install ' . $id);
+            }
+        }
+
+        return $jobs;
     }
 
     /**

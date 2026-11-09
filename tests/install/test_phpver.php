@@ -346,6 +346,17 @@ if (($queuedLive['state'] ?? '') === 'queued' && ($queuedLive['op'] ?? '') === '
 	$bad('liveProgress reports a dropped remove request as queued');
 }
 @unlink($liveDir . '/log/sitephp.request');
+file_put_contents($liveDir . '/log/install-site-php.status', "1794032100|ok|removed php8.1\n");
+file_put_contents($liveDir . '/log/sitephp.jobs', "php8.1|queued|5|Waiting to start removal\n");
+$doneLive = KloxoPhpver::liveProgress($liveDir);
+if (($doneLive['busy'] ?? true) === false
+	&& isset($doneLive['jobs'][0]['pct']) && (int) $doneLive['jobs'][0]['pct'] === 100
+	&& ($doneLive['jobs'][0]['state'] ?? '') === 'ok'
+	&& str_contains((string) ($doneLive['jobs'][0]['action'] ?? ''), 'Removed')) {
+	$ok('liveProgress finishes a leftover queued bar after the job is done');
+} else {
+	$bad('liveProgress finishes a leftover queued bar after the job is done');
+}
 @unlink($liveDir . '/log/install-site-php.status');
 @unlink($liveDir . '/log/sitephp.jobs');
 @rmdir($liveDir . '/log');
