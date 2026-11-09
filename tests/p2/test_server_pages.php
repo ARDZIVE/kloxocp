@@ -31,13 +31,15 @@ $parent = new stdClass();
 $parent->username = 'root';
 try {
 	$ret = sshauthorizedkey::addform($parent, 'sshauthorizedkey');
-	if (is_array($ret) && isset($ret['variable']['full_key']) && $ret['action'] === 'add') {
-		ok('sshauthorizedkey addform returns a form without key(null)');
+	$shown = is_array($ret) ? ($ret['variable']['full_key'][1] ?? null) : null;
+	$okKey = is_string($shown) && ($shown === '' || sshauthorizedkey__sync::parseLine($shown) !== null);
+	if (is_array($ret) && isset($ret['variable']['full_key']) && $ret['action'] === 'add' && $okKey) {
+		ok('sshauthorizedkey addform returns Full Key (server public key or empty)');
 	} else {
-		bad('sshauthorizedkey addform returns a form without key(null)');
+		bad('sshauthorizedkey addform returns Full Key (server public key or empty)');
 	}
 } catch (Throwable $e) {
-	bad('sshauthorizedkey addform returns a form without key(null)', $e->getMessage());
+	bad('sshauthorizedkey addform returns Full Key (server public key or empty)', $e->getMessage());
 }
 
 $keys = sshauthorizedkey__sync::getAuthorizedKey('nobody-missing', null);
@@ -4252,13 +4254,29 @@ if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl') && method_exists($g
 $smSrc = (string) file_get_contents($doc . '/driver/mmail/servermaillib.php');
 $smCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $smLib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+$smListAlist = array();
+$smFirstOnWhite = '';
 try {
 	$smWhiteNlist = mail_graylist_wlist_a::createListNlist($sm, null);
 	$smWhiteAdd = mail_graylist_wlist_a::addform($sm, 'mail_graylist_wlist_a');
+	$smListAlist = mail_graylist_wlist_a::createListAlist($sm, 'mail_graylist_wlist_a');
+	$prevGblWhite = $gbl ?? null;
+	if (!isset($gbl) || !is_object($gbl)) {
+		$gbl = new stdClass();
+	}
+	$gbl->__c_object = $sm;
+	$smFirstOnWhite = kloxo_content_tab_label('Update_update', $smFull);
+	$smHomeOnWhite = kloxo_content_tab_label('Home', $smFull);
+	$gbl = $prevGblWhite;
 	$smWhiteListOk = mail_graylist_wlist_a::createListAddForm($sm, 'mail_graylist_wlist_a') === true
 		&& is_array($smWhiteNlist) && array_key_exists('nname', $smWhiteNlist)
 		&& is_array($smWhiteAdd) && ($smWhiteAdd['action'] ?? '') === 'add'
 		&& array_key_exists('nname', (array) ($smWhiteAdd['variable'] ?? array()))
+		&& is_array($smListAlist) && $smListAlist === ServerMail::servermailPropertyTabs()
+		&& ($smListAlist[0] ?? '') === 'a=updateform&sa=update'
+		&& !str_contains(implode(',', $smListAlist), 'goback')
+		&& $smFirstOnWhite === 'Mail Server Settings'
+		&& $smHomeOnWhite === 'Mail Server Settings'
 		&& str_contains($smSrc, "\$__desc_mail_graylist_wlist_a")
 		&& str_contains($smSrc, 'function createListNlist');
 } catch (Throwable $e) {
@@ -4322,6 +4340,8 @@ if (($smProp[0] ?? '') === 'a=updateform&sa=update'
 			. ' spamSelect=' . ($smSpamSelect ? '1' : '0')
 			. ' whiteSelect=' . ($smWhiteSelect ? '1' : '0')
 			. ' whiteList=' . ($smWhiteListOk ? '1' : '0')
+			. ' listAlist=' . implode(',', array_map('strval', (array) $smListAlist))
+			. ' firstOnWhite=' . $smFirstOnWhite
 			. ' keys=' . implode(',', array_keys((array) $smForm))
 			. ' spamKeys=' . implode(',', array_keys((array) $smSpamForm))
 			. ' defaults=' . (string) ($sm->max_size ?? '')

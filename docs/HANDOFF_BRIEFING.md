@@ -521,8 +521,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     category Welcome and ticket 1 (Created By Kloxo, Subject
     Welcome to Kloxo, date = install time). SSH Authorized Keys under localhost
     reads and writes `/root/.ssh/authorized_keys` (a client uses that Unix
-    user's `~/.ssh/authorized_keys`) via kloxo-backend; Add appends a pasted
-    public key; the form does not run `ssh-keygen` or write `~/.ssh/config`.
+    user's `~/.ssh/authorized_keys`) via kloxo-backend; the Full Key box is
+    prefilled with this server's public key (`~/.ssh/id_ed25519.pub`, else
+    `id_ecdsa`/`id_rsa`, else the SSH host key on Linux; root may generate
+    `id_ed25519` if none exist). Add appends that line; the private key is
+    never shown; `~/.ssh/config` is not written.
     `homeDir()` / `unixUser()` accept only `root` or
     `^[A-Za-z_][A-Za-z0-9_-]{0,31}$` (no `/`, `..`, or NUL).
     Tested: `tests/p2/test_sshauthorizedkey.php`. Live add/list after deploy
@@ -853,7 +856,10 @@ Work in this order. Keep every change small, tested and committed separately. Do
    rejects off, DNS RBL prefilled `zen.spamhaus.org` + `bl.spamcop.net` (no
    UCEPROTECT), header rules for Mass Mailer / Flooder / Subject ADV:, and both
    Enable Default checkboxes on so Update installs them (empty saved lists show
-   the shipped files). Clicking **Whitelist IPs** selects that tab; add/list of
+   the shipped files). Clicking **Whitelist IPs** selects that tab (same three
+   tabs; first tab stays **Mail Server Settings**; `mail_graylist_wlist_a::createListAlist`
+   returns `servermailPropertyTabs()` with no `goback=1`, which would drop
+   servermail and send the first tab to pserver). Add/list of
    `mail_graylist_wlist_a` (Whitelist IP field/column). Live Mail Server
    Settings after re-install is **UNVERIFIED**.
    SMTP Protection replaces Spamdyke (the Mail Server Settings tab that was called Spamdyke; Spamdyke itself is

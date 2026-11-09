@@ -54,11 +54,52 @@ class sshauthorizedkey extends lxclass
 
 	static function addform($parent, $class, $typetd = null)
 	{
-		$vlist['full_key'] = array("t", '');
+		$vlist['full_key'] = array("t", self::serverPublicKey($parent));
 		$ret['variable'] = $vlist;
 		$ret['action'] = 'add';
 
 		return $ret;
+	}
+
+	/** This server's OpenSSH public key for the Full Key box (never the private key). */
+	static function serverPublicKey($parent)
+	{
+		$user = self::unixUser($parent);
+		$slave = 'localhost';
+		try {
+			if (is_object($parent) && method_exists($parent, 'getClass') && $parent->getClass() === 'client'
+				&& isset($parent->websyncserver) && $parent->websyncserver !== '') {
+				$slave = $parent->websyncserver;
+			} elseif (is_object($parent) && isset($parent->nname) && method_exists($parent, 'getClass')
+				&& $parent->getClass() === 'pserver') {
+				$slave = $parent->nname;
+			} elseif (is_object($parent) && isset($parent->syncserver) && $parent->syncserver !== '') {
+				$slave = $parent->syncserver;
+			}
+		} catch (Throwable $e) {
+			$slave = 'localhost';
+		}
+		$key = '';
+		try {
+			$got = rl_exec_get(null, $slave, array('sshauthorizedkey__sync', 'identityPublicKey'), array($user));
+			if (is_string($got)) {
+				$key = trim($got);
+			}
+		} catch (Throwable $e) {
+			$key = '';
+		}
+		if ($key === '') {
+			try {
+				$key = trim(sshauthorizedkey__sync::identityPublicKey($user));
+			} catch (Throwable $e) {
+				$key = '';
+			}
+		}
+		if ($key !== '' && sshauthorizedkey__sync::parseLine($key) === null) {
+			return '';
+		}
+
+		return $key;
 	}
 
 	static function add($parent, $class, $param)

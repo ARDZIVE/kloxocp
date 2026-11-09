@@ -3559,7 +3559,19 @@ function kloxo_servermail_page_tab_label($str, $url)
 	$sa = kloxo_url_subaction($url);
 	$act = kloxo_url_action($url);
 	$isMail = kloxo_url_has_servermail($url);
-	$isGray = strpos($url, 'mail_graylist_wlist_a') !== false;
+	$isGrayList = (strpos($url, 'mail_graylist_wlist_a') !== false)
+		&& ($act === 'list' || $act === 'add' || $act === 'addform');
+	$cur = '';
+	if (isset($GLOBALS['gbl']) && is_object($GLOBALS['gbl'])
+		&& isset($GLOBALS['gbl']->__c_object) && is_object($GLOBALS['gbl']->__c_object)
+		&& method_exists($GLOBALS['gbl']->__c_object, 'getClass')) {
+		try {
+			$cur = strtolower((string) $GLOBALS['gbl']->__c_object->getClass());
+		} catch (Throwable $e) {
+			$cur = '';
+		}
+	}
+	$onMail = $isMail || $cur === 'servermail' || $cur === 'mail_graylist_wlist_a';
 	static $mailStr = array(
 		'server_mail_settings' => true,
 		'Mail Server Settings' => true,
@@ -3575,19 +3587,19 @@ function kloxo_servermail_page_tab_label($str, $url)
 		'Update_spamdyke' => true,
 		'Update _spamdyke' => true,
 	);
-	if (!$isMail && !$isGray && !isset($mailStr[$str])) {
+	if (!$onMail && !$isGrayList && !isset($mailStr[$str])) {
 		return '';
-	}
-	if ($isGray || $str === 'whitelist_ip' || $str === 'whitelist_ips'
-		|| $str === 'Whitelist IPs' || $str === 'Whitelist IP'
-		|| $str === 'mail_graylist_wlist_a') {
-		return 'Whitelist IPs';
 	}
 	if ($sa === 'spamdyke' || $str === 'spamdyke' || $str === 'Spamdyke'
 		|| $str === 'Update_spamdyke' || $str === 'Update _spamdyke') {
 		return 'SMTP Protection';
 	}
-	if ($isMail || $str === 'server_mail_settings' || $str === 'Mail Server Settings'
+	if ($isGrayList || $str === 'whitelist_ip' || $str === 'whitelist_ips'
+		|| $str === 'Whitelist IPs' || $str === 'Whitelist IP'
+		|| $str === 'mail_graylist_wlist_a') {
+		return 'Whitelist IPs';
+	}
+	if ($onMail || $str === 'server_mail_settings' || $str === 'Mail Server Settings'
 		|| $str === 'servermail' || $str === 'Servermail') {
 		return 'Mail Server Settings';
 	}

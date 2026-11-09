@@ -138,12 +138,28 @@ if ($threw) {
 	bad('add refuses a line that is not a public key');
 }
 
-$form = sshauthorizedkey::addform(new stdClass(), 'sshauthorizedkey');
+$parentRoot = new stdClass();
+$parentRoot->username = 'root';
+$form = sshauthorizedkey::addform($parentRoot, 'sshauthorizedkey');
 if (is_array($form) && isset($form['variable']['full_key']) && $form['variable']['full_key'][1] === '') {
-	ok('add form is an empty Full Key paste box');
+	ok('add form Full Key is empty when this server has no identity/host public key');
 } else {
-	bad('add form is an empty Full Key paste box', var_export($form, true));
+	bad('add form Full Key is empty when this server has no identity/host public key', var_export($form, true));
 }
+
+$sshDir = $tmp . '/root/.ssh';
+@mkdir($sshDir, 0700, true);
+file_put_contents($sshDir . '/id_ed25519.pub', $ed . "\n");
+$gotPub = sshauthorizedkey__sync::identityPublicKey('root');
+$formFilled = sshauthorizedkey::addform($parentRoot, 'sshauthorizedkey');
+$shown = is_array($formFilled) ? (string) ($formFilled['variable']['full_key'][1] ?? '') : '';
+if ($gotPub === $ed && $shown === $ed) {
+	ok('add form Full Key is this server\'s existing identity public key');
+} else {
+	bad('add form Full Key is this server\'s existing identity public key',
+		'got=' . $gotPub . ' shown=' . $shown);
+}
+@unlink($sshDir . '/id_ed25519.pub');
 
 $ps = new pserver(null, 'localhost', 'localhost');
 $ps->nname = 'localhost';
@@ -157,13 +173,16 @@ if (sshauthorizedkey::unixUser($ps) === 'root') {
 $src = (string) file_get_contents($doc . '/driver/pserver/sshauthorizedkeylib.php');
 $sync = (string) file_get_contents($doc . '/driver/pserver/sshauthorizedkey__synclib.php');
 if (str_contains($src, 'rl_exec_get')
+	&& str_contains($src, 'serverPublicKey')
 	&& str_contains($sync, '/.ssh/authorized_keys')
+	&& str_contains($sync, 'identityPublicKey')
 	&& !str_contains($sync, '.authorized_keys')
-	&& !str_contains($sync, 'ssh-keygen')
-	&& !str_contains($sync, '/root/.ssh/config')) {
-	ok('list goes through kloxo-backend; file is authorized_keys; no keygen or ssh config');
+	&& !str_contains($sync, '/root/.ssh/config')
+	&& str_contains($sync, 'ssh-keygen')
+	&& str_contains($sync, 'ensureIdentityPublicKey')) {
+	ok('list goes through kloxo-backend; Full Key uses this server public key; no ssh config');
 } else {
-	bad('list goes through kloxo-backend; file is authorized_keys; no keygen or ssh config');
+	bad('list goes through kloxo-backend; Full Key uses this server public key; no ssh config');
 }
 
 foreach (glob($tmp . '/root/.ssh/*') ?: array() as $f) {

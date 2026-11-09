@@ -75,6 +75,112 @@ class sshauthorizedkey__sync extends Lxdriverclass
 	}
 
 	/**
+	 * OpenSSH public key already on this server (identity, else host key).
+	 * Never returns a private key. Does not write ~/.ssh/config.
+	 */
+	static function identityPublicKey($username)
+	{
+		$user = self::validUnixUser($username);
+		$home = self::homeDir($user);
+		foreach (array('id_ed25519.pub', 'id_ecdsa.pub', 'id_rsa.pub') as $name) {
+			$line = self::readPublicKeyFile($home . '/.ssh/' . $name);
+			if ($line !== '') {
+				return $line;
+			}
+		}
+		if ($user === 'root' && self::$fsPrefix === '' && PHP_OS_FAMILY === 'Linux') {
+			foreach (array(
+				'/etc/ssh/ssh_host_ed25519_key.pub',
+				'/etc/ssh/ssh_host_ecdsa_key.pub',
+				'/etc/ssh/ssh_host_rsa_key.pub',
+			) as $hostPub) {
+				$line = self::readPublicKeyFile($hostPub);
+				if ($line !== '') {
+					return $line;
+				}
+			}
+		}
+		if (self::$fsPrefix !== '') {
+			return '';
+		}
+		if (function_exists('posix_geteuid') && posix_geteuid() !== 0) {
+			return '';
+		}
+
+		return self::ensureIdentityPublicKey($user);
+	}
+
+	static function readPublicKeyFile($path)
+	{
+		$f = (string) $path;
+		if ($f === '' || str_contains($f, "\0") || !is_file($f) || !is_readable($f)) {
+			return '';
+		}
+		$raw = file_get_contents($f);
+		if (!is_string($raw) || $raw === '') {
+			return '';
+		}
+		foreach (preg_split("/\r\n|\n|\r/", $raw) as $line) {
+			$p = self::parseLine($line);
+			if ($p !== null) {
+				return $p['full_key'];
+			}
+		}
+
+		return '';
+	}
+
+	static function ensureIdentityPublicKey($username)
+	{
+		$user = self::validUnixUser($username);
+		$home = self::homeDir($user);
+		$dir = $home . '/.ssh';
+		$private = $dir . '/id_ed25519';
+		$pub = $private . '.pub';
+		$existing = self::readPublicKeyFile($pub);
+		if ($existing !== '') {
+			return $existing;
+		}
+		if (is_file($private) || is_file($pub)) {
+			return self::readPublicKeyFile($pub);
+		}
+		$bin = is_executable('/usr/bin/ssh-keygen') ? '/usr/bin/ssh-keygen' : '';
+		if ($bin === '') {
+			return '';
+		}
+		if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
+			return '';
+		}
+		@chmod($dir, 0700);
+		$host = preg_replace('/[^A-Za-z0-9._-]/', '', (string) gethostname());
+		if ($host === '') {
+			$host = 'localhost';
+		}
+		$comment = $user . '@' . $host;
+		$argv = array($bin, '-t', 'ed25519', '-N', '', '-q', '-f', $private, '-C', $comment);
+		$pipes = array();
+		$p = @proc_open($argv, array(
+			0 => array('file', '/dev/null', 'r'),
+			1 => array('pipe', 'w'),
+			2 => array('pipe', 'w'),
+		), $pipes);
+		if (!is_resource($p)) {
+			return '';
+		}
+		foreach (array(1, 2) as $i) {
+			if (isset($pipes[$i]) && is_resource($pipes[$i])) {
+				stream_get_contents($pipes[$i]);
+				fclose($pipes[$i]);
+			}
+		}
+		proc_close($p);
+		@chmod($private, 0600);
+		@chmod($pub, 0644);
+
+		return self::readPublicKeyFile($pub);
+	}
+
+	/**
 	 * @return array{type:string,key:string,hostname:string,full_key:string,nname:string}|null
 	 */
 	static function parseLine($line)

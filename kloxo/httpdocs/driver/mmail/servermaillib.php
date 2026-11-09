@@ -13,11 +13,6 @@ class mail_graylist_wlist_a extends lxaclass {
 		return true;
 	}
 
-	static function AddListForm($parent, $class)
-	{
-		return self::addform($parent, $class);
-	}
-
 	static function addform($parent, $class, $typetd = null)
 	{
 		$vlist = array();
@@ -59,23 +54,15 @@ class mail_graylist_wlist_a extends lxaclass {
 
 	static function createListAlist($object, $class)
 	{
+		// The list page's current object is already servermail (frm_o_cname is the
+		// child). goback=1 would drop servermail and send the first tab to pserver.
 		if (class_exists('ServerMail') && is_callable(array('ServerMail', 'servermailPropertyTabs'))) {
-			$tabs = ServerMail::servermailPropertyTabs();
-			$out = array();
-			foreach ($tabs as $t) {
-				if (is_string($t) && $t !== '' && !str_starts_with($t, 'goback=')) {
-					$out[] = 'goback=1&' . $t;
-				} else {
-					$out[] = $t;
-				}
-			}
-
-			return $out;
+			return ServerMail::servermailPropertyTabs();
 		}
 
 		return array(
-			'goback=1&a=updateform&sa=update',
-			'goback=1&a=updateform&sa=spamdyke',
+			'a=updateform&sa=update',
+			'a=updateform&sa=spamdyke',
 			'a=list&c=mail_graylist_wlist_a',
 		);
 	}
