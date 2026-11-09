@@ -4191,12 +4191,16 @@ $smSpamFormOk = is_array($smSpamForm)
 	&& is_array($smSpamForm['dns_blacklists'] ?? null)
 	&& ($smSpamForm['dns_blacklists'][0] ?? '') === 't'
 	&& str_contains((string) ($smSpamForm['dns_blacklists'][1] ?? ''), 'zen.spamhaus.org')
+	&& str_contains((string) ($smSpamForm['dns_blacklists'][1] ?? ''), 'bl.spamcop.net')
 	&& array_key_exists('default_dns_blacklists_flag', $smSpamForm)
+	&& (string) ($sm->default_dns_blacklists_flag ?? '') === 'on'
 	&& array_key_exists('blacklist_headers', $smSpamForm)
 	&& is_array($smSpamForm['blacklist_headers'] ?? null)
 	&& ($smSpamForm['blacklist_headers'][0] ?? '') === 't'
+	&& str_contains((string) ($smSpamForm['blacklist_headers'][1] ?? ''), 'Mass Mailer')
 	&& array_key_exists('default_blacklist_headers_flag', $smSpamForm)
-	&& (string) ($sm->greet_delay ?? '') === '1'
+	&& (string) ($sm->default_blacklist_headers_flag ?? '') === 'on'
+	&& (string) ($sm->greet_delay ?? '') === '3'
 	&& (string) ($sm->max_rcpnts ?? '') === '150'
 	&& (string) ($sm->graylist_min_secs ?? '') === '300'
 	&& (string) ($sm->graylist_max_secs ?? '') === '1814400';
@@ -4345,11 +4349,13 @@ foreach (array(
 		$smBad[] = 'refused';
 	}
 }
-$smDefParam = $sm->updatespamdyke(array('greet_delay' => '0', 'max_rcpnts' => '0', 'default_dns_blacklists_flag' => 'on'));
+$smDefParam = $sm->updatespamdyke(array('greet_delay' => '0', 'max_rcpnts' => '0',
+	'default_dns_blacklists_flag' => 'on', 'default_blacklist_headers_flag' => 'on'));
 if (($smOkParam['dns_blacklists'] ?? '') === 'zen.spamhaus.org bl.spamcop.net'
 	&& $smBad === array('refused', 'refused', 'refused', 'refused')
-	&& str_contains((string) ($smDefParam['dns_blacklists'] ?? ''), 'zen.spamhaus.org')) {
-	ok('SMTP Protection save validates ranges, RBL names and graylist times; defaults flag fills the RBL list');
+	&& str_contains((string) ($smDefParam['dns_blacklists'] ?? ''), 'zen.spamhaus.org')
+	&& str_contains((string) ($smDefParam['blacklist_headers'] ?? ''), 'Mass Mailer')) {
+	ok('SMTP Protection save validates ranges, RBL names and graylist times; defaults flag fills the RBL and header lists');
 } else {
 	bad('SMTP Protection save validation', json_encode(array($smOkParam['dns_blacklists'] ?? null, $smBad, $smDefParam['dns_blacklists'] ?? null)));
 }

@@ -53,10 +53,10 @@ register_shutdown_function(static function () use ($tmp): void {
 
 echo "== validation\n";
 $d = KloxoMailPolicy::normalize([]);
-check($d['enabled'] === false && $d['greet_delay'] === 1 && $d['max_rcpnts'] === 150 && $d['graylist'] === true
+check($d['enabled'] === false && $d['greet_delay'] === 3 && $d['max_rcpnts'] === 150 && $d['graylist'] === true
 	&& $d['graylist_min_secs'] === 300 && $d['graylist_max_secs'] === 1814400
 	&& $d['reject_missing_sender_mx'] === true && $d['reject_empty_rdns'] === false
-	&& $d['dns_blacklists'] === [] && $d['whitelist_ips'] === [], 'defaults are the Kloxo-MR values and the policy is off');
+	&& $d['dns_blacklists'] === [] && $d['whitelist_ips'] === [], 'defaults: greet 3, graylist on, missing MX on, policy off');
 $f = KloxoMailPolicy::normalize([
 	'enabled' => 'on', 'greet_delay' => '5', 'max_rcpnts' => '20', 'graylist' => 'off',
 	'graylist_min_secs' => '60', 'graylist_max_secs' => '86400',
@@ -402,8 +402,15 @@ check($np['enabled'] && $np['greet_delay'] === 3 && !$np['graylist'] && $np['whi
 echo "== Shipped defaults\n";
 $defRbl = KloxoMailPolicy::defaultFile('default_rbl.txt', $root . '/kloxo');
 check(KloxoMailPolicy::parseRbl($defRbl) !== [] && str_contains($defRbl, 'zen.spamhaus.org')
-	&& !str_contains($defRbl, 'dsbl') && !str_contains($defRbl, 'sorbs'), 'default RBL list parses and has no dead zones');
-check(KloxoMailPolicy::parseHeaders(KloxoMailPolicy::defaultFile('default_blacklist_headers.txt', $root . '/kloxo')) === [], 'default header list parses (no rules)');
+	&& str_contains($defRbl, 'bl.spamcop.net')
+	&& !str_contains($defRbl, 'dsbl') && !str_contains($defRbl, 'sorbs')
+	&& !str_contains($defRbl, 'uceprotect'), 'default RBL list is Spamhaus + SpamCop (no UCEPROTECT/SORBS)');
+$defHdr = KloxoMailPolicy::defaultFile('default_blacklist_headers.txt', $root . '/kloxo');
+$defHdrRules = KloxoMailPolicy::parseHeaders($defHdr);
+check($defHdrRules !== [] && str_contains($defHdr, 'Mass Mailer') && str_contains($defHdr, 'ADV:'),
+	'default header list has a few low-noise spam tokens');
+check(KloxoMailPolicy::parseRbl("# comment\nzen.spamhaus.org  # inline\nbl.spamcop.net")
+	=== ['zen.spamhaus.org', 'bl.spamcop.net'], 'RBL comments are skipped');
 
 printf("\n%d passed, %d failed\n", $pass, $fail);
 exit($fail === 0 ? 0 : 1);

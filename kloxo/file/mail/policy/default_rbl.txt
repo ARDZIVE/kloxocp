@@ -1,1 +1,4 @@
-zen.spamhaus.org bl.spamcop.net dnsbl-1.uceprotect.net
+# DNSBLs applied when SMTP Protection is on. One zone per line or spaces.
+# zen is Spamhaus; skip a resolver Spamhaus has blocked (127.255.255.x is ignored).
+zen.spamhaus.org
+bl.spamcop.net

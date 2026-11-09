@@ -848,9 +848,12 @@ Work in this order. Keep every change small, tested and committed separately. Do
    (`ServerMail::servermailPropertyTabs` forced); Switch To Another via
    `getSelfList`; update form matches Kloxo-MR field set and defaults
    (attachment 41943040, queue 604800, SMTP instances 50, send limit 30000).
-   Clicking **SMTP Protection** selects that tab; form matches Kloxo-MR (greet delay,
-   recipients 150, graylist, RDNS/MX rejects, DNS RBL + blacklist header
-   textareas). Clicking **Whitelist IPs** selects that tab; add/list of
+   Clicking **SMTP Protection** selects that tab; first-visit defaults are greet
+   delay 3, recipients 150, graylist on (300 / 1814400), missing-MX on, rDNS
+   rejects off, DNS RBL prefilled `zen.spamhaus.org` + `bl.spamcop.net` (no
+   UCEPROTECT), header rules for Mass Mailer / Flooder / Subject ADV:, and both
+   Enable Default checkboxes on so Update installs them (empty saved lists show
+   the shipped files). Clicking **Whitelist IPs** selects that tab; add/list of
    `mail_graylist_wlist_a` (Whitelist IP field/column). Live Mail Server
    Settings after re-install is **UNVERIFIED**.
    SMTP Protection replaces Spamdyke (the Mail Server Settings tab that was called Spamdyke; Spamdyke itself is
@@ -865,10 +868,10 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `postfix check` and rollback (postscreen greet wait, `smtpd_recipient_limit`, `reject_unknown_*`, `reject_rbl_client`,
    `header_checks`, `check_client_access cidr:`; open-relay guard). Graylisting on both is Postgrey on 127.0.0.1:10023
    (`/etc/default/postgrey` `--delay`/`--max-age`; a dead Postgrey defers). Approximations: Postfix "RDNS contains the IP"
-   is a regexp table, Postfix header rules also apply to locally submitted mail (`header_checks`). Saving the form
+   is a regexp table, Postfix header rules also apply to locally submitted mail (`header_checks`).    Saving the form
    with the prefilled RBL list activates DNSBL. The first-tab fields (My Name, Domainkey, Virus Scan, Max Mail Attachment
    Size, Queue Life, Max SMTP Instances, SMTP Relay, Send Limit) are still not wired to a service. Tested:
-   `tests/p2/test_mailpolicy.php` (69 checks: renderer, rendered Exim text, Postfix plan, the Postfix tool against Apple
+   `tests/p2/test_mailpolicy.php` (75 checks: renderer, rendered Exim text, Postfix plan, the Postfix tool against Apple
    postconf 3.2.2 in a throw-away directory, panel hand-off with fakes), `tests/install/test_migrate_servermail.php`,
    `tests/p2/test_server_pages.php`. NOT verified: any real Exim (`exim -bV` not run), a real Postfix `postfix check`/reload/
    postscreen, a live Postgrey, a real SMTP session through the rules, the panel UI flow on Ubuntu. Also fixed: the

@@ -39,12 +39,12 @@ final class KloxoMailPolicy
 
     private const DNS_NAME = '/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/';
 
-    /** Settings used when nothing was saved yet (Kloxo-MR values); the policy is off. */
+    /** Settings used when nothing was saved yet; the policy is off until SMTP Protection is saved. */
     public static function defaults(): array
     {
         return [
             'enabled' => false,
-            'greet_delay' => 1,
+            'greet_delay' => 3,
             'max_rcpnts' => 150,
             'graylist' => true,
             'graylist_min_secs' => 300,
@@ -96,7 +96,27 @@ final class KloxoMailPolicy
     /** @return list<string> */
     public static function parseRbl(mixed $v): array
     {
-        $items = is_array($v) ? $v : preg_split('/[\s,]+/', (string) $v, -1, PREG_SPLIT_NO_EMPTY);
+        if (is_array($v)) {
+            $items = $v;
+        } else {
+            $items = [];
+            foreach (preg_split('/\R/', (string) $v) as $line) {
+                $line = trim((string) $line);
+                if ($line === '' || $line[0] === '#') {
+                    continue;
+                }
+                $hash = strpos($line, '#');
+                if ($hash !== false) {
+                    $line = trim(substr($line, 0, $hash));
+                    if ($line === '') {
+                        continue;
+                    }
+                }
+                foreach (preg_split('/[\s,]+/', $line, -1, PREG_SPLIT_NO_EMPTY) as $tok) {
+                    $items[] = $tok;
+                }
+            }
+        }
         $out = [];
         foreach ((array) $items as $z) {
             $z = strtolower(trim((string) $z, " \t\r\n."));

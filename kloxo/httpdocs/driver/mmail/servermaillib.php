@@ -183,8 +183,9 @@ class ServerMail extends lxdb
 
 	function applySpamdykeDefaults()
 	{
-		// Kloxo-MR defaults of the (former Spamdyke) SMTP protection form.
-		$this->setDefaultValue('greet_delay', '1');
+		// First-visit defaults: slow bots, greylist, require a sender MX, no rDNS
+		// rejects (those cause false positives on shared hosts).
+		$this->setDefaultValue('greet_delay', '3');
 		$this->setDefaultValue('max_rcpnts', '150');
 		$this->setDefaultValue('graylist_flag', 'on');
 		$this->setDefaultValue('graylist_min_secs', '300');
@@ -314,15 +315,34 @@ class ServerMail extends lxdb
 				$vlist['reject_missing_sender_mx_flag'] = null;
 				$vlist['reject_unresolvable_rdns_flag'] = null;
 
-				// The saved list, or the shipped default until one was saved (an empty box is a saved choice).
-				$rbl = (isset($this->dns_blacklists) && is_string($this->dns_blacklists))
+				$rawRbl = (isset($this->dns_blacklists) && is_string($this->dns_blacklists))
+					? $this->dns_blacklists : '';
+				try {
+					$rblSaved = KloxoMailPolicy::parseRbl($rawRbl) !== [];
+				} catch (InvalidArgumentException $e) {
+					$rblSaved = trim($rawRbl) !== '';
+				}
+				$rbl = $rblSaved
 					? $this->dns_blacklists : KloxoMailPolicy::defaultFile('default_rbl.txt');
 				$vlist['dns_blacklists'] = array('t', trim($rbl));
+				if (!$rblSaved) {
+					$this->setDefaultValue('default_dns_blacklists_flag', 'on');
+				}
 				$vlist['default_dns_blacklists_flag'] = null;
 
-				$hdr = (isset($this->blacklist_headers) && is_string($this->blacklist_headers))
+				$rawHdr = (isset($this->blacklist_headers) && is_string($this->blacklist_headers))
+					? $this->blacklist_headers : '';
+				try {
+					$hdrSaved = KloxoMailPolicy::parseHeaders($rawHdr) !== [];
+				} catch (InvalidArgumentException $e) {
+					$hdrSaved = trim($rawHdr) !== '';
+				}
+				$hdr = $hdrSaved
 					? $this->blacklist_headers : KloxoMailPolicy::defaultFile('default_blacklist_headers.txt');
 				$vlist['blacklist_headers'] = array('t', trim($hdr));
+				if (!$hdrSaved) {
+					$this->setDefaultValue('default_blacklist_headers_flag', 'on');
+				}
 				$vlist['default_blacklist_headers_flag'] = null;
 
 				break;

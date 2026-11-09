@@ -181,6 +181,10 @@ selected in Switch Program. The panel validates the form (`KloxoMailPolicy::norm
 | blacklist headers | DATA ACL on `$h_<name>:` (case-insensitive, `*` wildcard, all else escaped) | `header_checks regexp:` (also applies to local submission) |
 | whitelist IPs | named hostlist `kloxo_policy_whitelist` exempting every rule | `check_client_access cidr:` and the postscreen access list |
 
+First-visit form defaults (empty lists): greet delay 3 s, max recipients 150, graylisting on
+(300 / 1814400 s), reject missing sender MX on, rDNS rejects off, RBL `zen.spamhaus.org` and
+`bl.spamcop.net`, header rules `X-Mailer: *Mass Mailer*`, `X-Mailer: *Flooder*`, `Subject: *ADV:`.
+
 Authenticated, local and whitelisted clients skip the rDNS, RBL and greet rules. Postgrey is installed through
 `KloxoApt` when graylisting is on (`/etc/default/postgrey`: `--delay`, `--max-age` rounded up to days). Postfix
 apply keeps a state file and backups, validates with `postfix check`, and refuses to install when
