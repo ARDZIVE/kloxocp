@@ -43,8 +43,19 @@ need_fetcher() {
 if ! need_fetcher; then
   command -v apt-get >/dev/null 2>&1 || die "need curl or wget (or apt-get to install curl)"
   export DEBIAN_FRONTEND=noninteractive
-  # stdin may be this script when piped; never let apt consume it
-  apt-get -o DPkg::Lock::Timeout=600 update </dev/null
+  # stdin may be this script when piped; never let apt consume it.
+  # Drop half-written pkgcache/srcpkgcache (needrestart / concurrent apt).
+  mkdir -p /var/cache/apt /var/lib/apt/lists/partial
+  rm -f /var/cache/apt/pkgcache.bin /var/cache/apt/srcpkgcache.bin \
+    /var/cache/apt/pkgcache.bin.* /var/cache/apt/srcpkgcache.bin.* \
+    /var/cache/apt/*.bin 2>/dev/null || true
+  apt-get -o DPkg::Lock::Timeout=600 clean </dev/null >/dev/null 2>&1 || true
+  if ! apt-get -o DPkg::Lock::Timeout=600 update </dev/null; then
+    rm -f /var/cache/apt/pkgcache.bin /var/cache/apt/srcpkgcache.bin \
+      /var/cache/apt/*.bin 2>/dev/null || true
+    find /var/lib/apt/lists -mindepth 1 -maxdepth 1 ! -name 'partial' -exec rm -rf {} + 2>/dev/null || true
+    apt-get -o DPkg::Lock::Timeout=600 update </dev/null || die "apt-get update failed"
+  fi
   apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl </dev/null
 fi
 

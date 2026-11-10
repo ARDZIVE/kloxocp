@@ -459,6 +459,40 @@ wait_for_apt_locks() {
     waited=$((waited + 5))
   done
 }
+# needrestart / unattended-upgrades can leave a half-written
+# /var/cache/apt/srcpkgcache.bin (rename ENOENT / "package cache file is
+# corrupted"). Drop the binary caches so the next apt-get update rebuilds them.
+repair_apt_cache() {
+  local why="${1:-apt cache}"
+  log "repairing apt package cache (${why})"
+  mkdir -p /var/cache/apt /var/cache/apt/archives/partial /var/lib/apt/lists/partial
+  rm -f /var/cache/apt/pkgcache.bin /var/cache/apt/srcpkgcache.bin \
+    /var/cache/apt/pkgcache.bin.* /var/cache/apt/srcpkgcache.bin.* \
+    /var/cache/apt/*.bin 2>/dev/null || true
+  # Stale list metadata often rides with a broken cache after a killed update.
+  find /var/lib/apt/lists -mindepth 1 -maxdepth 1 ! -name 'partial' -exec rm -rf {} + 2>/dev/null || true
+  apt-get clean >/dev/null 2>&1 || true
+}
+apt_update() {
+  local out rc=0
+  wait_for_apt_locks
+  repair_apt_cache "pre-update"
+  out="$(apt-get update -y 2>&1)" && rc=0 || rc=$?
+  printf '%s\n' "$out"
+  if [[ "$rc" -eq 0 ]]; then
+    return 0
+  fi
+  if printf '%s\n' "$out" | grep -Eqi 'package cache file is corrupted|Problem renaming the file /var/cache/apt/.*(pkgcache|srcpkgcache)|Unable to parse package file'; then
+    log "apt-get update hit a corrupted cache; repairing and retrying"
+    wait_for_apt_locks
+    repair_apt_cache "update retry"
+    if apt-get update -y; then
+      return 0
+    fi
+  fi
+  log "warn: apt-get update reported errors; continuing"
+  return 0
+}
 write_apt_conf
 wait_for_apt_locks
 
@@ -581,12 +615,12 @@ drop_dead_ondrej_ppa() {
 }
 
 step "Installing packages (this takes a few minutes)"
-wait_for_apt_locks
 drop_dead_ondrej_ppa
-apt-get update -y || log "warn: apt-get update reported errors; continuing"
+apt_update
 # Core: panel + sites + DNS + FTP + Redis (Rspamd Bayes backend). Mail spam is
 # Rspamd (full profile), not bogofilter/spamassassin. Panel DB is MariaDB (the
 # Sqlite class is mysqli); slave-db.db is PHP serialize — do not apt-install sqlite.
+wait_for_apt_locks
 apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-sqlite3 php-xml php-mbstring php-curl \
   mariadb-server nginx apache2 bind9 knot knot-dnsutils knot-dnssecutils \

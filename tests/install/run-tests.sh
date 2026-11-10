@@ -121,6 +121,16 @@ else
   bad "get bootstrap fetches install.sh; install is pipe-safe with progress steps"
 fi
 check "get bash -n" bash -n "$ROOT/get"
+check "install.sh bash -n" bash -n "$ROOT/install.sh"
+if grep -q 'repair_apt_cache' "$ROOT/install.sh" \
+  && grep -q 'apt_update' "$ROOT/install.sh" \
+  && grep -q 'srcpkgcache.bin' "$ROOT/install.sh" \
+  && grep -q 'package cache file is corrupted' "$ROOT/install.sh" \
+  && grep -q 'srcpkgcache.bin' "$ROOT/get"; then
+  ok "install.sh/get repair a corrupted apt package cache"
+else
+  bad "install.sh/get repair a corrupted apt package cache"
+fi
 if grep -q 'pure-ftpd redis-server iproute2 ufw imagemagick' "$ROOT/install.sh" \
   && grep -q 'PROFILE="full"' "$ROOT/install.sh" \
   && grep -q 'WITH_MAIL=1' "$ROOT/install.sh" \
@@ -929,7 +939,8 @@ else
 fi
 grep -q 'install-site-php.status' "$ROOT/kloxo/bin/install/install-site-php" && grep -q 'trap finish_status EXIT' "$ROOT/kloxo/bin/install/install-site-php" \
   && ok "install-site-php writes its result to log/install-site-php.status" || bad "install-site-php status file"
-grep -q 'drop_dead_ondrej_ppa' "$ROOT/install.sh" && grep -q 'apt-get update -y || log' "$ROOT/install.sh" \
+grep -q 'drop_dead_ondrej_ppa' "$ROOT/install.sh" && grep -q 'apt_update' "$ROOT/install.sh" \
+  && grep -q 'warn: apt-get update reported errors; continuing' "$ROOT/install.sh" \
   && ok "install.sh heals a dead ondrej source before apt-get update and tolerates update errors" || bad "install.sh dead PPA heal"
 
 check "pg_servermail migration (test_migrate_servermail.php)" php "$HERE/test_migrate_servermail.php"
