@@ -1713,7 +1713,12 @@ STRIN;
 
 	static function initThisListRule($parent, $class)
 	{
+		global $login;
+
 		if ($parent->isAdmin()) {
+			if (is_object($login) && method_exists($login, 'canSeePserver') && !$login->canSeePserver()) {
+				throw new lxException($login->getThrow('auxiliary_does_not_have_server_privilege'));
+			}
 			self::ensureLocalhostServer();
 			$res = "__v_table";
 		} else {

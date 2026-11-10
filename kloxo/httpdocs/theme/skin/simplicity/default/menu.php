@@ -658,7 +658,7 @@ if (strpos($loginas, "@") !== false) {
 			</div>
 		</li>
 <?php
-	if ($login->isAdmin()) {
+	if ($login->isAdmin() && $login->canSeePserver()) {
 ?>
 		<li class="separator"></li>
 		<li><a href="javascript://"><?=$login->getKeywordUc('server');?></a>
@@ -784,6 +784,11 @@ if (strpos($loginas, "@") !== false) {
 				<div style='clear: both;'></div>
 			</div>
 		</li>
+<?php
+	}
+
+	if ($login->isAdmin()) {
+?>
 		<li class="separator"></li>
 		<li><a href="javascript://"><?=$login->getKeywordUc('security');?></a>
 			<div class="drop decor2_2" style="width:<?=$genwidth;?>px">

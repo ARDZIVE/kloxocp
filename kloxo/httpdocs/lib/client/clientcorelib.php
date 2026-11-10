@@ -650,7 +650,7 @@ abstract class ClientCore extends Resourcecore
 			$gen->disable_admin = $param['disable_admin'];
 			if ($gen->isOn('disable_admin')) {
 				$list = $login->getList('auxiliary');
-				if (count($list) == 0) {
+				if (kcount($list) === 0) {
 					throw new lxException($login->getThrow("should_create_auxiliary_id_before_disabling_admin"));
 				}
 			}

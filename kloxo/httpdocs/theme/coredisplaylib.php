@@ -909,6 +909,10 @@ function __ac_desc_delete($object)
 	global $gbl, $sgbl, $login, $ghtml;
 	global $g_language_mes;
 
+	if (function_exists('kloxo_assert_auxiliary_may_delete')) {
+		kloxo_assert_auxiliary_may_delete();
+	}
+
 	$cname = $ghtml->frm_o_cname;
 
 	$ghtml->print_message();
@@ -975,6 +979,9 @@ function do_list_class($object, $cname)
 
 	$rclass = $cname;
 	$blist = exec_class_method($rclass, "createListBlist", $object, $rclass);
+	if (function_exists('kloxo_filter_auxiliary_delete_blist')) {
+		$blist = kloxo_filter_auxiliary_delete_blist($blist);
+	}
 
 	if ($blist) {
 		foreach ($blist as $k => &$a) {

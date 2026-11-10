@@ -245,6 +245,11 @@ if php "$HERE/test_toast.php"; then
 else
   bad "test_toast.php"
 fi
+if php "$HERE/test_auxiliary.php"; then
+  ok "test_auxiliary.php"
+else
+  bad "test_auxiliary.php"
+fi
 if php "$HERE/test_service_toggle.php"; then
   ok "test_service_toggle.php"
 else

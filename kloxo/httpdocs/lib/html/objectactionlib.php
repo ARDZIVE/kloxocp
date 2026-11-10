@@ -46,7 +46,14 @@ function webcommandline_main()
 	}
 
 	if ($classname === 'auxiliary') {
-		$login = $lobject->getParentO();
+		$parent = $lobject->getParentO();
+		if (!is_object($parent)) {
+			json_print("error", $opt, "__error_login_error\n");
+			log_log("web_command", "__error_login_error");
+
+			exit;
+		}
+		$login = $parent;
 		$login->__auxiliary_object = $lobject;
 	} else {
 		$login = $lobject;

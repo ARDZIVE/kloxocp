@@ -419,7 +419,7 @@ class Client extends ClientBase
 
 		$alist[] = "a=list&c=actionlog";
 
-		if ($this->isAdmin()) {
+		if ($this->isAdmin() && $login->canSeePserver()) {
 			$alist[] = 'a=list&c=pserver';
 		}
 		

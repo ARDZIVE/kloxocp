@@ -240,6 +240,12 @@ Mails Per Client lists under the selected pserver and shows Switch To Another.
 It reads `/var/log/exim4/mainlog` (then `mail.log` / `maillog`) and counts Exim
 authenticated and local submissions plus Postfix `from=` for the last two days
 (real `user@domain.tld` only; Unix-user@hostname such as lxlabs@srv is skipped).
+Auxiliary Login is `name.aux` (customer staff `client_staff.aux`): login becomes
+the parent client with `__auxiliary_object`; action log/session store
+`auxiliary_id`; Disable Admin Login needs at least one auxiliary and only
+blocks the name `admin`. `delete_flag` is enforced on delete; `pserver_flag`
+gates the Server menu and pserver list (`canSeePserver`). New passwords use
+Argon2id. `tests/p2/test_auxiliary.php`; live login UNVERIFIED.
 Admin Servers can add a remote host (hostname or IPv4 plus the slave password)
 on the list page; there is no separate Add Server tab. Adding a domain no longer fails with
 `Unsupported operand types: string + int`: quota counters (`priv`/`used`) are strings (`''`, `Unlimited`), and
@@ -354,6 +360,7 @@ bash tests/p2/run-tests.sh            # P2 first-party PHP 8 parse + autoload + 
 php tests/p2/test_mariadb.php         # Add Database MariaDB SQL (no live server)
 php tests/p2/test_backup.php          # admin/client Backup Now / Restore argv + dump (no live server)
 php tests/p2/test_disable_policy.php  # Disable Policy percentage / warn / disable (no live collectquota)
+php tests/p2/test_auxiliary.php       # Auxiliary Login class, hash, delete/pserver flags (no live login)
 php tests/p2/test_sshauthorizedkey.php # SSH Authorized Keys ~/.ssh/authorized_keys parse/add/delete
 bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
 bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)

@@ -599,6 +599,21 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     submissions plus Postfix `from=<>` in the last two days, not inbound
     or bounces. Only real `user@domain.tld` rows (not `lxlabs@srv` /
     `root@srv`). Live Mails Per Client after deploy is **UNVERIFIED**.
+    Auxiliary Login (`auxiliary`, always `name.aux`; a customer's staff
+    is `client_staff.aux`) signs in as the parent client with
+    `$login->__auxiliary_object` set. Action log and the session store
+    `auxiliary_id`. Disable Admin Login still requires at least one
+    auxiliary (`kcount` so a missing list is not a PHP 8 TypeError) and
+    `check_disable_admin` only blocks the name `admin` (staff `.aux`
+    still works). Privileges are enforced: `delete_flag` on delete
+    (list buttons stripped; `delete()` / `__ac_desc_delete` throw);
+    `pserver_flag` via `canSeePserver` (Server menu, admin Servers
+    tile, `pserver` list). New auxiliaries hash with Argon2id
+    (`kloxo_password_hash`); `getClassFromName` uses a `.aux` suffix
+    so `user.auxmail` is not treated as auxiliary. Disabled auxiliary
+    `cpstatus` is honoured even when the parent is admin.
+    `tests/p2/test_auxiliary.php`. Live auxiliary login after deploy is
+    **UNVERIFIED**.
     DNS Template menu and dashboard tiles list `dnstemplate` (not
     `lxbackup`); opening the list no longer throws `no_ip_address`
     when the IP table is empty.     The list tab keeps the add form;

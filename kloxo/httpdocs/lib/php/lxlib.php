@@ -2664,28 +2664,34 @@ function check_if_disabled_and_exit()
 
 	$contact = "administrator";
 
-	if ($login->isAdmin()) { return; }
-
-	if (!$login->isOn('cpstatus')) {
-
-		Utmp::updateUtmp($gbl->c_session->nname, $login, 'disabled');
-		$ghtml->print_css_source("/theme/css/common.css");
-
-		if ($sgbl->isLxlabsClient()) {
-			$ghtml->__http_vars['frm_emessage'] = "This login has been Disabled due to non-payment. Please pay the invoice below, and your account will automatically get enabled.";
-			$ghtml->print_message();
-			$login->print_invoice();
-		} else {
-			$ghtml->__http_vars['frm_emessage'] = "This login has been Disabled. Please contact the $contact";
-			$ghtml->print_message();
-		}
-
-		$gbl->c_session->delete();
-		$gbl->c_session->was();
-		exit(0);
-
+	$disabled = false;
+	if (is_object($login) && method_exists($login, 'isAuxiliary') && $login->isAuxiliary()
+		&& isset($login->__auxiliary_object) && is_object($login->__auxiliary_object)
+		&& !$login->__auxiliary_object->isOn('cpstatus')) {
+		$disabled = true;
+	} elseif (!is_object($login) || !$login->isAdmin()) {
+		$disabled = is_object($login) && !$login->isOn('cpstatus');
 	}
 
+	if (!$disabled) {
+		return;
+	}
+
+	Utmp::updateUtmp($gbl->c_session->nname, $login, 'disabled');
+	$ghtml->print_css_source("/theme/css/common.css");
+
+	if ($sgbl->isLxlabsClient()) {
+		$ghtml->__http_vars['frm_emessage'] = "This login has been Disabled due to non-payment. Please pay the invoice below, and your account will automatically get enabled.";
+		$ghtml->print_message();
+		$login->print_invoice();
+	} else {
+		$ghtml->__http_vars['frm_emessage'] = "This login has been Disabled. Please contact the $contact";
+		$ghtml->print_message();
+	}
+
+	$gbl->c_session->delete();
+	$gbl->c_session->was();
+	exit(0);
 }
 
 function delete_expired_ssessions()
@@ -3250,13 +3256,22 @@ function get_login($classname, $clientname)
 	$ret = $object->get();
 
 	if ($classname === 'auxiliary') {
-		$login = $object->getParentO();
+		if (!$ret) {
+			return 0;
+		}
+		$parent = $object->getParentO();
+		if (!is_object($parent)) {
+			return 0;
+		}
+		$login = $parent;
 		$login->__auxiliary_object = $object;
 	} else {
 		$login = $object;
 	}
 
-	$login->__parent_o = null;
+	if (is_object($login)) {
+		$login->__parent_o = null;
+	}
 	return $ret;
 }
 
@@ -4950,16 +4965,64 @@ function get_package_version($name)
 function getClassFromName($cgi_clientname)
 {
 	$classname = "client";
+	$name = (string) $cgi_clientname;
 
-	if (csa($cgi_clientname, "@")) {
+	if (csa($name, "@")) {
 		$classname = "mailaccount";
-	} elseif (csa($cgi_clientname, ".vps")) {
+	} elseif (cse($name, ".vps") || cse($name, ".vm")) {
 		$classname = "vps";
-	} elseif (csa($cgi_clientname, ".vm")) {
-		$classname = "vps";
-	} elseif (csa($cgi_clientname, ".aux")) {
+	} elseif (cse($name, ".aux")) {
 		$classname = "auxiliary";
 	}
 
 	return $classname;
+}
+
+function kloxo_auxiliary_may_delete($login = null): bool
+{
+	if ($login === null) {
+		global $login;
+	}
+	if (!is_object($login) || !method_exists($login, 'isAuxiliary')) {
+		return true;
+	}
+	if (method_exists($login, 'canAuxiliaryDelete')) {
+		return $login->canAuxiliaryDelete();
+	}
+	if (!$login->isAuxiliary()) {
+		return true;
+	}
+	$aux = isset($login->__auxiliary_object) ? $login->__auxiliary_object : null;
+
+	return is_object($aux) && method_exists($aux, 'isOn') && $aux->isOn('delete_flag');
+}
+
+function kloxo_assert_auxiliary_may_delete(): void
+{
+	global $login;
+
+	if (kloxo_auxiliary_may_delete($login)) {
+		return;
+	}
+	$msg = is_object($login) && method_exists($login, 'getThrow')
+		? $login->getThrow('auxiliary_does_not_have_delete_privilege')
+		: 'auxiliary_does_not_have_delete_privilege';
+	throw new lxException($msg);
+}
+
+function kloxo_filter_auxiliary_delete_blist($blist)
+{
+	if (kloxo_auxiliary_may_delete()) {
+		return $blist;
+	}
+	$out = array();
+	foreach ((array) $blist as $b) {
+		$url = is_array($b) ? (isset($b[0]) ? $b[0] : '') : $b;
+		if (is_string($url) && strpos($url, 'a=delete') !== false) {
+			continue;
+		}
+		$out[] = $b;
+	}
+
+	return $out;
 }

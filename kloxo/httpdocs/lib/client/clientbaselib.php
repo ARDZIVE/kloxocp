@@ -299,7 +299,7 @@ class ClientBase extends ClientCore
 	function getResourceChildList()
 	{
 		$list = $this->getChildListFilter('R');
-		if ($this->isAdmin() && !$this->isAuxiliary()) {
+		if ($this->isAdmin() && $this->canSeePserver()) {
 			$list[] = 'pserver_l';
 		}
 		if ($this->isCustomer() || !isLicensed('lic_client')) {

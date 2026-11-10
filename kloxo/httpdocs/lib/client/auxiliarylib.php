@@ -61,27 +61,73 @@ class auxiliary extends Lxclient
 
 	static function add($parent, $class, $param)
 	{
-		if (!cse($param['nname'], ".aux")) {
-			$param['nname'] .= ".aux";
+		global $login;
+
+		$pass = isset($param['password']) ? (string) $param['password'] : '';
+		if ($pass === '') {
+			throw new lxException($login->getThrow('password_cannot_be_null'), 'password');
 		}
 
-		if (!$parent->isAdmin()) {
-			$param['nname'] = "{$parent->nname}_{$param['nname']}";
-		}
-
+		$param['nname'] = self::normalizedLoginName($parent, isset($param['nname']) ? (string) $param['nname'] : '');
 		$param['cpstatus'] = 'on';
 		$param['status'] = 'on';
-		$param['realpass'] = $param['password'];
-		$param['password'] = crypt($param['password'], '$1$'.randomString(8).'$');
-		
+		$param['realpass'] = $pass;
+		$param['password'] = function_exists('kloxo_password_hash')
+			? kloxo_password_hash($pass)
+			: crypt($pass, '$1$'.randomString(8).'$');
+		$param['delete_flag'] = (isset($param['delete_flag']) && $param['delete_flag'] === 'on') ? 'on' : 'off';
+		$param['pserver_flag'] = (isset($param['pserver_flag']) && $param['pserver_flag'] === 'on') ? 'on' : 'off';
+
 		return $param;
+	}
+
+	static function normalizedLoginName($parent, $nname)
+	{
+		global $login;
+
+		$nname = strtolower(trim((string) $nname));
+		if (cse($nname, '.aux')) {
+			$nname = substr($nname, 0, -4);
+		}
+		if ($nname === '' || !preg_match('/^[a-z][a-z0-9_-]{0,31}$/', $nname)) {
+			throw new lxException($login->getThrow('invalid_auxiliary_login_name'), 'nname', $nname);
+		}
+
+		$nname .= '.aux';
+		if (is_object($parent) && method_exists($parent, 'isAdmin') && !$parent->isAdmin()) {
+			$pn = strtolower((string) $parent->nname);
+			if ($pn === '' || !preg_match('/^[a-z][a-z0-9_-]{0,31}$/', $pn)) {
+				throw new lxException($login->getThrow('invalid_auxiliary_login_name'), 'nname', $pn);
+			}
+			$nname = $pn . '_' . $nname;
+		}
+
+		return $nname;
+	}
+
+	static function createListNlist($parent, $view = null)
+	{
+		$nlist['cpstatus'] = '3%';
+		$nlist['nname'] = '70%';
+		$nlist['delete_flag'] = '10%';
+		$nlist['pserver_flag'] = '10%';
+
+		return $nlist;
 	}
 
 	static function initThisObjectRule($parent, $class, $name = null) { return null ; }
 	
 	static function initThisObject($parent, $class, $name = null)
 	{
-		return $parent->__auxiliary_object;
+		if (is_string($name) && $name !== '') {
+			$obj = new auxiliary(isset($parent->__masterserver) ? $parent->__masterserver : null,
+				isset($parent->__readserver) ? $parent->__readserver : null, $name);
+			$obj->get();
+
+			return $obj;
+		}
+
+		return isset($parent->__auxiliary_object) ? $parent->__auxiliary_object : null;
 	}
 }
 

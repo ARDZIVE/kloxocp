@@ -1122,7 +1122,7 @@ function check_disable_admin($cgi_clientname)
 {
 	$sq = new Sqlite(null, 'general');
 	$list = $sq->getRowsWhere("nname = 'admin'", array("disable_admin"));
-	$val = $list[0]['disable_admin'];
+	$val = (is_array($list) && isset($list[0]['disable_admin'])) ? $list[0]['disable_admin'] : '';
 
 	if ($cgi_clientname === 'admin' && $val === 'on') {
 		return true;

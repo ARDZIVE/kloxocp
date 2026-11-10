@@ -1545,6 +1545,15 @@ abstract class Lxclass
 		return true;
 	}
 
+	function canAuxiliaryDelete()
+	{
+		if (!$this->isAuxiliary()) {
+			return true;
+		}
+
+		return is_object($this->__auxiliary_object) && $this->__auxiliary_object->isOn('delete_flag');
+	}
+
 	function doGetHpf()
 	{
 		if ($this->isAuxiliary()) {
@@ -4768,8 +4777,13 @@ abstract class Lxclass
 
 		if_demo_throw_exception();
 
+		if (function_exists('kloxo_assert_auxiliary_may_delete')) {
+			kloxo_assert_auxiliary_may_delete();
+		}
+
+		$parent = $this->getParentO();
 		// Don't delete unless the parent is the real owner. Or the parent is admin.
-		if (!$this->getParentO()->isAdmin() && !$this->isRightParent()) {
+		if ((!is_object($parent) || !$parent->isAdmin()) && !$this->isRightParent()) {
 			return;
 		}
 
