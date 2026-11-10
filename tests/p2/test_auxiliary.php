@@ -173,11 +173,15 @@ if (str_contains($srcIdx, 'getClassFromName') && str_contains($srcLx, "cse(\$nam
 	bad('login resolves .aux through getClassFromName suffix match');
 }
 
+$srcClass = (string) file_get_contents($doc . '/lib/php/lxclass.php');
+$srcLogout = (string) file_get_contents($doc . '/lib/php/logout.php');
 if (str_contains($srcDel, 'kloxo_assert_auxiliary_may_delete')
-	&& str_contains($srcDel, 'kloxo_filter_auxiliary_delete_blist')) {
-	ok('list delete UI and action go through delete_flag');
+	&& str_contains($srcDel, 'kloxo_filter_auxiliary_delete_blist')
+	&& !str_contains($srcClass, 'kloxo_assert_auxiliary_may_delete')
+	&& str_contains($srcLogout, 'c_session->delete()')) {
+	ok('list delete UI is gated; session logout is not');
 } else {
-	bad('list delete UI and action go through delete_flag');
+	bad('list delete UI is gated; session logout is not');
 }
 
 if (str_contains($srcMenu, 'canSeePserver')

@@ -4777,10 +4777,6 @@ abstract class Lxclass
 
 		if_demo_throw_exception();
 
-		if (function_exists('kloxo_assert_auxiliary_may_delete')) {
-			kloxo_assert_auxiliary_may_delete();
-		}
-
 		$parent = $this->getParentO();
 		// Don't delete unless the parent is the real owner. Or the parent is admin.
 		if ((!is_object($parent) || !$parent->isAdmin()) && !$this->isRightParent()) {

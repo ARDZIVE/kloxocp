@@ -443,8 +443,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Log Manager, Driver Configuration, PHP Configuration,
     Backup/Restore, Webserver Configure, SSH Configure, LxGuard,
     SSH Terminal, File Manager, HelpDesk ticket show, Notification,
-    Message show, Update, client Manage DNS, and client PHPinfo no longer show
-    the left-column Find box (Message lists keep the search toolbar).
+    Message show, Auxiliary Login show, Update, client Manage DNS, and client PHPinfo no longer show
+    the left-column Find box (Message and Auxiliary lists keep the search toolbar).
     SSH Configure has one beige tab labelled **SSH Configure** (not Home).
     Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
     **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,
@@ -606,7 +606,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     auxiliary (`kcount` so a missing list is not a PHP 8 TypeError) and
     `check_disable_admin` only blocks the name `admin` (staff `.aux`
     still works). Privileges are enforced: `delete_flag` on delete
-    (list buttons stripped; `delete()` / `__ac_desc_delete` throw);
+    (list buttons stripped; `__ac_desc_delete` throws; not `Lxclass::delete()`,
+    which logout uses to drop the session);
     `pserver_flag` via `canSeePserver` (Server menu, admin Servers
     tile, `pserver` list). New auxiliaries hash with Argon2id
     (`kloxo_password_hash`); `getClassFromName` uses a `.aux` suffix
