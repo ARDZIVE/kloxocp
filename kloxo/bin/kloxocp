@@ -125,6 +125,15 @@ final class Fs
             if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
                 throw new KcpException("Cannot create $dir");
             }
+            // PHP copy() fails when source and destination are the same inode
+            // (/opt/kloxo → clone/kloxo, then upcp copies kloxoversion onto itself).
+            $srcReal = realpath($src);
+            if ($srcReal !== false && is_file($dst)) {
+                $dstReal = realpath($dst);
+                if ($dstReal !== false && $srcReal === $dstReal) {
+                    return;
+                }
+            }
             if (!copy($src, $dst)) {
                 throw new KcpException("Copy failed: $src");
             }
@@ -1013,11 +1022,27 @@ TXT;
         }
     }
 
+    /**
+     * install.sh default: /opt/kloxo → /usr/local/src/kloxo-cp/kloxo.
+     * git fetch already updates the live tree; copying would rename our own
+     * bin/ and PHP copy() fails on same-inode destinations.
+     */
+    private function sameProgramTree(string $srcKloxo): bool
+    {
+        $a = realpath($srcKloxo);
+        $b = realpath($this->root);
+
+        return $a !== false && $b !== false && $a === $b;
+    }
+
     /** @return list<string> */
     private function applyUpdateTree(string $srcKloxo): array
     {
         if (!is_dir($srcKloxo . '/httpdocs') || !is_dir($srcKloxo . '/bin')) {
             throw new KcpException("Invalid program tree: $srcKloxo");
+        }
+        if ($this->sameProgramTree($srcKloxo)) {
+            return ['(live symlink; git fetch already applied)'];
         }
         $synced = [];
         $map = [

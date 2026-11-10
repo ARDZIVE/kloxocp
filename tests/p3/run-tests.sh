@@ -191,6 +191,28 @@ chmod 755 "$NOROOT/var"
 [ "$rc" -ne 0 ] && grep -qi 'Must run as root' "$T/noroot.err" && ok "update refuses unwritable root without sudo" \
   || bad "update refuses unwritable root without sudo" "rc=$rc $(cat "$T/noroot.err")"
 
+# install.sh default: /opt/kloxo → clone/kloxo. upcp must not copy onto itself.
+LINK_SRC="$T/linksrc"
+LINK_ROOT="$T/linkroot"
+LINK_SNAP="$T/linksnaps"
+mkdir -p "$LINK_SRC/kloxo/httpdocs/login" "$LINK_SRC/kloxo/httpdocs/lib" "$LINK_SRC/kloxo/bin" \
+  "$LINK_SRC/kloxo/init" "$LINK_SRC/kloxo/httpdocs/driver" "$LINK_SRC/kloxo/httpdocs/theme" \
+  "$LINK_SRC/kloxo/httpdocs/lang" "$LINK_SRC/kloxo/var" "$LINK_SRC/kloxo/etc" "$LINK_SRC/kloxo/file/ssl"
+printf '10.1-link\n' >"$LINK_SRC/kloxo/bin/kloxoversion"
+printf '<?php // link login\n' >"$LINK_SRC/kloxo/httpdocs/login/index.php"
+printf 'link-lib\n' >"$LINK_SRC/kloxo/httpdocs/lib/keep.txt"
+cp "$ROOT/kloxo/bin/kloxocp" "$LINK_SRC/kloxo/bin/kloxocp"
+chmod +x "$LINK_SRC/kloxo/bin/kloxocp"
+ln -sfn "$LINK_SRC/kloxo" "$LINK_ROOT"
+if "${TOOL[@]}" upcp --root="$LINK_ROOT" --src="$LINK_SRC" --snap-dir="$LINK_SNAP" --no-fetch --yes >/dev/null 2>"$T/link.err"; then
+  ok "upcp succeeds when /opt/kloxo is a symlink into the clone"
+else
+  bad "upcp succeeds when /opt/kloxo is a symlink into the clone" "$(cat "$T/link.err")"
+fi
+[ "$(cat "$LINK_ROOT/bin/kloxoversion")" = '10.1-link' ] && ok "symlink upcp leaves version intact" \
+  || bad "symlink upcp leaves version intact"
+[ -L "$LINK_ROOT" ] && ok "symlink upcp keeps /opt/kloxo as a symlink" || bad "symlink upcp keeps /opt/kloxo as a symlink"
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
