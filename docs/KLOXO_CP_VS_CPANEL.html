@@ -52,6 +52,7 @@
   th.feature { width: 16%; }
   th.rate { width: 7%; text-align: center; }
   th.side { width: 35%; }
+  th.panel { width: 21%; }
   td.feature { font-weight: 600; }
   td.rate {
     text-align: center;
@@ -59,6 +60,10 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  td.panel { font-size: 10.5px; }
+  td.panel .bar { margin-bottom: 3px; }
+  table.fourway th.feature { width: 12%; }
+  table.fourway th.panel { width: 22%; }
   tr.section td {
     background: var(--section);
     font-weight: 700;
@@ -134,13 +139,15 @@
   <h1>Kloxo CP vs cPanel / WHM — Rated Feature Comparison</h1>
   <p class="meta">
     Kloxo CP <strong>10.1-2026110601</strong> (AGPLv3, Ubuntu 24.04 / 26.x target)
-    · vs typical current <strong>cPanel &amp; WHM</strong>
+    · vs <strong>cPanel &amp; WHM</strong>
+    · Section 1 also vs <strong>ISPConfig 3.3</strong> (BSD) and <strong>Hestia CP</strong> (GPLv3)
     · Ratings 0–10 · 10 Nov 2026
   </p>
   <p class="note">
     Ratings weigh <strong>utility for hosting operators/customers</strong> and
     <strong>security posture</strong>. Kloxo scores are capped where features are
     coded but still live-unverified or incomplete on Ubuntu.
+    ISPConfig / Hestia ratings reflect typical current stable releases (open-source panels).
   </p>
   <p class="legend">
     <span><span class="bar r9">9–10</span> strong / mature</span>
@@ -149,6 +156,69 @@
     <span><span class="bar r3">3–4</span> weak / early</span>
     <span><span class="bar r1">0–2</span> missing / not ready</span>
   </p>
+
+  <h2>1. Platform, license, install &amp; updates — four-panel comparison</h2>
+  <p class="note">
+    Each panel cell shows rating + short comment. Print in landscape.
+  </p>
+  <table class="fourway">
+    <thead>
+      <tr>
+        <th class="feature">Feature</th>
+        <th class="panel">Kloxo CP</th>
+        <th class="panel">cPanel / WHM</th>
+        <th class="panel">ISPConfig</th>
+        <th class="panel">Hestia CP</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="feature">License / cost</td>
+        <td class="panel"><span class="bar r9">9</span><br>AGPL v3 — free to run; must share networked modifications. Strong cost edge if share-alike is acceptable.</td>
+        <td class="panel"><span class="bar r7">7</span><br>Commercial per server/account. Predictable vendor model; recurring cost is a hard gate for many operators.</td>
+        <td class="panel"><span class="bar r10">10</span><br>BSD open source — free, no license key. Optional paid extensions (billing, migration, apps) in the repo.</td>
+        <td class="panel"><span class="bar r10">10</span><br>GPLv3 open source (Vesta fork) — free to run; no panel license fee.</td>
+      </tr>
+      <tr>
+        <td class="feature">OS support</td>
+        <td class="panel"><span class="bar r6">6</span><br>Ubuntu 24.04 + 26.x first. Alma/Rocky planned later. Narrower matrix than the others today.</td>
+        <td class="panel"><span class="bar r10">10</span><br>AlmaLinux, Rocky, CloudLinux, Ubuntu — production-proven matrix and hoster familiarity.</td>
+        <td class="panel"><span class="bar r9">9</span><br>Debian 11–13 + Ubuntu 22.04–26.04 (recommended); Alma/Rocky 8–10 also supported.</td>
+        <td class="panel"><span class="bar r8">8</span><br>Debian 12/13 + Ubuntu 22.04/24.04/26.04 LTS (AMD64/ARM64). No RHEL/CloudLinux focus.</td>
+      </tr>
+      <tr>
+        <td class="feature">Install experience</td>
+        <td class="panel"><span class="bar r7">7</span><br>One-liner <code>install.sh</code>; Hiawatha source-built; full profile default. Not yet a polished GA installer.</td>
+        <td class="panel"><span class="bar r9">9</span><br>Official installer + EasyApache; decades of ops muscle memory.</td>
+        <td class="panel"><span class="bar r9">9</span><br>Autoinstaller: <code>wget -O - https://get.ispconfig.org | sh</code> — full stack on fresh Debian/Ubuntu.</td>
+        <td class="panel"><span class="bar r9">9</span><br><code>hst-install.sh</code> on a fresh OS; interactive or flags; very popular one-command path.</td>
+      </tr>
+      <tr>
+        <td class="feature">Updates + rollback</td>
+        <td class="panel"><span class="bar r3">3</span><br>CLI snapshot/rollback skeleton only. <code>kloxocp update</code> exits 2; signed apt packaging not built.</td>
+        <td class="panel"><span class="bar r9">9</span><br>Mature <code>upcp</code>, vendor channels, support for failed updates.</td>
+        <td class="panel"><span class="bar r8">8</span><br><code>ispconfig_update.sh</code> / <code>update.php</code> — routine one-command updates; not cPanel-class rollback tooling.</td>
+        <td class="panel"><span class="bar r8">8</span><br>Apt packages; automatic updates on by default; managed in Server Settings → Updates.</td>
+      </tr>
+      <tr>
+        <td class="feature">Production readiness</td>
+        <td class="panel"><span class="bar r2">2</span><br>Docs explicitly say not safe for public production yet. Many live paths UNVERIFIED.</td>
+        <td class="panel"><span class="bar r10">10</span><br>Industry default for shared hosting.</td>
+        <td class="panel"><span class="bar r9">9</span><br>Long-running production OSS panel; multi-server / service nodes widely used.</td>
+        <td class="panel"><span class="bar r9">9</span><br>Widely deployed in production for VPS/single-server hosting; active releases.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">Section 1 average</td>
+        <td class="panel"><span class="bar r5">5.4</span><br>Cost OK; readiness/updates hold it back.</td>
+        <td class="panel"><span class="bar r9">9.0</span><br>Mature commercial platform.</td>
+        <td class="panel"><span class="bar r9">9.0</span><br>Best free multi-OS / multi-server platform of this group.</td>
+        <td class="panel"><span class="bar r9">8.8</span><br>Best free Ubuntu/Debian single-server onboarding of this group.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2–8. Detailed Kloxo CP vs cPanel / WHM</h2>
+  <p class="note">Remaining sections stay two-panel (Kloxo vs cPanel) for depth. ISPConfig/Hestia are summarized in section 1 only.</p>
 
   <table>
     <thead>
@@ -161,43 +231,6 @@
       </tr>
     </thead>
     <tbody>
-
-      <tr class="section"><td colspan="5">1. Platform, license, install &amp; updates</td></tr>
-      <tr>
-        <td class="feature">License / cost</td>
-        <td class="rate"><span class="bar r9">9</span></td>
-        <td>AGPL v3 — free to run; must share networked modifications. Strong cost edge for self-hosters who accept share-alike.</td>
-        <td class="rate"><span class="bar r7">7</span></td>
-        <td>Commercial per server/account. Predictable vendor model, but recurring cost is a hard gate for many operators.</td>
-      </tr>
-      <tr>
-        <td class="feature">OS support</td>
-        <td class="rate"><span class="bar r6">6</span></td>
-        <td>Ubuntu 24.04 + 26.x first. Alma/Rocky planned later. Narrower matrix than cPanel today.</td>
-        <td class="rate"><span class="bar r10">10</span></td>
-        <td>AlmaLinux, Rocky, CloudLinux, Ubuntu — production-proven matrix and hoster familiarity.</td>
-      </tr>
-      <tr>
-        <td class="feature">Install experience</td>
-        <td class="rate"><span class="bar r7">7</span></td>
-        <td>One-liner <code>install.sh</code>; Hiawatha source-built; full profile default. Still not a polished GA installer.</td>
-        <td class="rate"><span class="bar r9">9</span></td>
-        <td>Official installer + EasyApache; decades of ops muscle memory.</td>
-      </tr>
-      <tr>
-        <td class="feature">Updates + rollback</td>
-        <td class="rate"><span class="bar r3">3</span></td>
-        <td>CLI snapshot/rollback skeleton only. <code>kloxocp update</code> exits 2; signed apt packaging not built.</td>
-        <td class="rate"><span class="bar r9">9</span></td>
-        <td>Mature <code>upcp</code>, vendor channels, support for failed updates.</td>
-      </tr>
-      <tr>
-        <td class="feature">Production readiness</td>
-        <td class="rate"><span class="bar r2">2</span></td>
-        <td>Docs explicitly say not safe for public production yet. Many live paths UNVERIFIED.</td>
-        <td class="rate"><span class="bar r10">10</span></td>
-        <td>Industry default for shared hosting.</td>
-      </tr>
 
       <tr class="section"><td colspan="5">2. Web hosting &amp; PHP</td></tr>
       <tr>
@@ -549,11 +582,11 @@
         <td>EasyApache / Feature Manager — different model, also strong.</td>
       </tr>
 
-      <tr class="section"><td colspan="5">Category totals (simple average of rows above)</td></tr>
+      <tr class="section"><td colspan="5">Category totals (simple average of rows above) — Kloxo vs cPanel; see four-panel table for ISPConfig / Hestia on platform</td></tr>
       <tr class="total">
         <td class="feature">1. Platform</td>
         <td class="rate">5.4</td>
-        <td>Cost wins; production/update path still weak.</td>
+        <td>Cost wins; production/update path still weak. (ISPConfig ~9.0, Hestia ~8.8 in four-panel table.)</td>
         <td class="rate">9.0</td>
         <td>Mature commercial platform.</td>
       </tr>
@@ -1149,6 +1182,8 @@
   <p class="footer">
     Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, version 10.1-2026110601 ·
     cPanel Feature Manager / product documentation (general capability set, Nov 2026) ·
+    ISPConfig 3.3 docs/download (BSD; Debian/Ubuntu/Alma/Rocky; <code>ispconfig_update.sh</code>) ·
+    Hestia CP docs/GitHub (GPLv3; Debian/Ubuntu; <code>hst-install.sh</code>; apt updates) ·
     “Demand” reflects common user/hoster search and support expectations, not a lab benchmark ·
     Ratings are an engineering judgment for planning, not a purchasing recommendation.
   </p>
