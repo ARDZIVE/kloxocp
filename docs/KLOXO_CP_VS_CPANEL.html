@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kloxo CP vs cPanel — Rated Feature Table</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #555;
+    --line: #c8c8c8;
+    --head: #ececec;
+    --section: #dfe6ef;
+    --total: #f4f1e8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.35;
+    margin: 0;
+    padding: 20px 24px 40px;
+    font-size: 11px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 {
+    font-size: 13px;
+    margin: 18px 0 6px;
+    page-break-after: avoid;
+  }
+  .meta, .note, .legend { color: var(--muted); margin: 0 0 8px; }
+  .legend span {
+    display: inline-block;
+    margin-right: 10px;
+    white-space: nowrap;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 6px;
+    table-layout: fixed;
+  }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 5px 6px;
+    vertical-align: top;
+    text-align: left;
+  }
+  th { background: var(--head); font-weight: 700; }
+  th.feature { width: 16%; }
+  th.rate { width: 7%; text-align: center; }
+  th.side { width: 35%; }
+  td.feature { font-weight: 600; }
+  td.rate {
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  tr.section td {
+    background: var(--section);
+    font-weight: 700;
+    font-size: 11.5px;
+  }
+  tr.total td {
+    background: var(--total);
+    font-weight: 700;
+  }
+  .bar {
+    display: inline-block;
+    min-width: 2.4em;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: #eee;
+  }
+  .r9, .r10 { background: #d8f0e0; color: #0a6b2d; }
+  .r7, .r8 { background: #e8f2d8; color: #3d6b0a; }
+  .r5, .r6 { background: #fff3d0; color: #8a5a00; }
+  .r3, .r4 { background: #ffe0cc; color: #9a3f00; }
+  .r0, .r1, .r2 { background: #fde0e0; color: #8b1a1a; }
+  .scorebox {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .score {
+    border: 1px solid var(--line);
+    padding: 10px 12px;
+  }
+  .score h3 { margin: 0 0 6px; font-size: 12px; }
+  .big {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .score ul { margin: 6px 0 0; padding-left: 16px; }
+  .score li { margin: 0 0 3px; }
+  .footer {
+    margin-top: 16px;
+    font-size: 9.5px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+  }
+  .toolbar {
+    margin: 0 0 14px;
+    padding: 8px 10px;
+    background: #f7f7f7;
+    border: 1px solid var(--line);
+  }
+  .toolbar button {
+    font: inherit;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  @media print {
+    body { padding: 6mm 8mm; font-size: 9px; }
+    h1 { font-size: 14px; }
+    .no-print { display: none !important; }
+    .big { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar no-print">
+    <strong>Print tip:</strong> landscape A4 / Letter.
+    <button type="button" onclick="window.print()">Print table</button>
+  </div>
+
+  <h1>Kloxo CP vs cPanel / WHM — Rated Feature Comparison</h1>
+  <p class="meta">
+    Kloxo CP <strong>10.1-2026110601</strong> (AGPLv3, Ubuntu 24.04 / 26.x target)
+    · vs typical current <strong>cPanel &amp; WHM</strong>
+    · Ratings 0–10 · 10 Nov 2026
+  </p>
+  <p class="note">
+    Ratings weigh <strong>utility for hosting operators/customers</strong> and
+    <strong>security posture</strong>. Kloxo scores are capped where features are
+    coded but still live-unverified or incomplete on Ubuntu.
+  </p>
+  <p class="legend">
+    <span><span class="bar r9">9–10</span> strong / mature</span>
+    <span><span class="bar r7">7–8</span> good / usable</span>
+    <span><span class="bar r5">5–6</span> partial / catching up</span>
+    <span><span class="bar r3">3–4</span> weak / early</span>
+    <span><span class="bar r1">0–2</span> missing / not ready</span>
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="feature">Feature</th>
+        <th class="rate">Kloxo<br>rating</th>
+        <th class="side">Kloxo CP — comment</th>
+        <th class="rate">cPanel<br>rating</th>
+        <th class="side">cPanel / WHM — comment</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="section"><td colspan="5">1. Platform, license, install &amp; updates</td></tr>
+      <tr>
+        <td class="feature">License / cost</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>AGPL v3 — free to run; must share networked modifications. Strong cost edge for self-hosters who accept share-alike.</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Commercial per server/account. Predictable vendor model, but recurring cost is a hard gate for many operators.</td>
+      </tr>
+      <tr>
+        <td class="feature">OS support</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>Ubuntu 24.04 + 26.x first. Alma/Rocky planned later. Narrower matrix than cPanel today.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>AlmaLinux, Rocky, CloudLinux, Ubuntu — production-proven matrix and hoster familiarity.</td>
+      </tr>
+      <tr>
+        <td class="feature">Install experience</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>One-liner <code>install.sh</code>; Hiawatha source-built; full profile default. Still not a polished GA installer.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Official installer + EasyApache; decades of ops muscle memory.</td>
+      </tr>
+      <tr>
+        <td class="feature">Updates + rollback</td>
+        <td class="rate"><span class="bar r3">3</span></td>
+        <td>CLI snapshot/rollback skeleton only. <code>kloxocp update</code> exits 2; signed apt packaging not built.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Mature <code>upcp</code>, vendor channels, support for failed updates.</td>
+      </tr>
+      <tr>
+        <td class="feature">Production readiness</td>
+        <td class="rate"><span class="bar r2">2</span></td>
+        <td>Docs explicitly say not safe for public production yet. Many live paths UNVERIFIED.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Industry default for shared hosting.</td>
+      </tr>
+
+      <tr class="section"><td colspan="5">2. Web hosting &amp; PHP</td></tr>
+      <tr>
+        <td class="feature">HTTP server choices</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Nginx default; Apache 2.4 + PHP-FPM selectable. Dead stacks removed on purpose. Live switch still UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Apache primary; Nginx reverse / LiteSpeed ecosystem. Broader commercial options.</td>
+      </tr>
+      <tr>
+        <td class="feature">Multi-PHP / per-domain PHP</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Per-domain FPM pools; 5.6 / 7.4 / 8.1–8.5 via Sury; install/remove progress UI. Live Ubuntu install partly UNVERIFIED.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>MultiPHP Manager (EA4) — battle-tested selector and handlers.</td>
+      </tr>
+      <tr>
+        <td class="feature">PHP configuration UI</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>PHP Configure + Advanced PHP Configure; Module Status; PHPinfo tile.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>MultiPHP INI Editor and related tools.</td>
+      </tr>
+      <tr>
+        <td class="feature">SSL / Let's Encrypt</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>File / text / LE / link / switch tabs exist; live AutoSSL-class maturity not there; live UNVERIFIED.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>AutoSSL + SSL/TLS Status — widely relied on in production.</td>
+      </tr>
+      <tr>
+        <td class="feature">Front web cache</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Optional Nginx cache front designed with cookie/admin bypass; live 80/443 hand-over UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Optimize Website / LSCache / Nginx cache partners — more mature ecosystem.</td>
+      </tr>
+      <tr>
+        <td class="feature">App / CMS installers</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Easy Installer disabled for security. No Softaculous / WP Toolkit / Sitejet.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Softaculous / WP Toolkit / Sitejet — major customer expectation win.</td>
+      </tr>
+      <tr>
+        <td class="feature">CDN / Pagespeed UI</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Pagespeed and cache UI removed on purpose. Not a product feature today.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>CDN partner integrations and Optimize Website history.</td>
+      </tr>
+
+      <tr class="section"><td colspan="5">3. DNS</td></tr>
+      <tr>
+        <td class="feature">Authoritative DNS engines</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>BIND default; Knot selectable; PowerDNS removed. Knot generation fake-tested; real knotc/kzonecheck UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>BIND / PowerDNS / NSD options + long production history.</td>
+      </tr>
+      <tr>
+        <td class="feature">Zone editor &amp; templates</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Manage DNS record tabs + DNS Templates. Live Manage DNS UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Zone Editor + DNS Zone Templates — polished and familiar.</td>
+      </tr>
+      <tr>
+        <td class="feature">DNSSEC</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td><code>knot-dnssecutils</code> packaged; management UI/ops incomplete.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Mature DNSSEC management in WHM.</td>
+      </tr>
+      <tr>
+        <td class="feature">Reverse DNS / PTR</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Reverse zones not generated.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>PTR / reverse tooling more complete.</td>
+      </tr>
+      <tr>
+        <td class="feature">DNS clustering</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Master/slave agents (TLS 7779) exist; live two-host UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>WHM DNS clustering widely used in production.</td>
+      </tr>
+
+      <tr class="section"><td colspan="5">4. Mail</td></tr>
+      <tr>
+        <td class="feature">Mail stack (MTA/IMAP/spam)</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Exim (default) or Postfix + Dovecot + Rspamd + MariaDB. Modern stack design; live switch partly UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Exim + Dovecot + SpamAssassin/Rspamd options — production default.</td>
+      </tr>
+      <tr>
+        <td class="feature">Mail security design</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Strong invariants: TLS required, Argon2id, sender=login, reject unknown RCPT, DKIM maps, Rspamd fail→tempfail, quota before permit.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Solid commercial defaults + Email Deliverability tools; less explicit fail-closed design docs than Kloxo.</td>
+      </tr>
+      <tr>
+        <td class="feature">SMTP protection / policy UI</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Greet delay, greylist, RBL, headers, whitelist rendered for Exim/Postfix. Some first-tab fields still unwired; live SMTP proof incomplete.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Greylisting, filters, Track Delivery, MailTriage ecosystem.</td>
+      </tr>
+      <tr>
+        <td class="feature">Mailbox / aliases / filters UI</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Legacy UI + <code>kloxo-mail</code> CLI; P4 Exim UI drivers still open. Not cPanel-complete.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Full Email Accounts, Forwarders, Filters, Autoresponders.</td>
+      </tr>
+      <tr>
+        <td class="feature">Webmail</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Chooser for Roundcube/Rainloop/Afterlogic/etc.; Ubuntu package path UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Roundcube integrated; historically Horde too.</td>
+      </tr>
+      <tr>
+        <td class="feature">Mailing lists</td>
+        <td class="rate"><span class="bar r0">0</span></td>
+        <td>ezmlm removed; no Mailman replacement.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Mailman still offered.</td>
+      </tr>
+      <tr>
+        <td class="feature">CalDAV / CardDAV</td>
+        <td class="rate"><span class="bar r0">0</span></td>
+        <td>Not a v1 deliverable.</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Calendar/contacts features / plugins available.</td>
+      </tr>
+
+      <tr class="section"><td colspan="5">5. Databases, files, FTP, backup</td></tr>
+      <tr>
+        <td class="feature">Customer SQL (MariaDB/MySQL)</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>MariaDB create/user/grant path exists; live create UNVERIFIED.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Mature MySQL/MariaDB account tooling.</td>
+      </tr>
+      <tr>
+        <td class="feature">Panel DB resilience</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Panel UI on SQLite — login/UI can work with MariaDB stopped. Strong ops edge.</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Panel depends on DB service; outage hurts WHM/cPanel accessibility.</td>
+      </tr>
+      <tr>
+        <td class="feature">phpMyAdmin / SQL Manager</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Admin SSO as <code>kloxo_pma</code>; client <code>only_db</code>. Live SSO UNVERIFIED. Good isolation design.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Integrated phpMyAdmin; familiar to end users.</td>
+      </tr>
+      <tr>
+        <td class="feature">PostgreSQL</td>
+        <td class="rate"><span class="bar r0">0</span></td>
+        <td>Not offered.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Optional PostgreSQL + phpPgAdmin.</td>
+      </tr>
+      <tr>
+        <td class="feature">File Manager</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Permissions, ownership, disk, upload, thumbnail, download via backend. Live tree UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Full File Manager + privacy + editors.</td>
+      </tr>
+      <tr>
+        <td class="feature">FTP</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Pure-FTPd packaged; FTP Configure + Sessions.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Pure-FTPd / ProFTPD; FTP Accounts mature.</td>
+      </tr>
+      <tr>
+        <td class="feature">Backup / restore / transfers</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>Backup Now, schedule, FTP offsite; safer extract/unserialize. Live backup/restore UNVERIFIED. No Transfer Tool.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Backup Wizard + JetBackup ecosystem + account Transfer Tool.</td>
+      </tr>
+      <tr>
+        <td class="feature">Cron</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Cron Tasks; Enable Cron For All Users seeded.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Cron Jobs — standard and reliable.</td>
+      </tr>
+
+      <tr class="section"><td colspan="5">6. Security &amp; operations</td></tr>
+      <tr>
+        <td class="feature">Firewall</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>UFW enabled by default; full rule UI with suspend and panel-port guards. Live UFW UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>WHM firewall config; CSF common in ecosystem.</td>
+      </tr>
+      <tr>
+        <td class="feature">Brute-force protection</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Fail2Ban (16 jails, nftables) + LxGuard. Live bans/journals UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>cPHulk + Fail2Ban/CSF integrations — proven at scale.</td>
+      </tr>
+      <tr>
+        <td class="feature">Recovery when core services fail</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>HTTPS :7777 recovery console with own Argon2 login; designed to work with MariaDB/Nginx/Apache down.</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Depends on hoster rescue / WHM still needing core services.</td>
+      </tr>
+      <tr>
+        <td class="feature">Service watchdog</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td><code>kloxo-watchdog</code> restarts dead units/ports; holds intentional stops. Live crash proof UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>chkservd / service manager — long production history.</td>
+      </tr>
+      <tr>
+        <td class="feature">Services control UI</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Catalog + systemd states; refuses stop of panel-critical units; MariaDB stoppable safely for panel UI.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Restart Services / Service Manager — mature.</td>
+      </tr>
+      <tr>
+        <td class="feature">SSH tools</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>SSH Configure, Authorized Keys, admin Terminal via backend. Live UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>SSH Access, Terminal, Key Manager.</td>
+      </tr>
+      <tr>
+        <td class="feature">WAF / ModSecurity</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Not a first-class product feature yet.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>ModSecurity + vendor rules widely used.</td>
+      </tr>
+      <tr>
+        <td class="feature">Commercial security suites</td>
+        <td class="rate"><span class="bar r0">0</span></td>
+        <td>No Imunify / similar partner stack.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Imunify and partner AV/malware ecosystem.</td>
+      </tr>
+      <tr>
+        <td class="feature">Core panel security hygiene</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>P0 closed: auth-before-unserialize, no committed keys, no setuid helpers, Easy Installer HTTP off, daemon bind/TLS/size. Legacy PHP still not public-safe overall.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Vendor-hardened over years; large attack surface but actively maintained commercially.</td>
+      </tr>
+
+      <tr class="section"><td colspan="5">7. Multi-tenancy, reseller, business</td></tr>
+      <tr>
+        <td class="feature">Accounts / plans / quotas</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Clients, domains, Resource Plans, Disable/Notify Policy. Live add-domain path UNVERIFIED.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Packages, Feature Lists, account wizards — industry standard.</td>
+      </tr>
+      <tr>
+        <td class="feature">Reseller model</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Inherited Kloxo-MR hierarchy; catching up to WHM expectations.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>WHM reseller ownership is the market reference.</td>
+      </tr>
+      <tr>
+        <td class="feature">Staff / auxiliary logins</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td><code>name.aux</code>, Argon2id, pserver_flag. Live login UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Subaccounts / Team Manager style access.</td>
+      </tr>
+      <tr>
+        <td class="feature">Built-in helpdesk</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Tickets, replies, escalate, unread pill — useful without WHMCS.</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Usually external (WHMCS tickets etc.).</td>
+      </tr>
+      <tr>
+        <td class="feature">Billing</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Explicitly none for now (extension point later).</td>
+        <td class="rate"><span class="bar r2">2</span></td>
+        <td>Also not native; WHMCS/Blesta usual. Slight edge only via ecosystem pairing.</td>
+      </tr>
+      <tr>
+        <td class="feature">Account transfers / migrations</td>
+        <td class="rate"><span class="bar r2">2</span></td>
+        <td>Backup/restore oriented only; no cPanel Transfer Tool.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Transfer Tool / account packages between WHM servers.</td>
+      </tr>
+      <tr>
+        <td class="feature">Multi-server / slave</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Add Server + slave TLS 7779; live two-host UNVERIFIED.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Multi-server / clustering features mature.</td>
+      </tr>
+
+      <tr class="section"><td colspan="5">8. UX, API, ecosystem</td></tr>
+      <tr>
+        <td class="feature">End-user / admin UI</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Classic Kloxo-MR UI kept on purpose. Functional, dated; busy spinner/toasts improved.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Modern themes (Jupiter/Meridian) + mobile apps.</td>
+      </tr>
+      <tr>
+        <td class="feature">Public API / automation</td>
+        <td class="rate"><span class="bar r3">3</span></td>
+        <td>Legacy remote/daemon being hardened; JSON agent planned, not built.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>UAPI / WHM API 1 — huge third-party ecosystem.</td>
+      </tr>
+      <tr>
+        <td class="feature">Marketplace / plugins</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>No Softaculous-scale marketplace.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Large partner plugin / theme / security market.</td>
+      </tr>
+      <tr>
+        <td class="feature">Docs &amp; support</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Strong internal handoff docs for developers; no public support org yet.</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Vendor docs, forums, paid support, hoster familiarity.</td>
+      </tr>
+      <tr>
+        <td class="feature">Switch Program / component control</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Clear switch for web/DNS/mail/spam/pop3/smtp; Component Info for Ubuntu packages. Some live switches UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>EasyApache / Feature Manager — different model, also strong.</td>
+      </tr>
+
+      <tr class="section"><td colspan="5">Category totals (simple average of rows above)</td></tr>
+      <tr class="total">
+        <td class="feature">1. Platform</td>
+        <td class="rate">5.4</td>
+        <td>Cost wins; production/update path still weak.</td>
+        <td class="rate">9.0</td>
+        <td>Mature commercial platform.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">2. Web / PHP</td>
+        <td class="rate">5.3</td>
+        <td>Solid LEMP/multi-PHP design; apps/CDN gap hurts utility hard.</td>
+        <td class="rate">9.1</td>
+        <td>Full hosting web product.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">3. DNS</td>
+        <td class="rate">4.8</td>
+        <td>BIND+Knot direction good; DNSSEC/PTR/cluster lag.</td>
+        <td class="rate">8.8</td>
+        <td>Production DNS tooling.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">4. Mail</td>
+        <td class="rate">4.9</td>
+        <td>Security design strong; mailbox UI / lists / CalDAV weak.</td>
+        <td class="rate">8.6</td>
+        <td>Complete mail product.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">5. DB / files / backup</td>
+        <td class="rate">6.0</td>
+        <td>SQLite panel resilience is a real edge; PG/transfer missing.</td>
+        <td class="rate">9.1</td>
+        <td>Complete data/file/backup story.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">6. Security / ops</td>
+        <td class="rate">6.1</td>
+        <td>Recovery + watchdog + UFW/Fail2Ban strong; WAF/Imunify missing.</td>
+        <td class="rate">8.4</td>
+        <td>Broader commercial security ecosystem.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">7. Multi-tenancy / business</td>
+        <td class="rate">4.9</td>
+        <td>Helpdesk built-in; reseller/transfers/billing lag.</td>
+        <td class="rate">7.7</td>
+        <td>Reseller/transfers dominate; billing also external.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">8. UX / API / ecosystem</td>
+        <td class="rate">4.2</td>
+        <td>Switch Program good; API/marketplace/support far behind.</td>
+        <td class="rate">9.4</td>
+        <td>Ecosystem is the decisive advantage.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Overall rating — utility &amp; security</h2>
+  <p class="note">
+    Overall = weighted blend of <strong>utility (60%)</strong> and <strong>security (40%)</strong>.
+    Utility averages all categories with extra weight on web/apps, mail UX, backup/transfers, reseller, API.
+    Security averages mail security design, firewall/brute-force, recovery, watchdog, core hygiene, WAF/suites, panel DB resilience.
+  </p>
+
+  <div class="scorebox">
+    <div class="score">
+      <h3>Kloxo CP — overall</h3>
+      <div class="big">5.3 / 10</div>
+      <p><strong>Utility: 4.8</strong> · <strong>Security: 6.1</strong></p>
+      <ul>
+        <li>Best as a long-term open alternative after P2/P3/P4 + live Ubuntu validation.</li>
+        <li>Security design and recovery/resilience punch above overall maturity.</li>
+        <li>Utility is held down by apps, transfers, mail UI, API, updates, and production readiness.</li>
+        <li><strong>Not recommended as a public cPanel replacement today.</strong></li>
+      </ul>
+    </div>
+    <div class="score">
+      <h3>cPanel / WHM — overall</h3>
+      <div class="big">8.8 / 10</div>
+      <p><strong>Utility: 9.1</strong> · <strong>Security: 8.3</strong></p>
+      <ul>
+        <li>Clear winner for paid shared hosting, WordPress-centric customers, Softaculous/WP Toolkit, Transfer Tool, and vendor support.</li>
+        <li>Security is strong via ecosystem (cPHulk, ModSecurity, Imunify) even if panel DB outage recovery is weaker than Kloxo’s design.</li>
+        <li>Cost and closed source are the main trade-offs vs Kloxo.</li>
+        <li><strong>Recommended choice for production hosting today.</strong></li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Score method (short)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Lens</th>
+        <th>What it measures</th>
+        <th>Kloxo</th>
+        <th>cPanel</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="feature">Utility (60%)</td>
+        <td>Day-to-day hosting usefulness: web/apps, DNS, mail UX, DB/files/backup, reseller/transfers, UI/API/ecosystem, install/update readiness.</td>
+        <td class="rate"><span class="bar r5">4.8</span></td>
+        <td class="rate"><span class="bar r9">9.1</span></td>
+      </tr>
+      <tr>
+        <td class="feature">Security (40%)</td>
+        <td>Defaults and ops safety: mail invariants, firewall/Fail2Ban, recovery console, watchdog, panel DB resilience, core hygiene, WAF/commercial suites.</td>
+        <td class="rate"><span class="bar r6">6.1</span></td>
+        <td class="rate"><span class="bar r8">8.3</span></td>
+      </tr>
+      <tr class="total">
+        <td class="feature">Overall</td>
+        <td>0.6 × Utility + 0.4 × Security</td>
+        <td class="rate"><span class="bar r5">5.3</span></td>
+        <td class="rate"><span class="bar r9">8.8</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>What is weakening Kloxo CP — and why</h2>
+  <p class="note">
+    Features rated ≤ 4 (or large gaps vs cPanel) that most reduce Kloxo’s overall utility/security score.
+    Fixing the top rows would raise the overall rating fastest.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th class="feature">Weakening feature</th>
+        <th class="rate">Kloxo<br>rating</th>
+        <th class="side" style="width:20%">Why it weakens Kloxo</th>
+        <th class="side" style="width:42%">Impact / what it blocks</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="section"><td colspan="4">Critical blockers (kill production readiness)</td></tr>
+      <tr>
+        <td class="feature">Production readiness</td>
+        <td class="rate"><span class="bar r2">2</span></td>
+        <td>Docs say not safe for public use; many paths still live-unverified on Ubuntu.</td>
+        <td>Customers and hosters cannot trust it as a live panel. This single gap caps every other feature’s value.</td>
+      </tr>
+      <tr>
+        <td class="feature">Updates + rollback</td>
+        <td class="rate"><span class="bar r3">3</span></td>
+        <td><code>kloxocp update</code> exits 2; signed apt packaging and automatic validated update/rollback are not built.</td>
+        <td>Without safe updates, operators will not deploy. cPanel’s <code>upcp</code> is a table-stakes expectation.</td>
+      </tr>
+      <tr>
+        <td class="feature">App / CMS installers</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Easy Installer disabled for security; no Softaculous / WP Toolkit / Sitejet.</td>
+        <td>Most shared-hosting buyers expect one-click WordPress. This is the biggest day-to-day utility gap vs cPanel.</td>
+      </tr>
+      <tr>
+        <td class="feature">Account transfers / migrations</td>
+        <td class="rate"><span class="bar r2">2</span></td>
+        <td>Only backup/restore oriented; no cPanel-style Transfer Tool / account packages.</td>
+        <td>Hard to move customers from cPanel or between servers → weak reseller / migration story.</td>
+      </tr>
+
+      <tr class="section"><td colspan="4">Major utility gaps</td></tr>
+      <tr>
+        <td class="feature">Public API / automation</td>
+        <td class="rate"><span class="bar r3">3</span></td>
+        <td>Legacy remote/daemon only; JSON agent planned, not built. No UAPI/WHM-API ecosystem.</td>
+        <td>Billing panels, provisioning scripts, and third-party tools cannot integrate cleanly.</td>
+      </tr>
+      <tr>
+        <td class="feature">Marketplace / plugins</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>No partner plugin/theme/security marketplace.</td>
+        <td>Cannot extend the panel the way hosters extend cPanel; ecosystem network effect is missing.</td>
+      </tr>
+      <tr>
+        <td class="feature">Mailbox / aliases / filters UI</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>P4 Exim UI drivers still open; legacy UI + CLI are not a complete mail product.</td>
+        <td>Mail is core hosting. Incomplete mailbox UX makes the otherwise strong mail security design hard to sell.</td>
+      </tr>
+      <tr>
+        <td class="feature">Mailing lists</td>
+        <td class="rate"><span class="bar r0">0</span></td>
+        <td>ezmlm removed; no Mailman replacement.</td>
+        <td>Any customer who needs lists must go elsewhere or run manual stacks.</td>
+      </tr>
+      <tr>
+        <td class="feature">CalDAV / CardDAV</td>
+        <td class="rate"><span class="bar r0">0</span></td>
+        <td>Not in v1 scope.</td>
+        <td>No calendar/contacts hosting feature that many cPanel users expect.</td>
+      </tr>
+      <tr>
+        <td class="feature">CDN / Pagespeed UI</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Removed on purpose; no first-class CDN product UI.</td>
+        <td>Performance/optimization upsell path is missing vs cPanel Optimize / partners.</td>
+      </tr>
+      <tr>
+        <td class="feature">PostgreSQL</td>
+        <td class="rate"><span class="bar r0">0</span></td>
+        <td>Not offered.</td>
+        <td>Blocks apps and developers that need Postgres.</td>
+      </tr>
+      <tr>
+        <td class="feature">Billing</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Deferred by design; no extension shipped yet.</td>
+        <td>Cannot sell hosting commercially without WHMCS/Blesta or a future billing module.</td>
+      </tr>
+      <tr>
+        <td class="feature">Reseller model</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Inherited Kloxo-MR tree; not WHM-class reseller UX.</td>
+        <td>Weak for multi-tier hosting businesses that standardize on WHM resellers.</td>
+      </tr>
+      <tr>
+        <td class="feature">End-user / admin UI</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Classic UI kept on purpose; dated vs Jupiter/Meridian / mobile apps.</td>
+        <td>Perceived product quality and mobile usability suffer even when features exist.</td>
+      </tr>
+      <tr>
+        <td class="feature">Docs &amp; support</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Strong internal handoff docs; no public support org or cPanel-scale community.</td>
+        <td>Operators have nowhere to escalate; adoption risk stays high.</td>
+      </tr>
+
+      <tr class="section"><td colspan="4">Security / DNS weaknesses (pull security score down)</td></tr>
+      <tr>
+        <td class="feature">WAF / ModSecurity</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Not a first-class product feature.</td>
+        <td>No web application firewall story for shared hosting customers under attack.</td>
+      </tr>
+      <tr>
+        <td class="feature">Commercial security suites</td>
+        <td class="rate"><span class="bar r0">0</span></td>
+        <td>No Imunify / similar malware AV partner stack.</td>
+        <td>Hosters who sell “secured hosting” cannot match cPanel’s partner security upsell.</td>
+      </tr>
+      <tr>
+        <td class="feature">DNSSEC</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Tools packaged; management UI/ops incomplete.</td>
+        <td>Cannot offer modern DNS authenticity features expected by serious DNS customers.</td>
+      </tr>
+      <tr>
+        <td class="feature">Reverse DNS / PTR</td>
+        <td class="rate"><span class="bar r1">1</span></td>
+        <td>Reverse zones not generated.</td>
+        <td>Hurts mail deliverability ops and IP ownership workflows.</td>
+      </tr>
+      <tr>
+        <td class="feature">DNS clustering / multi-server</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Slave/TLS path exists but live two-host ops UNVERIFIED.</td>
+        <td>Weak HA/DNS redundancy story vs WHM clustering.</td>
+      </tr>
+      <tr>
+        <td class="feature">SSL / Let's Encrypt maturity</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>UI tabs exist; AutoSSL-class automation and live proof are incomplete.</td>
+        <td>Certificate automation is table-stakes; any friction here becomes support load.</td>
+      </tr>
+      <tr>
+        <td class="feature">Live verification gap (cross-cutting)</td>
+        <td class="rate"><span class="bar r3">3</span></td>
+        <td>Many features are unit-tested with fakes but still marked live UNVERIFIED on Ubuntu.</td>
+        <td>Even “present” features cannot be counted as production-ready. This silently weakens almost every category score.</td>
+      </tr>
+
+      <tr class="section"><td colspan="4">Priority order to raise Kloxo’s overall score</td></tr>
+      <tr class="total">
+        <td class="feature">1st</td>
+        <td class="rate">—</td>
+        <td colspan="2">Finish live Ubuntu validation + declare (or refuse) production readiness honestly.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">2nd</td>
+        <td class="rate">—</td>
+        <td colspan="2">Ship signed updates with automatic rollback (<code>kloxocp update</code>).</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">3rd</td>
+        <td class="rate">—</td>
+        <td colspan="2">Complete P4 mail account UI; then apps/WP path or a clear partner installer.</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">4th</td>
+        <td class="rate">—</td>
+        <td colspan="2">Transfer/migration tool + public API; then WAF and DNSSEC/PTR.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Most useful cPanel features users search for — missing in Kloxo CP</h2>
+  <p class="note">
+    Features end users and hosters most often look for in cPanel/WHM (search, onboarding, support tickets)
+    that Kloxo CP does not offer, or only offers in a weak/incomplete form. Demand = how often this is
+    expected when comparing panels.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th class="feature">cPanel feature users search for</th>
+        <th class="rate">Demand</th>
+        <th class="side" style="width:28%">Why users want it</th>
+        <th class="side" style="width:38%">Status in Kloxo CP</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="section"><td colspan="4">End-user / customer favourites</td></tr>
+      <tr>
+        <td class="feature">Softaculous / one-click apps</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Install WordPress, Joomla, etc. in minutes without SSH/FTP.</td>
+        <td><span class="bar r0">Missing</span> Easy Installer disabled; no Softaculous equivalent.</td>
+      </tr>
+      <tr>
+        <td class="feature">WordPress Toolkit</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Manage WP sites, plugins/themes, staging, cloning, hardening from the panel.</td>
+        <td><span class="bar r0">Missing</span> No WP Toolkit / staging / clone UI.</td>
+      </tr>
+      <tr>
+        <td class="feature">Sitejet / website builder</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Non-technical users want a drag-and-drop site without WordPress.</td>
+        <td><span class="bar r0">Missing</span> No website builder.</td>
+      </tr>
+      <tr>
+        <td class="feature">AutoSSL (automatic HTTPS)</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>“Make my site HTTPS” with almost no clicks; renewals handled.</td>
+        <td><span class="bar r5">Partial</span> Let’s Encrypt tabs exist; AutoSSL-class automation + live proof incomplete.</td>
+      </tr>
+      <tr>
+        <td class="feature">Email Accounts (full mailbox UI)</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Create mailboxes, change passwords, set quotas, open webmail.</td>
+        <td><span class="bar r5">Partial</span> Legacy UI + <code>kloxo-mail</code>; P4 Exim UI still incomplete.</td>
+      </tr>
+      <tr>
+        <td class="feature">Email Forwarders / Filters / Autoresponders</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Common support asks: “forward mail”, “vacation reply”, “block spam subject”.</td>
+        <td><span class="bar r5">Partial</span> Forms/tiles exist; not a complete cPanel-class mail product yet.</td>
+      </tr>
+      <tr>
+        <td class="feature">Roundcube webmail (shipped)</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Users search “cPanel webmail” / Roundcube login every day.</td>
+        <td><span class="bar r5">Partial</span> Chooser lists Roundcube/etc.; Ubuntu install path UNVERIFIED.</td>
+      </tr>
+      <tr>
+        <td class="feature">Track Delivery / Email Deliverability</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>“Why didn’t my mail arrive?” and SPF/DKIM/DMARC checks.</td>
+        <td><span class="bar r2">Missing</span> No Track Delivery / Deliverability wizard of cPanel depth.</td>
+      </tr>
+      <tr>
+        <td class="feature">File Manager (with editor)</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Edit <code>wp-config.php</code>, upload, permissions without FTP clients.</td>
+        <td><span class="bar r6">Partial</span> File Manager present; editor polish and live verification lag cPanel.</td>
+      </tr>
+      <tr>
+        <td class="feature">Backup Wizard / restore my account</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Customers want one-button backup and restore of their site/mail/DB.</td>
+        <td><span class="bar r6">Partial</span> Backup Now / Restore exist; live UNVERIFIED; no JetBackup ecosystem.</td>
+      </tr>
+      <tr>
+        <td class="feature">phpMyAdmin</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Standard answer to “how do I edit my database?”</td>
+        <td><span class="bar r7">Partial</span> Integrated with SSO designs; live SSO UNVERIFIED.</td>
+      </tr>
+      <tr>
+        <td class="feature">Cron Jobs</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Schedule WordPress/cron scripts; very common search/help topic.</td>
+        <td><span class="bar r8">Present</span> Cron Tasks exist (one of the few near-parity items).</td>
+      </tr>
+      <tr>
+        <td class="feature">FTP Accounts</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Give developers limited FTP access to one folder.</td>
+        <td><span class="bar r7">Partial</span> Pure-FTPd + FTP Configure; end-user FTP account UX less famous than cPanel’s.</td>
+      </tr>
+      <tr>
+        <td class="feature">Addon / parked / subdomain tools</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Users constantly search how to add a second domain or subdomain.</td>
+        <td><span class="bar r6">Partial</span> Domain model exists via legacy Kloxo; not marketed/polished like cPanel Domains.</td>
+      </tr>
+      <tr>
+        <td class="feature">Redirects / Error pages / Hotlink / Indexes</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>SEO and “force www/https” style tasks from the UI.</td>
+        <td><span class="bar r4">Weak</span> Some directory-index handling; not a full cPanel Domains/Redirects suite.</td>
+      </tr>
+      <tr>
+        <td class="feature">Mailing Lists (Mailman)</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Clubs, churches, newsletters still ask for Mailman in cPanel.</td>
+        <td><span class="bar r0">Missing</span> ezmlm removed; no Mailman.</td>
+      </tr>
+      <tr>
+        <td class="feature">Calendar / Contacts (CalDAV/CardDAV)</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>Sync phone contacts/calendar to hosting account.</td>
+        <td><span class="bar r0">Missing</span> Not in v1 scope.</td>
+      </tr>
+      <tr>
+        <td class="feature">Application Manager (Node/Python/Ruby)</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Developers search for Node.js / Python apps on cPanel.</td>
+        <td><span class="bar r0">Missing</span> No Passenger/Application Manager product.</td>
+      </tr>
+      <tr>
+        <td class="feature">Git Version Control</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Deploy from Git without SSH for many shared-hosting users.</td>
+        <td><span class="bar r0">Missing</span> No cPanel-style Git UI.</td>
+      </tr>
+      <tr>
+        <td class="feature">Metrics / Awstats / Visitors / Bandwidth</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>“How much traffic did my site get?” is a constant customer question.</td>
+        <td><span class="bar r4">Weak</span> Stats/sqlite/log paths exist; not a polished Awstats/Visitors product UX.</td>
+      </tr>
+      <tr>
+        <td class="feature">Mobile app</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>Check mail/DNS/files from a phone app branded as cPanel.</td>
+        <td><span class="bar r0">Missing</span> No mobile app.</td>
+      </tr>
+
+      <tr class="section"><td colspan="4">Admin / reseller / hoster favourites</td></tr>
+      <tr>
+        <td class="feature">Transfer Tool / account packages</td>
+        <td class="rate"><span class="bar r10">10</span></td>
+        <td>Move accounts between servers; migrate from another host.</td>
+        <td><span class="bar r2">Missing</span> Backup/restore only; no WHM Transfer Tool.</td>
+      </tr>
+      <tr>
+        <td class="feature">WHM Packages + Feature Lists</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Sell plans (Starter/Pro) with locked features.</td>
+        <td><span class="bar r6">Partial</span> Resource Plans exist; Feature Lists polish lags WHM.</td>
+      </tr>
+      <tr>
+        <td class="feature">Reseller Center</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Hosters search how to create resellers and limit them.</td>
+        <td><span class="bar r5">Partial</span> Kloxo-MR hierarchy only; not WHM Reseller Center class.</td>
+      </tr>
+      <tr>
+        <td class="feature">MultiPHP Manager</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Set PHP version per domain; fix “site needs PHP 8.2” tickets.</td>
+        <td><span class="bar r8">Present</span> Multi-PHP + per-domain pools exist; live install still partly UNVERIFIED.</td>
+      </tr>
+      <tr>
+        <td class="feature">EasyApache / rebuild Apache stack</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Admins search EasyApache for modules/handlers.</td>
+        <td><span class="bar r6">Different</span> Switch Program + apt/Sury instead; no EasyApache brand/UX.</td>
+      </tr>
+      <tr>
+        <td class="feature">ModSecurity / WAF</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>“Secure my customers’ WordPress against plugin attacks.”</td>
+        <td><span class="bar r1">Missing</span> No first-class ModSecurity product.</td>
+      </tr>
+      <tr>
+        <td class="feature">Imunify / malware scanner</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Hosters sell “secured hosting”; customers ask after hacks.</td>
+        <td><span class="bar r0">Missing</span> No commercial malware suite integration.</td>
+      </tr>
+      <tr>
+        <td class="feature">cPHulk / brute-force protection</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Stop password attacks on mail/FTP/WHM.</td>
+        <td><span class="bar r7">Partial</span> Fail2Ban + LxGuard exist; not the cPHulk brand users search for.</td>
+      </tr>
+      <tr>
+        <td class="feature">DNS Zone Editor + DNSSEC</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Point domains, fix MX/SPF, enable DNSSEC.</td>
+        <td><span class="bar r6">Partial</span> Zone editor present; DNSSEC UI incomplete; PTR missing.</td>
+      </tr>
+      <tr>
+        <td class="feature">DNS Clustering</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Multi-server hosters sync zones across nameservers.</td>
+        <td><span class="bar r4">Weak</span> Slave path exists; live clustering UNVERIFIED.</td>
+      </tr>
+      <tr>
+        <td class="feature">UAPI / WHM API</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>WHMCS, Blesta, custom billing, and scripts all search for cPanel API docs.</td>
+        <td><span class="bar r3">Missing</span> No stable public UAPI-class surface; JSON agent planned only.</td>
+      </tr>
+      <tr>
+        <td class="feature">WHMCS / billing integration</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>“Automate account create/suspend from billing” is the #1 hoster search.</td>
+        <td><span class="bar r1">Missing</span> No billing; no mature API to hang WHMCS on yet.</td>
+      </tr>
+      <tr>
+        <td class="feature">upcp / Easy updates</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>Admins search how to update cPanel safely.</td>
+        <td><span class="bar r3">Missing</span> <code>kloxocp update</code> unfinished; signed apt path not built.</td>
+      </tr>
+      <tr>
+        <td class="feature">PostgreSQL + phpPgAdmin</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>Developers ask whether the host supports Postgres.</td>
+        <td><span class="bar r0">Missing</span> MariaDB/MySQL only.</td>
+      </tr>
+      <tr>
+        <td class="feature">CloudLinux / CageFS / LVE</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Shared-hosting hosters search this for noisy-neighbour isolation.</td>
+        <td><span class="bar r0">Missing</span> Ubuntu-first; no CloudLinux stack.</td>
+      </tr>
+      <tr>
+        <td class="feature">LiteSpeed / LSCache</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Performance upsell; “WordPress faster on LiteSpeed” searches.</td>
+        <td><span class="bar r0">Missing</span> Nginx/Apache only; OLS removed.</td>
+      </tr>
+
+      <tr class="section"><td colspan="4">Top 10 to implement first (highest user-search value still missing)</td></tr>
+      <tr class="total">
+        <td class="feature">1</td>
+        <td class="rate">10</td>
+        <td colspan="2">Softaculous / one-click apps or WordPress Toolkit equivalent</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">2</td>
+        <td class="rate">10</td>
+        <td colspan="2">Complete Email Accounts UI (create/quota/password/webmail) — finish P4</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">3</td>
+        <td class="rate">10</td>
+        <td colspan="2">AutoSSL-class automatic HTTPS renewals</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">4</td>
+        <td class="rate">10</td>
+        <td colspan="2">Transfer Tool / account migration from cPanel &amp; between Kloxo servers</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">5</td>
+        <td class="rate">9</td>
+        <td colspan="2">Public API + WHMCS/Blesta automation path</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">6</td>
+        <td class="rate">9</td>
+        <td colspan="2">Signed one-command panel updates (<code>upcp</code> equivalent)</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">7</td>
+        <td class="rate">9</td>
+        <td colspan="2">Shipped Roundcube webmail with verified Ubuntu install</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">8</td>
+        <td class="rate">9</td>
+        <td colspan="2">ModSecurity / WAF</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">9</td>
+        <td class="rate">9</td>
+        <td colspan="2">Email Deliverability / Track Delivery</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">10</td>
+        <td class="rate">9</td>
+        <td colspan="2">Reseller Center polish + Feature Lists matching WHM packages</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="footer">
+    Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, version 10.1-2026110601 ·
+    cPanel Feature Manager / product documentation (general capability set, Nov 2026) ·
+    “Demand” reflects common user/hoster search and support expectations, not a lab benchmark ·
+    Ratings are an engineering judgment for planning, not a purchasing recommendation.
+  </p>
+</body>
+</html>
