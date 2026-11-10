@@ -70,15 +70,23 @@ password printed at install and saved in `/root/kloxo-recovery-password`.
 
 ### Update
 
-Re-run the same one-liner. It fetches GitHub `main`, resets the clone, and
-installs into `/opt/kloxo`. The admin password is kept unless you set
-`KLOXO_ADMIN_PASSWORD`.
+cPanel-style update with automatic rollback (preferred):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
+kloxocp upcp
+# same as:
+kloxocp update
+# or:
+sh /script/upcp
 ```
 
-`kloxocp update` is not built (exits 2). Signed apt packages are not published.
+Flow: pre-flight → snapshot → sync from the git clone (`/usr/local/src/kloxo-cp`)
+→ health check. If the health check fails, the snapshot is restored automatically.
+Log: `/var/log/kloxo-update.log`. Useful flags: `--check` (plan only), `--no-fetch`,
+`--no-rollback`, `--src=DIR`.
+
+You can still re-run the install one-liner (keeps the admin password unless
+`KLOXO_ADMIN_PASSWORD` is set). Signed apt packages are not published yet.
 
 ### After install
 
@@ -94,6 +102,7 @@ curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bas
 php /opt/kloxo/bin/kloxocp help
 php /opt/kloxo/bin/kloxocp status
 php /opt/kloxo/bin/kloxocp doctor
+php /opt/kloxo/bin/kloxocp upcp          # update with auto-rollback
 php /opt/kloxo/bin/kloxocp snapshot
 php /opt/kloxo/bin/kloxocp rollback
 ```

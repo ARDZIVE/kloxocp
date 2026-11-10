@@ -43,7 +43,7 @@ kloxo-cp/
   kloxo/                         panel source; installs to /opt/kloxo (was upstream "kloxo/")
     httpdocs/                    web UI, libs (lib/, driver/, theme/, lang/), PEAR/WebDAV bundle (webdisk/)
     bin/ sbin/ pscript/          backend and maintenance scripts (PHP and shell)
-    bin/kloxocp                  NEW operator CLI (PHP 8.3: status, doctor, snapshot, rollback)
+    bin/kloxocp                  NEW operator CLI (PHP 8.3: status, doctor, upcp/update with auto-rollback, snapshot, rollback)
     bin/mail/kloxo-mail          NEW mail tool (PHP 8.3, standalone)
     bin/install/generate-tls-keys  NEW: unique TLS keys per install (PHP 8.3)
     bin/install/init-panel-db      NEW: Ubuntu MariaDB panel schema (PHP 8.3)

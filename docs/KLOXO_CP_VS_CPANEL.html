@@ -138,15 +138,16 @@
 
   <h1>Kloxo CP vs cPanel / WHM — Rated Feature Comparison</h1>
   <p class="meta">
-    Kloxo CP <strong>10.1-2026110601</strong> (AGPLv3, Ubuntu 24.04 / 26.x target)
+    Kloxo CP <strong>10.1-2026110601</strong> (AGPLv3, Ubuntu 24.04 / 26.x only — CentOS/RHEL installer removed)
     · vs <strong>cPanel &amp; WHM</strong>
     · Section 1 also vs <strong>ISPConfig 3.3</strong> (BSD) and <strong>Hestia CP</strong> (GPLv3)
-    · Ratings 0–10 · 10 Nov 2026
+    · Ratings 0–10 · refreshed 10 Nov 2026 (post <code>curl …/get | sudo bash</code> install cleanup)
   </p>
   <p class="note">
     Ratings weigh <strong>utility for hosting operators/customers</strong> and
     <strong>security posture</strong>. Kloxo scores are capped where features are
-    coded but still live-unverified or incomplete on Ubuntu.
+    coded but still live-unverified or incomplete on Ubuntu. Still
+    <strong>not production-safe</strong>; <code>kloxocp update</code> still exits 2.
     ISPConfig / Hestia ratings reflect typical current stable releases (open-source panels).
   </p>
   <p class="legend">
@@ -181,35 +182,35 @@
       </tr>
       <tr>
         <td class="feature">OS support</td>
-        <td class="panel"><span class="bar r6">6</span><br>Ubuntu 24.04 + 26.x first. Alma/Rocky planned later. Narrower matrix than the others today.</td>
+        <td class="panel"><span class="bar r6">6</span><br>Ubuntu 24.04 + 26.x only (CentOS/RHEL installer and yum/rpm paths removed). Alma/Rocky planned later via abstraction.</td>
         <td class="panel"><span class="bar r10">10</span><br>AlmaLinux, Rocky, CloudLinux, Ubuntu — production-proven matrix and hoster familiarity.</td>
         <td class="panel"><span class="bar r9">9</span><br>Debian 11–13 + Ubuntu 22.04–26.04 (recommended); Alma/Rocky 8–10 also supported.</td>
         <td class="panel"><span class="bar r8">8</span><br>Debian 12/13 + Ubuntu 22.04/24.04/26.04 LTS (AMD64/ARM64). No RHEL/CloudLinux focus.</td>
       </tr>
       <tr>
         <td class="feature">Install experience</td>
-        <td class="panel"><span class="bar r7">7</span><br>One-liner <code>install.sh</code>; Hiawatha source-built; full profile default. Not yet a polished GA installer.</td>
+        <td class="panel"><span class="bar r8">8</span><br><code>curl -fsSL …/get | sudo bash</code> — no questions, pipe-safe, <code>[1/8]…[8/8]</code> steps, auto hostname, full profile; Hiawatha source-built. Still not a GA production installer.</td>
         <td class="panel"><span class="bar r9">9</span><br>Official installer + EasyApache; decades of ops muscle memory.</td>
         <td class="panel"><span class="bar r9">9</span><br>Autoinstaller: <code>wget -O - https://get.ispconfig.org | sh</code> — full stack on fresh Debian/Ubuntu.</td>
         <td class="panel"><span class="bar r9">9</span><br><code>hst-install.sh</code> on a fresh OS; interactive or flags; very popular one-command path.</td>
       </tr>
       <tr>
         <td class="feature">Updates + rollback</td>
-        <td class="panel"><span class="bar r3">3</span><br>CLI snapshot/rollback skeleton only. <code>kloxocp update</code> exits 2; signed apt packaging not built.</td>
+        <td class="panel"><span class="bar r3">3</span><br>Re-run installer pulls <code>origin/main</code> (keeps admin password). CLI snapshot/rollback skeleton only; <code>kloxocp update</code> still exits 2; signed apt packaging not built.</td>
         <td class="panel"><span class="bar r9">9</span><br>Mature <code>upcp</code>, vendor channels, support for failed updates.</td>
         <td class="panel"><span class="bar r8">8</span><br><code>ispconfig_update.sh</code> / <code>update.php</code> — routine one-command updates; not cPanel-class rollback tooling.</td>
         <td class="panel"><span class="bar r8">8</span><br>Apt packages; automatic updates on by default; managed in Server Settings → Updates.</td>
       </tr>
       <tr>
         <td class="feature">Production readiness</td>
-        <td class="panel"><span class="bar r2">2</span><br>Docs explicitly say not safe for public production yet. Many live paths UNVERIFIED.</td>
+        <td class="panel"><span class="bar r2">2</span><br>Docs/README: not safe for public production. Legacy PHP still not PHP 8.3-safe end-to-end. Many live paths UNVERIFIED.</td>
         <td class="panel"><span class="bar r10">10</span><br>Industry default for shared hosting.</td>
         <td class="panel"><span class="bar r9">9</span><br>Long-running production OSS panel; multi-server / service nodes widely used.</td>
         <td class="panel"><span class="bar r9">9</span><br>Widely deployed in production for VPS/single-server hosting; active releases.</td>
       </tr>
       <tr class="total">
         <td class="feature">Section 1 average</td>
-        <td class="panel"><span class="bar r5">5.4</span><br>Cost OK; readiness/updates hold it back.</td>
+        <td class="panel"><span class="bar r6">5.6</span><br>Install improved; readiness/updates still hold it back.</td>
         <td class="panel"><span class="bar r9">9.0</span><br>Mature commercial platform.</td>
         <td class="panel"><span class="bar r9">9.0</span><br>Best free multi-OS / multi-server platform of this group.</td>
         <td class="panel"><span class="bar r9">8.8</span><br>Best free Ubuntu/Debian single-server onboarding of this group.</td>
@@ -243,14 +244,14 @@
       <tr>
         <td class="feature">Multi-PHP / per-domain PHP</td>
         <td class="rate"><span class="bar r8">8</span></td>
-        <td>Per-domain FPM pools; 5.6 / 7.4 / 8.1–8.5 via Sury; install/remove progress UI. Live Ubuntu install partly UNVERIFIED.</td>
+        <td>Per-domain FPM pools; 5.6 / 7.4 / 8.1–8.5 via Sury; queued install/remove with per-version progress bars and series purge. Live Ubuntu install partly UNVERIFIED.</td>
         <td class="rate"><span class="bar r10">10</span></td>
         <td>MultiPHP Manager (EA4) — battle-tested selector and handlers.</td>
       </tr>
       <tr>
         <td class="feature">PHP configuration UI</td>
         <td class="rate"><span class="bar r8">8</span></td>
-        <td>PHP Configure + Advanced PHP Configure; Module Status; PHPinfo tile.</td>
+        <td>PHP Configure + Advanced PHP Configure; Module Status; Domain PHPinfo with native-style HTML tables (improved rendering).</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>MultiPHP INI Editor and related tools.</td>
       </tr>
@@ -337,8 +338,8 @@
       </tr>
       <tr>
         <td class="feature">SMTP protection / policy UI</td>
-        <td class="rate"><span class="bar r7">7</span></td>
-        <td>Greet delay, greylist, RBL, headers, whitelist rendered for Exim/Postfix. Some first-tab fields still unwired; live SMTP proof incomplete.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Greet delay, greylist, RBL, headers, whitelist; Exim conf.d overlay when full mail.ini not installed; stronger first-visit defaults. Some first-tab fields still unwired; live SMTP proof incomplete.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Greylisting, filters, Track Delivery, MailTriage ecosystem.</td>
       </tr>
@@ -416,8 +417,8 @@
       </tr>
       <tr>
         <td class="feature">Backup / restore / transfers</td>
-        <td class="rate"><span class="bar r6">6</span></td>
-        <td>Backup Now, schedule, FTP offsite; safer extract/unserialize. Live backup/restore UNVERIFIED. No Transfer Tool.</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Backup Now waits and reports status; packs web/DNS/mail/DKIM + env snapshot; clearer restore leftovers/help; safer extract/allow-listed unserialize. Live UNVERIFIED. No Transfer Tool.</td>
         <td class="rate"><span class="bar r10">10</span></td>
         <td>Backup Wizard + JetBackup ecosystem + account Transfer Tool.</td>
       </tr>
@@ -467,8 +468,8 @@
       </tr>
       <tr>
         <td class="feature">SSH tools</td>
-        <td class="rate"><span class="bar r7">7</span></td>
-        <td>SSH Configure, Authorized Keys, admin Terminal via backend. Live UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>SSH Configure; Authorized Keys with server pubkey prefill + strict username rules; admin Terminal via backend. Live UNVERIFIED.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>SSH Access, Terminal, Key Manager.</td>
       </tr>
@@ -489,7 +490,7 @@
       <tr>
         <td class="feature">Core panel security hygiene</td>
         <td class="rate"><span class="bar r8">8</span></td>
-        <td>P0 closed: auth-before-unserialize, no committed keys, no setuid helpers, Easy Installer HTTP off, daemon bind/TLS/size. Legacy PHP still not public-safe overall.</td>
+        <td>P0 closed; first-login session null-assign fixed; Aux passwords Argon2id; forced admin password change. Legacy PHP still not public-safe overall.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Vendor-hardened over years; large attack surface but actively maintained commercially.</td>
       </tr>
@@ -497,8 +498,8 @@
       <tr class="section"><td colspan="5">7. Multi-tenancy, reseller, business</td></tr>
       <tr>
         <td class="feature">Accounts / plans / quotas</td>
-        <td class="rate"><span class="bar r7">7</span></td>
-        <td>Clients, domains, Resource Plans, Disable/Notify Policy. Live add-domain path UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Clients, domains, seeded <code>default_plan</code>, Disable/Notify Policy %; PHP 8-safe quota math. Live add-domain / collectquota UNVERIFIED.</td>
         <td class="rate"><span class="bar r10">10</span></td>
         <td>Packages, Feature Lists, account wizards — industry standard.</td>
       </tr>
@@ -511,8 +512,8 @@
       </tr>
       <tr>
         <td class="feature">Staff / auxiliary logins</td>
-        <td class="rate"><span class="bar r7">7</span></td>
-        <td><code>name.aux</code>, Argon2id, pserver_flag. Live login UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td><code>name.aux</code> staff logins; Argon2id; delete_flag / pserver_flag; Disable Admin Login. Live login UNVERIFIED.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Subaccounts / Team Manager style access.</td>
       </tr>
@@ -548,8 +549,8 @@
       <tr class="section"><td colspan="5">8. UX, API, ecosystem</td></tr>
       <tr>
         <td class="feature">End-user / admin UI</td>
-        <td class="rate"><span class="bar r5">5</span></td>
-        <td>Classic Kloxo-MR UI kept on purpose. Functional, dated; busy spinner/toasts improved.</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>Classic UI kept on purpose. Busy spinner, typed status toasts, unread ticket red-dot (no spam toast). Still dated vs modern panels.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Modern themes (Jupiter/Meridian) + mobile apps.</td>
       </tr>
@@ -585,15 +586,15 @@
       <tr class="section"><td colspan="5">Category totals (simple average of rows above) — Kloxo vs cPanel; see four-panel table for ISPConfig / Hestia on platform</td></tr>
       <tr class="total">
         <td class="feature">1. Platform</td>
-        <td class="rate">5.4</td>
-        <td>Cost wins; production/update path still weak. (ISPConfig ~9.0, Hestia ~8.8 in four-panel table.)</td>
+        <td class="rate">5.6</td>
+        <td>curl|bash install improved; production/update path still weak. (ISPConfig ~9.0, Hestia ~8.8.)</td>
         <td class="rate">9.0</td>
         <td>Mature commercial platform.</td>
       </tr>
       <tr class="total">
         <td class="feature">2. Web / PHP</td>
         <td class="rate">5.3</td>
-        <td>Solid LEMP/multi-PHP design; apps/CDN gap hurts utility hard.</td>
+        <td>Solid LEMP/multi-PHP + progress UI; apps/CDN gap still hurts utility hard.</td>
         <td class="rate">9.1</td>
         <td>Full hosting web product.</td>
       </tr>
@@ -606,36 +607,36 @@
       </tr>
       <tr class="total">
         <td class="feature">4. Mail</td>
-        <td class="rate">4.9</td>
-        <td>Security design strong; mailbox UI / lists / CalDAV weak.</td>
+        <td class="rate">5.0</td>
+        <td>Security + SMTP policy stronger; mailbox UI / lists / CalDAV still weak.</td>
         <td class="rate">8.6</td>
         <td>Complete mail product.</td>
       </tr>
       <tr class="total">
         <td class="feature">5. DB / files / backup</td>
-        <td class="rate">6.0</td>
-        <td>SQLite panel resilience is a real edge; PG/transfer missing.</td>
+        <td class="rate">6.5</td>
+        <td>SQLite panel edge + clearer Backup Now/Restore; PG/transfer missing.</td>
         <td class="rate">9.1</td>
         <td>Complete data/file/backup story.</td>
       </tr>
       <tr class="total">
         <td class="feature">6. Security / ops</td>
-        <td class="rate">6.1</td>
-        <td>Recovery + watchdog + UFW/Fail2Ban strong; WAF/Imunify missing.</td>
+        <td class="rate">6.2</td>
+        <td>Recovery + watchdog + UFW/Fail2Ban + SSH keys; WAF/Imunify missing.</td>
         <td class="rate">8.4</td>
         <td>Broader commercial security ecosystem.</td>
       </tr>
       <tr class="total">
         <td class="feature">7. Multi-tenancy / business</td>
-        <td class="rate">4.9</td>
-        <td>Helpdesk built-in; reseller/transfers/billing lag.</td>
+        <td class="rate">5.1</td>
+        <td>default_plan + Aux login + helpdesk improved; reseller/transfers/billing lag.</td>
         <td class="rate">7.7</td>
         <td>Reseller/transfers dominate; billing also external.</td>
       </tr>
       <tr class="total">
         <td class="feature">8. UX / API / ecosystem</td>
-        <td class="rate">4.2</td>
-        <td>Switch Program good; API/marketplace/support far behind.</td>
+        <td class="rate">4.4</td>
+        <td>Toasts/unread-dot polish; API/marketplace/support far behind.</td>
         <td class="rate">9.4</td>
         <td>Ecosystem is the decisive advantage.</td>
       </tr>
@@ -652,13 +653,13 @@
   <div class="scorebox">
     <div class="score">
       <h3>Kloxo CP — overall</h3>
-      <div class="big">5.3 / 10</div>
-      <p><strong>Utility: 4.8</strong> · <strong>Security: 6.1</strong></p>
+      <div class="big">5.5 / 10</div>
+      <p><strong>Utility: 5.0</strong> · <strong>Security: 6.3</strong> <span style="font-weight:400;color:var(--muted)">(was 5.3 / 4.8 / 6.1)</span></p>
       <ul>
-        <li>Best as a long-term open alternative after P2/P3/P4 + live Ubuntu validation.</li>
-        <li>Security design and recovery/resilience punch above overall maturity.</li>
-        <li>Utility is held down by apps, transfers, mail UI, API, updates, and production readiness.</li>
-        <li><strong>Not recommended as a public cPanel replacement today.</strong></li>
+        <li>Recent lift: <code>curl …/get | sudo bash</code> install, CentOS removal, Backup Now clarity, Aux login, default_plan, SMTP overlay, UI toasts.</li>
+        <li>Security design and recovery/resilience still punch above overall maturity.</li>
+        <li>Utility still held down by apps, transfers, mail UI (P4), API, signed updates, and production readiness.</li>
+        <li><strong>Still not recommended as a public cPanel/Hestia/ISPConfig replacement today.</strong></li>
       </ul>
     </div>
     <div class="score">
@@ -688,19 +689,19 @@
       <tr>
         <td class="feature">Utility (60%)</td>
         <td>Day-to-day hosting usefulness: web/apps, DNS, mail UX, DB/files/backup, reseller/transfers, UI/API/ecosystem, install/update readiness.</td>
-        <td class="rate"><span class="bar r5">4.8</span></td>
+        <td class="rate"><span class="bar r5">5.0</span></td>
         <td class="rate"><span class="bar r9">9.1</span></td>
       </tr>
       <tr>
         <td class="feature">Security (40%)</td>
         <td>Defaults and ops safety: mail invariants, firewall/Fail2Ban, recovery console, watchdog, panel DB resilience, core hygiene, WAF/commercial suites.</td>
-        <td class="rate"><span class="bar r6">6.1</span></td>
+        <td class="rate"><span class="bar r6">6.3</span></td>
         <td class="rate"><span class="bar r8">8.3</span></td>
       </tr>
       <tr class="total">
         <td class="feature">Overall</td>
         <td>0.6 × Utility + 0.4 × Security</td>
-        <td class="rate"><span class="bar r5">5.3</span></td>
+        <td class="rate"><span class="bar r6">5.5</span></td>
         <td class="rate"><span class="bar r9">8.8</span></td>
       </tr>
     </tbody>
@@ -725,14 +726,14 @@
       <tr>
         <td class="feature">Production readiness</td>
         <td class="rate"><span class="bar r2">2</span></td>
-        <td>Docs say not safe for public use; many paths still live-unverified on Ubuntu.</td>
-        <td>Customers and hosters cannot trust it as a live panel. This single gap caps every other feature’s value.</td>
+        <td>Docs/README still say not safe for public use; legacy PHP not fully PHP 8.3-safe; many paths live-unverified.</td>
+        <td>Customers and hosters cannot trust it as a live panel. This single gap caps every other feature’s value — install polish does not fix it.</td>
       </tr>
       <tr>
         <td class="feature">Updates + rollback</td>
         <td class="rate"><span class="bar r3">3</span></td>
-        <td><code>kloxocp update</code> exits 2; signed apt packaging and automatic validated update/rollback are not built.</td>
-        <td>Without safe updates, operators will not deploy. cPanel’s <code>upcp</code> is a table-stakes expectation.</td>
+        <td>Re-run <code>install.sh</code> can refresh the tree, but <code>kloxocp update</code> exits 2; signed apt + automatic validated rollback are not built.</td>
+        <td>Without a real update product, operators will not deploy. Trails cPanel <code>upcp</code>, Hestia apt, and ISPConfig <code>ispconfig_update.sh</code>.</td>
       </tr>
       <tr>
         <td class="feature">App / CMS installers</td>
@@ -868,7 +869,7 @@
       <tr class="total">
         <td class="feature">2nd</td>
         <td class="rate">—</td>
-        <td colspan="2">Ship signed updates with automatic rollback (<code>kloxocp update</code>).</td>
+        <td colspan="2">Ship signed updates with automatic rollback (<code>kloxocp update</code>) — re-run install is not enough.</td>
       </tr>
       <tr class="total">
         <td class="feature">3rd</td>
@@ -879,6 +880,25 @@
         <td class="feature">4th</td>
         <td class="rate">—</td>
         <td colspan="2">Transfer/migration tool + public API; then WAF and DNSSEC/PTR.</td>
+      </tr>
+      <tr class="section"><td colspan="4">Recently improved (no longer top weakeners, but still not parity)</td></tr>
+      <tr>
+        <td class="feature">Install one-liner</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td><code>curl …/get | sudo bash</code>; CentOS tree removed; stepped progress.</td>
+        <td>Now competitive with Hestia/ISPConfig onboarding shape — still not a production-safe outcome.</td>
+      </tr>
+      <tr>
+        <td class="feature">Backup Now / Restore UX</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Waits for job, status text, env snapshot, clearer manual leftovers.</td>
+        <td>Better operator guidance; live Ubuntu restore still UNVERIFIED; no Transfer Tool.</td>
+      </tr>
+      <tr>
+        <td class="feature">Auxiliary Login + default_plan</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Argon2id staff logins; fresh installs seed Resource Plan for Add Client.</td>
+        <td>Closes early onboarding holes; reseller/Feature Lists still behind WHM.</td>
       </tr>
     </tbody>
   </table>
@@ -1180,7 +1200,8 @@
   </table>
 
   <p class="footer">
-    Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, version 10.1-2026110601 ·
+    Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, version 10.1-2026110601
+    (refreshed after Ubuntu-only <code>get</code>/<code>install.sh</code> consolidation, CentOS removal, Backup/Aux/login/SMTP/UI work) ·
     cPanel Feature Manager / product documentation (general capability set, Nov 2026) ·
     ISPConfig 3.3 docs/download (BSD; Debian/Ubuntu/Alma/Rocky; <code>ispconfig_update.sh</code>) ·
     Hestia CP docs/GitHub (GPLv3; Debian/Ubuntu; <code>hst-install.sh</code>; apt updates) ·

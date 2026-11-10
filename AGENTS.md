@@ -7,7 +7,7 @@ Kloxo CP: a hosting control panel forked from Kloxo-MR (AGPLv3), being modernise
 and Ubuntu 26.x,
 Nginx + PHP-FPM default for sites (Apache selectable), Hiawatha for the panel itself, no billing for now, existing UI kept,
 mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on Ubuntu), easy install/update with automatic
-rollback (designed, not built).
+rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
 10.1-2026110601. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
@@ -27,7 +27,7 @@ Postfix not co-installed with Exim (Switch Program apt-swaps);
 Ubuntu universe enabled when needed;
 no SpamAssassin/sqlite; bogofilter is not offered). `install.sh` then
 fetches `origin/main` and hard-resets when the clone already exists
-(`kloxocp update` and signed apt packaging are not built). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
+(`kloxocp update`/`upcp` is built with snapshot + auto-rollback; signed apt packaging is not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
 change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it; the form posts to the logged-in client and
 does not inherit the page underneath, which made Update throw unsettable
@@ -38,7 +38,7 @@ top-centre, white, light shadow, typed icon info/success/warning/error;
 content does not print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
 (`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026110601** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp update` still exits 2).
+screen shows **10.1-2026110601** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -385,7 +385,7 @@ php kloxo/bin/install/install-fail2ban --help
 bash tests/mail/run-tests.sh          # mail checks (needs MariaDB root socket; disposable machine only)
 python3 tests/mail/e2e.py             # 25 live mail checks (needs running Exim/Dovecot/Rspamd; see tests/mail/README.md)
 php kloxo/bin/mail/kloxo-mail help
-php kloxo/bin/kloxocp help            # status, doctor, snapshot, rollback; update exits 2
+php kloxo/bin/kloxocp help            # status, doctor, upcp/update, snapshot, rollback
 php kloxo/bin/storage/kloxo-migrate   # panel.sqlite + stats.sqlite PRAGMA user_version
 php kloxo/bin/storage/kloxo-regen     # render Hiawatha config, validate, rename
 php kloxo/bin/storage/kloxo-stats     # incremental access-log aggregator

@@ -111,9 +111,10 @@ The CLI in `kloxo/bin/kloxocp` is PHP 8.3, `declare(strict_types=1)`, argument-a
 | `snapshot` | Copies `bin/kloxoversion`, `init`, `etc`, `file/ssl`, `httpdocs/login` into `<snap-dir>/<UTC stamp>/` plus `MANIFEST.json`. Keeps last `--keep` (default 5) |
 | `rollback` | Restores those paths from `--stamp` or the latest stamp |
 | `component list` | Names from the design table |
-| `update`, `component upgrade`, apt `install` | Exit 2 |
+| `update` / `upcp` | Pre-flight → snapshot → sync from git clone (`--src`, default `/usr/local/src/kloxo-cp`) → health check; **auto-rollback** on failure (unless `--no-rollback`). `--check` is plan-only. Lock file prevents concurrent runs. Log `/var/log/kloxo-update.log`. |
+| `component upgrade`, apt `install` | Exit 2 (signed apt repo not built) |
 
-Snapshot does **not** dump the panel DB, generated service configs, or take LVM/ZFS snapshots. Treat `--snap-dir` as secret (it can hold copies of `file/ssl`).
+Snapshot covers `bin/kloxoversion`, `bin/kloxocp`, `init`, `etc`, `file/ssl`, `httpdocs/{login,lib,driver,theme,lang}` and a sidecar copy of `panel.sqlite` when present. Not yet: generated nginx/exim configs, LVM/ZFS snapshots. Treat `--snap-dir` as secret.
 
 ## 3. Stability plan
 

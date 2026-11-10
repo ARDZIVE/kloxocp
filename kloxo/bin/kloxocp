@@ -13,8 +13,9 @@ declare(strict_types=1);
  * your option) any later version. See LICENSE.txt.
  *
  * Standalone: no legacy panel includes. PHP 8.3, argument-array process
- * execution, validated paths. update / component upgrade / full install.sh
- * apt path are not built yet (exit 2).
+ * execution, validated paths. update/upcp: snapshot, apply, health check,
+ * automatic rollback on failure (cPanel-style). Signed apt packages are not
+ * built; the update syncs from the git clone (or --src=DIR).
  *
  * Usage: kloxocp <command> [arguments] [--options]
  */
@@ -24,10 +25,32 @@ const KCP_VERSION = '10.1-2026110601';
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
     'bin/kloxoversion',
+    'bin/kloxocp',
     'init',
     'etc',
     'file/ssl',
     'httpdocs/login',
+    'httpdocs/lib',
+    'httpdocs/driver',
+    'httpdocs/theme',
+    'httpdocs/lang',
+];
+
+/** Extra host files stored inside a snapshot as sidecar copies. */
+const KCP_SNAP_SIDECARS = [
+    // panel SQLite (login/UI); path is absolute host path => name inside snapshot
+    '/var/lib/kloxo/panel.sqlite' => 'var/panel.sqlite',
+];
+
+const KCP_UPDATE_SYNC = [
+    'bin',
+    'init',
+    'httpdocs/lib',
+    'httpdocs/driver',
+    'httpdocs/theme',
+    'httpdocs/lang',
+    'httpdocs/login',
+    'bin/kloxoversion',
 ];
 
 const KCP_COMPONENTS = [
@@ -205,7 +228,7 @@ final class App
                 'doctor' => $this->doctor(),
                 'snapshot' => $this->snapshot(),
                 'rollback' => $this->rollback(),
-                'update' => $this->notImplemented('update'),
+                'update', 'upcp' => $this->update(),
                 'install' => $this->install(),
                 'component' => $this->component($rest),
                 'recovery-password' => $this->recoveryPassword(),
@@ -257,11 +280,20 @@ kloxocp — Kloxo CP operator CLI ($v)
   kloxocp doctor [--root=DIR] [--json] [--install]
   kloxocp snapshot [--root=DIR] [--snap-dir=DIR] [--keep=N] [--json]
   kloxocp rollback [--root=DIR] [--snap-dir=DIR] [--stamp=UTC] [--json]
+  kloxocp update|upcp [--root=DIR] [--src=DIR] [--branch=NAME] [--check] [--yes]
+                      [--no-fetch] [--no-rollback] [--keep=N] [--json]
   kloxocp component list
   kloxocp recovery-password --generate | --password-env=VAR [--if-missing] [--raw] [--root=DIR]
-  kloxocp update            (not built)
   kloxocp install           (pre-flight; Ubuntu bootstrap is install.sh)
 
+  update / upcp   cPanel-style panel update: pre-flight → snapshot → apply →
+                  health check; on failure restores the snapshot automatically.
+  --check         show the plan only (no snapshot, no apply)
+  --src=DIR       source tree with kloxo/ (default: /usr/local/src/kloxo-cp)
+  --branch=NAME   git branch to fetch (default: main; ignored with --no-fetch)
+  --no-fetch      do not git-fetch; sync from the existing --src tree
+  --no-rollback   leave a failed update in place (default: auto-rollback)
+  --yes           non-interactive (assumed when stdin is not a TTY)
   --root=DIR      program root (default: /opt/kloxo if present, else this tree)
   --snap-dir=DIR  snapshot directory (default: <root>/var/backups/kloxocp)
   --json          machine-readable output
@@ -509,19 +541,35 @@ TXT;
 
     private function snapshot(): int
     {
+        $manifest = $this->createSnapshot();
+        $msg = 'snapshot ' . $manifest['stamp'] . ' (' . count($manifest['paths']) . ' paths) -> ' . $manifest['dir'];
+        return $this->say($manifest, $msg);
+    }
+
+    /** @return array{stamp:string,created_utc:string,kloxocp:string,root:string,paths:list<string>,dir:string} */
+    private function createSnapshot(): array
+    {
         if (!is_dir($this->root . '/httpdocs')) {
             throw new KcpException("Not a program root (no httpdocs): {$this->root}");
         }
         $keep = 5;
         if (isset($this->opt['keep']) && is_string($this->opt['keep']) && ctype_digit($this->opt['keep'])) {
-            $keep = (int)$this->opt['keep'];
+            $keep = (int) $this->opt['keep'];
             if ($keep < 1 || $keep > 50) {
                 throw new KcpException('--keep must be 1–50');
             }
         }
-        $stamp = gmdate('YmdHis');
-        $dest = Fs::realDir($this->snapDir, 'snap-dir') . '/' . $stamp;
-        if (is_dir($dest)) {
+        $dest = '';
+        $stamp = '';
+        for ($i = 0; $i < 20; $i++) {
+            $stamp = gmdate('YmdHis') . sprintf('%03d', (int) ((microtime(true) * 1000) % 1000));
+            $dest = Fs::realDir($this->snapDir, 'snap-dir') . '/' . $stamp;
+            if (!is_dir($dest)) {
+                break;
+            }
+            usleep(5000);
+        }
+        if ($dest === '' || is_dir($dest)) {
             throw new KcpException("Snapshot already exists: $dest");
         }
         if (!mkdir($dest, 0750, true) && !is_dir($dest)) {
@@ -536,30 +584,55 @@ TXT;
             Fs::copyPath($src, $dest . '/' . $rel);
             $copied[] = $rel;
         }
+        foreach (KCP_SNAP_SIDECARS as $host => $rel) {
+            if (!is_file($host)) {
+                $alt = $this->root . '/var/lib/kloxo/panel.sqlite';
+                if ($rel === 'var/panel.sqlite' && is_file($alt)) {
+                    $host = $alt;
+                } else {
+                    continue;
+                }
+            }
+            $target = $dest . '/' . $rel;
+            $dir = dirname($target);
+            if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+                throw new KcpException("Cannot create $dir");
+            }
+            Fs::copyPath($host, $target);
+            $copied[] = $rel;
+        }
         $manifest = [
             'stamp' => $stamp,
             'created_utc' => gmdate('c'),
             'kloxocp' => KCP_VERSION,
             'root' => $this->root,
             'paths' => $copied,
+            'dir' => $dest,
         ];
         file_put_contents($dest . '/MANIFEST.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
         $this->pruneSnapshots($keep);
-        $msg = "snapshot $stamp (" . count($copied) . ' paths) -> ' . $dest;
-        return $this->say($manifest + ['dir' => $dest], $msg);
+        return $manifest;
     }
 
     private function rollback(): int
+    {
+        $stamp = $this->opt['stamp'] ?? '';
+        if (!is_string($stamp) || $stamp === '' || $stamp === true) {
+            $stamp = $this->latestStamp($this->snapDir) ?? '';
+        }
+        $restored = $this->quietRestoreSnapshot($stamp);
+        $rep = ['stamp' => $stamp, 'restored' => $restored, 'root' => $this->root];
+        return $this->say($rep, 'restored snapshot ' . $stamp . ' (' . count($restored) . ' paths)');
+    }
+
+    /** @return list<string> */
+    private function quietRestoreSnapshot(string $stamp): array
     {
         $snapRoot = $this->snapDir;
         if (!is_dir($snapRoot)) {
             throw new KcpException("No snapshots in $snapRoot");
         }
-        $stamp = $this->opt['stamp'] ?? '';
-        if (!is_string($stamp) || $stamp === '' || $stamp === true) {
-            $stamp = $this->latestStamp($snapRoot);
-        }
-        if ($stamp === null || !preg_match('/^[0-9]{14}$/', $stamp)) {
+        if ($stamp === '' || !preg_match('/^[0-9]{14,17}$/', $stamp)) {
             throw new KcpException('No snapshot stamp (run kloxocp snapshot first)');
         }
         $src = $snapRoot . '/' . $stamp;
@@ -585,15 +658,37 @@ TXT;
             Fs::rmTree($bak);
             $restored[] = $rel;
         }
-        $rep = ['stamp' => $stamp, 'restored' => $restored, 'root' => $this->root];
-        return $this->say($rep, 'restored snapshot ' . $stamp . ' (' . count($restored) . ' paths)');
+        $side = $src . '/var/panel.sqlite';
+        if (is_file($side)) {
+            $targets = [];
+            if (is_dir('/var/lib/kloxo')) {
+                $targets[] = '/var/lib/kloxo/panel.sqlite';
+            }
+            $alt = $this->root . '/var/lib/kloxo';
+            if (is_dir($alt)) {
+                $targets[] = $alt . '/panel.sqlite';
+            }
+            foreach (array_unique($targets) as $db) {
+                $bak = $db . '.kloxocp-pre-rollback';
+                if (is_file($db)) {
+                    @rename($db, $bak);
+                }
+                Fs::copyPath($side, $db);
+                @chmod($db, 0640);
+                if (is_file($bak) || is_dir($bak) || is_link($bak)) {
+                    Fs::rmTree($bak);
+                }
+                $restored[] = $db;
+            }
+        }
+        return $restored;
     }
 
     private function latestStamp(string $snapRoot): ?string
     {
         $best = null;
         foreach (scandir($snapRoot) ?: [] as $n) {
-            if (preg_match('/^[0-9]{14}$/', $n) && is_file("$snapRoot/$n/MANIFEST.json")) {
+            if (preg_match('/^[0-9]{14,17}$/', $n) && is_file("$snapRoot/$n/MANIFEST.json")) {
                 if ($best === null || $n > $best) {
                     $best = $n;
                 }
@@ -609,7 +704,7 @@ TXT;
         }
         $stamps = [];
         foreach (scandir($this->snapDir) ?: [] as $n) {
-            if (preg_match('/^[0-9]{14}$/', $n) && is_dir($this->snapDir . '/' . $n)) {
+            if (preg_match('/^[0-9]{14,17}$/', $n) && is_dir($this->snapDir . '/' . $n)) {
                 $stamps[] = $n;
             }
         }
@@ -631,6 +726,359 @@ TXT;
             return $this->say(['components' => array_keys(KCP_COMPONENTS)], implode("\n", $lines));
         }
         return $this->notImplemented('component ' . $sub);
+    }
+
+    private function update(): int
+    {
+        $checkOnly = isset($this->opt['check']);
+        $noFetch = isset($this->opt['no-fetch']);
+        $noRollback = isset($this->opt['no-rollback']);
+        if (!is_dir($this->root . '/httpdocs')) {
+            throw new KcpException("Not a program root (no httpdocs): {$this->root}");
+        }
+
+        $src = $this->resolveUpdateSrc();
+        $branch = 'main';
+        if (isset($this->opt['branch']) && is_string($this->opt['branch']) && $this->opt['branch'] !== '' && $this->opt['branch'] !== true) {
+            if (!preg_match('/^[A-Za-z0-9._\/-]{1,64}$/', $this->opt['branch'])) {
+                throw new KcpException('Invalid --branch');
+            }
+            $branch = $this->opt['branch'];
+        }
+
+        $fromVersion = $this->readVersion($this->root);
+        $toVersion = $this->readVersion($src . '/kloxo');
+        $plan = [
+            'action' => 'update',
+            'root' => $this->root,
+            'src' => $src,
+            'branch' => $branch,
+            'from_version' => $fromVersion,
+            'to_version' => $toVersion,
+            'fetch' => !$noFetch && is_dir($src . '/.git'),
+            'auto_rollback' => !$noRollback,
+            'check_only' => $checkOnly,
+        ];
+
+        if ($checkOnly) {
+            $msg = "update check: {$fromVersion} -> {$toVersion} from {$src}"
+                . ($plan['fetch'] ? " (git fetch {$branch})" : ' (no fetch)');
+            return $this->say($plan, $msg);
+        }
+
+        $lock = $this->acquireUpdateLock();
+        $logFile = $this->updateLogPath();
+        $this->ulog($logFile, "update start {$fromVersion} -> {$toVersion} src={$src}");
+
+        $stamp = null;
+        $rolled = false;
+        try {
+            $this->ulog($logFile, 'pre-flight');
+            $this->updatePreflight($src);
+
+            $this->ulog($logFile, 'snapshot');
+            $stamp = $this->takeSnapshotStamp();
+            $plan['snapshot'] = $stamp;
+
+            if ($plan['fetch']) {
+                $this->ulog($logFile, "git fetch {$branch}");
+                $this->gitFetch($src, $branch);
+                $toVersion = $this->readVersion($src . '/kloxo');
+                $plan['to_version'] = $toVersion;
+            }
+
+            $this->ulog($logFile, 'apply');
+            $synced = $this->applyUpdateTree($src . '/kloxo');
+            $plan['synced'] = $synced;
+
+            $this->ulog($logFile, 'health check');
+            $health = $this->updateHealthCheck();
+            $plan['health'] = $health;
+            if (!$health['ok']) {
+                throw new KcpException('health check failed: ' . implode('; ', $health['errors']));
+            }
+
+            // force-fail hook for tests / drills
+            if (getenv('KLOXO_UPDATE_FORCE_FAIL') === '1') {
+                throw new KcpException('forced failure (KLOXO_UPDATE_FORCE_FAIL=1)');
+            }
+
+            $this->ulog($logFile, "update ok {$toVersion} snapshot={$stamp}");
+            $plan['ok'] = true;
+            $plan['rolled_back'] = false;
+            return $this->say($plan, "update ok: {$fromVersion} -> {$toVersion} (snapshot {$stamp})");
+        } catch (Throwable $e) {
+            $this->ulog($logFile, 'update FAILED: ' . $e->getMessage());
+            if (!$noRollback && is_string($stamp) && $stamp !== '') {
+                $this->ulog($logFile, "auto-rollback to {$stamp}");
+                try {
+                    $this->quietRestoreSnapshot($stamp);
+                    $rolled = true;
+                    $this->ulog($logFile, "rollback ok {$stamp}");
+                } catch (Throwable $re) {
+                    $this->ulog($logFile, 'rollback FAILED: ' . $re->getMessage());
+                    throw new KcpException(
+                        'update failed (' . $e->getMessage() . '); rollback also failed: ' . $re->getMessage()
+                    );
+                }
+            }
+            $plan['ok'] = false;
+            $plan['rolled_back'] = $rolled;
+            $plan['error'] = $e->getMessage();
+            if ($this->json) {
+                echo json_encode($plan, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n";
+            } else {
+                $tail = $rolled ? " (rolled back to snapshot {$stamp})" : ' (no rollback)';
+                fwrite(STDERR, 'error: update failed: ' . $e->getMessage() . $tail . "\n");
+            }
+            return 1;
+        } finally {
+            $this->releaseUpdateLock($lock);
+        }
+    }
+
+    private function resolveUpdateSrc(): string
+    {
+        $opt = $this->opt['src'] ?? '';
+        if (is_string($opt) && $opt !== '' && $opt !== true) {
+            if (str_contains($opt, "\0") || str_contains($opt, '..')) {
+                throw new KcpException('Invalid --src');
+            }
+            $src = rtrim($opt, '/');
+            if (!is_file($src . '/kloxo/bin/kloxocp')) {
+                throw new KcpException("Not a Kloxo CP source tree: $src");
+            }
+            return $src;
+        }
+        $defaults = [
+            '/usr/local/src/kloxo-cp',
+            dirname($this->root),
+            dirname(__DIR__, 2),
+        ];
+        // If /opt/kloxo is a symlink into the clone, use that clone.
+        $link = @readlink($this->root);
+        if (is_string($link) && $link !== '') {
+            $parent = dirname($link);
+            if (is_file($parent . '/kloxo/bin/kloxocp')) {
+                array_unshift($defaults, $parent);
+            } elseif (is_file($parent . '/bin/kloxocp') && is_file(dirname($parent) . '/kloxo/bin/kloxocp')) {
+                array_unshift($defaults, dirname($parent));
+            }
+        }
+        foreach ($defaults as $d) {
+            if (is_string($d) && $d !== '' && is_file($d . '/kloxo/bin/kloxocp')) {
+                return $d;
+            }
+        }
+        throw new KcpException('No update source (--src=DIR or /usr/local/src/kloxo-cp)');
+    }
+
+    private function readVersion(string $programRoot): string
+    {
+        $f = $programRoot . '/bin/kloxoversion';
+        if (is_file($f)) {
+            $v = trim((string) file_get_contents($f));
+            if ($v !== '') {
+                return $v;
+            }
+        }
+        return KCP_VERSION;
+    }
+
+    private function updateLogPath(): string
+    {
+        if (is_dir('/var/log') && is_writable('/var/log')) {
+            return '/var/log/kloxo-update.log';
+        }
+        $dir = $this->root . '/log';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0750, true);
+        }
+        return $dir . '/kloxo-update.log';
+    }
+
+    private function ulog(string $file, string $msg): void
+    {
+        $line = gmdate('c') . ' ' . $msg . "\n";
+        @file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
+        if (!$this->json) {
+            echo '==> ' . $msg . "\n";
+        }
+    }
+
+    /** @return resource|null */
+    private function acquireUpdateLock()
+    {
+        $dir = $this->root . '/var';
+        if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+            throw new KcpException("Cannot create $dir");
+        }
+        $path = $dir . '/kloxocp-update.lock';
+        $fh = @fopen($path, 'c+');
+        if ($fh === false) {
+            throw new KcpException("Cannot open update lock $path");
+        }
+        if (!flock($fh, LOCK_EX | LOCK_NB)) {
+            fclose($fh);
+            throw new KcpException('Another kloxocp update is already running');
+        }
+        ftruncate($fh, 0);
+        fwrite($fh, (string) getmypid() . "\n" . gmdate('c') . "\n");
+        fflush($fh);
+        return $fh;
+    }
+
+    /** @param resource|null $fh */
+    private function releaseUpdateLock($fh): void
+    {
+        if (is_resource($fh)) {
+            flock($fh, LOCK_UN);
+            fclose($fh);
+        }
+    }
+
+    private function updatePreflight(string $src): void
+    {
+        if (!is_file($src . '/kloxo/bin/kloxocp')) {
+            throw new KcpException("Source missing kloxo/bin/kloxocp: $src");
+        }
+        if (!is_file($src . '/kloxo/httpdocs/login/index.php') && !is_file($src . '/kloxo/httpdocs/login/login.php')) {
+            // login may be index.php in this tree
+            if (!is_dir($src . '/kloxo/httpdocs/login')) {
+                throw new KcpException('Source missing httpdocs/login');
+            }
+        }
+        $free = @disk_free_space($this->root);
+        if (is_float($free) || is_int($free)) {
+            if ((int) $free < 200 * 1024 * 1024) {
+                throw new KcpException('Need at least ~200 MB free disk for update/snapshot');
+            }
+        }
+        foreach (['/usr/local/cpanel', '/usr/local/psa', '/usr/local/ispconfig'] as $other) {
+            if (is_dir($other)) {
+                throw new KcpException("Another control panel is present at $other");
+            }
+        }
+    }
+
+    private function takeSnapshotStamp(): string
+    {
+        $manifest = $this->createSnapshot();
+        return $manifest['stamp'];
+    }
+
+    private function gitFetch(string $src, string $branch): void
+    {
+        if (!Proc::exists('git')) {
+            throw new KcpException('git is required to fetch updates (or pass --no-fetch)');
+        }
+        [$rc, $o, $e] = Proc::run(['git', '-C', $src, 'fetch', '--depth', '1', 'origin', $branch]);
+        if ($rc !== 0) {
+            throw new KcpException('git fetch failed: ' . trim($e !== '' ? $e : $o));
+        }
+        [$rc, $o, $e] = Proc::run(['git', '-C', $src, 'checkout', '-f', '-B', $branch, 'FETCH_HEAD']);
+        if ($rc !== 0) {
+            throw new KcpException('git checkout failed: ' . trim($e !== '' ? $e : $o));
+        }
+        [$rc, $o, $e] = Proc::run(['git', '-C', $src, 'reset', '--hard', 'FETCH_HEAD']);
+        if ($rc !== 0) {
+            throw new KcpException('git reset failed: ' . trim($e !== '' ? $e : $o));
+        }
+    }
+
+    /** @return list<string> */
+    private function applyUpdateTree(string $srcKloxo): array
+    {
+        if (!is_dir($srcKloxo . '/httpdocs') || !is_dir($srcKloxo . '/bin')) {
+            throw new KcpException("Invalid program tree: $srcKloxo");
+        }
+        $synced = [];
+        $map = [
+            'bin' => 'bin',
+            'init' => 'init',
+            'httpdocs/lib' => 'httpdocs/lib',
+            'httpdocs/driver' => 'httpdocs/driver',
+            'httpdocs/theme' => 'httpdocs/theme',
+            'httpdocs/lang' => 'httpdocs/lang',
+            'httpdocs/login' => 'httpdocs/login',
+        ];
+        foreach ($map as $rel => $dstRel) {
+            $from = $srcKloxo . '/' . $rel;
+            if (!file_exists($from)) {
+                continue;
+            }
+            $to = $this->root . '/' . $dstRel;
+            // replace directory contents safely: copy to temp then swap
+            if (is_dir($from)) {
+                $tmp = $to . '.kloxocp-new';
+                Fs::rmTree($tmp);
+                Fs::copyPath($from, $tmp);
+                $bak = $to . '.kloxocp-old';
+                Fs::rmTree($bak);
+                if (is_dir($to) || is_file($to) || is_link($to)) {
+                    rename($to, $bak);
+                }
+                rename($tmp, $to);
+                Fs::rmTree($bak);
+            } else {
+                Fs::copyPath($from, $to);
+            }
+            $synced[] = $dstRel;
+        }
+        // always refresh version stamp when present
+        if (is_file($srcKloxo . '/bin/kloxoversion')) {
+            Fs::copyPath($srcKloxo . '/bin/kloxoversion', $this->root . '/bin/kloxoversion');
+            if (!in_array('bin/kloxoversion', $synced, true)) {
+                $synced[] = 'bin/kloxoversion';
+            }
+        }
+        return $synced;
+    }
+
+    /** @return array{ok:bool,errors:list<string>} */
+    private function updateHealthCheck(): array
+    {
+        $errors = [];
+        if (!is_dir($this->root . '/httpdocs')) {
+            $errors[] = 'httpdocs missing';
+        }
+        if (!is_file($this->root . '/bin/kloxocp')) {
+            $errors[] = 'bin/kloxocp missing';
+        }
+        if (!is_dir($this->root . '/httpdocs/login')) {
+            $errors[] = 'httpdocs/login missing';
+        }
+        $login = $this->root . '/httpdocs/login';
+        $hasLogin = is_file($login . '/index.php') || is_file($login . '/login.php')
+            || is_file($login . '/index.html');
+        if (!$hasLogin) {
+            // directory may only have assets in some trees; require non-empty
+            $files = @scandir($login) ?: [];
+            $files = array_values(array_filter($files, static fn ($n) => $n !== '.' && $n !== '..'));
+            if ($files === []) {
+                $errors[] = 'httpdocs/login is empty';
+            }
+        }
+        // PHP lint the CLI itself
+        if (Proc::exists('php')) {
+            [$rc, , $e] = Proc::run(['php', '-l', $this->root . '/bin/kloxocp']);
+            if ($rc !== 0) {
+                $errors[] = 'php -l kloxocp failed: ' . trim($e);
+            }
+        }
+        // optional unit probes (do not fail update if systemctl absent)
+        if (Proc::exists('systemctl')) {
+            foreach (['kloxo-web', 'kloxo-php', 'kloxo-backend'] as $unit) {
+                [$rc] = Proc::run(['systemctl', 'is-active', '--quiet', $unit]);
+                // only warn via errors if unit exists and is failed
+                [$rcShow, $o] = Proc::run(['systemctl', 'show', '-p', 'ActiveState', '--value', $unit]);
+                $state = trim($o);
+                if ($rcShow === 0 && $state === 'failed') {
+                    $errors[] = "$unit is failed";
+                }
+            }
+        }
+        return ['ok' => $errors === [], 'errors' => $errors];
     }
 
     private function install(): int

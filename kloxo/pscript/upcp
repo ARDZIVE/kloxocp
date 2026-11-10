@@ -1,0 +1,19 @@
+#!/bin/sh
+# Kloxo CP upcp — cPanel-style panel update with automatic rollback on failure.
+#
+#   sh /script/upcp
+#   sh /script/upcp --check
+#   sh /script/upcp --no-fetch
+#
+# Same as: kloxocp update …
+set -eu
+ROOT="${KLOXO_ROOT:-/opt/kloxo}"
+BIN="${ROOT}/bin/kloxocp"
+if [ ! -x "$BIN" ] && [ -f "$BIN" ]; then
+	chmod +x "$BIN" || true
+fi
+if [ ! -f "$BIN" ]; then
+	echo "error: $BIN not found (is Kloxo CP installed?)" >&2
+	exit 1
+fi
+exec php "$BIN" upcp "$@"
