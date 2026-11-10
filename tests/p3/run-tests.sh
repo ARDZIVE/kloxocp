@@ -163,13 +163,25 @@ wait "$lockpid" 2>/dev/null || true
 [ "$rc" -ne 0 ] && grep -qi 'already running' "$T/lock.err" && ok "update lock refuses a second run" || bad "update lock refuses a second run" "rc=$rc $(cat "$T/lock.err")"
 
 # upcp wrapper script exists and points at kloxocp
-if grep -q 'kloxocp' "$ROOT/kloxo/pscript/upcp" && grep -q 'upcp' "$ROOT/kloxo/pscript/upcp"; then
+if grep -q 'kloxocp' "$ROOT/kloxo/pscript/upcp" && grep -q 'upcp' "$ROOT/kloxo/pscript/upcp" \
+  && grep -q 'Must run as root' "$ROOT/kloxo/pscript/upcp"; then
   ok "pscript/upcp wraps kloxocp upcp"
 else
   bad "pscript/upcp wraps kloxocp upcp"
 fi
 help2="$("${TOOL[@]}" help)"
 echo "$help2" | grep -q 'update|upcp' && ok "help documents update/upcp" || bad "help documents update/upcp"
+echo "$help2" | grep -q 'sudo kloxocp upcp' && ok "help says update needs sudo" || bad "help says update needs sudo"
+
+# Unwritable program root (live /opt/kloxo is root-owned): clear sudo message
+NOROOT="$T/noroot"
+mkdir -p "$NOROOT/httpdocs" "$NOROOT/bin" "$NOROOT/var" "$NOROOT/log"
+echo '10.1-noroot' >"$NOROOT/bin/kloxoversion"
+chmod 555 "$NOROOT/var"
+"${TOOL[@]}" update --root="$NOROOT" --src="$UPD_SRC" --snap-dir="$UPD_SNAP" --no-fetch --yes >/dev/null 2>"$T/noroot.err"; rc=$?
+chmod 755 "$NOROOT/var"
+[ "$rc" -ne 0 ] && grep -qi 'Must run as root' "$T/noroot.err" && ok "update refuses unwritable root without sudo" \
+  || bad "update refuses unwritable root without sudo" "rc=$rc $(cat "$T/noroot.err")"
 
 echo
 echo "$PASS passed, $FAIL failed"

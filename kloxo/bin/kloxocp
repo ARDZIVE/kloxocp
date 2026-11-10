@@ -286,8 +286,9 @@ kloxocp — Kloxo CP operator CLI ($v)
   kloxocp recovery-password --generate | --password-env=VAR [--if-missing] [--raw] [--root=DIR]
   kloxocp install           (pre-flight; Ubuntu bootstrap is install.sh)
 
-  update / upcp   cPanel-style panel update: pre-flight → snapshot → apply →
-                  health check; on failure restores the snapshot automatically.
+  update / upcp   cPanel-style panel update (run as root: sudo kloxocp upcp):
+                  pre-flight → snapshot → apply → health check; on failure
+                  restores the snapshot automatically.
   --check         show the plan only (no snapshot, no apply)
   --src=DIR       source tree with kloxo/ (default: /usr/local/src/kloxo-cp)
   --branch=NAME   git branch to fetch (default: main; ignored with --no-fetch)
@@ -766,6 +767,7 @@ TXT;
             return $this->say($plan, $msg);
         }
 
+        $this->requireRootOrWritable('upcp');
         $lock = $this->acquireUpdateLock();
         $logFile = $this->updateLogPath();
         $this->ulog($logFile, "update start {$fromVersion} -> {$toVersion} src={$src}");
@@ -906,17 +908,38 @@ TXT;
         }
     }
 
+    /**
+     * Live /opt/kloxo is root-owned; a normal login cannot create the update
+     * lock and used to fail with "Cannot open update lock". Temp trees used
+     * by tests stay writable without root.
+     */
+    private function requireRootOrWritable(string $cmd): void
+    {
+        $uid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+        if ($uid === 0) {
+            return;
+        }
+        $var = $this->root . '/var';
+        if (is_dir($var) && is_writable($var)) {
+            return;
+        }
+        if (!is_dir($var) && is_writable($this->root)) {
+            return;
+        }
+        throw new KcpException("Must run as root: sudo kloxocp {$cmd}");
+    }
+
     /** @return resource|null */
     private function acquireUpdateLock()
     {
         $dir = $this->root . '/var';
         if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
-            throw new KcpException("Cannot create $dir");
+            throw new KcpException("Cannot create $dir (run as root: sudo kloxocp upcp)");
         }
         $path = $dir . '/kloxocp-update.lock';
         $fh = @fopen($path, 'c+');
         if ($fh === false) {
-            throw new KcpException("Cannot open update lock $path");
+            throw new KcpException("Cannot open update lock $path (run as root: sudo kloxocp upcp)");
         }
         if (!flock($fh, LOCK_EX | LOCK_NB)) {
             fclose($fh);
