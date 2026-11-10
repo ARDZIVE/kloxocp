@@ -20,6 +20,7 @@ abstract class Lxclass
 	public $__virtual_list;
 	public $__object_list;
 	public $subaction;
+	public $__session_id;
 
 	public $dbaction = "clean";
 	public $metadbaction = "all";
@@ -54,7 +55,7 @@ abstract class Lxclass
 	{
 		global $login;
 
-		$key = trim($key);
+		$key = trim((string) $key);
 		// FIXME
 		$this->__virtual_list = array();
 

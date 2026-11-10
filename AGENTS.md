@@ -285,7 +285,11 @@ Live client Domains after deploy is UNVERIFIED.
 SQL Manager tile is admin-only (pserver Basic; not home Domain or domain show). Clients open a selected database in SQL Manager as that database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager after deploy is UNVERIFIED.
 Client Administration (`__title_administer`) has no Login As tile (`sa=dologin`). Live client home after deploy is UNVERIFIED.
 First-party `ereg*`/`split`
-and live theme `escape`/`document.all` are gone. Browser login as
+and live theme `escape`/`document.all` are gone. First login after
+install no longer fatals with `Attempt to assign property "__session_id" on null`
+(`kloxo_restore_cookie_login` only assigns when `$login` is an object;
+unknown/auxiliary cookies clear through to `/login/`; `tests/p2/test_login_session.php`).
+Live first login after this fix is UNVERIFIED. Browser login as
 admin/admin against the live panel succeeded; every page still died
 in the Server menu at the SSH Client title until `kloxo_menu_title`
 and `install.sh` git-pull/rsync. Re-run install after pulling this

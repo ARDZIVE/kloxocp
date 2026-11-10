@@ -130,6 +130,11 @@ if php "$HERE/test_boot.php"; then
 else
   bad "test_boot.php"
 fi
+if php "$HERE/test_login_session.php"; then
+  ok "test_login_session.php"
+else
+  bad "test_login_session.php"
+fi
 if php "$HERE/test_empty_list.php"; then
   ok "test_empty_list.php"
 else

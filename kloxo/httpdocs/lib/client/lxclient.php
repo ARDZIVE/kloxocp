@@ -88,7 +88,7 @@ abstract class Lxclient extends Lxdb
 	{
 		$this->__view = $view;
 		$this->__force = $force;
-		$nname = strtolower($nname);
+		$nname = strtolower((string) $nname);
 
 		parent::__construct($masterserver, $readserver, $nname);
 	}

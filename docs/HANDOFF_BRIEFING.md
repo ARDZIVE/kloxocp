@@ -814,7 +814,13 @@ Work in this order. Keep every change small, tested and committed separately. Do
    crumb skips the signed-in client and its parent in `frm_o_o`, so
    Clients is `admin — {Clients}` and a customer session is
    `mesrob — {Domains}` (not `… — Clients — admin — {…}`).
-   Browser login against
+   First login after install no longer fatals with
+   `Attempt to assign property "__session_id" on null`: cookie restore
+   (`kloxo_restore_cookie_login`) only assigns `__session_id` when
+   `$login` is an object; a missing class, leftover auxiliary cookie,
+   or a failed `get_login` clears through to `/login/` instead of
+   crashing (`tests/p2/test_login_session.php`). Live first login after
+   this fix is **UNVERIFIED**. Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
    opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
    `kloxo_pma`@`127.0.0.1` (not root: unix_socket) via `kloxo-signon.php` (`auth_type=signon`,

@@ -183,13 +183,13 @@ function print_index()
 		exit;
 	}
 
-	if (get_login($cgi_classname, $cgi_clientname)){
+	if (get_login($cgi_classname, $cgi_clientname) && is_object($login)){
 		check_blocked_ip();
 		do_login($cgi_classname, $cgi_clientname);
 		$login->was();
 		$ghtml->print_redirect("/");
 	} else  {
-		$ghtml->cgiset("frm_emessage", "login_error");
+		$ghtml->print_redirect("/login/?frm_emessage=login_error");
 	}
 
 	$cgi_forgotpwd = $ghtml->frm_forgotpwd;

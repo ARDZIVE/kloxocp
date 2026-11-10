@@ -2787,33 +2787,23 @@ function initProgramlib($ctype = null)
 	}
 
 	$sessobj = null;
-	if ($ghtml->frm_consumedlogin === 'true') {
-		$clientname = $_COOKIE["$progname-consumed-clientname"];
-		$classname = $_COOKIE["$progname-consumed-classname"];
-		$session_id = $_COOKIE["$progname-consumed-session-id"];
-		get_login($classname, $clientname);
-		$login->__session_id = $session_id;
-		$sessobj = $login->getObject('ssession');
-	} else {
-		if (isset($_COOKIE["$progname-session-id"])) {
-			$clientname = $_COOKIE["$progname-clientname"];
-			$classname = $_COOKIE["$progname-classname"];
-			$session_id = $_COOKIE["$progname-session-id"];
-			if ($classname === 'superclient') {
-				$sgbl->__var_dbf = $sgbl->__path_supernode_db;
-				$sgbl->__path_admin_pass = $sgbl->__path_super_pass;
-				$sgbl->__var_admin_user = $sgbl->__var_super_user;
-			}
-
-			if ($classname === 'slave') {
-				$sgbl->__var_dbf = $sgbl->__path_slave_db;
-			}
-			if ($classname) {
-				get_login($classname, $clientname);
-				$login->__session_id = $session_id;
-				$sessobj = $login->getObject('ssession');
-			}
+	$cookiePrefix = $progname;
+	if (is_object($ghtml) && $ghtml->frm_consumedlogin === 'true') {
+		$cookiePrefix .= '-consumed';
+	}
+	$session_id = kloxo_cookie_string($cookiePrefix . '-session-id');
+	if ($session_id !== '') {
+		$clientname = kloxo_cookie_string($cookiePrefix . '-clientname');
+		$classname = kloxo_cookie_string($cookiePrefix . '-classname');
+		if ($classname === 'superclient') {
+			$sgbl->__var_dbf = $sgbl->__path_supernode_db;
+			$sgbl->__path_admin_pass = $sgbl->__path_super_pass;
+			$sgbl->__var_admin_user = $sgbl->__var_super_user;
 		}
+		if ($classname === 'slave') {
+			$sgbl->__var_dbf = $sgbl->__path_slave_db;
+		}
+		$sessobj = kloxo_restore_cookie_login($classname, $clientname, $session_id);
 	}
 
 	if (!$sessobj || $sessobj->dbaction === 'add') {
@@ -2828,11 +2818,17 @@ function initProgramlib($ctype = null)
 			}
 			$class = 'client';
 			$clientname = 'admin';
-			get_login($class, $clientname);
-			do_login($class, $clientname, $ssl_param);
-			$sessobj = $gbl->c_session;
-			$sessobj->write();
-			$sessobj->dbaction = 'clean';
+			try {
+				get_login($class, $clientname);
+			} catch (Throwable $e) {
+				$login = null;
+			}
+			if (is_object($login)) {
+				do_login($class, $clientname, $ssl_param);
+				$sessobj = $gbl->c_session;
+				$sessobj->write();
+				$sessobj->dbaction = 'clean';
+			}
 		}
 	}
 
@@ -2975,6 +2971,7 @@ function initSession($object, $ssl_param, $consuming_parent)
 	setcookie("$ckstart-clientname", $name, $cookietime, '/');
 	setcookie("$ckstart-classname", $class, $cookietime, '/');
 	setcookie("$ckstart-session-id", $session, $cookietime, '/');
+	$object->__session_id = $session;
 
 	dprint("Set cookies<br/>");
 
@@ -3242,13 +3239,67 @@ function get_savedlogin($classname, $clientname)
 	return 0;
 }
 
+function kloxo_cookie_string($name)
+{
+	if (!isset($_COOKIE[$name])) {
+		return '';
+	}
+	$v = $_COOKIE[$name];
+	return is_string($v) ? $v : '';
+}
+
+function kloxo_login_class_allowed($classname)
+{
+	$c = strtolower((string) $classname);
+	return in_array($c, array('client', 'mailaccount', 'auxiliary', 'domain', 'vps', 'superclient', 'slave'), true);
+}
+
+function kloxo_restore_cookie_login($classname, $clientname, $session_id)
+{
+	global $login;
+
+	$classname = is_string($classname) ? strtolower(trim($classname)) : '';
+	$clientname = is_scalar($clientname) ? (string) $clientname : '';
+	$session_id = is_string($session_id) ? $session_id : '';
+
+	if ($classname === '' || $session_id === '' || !kloxo_login_class_allowed($classname)) {
+		return null;
+	}
+
+	$login = null;
+	try {
+		get_login($classname, $clientname);
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('login', 'cookie login: ' . $e->getMessage());
+		}
+		$login = null;
+		return null;
+	}
+	if (!is_object($login)) {
+		return null;
+	}
+	$login->__session_id = $session_id;
+	try {
+		$sess = $login->getObject('ssession');
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('login', 'cookie session: ' . $e->getMessage());
+		}
+		return null;
+	}
+	return is_object($sess) ? $sess : null;
+}
+
 function get_login($classname, $clientname)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	if (!$classname) {
-		print("There is no class. Login Error\n");
-		exit;
+	$classname = strtolower(trim((string) $classname));
+	$clientname = is_scalar($clientname) ? (string) $clientname : '';
+
+	if ($classname === '' || !kloxo_login_class_allowed($classname) || !class_exists($classname)) {
+		return 0;
 	}
 
 	$object = new $classname(null, null, $clientname, 'login');
