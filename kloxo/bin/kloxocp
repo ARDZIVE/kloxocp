@@ -149,8 +149,12 @@ final class Fs
             if ($rel === false || $rel === '') {
                 continue;
             }
-            if (str_contains($rel, '..')) {
-                throw new KcpException("Refusing path with .. : $rel");
+            // Only refuse a path *segment* of ".." (traversal). Names like
+            // icon/collage/subweb_a_addform..gif are real Kloxo-MR assets.
+            foreach (explode('/', str_replace('\\', '/', $rel)) as $seg) {
+                if ($seg === '..') {
+                    throw new KcpException("Refusing path with .. : $rel");
+                }
             }
             $target = $dst . '/' . $rel;
             if ($f->isDir() && !$f->isLink()) {

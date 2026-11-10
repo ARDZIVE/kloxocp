@@ -93,6 +93,10 @@ printf '<?php // old\n' > "$UPD_ROOT/httpdocs/login/index.php"
 printf '<?php // new login\n' > "$UPD_SRC/kloxo/httpdocs/login/index.php"
 printf 'old-lib\n' > "$UPD_ROOT/httpdocs/lib/keep.txt"
 printf 'new-lib\n' > "$UPD_SRC/kloxo/httpdocs/lib/keep.txt"
+# Kloxo-MR collage GIFs use ".." before the extension; snapshot must not treat that as traversal
+mkdir -p "$UPD_ROOT/httpdocs/theme/icon/collage" "$UPD_SRC/kloxo/httpdocs/theme/icon/collage"
+printf 'gif\n' > "$UPD_ROOT/httpdocs/theme/icon/collage/subweb_a_addform..gif"
+printf 'gif-new\n' > "$UPD_SRC/kloxo/httpdocs/theme/icon/collage/subweb_a_addform..gif"
 # Minimal kloxocp in both trees so health check / sync have a binary
 cp "$ROOT/kloxo/bin/kloxocp" "$UPD_ROOT/bin/kloxocp"
 cp "$ROOT/kloxo/bin/kloxocp" "$UPD_SRC/kloxo/bin/kloxocp"
@@ -112,7 +116,11 @@ fi
 [ "$(cat "$UPD_ROOT/bin/kloxoversion")" = '10.1-new' ] && ok "upcp updated kloxoversion" || bad "upcp updated kloxoversion"
 [ "$(cat "$UPD_ROOT/httpdocs/login/index.php")" = '<?php // new login' ] && ok "upcp updated login page" || bad "upcp updated login page"
 [ "$(cat "$UPD_ROOT/httpdocs/lib/keep.txt")" = 'new-lib' ] && ok "upcp synced httpdocs/lib" || bad "upcp synced httpdocs/lib"
+[ "$(cat "$UPD_ROOT/httpdocs/theme/icon/collage/subweb_a_addform..gif")" = 'gif-new' ] \
+  && ok "upcp allows filenames containing .." || bad "upcp allows filenames containing .."
 ls "$UPD_SNAP"/*/MANIFEST.json >/dev/null 2>&1 && ok "upcp left a snapshot" || bad "upcp left a snapshot"
+ls "$UPD_SNAP"/*/httpdocs/theme/icon/collage/subweb_a_addform..gif >/dev/null 2>&1 \
+  && ok "snapshot keeps filenames containing .." || bad "snapshot keeps filenames containing .."
 
 # Failed update rolls back: poison the source login dir after a good baseline.
 printf '10.1-newer\n' > "$UPD_SRC/kloxo/bin/kloxoversion"
