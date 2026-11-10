@@ -1499,7 +1499,16 @@ final class KloxoBackup
 				: array('pipe', 'w'),
 			2 => array('pipe', 'w'),
 		);
-		$p = @proc_open($argv, $spec, $pipes);
+		// backup.php / restore.php use relative includes; force httpdocs cwd.
+		$cwd = null;
+		$script = isset($argv[1]) && is_string($argv[1]) ? $argv[1] : '';
+		if ($script !== '' && (str_ends_with($script, '/backup.php') || str_ends_with($script, '/restore.php'))) {
+			$docs = self::programRoot() . '/httpdocs';
+			if (is_dir($docs)) {
+				$cwd = $docs;
+			}
+		}
+		$p = @proc_open($argv, $spec, $pipes, $cwd);
 		if (!is_resource($p)) {
 			return array('code' => 127, 'out' => 'could not start ' . $argv[0]);
 		}

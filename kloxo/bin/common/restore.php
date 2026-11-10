@@ -1,5 +1,10 @@
-<?php 
-include_once "lib/html/include.php";
+<?php
+
+$httpdocs = dirname(__DIR__, 2) . '/httpdocs';
+if (is_dir($httpdocs)) {
+	chdir($httpdocs);
+}
+include_once $httpdocs . '/lib/html/include.php';
 
 restore_main();
 
@@ -39,8 +44,12 @@ function restore_main()
 	$class = $opt['class'];
 	$name = $opt['name'];
 	if (lx_core_lock("$class-$name.restore")) {
-		print("Another Restore for the same class is happening..\n");
-		exit;
+		if (is_object($backup = $object->getObject('lxbackup'))) {
+			$backup->restorestage = 'Failed due to: another restore for this account is already running';
+			clearLxbackup($backup);
+		}
+		print("Restore failed due to: another restore for this account is already running\n");
+		exit(1);
 	}
 
 	$backup = $object->getObject('lxbackup');

@@ -321,7 +321,8 @@ check(str_contains($lx, "!is_array(\$res) || !isset(\$res['file'])"),
 check(str_contains($bak, 'KloxoBackup::runBackup')
 	&& str_contains($bak, 'KloxoBackup::runRestore')
 	&& str_contains($bak, 'function backupParent')
-	&& str_contains($bak, 'function fileManagerDir'),
+	&& str_contains($bak, 'function fileManagerDir')
+	&& str_contains($bak, 'shortProcDetail'),
 	'Backup Now and Restore From File wait on runBackup/runRestore');
 check(!str_contains($bak, 'backup_has_been_scheduled')
 	&& str_contains($bak, 'backup_completed')
@@ -329,8 +330,21 @@ check(!str_contains($bak, 'backup_has_been_scheduled')
 	'Backup Now is not scheduled; it waits and reports completed or failed');
 check(str_contains($kb = (string) file_get_contents($doc . '/lib/php/kloxo_backup.php'), 'function runBackup')
 	&& str_contains($kb, 'function launchBackup')
-	&& str_contains($kb, 'function runRestore'),
+	&& str_contains($kb, 'function runRestore')
+	&& str_contains($kb, "str_ends_with(\$script, '/backup.php')")
+	&& str_contains($kb, 'proc_open($argv, $spec, $pipes, $cwd)'),
 	'runBackup/runRestore wait; launchBackup remains for cron');
+$bp = (string) file_get_contents($repo . '/kloxo/bin/common/backup.php');
+check(str_contains($bp, 'chdir($httpdocs)')
+	&& str_contains($bp, "dirname(__DIR__, 2) . '/httpdocs'")
+	&& str_contains($bp, "'/lib/html/include.php'")
+	&& str_contains($bp, 'another backup for this account is already running'),
+	'backup.php chdirs to httpdocs and reports a held lock');
+$rp = (string) file_get_contents($repo . '/kloxo/bin/common/restore.php');
+check(str_contains($rp, 'chdir($httpdocs)')
+	&& str_contains($rp, "dirname(__DIR__, 2) . '/httpdocs'")
+	&& str_contains($rp, "'/lib/html/include.php'"),
+	'restore.php chdirs to httpdocs before include');
 check(str_contains($bak, 'KloxoBackup::installFile')
 	&& str_contains($bak, 'KloxoBackup::ensureDir')
 	&& str_contains($bak, 'fileManagerDir()'),

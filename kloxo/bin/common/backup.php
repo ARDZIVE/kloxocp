@@ -1,68 +1,76 @@
 <?php
 
-include_once "lib/html/include.php";
+/**
+ * Account Backup Now (admin and client). Always chdir to httpdocs so the
+ * relative include works when launched by KloxoBackup::run from any cwd
+ * (kloxo-backend PrivateTmp, cron, /script/backup).
+ */
+
+$httpdocs = dirname(__DIR__, 2) . '/httpdocs';
+if (is_dir($httpdocs)) {
+	chdir($httpdocs);
+}
+include_once $httpdocs . '/lib/html/include.php';
 
 backup_main();
 
 function backup_main()
 {
 	global $argc, $argv;
-	global $gbl, $sgbl, $login, $ghtml; 
+	global $gbl, $sgbl, $login, $ghtml;
 
 	$progname = $sgbl->__var_program_name;
 
 	if ($argc === 1) {
-	//	print("Usage: $argv[0] --class= --name= --v-backup_file_name= \n");
 		print("Usage: sh /script/backup --class= --name= --v-backup_file_name= \n");
-		exit;
+		exit(64);
 	}
 
-//	sleep(60);
 	$opt = parse_opt($argv);
 
-	$class = $opt['class'];
-	$name = $opt['name'];
+	$class = $opt['class'] ?? '';
+	$name = $opt['name'] ?? '';
+	if (!is_string($class) || $class === '' || !is_string($name) || $name === '') {
+		print("Backup failed due to: --class= and --name= are required\n");
+		exit(64);
+	}
 	$param = get_variable($opt);
 	initProgram("admin");
 	$object = new $class(null, 'localhost', $name);
 	$object->get();
 
 	if ($object->dbaction === 'add') {
-		print("No objectc\n");
-		exit;
+		print("Backup failed due to: {$class} {$name} does not exist\n");
+		exit(1);
 	}
 
 	if (!$object->isLxclient()) {
 		print("This is not a backupable object... This object alone cannot be backed up\n");
-	//	exit;
 	}
-
 
 	$backup = $object->getObject('lxbackup');
+	if (!is_object($backup)) {
+		print("Backup failed due to: no lxbackup object for {$name}\n");
+		exit(1);
+	}
 
 	if (lx_core_lock("{$class}-{$name}.backup")) {
-		exit;
-	}
-
-/*
-	if (!testAllServersWithMessage()) {
-		mail($object->contactemail, "Backup Failed..", "Could not connect to slave servers.");
-		$backup->backupstage = "Failed due to: could not connect to slave servers";
+		$backup->backupstage = 'Failed due to: another backup for this account is already running';
 		clearLxbackup($backup);
-		exit;
+		print("Backup failed due to: another backup for this account is already running\n");
+		exit(1);
 	}
-*/
 
 	if ($object->dbaction === 'add') {
-		print("object $name doesn exist\n");
+		print("Backup failed due to: {$name} doesn't exist\n");
 		$backup->backupstage = "Failed due to: {$name} doesn't exist";
 		clearLxbackup($backup);
 		log_error("Backup.php Client {$name} doesnt exist");
-		exit;
+		exit(1);
 	}
 
 	if (!empty($opt['priority']) && $opt['priority'] === 'low') {
-	//	sleep(20);
+		// scheduled path may sleep; Backup Now does not set priority=low
 	}
 
 	if (!empty($opt['v-backup_file_name'])) {
@@ -71,7 +79,7 @@ function backup_main()
 		$param['backup_to_file_f'] = "kloxo-scheduled";
 	}
 
-	foreach($opt as $k => $v) {
+	foreach ($opt as $k => $v) {
 		if (csb($k, "--v-backupextra_")) {
 			$kk = strfrom($k, "--v-");
 			$param[$kk] = $v;
@@ -105,4 +113,3 @@ function backup_main()
 
 	log_log("backup", "*** Backup from '{$name}' user - END ***");
 }
-

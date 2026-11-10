@@ -720,8 +720,17 @@ class lxbackup extends Lxdb
 				}
 			} elseif (preg_match('/Restore Failed\. Reason:\s*(.*)/', $out, $m)) {
 				$stage = 'Restore failed due to ' . trim($m[1]);
+			} elseif (preg_match('/Restore failed due to:\s*(.*)/', $out, $m)) {
+				$stage = 'Restore failed due to: ' . trim($m[1]);
 			} else {
-				$stage = (($r['code'] ?? 1) === 0) ? 'done' : 'Restore failed due to: restore did not finish';
+				$code = (int) ($r['code'] ?? 1);
+				if ($code === 0) {
+					$stage = 'done';
+				} else {
+					$detail = self::shortProcDetail($out, $code);
+					$stage = 'Restore failed due to: restore did not finish'
+						. ($detail !== '' ? ' (' . $detail . ')' : '');
+				}
 			}
 		}
 
@@ -765,16 +774,34 @@ class lxbackup extends Lxdb
 		$stage = self::readBackupStage((string) $class, (string) $name);
 		if ($stage === '' || $stage === 'doing') {
 			$out = (string) ($r['out'] ?? '');
+			$code = (int) ($r['code'] ?? 1);
 			if (str_contains($out, 'Backup has been saved')) {
 				$stage = 'done';
 			} elseif (preg_match('/Backup failed due to:\s*(.*)/', $out, $m)) {
 				$stage = 'Failed due to: ' . trim($m[1]);
 			} else {
-				$stage = 'Failed due to: backup did not finish';
+				$detail = self::shortProcDetail($out, $code);
+				$stage = 'Failed due to: backup did not finish' . ($detail !== '' ? ' (' . $detail . ')' : '');
 			}
 		}
 
 		return $stage;
+	}
+
+	/** One-line stderr/stdout for Status toast when stage stayed "doing". */
+	static function shortProcDetail($out, $code)
+	{
+		$out = preg_replace('/\s+/', ' ', trim((string) $out)) ?? '';
+		$out = substr($out, 0, 180);
+		$bits = array();
+		if ($code !== 0) {
+			$bits[] = 'exit ' . (int) $code;
+		}
+		if ($out !== '') {
+			$bits[] = $out;
+		}
+
+		return implode(': ', $bits);
 	}
 
 	static function readBackupStage($class, $name)
