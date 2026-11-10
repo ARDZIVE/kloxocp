@@ -154,29 +154,19 @@ function getAllOperatingSystemDetails()
 
 function findOperatingSystem($type = null)
 {
-	if (file_exists("/etc/fedora-release")) {
-		$ret['os'] = 'fedora';
-		$ret['version'] = file_get_contents("/etc/fedora-release");
-		$ret['pointversion'] = find_os_pointversion();
-	} else if (file_exists("/etc/redhat-release")) {
-		$ret['os'] = 'rhel';
-		$ret['version'] = file_get_contents("/etc/redhat-release");
-		$ret['pointversion'] = find_os_pointversion();
-	}
+	$ret = array(
+		'os' => find_os_distro(),
+		'version' => find_os_release(),
+		'pointversion' => find_os_pointversion(),
+	);
 
-/* -- not work because no driver for centos inside /opt/kloxo/file/conf
-
-	$ret['os'] = find_os_distro();
-	$ret['version'] = find_os_release();
-	$ret['pointversion'] = find_os_pointversion();
-*/
 	if (lxfile_exists("__path_program_etc/install_xen") || lxfile_exists("/proc/xen")) {
 		$ret['vpstype'] = "xen";
 		$ret['xenlocation'] = vg_complete();
 	}
 
 	if ($type) {
-		return $ret[$type];
+		return $ret[$type] ?? null;
 	}
 
 	return $ret;
@@ -194,76 +184,37 @@ function find_os_release()
 
 function find_os_pointversion()
 {
-/*
-	if (file_exists("/etc/fedora-release")) {
-		$release = trim(file_get_contents("/etc/fedora-release"));
-		$osv = explode(" ", $release);
-		if (strtolower($osv[1]) === 'core') {
-			$osversion = "fedora-" . $osv[3];
-		} else {
-			$osversion = "fedora-" . $osv[2];
-		}
-		return $osversion;
-	}
-
-	if (file_exists("/etc/redhat-release")) {
-		$release = trim(file_get_contents("/etc/redhat-release"));
-		$osv = explode(" ", $release);
-		if (isset($osv[6])) {
-			$osversion = "rhel-" . $osv[6];
-		} else {
-			$oss = explode(".", $osv[2]);
-			$osversion = "centos-" . $oss[0];
-		}
-		return $osversion;
-	}
-*/
 	return find_os_selecttype('pointversion');
 }
 
 function find_os_selecttype($select)
 {
-	// list os support
-	$ossup = array('redhat' => 'rhel', 'fedora' => 'fedora', 'centos' => 'centos');
-	
-	foreach(array_keys($ossup) as $k) {
-		$osrel = file_get_contents("/etc/{$k}-release");
-		
-		if ($osrel) {
-				if ($select === 'release') {
-					return $osrel;
-				}
-				
-				$osrel = strtolower(trim($osrel));
-				
-				break;
+	// Ubuntu-only panel. Prefer /etc/os-release; never probe CentOS/RHEL release files.
+	$id = 'ubuntu';
+	$ver = 'unknown';
+	$pretty = 'Ubuntu';
+	if (is_readable('/etc/os-release')) {
+		$vars = @parse_ini_file('/etc/os-release');
+		if (is_array($vars)) {
+			$id = strtolower((string) ($vars['ID'] ?? 'ubuntu'));
+			$ver = (string) ($vars['VERSION_ID'] ?? 'unknown');
+			$pretty = (string) ($vars['PRETTY_NAME'] ?? $pretty);
 		}
 	}
-	
-	// specific for 'red hat'
-	$osrel = str_replace('red hat', 'redhat', $osrel);
-
-	$osver = explode(" ", $osrel);
-
-	$verpos = sizeof($osver) - 2;
-
-	if (array_key_exists($osver[0], $ossup)) {
-		// specific for 'red hat'
-		if ($osrel === 'redhat') {
-			$oss = $osver[$verpos];
-		}
-		else {
-			$mapos = explode(".", $osver[$verpos]);
-			$oss = $mapos[0];
-		}
-
-		if ($select === 'distro') {
-			return $ossup[$osver[0]];
-		}
-		else if ($select === 'pointversion') {
-			return $ossup[$osver[0]]."-".$oss;
-		}
+	if ($id !== 'ubuntu' && $id !== 'debian') {
+		$id = 'ubuntu';
 	}
+	if ($select === 'distro') {
+		return $id;
+	}
+	if ($select === 'release') {
+		return $pretty;
+	}
+	if ($select === 'pointversion') {
+		return $id . '-' . $ver;
+	}
+
+	return null;
 }
 
 function lscandir_without_dot($arg, $dotflag = false)

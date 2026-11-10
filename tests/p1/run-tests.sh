@@ -110,15 +110,15 @@ if grep -q "'web' => 'apache'" "$ROOT/kloxo/httpdocs/lib/html/lib.php"; then
 else
   ok "lib.php no longer defaults web to apache"
 fi
-if grep -q 's:3:"web";s:5:"nginx"' "$ROOT/kloxo/install/step2.inc"; then
-  ok "legacy installer serialised default web=nginx"
+if [[ ! -e "$ROOT/kloxo/install" ]] && [[ ! -f "$ROOT/kloxo/file/driver/redhat.inc" ]]   && [[ ! -f "$ROOT/kloxo/httpdocs/driver/pserver/package__yumlib.php" ]]   && [[ ! -f "$ROOT/kloxo/httpdocs/driver/pserver/service__redhatlib.php" ]]   && [[ ! -f "$ROOT/kloxo/httpdocs/driver/pserver/component__rpmlib.php" ]]   && [[ ! -f "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__redhatlib.php" ]]; then
+  ok "CentOS legacy installer and Red Hat/yum/rpm drivers are removed"
 else
-  bad "legacy installer serialised default web=nginx"
+  bad "CentOS legacy installer and Red Hat/yum/rpm drivers are removed"
 fi
-if grep -q 's:3:"web";s:6:"apache"' "$ROOT/kloxo/install/step2.inc" "$ROOT/kloxo/install/installer.php"; then
-  bad "legacy installer no longer serialises web=apache"
+if grep -q "pg_package.*=.*'aptget'" "$ROOT/kloxo/bin/install/init-panel-db"   && grep -q "\$driver\['package'\] = \"aptget\"" "$ROOT/kloxo/file/driver/debian.inc"; then
+  ok "Ubuntu package driver is aptget"
 else
-  ok "legacy installer no longer serialises web=apache"
+  bad "Ubuntu package driver is aptget"
 fi
 
 if ! grep -q 'Qmail-toaster' "$ROOT/kloxo/httpdocs/lib/sgbl.php" \

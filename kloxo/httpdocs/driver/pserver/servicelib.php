@@ -236,10 +236,6 @@ class Service extends Lxdb
 	//	$nlist["syncserver"] = "10%";
 		$nlist["servicename"] = "10%";
 
-		if ($driverapp === 'redhat') {
-			$nlist["grepstring"] = "10%";
-		}
-
 		$nlist["button_start_f"] = '5%';
 		$nlist["button_stop_f"] = '5%';
 		$nlist["button_restart_f"] = '5%';
@@ -320,10 +316,6 @@ class Service extends Lxdb
 
 		$vlist['servicename'] = array('s', $list);
 		$vlist['description'] = array('m', null);
-
-		if ($driverapp === 'redhat') {
-			$vlist['grepstring'] = array('m', null);
-		}
 
 		$ret['variable'] = $vlist;
 		$ret['action'] = "add";

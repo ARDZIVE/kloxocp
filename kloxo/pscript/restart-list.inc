@@ -6,7 +6,7 @@ if [ "$(ps --no-headers -o comm 1)" == "systemd" ] ; then
 	list_phpfpm=($(systemctl list-unit-files --type=service|awk '{print $1}'|sed 's/\.service//g'|grep ^'php'|grep '\-fpm'))
 else
 	#list_phpfpm=($(ls -ld /etc/rc.d/init.d/php*-fpm|awk '{print $9}'|sed 's:/etc/rc.d/init.d/::g'|tr '\n' ' '))
-	list_phpfpm=($(chkconfig --list|grep ':on'|grep ^'php'|grep '\-fpm'|awk '{print $1}'|tr '\n' ' '))
+	list_phpfpm=($(systemctl list-unit-files --type=service --state=enabled 2>/dev/null | awk '/^php.*-fpm\.service/{sub(/\.service/,""); print $1}' | tr '\n' ' '))
 fi
 
 list_web=(kloxo-webcache kloxo-webproxy spawn-fcgi memcached nginx hiawatha httpd apache2 htcacheclean)

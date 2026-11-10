@@ -684,10 +684,10 @@ if grep -q 'function kloxo_curl_close' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" 
 else
   bad "first-party curl_close is PHP 8.5-safe"
 fi
-if ! grep -nE '=\s*`\$cmd`|=\s*`yum |=\s*`up2date' "$ROOT/kloxo/httpdocs/driver/pserver/package__yumlib.php" "$ROOT/kloxo/httpdocs/driver/pserver/package__up2datelib.php"; then
-  ok "package drivers do not use deprecated backticks"
+if [[ ! -f "$ROOT/kloxo/httpdocs/driver/pserver/package__yumlib.php" ]]   && [[ ! -f "$ROOT/kloxo/httpdocs/driver/pserver/package__up2datelib.php" ]]   && [[ -f "$ROOT/kloxo/httpdocs/driver/pserver/package__aptgetlib.php" ]]; then
+  ok "yum/up2date package drivers removed; aptget remains"
 else
-  bad "package drivers do not use deprecated backticks"
+  bad "yum/up2date package drivers removed; aptget remains"
 fi
 if grep -F -q 'php_admin_flag[register_argc_argv] = off' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
   ok "panel FPM does not register argc/argv from the query string"

@@ -4,75 +4,42 @@ if [ "$1" == "--help" ] || [ "$1" == "-h" ] ; then
 	echo "  format: sh $0 [--force|-y]"
 	echo " ------------------------------------------------------------------------------"
 	echo "  --force or -y"
-	echo "      - example: running 'service httpd restart' instead custom 'restart'"
+	echo "      - example: running 'systemctl restart httpd' instead custom 'restart'"
 	echo "        declare inside /opt/kloxo/etc/process"
 	echo "      - use it if trouble restart without '--force' or '-y'"
 	echo ""
 	exit
 else
 	ppath="/opt/kloxo/etc/process"
-	fpath="/opt/kloxo/etc/flag"
-	
-	stype=$(ps --no-headers -o comm 1)
 
 	for item in ${list[*]} ; do
-		svc_ok='no'
-		if [ "$(chkconfig --list 2>/dev/null|grep ^${item})" != "" ] ; then
-			svc_ok='yes'
+		if ! systemctl list-unit-files --type=service 2>/dev/null | grep -q "^${item}\.service"; then
+			continue
 		fi
-		#if [ "$(command -v systemctl)" != "" ] ; then
-		#if [ "$(ps --no-headers -o comm 1)" == "systemd" ] ; then
-		if [ "${stype}" == "systemd" ] ; then
-			if [ "$(systemctl list-unit-files --type=service|grep ^${item})" != "" ] ; then
-
-				svc_ok='yes'
+		if ! systemctl is-enabled --quiet "${item}" 2>/dev/null; then
+			if pgrep -x "${item}" >/dev/null 2>&1; then
+				systemctl stop "${item}" 2>/dev/null || true
 			fi
+			continue
 		fi
-
-		if [ "${svc_ok}" == 'yes' ] ; then
-			svc_on='no'
-			if [ "$(chkconfig --list 2>/dev/null|grep ^${item}|grep ':on')" != "" ] ; then
-				svc_on='yes'
+		echo ""
+		if [ "$1" == "--force" ] || [ "$1" == "-y" ] ; then
+			if [ "${item}" == "spawn-fcgi" ] ; then
+				rm -f /tmp/fcgiwrap.sock
 			fi
-			#if [ "$(command -v systemctl)" != "" ] ; then
-			#if [ "$(ps --no-headers -o comm 1)" == "systemd" ] ; then
-			if [ "${stype}" == "systemd" ] ; then
-				if [ "$(systemctl list-unit-files --type=service|grep ^${item}|grep 'enabled')" != "" ] ; then
-					svc_on='yes'
-				fi
-			fi
-
-			if [ "${svc_on}" == 'yes' ] ; then
-					echo ""
-					if [ "$1" == "--force" ] || [ "$1" == "-y" ] ; then
-						if [ "${item}" == "nsd" ] ; then
-							service ${item} restart
-						elif [ "${item}" == "spawn-fcgi" ] ; then
-							'rm' -f /tmp/fcgiwrap.sock
-							service ${item} restart
-						else
-							service ${item} restart
-						fi
-					else
-						if [ -f ${ppath}/custom.${item} ] ; then
-							sh ${ppath}/custom.${item}
-						elif [ -f ${ppath}/${item} ] ; then
-							sh ${ppath}/${item}
-						else
-							service ${item} restart
-						fi
-					fi
-
-					echo "-------------------------------------------------------------------"
+			systemctl restart "${item}" 2>/dev/null || true
+		else
+			if [ -f ${ppath}/custom.${item} ] ; then
+				sh ${ppath}/custom.${item}
+			elif [ -f ${ppath}/${item} ] ; then
+				sh ${ppath}/${item}
 			else
-				if [ "$(pgrep ^${item})" != "" ] ; then
-					service ${item} stop
-				fi
+				systemctl restart "${item}" 2>/dev/null || true
 			fi
 		fi
+		echo "-------------------------------------------------------------------"
 	done
 
 	echo ""
 	echo "- For help, type '$0 [--help|-h]'"
 fi
-

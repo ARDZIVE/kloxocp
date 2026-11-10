@@ -1,0 +1,59 @@
+#!/bin/bash
+# Kloxo CP — one-line installer bootstrap.
+#
+# Fresh Ubuntu 24.04 or 26.x as root:
+#
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
+#
+# With flags (note bash -s --):
+#
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --yes
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
+#
+# No questions by default. Full stack (Nginx, MariaDB, Exim, Dovecot, Rspamd,
+# BIND, Pure-FTPd, UFW, Fail2Ban). Panel opens on https://<ip>:7777/ as admin/admin.
+#
+# This file only fetches install.sh and runs it. apt never reads the pipe
+# (install.sh redirects stdin from /dev/null before any package work).
+set -euo pipefail
+
+KLOXO_GET_URL="${KLOXO_GET_URL:-https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh}"
+KLOXO_GET_TMP="${KLOXO_GET_TMP:-/tmp/kloxocp-install.sh}"
+
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+[[ "$(id -u)" -eq 0 ]] || die "run as root (curl ... | sudo bash)"
+
+# Prefer a sibling install.sh when this tree was copied onto the server.
+HERE=""
+if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+  HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+if [[ -n "$HERE" && -f "$HERE/install.sh" && -f "$HERE/kloxo/bin/kloxocp" ]]; then
+  exec bash "$HERE/install.sh" "$@"
+fi
+
+need_fetcher() {
+  command -v curl >/dev/null 2>&1 && return 0
+  command -v wget >/dev/null 2>&1 && return 0
+  return 1
+}
+
+if ! need_fetcher; then
+  command -v apt-get >/dev/null 2>&1 || die "need curl or wget (or apt-get to install curl)"
+  export DEBIAN_FRONTEND=noninteractive
+  # stdin may be this script when piped; never let apt consume it
+  apt-get -o DPkg::Lock::Timeout=600 update </dev/null
+  apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl </dev/null
+fi
+
+url="${KLOXO_GET_URL}?nocache=$(date +%s)"
+printf 'Kloxo CP: downloading installer...\n'
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL "$url" -o "$KLOXO_GET_TMP" || die "download failed: $KLOXO_GET_URL"
+else
+  wget -qO "$KLOXO_GET_TMP" "$url" || die "download failed: $KLOXO_GET_URL"
+fi
+chmod 0700 "$KLOXO_GET_TMP"
+exec bash "$KLOXO_GET_TMP" "$@"

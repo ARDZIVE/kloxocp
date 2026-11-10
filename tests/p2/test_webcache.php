@@ -24,12 +24,14 @@ include_once $doc . '/lib/html/include.php';
 
 // driver lists
 $lists = array();
-foreach (array('debian.inc', 'rhel.inc') as $inc) {
+foreach (array('debian.inc') as $inc) {
 	$driver = array();
 	include $root . '/file/driver/' . $inc;
 	$lists[$inc] = $driver['webcache'] ?? null;
 }
-if ($lists['debian.inc'] === array('none', 'nginx') && $lists['rhel.inc'] === array('none', 'nginx')) {
+if ($lists['debian.inc'] === array('none', 'nginx')
+	&& !is_file($root . '/file/driver/rhel.inc')
+	&& !is_file($root . '/file/driver/redhat.inc')) {
 	ok('Switch Program web cache list is none or nginx (no varnish/squid/trafficserver)');
 } else {
 	bad('Switch Program web cache list is none or nginx', json_encode($lists));

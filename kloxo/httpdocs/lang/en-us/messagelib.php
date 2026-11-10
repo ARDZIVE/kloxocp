@@ -260,7 +260,7 @@ $__information['lxbackup_updateform_restore_from_file_pre'] = "<p>Pick the archi
 $__information['lxbackup_updateform_restore_from_ftp_pre'] = $__information['lxbackup_updateform_restore_from_file_pre'];
 
 $__information['phpini_updateform_edit_admin_pre'] = "<p>Installing PHP modules (like xcache/ioncube/zend/suhosin) rpm via yum. Installing these modules depend on php branch and version installed on system.</p>" .
-	"<p>If using 'php-branch' in 'php used' and using php53u, install with 'yum install php53u-xcache' and then try 'php -m' for to make sure.</p>" .
+	"<p>If using 'php-branch' in 'php used' and using php53u, install the matching phpX.Y module with apt (Webserver Configure > Multiple PHP) and run 'php -m'.</p>" .
 	"<p>Ask to <a href='https://kloxocp.invalid' target='_blank'>forum</a> to know how to install php extension for 'multiple php'. Generally, using 'sh /script/phpm-extension-installer'.</p>" .
 	"<p>Click <url:o=serverweb&a=show>[here]</url> to install another php for 'Multiple PHP'.</p>" .
 	"<p><b>Note:</b></p>" .

@@ -99,23 +99,28 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-DATE_SUB='$(date +%s)'
-ONELINER="sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update; apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL \"https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=${DATE_SUB}\" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'"
-if grep -Fqx "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh"; then
-  ok "README and install.sh share the same one-liner"
+ONELINER='curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash'
+if grep -Fq "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh" \
+  && grep -Fq "$ONELINER" "$ROOT/get"; then
+  ok "README, install.sh and get share the same one-liner"
 else
-  bad "README and install.sh share the same one-liner"
+  bad "README, install.sh and get share the same one-liner"
 fi
-if echo "$ONELINER" | grep -Fq 'curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)"' \
-  && echo "$ONELINER" | grep -q '/tmp/kloxocp-install.sh' \
-  && echo "$ONELINER" | grep -q 'bash /tmp/kloxocp-install.sh' \
-  && ! echo "$ONELINER" | grep -q 'curl | bash' \
+if [[ -f "$ROOT/get" ]] \
+  && grep -q 'KLOXO_GET_URL' "$ROOT/get" \
+  && grep -q 'exec bash "$KLOXO_GET_TMP"' "$ROOT/get" \
+  && grep -q 'apt-get.*</dev/null' "$ROOT/get" \
+  && grep -q 'exec </dev/null' "$ROOT/install.sh" \
+  && grep -q 'print_banner' "$ROOT/install.sh" \
+  && grep -q 'ensure_usable_hostname' "$ROOT/install.sh" \
+  && grep -q 'step "' "$ROOT/install.sh" \
   && ! grep -q 'github.com/ARDZIVE/kloxocp/raw/' "$ROOT/README.md" \
   && ! grep -q 'github.com/ARDZIVE/kloxocp/raw/' "$ROOT/install.sh"; then
-  ok "one-liner downloads install.sh then runs the file"
+  ok "get bootstrap fetches install.sh; install is pipe-safe with progress steps"
 else
-  bad "one-liner downloads install.sh then runs the file"
+  bad "get bootstrap fetches install.sh; install is pipe-safe with progress steps"
 fi
+check "get bash -n" bash -n "$ROOT/get"
 if grep -q 'pure-ftpd redis-server iproute2 ufw imagemagick' "$ROOT/install.sh" \
   && grep -q 'PROFILE="full"' "$ROOT/install.sh" \
   && grep -q 'WITH_MAIL=1' "$ROOT/install.sh" \
@@ -544,10 +549,10 @@ if grep -n 'db_get_value("serverweb"' -A0 "$ROOT/kloxo/httpdocs/driver/pserver/p
 else
   ok "phpini sync uses php_type column (not php-type)"
 fi
-if grep -q 'KloxoIpaddr::currentIpv4' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__redhatlib.php" && grep -q 'KloxoIpaddr::refuseNetworkWrite' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__redhatlib.php"; then
-  ok "redhat ip driver reads ip(8) and refuses Ubuntu writes"
+if [[ ! -f "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__redhatlib.php" ]]; then
+  ok "CentOS redhat ip driver removed (Ubuntu uses debian)"
 else
-  bad "redhat ip driver reads ip(8) and refuses Ubuntu writes"
+  bad "CentOS redhat ip driver removed (Ubuntu uses debian)"
 fi
 if grep -q 'KloxoIpaddr::currentIpv4' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__debianlib.php" \
   && grep -q 'ipaddress::fixstatus' "$ROOT/kloxo/httpdocs/driver/pserver/ipaddress__debianlib.php" \
@@ -894,7 +899,7 @@ awk '/^codename\(\) \{/{f=1} /^pkgs_for\(\) \{/{f=0} f{print}' "$ROOT/kloxo/bin/
   | sed -e "s#/etc/os-release#$SP/osrel/os-release#g" \
         -e "s#/etc/apt/sources.list.d/#$SP/sources/#g" \
         -e "s#/etc/apt/keyrings/#$SP/keyrings/#g" > "$SP/fn.sh"
-{ echo 'log() { echo "$*" >> "'"$SP"'/log"; }'; echo 'apt_has() { apt-cache show "$1" >/dev/null 2>&1; }'; cat "$SP/fn.sh"; } > "$SP/fn2.sh"
+{ echo 'ONLY_VERS=()'; echo 'log() { echo "$*" >> "'"$SP"'/log"; }'; echo 'apt_has() { apt-cache show "$1" >/dev/null 2>&1; }'; cat "$SP/fn.sh"; } > "$SP/fn2.sh"
 if [ -s "$SP/fn.sh" ] && ! grep -Eq '(^| )/etc/(apt|os-release)' "$SP/fn.sh"; then ok "site-php functions extracted with paths remapped"; else bad "site-php extraction"; fi
 run_sp() { ( PATH="$SP/bin:$PATH"; . "$SP/fn2.sh"; "$@" ) >/dev/null 2>&1; }
 : > "$SP/calls"; : > "$SP/log"; touch "$SP/sources/ondrej-ubuntu-php-resolute.sources" "$SP/sources/ubuntu.sources" "$SP/sources/sury-php.sources"

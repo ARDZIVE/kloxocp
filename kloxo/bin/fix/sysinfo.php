@@ -17,7 +17,7 @@ $out = null;
 
 $mysqlbranch = getRpmBranchInstalled('mysql');
 if ($mysqlbranch) {
-	exec("rpm -qa {$mysqlbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($mysqlbranch) . ' 2>/dev/null', $out);
 	$appmysql = trim($out[0]);
 } else {
 	$appmysql = '--uninstalled--';
@@ -27,7 +27,7 @@ $out = null;
 
 $phpbranch = getRpmBranchInstalled('php');
 if ($phpbranch) {
-	exec("rpm -qa {$phpbranch}-cli", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($phpbranch . '-cli') . ' 2>/dev/null', $out);
 	$appphp = trim($out[0]);
 } else {
 	$appphp = '--uninstalled--';
@@ -55,7 +55,7 @@ foreach ($apachelist as $k => $v) {
 	$apachebranch = getRpmBranchInstalled($v);
 
 	if ($apachebranch) {
-		exec("rpm -qa {$apachebranch}", $out);
+		exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($apachebranch) . ' 2>/dev/null', $out);
 		$appApache = trim($out[0]);
 	}
 }
@@ -69,7 +69,7 @@ foreach ($lighttpdlist as $k => $v) {
 	$lighttpdbranch = getRpmBranchInstalled($v);
 
 	if ($lighttpdbranch) {
-		exec("rpm -qa {$lighttpdbranch}", $out);
+		exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($lighttpdbranch) . ' 2>/dev/null', $out);
 		$appLighttpd = trim($out[0]);
 	}
 }
@@ -83,7 +83,7 @@ foreach ($nginxlist as $k => $v) {
 	$nginxbranch = getRpmBranchInstalled($v);
 
 	if ($nginxbranch) {
-		exec("rpm -qa {$nginxbranch}", $out);
+		exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($nginxbranch) . ' 2>/dev/null', $out);
 		$appNginx = trim($out[0]);
 	}
 }
@@ -97,7 +97,7 @@ foreach ($hiawathalist as $k => $v) {
 	$hiawathabranch = getRpmBranchInstalled($v);
 
 	if ($hiawathabranch) {
-		exec("rpm -qa {$hiawathabranch}", $out);
+		exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($hiawathabranch) . ' 2>/dev/null', $out);
 		$appHiawatha = trim($out[0]);
 	}
 }
@@ -106,7 +106,7 @@ $out = null;
 
 $atsbranch = getRpmBranchInstalled('trafficserver');
 if ($atsbranch) {
-	exec("rpm -qa {$atsbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($atsbranch) . ' 2>/dev/null', $out);
 	$appats = trim($out[0]);
 } else {
 	$appats = '--uninstalled--';
@@ -116,7 +116,7 @@ $out = null;
 
 $squidbranch = getRpmBranchInstalled('squid');
 if ($squidbranch) {
-	exec("rpm -qa {$squidbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($squidbranch) . ' 2>/dev/null', $out);
 	$appsquid = trim($out[0]);
 } else {
 	$appsquid = '--uninstalled--';
@@ -126,7 +126,7 @@ $out = null;
 
 $varnishbranch = getRpmBranchInstalled('varnish');
 if ($varnishbranch) {
-	exec("rpm -qa {$varnishbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($varnishbranch) . ' 2>/dev/null', $out);
 	$appvarnish = trim($out[0]);
 } else {
 	$appvarnish = '--uninstalled--';
@@ -136,7 +136,7 @@ $out = null;
 
 $bindbranch = getRpmBranchInstalled('bind');
 if ($bindbranch) {
-	exec("rpm -qa {$bindbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($bindbranch) . ' 2>/dev/null', $out);
 	$appbind = trim($out[0]);
 } else {
 	$appbind = '--uninstalled--';
@@ -146,7 +146,7 @@ $out = null;
 
 $djbdnsbranch = getRpmBranchInstalled('djbdns');
 if ($djbdnsbranch) {
-	exec("rpm -qa {$djbdnsbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($djbdnsbranch) . ' 2>/dev/null', $out);
 	$appdjbdns = trim($out[0]);
 } else {
 	$appdjbdns = '--uninstalled--';
@@ -156,7 +156,7 @@ $out = null;
 
 $nsdbranch = getRpmBranchInstalled('nsd');
 if ($nsdbranch) {
-	exec("rpm -qa {$nsdbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($nsdbranch) . ' 2>/dev/null', $out);
 	$appnsd = trim($out[0]);
 } else {
 	$appnsd = '--uninstalled--';
@@ -166,7 +166,7 @@ $out = null;
 
 $pdnsbranch = getRpmBranchInstalled('pdns');
 if ($pdnsbranch) {
-	exec("rpm -qa {$pdnsbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($pdnsbranch) . ' 2>/dev/null', $out);
 	$apppdns = trim($out[0]);
 } else {
 	$apppdns = '--uninstalled--';
@@ -176,7 +176,7 @@ $out = null;
 
 $yadifabranch = getRpmBranchInstalled('yadifa');
 if ($yadifabranch) {
-	exec("rpm -qa {$yadifabranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($yadifabranch) . ' 2>/dev/null', $out);
 	$appyadifa = trim($out[0]);
 } else {
 	$appyadifa = '--uninstalled--';
@@ -186,7 +186,7 @@ $out = null;
 
 $dovecotbranch = getRpmBranchInstalled('dovecot');
 if ($dovecotbranch) {
-	exec("rpm -qa {$dovecotbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($dovecotbranch) . ' 2>/dev/null', $out);
 	$appdovecot = trim($out[0]);
 } else {
 	$appdovecot = '--uninstalled--';
@@ -222,7 +222,7 @@ $out = null;
 
 $pop3app = slave_get_driver('pop3');
 
-exec("rpm -qa {$pop3app}-toaster", $out);
+$out = array(); if (isDebInstalled('dovecot-core') || isDebInstalled('dovecot')) { $out[] = 'dovecot'; }
 
 if (count($out) > 0) {
 	$pop3app = $out[0];
@@ -234,7 +234,7 @@ $out = null;
 
 $smtpapp = slave_get_driver('smtp');
 
-exec("rpm -qa {$smtpapp}-toaster", $out);
+$out = array(); if (isDebInstalled('exim4-daemon-heavy') || isDebInstalled('exim4') || isDebInstalled('postfix')) { $out[] = isDebInstalled('postfix') ? 'postfix' : 'exim4'; }
 
 if (count($out) > 0) {
 	$smtpapp = $out[0];
@@ -248,7 +248,7 @@ $spamapp = slave_get_driver('spam');
 
 if ($spamapp === 'spamassassin') { $spamapp === 'spamassassin-toaster'; }
 
-exec("rpm -qa {$spamapp}", $out);
+exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($spamapp) . ' 2>/dev/null', $out);
 
 if (count($out) > 0) {
 	$spamapp = $out[0];
@@ -268,7 +268,7 @@ $out = null;
 
 $ftpbranch = getRpmBranchInstalled('pure-ftpd');
 if ($ftpbranch) {
-	exec("rpm -qa {$ftpbranch}", $out);
+	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($ftpbranch) . ' 2>/dev/null', $out);
 	$appftp = trim($out[0]);
 } else {
 	$appftp = '--uninstalled--';
@@ -284,7 +284,7 @@ $webstatsprog = ($gen->webstatisticsprogram) ? $gen->webstatisticsprogram : 'aws
 $out = null;
 
 // MR -- use grep because possible as kloxo-stats-<statsprog> or just <statsprog>
-exec("rpm -qa|grep {$webstatsprog}", $out);
+$out = array(); if (is_string($webstatsprog) && $webstatsprog !== '' && isDebInstalled($webstatsprog)) { $out[] = $webstatsprog; }
 
 if (count($out) > 0) {
 	$appstats = $out[0];

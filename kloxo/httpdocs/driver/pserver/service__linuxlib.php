@@ -13,18 +13,11 @@ class Service__Linux extends Lxlclass
 		$val = array_remove($val, $sgbl->__var_programname_imap);
 		$val = array_remove($val, $sgbl->__var_programname_mmail);
 	*/
-		// MR not use option '--type=sysv' because trouble in CentOS 5
-		exec("chkconfig --list 2>/dev/null|awk '{print $1}'|grep -v ':'", $val1);
-
+		$val1 = array();
 		$val2 = array();
-
-	//	exec("command -v systemctl", $test);
-
-	//	if (count($test) > 0) {
 		if (getServiceType() === 'systemd') {
 			exec("systemctl list-unit-files --type=service|awk '{print $1}'|sed 's/\.service//g'", $val2);
 		}
-
 		$val = lx_array_merge($val1, $val2);
 
 		$nval = self::getMainServiceList();
@@ -947,15 +940,6 @@ class Service__Linux extends Lxlclass
 		}
 		if (self::hasSystemd()) {
 			return self::bootStateOn($unit);
-		}
-
-		try {
-			$sysv = lxshell_output('chkconfig', '--list', $unit);
-		} catch (Throwable $e) {
-			$sysv = '';
-		}
-		if (is_string($sysv) && $sysv !== '' && strpos($sysv, ':on') !== false) {
-			return true;
 		}
 
 		return false;

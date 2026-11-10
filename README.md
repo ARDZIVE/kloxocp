@@ -27,35 +27,37 @@ SMTP, IMAP and spam. Apache and Knot stay installed but disabled until selected.
 ## Install
 
 Fresh **Ubuntu 24.04 or 26.x**, as root, at least ~2 GB RAM and 10 GB disk.
-Do not install on a machine that already runs another control panel. Do not
-pipe the script into bash (`curl | bash` breaks apt).
+Do not install on a machine that already runs another control panel.
 
 ```bash
-sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
-apt-get -o DPkg::Lock::Timeout=600 update
-apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
-curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh
-bash /tmp/kloxocp-install.sh'
+curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 ```
 
-The script clones or resets `/usr/local/src/kloxo-cp` to GitHub `main`,
-installs to `/opt/kloxo`, enables UFW (panel ports 7777/7778 and common
-SSH/web/FTP/DNS/mail), and starts the panel. Log: `/var/log/kloxo-install.log`.
+That is the whole install. No questions, no hostname quiz, no service picker.
+Full stack by default (Nginx, MariaDB, Exim, Dovecot, Rspamd, BIND, Pure-FTPd,
+UFW, Fail2Ban). Progress prints as `[1/8] … [8/8]`. Log:
+`/var/log/kloxo-install.log`.
 
 | Flag | Use |
 |---|---|
-| *(none)* | Full stack (Exim, Dovecot, Rspamd) |
-| `--profile=core` | Panel only, no MTA packages |
+| *(none)* | Full stack |
+| `--profile=core` | Panel + sites, no MTA packages |
 | `--force` | Below the RAM/disk floor |
-| `--fresh` | Wipe the previous panel first (asks `YES`; add `--yes` to skip) |
+| `--fresh --yes` | Wipe the previous panel first |
 | `--slave --slave-password=SECRET` | Backend host, no UI (open TCP 7779 from the master) |
+
+Pass flags after `bash -s --`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
+```
 
 `--fresh` removes the program, panel SQLite, panel MariaDB accounts and saved
 passwords, then reinstalls. Customer sites, `/var/vmail`, customer databases,
 UFW rules and apt packages are kept.
 
 To install this working tree instead of GitHub `main`, copy it to the server
-**without** `.git` and run `sudo bash install.sh` from that directory.
+and run `sudo bash get` (or `sudo bash install.sh`) from that directory.
 
 ### First login
 
@@ -68,13 +70,12 @@ password printed at install and saved in `/root/kloxo-recovery-password`.
 
 ### Update
 
-After the last commit is on GitHub `main`, re-run the installer on the server
-(as root). It fetches that commit, resets `/usr/local/src/kloxo-cp`, and
+Re-run the same one-liner. It fetches GitHub `main`, resets the clone, and
 installs into `/opt/kloxo`. The admin password is kept unless you set
 `KLOXO_ADMIN_PASSWORD`.
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && sudo bash /tmp/kloxocp-install.sh
+curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 ```
 
 `kloxocp update` is not built (exits 2). Signed apt packages are not published.

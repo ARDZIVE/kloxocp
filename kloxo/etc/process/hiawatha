@@ -4,13 +4,13 @@ echo "*** Restart for HIAWATHA service ***"
 
 ## tricky detect if hiawatha as web server
 if [ "$(grep 'hiawatha' /opt/kloxo/etc/slavedb/driver)" == "" ] ; then
-	chkconfig hiawatha off >/dev/null 2>&1
+	systemctl disable --now hiawatha >/dev/null 2>&1 || true
 	#if [ "$(service hiawatha status|grep '(pid')" == "" ] ; then
 	if [ "$(pgrep ^hiawatha)" == "" ] ; then
 		killall -9 hiawatha >/dev/null 2>&1
 	fi
 else
-	chkconfig hiawatha on >/dev/null 2>&1
+	systemctl enable hiawatha >/dev/null 2>&1 || true
 fi
 
 if [ ! -f /var/run/hiawatha.pid ] ; then

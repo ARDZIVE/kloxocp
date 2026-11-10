@@ -55,7 +55,7 @@ class ReleaseNote extends Lxlclass
 
 		$ver = $out1[0];
 
-		exec("rpm -q --changelog kloxo7 | less", $out2);
+		$out2 = array("Kloxo CP release notes are in the git repository (CHANGELOG / commits); RPM changelogs are not used on Ubuntu.");
 
 		$result = array();
 

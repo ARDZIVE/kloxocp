@@ -1493,7 +1493,7 @@ TXT;
             'pg_ipaddress' => 'debian',
             'pg_service' => 'debian',
             'pg_component' => 'deb',
-            'pg_package' => 'apt-get',
+            'pg_package' => 'aptget',
         ];
     }
 

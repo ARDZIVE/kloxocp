@@ -23,7 +23,7 @@ Owner's requirements (non-negotiable unless the owner changes them):
 | The panel's own web server | **Hiawatha is kept** (as in Kloxo-MR), used only for the panel UI |
 | Billing | **None for now.** Owner will add it later; leave a clean extension point, do not integrate |
 | UI | **Keep the existing UI** |
-| Install | One command, under ~10 minutes on a clean server |
+| Install | One command (`curl …/get | sudo bash`), under ~10 minutes, no questions |
 | Updates | One command or button for the panel and every managed component (SQL, FTP, BIND, PHP versions, web, mail), with snapshot, validation, health check and **automatic rollback** |
 | Quality bar | "Most stable and viable": earned through tests, small scope, CI and release discipline (see `INSTALL_AND_UPDATE_DESIGN.md`) |
 | Mail | Exim + Dovecot + Rspamd + MariaDB (implemented, see section 5; re-run mail tests on Ubuntu) |
@@ -53,7 +53,7 @@ kloxo-cp/
     cexe/                        C sources: backend daemon (kloxo.c) only; no setuid helpers
     init/                        panel service units, Hiawatha base config, php-fpm templates
     file/                        service config templates (nginx, apache, bind, NEW file/mail/; Lighttpd/cache/unused-DNS trees removed)
-    install/                     LEGACY RPM/CentOS installer (reference only, to be replaced)
+    (CentOS install/ removed; use repo-root get + install.sh)
   docs/
     HANDOFF_BRIEFING.md          this file
     AUDIT_REPORT.md              security + PHP 8 audit and roadmap
@@ -68,7 +68,7 @@ kloxo-cp/
   tests/p1/                      P1 stack-shrink source invariants (php-cli only)
   tests/p2/                      P2 first-party PHP 8 parse + autoload characterization (php-cli only)
   tests/p3/                      P3 kloxocp CLI + snapshot/rollback (php-cli only)
-  install.sh                     Ubuntu 24.04 / 26.x bootstrap from https://github.com/ARDZIVE/kloxocp.git
+  get, install.sh                Ubuntu 24.04 / 26.x one-liner bootstrap (curl …/get | sudo bash)
   tests/install/                 init-panel-db + install-hiawatha + install-knot + install-apache source invariants (php-cli)
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
@@ -84,7 +84,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
    * Paths: program root `/opt/kloxo` (was `/usr/local/lxlabs/kloxo`), data `/home/kloxo`, mail home `/home/kloxomail`.
    * Display text "Kloxo CP"; Hiawatha ServerString `Hiawatha_for_KloxoCP`.
    * Dead upstream URLs (`download.lxcenter.org`, lxcenter.org, mratwork.com) replaced by `kloxocp.invalid` so the panel cannot call hosts the project does not control.
-   * Path-layout fixes in `install/installer.php`, `install/step2.inc`, `httpdocs/lib/sgbl.php`.
+   * Path-layout fixes in `httpdocs/lib/sgbl.php` (CentOS `install/` deleted).
    * SQL/schema files only received same-length edits (PHP-serialized strings inside).
 2. **Removed from the tree:** prebuilt ELF binaries `cexe/closeinput`, `closeallinput`, `lxmisc`; `pscript/setup-tht` (billing); upstream logo.
 3. **Security and PHP 8 audit** (static only): `docs/AUDIT_REPORT.md`.
@@ -713,7 +713,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
 
 * Internal `lx*` identifiers (`lxclass`, `lxlib`, `lxshell_*`, DB tables `lxguard*`, column `ser_lxadminconfig_b`, program name `lxlabsclient`). The DB stores PHP-serialized data; renames need tests first.
 * The service account **`lxlabs`** (system user/group) and DB replication user `lxlabsslave`. Some code uses the literal as a user name; a blind rename broke things in an early attempt. Plan: introduce one constant for the service account, then rename.
-* Legacy installer and RPM/yum logic in `install/` and parts of `pscript/`.
+* CentOS installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts removed; Ubuntu apt/systemd only.
 * Copyright/authorship lines (AGPL requirement).
 
 ---
@@ -788,7 +788,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
 
 ### P1: shrink the tree (phase 1b)
 1. **DONE for web/DNS.** Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`, `apache` (Nginx default; Apache 2.4 + PHP-FPM packaged, disabled). Webcache: `none`. DNS: `none`, `bind`, `knot` (BIND default; Knot DNS packaged, disabled). Panel Hiawatha kept in `init/`. Tests: `tests/p1/`.
-2. **PARTLY DONE.** qmail/courier/ezmlm/bogofilter drivers deleted; spamassassin stays until P4 exim UI drivers exist. Left on purpose: mailing-list UI without a backend, `mailtrafficlib` qmail-format log parser (needs an Exim parser), lxguard vpopmail log regex, legacy `kloxo/install/**`.
+2. **PARTLY DONE.** qmail/courier/ezmlm/bogofilter drivers deleted; spamassassin stays until P4 exim UI drivers exist. Left on purpose: mailing-list UI without a backend, `mailtrafficlib` qmail-format log parser (needs an Exim parser), lxguard vpopmail log regex, legacy CentOS `kloxo/install/**` deleted.
 3. **PARTIAL.** No Ubuntu package; `install-hiawatha` builds pinned 12.4
    (sha256 in the script). Config check is `hiawatha -k -c <init>`. **UNVERIFIED**
    on a real 24.04 VM. `lib.php` still contains dead Apache install/chown

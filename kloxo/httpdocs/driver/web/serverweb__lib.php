@@ -325,9 +325,9 @@ class serverweb__ extends lxDriverClass
 			}
 
 			if (stripos($t, 'php-fpm') !== false) {
-				exec("chkconfig php-fpm on >/dev/null 2>&1");
+				if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl enable php-fpm >/dev/null 2>&1"); }
 			} else {
-				exec("chkconfig php-fpm off >/dev/null 2>&1");
+				if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl disable php-fpm >/dev/null 2>&1"); }
 			}
 
 		//	$this->set_mpm($t);
@@ -421,7 +421,7 @@ class serverweb__ extends lxDriverClass
 		lxfile_cp(getLinkCustomfile($haecdpath, "fastcgi.conf"), $ehcdpath . "/fastcgi.conf");
 
 	//	lxshell_return("chkconfig", "php-fpm", "on");
-		exec("chkconfig php-fpm on >/dev/null 2>&1");
+		if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl enable php-fpm >/dev/null 2>&1"); }
 	}
 
 	function set_fcgid()
@@ -453,13 +453,13 @@ class serverweb__ extends lxDriverClass
 	function remove_phpfpm()
 	{
 		// MR -- no remove and just off/disable
-		exec("chkconfig php-fpm off >/dev/null 2>&1; service php-fpm stop");
+		if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl disable --now php-fpm >/dev/null 2>&1"); }
 	}
 
 	function rename_to_nonconf()
 	{
 		// MR -- use overwrite with 'inactive' content instead rename
-		// minimize 'effect' when running 'yum update'
+		// minimize effect when apt upgrades apache modules
 		$list = array('php', 'fastcgi', 'fcgid', 'ruid2', 'suphp', 'proxy_fcgi', 'itk');
 
 		foreach ($list as &$l) {

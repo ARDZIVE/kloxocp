@@ -5,25 +5,20 @@ $gl_class_array['dns__none'] =  "driver/dns/dns__nonelib.php";
 
 $gl_class_array['anonftpipaddress__pureftp'] =  "driver/ftp/anonftpipaddress__pureftplib.php";
 $gl_class_array['service__linux'] =  "driver/pserver/service__linuxlib.php";
-$gl_class_array['service__redhat'] =  "driver/pserver/service__redhatlib.php";
 $gl_class_array['service__debian'] =  "driver/pserver/service__debianlib.php";
 //--// $gl_class_array['service__windows'] =  "driver/pserver/service__windowslib.php";
-$gl_class_array['package__yum'] = "driver/pserver/package__yumlib.php";
-$gl_class_array['package__up2date'] = "driver/pserver/package__up2datelib.php";
 $gl_class_array['package__aptget'] = "driver/pserver/package__aptgetlib.php";
 //$gl_class_array['package__lxupdate'] = "driver/pserver/package__lxupdate.php";
 $gl_class_array['process__linux'] = "driver/pserver/process__linuxlib.php";
 //--// $gl_class_array['process__windows'] = "driver/pserver/process__windowslib.php";
 //--// $gl_class_array['odbc__windows'] = "driver/pserver/odbc__windowslib.php";
 //$gl_class_array['odbc__linux'] = "driver/pserver/odbc__linuxlib.php";
-$gl_class_array['component__rpm'] = "driver/pserver/component__rpmlib.php";
 $gl_class_array['component__deb'] = "driver/pserver/component__deblib.php";
 //--// $gl_class_array['component__windows'] = "driver/pserver/component__windowslib.php";
 $gl_class_array['uuser__linux'] =  "driver/pserver/uuser__linuxlib.php";
 //--// $gl_class_array['uuser__windows'] =  "driver/pserver/uuser__windowslib.php";
 $gl_class_array['dirlocation__linux'] =  "driver/pserver/dirlocation__linuxlib.php";
 
-$gl_class_array['ipaddress__redhat'] =  "driver/pserver/ipaddress__redhatlib.php";
 //--// $gl_class_array['ipaddress__windows'] =  "driver/pserver/ipaddress__windowslib.php";
 $gl_class_array['ipaddress__debian'] =  "driver/pserver/ipaddress__debianlib.php";
 $gl_class_array['diskusage__linux'] =  "driver/pserver/diskusage__linuxlib.php";

@@ -1,17 +1,16 @@
 #!/bin/bash
 # Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
-# Install (downloads this script from GitHub main, then clones or fetches origin/main):
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
-#   apt-get -o DPkg::Lock::Timeout=600 update
-#   apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
-#   curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh
-#   bash /tmp/kloxocp-install.sh'
-# One line:
-#   sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update; apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
+# Easiest install (no questions, full stack):
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 #
-# Optional: KLOXO_GIT_TOKEN for a private fork. Do not pipe this file into bash
-# (apt would steal stdin); wget/curl to a file, then bash it.
+# With flags:
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --yes
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
+#
+# Pipe-safe: this script does `exec </dev/null` before apt so package tools never
+# consume the pipe. Prefer the `get` bootstrap (downloads this file, then runs it).
+# Optional: KLOXO_GIT_TOKEN for a private fork.
 #
 # Does: pre-flight, clone (if needed), apt packages, /opt/kloxo layout, TLS keys,
 # lxphp.exe wrappers, kloxo-php systemd unit, pinned Hiawatha 12.4 build,
@@ -32,6 +31,9 @@
 # Does not: Let's Encrypt, signed kloxocp apt repo, kloxo-mail apply, verified two-host add.
 set -euo pipefail
 LOG="/dev/null"
+KLOXO_INSTALL_T0="$(date +%s)"
+KLOXO_STEP=0
+KLOXO_STEPS=8
 
 KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
@@ -54,58 +56,102 @@ ROOT="$KLOXO_ROOT_DEFAULT"
 
 usage() {
   cat <<EOF
-Kloxo CP ${KCP_VERSION} installer (Ubuntu 24.04 or 26.x)
+Kloxo CP ${KCP_VERSION} — Ubuntu 24.04 or 26.x
+
+  curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
+
+No questions. Full stack by default. Panel: https://<server-ip>:7777/  (admin/admin)
 
   sudo bash install.sh [--profile=full|core] [--yes] [--force]
   sudo bash install.sh --slave --slave-password=SECRET
 
-  --profile=full   default: core plus exim4-daemon-heavy (default MTA), dovecot, rspamd
-                   (Postfix is not apt-installed here; it conflicts with Exim)
-  --profile=core   php, nginx, mariadb, bind9, pure-ftpd, redis-server, ufw (enabled), fail2ban (enabled), imagemagick, webcache:8080, webproxy:30080; apache2/knot packaged, disabled
-  --slave          backend-only host; no panel UI (Kloxo-MR slave)
+  --profile=full   default: Exim + Dovecot + Rspamd (Postfix via Switch Program later)
+  --profile=core   panel + sites + DNS + FTP; no MTA packages
+  --slave          backend-only host (no UI on 7777)
   --slave-password=SECRET
-                   password the master uses when adding this host
-  --yes            non-interactive (assumed when stdin is not a TTY)
-  --force          continue below 2 GB RAM / 10 GB disk
-  --update         accepted; every run already git-fetches the clone
-  --fresh          remove the previous Kloxo CP install first (program root, panel
-                   database and its accounts, kloxo units, saved passwords, Fail2Ban
-                   panel jails), then install from scratch. Asks you to type YES
-                   (or pass --yes). Kept: apt packages, customer sites in /home/kloxo,
-                   mail in /var/vmail, customer databases, firewall rules, the lxlabs user.
+  --yes            non-interactive (default when stdin is not a TTY)
+  --force          allow <2 GB RAM / <10 GB disk
+  --fresh          wipe previous panel install first (type YES, or pass --yes)
   --dry-run        print the plan and exit
-  --src=DIR        clone location (default: ${KLOXO_SRC_DEFAULT})
-  --root=DIR       program root (default: ${KLOXO_ROOT_DEFAULT})
-  --branch=NAME    git branch (default: ${KLOXO_GIT_BRANCH})
-  --repo=URL       git URL (default: ${KLOXO_GIT_URL})
+  --src=DIR --root=DIR --branch=NAME --repo=URL
   --help
 
-Default panel login is admin/admin; the UI requires a password change
-after the first login. Override with KLOXO_ADMIN_PASSWORD (min 8 chars).
-Re-running on an existing install keeps the current admin password unless
-KLOXO_ADMIN_PASSWORD is set.
-Slave password: --slave-password= or KLOXO_SLAVE_PASSWORD (min 8 chars).
-
-Install on Ubuntu 24.04 or 26.x (root). Downloads this script from GitHub main,
-then clones or fetches origin/main:
-
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive
-  apt-get -o DPkg::Lock::Timeout=600 update
-  apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl
-  curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=\$(date +%s)" -o /tmp/kloxocp-install.sh
-  bash /tmp/kloxocp-install.sh'
-
-One line:
-
-  sudo bash -c 'export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=600 update; apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl && curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=\$(date +%s)" -o /tmp/kloxocp-install.sh && bash /tmp/kloxocp-install.sh'
-
-Source: https://github.com/ARDZIVE/kloxocp.git (public, branch main).
-This tree is NOT production-safe. Version ${KCP_VERSION}.
+Override admin password: KLOXO_ADMIN_PASSWORD (min 8). Re-runs keep the current
+password unless that variable is set. Slave: KLOXO_SLAVE_PASSWORD or --slave-password=.
 EOF
 }
 
 log() { printf '%s\n' "$*" | tee -a "$LOG" ; }
 die() { printf 'error: %s\n' "$*" | tee -a "$LOG" >&2 ; exit 1; }
+
+elapsed_fmt() {
+  local s=$(( $(date +%s) - KLOXO_INSTALL_T0 ))
+  printf '%dm%02ds' $((s / 60)) $((s % 60))
+}
+
+step() {
+  KLOXO_STEP=$((KLOXO_STEP + 1))
+  printf '\n==> [%d/%d] %s  (%s)\n' "$KLOXO_STEP" "$KLOXO_STEPS" "$*" "$(elapsed_fmt)" | tee -a "$LOG"
+}
+
+print_banner() {
+  local bar
+  bar="$(printf '%0.s=' $(seq 1 62))"
+  echo
+  echo "$bar"
+  echo "  Kloxo CP ${KCP_VERSION}"
+  echo "  One command. No questions. Full hosting stack."
+  echo "  Profile: ${PROFILE}   Type: ${INSTALL_TYPE}"
+  echo "  Log: ${LOG}"
+  echo "$bar"
+  echo
+}
+
+ensure_usable_hostname() {
+  # Never fail the install for a missing FQDN (Hestia and cPanel often do).
+  # If the host is blank/localhost, set a stable local name from the primary IP
+  # so TLS key generation and logs have something readable.
+  local h ip want
+  h="$(hostname -f 2>/dev/null || hostname 2>/dev/null || true)"
+  h="${h%%$'\n'*}"
+  case "$h" in
+    ''|localhost|localhost.localdomain)
+      ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+      if [[ -n "$ip" ]]; then
+        want="kloxo-$(printf '%s' "$ip" | tr '.:' '--').local"
+        if command -v hostnamectl >/dev/null 2>&1; then
+          hostnamectl set-hostname "$want" 2>/dev/null || hostname "$want" 2>/dev/null || true
+        else
+          hostname "$want" 2>/dev/null || true
+        fi
+        if ! grep -qE "^[[:space:]]*127\.0\.1\.1[[:space:]].*\b${want}\b" /etc/hosts 2>/dev/null; then
+          printf '127.0.1.1\t%s\n' "$want" >> /etc/hosts || true
+        fi
+        log "hostname was '${h:-empty}'; set to ${want}"
+      else
+        log "warn: hostname is '${h:-empty}' and no IP was found; continuing with IP login"
+      fi
+      ;;
+    *.*)
+      : # already an FQDN-ish name
+      ;;
+    *)
+      log "hostname '${h}' has no domain part; panel login still works by IP"
+      ;;
+  esac
+}
+
+warn_busy_panel_ports() {
+  local p busy=""
+  for p in 7777 7778; do
+    if ss -lnt 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${p}\$"; then
+      busy="${busy}${busy:+, }${p}"
+    fi
+  done
+  if [[ -n "$busy" ]]; then
+    log "warn: panel port(s) ${busy} already listening; install will restart kloxo-web"
+  fi
+}
 
 wait_unit() {
   local unit="$1" i
@@ -170,15 +216,19 @@ print_access_box() {
   box "Change the password on the first login; the panel requires it."
   box ""
   box "If the page does not load, allow TCP 7777 (and 7778) in the firewall."
-  box "A first-install password is saved in /root/kloxo-admin-password (0600)."
+  box "Password file: /root/kloxo-admin-password (0600)."
   if [[ -n "$rec" ]]; then
     box ""
-    box "Recovery console (still works when MariaDB or Nginx is down):"
+    box "Recovery console (works with MariaDB/Nginx down):"
     box "  ${url}recovery/"
     box "  Password : ${rec}"
-    box "Saved in /root/kloxo-recovery-password (0600). Reset it with:"
-    box "  php /opt/kloxo/bin/kloxocp recovery-password --generate"
+    box "Saved in /root/kloxo-recovery-password (0600)."
   fi
+  box ""
+  box "Next: change the admin password, then add a client and a domain."
+  box "Doctor:  php /opt/kloxo/bin/kloxocp doctor"
+  box "Log:     /var/log/kloxo-install.log"
+  box "Elapsed: $(elapsed_fmt)"
   echo "$bar"
   echo
 }
@@ -313,6 +363,15 @@ fi
 
 [[ "$(id -u)" -eq 0 ]] || die "run as root (sudo bash install.sh)"
 
+# Non-interactive when there is no TTY (curl|bash, CI, cloud-init).
+if [[ ! -t 0 && "$YES" -eq 0 ]]; then
+  YES=1
+fi
+
+print_banner
+ensure_usable_hostname
+warn_busy_panel_ports
+
 if [[ "$FRESH" -eq 1 ]]; then
   if [[ "$YES" -ne 1 ]]; then
     [[ -t 0 ]] || die "--fresh deletes the existing panel; run it from a terminal or add --yes"
@@ -361,6 +420,7 @@ if [[ "$mem_kb" -lt 1800000 || "$disk_kb" -lt 10485760 ]]; then
   fi
 fi
 
+step "Pre-flight checks"
 log "Kloxo CP ${KCP_VERSION} install starting $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 log "host=$(hostname -f 2>/dev/null || hostname) os=${os_pretty} profile=${PROFILE}"
 
@@ -520,6 +580,7 @@ drop_dead_ondrej_ppa() {
   done
 }
 
+step "Installing packages (this takes a few minutes)"
 wait_for_apt_locks
 drop_dead_ondrej_ppa
 apt-get update -y || log "warn: apt-get update reported errors; continuing"
@@ -551,6 +612,7 @@ if [[ "$WITH_MAIL" -eq 1 ]]; then
   systemctl disable --now postfix 2>/dev/null || true
 fi
 
+step "Fetching Kloxo CP source"
 log "Hiawatha is not an Ubuntu package; will build pinned 12.4 from source"
 
 clone_url="$KLOXO_GIT_URL"
@@ -591,6 +653,7 @@ fi
 
 [[ -f "$SRC/kloxo/bin/kloxocp" ]] || die "clone is missing kloxo/bin/kloxocp"
 
+step "Program layout, TLS keys and system accounts"
 mkdir -p /home/kloxo/httpd/cp /home/kloxo/client /home/kloxomail/mail
 if [[ -L "$ROOT" || ! -e "$ROOT" ]]; then
   ln -sfn "$SRC/kloxo" "$ROOT"
@@ -910,9 +973,11 @@ if ! systemctl start kloxo-php || ! wait_unit kloxo-php; then
   wait_unit kloxo-php || log "warn: kloxo-php still not active (will retry after Hiawatha)"
 fi
 
+step "Building panel web server (Hiawatha 12.4)"
 log "building Hiawatha 12.4 from source (not in Ubuntu apt)"
 bash "$ROOT/bin/install/install-hiawatha" --root="$ROOT"
 
+step "Starting Nginx, MariaDB, DNS, FTP, Redis and UFW"
 enable_default_stack
 prepare_apache
 prepare_webfront
@@ -923,6 +988,7 @@ fi
 prepare_knot
 ensure_installer_php
 
+step "Creating panel database and admin login"
 # Re-running the installer on an existing panel must not reset the admin UI
 # password. The login hash lives in panel.sqlite (not MariaDB kloxo.client).
 # Keep it unless KLOXO_ADMIN_PASSWORD is given.
@@ -1040,6 +1106,7 @@ if [[ "$ping" != *ok* ]]; then
   ss -lnt 2>/dev/null | grep 39000 || true
 fi
 
+step "Health check and finishing"
 export KLOXO_ROOT="$ROOT"
 export KLOXO_PHP="${KLOXO_PHP:-/usr/bin/php}"
 if [[ -f "$SRC/tests/p2/test_boot.php" ]]; then

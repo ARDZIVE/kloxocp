@@ -4205,14 +4205,8 @@ function get_class_for_table($table)
 
 function is_centosfive()
 {
-	$find = find_os_pointversion();
-	$check = strpos($find, 'centos-5');
-
-	if ($check !== false) {
-		return true;
-	} else {
-		return false;
-	}
+	// CentOS is not a supported target; kept as a always-false stub for old call sites.
+	return false;
 }
 
 function migrateResourceplan($class)
@@ -5676,88 +5670,136 @@ function getRpmBranchList($pname)
 	return $n;
 }
 
-function getRpmVersion($rpmname)
+function kloxo_deb_pkg_name($name)
 {
-
-	// MR -- use '-qa' because need no output if package not exits
-	exec("rpm -qa --qf '%{VERSION}\n' {$rpmname}", $out);
-
-	if (count($out) > 0) {
-		$ver = $out[0];
-	} else {
-		$ver = '0.0.0';
+	$name = is_string($name) ? trim($name) : '';
+	// CentOS httpd / mysqld names map to Ubuntu packages.
+	$map = array(
+		'httpd' => 'apache2',
+		'httpd24u' => 'apache2',
+		'mysqld' => 'mariadb-server',
+		'mysql' => 'mariadb-server',
+		'named' => 'bind9',
+		'pure-ftpd' => 'pure-ftpd',
+	);
+	if (isset($map[$name])) {
+		$name = $map[$name];
+	}
+	if ($name === '' || !preg_match('/^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/', $name)) {
+		return '';
 	}
 
-	return $ver;
+	return $name;
 }
 
-function getRpmVersionFromYum($rpmname)
+function getDebVersion($pkg)
 {
-	$ver = array();
-	exec("yum list {$rpmname}|grep '{$rpmname}.'|awk '{print \$2}'|awk -F'-'  '{print \$1}'", $ver);
-
-	if (!isset($ver[0]) || !is_string($ver[0]) || strpos($ver[0], 'Error:') !== false) {
+	$pkg = kloxo_deb_pkg_name($pkg);
+	if ($pkg === '') {
 		return '0.0.0';
 	}
+	$out = array();
+	$ret = 1;
+	exec('dpkg-query -W -f=\'${Version}\' ' . escapeshellarg($pkg) . ' 2>/dev/null', $out, $ret);
+	if ($ret !== 0 || !isset($out[0]) || trim((string) $out[0]) === '') {
+		return '0.0.0';
+	}
+	$ver = trim((string) $out[0]);
+	// Strip Debian epoch/revision noise for version_compare callers.
+	if (strpos($ver, ':') !== false) {
+		$ver = substr($ver, strpos($ver, ':') + 1);
+	}
+	if (strpos($ver, '-') !== false) {
+		$ver = substr($ver, 0, strpos($ver, '-'));
+	}
 
-	return $ver[0];
+	return $ver !== '' ? $ver : '0.0.0';
 }
 
+/** @deprecated name kept for callers; uses dpkg on Ubuntu */
+function getRpmVersion($rpmname)
+{
+	return getDebVersion($rpmname);
+}
+
+/** @deprecated name kept for callers; uses dpkg on Ubuntu */
+function getRpmVersionFromYum($rpmname)
+{
+	return getDebVersion($rpmname);
+}
+
+function setDebInstalled($pkg)
+{
+	$pkg = kloxo_deb_pkg_name($pkg);
+	if ($pkg === '') {
+		return;
+	}
+	if (class_exists('KloxoApt', false)) {
+		KloxoApt::install(array($pkg));
+		return;
+	}
+	lxshell_return('apt-get', '-y', 'install', $pkg);
+}
+
+/** @deprecated name kept for callers; uses apt on Ubuntu */
 function setRpmInstalled($rpmname)
 {
-	lxshell_return("yum", "-y", "install", $rpmname);
+	setDebInstalled($rpmname);
 }
 
+function setDebRemoved($pkg)
+{
+	global $login;
+
+	$pkg = kloxo_deb_pkg_name($pkg);
+	if ($pkg === '' || !isDebInstalled($pkg)) {
+		return;
+	}
+	$ret = lxshell_return('apt-get', '-y', 'remove', $pkg);
+	if ($ret) {
+		throw new lxException($login->getThrow("remove_failed"), '', $pkg);
+	}
+}
+
+/** @deprecated name kept for callers; uses apt on Ubuntu */
 function setRpmRemoved($rpmname)
 {
-	global $login;
-
-	if (!isRpmInstalled($rpmname)) {
-		return;
-	}
-
-	$ret = lxshell_return("rpm", "-e", "--nodeps", $rpmname);
-
-	if ($ret) {
-		throw new lxException($login->getThrow("remove_failed"), '', $rpmname);
-	}
+	setDebRemoved($rpmname);
 }
 
+/** @deprecated name kept for callers; uses apt on Ubuntu */
 function setRpmRemovedViaYum($rpmname)
 {
-	global $login;
-
-	if (!isRpmInstalled($rpmname)) {
-		return;
-	}
-
-	$ret = lxshell_return("yum", "-y", "remove", $rpmname);
-
-	if ($ret) {
-		throw new lxException($login->getThrow("remove_failed"), '', $rpmname);
-	}
+	setDebRemoved($rpmname);
 }
 
+/** CentOS yum-plugin-replace is gone; install the target package instead. */
 function setRpmReplaced($rpmname, $replacewith)
 {
-	global $login;
-
-	$ret = lxshell_return("yum", "-y", "replace", $rpmname, "--replace-with={$replacewith}");
-
-	if ($ret) {
-		throw new lxException($login->getThrow("replace_failed"), '', "{$rpmname} => {$replacewith}");
-	}
+	setDebRemoved($rpmname);
+	setDebInstalled($replacewith);
 }
 
-function isRpmInstalled($rpmname)
+function isDebInstalled($pkg)
 {
-	exec("rpm -qa {$rpmname}", $out);
-
-	if (count($out) > 0) {
-		return true;
-	} else {
+	$pkg = kloxo_deb_pkg_name($pkg);
+	if ($pkg === '') {
 		return false;
 	}
+	$out = array();
+	$ret = 1;
+	exec('dpkg-query -W -f=\'${Status}\' ' . escapeshellarg($pkg) . ' 2>/dev/null', $out, $ret);
+	if ($ret !== 0 || !isset($out[0])) {
+		return false;
+	}
+
+	return strpos((string) $out[0], 'install ok installed') !== false;
+}
+
+/** @deprecated name kept for callers; uses dpkg on Ubuntu */
+function isRpmInstalled($rpmname)
+{
+	return isDebInstalled($rpmname);
 }
 
 function isPhpModuleInstalled($module)
@@ -6432,9 +6474,7 @@ function setInitialPureftpConfig($nolog = null)
 	log_cleanup("Initialize PureFtp service", $nolog);
 	log_cleanup("- Initialize process", $nolog);
 
-	if (!isRpmInstalled("xinetd")) {
-		exec("yum install xinetd -y");
-	}
+	// xinetd is unused on Ubuntu; Pure-FTPd runs as its own systemd unit.
 
 	if (lxfile_exists("/etc/xinetd.d/pure-ftpd")) {
 		log_cleanup("- Remove /etc/xinetd.d/pure-ftpd service file", $nolog);
@@ -6617,13 +6657,7 @@ function setInitialServer($nolog = null)
 
 	$list = implode(" ", $packages);
 
-	exec("yum -y remove $list >/dev/null 2>&1");
-
-	$packages = array("kloxo-webmail-*.noarch", "kloxo7-thirdparty-*.noarch", "kloxo-thirdparty-*.noarch", "kloxo-stats-*.noarch", "kloxo-editor-*.noarch", "hiawatha");
-
-	$list = implode(" ", $packages);
-
-	exec("yum -y install $list --exclude=*afterlogic8* >/dev/null 2>&1");
+	// CentOS RPM webmail/hiawatha packages are gone; Hiawatha is built by install-hiawatha.
 
 	exec("sh /script/fixlxphpexe");
 
@@ -6635,11 +6669,8 @@ function fix_hiawatha()
 	if (isServiceExists('hiawatha')) {
 		$webdrv = slave_get_driver('web');
 
-		if (strpos($webdrv, 'hiawatha') !== false) {
-			exec("chkconfig hiawatha on >/dev/null 2>&1");
-		} else {
-			exec("chkconfig hiawatha off >/dev/null 2>&1; service hiawatha stop >/dev/null 2>&1");
-		}
+		// Panel Hiawatha is kloxo-web (systemd). Never toggle a standalone hiawatha unit.
+		unset($webdrv);
 	}
 }
 
@@ -6741,7 +6772,7 @@ function removeOtherDrivers($class = null, $nolog = null)
 
 				if (class_exists("{$k}__{$o}")) {
 					if ($o === 'hiawatha') {
-						exec_with_all_closed("service hiawatha stop; chkconfig hiawatha off >/dev/null 2>&1");
+						exec_with_all_closed("systemctl disable --now hiawatha >/dev/null 2>&1 || true");
 						log_cleanup("- Deactivated {$k}__{$o}", $nolog);
 					} else {
 						log_cleanup("- Uninstall {$k}__{$o}", $nolog);
@@ -7087,14 +7118,13 @@ function setUpdateServices($list, $nolog = null)
 	log_cleanup('Update Core packages', $nolog);
 
 	foreach ($l as $k => $v) {
-		exec("yum list installed {$v}", $out, $ret);
-
-		if ($ret === 0) {
-			exec("yum update {$v} -y >/dev/null 2>&1");
-			log_cleanup("- New {$v} version installed", $nolog);
-		} else {
+		$pkg = kloxo_deb_pkg_name(is_string($v) ? $v : '');
+		if ($pkg === '' || !isDebInstalled($pkg)) {
 			log_cleanup("- No '{$v}' update found/not installed", $nolog);
+			continue;
 		}
+		lxshell_return('apt-get', '-y', 'install', '--only-upgrade', $pkg);
+		log_cleanup("- New {$v} version installed", $nolog);
 	}
 }
 
@@ -7141,7 +7171,7 @@ function updatecleanup($nolog = null)
 	if (isServiceExists('gpm')) {
 		log_cleanup("Turn off mouse daemon", $nolog);
 		log_cleanup("- Turn off process", $nolog);
-		exec("chkconfig gpm off >/dev/null 2>&1");
+		// gpm (CentOS console mouse) is not used on Ubuntu servers.
 	}
 
 	if (lxfile_exists("phpinfo.php")) {
@@ -7812,73 +7842,32 @@ function setRealServiceBranchList($nolog = null)
 	log_cleanup("Update Services Branch List", $nolog);
 	log_cleanup("- Wait to process...", $nolog);
 
-	exec("sh /script/fix-service-list");
+	log_cleanup("- fix-service-list was a CentOS helper; skipped on Ubuntu", $nolog);
 }
 
 function getRpmVersionViaYum($rpm)
 {
-	exec("yum info {$rpm} | grep 'Version' | awk '{print $3}'", $out, $ret);
+	$v = getDebVersion($rpm);
 
-	if ($ret === 0) {
-		return $out[0];
-	} else {
-		return '';
-	}
+	return $v === '0.0.0' ? '' : $v;
 }
 
 function getRpmReleaseViaYum($rpm)
 {
-	exec("yum info {$rpm} | grep 'Release' | awk '{print $3}'", $out, $ret);
-
-	if ($ret === 0) {
-		return $out[0];
-	} else {
+	// Debian revisions are not surfaced separately; callers only need a non-empty token.
+	$pkg = kloxo_deb_pkg_name($rpm);
+	if ($pkg === '' || !isDebInstalled($pkg)) {
 		return '';
 	}
+
+	return 'ubuntu';
 }
 
 function setPhpBranch($select, $nolog = null)
 {
 	log_cleanup("- Php Branch replace", $nolog);
-
-	$phpbranch = getRpmBranchInstalled('php');
-
-	if ($select === $phpbranch) {
-		log_cleanup("-- It's the same branch ({$select}); no changed", $nolog);
-
-		return null;
-	} elseif ($select === '') {
-		log_cleanup("-- It's no select entry", $nolog);
-
-		return null;
-	} else {
-		// MR -- reinstall php modules to make sure replace too; must execute before replace
-		exec("cd /; yum list installed php* |grep -P 'php[a-zA-z0-9\-]+'", $phpmodules);
-
-		log_cleanup("-- Replace using 'yum replace {$phpbranch} --replace-with={$select}'", $nolog);
-		setRpmReplaced("{$phpbranch}-cli", "{$select}-cli");
-
-		foreach ($phpmodules as $k => $v) {
-			if ($phpmodules[0] === $phpbranch) {
-				continue;
-			}
-
-			$t = str_replace("{$phpbranch}-", "{$select}-", $v);
-
-			if (!isRpmInstalled($t)) {
-				log_cleanup("-- Install missing '{$t}' module if exists", $nolog);
-				exec("yum install {$t} >/dev/null 2>&1");
-			} else {
-				log_cleanup("-- '{$t}' module already installed", $nolog);
-			}
-		}
-	}
-
-	exec("sh /script/fixphp");
-
-	if (isServiceExists('php-fpm')) {
-		createRestartFile('php-fpm');
-	}
+	log_cleanup("-- CentOS yum php-branch replace is removed; use Webserver Configure > Multiple PHP Install (install-site-php)", $nolog);
+	return null;
 }
 
 function getKloxoType()
@@ -8573,62 +8562,22 @@ function setAllWebServerInstall($nolog = null)
 
 		if ($v === 'apache') {
 			$a24mpath = "/etc/httpd/conf.modules.d";
-			if ($use_apache24) {
-				if (isRpmInstalled('httpd')) {
-					if (file_exists("{$a24mpath}/00-base.conf")) {
-						exec("'mv' -f {$a24mpath}/00-base.conf {$a24mpath}/00-base.conf.rpmold");
-					}
-
-					exec("yum -y replace httpd --replace-with=httpd24u >/dev/null 2>&1;" .
-						"yum -y remove {$hm['httpd']} >/dev/null 2>&1;" .
-						"yum -y install {$hm['httpd24u']} >/dev/null 2>&1");
-
-					log_cleanup("- Replace for 'apache' (to 'httpd24u')", $nolog);
-				} else {
-					log_cleanup("- No process for 'apache' ('httpd24')", $nolog);
-				}
-
-				$conffile = getLinkCustomfile("{$confpath}", "httpd24.conf");
-				exec("'cp' -f {$conffile} /etc/httpd/conf/httpd.conf");
+			# Ubuntu: Apache is apache2 via apt / install-apache; no CentOS httpd24u swap.
+			if (isDebInstalled('apache2')) {
+				log_cleanup("- Apache (apache2) already installed", $nolog);
 			} else {
-				if (isRpmInstalled('httpd24u')) {
-					if (file_exists("{$a24mpath}/00-base.conf")) {
-						exec("'mv' -f {$a24mpath}/00-base.conf {$a24mpath}/00-base.conf.rpmold");
-					}
-
-					exec("yum -y replace httpd24u --replace-with=httpd >/dev/null 2>&1;" .
-						"yum -y remove {$hm['httpd24u']} >/dev/null 2>&1;" .
-						"yum -y install {$hm['httpd']} >/dev/null 2>&1");
-
-					log_cleanup("- Replace for 'apache' (to 'httpd24u')", $nolog);
-				} else {
-					log_cleanup("- No process for 'apache' ('httpd')", $nolog);
-				}
-
-				$conffile = getLinkCustomfile("{$confpath}", "httpd.conf");
-				exec("'cp' -f {$conffile} /etc/httpd/conf/httpd.conf");
+				setDebInstalled('apache2');
+				log_cleanup("- Install apache2", $nolog);
 			}
-
 			if (file_exists("../etc/flag/use_pagespeed.flg")) {
-				// MR -- this is a trick to use isRpmInstalled
-				if (!isRpmInstalled('| grep pagespeed')) {
-					exec("yum -y install mod-pagespeed-stable");
-				}
-
-				lxfile_cp(getLinkCustomfile("/opt/configs/apache/etc/conf.d", "pagespeed.conf"),
-					"/etc/httpd/conf.d/pagespeed.conf");
-			} else {
-				lxfile_cp("/opt/configs/apache/etc/conf.d/_inactive_.conf", "/etc/httpd/conf.d/pagespeed.conf");
+				log_cleanup("- Pagespeed RPM package is not available on Ubuntu; flag ignored", $nolog);
 			}
 		} else {
-			$t = $ws[$v];
-
-			if (isRpmInstalled($v)) {
-				if (isServiceExists($v)) {
-					log_cleanup("- No process for '{$v}'", $nolog);
-				}
-			} else {
-				exec("yum -y install {$t} >/dev/null 2>&1");
+			$pkg = ($v === 'nginx') ? 'nginx' : kloxo_deb_pkg_name(is_string($v) ? $v : '');
+			if ($pkg !== '' && isDebInstalled($pkg)) {
+				log_cleanup("- No process for '{$v}'", $nolog);
+			} elseif ($pkg !== '') {
+				setDebInstalled($pkg);
 				log_cleanup("- Install '{$v}'", $nolog);
 			}
 		}
@@ -8688,7 +8637,7 @@ function setAllDnsServerInstall($nolog = null)
 				log_cleanup("- No process for '{$v}'", $nolog);
 			}
 		} else {
-			exec("yum -y install {$t} >/dev/null 2>&1");
+			setDebInstalled(is_string($t) ? explode(" ", $t)[0] : "");
 			log_cleanup("- Install '{$v}'", $nolog);
 
 			if ($v === 'djbdns') {
@@ -8697,7 +8646,7 @@ function setAllDnsServerInstall($nolog = null)
 				PrepareKnotConf($nolog);
 			} elseif ($v === 'yadifa') {
 				if (!isServiceExists($a)) {
-					exec("yum -y install yadifa-tools >/dev/null 2>&1");
+					log_cleanup("- Yadifa CentOS packages are not used; DNS is BIND/Knot", $nolog);
 				}
 			}
 		}
@@ -8737,7 +8686,7 @@ function setPhpUpdate($nolog = null)
 {
 	log_cleanup("Update All Php (branch and multiple)", $nolog);
 	log_cleanup("- Update process", $nolog);
-	exec("yum -y update php*; sh /script/phpm-updater");
+	log_cleanup("- CentOS php* yum update removed; use Webserver Configure > Multiple PHP Install", $nolog);
 }
 
 function setCopyIndexFileToAwstatsDir($nolog = null)
@@ -8791,54 +8740,36 @@ function isServiceExists($target)
 
 function isServiceEnabled($target)
 {
-	$ret = false;
-
-	exec("command -v systemctl", $test);
-
-	if (count($test) > 0) {
-		exec("systemctl list-unit-files --type=service|grep ^{$target}|grep 'enabled'", $val2);
-
-		if (count($val2) > 0) {
-			$ret = true;
-		}
+	$target = (string) $target;
+	if ($target === '' || strpbrk($target, "/\\") !== false) {
+		return false;
 	}
-
-	exec("chkconfig --list 2>/dev/null|grep ^{$target}|grep ':on'", $val1);
-
-	if (count($val1) > 0) {
-		$ret = true;
+	if (!is_executable('/bin/systemctl') && !is_executable('/usr/bin/systemctl')) {
+		return false;
 	}
-	
-	return $ret;
+	$val2 = array();
+	exec('systemctl is-enabled --quiet ' . escapeshellarg($target) . ' 2>/dev/null', $val2, $ret);
+
+	return $ret === 0;
 }
 
 function getServiceType($target = null)
 {
-	$ret = '';
-
 	if ($target) {
-		exec("command -v systemctl", $test);
-
-		if (count($test) > 0) {
-			exec("systemctl list-unit-files --type=service|grep ^{$target}", $val2);
-
-			if (count($val2) > 0) {
-				$ret = 'systemd';
-			}
+		$target = (string) $target;
+		if ($target === '' || strpbrk($target, "/\\") !== false) {
+			return '';
 		}
-
-		exec("chkconfig --list 2>/dev/null|grep ^{$target}", $val1);
-
-		if (count($val1) > 0) {
-			$ret = 'init';
+		if (!is_executable('/bin/systemctl') && !is_executable('/usr/bin/systemctl')) {
+			return '';
 		}
-	} else {
-		exec("ps --no-headers -o comm 1", $test);
-		
-		$ret = $test[0];
+		$val2 = array();
+		exec('systemctl list-unit-files --type=service 2>/dev/null | grep ^' . escapeshellarg($target), $val2);
+		return count($val2) > 0 ? 'systemd' : '';
 	}
-
-	return $ret;
+	$test = array();
+	exec('ps --no-headers -o comm 1', $test);
+	return isset($test[0]) ? $test[0] : 'systemd';
 }
 
 function isServiceRunning($srvc)

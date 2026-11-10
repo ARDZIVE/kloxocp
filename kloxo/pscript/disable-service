@@ -1,28 +1,17 @@
 #!/bin/sh
-
+# Disable a systemd unit (Ubuntu). CentOS chkconfig fallback removed.
 echo "*** Process for disable service ***"
-
-if [ "${1}" != "" ] ; then
-	echo "- Disable '${1}' service"
-
-	if [ "$(command -v systemctl)" != "" ] ; then
-		if [ "$(systemctl list-unit-files|grep ^${1}.service)" != "" ] ; then
-			systemctl disable ${1} >/dev/null 2>&1
-			systemctl daemon-reload >/dev/null 2>&1
-		else
-			chkconfig ${1} off 2>/dev/null
-		fi
-	else
-		chkconfig ${1} off 2>/dev/null
-	fi
-
-	if [ "${2}" != "" ] ; then
-		if [ "$(command -v systemctl)" != "" ] ; then
-			systemctl ${2} ${1}.service 2>/dev/null
-		else
-			service ${1} ${2} 2>/dev/null
-		fi
-	fi
-else
+if [ -z "${1}" ]; then
 	echo "- Format: ${0} <servicename>"
+	exit 1
+fi
+echo "- Disable '${1}' service"
+if ! command -v systemctl >/dev/null 2>&1; then
+	echo "error: systemctl required"
+	exit 1
+fi
+systemctl disable "${1}" >/dev/null 2>&1 || true
+systemctl daemon-reload >/dev/null 2>&1 || true
+if [ -n "${2}" ]; then
+	systemctl "${2}" "${1}.service" 2>/dev/null || true
 fi

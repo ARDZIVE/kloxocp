@@ -12,22 +12,22 @@ rollback (designed, not built).
 ## Status
 10.1-2026110601. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
-HTTP) are closed. P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
+HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
-`install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git
+`get` / `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git (one-liner: `curl …/get | sudo bash`)
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
 `ufw`, `pure-ftpd`, `redis-server`, and `imagemagick` are packaged (`ufw`
 **enabled by default**; Redis and Pure-FTPd enabled; ImageMagick for File Manager Thumbnail);
 install defaults to `--profile=full`. File Manager Thumbnail no longer probes
-with CentOS `rpm -q ImageMagick` (checks `/usr/bin/convert` / `magick`). The
-README one-liner downloads `install.sh` from
-`raw.githubusercontent.com/.../main/install.sh?nocache=$(date +%s)` (cache-busting; Exim, Dovecot, Rspamd;
+(ImageMagick via `/usr/bin/convert` / `magick`; CentOS rpm/yum paths removed). The README one-liner is `curl -fsSL …/get | sudo bash` (`get` fetches `install.sh`;
+install is pipe-safe via `exec </dev/null`, prints `[1/8]…[8/8]` steps, auto-sets a
+localhost hostname from the primary IP; Exim, Dovecot, Rspamd;
 Postfix not co-installed with Exim (Switch Program apt-swaps);
 Ubuntu universe enabled when needed;
-no SpamAssassin/sqlite; bogofilter is not offered), then that script
-fetches `origin/main` and hard-resets when the clone already exists;
-`kloxocp update` and signed apt packaging are not). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
+no SpamAssassin/sqlite; bogofilter is not offered). `install.sh` then
+fetches `origin/main` and hard-resets when the clone already exists
+(`kloxocp update` and signed apt packaging are not built). Hiawatha is not an apt package. Default panel login is admin/admin; the UI requires a password
 change after first login (required Change Password modal with the form
 inside; Esc/Close cannot skip it; the form posts to the logged-in client and
 does not inherit the page underneath, which made Update throw unsettable

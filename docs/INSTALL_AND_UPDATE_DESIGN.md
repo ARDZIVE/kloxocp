@@ -22,24 +22,35 @@ validation and rollback.
 
 ## 1. Installation (target: one command, under 10 minutes)
 
+Current (git bootstrap, no apt repo yet):
+
 ```
-wget https://<project-domain>/install.sh        # small, readable script
-sha256sum -c install.sh.sha256                   # published checksum / signature
-sudo bash install.sh                             # or: --profile minimal|full|no-mail
+curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 ```
 
-The script only does five things:
-1. **Pre-flight checks:** Ubuntu 24.04 or 26.x, root, 2 GB RAM and 10 GB disk minimum, FQDN hostname,
-   ports 80/443/8443 free, no other panel (cPanel, Plesk, ISPConfig...) installed.
-2. Add the **signed Kloxo CP apt repository** (GPG key pinned).
-3. `apt install kloxo-cp` (meta-package that depends on the core plus the chosen profile:
-   nginx, php-fpm, mariadb-server, bind9, an FTP server, exim/dovecot/rspamd, certbot, ufw/fail2ban).
-4. First-run setup: unique TLS keys via `kloxo/bin/install/generate-tls-keys` (never shipped in the package), Let's Encrypt for the panel
-   hostname, firewall rules, a one-time admin login link.
-5. Print the panel URL and the result of the **self-check** (every service up, test vhost renders and validates).
+No questions (Hestia asks hostname/email/services; cPanel uses a longer download dance).
+`get` fetches `install.sh`; `install.sh` redirects stdin from `/dev/null` before apt so the
+pipe is safe. Missing/localhost hostnames are auto-set from the primary IP. Progress is
+`[1/8] … [8/8]`. End box prints URL, admin/admin, recovery password and elapsed time.
 
-Requirements: idempotent (safe to re-run), non-interactive mode for automation (`--yes`, config file),
-full log in `/var/log/kloxo-install.log`, and a failed install must leave the server clean or resumable.
+Target once signed packages exist:
+
+```
+wget https://<project-domain>/install.sh
+sha256sum -c install.sh.sha256
+sudo bash install.sh
+```
+
+1. **Pre-flight:** Ubuntu 24.04 or 26.x, root, ~2 GB RAM / 10 GB disk, no other panel
+   (cPanel/Plesk/ISPConfig). FQDN is **not** required (IP login works).
+2. Add the **signed Kloxo CP apt repository** (GPG key pinned) — not built yet.
+3. `apt install kloxo-cp` (meta-package) — not built yet; today the script apt-installs
+   Ubuntu packages and builds Hiawatha from source.
+4. First-run: unique TLS keys, UFW, Fail2Ban, admin password file.
+5. Print the panel URL and run `kloxocp doctor`.
+
+Requirements: idempotent (safe to re-run), non-interactive by default when stdin is not a
+TTY, full log in `/var/log/kloxo-install.log`.
 
 ## 2. Updating (one command or one button)
 

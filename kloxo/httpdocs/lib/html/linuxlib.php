@@ -341,15 +341,7 @@ function os_create_program_service()
 		exec("systemctl daemon-reload");
 
 	} else {
-		foreach ($a as $k => $v) {
-			$src = "{$sgbl->__path_program_root}/init/{$pgm}-{$v}.init";
-			if (!is_file($src)) {
-				continue;
-			}
-			lxfile_cp($src, "/etc/rc.d/init.d/{$pgm}-{$v}");
-			lxfile_unix_chmod("/etc/rc.d/init.d/{$pgm}-{$v}", "0755");
-			exec("chkconfig {$pgm}-{$v} on  >/dev/null 2>&1");
-		}
+		// SysV/chkconfig path removed; Ubuntu uses systemd units under /etc/systemd/system.
 	}
 }
 
@@ -360,22 +352,13 @@ function os_is_arch_sixfour()
 	
 		return $arch === 'x86_64';
     } else {
-		$q = lfile_get_contents("/etc/rpm/platform");
-
-		if ($q === "i686-redhat-linux") {
-		    return false;
-		}
-
-		return true;
+		return (kloxo_machine() === 'x86_64');
     }
 }
 
 function os_is_php_six_four()
 {
-    $v = lxshell_output("rpm -q --queryformat '%{ARCH}' php");
-    $v = trim($v);
-	
-    return ($v === "x86_64");
+	return (PHP_INT_SIZE >= 8);
 }
 
 function os_restart_program()

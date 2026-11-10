@@ -40,7 +40,7 @@ class web__ extends lxDriverClass
 	static function setUnnstallPhpfpm()
 	{
 		// MR -- change to it for speedup process
-		exec("yum remove php*-fpm -y");
+		// CentOS yum php-fpm remove removed; site PHP is managed by install-site-php / apt.
 	}
 
 	static function setInstallPhpfpm()
@@ -74,7 +74,7 @@ class web__ extends lxDriverClass
 		}
 
 	//	lxshell_return("chkconfig", "php-fpm", "on");
-		exec("chkconfig php-fpm on >/dev/null 2>&1");
+		if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl enable php-fpm >/dev/null 2>&1"); }
 	}
 
 	function createConfFile()

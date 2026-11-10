@@ -355,7 +355,7 @@ class pserver__Linux extends lxDriverClass
 			}
 		} else {
 
-			lxshell_return("chkconfig", "xendomains", "on");
+			if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { lxshell_return("systemctl", "enable", "xendomains"); }
 			//lxshell_return("service", "xendomains", "restart");
 
 			$imdriver = $this->main->__var_xenimportdriver;

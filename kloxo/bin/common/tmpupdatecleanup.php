@@ -61,13 +61,13 @@ function updatecleanup_main()
 
 	if (isServiceExists('mysqld')) {
 		log_cleanup("- MySQL activated");
-		exec("chkconfig mysql off >/dev/null 2>&1");
-		exec("chkconfig mysqld on >/dev/null 2>&1");
+		@exec("systemctl disable --now mysql >/dev/null 2>&1");
+		@exec("systemctl enable mariadb >/dev/null 2>&1");
 	
 	} else {
 		log_cleanup("- MariaDB activated");
-		exec("chkconfig mysqld off >/dev/null 2>&1");
-		exec("chkconfig mysql on >/dev/null 2>&1");
+		@exec("systemctl disable --now mysqld >/dev/null 2>&1");
+		@exec("systemctl enable mariadb >/dev/null 2>&1");
 	}
 
 	log_cleanup("- Updating Main services");
@@ -76,11 +76,10 @@ function updatecleanup_main()
 
 	log_cleanup('Update All packages');
 	log_cleanup('- WAIT to process...');
-//	exec("'rm' -f /var/run/yum.pid");
-	lxshell_return("yum", "clean", "expire-cache");
-	$ret = lxshell_return("yum", "update", "-y");
+	lxshell_return("apt-get", "update", "-y");
+	$ret = lxshell_return("apt-get", "-y", "upgrade");
 
-	if (!$ret) {
+	if ($ret) {
 		log_cleanup("- No update found/not installed");
 	} else {
 		log_cleanup("- New version of packages installed");

@@ -16,13 +16,13 @@ t=$(mysql -V|awk '{print $5}'|grep -i '5.0.')
 
 if [ "$t" != "" ] ; then
 	echo "Need update mysql first..."
-	echo "- Run 'yum replace mysql --replace-with=mysql55'" 
+	echo "- MariaDB is the Ubuntu default SQL (no yum replace)" 
 	echo "- For OpenVZ VPS, add 'innodb_use_native_aio=0' under '[mysqld]' in '/etc/my.cnf'"
 	exit
 fi
 
 for i in kloxo-web kloxo-php kloxo-wrap ; do
-	chkconfig ${i} on 2>/dev/null
+	systemctl enable ${i} 2>/dev/null || true
 done
 
 for i in $(ls -ld /opt/php* | awk '{print $9}' | sed 's:/opt/::g' | tr '\n' ' ') ; do
