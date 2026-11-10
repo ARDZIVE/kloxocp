@@ -2527,7 +2527,7 @@ $bakUpOk = str_contains($bakUpHtml, 'WARNING: Existing file will be overwritten'
 	&& str_contains($bakUpHtml, 'upload_file_f')
 	&& str_contains($bakUpHtml, 'download_url_f')
 	&& str_contains($bakUpHtml, 'download_ftp_f');
-$bakImplode = str_contains($bakSrc, 'KloxoBackup::launchRestore')
+$bakImplode = str_contains($bakSrc, 'KloxoBackup::runRestore')
 	&& str_contains($bakSrc, 'KloxoBackup::runBackup')
 	&& str_contains($bakSrc, 'function fileManagerDir')
 	&& str_contains($bakSrc, 'KloxoBackup::installFile')

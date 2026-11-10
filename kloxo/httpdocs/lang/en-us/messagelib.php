@@ -56,6 +56,8 @@ $__emessage['password_sent'] = "Password was reset and sent successfully.";
 $__emessage['added_successfully'] = "[%s] was added successfully.";
 $__emessage['updated_successfully'] = "The change was saved.";
 $__emessage['restore_started'] = "The restore has started in the background. You will be notified when it is done.";
+$__emessage['restore_completed'] = "Restore completed. Last Restore Status lists anything still left for you.";
+$__emessage['restore_failed'] = "Restore failed: [%s]";
 $__emessage['ufw_rule_added'] = "Firewall rule added and applied to the UFW tables: [%s]";
 $__emessage['ufw_rule_updated'] = "Firewall rule updated and re-applied to the UFW tables: [%s]";
 $__emessage['ufw_rule_updated_suspended'] = "Suspended firewall rule updated (it stays disabled in the UFW tables until you enable it): [%s]";
@@ -236,21 +238,19 @@ $__information['resourceplan_show__pre'] = "<p><b>Note:</b> ".
 $__information['resourceplan_addform__pre'] = "<p>You can set 'Resource Plan' here and then create client based on it.</p>".
 	"<p>Note: for 'Number Of FastCGI Children', 'Unlimited' equal to '4'</p>";
 
-$__information['lxbackup_show__pre'] = "<p><b>A backup is a copy of this account</b> (for admin: everyone under you). It is not a copy of the whole server. Another machine must already have [%_programname_%] installed before you restore.</p>".
-	"<p><b>Saved:</b> panel records, website files, mail folders, customer databases.</p>".
-	"<p><b>Not saved:</b> the panel itself, Let's Encrypt certificates, DKIM keys, firewall, extra PHP versions, this server's IP and hostname.</p>".
-	"<p><b>On this server:</b> Backup Now writes a file in File Manager. To put it back, pick that file under Restore From File (or Upload it first). Admin backup already includes every client — you do not back them up one by one.</p>".
-	"<p><b>Moving to another server</b> — the administrator does these on the new machine. Skip a step only when that item is the same on both servers.</p>".
+$__information['lxbackup_show__pre'] = "<p><b>A backup is a copy of this account</b> (for admin: everyone under you). It is not a copy of the whole server. The other machine must already have [%_programname_%] installed.</p>".
+	"<p><b>Saved:</b> panel records, website files, mail folders, customer databases, DKIM keys, Let's Encrypt files, and (admin) the mail database. Hostname, IPs, Switch Program and PHP versions are recorded so restore can apply them.</p>".
+	"<p><b>Not saved:</b> the panel itself, UFW, Fail2Ban, panel SSL, the recovery password.</p>".
+	"<p><b>Before you backup</b> (also on the Backup Now form): if you will restore on another server, match Switch Program (web, DNS, mail) and install the same PHP versions there first.</p>".
+	"<p><b>After restore</b> (also on Restore From File): web, DNS, mail, DKIM, certificates and DNS IPs are applied automatically. Last Restore Status lists anything still for you.</p>".
+	"<p><b>You may still need to:</b></p>".
 	"<ol>".
-	"<li>Copy the archive into Backup / Restore → File Manager, then Restore From File (all accounts).</li>".
-	"<li>If the IP or hostname changed: run <code>sh /script/fixdnschangeip --oldip=OLD --newip=NEW</code> and point DNS at the new server.</li>".
-	"<li>Match Switch Program (web, DNS, mail), then run <code>sh /script/fixweb</code>, <code>sh /script/fixdns</code> and <code>kloxo-mail apply</code>.</li>".
-	"<li>Install the same PHP versions and re-apply PHP Selected for each domain.</li>".
-	"<li>Re-issue Let's Encrypt (or copy <code>/etc/letsencrypt</code>).</li>".
-	"<li>Recreate DKIM for each domain, then run <code>kloxo-mail apply</code> again.</li>".
+	"<li>Point nameservers at this server at the registrar (when the IP changed).</li>".
+	"<li>Set Switch Program to match the backup if it was different, then sites are already rebuilt.</li>".
+	"<li>Install a missing PHP version on Webserver Configure and re-apply PHP Selected.</li>".
 	"<li>Redo UFW, Fail2Ban, panel SSL and the recovery password if you had customised them.</li>".
 	"</ol>".
-	"<p>Mail login and HTTPS still need steps 3, 5 and 6 even when the IP does not change. Restore does not finish those by itself.</p>";
+	"<p>Same server, same IP and programs: restore is enough. A failed backup or restore is reported instead of a half-done archive.</p>";
 
 $__information['lxbackup_updateform_backup_pre'] = $__information['lxbackup_show__pre'];
 

@@ -6056,6 +6056,7 @@ abstract class Lxclass
 		} catch (Throwable $e) {
 			print("Error '{$e}'\n");
 			log_log("restore", "Error '{$e}");
+			throw $e;
 		}
 
 		// Restore the currenct client's quota. The person who is doing the restoring 
@@ -6088,6 +6089,36 @@ abstract class Lxclass
 				} catch (Throwable $e) {
 					print("Failed for taking restore of '{$d->get__table()}:{$d->nname}'\n");
 					log_log("restore", "- Alert: Failed restore of '{$d->get__table()}:{$d->nname}'\n");
+					$table = method_exists($d, 'get__table') ? (string) $d->get__table() : '';
+					if (in_array($table, array('client', 'mysqldb', 'mmail'), true)) {
+						throw $e;
+					}
+				}
+			}
+
+			if (class_exists('KloxoBackup', false) || is_file(dirname(__DIR__) . '/php/kloxo_backup.php')) {
+				if (!class_exists('KloxoBackup', false)) {
+					include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+				}
+				$src = KloxoBackup::readEnvironment($vd);
+				try {
+					KloxoBackup::unpackExtras($vd);
+				} catch (Throwable $e) {
+					log_log('restore', 'unpackExtras: ' . $e->getMessage());
+				}
+				$applied = array('applied' => array(), 'failed' => array(), 'rewrote_ip' => null);
+				try {
+					$applied = KloxoBackup::applyAfterRestore($src);
+				} catch (Throwable $e) {
+					$applied['failed'][] = $e->getMessage();
+					log_log('restore', 'applyAfterRestore: ' . $e->getMessage());
+				}
+				$left = KloxoBackup::leftoverManualSteps($src, KloxoBackup::environmentSnapshot(), $applied);
+				$gbl->__var_restore_leftover = KloxoBackup::formatLeftover($left);
+				if ($gbl->__var_restore_leftover !== '') {
+					print("Still do by hand:\n{$gbl->__var_restore_leftover}\n");
+				} else {
+					print("Restore finished. No extra steps.\n");
 				}
 			}
 		}
@@ -6142,6 +6173,41 @@ abstract class Lxclass
 			$unbackuper = array();
 		}
 
+		if (class_exists('KloxoBackup', false)) {
+			$domains = array();
+			$phpSel = array();
+			foreach ((array) ($gbl->__var_objectbackuplist ?? array()) as $ob) {
+				if (!is_object($ob) || !method_exists($ob, 'get__table')) {
+					continue;
+				}
+				$t = $ob->get__table();
+				if ($t !== 'domain' && $t !== 'mmail' && $t !== 'web') {
+					continue;
+				}
+				$n = isset($ob->nname) ? (string) $ob->nname : '';
+				if ($n === '') {
+					continue;
+				}
+				$domains[] = $n;
+				if (isset($ob->php_selected) && is_string($ob->php_selected) && $ob->php_selected !== '') {
+					$phpSel[$n] = $ob->php_selected;
+				}
+			}
+			$env = KloxoBackup::environmentSnapshot(array(
+				'scope' => (isset($this->nname) && (string) $this->nname === 'admin') ? 'admin' : 'client',
+				'name' => (string) ($this->nname ?? ''),
+				'domains' => array_values(array_unique($domains)),
+				'php_selected' => $phpSel,
+			));
+			KloxoBackup::writeEnvironment($vd, $env);
+			try {
+				KloxoBackup::packExtras($vd, $env);
+			} catch (Throwable $e) {
+				print("Optional extras skipped: {$e->getMessage()}\n");
+				log_log('backup', 'packExtras: ' . $e->getMessage());
+			}
+		}
+
 		foreach ((array) ($gbl->__var_objectbackuplist ?? array()) as $d) {
 			if (!is_object($d)) {
 				continue;
@@ -6167,6 +6233,10 @@ abstract class Lxclass
 			} catch (Throwable $ex) {
 				print("Failed for taking backup of '{$d->get__table()}:{$d->nname}'\n");
 				log_log("backup", "- Alert: Failed backup of '{$d->get__table()}:{$d->nname}'\n");
+				$table = method_exists($d, 'get__table') ? (string) $d->get__table() : '';
+				if (in_array($table, array('client', 'mysqldb', 'mmail'), true)) {
+					throw $ex;
+				}
 			}
 		}
 

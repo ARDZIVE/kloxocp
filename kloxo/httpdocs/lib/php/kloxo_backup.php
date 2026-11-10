@@ -305,6 +305,17 @@ final class KloxoBackup
 	}
 
 	/**
+	 * Restore From File: run restore.php and wait until it finishes (same as Backup Now).
+	 *
+	 * @param list<string> $accounts
+	 * @return array{code:int,out:string}
+	 */
+	public static function runRestore(string $class, string $name, string $file, array $accounts = array()): array
+	{
+		return self::run(self::restoreArgv($class, $name, $file, $accounts));
+	}
+
+	/**
 	 * @return list<string>
 	 */
 	public static function dumpArgv(string $mysqldump, string $dbname, string $user, string $pass): array
@@ -446,6 +457,634 @@ final class KloxoBackup
 		}
 
 		return true;
+	}
+
+	/** Tests replace live hostname / IPs / PHP / Switch Program. */
+	public static ?array $snapshotOverride = null;
+
+	public const ENV_FILE = 'kloxo.env.json';
+
+	/**
+	 * What this machine looks like. Extra keys (scope, domains, php_selected)
+	 * are filled by Backup Now from the object tree.
+	 *
+	 * @param array<string,mixed> $extra
+	 * @return array<string,mixed>
+	 */
+	public static function environmentSnapshot(array $extra = array()): array
+	{
+		$base = self::$snapshotOverride !== null ? self::$snapshotOverride : array(
+			'version' => 1,
+			'created' => time(),
+			'hostname' => self::hostName(),
+			'ips' => self::publicIps(),
+			'php' => self::phpSeries(),
+			'switch' => self::switchProgram(),
+			'scope' => 'client',
+			'name' => '',
+			'domains' => array(),
+			'php_selected' => array(),
+		);
+		foreach ($extra as $k => $v) {
+			$base[$k] = $v;
+		}
+		if (!isset($base['version'])) {
+			$base['version'] = 1;
+		}
+
+		return $base;
+	}
+
+	public static function hostName(): string
+	{
+		if (is_array(self::$snapshotOverride) && isset(self::$snapshotOverride['hostname'])
+			&& is_string(self::$snapshotOverride['hostname'])) {
+			return self::$snapshotOverride['hostname'];
+		}
+		$h = function_exists('gethostname') ? (string) gethostname() : '';
+
+		return self::safeName($h !== '' ? $h : 'localhost');
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	public static function publicIps(): array
+	{
+		if (is_array(self::$snapshotOverride) && isset(self::$snapshotOverride['ips'])
+			&& is_array(self::$snapshotOverride['ips'])) {
+			$out = array();
+			foreach (self::$snapshotOverride['ips'] as $ip) {
+				if (is_string($ip) && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+					$out[] = $ip;
+				}
+			}
+
+			return array_values(array_unique($out));
+		}
+		$bin = self::firstExec(array('/sbin/ip', '/usr/sbin/ip', '/bin/ip', 'ip'));
+		$r = self::run(array($bin !== '' ? $bin : 'ip', '-4', '-o', 'addr', 'show'), null, null, true);
+		$out = array();
+		if (preg_match_all('/\binet\s+(\d{1,3}(?:\.\d{1,3}){3})/', (string) ($r['out'] ?? ''), $m) > 0) {
+			foreach ((array) ($m[1] ?? array()) as $ip) {
+				if ($ip !== '127.0.0.1' && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+					$out[] = $ip;
+				}
+			}
+		}
+
+		return array_values(array_unique($out));
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	public static function phpSeries(): array
+	{
+		if (is_array(self::$snapshotOverride) && isset(self::$snapshotOverride['php'])
+			&& is_array(self::$snapshotOverride['php'])) {
+			$out = array();
+			foreach (self::$snapshotOverride['php'] as $s) {
+				if (is_string($s) && preg_match('/^\d+\.\d+$/', $s) === 1) {
+					$out[] = $s;
+				}
+			}
+
+			return $out;
+		}
+		$base = self::p('/etc/php');
+		if (!is_dir($base)) {
+			return array();
+		}
+		$out = array();
+		foreach ((array) @scandir($base) as $e) {
+			if (!is_string($e) || preg_match('/^\d+\.\d+$/', $e) !== 1) {
+				continue;
+			}
+			if (is_dir($base . '/' . $e . '/fpm') || is_dir($base . '/' . $e . '/cli')) {
+				$out[] = $e;
+			}
+		}
+		sort($out);
+
+		return $out;
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	public static function switchProgram(): array
+	{
+		if (is_array(self::$snapshotOverride) && isset(self::$snapshotOverride['switch'])
+			&& is_array(self::$snapshotOverride['switch'])) {
+			$out = array();
+			foreach (self::$snapshotOverride['switch'] as $k => $v) {
+				if (is_string($k) && is_string($v) && self::token($k) !== '' && self::token($v) !== '') {
+					$out[$k] = $v;
+				}
+			}
+
+			return $out;
+		}
+		$file = self::programRoot() . '/etc/slavedb/driver';
+		if (!is_file($file)) {
+			return array();
+		}
+		$raw = @file_get_contents($file);
+		if (!is_string($raw) || $raw === '') {
+			return array();
+		}
+		$rmt = @unserialize($raw, array('allowed_classes' => array('Remote', 'stdClass')));
+		$data = (is_object($rmt) && isset($rmt->data) && is_array($rmt->data)) ? $rmt->data : array();
+		$want = array('web', 'dns', 'smtp', 'pop3', 'spam', 'webcache');
+		$out = array();
+		foreach ($want as $k) {
+			if (isset($data[$k]) && is_string($data[$k]) && $data[$k] !== '') {
+				$out[$k] = self::token($data[$k]) !== '' ? $data[$k] : '';
+			}
+		}
+
+		return array_filter($out, static function ($v) {
+			return $v !== '';
+		});
+	}
+
+	/**
+	 * @param array<string,mixed> $env
+	 */
+	public static function writeEnvironment(string $dir, array $env): string
+	{
+		if ($dir === '' || str_contains($dir, "\0") || !is_dir($dir)) {
+			throw new KloxoBackupException('invalid environment directory');
+		}
+		$path = rtrim($dir, '/') . '/' . self::ENV_FILE;
+		$json = json_encode($env, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+		if (!is_string($json) || $json === '') {
+			throw new KloxoBackupException('could not write backup environment');
+		}
+		if (@file_put_contents($path, $json . "\n") === false) {
+			throw new KloxoBackupException('could not write backup environment');
+		}
+
+		return $path;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	public static function readEnvironment(string $dir): array
+	{
+		$path = rtrim($dir, '/') . '/' . self::ENV_FILE;
+		if (!is_file($path)) {
+			return array();
+		}
+		$raw = (string) file_get_contents($path);
+		$env = json_decode($raw, true);
+		if (!is_array($env)) {
+			return array();
+		}
+
+		return $env;
+	}
+
+	/**
+	 * Copy DKIM keys, Let's Encrypt live files, and (admin) the mail MariaDB
+	 * into $dir/extras so they ride in the same archive.
+	 *
+	 * @param array<string,mixed> $env
+	 * @return list<string>
+	 */
+	public static function packExtras(string $dir, array $env): array
+	{
+		$packed = array();
+		$domains = self::envDomains($env);
+		$ex = rtrim($dir, '/') . '/extras';
+		foreach ($domains as $d) {
+			foreach (self::dkimKeyFiles($d) as $src) {
+				$rel = 'extras/dkim/' . basename($src);
+				self::copyFile($src, rtrim($dir, '/') . '/' . $rel);
+				$packed[] = $rel;
+			}
+			$live = self::p('/etc/letsencrypt/live/' . $d);
+			if (is_dir($live)) {
+				foreach (array('privkey.pem', 'fullchain.pem', 'cert.pem', 'chain.pem') as $pem) {
+					$src = $live . '/' . $pem;
+					if (!is_file($src) && !is_link($src)) {
+						continue;
+					}
+					$rel = 'extras/letsencrypt/live/' . $d . '/' . $pem;
+					self::copyFile($src, rtrim($dir, '/') . '/' . $rel);
+					$packed[] = $rel;
+				}
+			}
+		}
+		if (($env['scope'] ?? '') === 'admin') {
+			$sql = self::dumpMailDatabase($ex);
+			if ($sql !== '') {
+				$packed[] = 'extras/' . basename($sql);
+			}
+		}
+
+		return $packed;
+	}
+
+	/**
+	 * @return list<string> restored relative paths
+	 */
+	public static function unpackExtras(string $dir): array
+	{
+		$ex = rtrim($dir, '/') . '/extras';
+		if (!is_dir($ex)) {
+			return array();
+		}
+		$done = array();
+		$dkimSrc = $ex . '/dkim';
+		if (is_dir($dkimSrc)) {
+			$dest = self::p('/var/lib/rspamd/dkim');
+			if (!is_dir($dest)) {
+				@mkdir($dest, 0750, true);
+			}
+			foreach ((array) @scandir($dkimSrc) as $f) {
+				if (!is_string($f) || $f === '.' || $f === '..' || str_contains($f, '..')) {
+					continue;
+				}
+				if (preg_match('/^[A-Za-z0-9.-]+\.key$/', $f) !== 1) {
+					continue;
+				}
+				$src = $dkimSrc . '/' . $f;
+				if (!is_file($src)) {
+					continue;
+				}
+				self::copyFile($src, $dest . '/' . $f);
+				@chmod($dest . '/' . $f, 0640);
+				$done[] = 'dkim/' . $f;
+			}
+		}
+		$leSrc = $ex . '/letsencrypt/live';
+		if (is_dir($leSrc)) {
+			foreach ((array) @scandir($leSrc) as $d) {
+				if (!is_string($d) || !self::isDomainName($d)) {
+					continue;
+				}
+				$from = $leSrc . '/' . $d;
+				if (!is_dir($from)) {
+					continue;
+				}
+				$to = self::p('/etc/letsencrypt/live/' . $d);
+				if (!is_dir($to)) {
+					@mkdir($to, 0750, true);
+				}
+				foreach (array('privkey.pem', 'fullchain.pem', 'cert.pem', 'chain.pem') as $pem) {
+					$src = $from . '/' . $pem;
+					if (!is_file($src)) {
+						continue;
+					}
+					self::copyFile($src, $to . '/' . $pem);
+					@chmod($to . '/' . $pem, $pem === 'privkey.pem' ? 0640 : 0644);
+					$done[] = 'letsencrypt/live/' . $d . '/' . $pem;
+				}
+			}
+		}
+		$sql = $ex . '/kloxo_mail.sql';
+		if (is_file($sql)) {
+			try {
+				self::restoreMailDatabase($sql);
+				$done[] = 'kloxo_mail.sql';
+			} catch (Throwable $e) {
+				$done[] = 'kloxo_mail.sql:failed:' . $e->getMessage();
+			}
+		}
+
+		return $done;
+	}
+
+	/**
+	 * Rebuild site/DNS/mail config after objects and files are in place.
+	 *
+	 * @param array<string,mixed> $src
+	 * @return array{applied:list<string>,failed:list<string>,rewrote_ip:?array{old:string,new:string}}
+	 */
+	public static function applyAfterRestore(array $src): array
+	{
+		$applied = array();
+		$failed = array();
+		$rewrote = null;
+		$dst = self::environmentSnapshot();
+		$oldIps = self::stringList($src['ips'] ?? array());
+		$newIps = self::stringList($dst['ips'] ?? array());
+		$old = $oldIps[0] ?? '';
+		$new = $newIps[0] ?? '';
+		if ($old !== '' && $new !== '' && $old !== $new) {
+			$argv = array(
+				self::phpBinary(),
+				self::programRoot() . '/bin/misc/fixdnschangeip.php',
+				'--oldip=' . $old,
+				'--newip=' . $new,
+			);
+			$r = self::run($argv);
+			if (($r['code'] ?? 1) === 0) {
+				$applied[] = 'fixdnschangeip ' . $old . ' -> ' . $new;
+				$rewrote = array('old' => $old, 'new' => $new);
+			} else {
+				$failed[] = 'fixdnschangeip: ' . self::shortErr($r['out'] ?? '');
+			}
+		}
+		foreach (array(
+			'fixweb' => self::programRoot() . '/bin/fix/fixweb.php',
+			'fixdns' => self::programRoot() . '/bin/fix/fixdns.php',
+			'kloxo-mail apply' => self::programRoot() . '/bin/mail/kloxo-mail',
+		) as $label => $script) {
+			$argv = array(self::phpBinary(), $script);
+			if ($label === 'kloxo-mail apply') {
+				$argv[] = 'apply';
+			}
+			$r = self::run($argv);
+			if (($r['code'] ?? 1) === 0) {
+				$applied[] = $label;
+			} else {
+				$failed[] = $label . ': ' . self::shortErr($r['out'] ?? '');
+			}
+		}
+
+		return array('applied' => $applied, 'failed' => $failed, 'rewrote_ip' => $rewrote);
+	}
+
+	/**
+	 * Steps a person still has to do. Empty when restore on the same kind of
+	 * machine finished applying everything the archive can restore.
+	 *
+	 * @param array<string,mixed> $src
+	 * @param array<string,mixed> $dst
+	 * @param array{applied?:list<string>,failed?:list<string>,rewrote_ip?:?array{old:string,new:string}} $applied
+	 * @return list<string>
+	 */
+	public static function leftoverManualSteps(array $src, array $dst, array $applied = array()): array
+	{
+		$steps = array();
+		$oldIps = self::stringList($src['ips'] ?? array());
+		$newIps = self::stringList($dst['ips'] ?? array());
+		$oldHost = (string) ($src['hostname'] ?? '');
+		$newHost = (string) ($dst['hostname'] ?? '');
+		$moved = ($oldIps !== array() && $newIps !== array() && $oldIps !== $newIps)
+			|| ($oldHost !== '' && $newHost !== '' && $oldHost !== $newHost);
+		if ($moved) {
+			$steps[] = 'At the domain registrar, point nameservers (and any glue A records) at this server.';
+			if ($oldHost !== $newHost) {
+				$steps[] = 'Set this server hostname to ' . $oldHost . ' (or update PTR / mail hostname) if mail should keep using it.';
+			}
+			$steps[] = 'Redo UFW, Fail2Ban, panel SSL and the recovery password if you had customised them on the old server.';
+		}
+		$swSrc = is_array($src['switch'] ?? null) ? $src['switch'] : array();
+		$swDst = is_array($dst['switch'] ?? null) ? $dst['switch'] : array();
+		foreach (array('web', 'dns', 'smtp', 'pop3') as $k) {
+			$a = (string) ($swSrc[$k] ?? '');
+			$b = (string) ($swDst[$k] ?? '');
+			if ($a !== '' && $b !== '' && $a !== $b) {
+				$steps[] = 'Switch Program ' . $k . ' is ' . $b . ' here (backup had ' . $a . '). Set it to match in Switch Program.';
+			}
+		}
+		$have = self::stringList($dst['php'] ?? array());
+		$sel = is_array($src['php_selected'] ?? null) ? $src['php_selected'] : array();
+		$missing = array();
+		foreach ($sel as $series) {
+			$s = self::phpIdSeries((string) $series);
+			if ($s !== '' && $have !== array() && !in_array($s, $have, true)) {
+				$missing[$s] = $s;
+			}
+		}
+		if ($missing !== array()) {
+			$steps[] = 'Install PHP ' . implode(', ', array_values($missing))
+				. ' on Webserver Configure (Multiple PHP Install), then re-apply PHP Selected.';
+		}
+		foreach ((array) ($applied['failed'] ?? array()) as $f) {
+			if (is_string($f) && $f !== '') {
+				$steps[] = 'Apply did not finish: ' . $f;
+			}
+		}
+
+		return array_values(array_unique($steps));
+	}
+
+	public static function formatLeftover(array $steps): string
+	{
+		if ($steps === array()) {
+			return '';
+		}
+		$n = 1;
+		$lines = array();
+		foreach ($steps as $s) {
+			$lines[] = $n . '. ' . $s;
+			$n++;
+		}
+
+		return implode("\n", $lines);
+	}
+
+	public static function preBackupNotes(?array $env = null): string
+	{
+		$env = $env ?? self::environmentSnapshot();
+		$host = (string) ($env['hostname'] ?? '');
+		$ips = implode(', ', self::stringList($env['ips'] ?? array()));
+		$php = implode(', ', self::stringList($env['php'] ?? array()));
+		$sw = is_array($env['switch'] ?? null) ? $env['switch'] : array();
+		$prog = array();
+		foreach (array('web', 'dns', 'smtp', 'pop3') as $k) {
+			if (isset($sw[$k]) && is_string($sw[$k]) && $sw[$k] !== '') {
+				$prog[] = $k . '=' . $sw[$k];
+			}
+		}
+
+		return 'Backup saves this account (admin: everyone under you): panel records, website files, '
+			. 'mail folders, customer databases, DKIM keys, Let\'s Encrypt files, and the mail database (admin). '
+			. 'It is not a copy of the whole server. The other machine must already have Kloxo CP. '
+			. 'This server: hostname ' . ($host !== '' ? $host : '(unknown)')
+			. ($ips !== '' ? '; IP ' . $ips : '')
+			. ($prog !== array() ? '; Switch Program ' . implode(', ', $prog) : '')
+			. ($php !== '' ? '; PHP ' . $php : '')
+			. '. Match Switch Program and PHP versions on the destination before you restore there. '
+			. 'You will still point DNS at the registrar if the IP changes, and redo firewall/panel SSL if those were custom.';
+	}
+
+	public static function postRestoreNotes(array $leftover): string
+	{
+		if ($leftover === array()) {
+			return 'Restore puts records, files, mail, databases, DKIM and certificates back, then rebuilds web, DNS and mail. '
+				. 'If this is the same server (same IP and programs), you are done. '
+				. 'If you moved machines, Last Restore Status lists anything still left for you.';
+		}
+
+		return 'Restore will apply web, DNS, mail, DKIM, certificates and DNS IPs automatically. '
+			. 'You may still need to: ' . implode(' ', $leftover);
+	}
+
+	/**
+	 * @param array<string,mixed> $env
+	 * @return list<string>
+	 */
+	private static function envDomains(array $env): array
+	{
+		$out = array();
+		foreach ((array) ($env['domains'] ?? array()) as $d) {
+			if (is_string($d) && self::isDomainName($d)) {
+				$out[] = strtolower($d);
+			}
+		}
+
+		return array_values(array_unique($out));
+	}
+
+	private static function isDomainName(string $d): bool
+	{
+		$d = strtolower($d);
+
+		return $d !== '' && $d !== '.' && $d !== '..'
+			&& preg_match('/^[A-Za-z0-9.-]+$/', $d) === 1
+			&& !str_contains($d, '..');
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	private static function dkimKeyFiles(string $domain): array
+	{
+		$dir = self::p('/var/lib/rspamd/dkim');
+		if (!is_dir($dir) || !self::isDomainName($domain)) {
+			return array();
+		}
+		$out = array();
+		foreach ((array) @scandir($dir) as $f) {
+			if (!is_string($f) || !str_starts_with($f, $domain . '.') || !str_ends_with($f, '.key')) {
+				continue;
+			}
+			if (preg_match('/^[A-Za-z0-9.-]+\.key$/', $f) !== 1) {
+				continue;
+			}
+			$p = $dir . '/' . $f;
+			if (is_file($p)) {
+				$out[] = $p;
+			}
+		}
+
+		return $out;
+	}
+
+	private static function copyFile(string $src, string $dst): void
+	{
+		$dir = dirname($dst);
+		if ($dir !== '' && $dir !== '.' && !is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) {
+			throw new KloxoBackupException('could not copy ' . basename($src));
+		}
+		$ok = @copy($src, $dst);
+		if (!$ok && is_link($src)) {
+			$ok = @copy((string) readlink($src), $dst) || @copy($src, $dst);
+			if (!$ok) {
+				$real = @realpath($src);
+				$ok = is_string($real) && $real !== '' && @copy($real, $dst);
+			}
+		}
+		if (!$ok) {
+			throw new KloxoBackupException('could not copy ' . basename($src));
+		}
+	}
+
+	private static function dumpMailDatabase(string $exDir): string
+	{
+		$ini = self::mailIni();
+		$name = (string) ($ini['db_name'] ?? '');
+		$user = (string) ($ini['db_rw_user'] ?? '');
+		$pass = (string) ($ini['db_rw_pass'] ?? '');
+		if ($name === '' || $user === '' || !self::dbIdent($name)) {
+			return '';
+		}
+		if (!is_dir($exDir)) {
+			@mkdir($exDir, 0700, true);
+		}
+		$out = rtrim($exDir, '/') . '/kloxo_mail.sql';
+		try {
+			self::dumpMysql($name, $user, $pass, $out);
+		} catch (Throwable $e) {
+			if (is_file($out)) {
+				@unlink($out);
+			}
+
+			return '';
+		}
+
+		return is_file($out) ? $out : '';
+	}
+
+	private static function restoreMailDatabase(string $sql): void
+	{
+		$ini = self::mailIni();
+		$name = (string) ($ini['db_name'] ?? 'kloxo_mail');
+		$user = (string) ($ini['db_rw_user'] ?? '');
+		$pass = (string) ($ini['db_rw_pass'] ?? '');
+		if ($user === '' || !self::dbIdent($name)) {
+			throw new KloxoBackupException('mail database is not configured on this server');
+		}
+		self::restoreMysql($name, $user, $pass, $sql);
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	public static function mailIni(?string $path = null): array
+	{
+		$file = $path !== null && $path !== '' ? $path : self::p('/etc/kloxo/mail.ini');
+		if (!is_file($file)) {
+			return array();
+		}
+		$out = array();
+		foreach (file($file, FILE_IGNORE_NEW_LINES) ?: array() as $line) {
+			$line = trim((string) $line);
+			if ($line === '' || $line[0] === '#' || $line[0] === ';' || !str_contains($line, '=')) {
+				continue;
+			}
+			[$k, $val] = array_map('trim', explode('=', $line, 2));
+			if ($k === '') {
+				continue;
+			}
+			if ($val !== '' && ($val[0] === '"' || $val[0] === "'")) {
+				$decoded = json_decode($val);
+				$val = is_string($decoded) ? $decoded : trim($val, "\"'");
+			}
+			$out[$k] = (string) $val;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * @param mixed $v
+	 * @return list<string>
+	 */
+	private static function stringList($v): array
+	{
+		$out = array();
+		foreach ((array) $v as $s) {
+			if (is_string($s) && $s !== '') {
+				$out[] = $s;
+			}
+		}
+
+		return array_values(array_unique($out));
+	}
+
+	private static function phpIdSeries(string $id): string
+	{
+		$id = strtolower(trim($id));
+		if (preg_match('/(\d+\.\d+)/', $id, $m) === 1) {
+			return $m[1];
+		}
+
+		return '';
+	}
+
+	private static function shortErr(string $s): string
+	{
+		$s = trim(preg_replace('/\s+/', ' ', $s) ?? $s);
+
+		return substr($s, 0, 180);
 	}
 
 	/**

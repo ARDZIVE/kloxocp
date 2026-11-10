@@ -117,7 +117,14 @@ function restore_main()
 
 	try {
 		$backup->doUpdateRestore($file, $param);
-		$backup->restorestage = 'done';
+		$left = (is_object($gbl) && isset($gbl->__var_restore_leftover))
+			? trim((string) $gbl->__var_restore_leftover) : '';
+		$backup->restorestage = $left !== '' ? ('done. Still do by hand: ' . str_replace("\n", ' ', $left)) : 'done';
+		if ($left !== '') {
+			print("\nStill do by hand:\n{$left}\n");
+		} else {
+			print("\nRestore finished. No extra steps.\n");
+		}
 	} catch (Throwable $e) {
 		$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
 		log_error("Restore Failed. Reason: {$mess} \n");
@@ -131,8 +138,6 @@ function restore_main()
 	clearLxbackup($backup);
 
 	log_log("restore", "*** Restore from '{$name}' user - END ***");
-
-	print("\nNote: run 'sh /script/fixdnschangeip' for migrate from other server\n");
 }
 
 

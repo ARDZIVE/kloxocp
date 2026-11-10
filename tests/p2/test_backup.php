@@ -319,17 +319,18 @@ check(str_contains($lx, 'catch (Throwable')
 check(str_contains($lx, "!is_array(\$res) || !isset(\$res['file'])"),
 	'backMeUp skips getFromFileserv when the driver returned nothing');
 check(str_contains($bak, 'KloxoBackup::runBackup')
-	&& str_contains($bak, 'KloxoBackup::launchRestore')
+	&& str_contains($bak, 'KloxoBackup::runRestore')
 	&& str_contains($bak, 'function backupParent')
 	&& str_contains($bak, 'function fileManagerDir'),
-	'Backup Now waits on runBackup; restore still launches in the background');
+	'Backup Now and Restore From File wait on runBackup/runRestore');
 check(!str_contains($bak, 'backup_has_been_scheduled')
 	&& str_contains($bak, 'backup_completed')
 	&& str_contains($bak, 'KloxoBackup::runBackup'),
 	'Backup Now is not scheduled; it waits and reports completed or failed');
 check(str_contains($kb = (string) file_get_contents($doc . '/lib/php/kloxo_backup.php'), 'function runBackup')
-	&& str_contains($kb, 'function launchBackup'),
-	'runBackup waits; launchBackup remains for cron');
+	&& str_contains($kb, 'function launchBackup')
+	&& str_contains($kb, 'function runRestore'),
+	'runBackup/runRestore wait; launchBackup remains for cron');
 check(str_contains($bak, 'KloxoBackup::installFile')
 	&& str_contains($bak, 'KloxoBackup::ensureDir')
 	&& str_contains($bak, 'fileManagerDir()'),
@@ -363,6 +364,136 @@ check(str_contains($csync, 'KloxoBackup::webGroup()'),
 check(str_contains($bphp, 'catch (Throwable')
 	&& str_contains($rphp, 'catch (Throwable'),
 	'backup.php and restore.php catch Throwable');
+check(str_contains($lx, 'KloxoBackup::writeEnvironment')
+	&& str_contains($lx, 'KloxoBackup::packExtras')
+	&& str_contains($lx, 'KloxoBackup::applyAfterRestore')
+	&& str_contains($lx, "in_array(\$table, array('client', 'mysqldb', 'mmail')"),
+	'backup writes kloxo.env.json and extras; incomplete client/mail/db backup aborts');
+check(!str_contains($rphp, 'fixdnschangeip')
+	&& str_contains($rphp, 'Still do by hand')
+	&& str_contains($rphp, 'Restore finished. No extra steps'),
+	'restore.php prints leftover steps instead of only fixdnschangeip');
+check(str_contains($bak, 'prebackup_note_f')
+	&& str_contains($bak, 'prerestore_note_f')
+	&& str_contains($bak, 'KloxoBackup::preBackupNotes')
+	&& str_contains($bak, 'KloxoBackup::postRestoreNotes'),
+	'Backup Now and Restore forms show before/after notes');
+
+echo "== environment snapshot and extras\n";
+$prevSnap = KloxoBackup::$snapshotOverride;
+$prevFs = KloxoBackup::$fsPrefix;
+$exBase = sys_get_temp_dir() . '/kloxo-bakenv-' . getmypid();
+@mkdir($exBase . '/var/lib/rspamd/dkim', 0755, true);
+@mkdir($exBase . '/etc/letsencrypt/live/example.com', 0755, true);
+file_put_contents($exBase . '/var/lib/rspamd/dkim/example.com.kloxo.key', "-----KEY-----\n");
+file_put_contents($exBase . '/etc/letsencrypt/live/example.com/privkey.pem', "-----PRIV-----\n");
+file_put_contents($exBase . '/etc/letsencrypt/live/example.com/fullchain.pem', "-----CERT-----\n");
+KloxoBackup::$fsPrefix = $exBase;
+KloxoBackup::$snapshotOverride = array(
+	'version' => 1,
+	'hostname' => 'old.example',
+	'ips' => array('1.2.3.4'),
+	'php' => array('8.3'),
+	'switch' => array('web' => 'nginx', 'dns' => 'bind', 'smtp' => 'exim', 'pop3' => 'dovecot'),
+	'scope' => 'client',
+	'name' => 'alice',
+	'domains' => array('example.com'),
+	'php_selected' => array('example.com' => 'php8.3'),
+);
+$env = KloxoBackup::environmentSnapshot(array('scope' => 'admin', 'name' => 'admin'));
+check(($env['hostname'] ?? '') === 'old.example'
+	&& ($env['scope'] ?? '') === 'admin'
+	&& in_array('example.com', (array) ($env['domains'] ?? array()), true),
+	'environmentSnapshot merges live override with backup extra');
+$packDir = $exBase . '/pack';
+@mkdir($packDir, 0700, true);
+$wrote = KloxoBackup::writeEnvironment($packDir, $env);
+$read = KloxoBackup::readEnvironment($packDir);
+check(is_file($wrote) && ($read['hostname'] ?? '') === 'old.example' && ($read['scope'] ?? '') === 'admin',
+	'writeEnvironment/readEnvironment round-trip kloxo.env.json');
+$packed = KloxoBackup::packExtras($packDir, array(
+	'scope' => 'client',
+	'domains' => array('example.com'),
+));
+check(in_array('extras/dkim/example.com.kloxo.key', $packed, true)
+	&& in_array('extras/letsencrypt/live/example.com/privkey.pem', $packed, true)
+	&& is_file($packDir . '/extras/dkim/example.com.kloxo.key'),
+	'packExtras copies DKIM and Let\'s Encrypt live files');
+$restoreBase = $exBase . '/restorefs';
+KloxoBackup::$fsPrefix = $restoreBase;
+$unpacked = KloxoBackup::unpackExtras($packDir);
+check(in_array('dkim/example.com.kloxo.key', $unpacked, true)
+	&& is_file($restoreBase . '/var/lib/rspamd/dkim/example.com.kloxo.key')
+	&& is_file($restoreBase . '/etc/letsencrypt/live/example.com/fullchain.pem'),
+	'unpackExtras restores DKIM keys and Let\'s Encrypt files');
+$same = KloxoBackup::leftoverManualSteps($env, $env, array('applied' => array('fixweb'), 'failed' => array()));
+check($same === array(), 'leftoverManualSteps is empty on the same hostname, IPs and programs');
+$dest = $env;
+$dest['hostname'] = 'new.example';
+$dest['ips'] = array('9.9.9.9');
+$dest['php'] = array('8.3');
+$moved = KloxoBackup::leftoverManualSteps($env, $dest, array());
+check($moved !== array()
+	&& implode(' ', $moved) !== ''
+	&& str_contains(implode("\n", $moved), 'nameservers')
+	&& str_contains(implode("\n", $moved), 'UFW'),
+	'leftoverManualSteps lists registrar DNS and firewall after an IP/hostname change');
+$phpDest = $env;
+$phpDest['php'] = array('8.4');
+$phpLeft = KloxoBackup::leftoverManualSteps($env, $phpDest, array());
+check(str_contains(implode("\n", $phpLeft), 'PHP 8.3'),
+	'leftoverManualSteps lists a PHP version that is not installed');
+$swDest = $env;
+$swDest['switch']['web'] = 'apache';
+$swLeft = KloxoBackup::leftoverManualSteps($env, $swDest, array());
+check(str_contains(implode("\n", $swLeft), 'Switch Program web'),
+	'leftoverManualSteps lists a Switch Program mismatch');
+$cmds = array();
+KloxoBackup::$runCmd = static function (array $argv) use (&$cmds): array {
+	$cmds[] = $argv;
+	return array('code' => 0, 'out' => 'ok');
+};
+$applyDest = KloxoBackup::$snapshotOverride;
+$applyDest['ips'] = array('9.9.9.9');
+KloxoBackup::$snapshotOverride = $applyDest;
+$applied = KloxoBackup::applyAfterRestore(array('ips' => array('1.2.3.4')));
+KloxoBackup::$snapshotOverride = $env;
+KloxoBackup::$runCmd = null;
+$flat = array();
+foreach ($cmds as $av) {
+	$flat[] = implode(' ', $av);
+}
+$joined = implode("\n", $flat);
+check(in_array('fixweb', $applied['applied'], true)
+	&& in_array('fixdns', $applied['applied'], true)
+	&& in_array('kloxo-mail apply', $applied['applied'], true)
+	&& str_contains($joined, 'fixdnschangeip.php')
+	&& str_contains($joined, '--oldip=1.2.3.4')
+	&& str_contains($joined, '--newip=9.9.9.9')
+	&& str_contains($joined, 'fixweb.php')
+	&& str_contains($joined, 'kloxo-mail'),
+	'applyAfterRestore rewrites DNS IPs and runs fixweb, fixdns, kloxo-mail apply');
+$notes = KloxoBackup::preBackupNotes($env);
+$afterNone = KloxoBackup::postRestoreNotes(array());
+$afterSome = KloxoBackup::postRestoreNotes($moved);
+check(str_contains($notes, 'Match Switch Program')
+	&& str_contains($notes, 'old.example')
+	&& str_contains($afterNone, 'you are done')
+	&& str_contains($afterSome, 'You may still need to'),
+	'preBackupNotes and postRestoreNotes are filled from the environment');
+KloxoBackup::$snapshotOverride = $prevSnap;
+KloxoBackup::$fsPrefix = $prevFs !== '' ? $prevFs : '';
+foreach (array($exBase) as $tree) {
+	if ($tree !== '' && is_dir($tree)) {
+		$it = new RecursiveDirectoryIterator($tree, FilesystemIterator::SKIP_DOTS);
+		$ri = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::CHILD_FIRST);
+		foreach ($ri as $f) {
+			$p = $f->getPathname();
+			$f->isDir() ? @rmdir($p) : @unlink($p);
+		}
+		@rmdir($tree);
+	}
+}
 
 echo "== panel Help text\n";
 $__information = array();
@@ -371,21 +502,19 @@ $bakHelp = (string) ($__information['lxbackup_show__pre'] ?? '');
 check($bakHelp !== ''
 	&& str_contains($bakHelp, 'copy of this account')
 	&& str_contains($bakHelp, 'not a copy of the whole server')
-	&& str_contains($bakHelp, 'panel records, website files, mail folders, customer databases')
-	&& str_contains($bakHelp, 'the panel itself, Let\'s Encrypt certificates, DKIM keys')
-	&& str_contains($bakHelp, 'fixdnschangeip --oldip=OLD --newip=NEW')
-	&& str_contains($bakHelp, 'sh /script/fixweb')
-	&& str_contains($bakHelp, 'sh /script/fixdns')
-	&& str_contains($bakHelp, 'kloxo-mail apply')
-	&& str_contains($bakHelp, 'PHP Selected')
-	&& str_contains($bakHelp, '/etc/letsencrypt')
+	&& str_contains($bakHelp, 'DKIM keys')
+	&& str_contains($bakHelp, 'Let\'s Encrypt files')
+	&& str_contains($bakHelp, 'Before you backup')
+	&& str_contains($bakHelp, 'After restore')
+	&& str_contains($bakHelp, 'Point nameservers')
+	&& str_contains($bakHelp, 'Last Restore Status')
 	&& ($__information['lxbackup_updateform_backup_pre'] ?? '') === $bakHelp
 	&& is_string($__information['lxbackup_updateform_restore_from_file_pre'] ?? null)
 	&& str_contains((string) $__information['lxbackup_updateform_restore_from_file_pre'], 'Start Restore Process')
 	&& str_contains((string) $__information['lxbackup_updateform_restore_from_file_pre'], 'copy of this account')
 	&& ($__information['lxbackup_updateform_restore_from_ftp_pre'] ?? '')
 		=== ($__information['lxbackup_updateform_restore_from_file_pre'] ?? null),
-	'Backup / Restore Help lists what is saved and the move-to-another-server steps');
+	'Backup / Restore Help lists what is saved, auto-apply, and leftover steps');
 
 KloxoBackup::$runCmd = null;
 KloxoBackup::$fsPrefix = '';

@@ -445,6 +445,7 @@ $__throw["going_on"] = "Going on";
 $__throw["backup_number_exceeded"] = "Backup number exceeded";
 $__throw["backup_has_been_scheduled"] = "Backup has been scheduled";
 $__throw["backup_failed"] = "Backup failed";
+$__throw["restore_failed"] = "Restore failed";
 $__throw["file_already_exists"] = "File already exists";
 
 $__throw["could_not_create_user"] = "Could not create user";

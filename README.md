@@ -74,8 +74,7 @@ installs into `/opt/kloxo`. The admin password is kept unless you set
 `KLOXO_ADMIN_PASSWORD`.
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh
-sudo bash /tmp/kloxocp-install.sh
+curl -fsSL "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh?nocache=$(date +%s)" -o /tmp/kloxocp-install.sh && sudo bash /tmp/kloxocp-install.sh
 ```
 
 `kloxocp update` is not built (exits 2). Signed apt packages are not published.

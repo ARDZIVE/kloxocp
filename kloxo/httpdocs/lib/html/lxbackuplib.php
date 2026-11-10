@@ -32,6 +32,8 @@ class lxbackup extends Lxdb
 	static $__desc_upload_to_ftp = array("f", "", "upload_files_to_remote_server");
 	static $__desc_no_local_copy_flag = array("f", "", "dont_keep_a_local_copy");
 	static $__desc_backupextra_stopvpsflag = array('f', "", "stop_vps_while_backup_snapshot", "");
+	static $__desc_prebackup_note_f = array("", "", "before_you_backup");
+	static $__desc_prerestore_note_f = array("", "", "after_you_restore");
 
 	static $__acdesc_show = array("", "", "Backup / Restore");
 	static $__acdesc_update_backup = array("", "", "Backup Now");
@@ -264,6 +266,7 @@ class lxbackup extends Lxdb
 		$vlist = array();
 		switch ($subaction) {
 			case "backup":
+				$vlist['prebackup_note_f'] = array('M', KloxoBackup::preBackupNotes());
 				$ftp = isset($this->ftp_server) ? trim((string) $this->ftp_server) : '';
 				if ($ftp !== '') {
 					$vlist['ftp_server'] = array('M', null);
@@ -414,6 +417,7 @@ class lxbackup extends Lxdb
 				break;
 
 			case "restore_from_ftp":
+				$vlist['prerestore_note_f'] = array('M', KloxoBackup::postRestoreNotes(array()));
 				$ftp = isset($this->ftp_server) ? trim((string) $this->ftp_server) : '';
 				if ($ftp === '') {
 					$vlist['ftp_server'] = array("M", "Ftp Server is Not Set");
@@ -446,6 +450,7 @@ class lxbackup extends Lxdb
 					}
 				}
 			*/
+				$vlist['prerestore_note_f'] = array('M', KloxoBackup::postRestoreNotes(array()));
 				$vlist['restorestage'] = array('M', null);
 				$vlist['backup_from_file_f'] = array('L', "/");
 				$vlist['__v_next'] = 'restore_confirm';
@@ -624,14 +629,32 @@ class lxbackup extends Lxdb
 			$fname = str_replace(array("/", ";", " "), "", $fname);
 			$file = "{$bpath}/{$fname}";
 
-			rl_exec_get(null, null, array("lxbackup", "execrestorephp"), array($pclass, $pname, $file, $param));
-
-			$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl') ? $ghtml->getFullUrl('a=show') : 'a=show';
-			if (is_object($gbl)) {
-				$gbl->__this_redirect = "$url&frm_smessage=restore_started";
+			@set_time_limit(0);
+			@ignore_user_abort(true);
+			$stage = '';
+			try {
+				$got = rl_exec_get(null, null, array("lxbackup", "execrestorephp"),
+					array($pclass, $pname, $file, $param), false);
+				$stage = is_string($got) ? $got : '';
+			} catch (Throwable $e) {
+				$stage = 'Restore failed due to ' . $e->getMessage();
 			}
+			if ($stage === '' || $stage === 'doing') {
+				$stage = 'Restore failed due to: restore did not finish';
+			}
+			$this->restorestage = $stage;
+			$this->dbaction = 'update';
+			$this->write();
+			$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
+				? $ghtml->getFullUrl('a=show') : 'a=show';
+			if (str_starts_with($stage, 'done')) {
+				if (is_object($gbl)) {
+					$gbl->__this_redirect = $url . '&frm_smessage=restore_completed';
+				}
 
-			return null;
+				return $param;
+			}
+			throw new lxException($login->getThrow('restore_failed'), '', $stage);
 		}
 	}
 
@@ -684,7 +707,47 @@ class lxbackup extends Lxdb
 		}
 		$val = (isset($param['_accountselect']) && is_array($param['_accountselect']))
 			? $param['_accountselect'] : array();
-		KloxoBackup::launchRestore((string) $class, (string) $name, (string) $file, $val);
+		@set_time_limit(0);
+		$r = KloxoBackup::runRestore((string) $class, (string) $name, (string) $file, $val);
+		$stage = self::readRestoreStage((string) $class, (string) $name);
+		if ($stage === '' || $stage === 'doing') {
+			$out = (string) ($r['out'] ?? '');
+			if (str_contains($out, 'Restore finished') || str_contains($out, 'Still do by hand')) {
+				$stage = 'done';
+				if (preg_match('/Still do by hand:\s*(.*)/s', $out, $m)) {
+					$stage = 'done. Still do by hand: ' . trim(preg_replace('/\s+/', ' ', $m[1]));
+				}
+			} elseif (preg_match('/Restore Failed\. Reason:\s*(.*)/', $out, $m)) {
+				$stage = 'Restore failed due to ' . trim($m[1]);
+			} else {
+				$stage = (($r['code'] ?? 1) === 0) ? 'done' : 'Restore failed due to: restore did not finish';
+			}
+		}
+
+		return $stage;
+	}
+
+	static function readRestoreStage($class, $name)
+	{
+		$class = (string) $class;
+		$name = (string) $name;
+		if ($class === '' || $name === '' || !class_exists($class)) {
+			return '';
+		}
+		try {
+			$object = new $class(null, 'localhost', $name);
+			$object->get();
+			if (!method_exists($object, 'getObject')) {
+				return '';
+			}
+			$backup = $object->getObject('lxbackup');
+			if (is_object($backup) && isset($backup->restorestage)) {
+				return (string) $backup->restorestage;
+			}
+		} catch (Throwable $e) {
+		}
+
+		return '';
 	}
 
 	static function execbackupphp($class, $name, $param)
