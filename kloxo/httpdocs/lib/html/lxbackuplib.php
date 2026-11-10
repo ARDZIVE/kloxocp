@@ -289,9 +289,13 @@ class lxbackup extends Lxdb
 					}
 					if (!$locked) {
 						$stage = 'program_interrupted';
+						$this->backupstage = $stage;
 					}
 				}
-				$this->backupstage = fix_nname_to_be_variable($stage);
+				// Only tokenise short status words; keep full failure text readable.
+				if (in_array($stage, array('done', 'doing', 'program_interrupted'), true)) {
+					$this->backupstage = fix_nname_to_be_variable($stage);
+				}
 				$vlist['backupstage'] = array('M', null);
 				$vlist['backup_to_file_f'] = null;
 
@@ -706,9 +710,15 @@ class lxbackup extends Lxdb
 		if (!class_exists('KloxoBackup', false)) {
 			include_once dirname(__DIR__) . '/php/kloxo_backup.php';
 		}
+		@set_time_limit(0);
+		@ignore_user_abort(true);
+		// kloxo-backend is root: restore in-process (no nested php / cwd failures).
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+		if ($euid === 0) {
+			return self::restoreAccountInProcess((string) $class, (string) $name, (string) $file, $param);
+		}
 		$val = (isset($param['_accountselect']) && is_array($param['_accountselect']))
 			? $param['_accountselect'] : array();
-		@set_time_limit(0);
 		$r = KloxoBackup::runRestore((string) $class, (string) $name, (string) $file, $val);
 		$stage = self::readRestoreStage((string) $class, (string) $name);
 		if ($stage === '' || $stage === 'doing') {
@@ -768,8 +778,15 @@ class lxbackup extends Lxdb
 		if (!is_array($param)) {
 			$param = array();
 		}
-		$fname = isset($param['backup_to_file_f']) ? (string) $param['backup_to_file_f'] : 'kloxo';
 		@set_time_limit(0);
+		@ignore_user_abort(true);
+		// kloxo-backend is root: run the backup in-process so stage is written
+		// in this request (nested php + PrivateTmp cwd used to leave "doing").
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+		if ($euid === 0) {
+			return self::backupAccountInProcess((string) $class, (string) $name, $param);
+		}
+		$fname = isset($param['backup_to_file_f']) ? (string) $param['backup_to_file_f'] : 'kloxo';
 		$r = KloxoBackup::runBackup((string) $class, (string) $name, $fname, $param);
 		$stage = self::readBackupStage((string) $class, (string) $name);
 		if ($stage === '' || $stage === 'doing') {
@@ -786,6 +803,130 @@ class lxbackup extends Lxdb
 		}
 
 		return $stage;
+	}
+
+	/**
+	 * Backup Now body used by kloxo-backend (root). Same work as bin/common/backup.php.
+	 *
+	 * @param array<string,mixed> $param
+	 */
+	static function backupAccountInProcess($class, $name, $param)
+	{
+		global $login;
+
+		$class = (string) $class;
+		$name = (string) $name;
+		if ($class === '' || $name === '' || !class_exists($class)) {
+			return 'Failed due to: invalid backup class or name';
+		}
+		if (!is_array($param)) {
+			$param = array();
+		}
+		if (!isset($param['backup_to_file_f']) || trim((string) $param['backup_to_file_f']) === '') {
+			$param['backup_to_file_f'] = 'kloxo';
+		}
+		if (!is_object($login) || (method_exists($login, 'isAdmin') && !$login->isAdmin())) {
+			if (function_exists('initProgram')) {
+				initProgram('admin');
+			}
+		}
+
+		$object = new $class(null, 'localhost', $name);
+		$object->get();
+		if ($object->dbaction === 'add') {
+			return "Failed due to: {$class} {$name} does not exist";
+		}
+		$backup = $object->getObject('lxbackup');
+		if (!is_object($backup)) {
+			return "Failed due to: no lxbackup object for {$name}";
+		}
+		$lock = "{$class}-{$name}.backup";
+		if (lx_core_lock($lock)) {
+			$backup->backupstage = 'Failed due to: another backup for this account is already running';
+			clearLxbackup($backup);
+
+			return (string) $backup->backupstage;
+		}
+
+		try {
+			$backup->doUpdateBackup($param);
+			$backup->backupstage = 'done';
+		} catch (Throwable $e) {
+			$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
+			if ($mess === '') {
+				$mess = 'unknown backup error';
+			}
+			$backup->backupstage = "Failed due to: {$mess}";
+		}
+		clearLxbackup($backup);
+		if (function_exists('kloxo_release_core_lock')) {
+			kloxo_release_core_lock($lock);
+		}
+
+		return (string) $backup->backupstage;
+	}
+
+	/**
+	 * Restore From File body used by kloxo-backend (root). Same work as restore.php.
+	 *
+	 * @param array<string,mixed> $param
+	 */
+	static function restoreAccountInProcess($class, $name, $file, $param)
+	{
+		global $gbl, $login;
+
+		$class = (string) $class;
+		$name = (string) $name;
+		$file = (string) $file;
+		if ($class === '' || $name === '' || $file === '' || !class_exists($class)) {
+			return 'Restore failed due to: invalid restore class, name or file';
+		}
+		if (!is_array($param)) {
+			$param = array();
+		}
+		if (!is_object($login) || (method_exists($login, 'isAdmin') && !$login->isAdmin())) {
+			if (function_exists('initProgram')) {
+				initProgram('admin');
+			}
+		}
+
+		$object = new $class(null, 'localhost', $name);
+		$object->get();
+		if ($object->dbaction === 'add') {
+			return "Restore failed due to: {$class} {$name} does not exist";
+		}
+		$backup = $object->getObject('lxbackup');
+		if (!is_object($backup)) {
+			return "Restore failed due to: no lxbackup object for {$name}";
+		}
+		$lock = "{$class}-{$name}.restore";
+		if (lx_core_lock($lock)) {
+			$backup->restorestage = 'Failed due to: another restore for this account is already running';
+			clearLxbackup($backup);
+
+			return (string) $backup->restorestage;
+		}
+
+		try {
+			$backup->doUpdateRestore($file, $param);
+			$left = (is_object($gbl) && isset($gbl->__var_restore_leftover))
+				? trim((string) $gbl->__var_restore_leftover) : '';
+			$backup->restorestage = $left !== ''
+				? ('done. Still do by hand: ' . str_replace("\n", ' ', $left))
+				: 'done';
+		} catch (Throwable $e) {
+			$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
+			if ($mess === '') {
+				$mess = 'unknown restore error';
+			}
+			$backup->restorestage = "Restore failed due to {$mess}";
+		}
+		clearLxbackup($backup);
+		if (function_exists('kloxo_release_core_lock')) {
+			kloxo_release_core_lock($lock);
+		}
+
+		return (string) $backup->restorestage;
 	}
 
 	/** One-line stderr/stdout for Status toast when stage stayed "doing". */
@@ -870,6 +1011,9 @@ class lxbackup extends Lxdb
 		}
 
 		$fbfile = KloxoBackup::installFile($fbfile, $table, $pname);
+		if (!is_file($fbfile) || @filesize($fbfile) < 1) {
+			throw new Exception('backup archive was not created (' . basename($fbfile) . ')');
+		}
 
 		$object = clone($this);
 		lxclass::clearChildrenAndParent($object);

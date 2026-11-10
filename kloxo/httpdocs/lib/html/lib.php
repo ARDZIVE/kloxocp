@@ -2417,7 +2417,7 @@ function lx_core_lock($file = null)
 {
 	global $argv, $sgbl;
 
-	$prog = basename($argv[0]);
+	$prog = basename((string) ($argv[0] ?? ''));
 
 	// This is a hack.. If we can't get the arg, then that means we are in the cgi mode,
 	// and that means our process name is display.php.
@@ -2425,7 +2425,13 @@ function lx_core_lock($file = null)
 		$prog = "display.php";
 	}
 
-	lxfile_mkdir("../pid");
+	$root = (is_object($sgbl) && isset($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: (function_exists('kloxo_program_root') ? kloxo_program_root() : dirname(__DIR__, 3));
+	$piddir = $root . '/pid';
+	if (!is_dir($piddir)) {
+		@mkdir($piddir, 0755, true);
+	}
 
 	if (!$file) {
 		$file = "$prog.pid";
@@ -2433,7 +2439,7 @@ function lx_core_lock($file = null)
 		$file = basename($file);
 	}
 
-	$pidfile = "{$sgbl->__path_program_root}/pid/{$file}";
+	$pidfile = "{$piddir}/{$file}";
 	$pid = null;
 
 	if (lxfile_exists($pidfile)) {
@@ -2458,7 +2464,18 @@ function lx_core_lock($file = null)
 		$name = basename($name);
 	}
 
-	if (!$name || $name !== $prog) {
+	// Match script basename (backup.php) or a PHP interpreter holding that script.
+	$alive = false;
+	if ($name) {
+		if ($name === $prog) {
+			$alive = true;
+		} elseif (preg_match('/^php(\d+(\.\d+)*)?(\d)?$/', $name) === 1
+			|| str_starts_with($name, 'php')) {
+			$alive = kloxo_pid_runs_script((int) $pid, $prog);
+		}
+	}
+
+	if (!$alive) {
 		if (!$name) {
 			$str .= "$prog:$file\nStale Lock file detected.\n$pidfile\nRemoving it...\n";
 		} else {
@@ -2478,6 +2495,31 @@ function lx_core_lock($file = null)
 	dprint($str);
 
 	return $ret;
+}
+
+/** True when /proc/<pid>/cmdline mentions the given script basename. */
+function kloxo_pid_runs_script($pid, $scriptBase)
+{
+	$pid = (int) $pid;
+	$scriptBase = basename((string) $scriptBase);
+	if ($pid < 1 || $scriptBase === '') {
+		return false;
+	}
+	$path = "/proc/{$pid}/cmdline";
+	if (!is_readable($path)) {
+		return false;
+	}
+	$raw = @file_get_contents($path);
+	if (!is_string($raw) || $raw === '') {
+		return false;
+	}
+	foreach (explode("\0", $raw) as $part) {
+		if ($part !== '' && basename($part) === $scriptBase) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 function lx_core_lock_check_only($prog, $file = null)
@@ -4008,8 +4050,36 @@ function getNotexistingFile($dir, $file)
 
 function clearLxbackup($backup)
 {
+	if (!is_object($backup)) {
+		return;
+	}
+	// Fresh get() leaves dbaction=clean; writeToDb only persists on add/update/delete.
+	if (!isset($backup->dbaction) || $backup->dbaction === 'clean' || $backup->dbaction === '') {
+		$backup->dbaction = 'update';
+	}
 	$backup->setUpdateSubaction();
 	$backup->write();
+}
+
+/** Drop a backup/restore pid lock so a finished job cannot look "still running". */
+function kloxo_release_core_lock($file)
+{
+	global $sgbl;
+
+	$file = basename((string) $file);
+	if ($file === '' || $file === '.' || $file === '..') {
+		return;
+	}
+	$root = (is_object($sgbl) && isset($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: (function_exists('kloxo_program_root') ? kloxo_program_root() : '');
+	if ($root === '') {
+		return;
+	}
+	$pidfile = $root . '/pid/' . $file;
+	if (is_file($pidfile)) {
+		@unlink($pidfile);
+	}
 }
 
 function createrows($list)

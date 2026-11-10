@@ -246,7 +246,7 @@ final class KloxoBackup
 	 * @param list<string> $accounts
 	 * @return list<string>
 	 */
-	public static function restoreArgv(string $class, string $name, string $file, array $accounts = array()): array
+	public static function restoreArgv(string $class, string $name, string $file, array $accounts = array(), bool $lowPriority = false): array
 	{
 		$class = self::token($class);
 		$name = self::token($name, true);
@@ -267,16 +267,20 @@ final class KloxoBackup
 			$acc = $parts !== array() ? implode(',', $parts) : 'all';
 		}
 
-		return array(
+		$argv = array(
 			self::phpBinary(),
 			self::restoreScript(),
 			'--class=' . $class,
 			'--name=' . $name,
 			'--restore',
 			'--accounts=' . $acc,
-			'--priority=low',
-			$file,
 		);
+		if ($lowPriority) {
+			$argv[] = '--priority=low';
+		}
+		$argv[] = $file;
+
+		return $argv;
 	}
 
 	/**
@@ -301,7 +305,8 @@ final class KloxoBackup
 	 */
 	public static function launchRestore(string $class, string $name, string $file, array $accounts = array()): void
 	{
-		self::launch(self::restoreArgv($class, $name, $file, $accounts), 'restore');
+		// Low priority sleep is for scheduled/background restores only.
+		self::launch(self::restoreArgv($class, $name, $file, $accounts, true), 'restore');
 	}
 
 	/**
@@ -312,7 +317,7 @@ final class KloxoBackup
 	 */
 	public static function runRestore(string $class, string $name, string $file, array $accounts = array()): array
 	{
-		return self::run(self::restoreArgv($class, $name, $file, $accounts));
+		return self::run(self::restoreArgv($class, $name, $file, $accounts, false));
 	}
 
 	/**

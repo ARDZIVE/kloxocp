@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * Account Restore From File. Always chdir to httpdocs so includes work from
+ * any cwd. Panel Restore prefers lxbackup::restoreAccountInProcess on
+ * kloxo-backend (root); this script remains for CLI / cron / non-root.
+ */
+
 $httpdocs = dirname(__DIR__, 2) . '/httpdocs';
 if (is_dir($httpdocs)) {
 	chdir($httpdocs);
@@ -11,25 +17,25 @@ restore_main();
 function restore_main()
 {
 	global $argc, $argv;
-	global $gbl, $login, $ghtml; 
+	global $gbl, $login, $ghtml;
+
+	@set_time_limit(0);
+	@ignore_user_abort(true);
 
 	$gbl->__restore_flag = true;
 
 	if ($argc === 1) {
-	//	print("Usage: $argv[0] --class= --name= --restore/--list " .
 		print("Usage: sh /script/restore --class= --name= --restore/--list " .
 			"--accounts='domain:<domain1.com>,client:<client1>,domain:<domain2.com>' <backup-file> " .
 			"[--switchserverlist='oldserver1:newserver1,oldserver2:newserver2']" .
 			"\n- Use --accounts=all to restore everything.\n");
-		exit;
+		exit(64);
 	}
-
 
 	initProgram("admin");
 	$object = $login;
 
 	$opt = parse_opt($argv);
-
 
 	if (isset($opt['class']) && isset($opt['name'])) {
 		$object = new $opt['class'](null, null, $opt['name']);
@@ -37,13 +43,19 @@ function restore_main()
 		if ($object->dbaction === 'add') {
 			log_error("{$opt['class']} doesnt exist");
 			print("{$opt['class']} doesnt exist\n");
-			exit;
+			exit(1);
 		}
 	}
 
-	$class = $opt['class'];
-	$name = $opt['name'];
-	if (lx_core_lock("$class-$name.restore")) {
+	$class = $opt['class'] ?? '';
+	$name = $opt['name'] ?? '';
+	if (!is_string($class) || $class === '' || !is_string($name) || $name === '') {
+		print("Restore failed due to: --class= and --name= are required\n");
+		exit(64);
+	}
+
+	$lock = "{$class}-{$name}.restore";
+	if (lx_core_lock($lock)) {
 		if (is_object($backup = $object->getObject('lxbackup'))) {
 			$backup->restorestage = 'Failed due to: another restore for this account is already running';
 			clearLxbackup($backup);
@@ -53,17 +65,25 @@ function restore_main()
 	}
 
 	$backup = $object->getObject('lxbackup');
+	if (!is_object($backup)) {
+		print("Restore failed due to: no lxbackup object for {$name}\n");
+		if (function_exists('kloxo_release_core_lock')) {
+			kloxo_release_core_lock($lock);
+		}
+		exit(1);
+	}
 
+	$param = array();
 	if (isset($opt['switchserverlist'])) {
-
 		$sq = new Sqlite(null, "pserver");
 		$serverlist = $sq->getTable();
 		$serverlist = get_namelist_from_arraylist($serverlist);
 		$server = $opt['switchserverlist'];
 
 		$list = explode(",", $server);
+		$rlist = array();
 
-		foreach($list as $l) {
+		foreach ($list as $l) {
 			if (!$l) {
 				continue;
 			}
@@ -71,56 +91,48 @@ function restore_main()
 			$rlist[$q[0]] = $q[1];
 			if (!array_search_bool($q[1], $serverlist)) {
 				print("The server {$q[1]} doesn't exist in the server system here\n");
-				exit;
+				if (function_exists('kloxo_release_core_lock')) {
+					kloxo_release_core_lock($lock);
+				}
+				exit(1);
 			}
 		}
 		$param['switchserverlist'] = $rlist;
-		dprint("\n");
 	} else {
 		$param['switchserverlist'] = null;
 	}
 
-
-/*
-	if (!testAllServersWithMessage()) {
-		$backup->restorestage = "Failed due to: could not connect to slave servers";
-		clearLxbackup($backup);
-		exit;
-	}
-*/
-
-
-	$file = $opt['final'];
-	//$param = get_variable($opt);
+	$file = $opt['final'] ?? '';
 
 	if (isset($opt['list'])) {
 		$gbl->__var_list_flag = true;
 		$param['_accountselect'] = null;
-	}  else if (isset($opt['restore'])) {
+	} else if (isset($opt['restore'])) {
 		$gbl->__var_list_flag = false;
 		if (!isset($opt['accounts'])) {
 			print("Restore option needs accounts that are to be restored. --accounts='domain:domain.com,client:clientname'... Use --list to find out all the domain/clients in the backup archive.\n");
 			clearLxbackup($backup);
-			exit;
+			if (function_exists('kloxo_release_core_lock')) {
+				kloxo_release_core_lock($lock);
+			}
+			exit(64);
 		}
 		$account = $opt['accounts'];
-		//$account = str_replace(":", "_s_vv_p_", $account);
 		$account = str_replace(":", "-", $account);
 		$accountlist = explode(",", $account);
 		$param['_accountselect'] = $accountlist;
 	} else {
 		print("Usage: $argv[0] <--list/--restore --accounts=> <filename>\n");
 		clearLxbackup($backup);
-		exit;
+		if (function_exists('kloxo_release_core_lock')) {
+			kloxo_release_core_lock($lock);
+		}
+		exit(64);
 	}
 
 	if (isset($opt['priority']) && $opt['priority'] === 'low') {
 		sleep(20);
 	}
-
-	dprintr($param);
-
-	//dprint($file);
 
 	log_log("restore", "*** Restore from '{$name}' user - BEGIN ***");
 
@@ -136,6 +148,9 @@ function restore_main()
 		}
 	} catch (Throwable $e) {
 		$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
+		if ($mess === '') {
+			$mess = 'unknown restore error';
+		}
 		log_error("Restore Failed. Reason: {$mess} \n");
 		print("Restore Failed. Reason: {$mess} \n");
 		if (isset($object->contactemail) && is_string($object->contactemail) && $object->contactemail !== '') {
@@ -145,9 +160,9 @@ function restore_main()
 	}
 
 	clearLxbackup($backup);
+	if (function_exists('kloxo_release_core_lock')) {
+		kloxo_release_core_lock($lock);
+	}
 
 	log_log("restore", "*** Restore from '{$name}' user - END ***");
 }
-
-
-

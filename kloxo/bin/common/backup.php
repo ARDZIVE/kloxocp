@@ -4,6 +4,9 @@
  * Account Backup Now (admin and client). Always chdir to httpdocs so the
  * relative include works when launched by KloxoBackup::run from any cwd
  * (kloxo-backend PrivateTmp, cron, /script/backup).
+ *
+ * Panel Backup Now prefers lxbackup::backupAccountInProcess on kloxo-backend
+ * (root); this script remains for CLI / cron / non-root fallback.
  */
 
 $httpdocs = dirname(__DIR__, 2) . '/httpdocs';
@@ -19,7 +22,8 @@ function backup_main()
 	global $argc, $argv;
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$progname = $sgbl->__var_program_name;
+	@set_time_limit(0);
+	@ignore_user_abort(true);
 
 	if ($argc === 1) {
 		print("Usage: sh /script/backup --class= --name= --v-backup_file_name= \n");
@@ -35,6 +39,9 @@ function backup_main()
 		exit(64);
 	}
 	$param = get_variable($opt);
+	if (!is_array($param)) {
+		$param = array();
+	}
 	initProgram("admin");
 	$object = new $class(null, 'localhost', $name);
 	$object->get();
@@ -54,23 +61,12 @@ function backup_main()
 		exit(1);
 	}
 
-	if (lx_core_lock("{$class}-{$name}.backup")) {
+	$lock = "{$class}-{$name}.backup";
+	if (lx_core_lock($lock)) {
 		$backup->backupstage = 'Failed due to: another backup for this account is already running';
 		clearLxbackup($backup);
 		print("Backup failed due to: another backup for this account is already running\n");
 		exit(1);
-	}
-
-	if ($object->dbaction === 'add') {
-		print("Backup failed due to: {$name} doesn't exist\n");
-		$backup->backupstage = "Failed due to: {$name} doesn't exist";
-		clearLxbackup($backup);
-		log_error("Backup.php Client {$name} doesnt exist");
-		exit(1);
-	}
-
-	if (!empty($opt['priority']) && $opt['priority'] === 'low') {
-		// scheduled path may sleep; Backup Now does not set priority=low
 	}
 
 	if (!empty($opt['v-backup_file_name'])) {
@@ -102,6 +98,9 @@ function backup_main()
 		print("Backup has been saved in {$sgbl->__path_program_home}/{$table}/{$pname}/__backup/\n");
 	} catch (Throwable $e) {
 		$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
+		if ($mess === '') {
+			$mess = 'unknown backup error';
+		}
 		$backup->backupstage = "Failed due to: {$mess}";
 		print("Backup failed due to: {$mess}\n");
 		if (isset($object->contactemail) && is_string($object->contactemail) && $object->contactemail !== '') {
@@ -110,6 +109,9 @@ function backup_main()
 	}
 
 	clearLxbackup($backup);
+	if (function_exists('kloxo_release_core_lock')) {
+		kloxo_release_core_lock($lock);
+	}
 
 	log_log("backup", "*** Backup from '{$name}' user - END ***");
 }

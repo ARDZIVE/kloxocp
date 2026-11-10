@@ -71,6 +71,7 @@ $rAdmin = KloxoBackup::restoreArgv('client', 'admin', '/home/kloxo/client/admin/
 check($rAdmin[1] === KloxoBackup::restoreScript()
 	&& in_array('--restore', $rAdmin, true)
 	&& in_array('--accounts=all', $rAdmin, true)
+	&& !in_array('--priority=low', $rAdmin, true)
 	&& end($rAdmin) === '/home/kloxo/client/admin/__backup/x.tgz'
 	&& is_file($rAdmin[1]),
 	'admin restore argv defaults accounts=all');
@@ -78,6 +79,9 @@ $rClient = KloxoBackup::restoreArgv('client', 'alice', '/home/kloxo/client/alice
 check(in_array('--accounts=client:alice,domain:example.com', $rClient, true)
 	&& str_contains($rClient[3], '--name=alice'),
 	'client restore argv maps class-name to class:name');
+$rLow = KloxoBackup::restoreArgv('client', 'admin', '/home/kloxo/client/admin/__backup/x.tgz', array(), true);
+check(in_array('--priority=low', $rLow, true),
+	'scheduled restore argv may set priority=low');
 $threw = false;
 try {
 	KloxoBackup::restoreArgv('client', 'admin', "/tmp/x\0.tgz");
@@ -322,7 +326,10 @@ check(str_contains($bak, 'KloxoBackup::runBackup')
 	&& str_contains($bak, 'KloxoBackup::runRestore')
 	&& str_contains($bak, 'function backupParent')
 	&& str_contains($bak, 'function fileManagerDir')
-	&& str_contains($bak, 'shortProcDetail'),
+	&& str_contains($bak, 'shortProcDetail')
+	&& str_contains($bak, 'function backupAccountInProcess')
+	&& str_contains($bak, 'function restoreAccountInProcess')
+	&& str_contains($bak, 'backup archive was not created'),
 	'Backup Now and Restore From File wait on runBackup/runRestore');
 check(!str_contains($bak, 'backup_has_been_scheduled')
 	&& str_contains($bak, 'backup_completed')
@@ -332,19 +339,28 @@ check(str_contains($kb = (string) file_get_contents($doc . '/lib/php/kloxo_backu
 	&& str_contains($kb, 'function launchBackup')
 	&& str_contains($kb, 'function runRestore')
 	&& str_contains($kb, "str_ends_with(\$script, '/backup.php')")
-	&& str_contains($kb, 'proc_open($argv, $spec, $pipes, $cwd)'),
+	&& str_contains($kb, 'proc_open($argv, $spec, $pipes, $cwd)')
+	&& str_contains($kb, 'bool $lowPriority = false'),
 	'runBackup/runRestore wait; launchBackup remains for cron');
 $bp = (string) file_get_contents($repo . '/kloxo/bin/common/backup.php');
 check(str_contains($bp, 'chdir($httpdocs)')
 	&& str_contains($bp, "dirname(__DIR__, 2) . '/httpdocs'")
 	&& str_contains($bp, "'/lib/html/include.php'")
-	&& str_contains($bp, 'another backup for this account is already running'),
+	&& str_contains($bp, 'another backup for this account is already running')
+	&& str_contains($bp, 'kloxo_release_core_lock'),
 	'backup.php chdirs to httpdocs and reports a held lock');
 $rp = (string) file_get_contents($repo . '/kloxo/bin/common/restore.php');
 check(str_contains($rp, 'chdir($httpdocs)')
 	&& str_contains($rp, "dirname(__DIR__, 2) . '/httpdocs'")
-	&& str_contains($rp, "'/lib/html/include.php'"),
+	&& str_contains($rp, "'/lib/html/include.php'")
+	&& str_contains($rp, 'kloxo_release_core_lock'),
 	'restore.php chdirs to httpdocs before include');
+$lib = (string) file_get_contents($doc . '/lib/html/lib.php');
+check(str_contains($lib, 'function clearLxbackup')
+	&& str_contains($lib, "dbaction === 'clean'")
+	&& str_contains($lib, 'function kloxo_release_core_lock')
+	&& str_contains($lib, 'function kloxo_pid_runs_script'),
+	'clearLxbackup forces update and locks use absolute pid paths');
 check(str_contains($bak, 'KloxoBackup::installFile')
 	&& str_contains($bak, 'KloxoBackup::ensureDir')
 	&& str_contains($bak, 'fileManagerDir()'),

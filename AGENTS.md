@@ -181,12 +181,12 @@ fixed). Restore lists archive members and refuses `../` / absolute paths
 (`KloxoBackup::extractArchive`); `kloxo.file` is unserialized with an
 allow-list (`unserializeMetadata`), not a raw `unserialize`. Backup Now writes the archive into the same `__backup/` directory the
 File Manager tab lists (`KloxoBackup::ensureDir` / `installFile`, owned by
-`lxlabs`); Restore From File picks from that folder. Backup Now waits for
-`backup.php` (`KloxoBackup::runBackup`) and then sets Last Backup Status to
-`done` or the failure text — it is not a scheduled/background job (Schedule
-Configuration stays the cron path). Restore From File waits (`runRestore`),
-applies web/DNS/mail/DKIM/certificates/DNS IPs, and lists leftover human steps
-on Last Restore Status. Help and the Backup Now / Restore forms show what is
+`lxlabs`); Restore From File picks from that folder. Backup Now on kloxo-backend runs `lxbackup::backupAccountInProcess` in-process
+(sets Last Backup Status in the same request; `backup.php` stays for CLI/cron).
+`clearLxbackup` forces `dbaction=update`; pid locks are absolute and released.
+UI Restore skips the scheduled `--priority=low` sleep. Restore From File waits
+(`restoreAccountInProcess` / `runRestore`), applies web/DNS/mail/DKIM/certificates/DNS IPs,
+and lists leftover human steps on Last Restore Status. Help and the Backup Now / Restore forms show what is
 saved and what you still do by hand. Live Backup Now / Restore From File /
 File Manager listing after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs

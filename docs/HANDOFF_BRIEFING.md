@@ -880,9 +880,13 @@ Work in this order. Keep every change small, tested and committed separately. Do
     `client-<name>`. Backup Now stores the archive in the File Manager tab
     directory (`/home/kloxo/client/<name>/__backup/`, `KloxoBackup::ensureDir`
     / `installFile`, chown `lxlabs`); Restore From File reads that same folder.
-    Backup Now waits for `backup.php` (`KloxoBackup::runBackup`) and sets Last
-    Backup Status to `done` or the failure; it is not scheduled.
-    Restore From File waits the same way (`KloxoBackup::runRestore`). The archive
+    Backup Now on kloxo-backend (root) runs `lxbackup::backupAccountInProcess`
+    in-process (writes Last Backup Status in the same request; nested
+    `backup.php` remains for CLI/cron). `clearLxbackup` forces `dbaction=update`
+    so stage is persisted; locks use absolute `pid/` and are released after the
+    job. UI Restore does not sleep (`--priority=low` is scheduled-only). A missing
+    archive after pack fails the job. Live Backup Now after this path is
+    **UNVERIFIED**. The archive
     also stores `kloxo.env.json` plus extras (DKIM keys, Let's Encrypt live
     files, admin `kloxo_mail` dump). Restore unpacks those, rewrites DNS IPs
     when they changed, then runs fixweb, fixdns and `kloxo-mail apply`. A
