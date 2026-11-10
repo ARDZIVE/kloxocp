@@ -430,8 +430,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     cover the fields. The dashboard still renders behind a backdrop.
     Alert popups (`kloxo-error-box`) no longer share `id="showimage"`
     with Generate Password, so Esc and Close hide the visible box.
-    Simplicity Status toast (`#div_cfstatus`) peeks `frm_emessage` /
-    `frm_smessage` without consuming them and auto-opens for 15s. All
+    Simplicity Status toast (`#div_cfstatus`) sits outside `.div_fixed_right`
+    so a long restore/backup message is not jammed into Status / Show /
+    Clock; it peeks `frm_emessage` / `frm_smessage` without consuming them
+    and auto-opens for 15s. Restore failure throws key `restore_failed`. All
     panel toasts (Status, `print_inline_alert`, login, form-load
     failures, password-force warning) use `.kloxo-toast`: fixed top-centre,
     white background, light shadow, icon coloured for info (blue),

@@ -328,6 +328,12 @@
 	position: relative;
 }
 
-.div_header_message_status.kloxo-status-toast-open {
-	display: block;
+.div_header_message_status.kloxo-status-toast-open,
+#div_cfstatus.kloxo-toast.kloxo-status-toast-open {
+	display: flex;
+}
+
+/* Keep Status toast out of the Status/Show/Clock flex row. */
+.div_fixed_right > #div_cfstatus {
+	display: none;
 }

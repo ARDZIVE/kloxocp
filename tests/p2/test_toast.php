@@ -94,6 +94,45 @@ if (str_contains($htmlLib, 'kloxo-toast.js')
 	bad('every panel page and login load the same toast JS/CSS; Status uses print_toast');
 }
 
+// Status toast must be printed before .div_fixed_right so a restore message
+// does not sit in the Status/Show/Clock flex row.
+$toastPos = strpos($topbar, 'print_toast');
+$rightPos = strpos($topbar, 'class="div_fixed_right"');
+if ($toastPos !== false && $rightPos !== false && $toastPos < $rightPos
+	&& str_contains($topbar, "'div_cfstatus', \$toast_display, true)")) {
+	ok('Status toast is outside the topbar flex strip');
+} else {
+	bad('Status toast is outside the topbar flex strip', "toast=$toastPos right=$rightPos");
+}
+
+ob_start();
+$h->print_toast('Restore completed.', 'success', 'div_cfstatus', 'flex', true);
+$statusToast = (string) ob_get_clean();
+if (str_contains($statusToast, 'id="div_cfstatus"')
+	&& str_contains($statusToast, 'div_header_message_status')
+	&& str_contains($statusToast, 'kloxo-toast-success')
+	&& !str_contains($statusToast, 'kloxo-inline-alert')
+	&& str_contains($statusToast, 'Restore completed.')) {
+	ok('Status toast skips legacy inline-alert classes');
+} else {
+	bad('Status toast skips legacy inline-alert classes', $statusToast);
+}
+
+$bak = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
+if (str_contains($bak, "throw new lxException('restore_failed'")
+	&& !str_contains($bak, "getThrow('restore_failed')")) {
+	ok('restore failure uses messagelib key restore_failed for the toast');
+} else {
+	bad('restore failure uses messagelib key restore_failed for the toast');
+}
+
+if (str_contains($htmlLib, 'Only add "..." when the Status toast text was truncated')
+	|| (str_contains($htmlLib, 'strlen($pmess) > 270') && str_contains($htmlLib, "substr(\$pmess, 0, 270) . '...'"))) {
+	ok('Status peek truncates with ... only when needed');
+} else {
+	bad('Status peek truncates with ... only when needed');
+}
+
 $core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 if (substr_count($core, "print_inline_alert('The requested form could not be loaded.', 'error')") >= 2
 	&& str_contains($core, "print_inline_alert(htmlspecialchars(\$msg")

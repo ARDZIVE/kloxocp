@@ -9306,16 +9306,22 @@ function uploadAbort(e) { // upload abort
 			. '<circle cx="12" cy="12" r="10" fill="' . $c . '"/>' . $mark . '</svg>';
 	}
 
-	function print_toast($body_html, $kind = 'info', $id = '', $display = null)
+	function print_toast($body_html, $kind = 'info', $id = '', $display = null, $statusBar = false)
 	{
 		if (!is_string($body_html) || $body_html === '') {
 			return;
 		}
 		$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind('', (string) $kind) : 'info';
-		$legacy = 'kloxo-inline-alert';
-		if ($kind === 'info') {
-			$legacy .= ' kloxo-inline-info';
+		// Status (#div_cfstatus) must not carry legacy inline-alert classes: those
+		// are position:relative and jam a restore/backup message into the topbar.
+		$legacy = '';
+		if (!$statusBar && (string) $id !== 'div_cfstatus') {
+			$legacy = 'kloxo-inline-alert';
+			if ($kind === 'info') {
+				$legacy .= ' kloxo-inline-info';
+			}
 		}
+		$statusClass = ($statusBar || (string) $id === 'div_cfstatus') ? ' div_header_message_status' : '';
 		$role = ($kind === 'error' || $kind === 'warning') ? 'alert' : 'status';
 		$idAttr = ($id !== '') ? ' id="' . htmlspecialchars((string) $id, ENT_QUOTES) . '"' : '';
 		$open = ($display === 'block' || $display === 'flex') ? ' kloxo-status-toast-open' : '';
@@ -9324,8 +9330,9 @@ function uploadAbort(e) { // upload abort
 			$style = ' style="display:' . htmlspecialchars((string) $display, ENT_QUOTES) . ';"';
 		}
 		$icon = self::toastIconHtml($kind);
+		$class = trim('kloxo-toast kloxo-toast-' . $kind . ' ' . $legacy . $statusClass . $open);
 ?>
-		<div<?= $idAttr ?> class="kloxo-toast kloxo-toast-<?= htmlspecialchars($kind, ENT_QUOTES) ?> <?= $legacy ?><?= $open ?>" role="<?= $role ?>"<?= $style ?>>
+		<div<?= $idAttr ?> class="<?= htmlspecialchars($class, ENT_QUOTES) ?>" role="<?= $role ?>"<?= $style ?>>
 			<span class="kloxo-toast-icon"><?= $icon ?></span>
 			<div class="kloxo-toast-body"><?= $body_html ?></div>
 		</div>
@@ -9428,10 +9435,17 @@ function uploadAbort(e) { // upload abort
 
 			if ($peek) {
 				$pmess = $this->format_message($mess, $value, true);
-				$pmess = substr($pmess, 0, 270);
-				$pmess = preg_replace("/<.*?>/", "", $pmess);
+				$pmess = preg_replace("/<.*?>/", "", is_string($pmess) ? $pmess : '');
+				$pmess = is_string($pmess) ? trim($pmess) : '';
+				if ($pmess === '') {
+					return '';
+				}
+				// Only add "..." when the Status toast text was truncated.
+				if (strlen($pmess) > 270) {
+					return substr($pmess, 0, 270) . '...';
+				}
 
-				return is_string($pmess) ? trim($pmess) . '...' : '';
+				return $pmess;
 			}
 
 			unset($this->__http_vars['frm_emessage']);
@@ -9527,8 +9541,9 @@ function uploadAbort(e) { // upload abort
 		$mess = $this->convert_message($mess);
 		$mess = str_replace("[b]", "<span style='font-weight:bold'>", $mess);
 		$mess = str_replace("[/b]", "</span>", $mess);
-		$mess = str_replace("[%s]", "<span style='font-weight:bold; color:black'>$value</span>", $mess);
-		$mess = str_replace("[%cs]", $value, $mess);
+		$safe = htmlspecialchars(kloxo_string($value), ENT_QUOTES);
+		$mess = str_replace("[%s]", "<span style='font-weight:bold; color:black'>$safe</span>", $mess);
+		$mess = str_replace("[%cs]", $safe, $mess);
 		$mess = $this->replace_url($mess, $mainframeflag);
 
 		return $mess;

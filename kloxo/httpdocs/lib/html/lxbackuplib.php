@@ -654,7 +654,8 @@ class lxbackup extends Lxdb
 
 				return $param;
 			}
-			throw new lxException($login->getThrow('restore_failed'), '', $stage);
+			// Pass the messagelib key so Status toast uses "Restore failed: [%s]".
+			throw new lxException('restore_failed', '', $stage);
 		}
 	}
 

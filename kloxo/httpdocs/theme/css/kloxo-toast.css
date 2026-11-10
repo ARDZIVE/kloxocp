@@ -63,13 +63,20 @@ div.kloxo-toast.kloxo-inline-alert,
 	border-left: 4px solid #e74c3c;
 }
 
-#div_cfstatus.kloxo-toast {
-	width: auto;
+#div_cfstatus.kloxo-toast,
+#div_cfstatus.kloxo-toast.div_header_message_status {
+	position: fixed;
+	z-index: 10065;
+	top: 12px;
+	left: 50%;
 	right: auto;
+	transform: translateX(-50%);
+	width: auto;
 	margin-top: 0;
 	color: #222;
 	background: #fff;
 	border: 0;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 }
 
 .kloxo-password-force .kloxo-toast,
