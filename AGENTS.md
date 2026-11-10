@@ -184,7 +184,9 @@ File Manager tab lists (`KloxoBackup::ensureDir` / `installFile`, owned by
 `lxlabs`); Restore From File picks from that folder. Backup Now waits for
 `backup.php` (`KloxoBackup::runBackup`) and then sets Last Backup Status to
 `done` or the failure text — it is not a scheduled/background job (Schedule
-Configuration stays the cron path). Live Backup Now / Restore From File /
+Configuration stays the cron path). Help on Backup / Restore lists what is
+saved (records, site files, mail folders, customer DBs) and the administrator
+steps after a restore on another server. Live Backup Now / Restore From File /
 File Manager listing after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client

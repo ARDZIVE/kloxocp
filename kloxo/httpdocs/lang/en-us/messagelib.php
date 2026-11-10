@@ -236,16 +236,28 @@ $__information['resourceplan_show__pre'] = "<p><b>Note:</b> ".
 $__information['resourceplan_addform__pre'] = "<p>You can set 'Resource Plan' here and then create client based on it.</p>".
 	"<p>Note: for 'Number Of FastCGI Children', 'Unlimited' equal to '4'</p>";
 
-$__information['lxbackup_updateform_backup_pre'] = "<p>The backup file will appear in the __backup directory of your client area. ".
-	"You can access it by clicking on the 'File Manager' Tab.</p>".
-	"<p>To restore a backup, you can first upload it to the server using the <b>upload</b> tab or use 'Restore from FTP' (not recommended for big size backup file).</p>".
-	"<p>Please note that Kloxo CP backup is heirarchical. ".
-	"If you take backup of a particular resource, everything under it is automatically included. ".
-	"Thus if you take backup of admin, then you need not take backups of clients under you separately.</p>";
+$__information['lxbackup_show__pre'] = "<p><b>A backup is a copy of this account</b> (for admin: everyone under you). It is not a copy of the whole server. Another machine must already have [%_programname_%] installed before you restore.</p>".
+	"<p><b>Saved:</b> panel records, website files, mail folders, customer databases.</p>".
+	"<p><b>Not saved:</b> the panel itself, Let's Encrypt certificates, DKIM keys, firewall, extra PHP versions, this server's IP and hostname.</p>".
+	"<p><b>On this server:</b> Backup Now writes a file in File Manager. To put it back, pick that file under Restore From File (or Upload it first). Admin backup already includes every client — you do not back them up one by one.</p>".
+	"<p><b>Moving to another server</b> — the administrator does these on the new machine. Skip a step only when that item is the same on both servers.</p>".
+	"<ol>".
+	"<li>Copy the archive into Backup / Restore → File Manager, then Restore From File (all accounts).</li>".
+	"<li>If the IP or hostname changed: run <code>sh /script/fixdnschangeip --oldip=OLD --newip=NEW</code> and point DNS at the new server.</li>".
+	"<li>Match Switch Program (web, DNS, mail), then run <code>sh /script/fixweb</code>, <code>sh /script/fixdns</code> and <code>kloxo-mail apply</code>.</li>".
+	"<li>Install the same PHP versions and re-apply PHP Selected for each domain.</li>".
+	"<li>Re-issue Let's Encrypt (or copy <code>/etc/letsencrypt</code>).</li>".
+	"<li>Recreate DKIM for each domain, then run <code>kloxo-mail apply</code> again.</li>".
+	"<li>Redo UFW, Fail2Ban, panel SSL and the recovery password if you had customised them.</li>".
+	"</ol>".
+	"<p>Mail login and HTTPS still need steps 3, 5 and 6 even when the IP does not change. Restore does not finish those by itself.</p>";
 
-$__information['lxbackup_updateform_restore_from_file_pre'] =	"<p>You can upload directly or from an http url or an ftp server. ".
-	"Then come here, and click on <b>directory</b> icon on the right in the <b>restore</b> form, ".
-	"and it will allow you to select the particular file. Then click on <b>start restore process</b>.</p>";
+$__information['lxbackup_updateform_backup_pre'] = $__information['lxbackup_show__pre'];
+
+$__information['lxbackup_updateform_restore_from_file_pre'] = "<p>Pick the archive with the folder icon, then <b>Start Restore Process</b>. Upload the file first (Upload tab, HTTP, or FTP) if it is not already in File Manager. FTP restore is a poor choice for a large archive.</p>".
+	$__information['lxbackup_show__pre'];
+
+$__information['lxbackup_updateform_restore_from_ftp_pre'] = $__information['lxbackup_updateform_restore_from_file_pre'];
 
 $__information['phpini_updateform_edit_admin_pre'] = "<p>Installing PHP modules (like xcache/ioncube/zend/suhosin) rpm via yum. Installing these modules depend on php branch and version installed on system.</p>" .
 	"<p>If using 'php-branch' in 'php used' and using php53u, install with 'yum install php53u-xcache' and then try 'php -m' for to make sure.</p>" .

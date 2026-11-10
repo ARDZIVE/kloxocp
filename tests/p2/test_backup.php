@@ -364,6 +364,29 @@ check(str_contains($bphp, 'catch (Throwable')
 	&& str_contains($rphp, 'catch (Throwable'),
 	'backup.php and restore.php catch Throwable');
 
+echo "== panel Help text\n";
+$__information = array();
+include $doc . '/lang/en-us/messagelib.php';
+$bakHelp = (string) ($__information['lxbackup_show__pre'] ?? '');
+check($bakHelp !== ''
+	&& str_contains($bakHelp, 'copy of this account')
+	&& str_contains($bakHelp, 'not a copy of the whole server')
+	&& str_contains($bakHelp, 'panel records, website files, mail folders, customer databases')
+	&& str_contains($bakHelp, 'the panel itself, Let\'s Encrypt certificates, DKIM keys')
+	&& str_contains($bakHelp, 'fixdnschangeip --oldip=OLD --newip=NEW')
+	&& str_contains($bakHelp, 'sh /script/fixweb')
+	&& str_contains($bakHelp, 'sh /script/fixdns')
+	&& str_contains($bakHelp, 'kloxo-mail apply')
+	&& str_contains($bakHelp, 'PHP Selected')
+	&& str_contains($bakHelp, '/etc/letsencrypt')
+	&& ($__information['lxbackup_updateform_backup_pre'] ?? '') === $bakHelp
+	&& is_string($__information['lxbackup_updateform_restore_from_file_pre'] ?? null)
+	&& str_contains((string) $__information['lxbackup_updateform_restore_from_file_pre'], 'Start Restore Process')
+	&& str_contains((string) $__information['lxbackup_updateform_restore_from_file_pre'], 'copy of this account')
+	&& ($__information['lxbackup_updateform_restore_from_ftp_pre'] ?? '')
+		=== ($__information['lxbackup_updateform_restore_from_file_pre'] ?? null),
+	'Backup / Restore Help lists what is saved and the move-to-another-server steps');
+
 KloxoBackup::$runCmd = null;
 KloxoBackup::$fsPrefix = '';
 foreach (array($dumpFile, $mailRoot . '/cur') as $f) {

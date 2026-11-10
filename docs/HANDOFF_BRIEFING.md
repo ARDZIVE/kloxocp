@@ -867,6 +867,11 @@ Work in this order. Keep every change small, tested and committed separately. Do
     / `installFile`, chown `lxlabs`); Restore From File reads that same folder.
     Backup Now waits for `backup.php` (`KloxoBackup::runBackup`) and sets Last
     Backup Status to `done` or the failure; it is not scheduled.
+    Panel Help on Backup / Restore (and Backup Now / Restore From File / FTP)
+    lists what the archive contains (records, site files, mail folders, customer
+    DBs) and the root steps after a restore on another machine (IP/DNS,
+    Switch Program, PHP, Let's Encrypt, DKIM, firewall). The archive is not a
+    whole-server image; live migrate is **UNVERIFIED**.
     `extractArchive` lists members and refuses `../`, absolute paths and
     option-like names (no tar `--wildcards`); symlink members are skipped.
     Restore metadata (`getMetaData`, `getObjectFromFileWithThrow`) uses
