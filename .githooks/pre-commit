@@ -1,0 +1,33 @@
+#!/bin/bash
+# Bump Kloxo CP version on every commit (10.1-YYYYMMDDNN).
+# Opt out: SKIP_VERSION_BUMP=1 git commit ...
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if [[ -d "$ROOT/.git/rebase-merge" || -d "$ROOT/.git/rebase-apply" ]]; then
+  exit 0
+fi
+if [[ -f "$ROOT/.git/MERGE_HEAD" || -f "$ROOT/.git/CHERRY_PICK_HEAD" ]]; then
+  exit 0
+fi
+if [[ "${SKIP_VERSION_BUMP:-}" == "1" ]]; then
+  exit 0
+fi
+
+NEW="$(php "$ROOT/tools/bump-version")"
+git add \
+  kloxo/bin/kloxoversion \
+  kloxo/bin/kloxocp \
+  install.sh \
+  kloxo/httpdocs/lib/sgbl.php \
+  kloxo/httpdocs/lib/html/lib.php \
+  kloxo/httpdocs/driver/pserver/lxupdatelib.php \
+  README.md \
+  AGENTS.md \
+  docs/HANDOFF_BRIEFING.md \
+  docs/KLOXO_CP_VS_CPANEL.html \
+  2>/dev/null || true
+
+echo "version -> ${NEW}"
+exit 0

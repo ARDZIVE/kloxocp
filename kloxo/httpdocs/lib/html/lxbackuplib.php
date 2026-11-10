@@ -712,10 +712,14 @@ class lxbackup extends Lxdb
 		}
 		@set_time_limit(0);
 		@ignore_user_abort(true);
-		// kloxo-backend is root: restore in-process (no nested php / cwd failures).
+		// kloxo-backend is root: restore in-process when pdo_sqlite is loaded.
 		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
-		if ($euid === 0) {
+		$hasSqlite = extension_loaded('pdo_sqlite');
+		if ($euid === 0 && $hasSqlite) {
 			return self::restoreAccountInProcess((string) $class, (string) $name, (string) $file, $param);
+		}
+		if (!$hasSqlite && function_exists('kloxo_php_binary')) {
+			kloxo_php_binary();
 		}
 		$val = (isset($param['_accountselect']) && is_array($param['_accountselect']))
 			? $param['_accountselect'] : array();
@@ -780,11 +784,17 @@ class lxbackup extends Lxdb
 		}
 		@set_time_limit(0);
 		@ignore_user_abort(true);
-		// kloxo-backend is root: run the backup in-process so stage is written
-		// in this request (nested php + PrivateTmp cwd used to leave "doing").
+		// kloxo-backend is root: run in-process when this PHP has pdo_sqlite.
+		// If PHP Used pointed /usr/bin/php at a series without sqlite, fall
+		// back to subprocess via kloxo_php_binary() (pinned etc/path/php).
 		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
-		if ($euid === 0) {
+		$hasSqlite = extension_loaded('pdo_sqlite');
+		if ($euid === 0 && $hasSqlite) {
 			return self::backupAccountInProcess((string) $class, (string) $name, $param);
+		}
+		if (!$hasSqlite && function_exists('kloxo_php_binary')) {
+			// Discover + pin a SQLite-capable CLI before spawning backup.php.
+			kloxo_php_binary();
 		}
 		$fname = isset($param['backup_to_file_f']) ? (string) $param['backup_to_file_f'] : 'kloxo';
 		$r = KloxoBackup::runBackup((string) $class, (string) $name, $fname, $param);
@@ -798,7 +808,12 @@ class lxbackup extends Lxdb
 				$stage = 'Failed due to: ' . trim($m[1]);
 			} else {
 				$detail = self::shortProcDetail($out, $code);
-				$stage = 'Failed due to: backup did not finish' . ($detail !== '' ? ' (' . $detail . ')' : '');
+				if (str_contains($out, 'could not find driver') || str_contains($detail, 'could not find driver')) {
+					$stage = 'Failed due to: PHP pdo_sqlite missing'
+						. ' (apt install php-sqlite3; systemctl restart kloxo-backend)';
+				} else {
+					$stage = 'Failed due to: backup did not finish' . ($detail !== '' ? ' (' . $detail . ')' : '');
+				}
 			}
 		}
 

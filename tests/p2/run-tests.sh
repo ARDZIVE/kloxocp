@@ -317,10 +317,12 @@ if [ -f "$ROOT/kloxo/httpdocs/login/index.php" ]; then
 else
   bad "login/index.php shipped"
 fi
-if grep -q 'function kloxo_php_binary' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
-  ok "sgbl uses kloxo_php_binary"
+if grep -q 'function kloxo_php_binary' "$ROOT/kloxo/httpdocs/lib/sgbl.php" \
+  && grep -q 'function kloxo_write_panel_php_pin' "$ROOT/kloxo/httpdocs/lib/sgbl.php" \
+  && grep -q 'pdo_sqlite' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
+  ok "sgbl uses kloxo_php_binary with pdo_sqlite pin"
 else
-  bad "sgbl uses kloxo_php_binary"
+  bad "sgbl uses kloxo_php_binary with pdo_sqlite pin"
 fi
 if grep -q '/usr/bin/lxphp.exe"' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
   bad "sgbl no longer hard-codes lxphp.exe"

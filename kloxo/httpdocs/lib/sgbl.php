@@ -10,26 +10,139 @@ function kloxo_program_root()
 	return dirname(__DIR__, 2);
 }
 
-function kloxo_php_binary()
+/** File that pins the panel CLI PHP (must provide pdo_sqlite). Not affected by PHP Used. */
+function kloxo_panel_php_pin_file()
 {
-	$env = getenv('KLOXO_PHP');
-	if (is_string($env) && $env !== '' && is_executable($env)) {
-		return $env;
+	return kloxo_program_root() . '/etc/path/php';
+}
+
+/** Whether a PHP CLI binary loads pdo_sqlite (cached). Same-process uses extension_loaded. */
+function kloxo_php_has_pdo_sqlite($bin)
+{
+	static $cache = array();
+
+	$bin = (string) $bin;
+	if ($bin === '') {
+		return false;
+	}
+	if (array_key_exists($bin, $cache)) {
+		return $cache[$bin];
+	}
+	$real = @realpath($bin);
+	$self = (defined('PHP_BINARY') && PHP_BINARY !== '') ? @realpath(PHP_BINARY) : false;
+	if ($real !== false && $self !== false && $real === $self) {
+		return $cache[$bin] = extension_loaded('pdo_sqlite');
+	}
+	if (!is_executable($bin)) {
+		return $cache[$bin] = false;
+	}
+	$spec = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('pipe', 'w'),
+	);
+	$p = @proc_open(array($bin, '-r', 'exit(extension_loaded("pdo_sqlite") ? 0 : 1);'), $spec, $pipes);
+	if (!is_resource($p)) {
+		return $cache[$bin] = false;
+	}
+	if (isset($pipes[1]) && is_resource($pipes[1])) {
+		stream_get_contents($pipes[1]);
+		fclose($pipes[1]);
+	}
+	if (isset($pipes[2]) && is_resource($pipes[2])) {
+		stream_get_contents($pipes[2]);
+		fclose($pipes[2]);
 	}
 
+	return $cache[$bin] = (proc_close($p) === 0);
+}
+
+/**
+ * Remember which PHP the panel/backend/CLI must use (pdo_sqlite required).
+ * PHP Used may change /usr/bin/php; this pin stays on a working panel binary.
+ */
+function kloxo_write_panel_php_pin($bin)
+{
+	$bin = (string) $bin;
+	if ($bin === '' || !is_executable($bin)) {
+		return false;
+	}
+	$file = kloxo_panel_php_pin_file();
+	$dir = dirname($file);
+	if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+		return false;
+	}
+	$tmp = $file . '.tmp.' . getmypid();
+	if (@file_put_contents($tmp, $bin . "\n") === false) {
+		return false;
+	}
+	@chmod($tmp, 0644);
+
+	return @rename($tmp, $file);
+}
+
+function kloxo_read_panel_php_pin()
+{
+	$file = kloxo_panel_php_pin_file();
+	if (!is_file($file)) {
+		return '';
+	}
+	$bin = trim((string) file_get_contents($file));
+	if ($bin === '' || str_contains($bin, "\0") || !is_executable($bin)) {
+		return '';
+	}
+
+	return $bin;
+}
+
+/**
+ * PHP CLI for panel tools, kloxo-backend children, and Backup Now.
+ * Prefers a binary with pdo_sqlite so PHP Used cannot break the panel DB.
+ */
+function kloxo_php_binary()
+{
+	static $cached = null;
+	if (is_string($cached) && $cached !== '') {
+		return $cached;
+	}
+
+	$env = getenv('KLOXO_PHP');
+	if (is_string($env) && $env !== '' && is_executable($env)) {
+		return $cached = $env;
+	}
+
+	$pin = kloxo_read_panel_php_pin();
+	if ($pin !== '' && kloxo_php_has_pdo_sqlite($pin)) {
+		return $cached = $pin;
+	}
+
+	$candidates = array();
 	if (defined('PHP_BINARY') && PHP_BINARY !== '' && is_executable(PHP_BINARY)
 		&& strpos(PHP_BINARY, 'php-fpm') === false
 		&& strpos(PHP_BINARY, 'php-cgi') === false) {
-		return PHP_BINARY;
+		$candidates[] = PHP_BINARY;
 	}
+	foreach (array('/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.3', '/usr/bin/php') as $p) {
+		$candidates[] = $p;
+	}
+	$fallback = '';
+	foreach ($candidates as $p) {
+		if (!is_executable($p)) {
+			continue;
+		}
+		if ($fallback === '') {
+			$fallback = $p;
+		}
+		if (kloxo_php_has_pdo_sqlite($p)) {
+			if ($pin === '' || $pin !== $p) {
+				kloxo_write_panel_php_pin($p);
+			}
 
-	foreach (array('/usr/bin/php', '/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.3') as $p) {
-		if (is_executable($p)) {
-			return $p;
+			return $cached = $p;
 		}
 	}
 
-	return '/usr/bin/php';
+	return $cached = ($fallback !== '' ? $fallback : '/usr/bin/php');
 }
 
 #[AllowDynamicProperties]
@@ -70,7 +183,7 @@ class Sgbl
 		$verfile = $root . '/bin/kloxoversion';
 		$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
 		if ($t === '') {
-			$t = '10.1-2026110601';
+			$t = '10.1-2026111002';
 		}
 
 		$this->__ver_name = 'Kloxo CP';

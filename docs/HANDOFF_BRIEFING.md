@@ -231,7 +231,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026110601**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111002**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -953,6 +953,10 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `file/ssl`, `httpdocs/login`) under `--root` / `--snap-dir`. `component list` works;
    `update` and `component upgrade` exit 2. PHP 8.3, `declare(strict_types=1)`,
    argument-array `proc_open`, no shell strings. Tests: `tests/p3/` (20 checks, php-cli only).
+   Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
+   bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
+   `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111002**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

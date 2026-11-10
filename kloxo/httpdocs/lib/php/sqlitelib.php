@@ -67,7 +67,13 @@ class Sqlite
 				self::$__database = 'sqlite';
 			} catch (Throwable $e) {
 				dprint("PDO Error: " . $e->getMessage() . "\n");
-				throw new lxException('Could not open the panel SQLite database (' . $e->getMessage() . '). Run init-panel-db.', '', 'kloxo.sqlite');
+				$why = $e->getMessage();
+				$hint = 'Run init-panel-db.';
+				if (stripos($why, 'could not find driver') !== false) {
+					$hint = 'Install php-sqlite3 for the panel PHP, write etc/path/php, and restart kloxo-backend'
+						. ' (PHP Used may have switched /usr/bin/php to a series without pdo_sqlite).';
+				}
+				throw new lxException('Could not open the panel SQLite database (' . $why . '). ' . $hint, '', 'kloxo.sqlite');
 			}
 		}
 

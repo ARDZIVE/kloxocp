@@ -20,7 +20,7 @@ declare(strict_types=1);
  * Usage: kloxocp <command> [arguments] [--options]
  */
 
-const KCP_VERSION = '10.1-2026110601';
+const KCP_VERSION = '10.1-2026111002';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -447,6 +447,21 @@ TXT;
 
         $cli = is_file($this->root . '/init/php-cli.sh') && is_readable($this->root . '/init/php-cli.sh');
         $checks[] = $this->check('php_cli_wrapper', $cli ? 'pass' : 'warn', $cli ? 'init/php-cli.sh' : 'init/php-cli.sh missing');
+
+        $sqliteOk = extension_loaded('pdo_sqlite');
+        $checks[] = $this->check(
+            'pdo_sqlite',
+            $sqliteOk ? 'pass' : 'fail',
+            $sqliteOk ? 'pdo_sqlite loaded' : 'missing (apt install php-sqlite3; pin etc/path/php; restart kloxo-backend)'
+        );
+        $pinFile = $this->root . '/etc/path/php';
+        $pin = is_file($pinFile) ? trim((string) file_get_contents($pinFile)) : '';
+        $pinOk = $pin !== '' && is_executable($pin);
+        $checks[] = $this->check(
+            'panel_php_pin',
+            $pinOk ? 'pass' : 'warn',
+            $pinOk ? $pin : 'missing etc/path/php (install or kloxo-backend.sh will create it)'
+        );
 
         $key = $this->root . '/init/backend.key';
         if (!is_file($key)) {

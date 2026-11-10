@@ -1,0 +1,145 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Bump Kloxo CP version (10.1-YYYYMMDDNN) and sync every copy in the tree.
+ *
+ * Usage:
+ *   php tools/bump-version           # next stamp for today
+ *   php tools/bump-version --print   # show current only
+ *   php tools/bump-version --set=10.1-2026111002
+ *
+ * Source of truth: kloxo/bin/kloxoversion
+ * On every git commit the pre-commit hook runs this (see .githooks/pre-commit).
+ */
+
+$root = dirname(__DIR__);
+$verFile = $root . '/kloxo/bin/kloxoversion';
+
+$printOnly = in_array('--print', $argv, true);
+$set = null;
+foreach ($argv as $a) {
+    if (str_starts_with($a, '--set=')) {
+        $set = substr($a, 6);
+    }
+}
+
+$current = is_file($verFile) ? trim((string) file_get_contents($verFile)) : '';
+if ($current === '') {
+    $current = '10.1-' . gmdate('Ymd') . '01';
+}
+
+if ($printOnly) {
+    echo $current . "\n";
+    exit(0);
+}
+
+if ($set !== null) {
+    if (!preg_match('/^10\.1-\d{8}\d{2}$/', $set)) {
+        fwrite(STDERR, "error: --set must look like 10.1-YYYYMMDDNN\n");
+        exit(1);
+    }
+    $next = $set;
+} else {
+    $next = nextVersion($current);
+}
+
+if ($next === $current && $set === null) {
+    // still rewrite copies so a half-synced tree heals
+}
+
+syncVersion($root, $current, $next);
+echo $next . "\n";
+exit(0);
+
+function nextVersion(string $current): string
+{
+    $today = gmdate('Ymd');
+    $seq = 1;
+    if (preg_match('/^10\.1-(\d{8})(\d{2})$/', $current, $m) === 1) {
+        if ($m[1] === $today) {
+            $seq = (int) $m[2] + 1;
+            if ($seq > 99) {
+                fwrite(STDERR, "error: more than 99 bumps today; refuse\n");
+                exit(1);
+            }
+        }
+    }
+
+    return sprintf('10.1-%s%02d', $today, $seq);
+}
+
+function syncVersion(string $root, string $old, string $new): void
+{
+    // 1) source of truth
+    if (!is_dir(dirname($root . '/kloxo/bin/kloxoversion'))) {
+        fwrite(STDERR, "error: missing kloxo/bin\n");
+        exit(1);
+    }
+    file_put_contents($root . '/kloxo/bin/kloxoversion', $new . "\n");
+
+    // 2) PHP / shell constants that embed the stamp
+    $exact = [
+        $root . '/install.sh' => [
+            'search' => 'KCP_VERSION="' . $old . '"',
+            'replace' => 'KCP_VERSION="' . $new . '"',
+            'alt' => '/^KCP_VERSION="10\.1-\d{10}"/m',
+            'alt_to' => 'KCP_VERSION="' . $new . '"',
+        ],
+        $root . '/kloxo/bin/kloxocp' => [
+            'alt' => "/const KCP_VERSION = '10\\.1-\\d{10}';/",
+            'alt_to' => "const KCP_VERSION = '" . $new . "';",
+        ],
+    ];
+
+    foreach ($exact as $path => $spec) {
+        if (!is_file($path)) {
+            continue;
+        }
+        $t = (string) file_get_contents($path);
+        if (isset($spec['search']) && str_contains($t, $spec['search'])) {
+            $t = str_replace($spec['search'], $spec['replace'], $t);
+        } elseif (isset($spec['alt'])) {
+            $t2 = preg_replace($spec['alt'], $spec['alt_to'], $t, 1);
+            if (is_string($t2)) {
+                $t = $t2;
+            }
+        }
+        file_put_contents($path, $t);
+    }
+
+    // 3) fallbacks that must stay in sync when kloxoversion is missing
+    foreach ([
+        $root . '/kloxo/httpdocs/lib/sgbl.php',
+        $root . '/kloxo/httpdocs/lib/html/lib.php',
+        $root . '/kloxo/httpdocs/driver/pserver/lxupdatelib.php',
+    ] as $path) {
+        if (!is_file($path)) {
+            continue;
+        }
+        $t = (string) file_get_contents($path);
+        $t2 = preg_replace("/'10\\.1-\\d{10}'/", "'" . $new . "'", $t);
+        if (is_string($t2)) {
+            file_put_contents($path, $t2);
+        }
+    }
+
+    // 4) docs / README / AGENTS display strings
+    foreach ([
+        $root . '/README.md',
+        $root . '/AGENTS.md',
+        $root . '/docs/HANDOFF_BRIEFING.md',
+        $root . '/docs/KLOXO_CP_VS_CPANEL.html',
+    ] as $path) {
+        if (!is_file($path)) {
+            continue;
+        }
+        $t = (string) file_get_contents($path);
+        $t2 = preg_replace('/10\.1-\d{10}/', $new, $t);
+        if (is_string($t2) && $t2 !== $t) {
+            file_put_contents($path, $t2);
+        }
+    }
+}

@@ -361,6 +361,19 @@ check(str_contains($lib, 'function clearLxbackup')
 	&& str_contains($lib, 'function kloxo_release_core_lock')
 	&& str_contains($lib, 'function kloxo_pid_runs_script'),
 	'clearLxbackup forces update and locks use absolute pid paths');
+$sgblSrc = (string) file_get_contents($doc . '/lib/sgbl.php');
+check(str_contains($sgblSrc, 'function kloxo_write_panel_php_pin')
+	&& str_contains($sgblSrc, 'function kloxo_php_has_pdo_sqlite')
+	&& str_contains($sgblSrc, 'etc/path/php')
+	&& str_contains($sgblSrc, 'pdo_sqlite'),
+	'panel PHP pin prefers a pdo_sqlite binary');
+check(str_contains($bak, 'extension_loaded(\'pdo_sqlite\')')
+	|| str_contains($bak, 'extension_loaded("pdo_sqlite")'),
+	'Backup Now skips in-process when pdo_sqlite is missing');
+$be = (string) file_get_contents($repo . '/kloxo/init/kloxo-backend.sh');
+check(str_contains($be, 'etc/path/php')
+	&& str_contains($be, 'pdo_sqlite'),
+	'kloxo-backend.sh prefers pinned PHP with pdo_sqlite');
 check(str_contains($bak, 'KloxoBackup::installFile')
 	&& str_contains($bak, 'KloxoBackup::ensureDir')
 	&& str_contains($bak, 'fileManagerDir()'),

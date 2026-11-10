@@ -630,7 +630,9 @@ fi
 check "php -l init-slave" php -l "$ROOT/kloxo/bin/install/init-slave"
 check "init-slave --self-test" php "$ROOT/kloxo/bin/install/init-slave" --self-test
 if grep -q 'kloxo-backend.sh' "$ROOT/kloxo/init/kloxo-backend.service" \
-  && grep -q 'slave-db.db' "$ROOT/kloxo/init/kloxo-backend.sh"; then
+  && grep -q 'slave-db.db' "$ROOT/kloxo/init/kloxo-backend.sh" \
+  && grep -q 'etc/path/php' "$ROOT/kloxo/init/kloxo-backend.sh" \
+  && grep -q 'pdo_sqlite' "$ROOT/kloxo/init/kloxo-backend.sh"; then
   ok "kloxo-backend unit detects slave-db"
 else
   bad "kloxo-backend unit detects slave-db"
@@ -652,7 +654,9 @@ fails "install-knot --base must be absolute" php "$KNOT" --base=relative --root=
 if grep -q 'bind9 knot knot-dnsutils knot-dnssecutils' "$ROOT/install.sh" \
   && grep -q 'install-knot' "$ROOT/install.sh" \
   && grep -q 'standby_off knot' "$ROOT/install.sh" \
-  && grep -q 'ensure_installer_php' "$ROOT/install.sh"; then
+  && grep -q 'ensure_installer_php' "$ROOT/install.sh" \
+  && grep -q 'pin_panel_php' "$ROOT/install.sh" \
+  && grep -q 'etc/path/php' "$ROOT/install.sh"; then
   ok "install.sh packages knot and leaves it disabled"
 else
   bad "install.sh packages knot and leaves it disabled"

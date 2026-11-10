@@ -39,7 +39,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026110601"
+KCP_VERSION="10.1-2026111002"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -861,11 +861,21 @@ php_ext_loaded() {
   "$bin" -r "exit(extension_loaded('$ext') ? 0 : 1);" >/dev/null 2>&1
 }
 
-# Panel SQLite (init-panel-db) needs pdo_sqlite on the PHP that runs it.
-# PHP Branch / PHP Used can point /usr/bin/php at a Sury series without sqlite3.
+# Panel SQLite (init-panel-db / kloxo-backend) needs pdo_sqlite.
+# PHP Used may point /usr/bin/php at a Sury series without pdo_sqlite; pin a
+# working binary under $ROOT/etc/path/php so backend/CLI stay on panel PHP.
+pin_panel_php() {
+  local bin="${1:-}"
+  [[ -n "$bin" && -x "$bin" ]] || return 1
+  mkdir -p "$ROOT/etc/path"
+  printf '%s\n' "$bin" > "$ROOT/etc/path/php"
+  log "pinned panel PHP: $bin"
+}
+
 ensure_installer_php() {
-  local ver
+  local ver p
   if php_ext_loaded php pdo_sqlite; then
+    pin_panel_php "$(command -v php)"
     return 0
   fi
   ver="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
@@ -875,9 +885,16 @@ ensure_installer_php() {
       || log "warn: could not apt-get install php${ver}-sqlite3 php${ver}-mysql"
     if php_ext_loaded php pdo_sqlite; then
       log "installed php${ver}-sqlite3 for installer PHP"
+      pin_panel_php "$(command -v php)"
       return 0
     fi
   fi
+  for p in /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.3 /usr/bin/php; do
+    if [[ -x "$p" ]] && php_ext_loaded "$p" pdo_sqlite; then
+      pin_panel_php "$p"
+      return 0
+    fi
+  done
   die "PHP PDO sqlite driver missing (apt-get install php${ver:-}-sqlite3). PHP Branch may have switched /usr/bin/php to a version without sqlite3."
 }
 

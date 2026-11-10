@@ -18,7 +18,8 @@ check "php -l kloxocp" php -l "$ROOT/kloxo/bin/kloxocp"
 check "help exits 0" "${TOOL[@]}" help
 check "version exits 0" "${TOOL[@]}" version
 out="$("${TOOL[@]}" version)"
-echo "$out" | grep -q '10.1-2026110601' && ok "version string" || bad "version string" "$out"
+VER="$(tr -d '[:space:]' < "$ROOT/kloxo/bin/kloxoversion")"
+echo "$out" | grep -Fq "$VER" && ok "version string" || bad "version string" "want $VER got $out"
 fails "unknown command is 64" "${TOOL[@]}" not-a-command
 # update without an installed/src tree should fail clearly (not exit 2 "not built")
 "${TOOL[@]}" update --root="$T/missing" --src="$T/missing-src" --no-fetch --yes >/dev/null 2>"$T/upd.err"; rc=$?
