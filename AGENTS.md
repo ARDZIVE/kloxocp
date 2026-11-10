@@ -268,7 +268,10 @@ not implode() a string (contact email / coma_* lists), does not TypeError
 on a missing plan priv/listpriv or parent quota, and chowns the home to
 www-data on Ubuntu. Adding a Resource Plan
 does not need a DNS template, does not TypeError on a missing listpriv, and
-accepts a display name with spaces (sanitized to a plan id).
+accepts a display name with spaces (sanitized to a plan id). Fresh install
+seeds Resource Plan `default_plan` (`default_plan___client-admin`, Unlimited
+quotas, localhost server pools) so Add Client has a plan; re-run does not
+overwrite an existing row (`init-panel-db` `seedResourceplan`).
 `install.sh --slave` writes `slave-db.db` and starts `kloxo-backend` on TLS 7779
 (all interfaces); plaintext 7776 stays on localhost. Live two-host add is unverified.
 Home keeps

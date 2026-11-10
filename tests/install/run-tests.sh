@@ -454,6 +454,14 @@ if grep -q 'function seedAdminPriv' "$ROOT/kloxo/bin/install/init-panel-db" && g
 else
   bad "init-panel-db seeds admin unlimited priv"
 fi
+if grep -q 'function seedResourceplan' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'default_plan___client-admin' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'function resourceplanPrivBlob' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'function resourceplanListprivBlob' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db seeds default_plan resource plan"
+else
+  bad "init-panel-db seeds default_plan resource plan"
+fi
 if grep -q 'function seedSpecialplay' "$ROOT/kloxo/bin/install/init-panel-db" && grep -q "'simplicity'" "$ROOT/kloxo/bin/install/init-panel-db"; then
   ok "init-panel-db seeds admin specialplay simplicity skin"
 else

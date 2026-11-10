@@ -508,7 +508,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `/home/<client>` to `www-data` (not `apache`). Adding a client no longer
     TypeErrors in `notifyObjects` when admin notification has no `notflag_b`
     (install seed omits `ser_notflag_b`). Live client-create after
-    deploy is **UNVERIFIED**. Adding a Resource Plan does not throw
+    deploy is **UNVERIFIED**. Fresh install seeds Resource Plan
+    `default_plan` (`nname` `default_plan___client-admin`, description Default,
+    Unlimited quotas, localhost web/mail/dns/mysql pools) so Add Client
+    Choose Plan is not empty; a re-run leaves an existing row (`seedResourceplan`).
+    Adding a Resource Plan does not throw
     `no_dns_template`, creates `listpriv` when missing, sanitizes the
     display name before `validate_plan_name`, and does not consume
     parent quota like a client. Live plan-create after deploy is

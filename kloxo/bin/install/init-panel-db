@@ -214,7 +214,8 @@ When MariaDB is up, also creates the kloxo / kloxo_pma users (CREATE USER +
 GRANT; never GRANT ... IDENTIFIED BY), writes kloxo.pass and pma.pass, and
 copies an existing MariaDB panel database into the SQLite file once. phpMyAdmin
 uses root@127.0.0.1; root@localhost stays unix_socket. Inserts admin / general
-rows if they are missing.
+rows if they are missing. Seeds Resource Plan `default_plan` (nname
+`default_plan___client-admin`) so Add Client has a plan on a fresh install.
 
 Admin UI password: omitted flags seed the well-known default admin/admin
 (must be changed after first login). Override with --admin-password-env=VAR
@@ -429,6 +430,7 @@ TXT;
         $this->syncAdminContactEmail($pdo);
         $this->seedAdminHome();
         $this->seedAdminPriv($pdo);
+        $this->seedResourceplan($pdo);
         $this->seedGeneral($pdo);
         $this->seedHelpdesk($pdo);
         $this->seedNotification($pdo);
@@ -672,6 +674,18 @@ TXT;
             fwrite(STDERR, "helpdesk category blob failed\n");
             return 1;
         }
+        $planPriv = base64_decode(self::resourceplanPrivBlob(), true);
+        if (!is_string($planPriv) || !str_contains($planPriv, 'O:4:"priv"')
+            || !str_contains($planPriv, 'maindomain_num') || !str_contains($planPriv, 'Unlimited')) {
+            fwrite(STDERR, "resourceplan priv blob failed\n");
+            return 1;
+        }
+        $planList = base64_decode(self::resourceplanListprivBlob(), true);
+        if (!is_string($planList) || !str_contains($planList, 'O:8:"listpriv"')
+            || !str_contains($planList, 'webpserver_list') || !str_contains($planList, 'localhost')) {
+            fwrite(STDERR, "resourceplan listpriv blob failed\n");
+            return 1;
+        }
         $sample = "CREATE TABLE IF NOT EXISTS `client` (\n"
             . "  `nname` varchar(255) NOT NULL,\n"
             . "  `parent_clname` varchar(255) DEFAULT NULL,\n"
@@ -913,6 +927,87 @@ TXT;
             return;
         }
         $pdo->exec('UPDATE client SET ' . implode(', ', $sets) . " WHERE nname = 'admin'");
+    }
+
+    public const DEFAULT_RESOURCEPLAN_REALNAME = 'default_plan';
+    public const DEFAULT_RESOURCEPLAN_NNAME = 'default_plan___client-admin';
+
+    /** Generous starter quotas: flags on, counts/usage Unlimited (FastCGI Unlimited is 4). */
+    public static function defaultResourceplanPriv(): array
+    {
+        $flags = [
+            'awstats_flag', 'logo_manage_flag', 'document_root_flag', 'runstats_flag',
+            'cron_minute_flag', 'easyinstaller_flag', 'ssl_flag', 'can_change_limit_flag',
+            'webhosting_flag', 'cgi_flag', 'php_flag', 'dns_manage_flag', 'cron_manage_flag',
+            'domain_add_flag', 'can_set_disabled_flag', 'can_change_password_flag',
+            'backup_flag', 'backupschedule_flag',
+        ];
+        $nums = [
+            'traffic_usage', 'totaldisk_usage', 'totalinode_usage', 'maildisk_usage',
+            'mailaccount_num', 'mailinglist_num', 'ftpuser_num', 'phpfcgiprocess_num',
+            'mysqldb_num', 'addondomain_num', 'rubyfcgiprocess_num', 'rubyrails_num',
+            'client_num', 'maindomain_num', 'subdomain_num',
+        ];
+        $priv = ['nname' => self::DEFAULT_RESOURCEPLAN_NNAME];
+        foreach ($flags as $k) {
+            $priv[$k] = 'on';
+        }
+        foreach ($nums as $k) {
+            $priv[$k] = 'Unlimited';
+        }
+
+        return $priv;
+    }
+
+    /** @return array<string, list<string>> */
+    public static function defaultResourceplanListpriv(): array
+    {
+        $localhost = ['localhost'];
+
+        return [
+            'webpserver_list' => $localhost,
+            'mmailpserver_list' => $localhost,
+            'dnspserver_list' => $localhost,
+            'mysqldbpserver_list' => $localhost,
+        ];
+    }
+
+    public static function resourceplanPrivBlob(): string
+    {
+        return self::serializeObjectBlob('priv', self::defaultResourceplanPriv());
+    }
+
+    public static function resourceplanListprivBlob(): string
+    {
+        return self::serializeObjectBlob('listpriv', self::defaultResourceplanListpriv());
+    }
+
+    private function seedResourceplan(PDO $pdo): void
+    {
+        $nname = self::DEFAULT_RESOURCEPLAN_NNAME;
+        $n = (int)$pdo->query('SELECT COUNT(*) FROM resourceplan WHERE nname = ' . $pdo->quote($nname))->fetchColumn();
+        if ($n > 0) {
+            return;
+        }
+        $dns = base64_encode('a:0:{}');
+        $stmt = $pdo->prepare(
+            'INSERT INTO resourceplan (nname, parent_clname, parent_cmlist, realname, ser_priv,
+                description, ddate, ser_listpriv, ser_dnstemplate_list, status, disable_per)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $nname,
+            'client-admin',
+            '',
+            self::DEFAULT_RESOURCEPLAN_REALNAME,
+            self::resourceplanPrivBlob(),
+            'Default',
+            (string)time(),
+            self::resourceplanListprivBlob(),
+            $dns,
+            'on',
+            'off',
+        ]);
     }
 
     /** @return array{ostype:string,osversion:string} */
@@ -1407,7 +1502,9 @@ TXT;
         return self::serializeObjectBlob('driver_b', self::driverDefaults());
     }
 
-    /** @param array<string,string> $props */
+    /**
+     * @param array<string, string|int|list<string>> $props
+     */
     public static function serializeObjectBlob(string $class, array $props): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $class) !== 1) {
@@ -1418,13 +1515,43 @@ TXT;
             if (preg_match('/^[A-Za-z0-9_]+$/', $k) !== 1) {
                 throw new IpdbException('Invalid serialized property name');
             }
-            if (str_contains($v, "\0")) {
-                throw new IpdbException('Invalid serialized property value');
-            }
-            $body .= 's:' . strlen($k) . ':"' . $k . '";s:' . strlen($v) . ':"' . $v . '";';
+            $body .= 's:' . strlen($k) . ':"' . $k . '";' . self::phpSerializeValue($v);
         }
 
         return base64_encode('O:' . strlen($class) . ':"' . $class . '":' . count($props) . ':{' . $body . '}');
+    }
+
+    /** @param string|int|list<string|int> $value */
+    public static function phpSerializeValue(string|int|array $value): string
+    {
+        if (is_int($value)) {
+            return 'i:' . $value . ';';
+        }
+        if (is_string($value)) {
+            if (str_contains($value, "\0")) {
+                throw new IpdbException('Invalid serialized property value');
+            }
+
+            return 's:' . strlen($value) . ':"' . $value . '";';
+        }
+        $body = '';
+        $n = 0;
+        foreach ($value as $k => $v) {
+            if (is_int($k)) {
+                $body .= 'i:' . $k . ';';
+            } elseif (is_string($k) && preg_match('/^[A-Za-z0-9_]+$/', $k) === 1) {
+                $body .= 's:' . strlen($k) . ':"' . $k . '";';
+            } else {
+                throw new IpdbException('Invalid serialized array key');
+            }
+            if (!is_string($v) && !is_int($v)) {
+                throw new IpdbException('Invalid serialized array value');
+            }
+            $body .= self::phpSerializeValue($v);
+            $n++;
+        }
+
+        return 'a:' . $n . ':{' . $body . '}';
     }
 
     private function seedGeneral(PDO $pdo): void
