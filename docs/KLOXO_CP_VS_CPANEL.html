@@ -210,12 +210,95 @@
         <td class="panel"><span class="bar r9">9</span><br>Long-running production OSS panel; multi-server / service nodes widely used.</td>
         <td class="panel"><span class="bar r9">9</span><br>Widely deployed in production for VPS/single-server hosting; active releases.</td>
       </tr>
+      <tr>
+        <td class="feature">Disk space (server floor)</td>
+        <td class="panel"><span class="bar r8">8</span><br><strong>Min ~10 GB</strong> free (<code>install.sh</code> / README). Comfortable full-stack VPS: <strong>~20–40 GB</strong>. Source tree ~60 MB; installed panel under <code>/opt/kloxo</code> is small vs OS+apt stack.</td>
+        <td class="panel"><span class="bar r5">5</span><br><strong>Min 20 GB</strong> / <strong>rec 40 GB</strong> root. Install/upgrade needs <strong>≥5 GB free</strong> under <code>/usr/local/cpanel</code>. Heaviest disk floor of this group.</td>
+        <td class="panel"><span class="bar r7">7</span><br><strong>Practical min ~20 GB</strong> (OS + full web/mail/DNS/DB). Grows with sites, mailboxes, DBs. No strict official tiny-VPS floor.</td>
+        <td class="panel"><span class="bar r9">9</span><br><strong>Min 10 GB</strong> HDD / <strong>rec 40 GB</strong> SSD. Lightest official disk minimum; matches small VPS hosting.</td>
+      </tr>
+      <tr>
+        <td class="feature">Memory (server floor)</td>
+        <td class="panel"><span class="bar r7">7</span><br><strong>Min ~2 GB</strong> RAM (<code>install.sh</code> refuses below ~1.8 GB unless <code>--force</code>). Full profile (Nginx/Exim/Dovecot/Rspamd/MariaDB) wants <strong>2–4 GB</strong> in practice; no ClamAV by default.</td>
+        <td class="panel"><span class="bar r5">5</span><br><strong>Min 2 GB</strong> / <strong>rec 4 GB</strong>. <strong>≥3 GB</strong> if ClamAV. Heavier baseline services than OSS panels.</td>
+        <td class="panel"><span class="bar r7">7</span><br><strong>Practical min ~2 GB</strong>; <strong>~4 GB</strong> when mail filtering / ClamAV do real work. Can be tuned lighter than cPanel.</td>
+        <td class="panel"><span class="bar r9">9</span><br><strong>Min 1 GB</strong> (SpamAssassin + ClamAV off) / <strong>rec 4 GB</strong> full stack. Best small-VPS RAM floor of this group.</td>
+      </tr>
+      <tr>
+        <td class="feature">Panel software footprint</td>
+        <td class="panel"><span class="bar r8">8</span><br>Panel code ~tens of MB under <code>/opt/kloxo</code> (repo ~60 MB). Hiawatha is source-built once. Most disk/RAM is distro packages (web/mail/DB), not the panel binary tree.</td>
+        <td class="panel"><span class="bar r4">4</span><br>Typical <code>/usr/local/cpanel</code> alone ~<strong>2–3 GB</strong> before accounts; OS+panel often <strong>~8–12 GB</strong> used on a quiet server. Largest panel software footprint.</td>
+        <td class="panel"><span class="bar r8">8</span><br>Panel itself is light PHP under <code>/usr/local/ispconfig</code>; bulk is Apache/Nginx, Postfix, Dovecot, MariaDB, BIND/PowerDNS packages.</td>
+        <td class="panel"><span class="bar r8">8</span><br>Panel packages are comparatively small; bulk is Nginx/Apache, Exim, Dovecot, MariaDB, BIND. Optional ClamAV/SA dominate RAM if enabled.</td>
+      </tr>
       <tr class="total">
         <td class="feature">Section 1 average</td>
-        <td class="panel"><span class="bar r6">6.4</span><br>Install + upcp/auto-rollback lifted; production readiness still caps the score.</td>
-        <td class="panel"><span class="bar r9">9.0</span><br>Mature commercial platform.</td>
-        <td class="panel"><span class="bar r9">9.0</span><br>Best free multi-OS / multi-server platform of this group.</td>
-        <td class="panel"><span class="bar r9">8.8</span><br>Best free Ubuntu/Debian single-server onboarding of this group.</td>
+        <td class="panel"><span class="bar r7">6.7</span><br>Install + upcp + light footprint help; production readiness still caps the score.</td>
+        <td class="panel"><span class="bar r8">7.9</span><br>Mature platform; heaviest disk/RAM of the four.</td>
+        <td class="panel"><span class="bar r9">8.6</span><br>Strong free multi-OS platform; mid-weight footprint.</td>
+        <td class="panel"><span class="bar r9">8.9</span><br>Best free Ubuntu/Debian onboarding + smallest official RAM/disk floor.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Panel sizes at a glance (disk / memory)</h2>
+  <p class="note">
+    Server floors are official or documented install minima. “Panel software” is approximate installed
+    control-panel tree size <em>before</em> customer sites/mail. Full-stack idle RAM is the whole
+    hosting stack (web+mail+DB+DNS), not the panel UI process alone. Customer data always dominates later.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th class="feature">Metric</th>
+        <th class="side">Kloxo CP</th>
+        <th class="side">cPanel / WHM</th>
+        <th class="side">ISPConfig</th>
+        <th class="side">Hestia CP</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="feature">Disk — minimum server</td>
+        <td>~<strong>10 GB</strong> free</td>
+        <td><strong>20 GB</strong> (rec <strong>40 GB</strong>)</td>
+        <td>~<strong>20 GB</strong> practical</td>
+        <td><strong>10 GB</strong> (rec <strong>40 GB</strong> SSD)</td>
+      </tr>
+      <tr>
+        <td class="feature">Disk — panel software (approx)</td>
+        <td>~<strong>50–200 MB</strong> under <code>/opt/kloxo</code> (+ Hiawatha build); apt stack separate</td>
+        <td>~<strong>2–3 GB</strong> in <code>/usr/local/cpanel</code>; quiet server often <strong>8–12 GB</strong> total used</td>
+        <td>Hundreds of MB panel + distro packages (multi-GB with full stack)</td>
+        <td>Hundreds of MB panel packages + distro stack (multi-GB with full stack)</td>
+      </tr>
+      <tr>
+        <td class="feature">Disk — install/upgrade headroom</td>
+        <td>Snapshot space under update snap-dir; re-run install needs free disk for git/apt</td>
+        <td><strong>≥5 GB free</strong> in <code>/usr/local/cpanel</code> for install/upgrade</td>
+        <td>Normal apt/update free space</td>
+        <td>Normal apt free space</td>
+      </tr>
+      <tr>
+        <td class="feature">RAM — minimum server</td>
+        <td>~<strong>2 GB</strong> (<code>--force</code> below ~1.8 GB)</td>
+        <td><strong>2 GB</strong> (rec <strong>4 GB</strong>; <strong>3 GB+</strong> with ClamAV)</td>
+        <td>~<strong>2 GB</strong> practical (rec <strong>4 GB</strong> with heavy mail filter)</td>
+        <td><strong>1 GB</strong> without SA/ClamAV (rec <strong>4 GB</strong> full)</td>
+      </tr>
+      <tr>
+        <td class="feature">RAM — typical full stack</td>
+        <td><strong>2–4 GB</strong> Nginx/Exim/Dovecot/Rspamd/MariaDB (no ClamAV by default)</td>
+        <td><strong>4 GB+</strong> common for production shared hosting</td>
+        <td><strong>2–4 GB+</strong> depending on ClamAV / spam tools</td>
+        <td><strong>1–2 GB</strong> lean; <strong>4 GB</strong> with SA+ClamAV</td>
+      </tr>
+      <tr class="total">
+        <td class="feature">Small-VPS friendliness</td>
+        <td><span class="bar r7">Good</span> 2 GB / 10 GB floor</td>
+        <td><span class="bar r4">Heavy</span> 2–4 GB / 20–40 GB</td>
+        <td><span class="bar r7">Good</span> ~2 GB / ~20 GB</td>
+        <td><span class="bar r9">Best</span> 1 GB / 10 GB possible</td>
       </tr>
     </tbody>
   </table>
@@ -234,6 +317,29 @@
       </tr>
     </thead>
     <tbody>
+
+      <tr class="section"><td colspan="5">1b. Footprint (disk / memory) — detail</td></tr>
+      <tr>
+        <td class="feature">Disk space floor</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Installer/README: ~<strong>10 GB</strong> free. Full hosting VPS usually <strong>20–40 GB</strong>. Panel tree small; apt services dominate.</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td>Official <strong>20 GB min / 40 GB rec</strong>; ≥5 GB free in <code>/usr/local/cpanel</code> for install/upgrade.</td>
+      </tr>
+      <tr>
+        <td class="feature">Memory floor</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>~<strong>2 GB</strong> minimum; full Exim/Dovecot/Rspamd/MariaDB stack comfortable at <strong>2–4 GB</strong>.</td>
+        <td class="rate"><span class="bar r5">5</span></td>
+        <td><strong>2 GB min / 4 GB rec</strong>; 3 GB+ with ClamAV.</td>
+      </tr>
+      <tr>
+        <td class="feature">Panel software size</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>~tens–low hundreds of MB under <code>/opt/kloxo</code> (repo ~60 MB). Light vs cPanel’s multi-GB tree.</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>~<strong>2–3 GB</strong> under <code>/usr/local/cpanel</code>; quiet servers often show <strong>8–12 GB</strong> total used before sites.</td>
+      </tr>
 
       <tr class="section"><td colspan="5">2. Web hosting &amp; PHP</td></tr>
       <tr>
@@ -587,11 +693,11 @@
 
       <tr class="section"><td colspan="5">Category totals (simple average of rows above) — Kloxo vs cPanel; see four-panel table for ISPConfig / Hestia on platform</td></tr>
       <tr class="total">
-        <td class="feature">1. Platform</td>
-        <td class="rate">6.4</td>
-        <td>curl|bash + <code>upcp</code> auto-rollback; production readiness still weak. (ISPConfig ~9.0, Hestia ~8.8.)</td>
-        <td class="rate">9.0</td>
-        <td>Mature commercial platform.</td>
+        <td class="feature">1. Platform (+ footprint)</td>
+        <td class="rate">6.7</td>
+        <td>curl|bash + <code>upcp</code> + light disk/RAM floor; production readiness still weak. (Four-panel: ISPConfig ~8.6, Hestia ~8.9.)</td>
+        <td class="rate">7.9</td>
+        <td>Mature platform; heaviest footprint of the compared panels.</td>
       </tr>
       <tr class="total">
         <td class="feature">2. Web / PHP</td>
@@ -1208,12 +1314,13 @@
   </table>
 
   <p class="footer">
-    Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, version 10.1-2026110601
-    (refreshed after <code>kloxocp upcp</code> auto-rollback, Ubuntu-only <code>get</code>/<code>install.sh</code>, CentOS removal, Backup/Aux/login/SMTP/UI work) ·
-    cPanel Feature Manager / product documentation (general capability set, Nov 2026) ·
-    ISPConfig 3.3 docs/download (BSD; Debian/Ubuntu/Alma/Rocky; <code>ispconfig_update.sh</code>) ·
-    Hestia CP docs/GitHub (GPLv3; Debian/Ubuntu; <code>hst-install.sh</code>; apt updates) ·
-    “Demand” reflects common user/hoster search and support expectations, not a lab benchmark ·
+    Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, <code>README.md</code>/<code>install.sh</code>
+    (~2 GB RAM / 10 GB disk floor; version 10.1-2026110601) ·
+    cPanel system requirements (Ubuntu/CloudLinux: 2/4 GB RAM, 20/40 GB disk; ≥5 GB free in
+    <code>/usr/local/cpanel</code>; community reports ~2–3 GB panel tree) ·
+    ISPConfig install guides / community (practical ~2 GB / ~20 GB) ·
+    Hestia CP Getting Started (1 GB without SA/ClamAV, 10 GB disk; rec 4 GB / 40 GB SSD) ·
+    Footprint figures are documented minima / typical reports, not a live benchmark on one host ·
     Ratings are an engineering judgment for planning, not a purchasing recommendation.
   </p>
 </body>
