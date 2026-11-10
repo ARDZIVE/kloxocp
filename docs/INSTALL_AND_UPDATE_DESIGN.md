@@ -111,7 +111,7 @@ The CLI in `kloxo/bin/kloxocp` is PHP 8.3, `declare(strict_types=1)`, argument-a
 | `snapshot` | Copies `bin/kloxoversion`, `init`, `etc`, `file/ssl`, `httpdocs/login` into `<snap-dir>/<UTC stamp>/` plus `MANIFEST.json`. Keeps last `--keep` (default 5) |
 | `rollback` | Restores those paths from `--stamp` or the latest stamp |
 | `component list` | Names from the design table |
-| `update` / `upcp` | Pre-flight → snapshot → sync from git clone (`--src`, default `/usr/local/src/kloxo-cp`) → health check; **auto-rollback** on failure (unless `--no-rollback`). `--check` is plan-only. Lock file prevents concurrent runs. Log `/var/log/kloxo-update.log`. |
+| `update` / `upcp` | Pre-flight → snapshot → sync from git clone (`--src`, default `/usr/local/src/kloxo-cp`) → refresh `/script` + `lxphp.exe` links → health check; **auto-rollback** on failure (unless `--no-rollback`). Sync includes `bin`, `sbin`, `init`, `pscript`, `file`, and `httpdocs/{lib,driver,theme,lang,login}`. Same-tree installs (`/opt/kloxo` → clone) skip the copy after `git fetch`. `--check` is plan-only. Lock file prevents concurrent runs. Log `/var/log/kloxo-update.log`. Operators: `sudo kloxocp upcp` or `sudo sh /script/upcp`. |
 | `component upgrade`, apt `install` | Exit 2 (signed apt repo not built) |
 
 Snapshot covers `bin/kloxoversion`, `bin/kloxocp`, `init`, `etc`, `file/ssl`, `httpdocs/{login,lib,driver,theme,lang}` and a sidecar copy of `panel.sqlite` when present. Not yet: generated nginx/exim configs, LVM/ZFS snapshots. Treat `--snap-dir` as secret.

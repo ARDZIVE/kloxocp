@@ -374,6 +374,17 @@ $be = (string) file_get_contents($repo . '/kloxo/init/kloxo-backend.sh');
 check(str_contains($be, 'etc/path/php')
 	&& str_contains($be, 'pdo_sqlite'),
 	'kloxo-backend.sh prefers pinned PHP with pdo_sqlite');
+$lxlib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+$core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$htmlSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
+check(str_contains($lxlib, 'function kloxo_is_long_backend_update')
+	&& str_contains($lxlib, 'restore_confirm_confirm')
+	&& str_contains($core, '__kloxo_defer_chrome')
+	&& str_contains($htmlSrc, '__kloxo_defer_chrome'),
+	'Backup/Restore defer page chrome so restore cannot end on a blank page');
+check(str_contains($bak, "dbaction = 'clean'")
+	&& str_contains($bak, 'collectquota after restore'),
+	'Restore marks lxbackup clean and does not abort on collectquota');
 check(str_contains($bak, 'KloxoBackup::installFile')
 	&& str_contains($bak, 'KloxoBackup::ensureDir')
 	&& str_contains($bak, 'fileManagerDir()'),

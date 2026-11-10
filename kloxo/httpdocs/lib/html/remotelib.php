@@ -494,6 +494,9 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 		}
 	}
 
+	// Backup/Restore can run longer than php.ini default_socket_timeout (600s).
+	@stream_set_timeout($socket, 86400);
+
 	$in = $var;
 	fwrite($socket, $in);
 	$in = "\n";

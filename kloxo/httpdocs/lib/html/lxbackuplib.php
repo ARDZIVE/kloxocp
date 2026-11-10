@@ -616,11 +616,17 @@ class lxbackup extends Lxdb
 			$this->backupstage = $stage;
 			$this->dbaction = 'update';
 			$this->write();
+			$this->dbaction = 'clean';
 			if ($stage === 'done') {
 				$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
-					? $ghtml->getFullUrl('a=show') : 'a=show';
+					? $ghtml->getFullUrl('a=show') : 'display.php?a=show';
+				if (!is_string($url) || $url === '') {
+					$url = 'display.php?a=show';
+				}
 				if (is_object($gbl)) {
-					$gbl->__this_redirect = $url . '&frm_smessage=backup_completed';
+					$gbl->__no_debug_redirect = true;
+					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
+						. 'frm_smessage=backup_completed';
 				}
 
 				return $param;
@@ -649,11 +655,17 @@ class lxbackup extends Lxdb
 			$this->restorestage = $stage;
 			$this->dbaction = 'update';
 			$this->write();
+			$this->dbaction = 'clean';
 			$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
-				? $ghtml->getFullUrl('a=show') : 'a=show';
+				? $ghtml->getFullUrl('a=show') : 'display.php?a=show';
+			if (!is_string($url) || $url === '') {
+				$url = 'display.php?a=show';
+			}
 			if (str_starts_with($stage, 'done')) {
 				if (is_object($gbl)) {
-					$gbl->__this_redirect = $url . '&frm_smessage=restore_completed';
+					$gbl->__no_debug_redirect = true;
+					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
+						. 'frm_smessage=restore_completed';
 				}
 
 				return $param;
@@ -1294,7 +1306,17 @@ class lxbackup extends Lxdb
 		}
 
 		if ($sgbl->isKloxo()) {
-			lxshell_return($sgbl->__path_php_path, "../bin/collectquota.php", "--just-db=yes");
+			try {
+				$php = function_exists('kloxo_php_binary') ? kloxo_php_binary()
+					: (isset($sgbl->__path_php_path) ? (string) $sgbl->__path_php_path : '/usr/bin/php');
+				$cq = (function_exists('kloxo_program_root') ? kloxo_program_root() : dirname(__DIR__, 3))
+					. '/bin/collectquota.php';
+				if (is_file($cq)) {
+					lxshell_return($php, $cq, '--just-db=yes');
+				}
+			} catch (Throwable $e) {
+				log_log('restore', 'collectquota after restore: ' . $e->getMessage());
+			}
 		}
 	}
 

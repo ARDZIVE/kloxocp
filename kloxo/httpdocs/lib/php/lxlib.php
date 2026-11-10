@@ -3011,6 +3011,26 @@ function kloxo_is_file_download(): bool
 	return $action === 'update' && $sub === 'download';
 }
 
+/**
+ * Backup Now / Restore From File wait on kloxo-backend. Do not print the page
+ * chrome first: zlib.output_compression + a late fatal left a blank page after
+ * restore. Defer HTML until redirect (or error) so the response stays whole.
+ */
+function kloxo_is_long_backend_update(): bool
+{
+	global $ghtml;
+	if (!is_object($ghtml)) {
+		return false;
+	}
+	$action = strtolower((string) ($ghtml->frm_action ?? ''));
+	$sub = strtolower((string) ($ghtml->frm_subaction ?? ''));
+	if ($action !== 'update') {
+		return false;
+	}
+
+	return in_array($sub, array('backup', 'restore_confirm_confirm', 'restore_confirm', 'restore'), true);
+}
+
 function kloxo_download_filename(string $name): string
 {
 	$base = basename(str_replace("\0", '', $name));

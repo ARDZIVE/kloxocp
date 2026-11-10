@@ -6134,7 +6134,28 @@ class HtmlLib
 	{
 		global $gbl, $sgbl;
 
+		if (!is_string($redirect_url) || $redirect_url === '') {
+			$redirect_url = 'display.php?a=show';
+		}
+
 		$current_url = $this->get_get_from_current_post(null);
+
+		// Backup/Restore deferred chrome: send a complete tiny page (gzip-safe).
+		if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome) && !$windowurl) {
+			while (ob_get_level() > 0) {
+				@ob_end_clean();
+			}
+			if (!headers_sent()) {
+				header('Location: ' . $redirect_url);
+			}
+			$esc = htmlspecialchars($redirect_url, ENT_QUOTES);
+			print('<!DOCTYPE html><html><head><meta charset="utf-8">'
+				. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
+				. '<title>Redirect</title></head><body>'
+				. '<p>Continue: <a href="' . $esc . '">here</a>.</p>'
+				. '</body></html>');
+			exit(0);
+		}
 
 		if (ifSplashScreen() || $windowurl) {
 			dprint("<br /> <br /> Redirect called with splash <br /> ");

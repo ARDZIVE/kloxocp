@@ -2564,6 +2564,14 @@ function do_display_init()
 
 		return;
 	}
+	// Backup/Restore: no chrome until the backend finishes (avoids blank page).
+	if (function_exists('kloxo_is_long_backend_update') && kloxo_is_long_backend_update()) {
+		$gbl->__this_redirect = null;
+		$gbl->__kloxo_defer_chrome = true;
+		@ini_set('default_socket_timeout', '86400');
+
+		return;
+	}
 ?>
 	<html>
 	<head>
@@ -2663,8 +2671,13 @@ function do_display_init()
 
 function do_display_exec()
 {
+	global $gbl;
+
 	display_exec();
 	if (function_exists('kloxo_is_file_download') && kloxo_is_file_download()) {
+		return;
+	}
+	if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome)) {
 		return;
 	}
 ?>
@@ -2786,7 +2799,15 @@ function lx_frm_inc()
 				break;
 		}
 
-		$login->was();
+		try {
+			$login->was();
+		} catch (Throwable $wasEx) {
+			// Backup/Restore already persisted stage; do not blank the redirect.
+			if (empty($gbl->__kloxo_defer_chrome) || empty($gbl->__this_redirect)) {
+				throw $wasEx;
+			}
+			log_log('error', 'post backup/restore was: ' . $wasEx->getMessage());
+		}
 
 		if ($login->isAuxiliary()) {
 			$login->__auxiliary_object->setUpdateSubaction();
@@ -2817,7 +2838,11 @@ function lx_frm_inc()
 	// If redirecting, too, ssession wont be saved....
 
 	if ($gbl->__this_redirect) {
-		save_login();
+		try {
+			save_login();
+		} catch (Throwable $e) {
+			log_log('error', 'save_login after redirect: ' . $e->getMessage());
+		}
 
 		if ($gbl->__this_warning) {
 			$m = $gbl->__this_warning['message'];

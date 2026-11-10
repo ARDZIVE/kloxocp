@@ -1,4 +1,13 @@
 #!/bin/sh
-
-. /script/directory
-lxphp.exe ../bin/common/commandline.php --action=update "$@"
+# Panel update. Prefer kloxocp upcp (snapshot + auto-rollback).
+# The old commandline update action is not the operator path.
+set -eu
+ROOT="${KLOXO_ROOT:-/opt/kloxo}"
+if [ -f "${ROOT}/pscript/upcp" ] || [ -f /script/upcp ]; then
+	exec sh /script/upcp "$@"
+fi
+if [ -x "${ROOT}/bin/kloxocp" ]; then
+	exec sh "${ROOT}/pscript/upcp" "$@"
+fi
+echo "error: kloxocp upcp not found under ${ROOT}" >&2
+exit 1

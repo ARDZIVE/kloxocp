@@ -20,7 +20,7 @@ declare(strict_types=1);
  * Usage: kloxocp <command> [arguments] [--options]
  */
 
-const KCP_VERSION = '10.1-2026111002';
+const KCP_VERSION = '10.1-2026111003';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -28,6 +28,7 @@ const KCP_SNAP_PATHS = [
     'bin/kloxocp',
     'init',
     'etc',
+    'pscript',
     'file/ssl',
     'httpdocs/login',
     'httpdocs/lib',
@@ -44,7 +45,10 @@ const KCP_SNAP_SIDECARS = [
 
 const KCP_UPDATE_SYNC = [
     'bin',
+    'sbin',
     'init',
+    'pscript',
+    'file',
     'httpdocs/lib',
     'httpdocs/driver',
     'httpdocs/theme',
@@ -833,6 +837,9 @@ TXT;
                 throw new KcpException('forced failure (KLOXO_UPDATE_FORCE_FAIL=1)');
             }
 
+            $this->ulog($logFile, 'host links');
+            $plan['host_links'] = $this->refreshHostLinks();
+
             $this->ulog($logFile, "update ok {$toVersion} snapshot={$stamp}");
             $plan['ok'] = true;
             $plan['rolled_back'] = false;
@@ -1060,21 +1067,15 @@ TXT;
             return ['(live symlink; git fetch already applied)'];
         }
         $synced = [];
-        $map = [
-            'bin' => 'bin',
-            'init' => 'init',
-            'httpdocs/lib' => 'httpdocs/lib',
-            'httpdocs/driver' => 'httpdocs/driver',
-            'httpdocs/theme' => 'httpdocs/theme',
-            'httpdocs/lang' => 'httpdocs/lang',
-            'httpdocs/login' => 'httpdocs/login',
-        ];
-        foreach ($map as $rel => $dstRel) {
+        foreach (KCP_UPDATE_SYNC as $rel) {
+            if ($rel === 'bin/kloxoversion') {
+                continue; // handled below
+            }
             $from = $srcKloxo . '/' . $rel;
             if (!file_exists($from)) {
                 continue;
             }
-            $to = $this->root . '/' . $dstRel;
+            $to = $this->root . '/' . $rel;
             // replace directory contents safely: copy to temp then swap
             if (is_dir($from)) {
                 $tmp = $to . '.kloxocp-new';
@@ -1090,7 +1091,7 @@ TXT;
             } else {
                 Fs::copyPath($from, $to);
             }
-            $synced[] = $dstRel;
+            $synced[] = $rel;
         }
         // always refresh version stamp when present
         if (is_file($srcKloxo . '/bin/kloxoversion')) {
@@ -1100,6 +1101,55 @@ TXT;
             }
         }
         return $synced;
+    }
+
+    /**
+     * Keep /script, lxphp.exe and /usr/local/sbin/kloxocp pointing at this tree
+     * after an update (and after a symlink-only git fetch apply).
+     *
+     * @return list<string>
+     */
+    private function refreshHostLinks(): array
+    {
+        $done = [];
+        $uid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+        if ($uid !== 0) {
+            return ['(skipped; not root)'];
+        }
+        $pscript = $this->root . '/pscript';
+        if (is_dir($pscript)) {
+            @unlink('/script');
+            if (@symlink($pscript, '/script')) {
+                $done[] = '/script';
+            }
+        }
+        $cli = $this->root . '/init/php-cli.sh';
+        if (is_file($cli)) {
+            @chmod($cli, 0755);
+            foreach (['/usr/bin/lxphp.exe', '/usr/bin/lphp.exe'] as $link) {
+                @unlink($link);
+                if (@symlink($cli, $link)) {
+                    $done[] = $link;
+                }
+            }
+        }
+        $kloxocp = $this->root . '/bin/kloxocp';
+        if (is_file($kloxocp)) {
+            @chmod($kloxocp, 0755);
+            @unlink('/usr/local/sbin/kloxocp');
+            if (@symlink($kloxocp, '/usr/local/sbin/kloxocp')) {
+                $done[] = '/usr/local/sbin/kloxocp';
+            }
+        }
+        // Ensure /script/upcp and /script/directory are executable wrappers.
+        foreach (['upcp', 'update', 'directory'] as $name) {
+            $p = $pscript . '/' . $name;
+            if (is_file($p)) {
+                @chmod($p, 0755);
+            }
+        }
+
+        return $done !== [] ? $done : ['(no links changed)'];
     }
 
     /** @return array{ok:bool,errors:list<string>} */
@@ -1126,11 +1176,19 @@ TXT;
                 $errors[] = 'httpdocs/login is empty';
             }
         }
-        // PHP lint the CLI itself
-        if (Proc::exists('php')) {
-            [$rc, , $e] = Proc::run(['php', '-l', $this->root . '/bin/kloxocp']);
+        // PHP lint the CLI itself (prefer panel php-cli / pin over PHP Used).
+        $php = $this->panelPhpBinary();
+        if ($php !== '') {
+            [$rc, , $e] = Proc::run([$php, '-l', $this->root . '/bin/kloxocp']);
             if ($rc !== 0) {
                 $errors[] = 'php -l kloxocp failed: ' . trim($e);
+            }
+        }
+        $dirHelper = $this->root . '/pscript/directory';
+        if (is_file($dirHelper)) {
+            $dirSrc = (string) file_get_contents($dirHelper);
+            if (!str_contains($dirSrc, 'httpdocs') || str_contains($dirSrc, '/opt/kloxo/$(cat')) {
+                $errors[] = 'pscript/directory still uses the legacy Kloxo-MR path';
             }
         }
         // optional unit probes (do not fail update if systemctl absent)
@@ -1146,6 +1204,33 @@ TXT;
             }
         }
         return ['ok' => $errors === [], 'errors' => $errors];
+    }
+
+    /** PHP binary for panel tools (php-cli.sh, pin, then PATH php). */
+    private function panelPhpBinary(): string
+    {
+        $env = getenv('KLOXO_PHP');
+        if (is_string($env) && $env !== '' && is_executable($env)) {
+            return $env;
+        }
+        $cli = $this->root . '/init/php-cli.sh';
+        if (is_executable($cli) || is_file($cli)) {
+            return $cli;
+        }
+        $pinFile = $this->root . '/etc/path/php';
+        if (is_file($pinFile)) {
+            $pin = trim((string) file_get_contents($pinFile));
+            if ($pin !== '' && is_executable($pin)) {
+                return $pin;
+            }
+        }
+        foreach (['/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.3', '/usr/bin/php'] as $p) {
+            if (is_executable($p)) {
+                return $p;
+            }
+        }
+
+        return Proc::exists('php') ? 'php' : '';
     }
 
     private function install(): int

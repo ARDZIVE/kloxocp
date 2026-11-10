@@ -9,6 +9,8 @@
 set -eu
 ROOT="${KLOXO_ROOT:-/opt/kloxo}"
 BIN="${ROOT}/bin/kloxocp"
+PHP=""
+
 if [ ! -x "$BIN" ] && [ -f "$BIN" ]; then
 	chmod +x "$BIN" || true
 fi
@@ -20,4 +22,18 @@ if [ "$(id -u)" -ne 0 ]; then
 	echo "error: Must run as root: sudo sh /script/upcp" >&2
 	exit 1
 fi
-exec php "$BIN" upcp "$@"
+
+# Prefer pinned panel PHP (pdo_sqlite) over a PHP Used /usr/bin/php.
+if [ -n "${KLOXO_PHP:-}" ] && [ -x "${KLOXO_PHP}" ]; then
+	PHP="${KLOXO_PHP}"
+elif [ -x "${ROOT}/init/php-cli.sh" ]; then
+	PHP="${ROOT}/init/php-cli.sh"
+elif [ -f "${ROOT}/etc/path/php" ]; then
+	PIN="$(tr -d '\n\r' < "${ROOT}/etc/path/php" 2>/dev/null || true)"
+	if [ -n "${PIN}" ] && [ -x "${PIN}" ]; then
+		PHP="${PIN}"
+	fi
+fi
+PHP="${PHP:-php}"
+
+exec "$PHP" "$BIN" upcp "$@"

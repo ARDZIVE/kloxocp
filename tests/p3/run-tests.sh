@@ -173,11 +173,28 @@ wait "$lockpid" 2>/dev/null || true
 
 # upcp wrapper script exists and points at kloxocp
 if grep -q 'kloxocp' "$ROOT/kloxo/pscript/upcp" && grep -q 'upcp' "$ROOT/kloxo/pscript/upcp" \
-  && grep -q 'Must run as root' "$ROOT/kloxo/pscript/upcp"; then
+  && grep -q 'Must run as root' "$ROOT/kloxo/pscript/upcp" \
+  && grep -q 'php-cli.sh' "$ROOT/kloxo/pscript/upcp"; then
   ok "pscript/upcp wraps kloxocp upcp"
 else
   bad "pscript/upcp wraps kloxocp upcp"
 fi
+# /script/directory must cd to /opt/kloxo/httpdocs (not legacy /opt/kloxo/kloxo/httpdocs)
+if grep -q 'ROOT}/httpdocs' "$ROOT/kloxo/pscript/directory" \
+  && ! grep -qF '/opt/kloxo/$(cat /script/programname)/httpdocs' "$ROOT/kloxo/pscript/directory"; then
+  ok "pscript/directory uses Kloxo CP httpdocs path"
+else
+  bad "pscript/directory uses Kloxo CP httpdocs path"
+fi
+if grep -q 'kloxocp upcp\|/script/upcp' "$ROOT/kloxo/pscript/update" \
+  && ! grep -q 'commandline.php --action=update' "$ROOT/kloxo/pscript/update"; then
+  ok "pscript/update delegates to upcp"
+else
+  bad "pscript/update delegates to upcp"
+fi
+grep -q "'pscript'" "$ROOT/kloxo/bin/kloxocp" && grep -q 'refreshHostLinks' "$ROOT/kloxo/bin/kloxocp" \
+  && ok "upcp syncs pscript and refreshes /script links" \
+  || bad "upcp syncs pscript and refreshes /script links"
 help2="$("${TOOL[@]}" help)"
 echo "$help2" | grep -q 'update|upcp' && ok "help documents update/upcp" || bad "help documents update/upcp"
 echo "$help2" | grep -q 'sudo kloxocp upcp' && ok "help says update needs sudo" || bad "help says update needs sudo"

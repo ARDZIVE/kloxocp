@@ -1,1 +1,22 @@
-cd /opt/kloxo/$(cat /script/programname)/httpdocs
+#!/bin/sh
+# Enter the panel httpdocs directory for /script/* helpers.
+# Kloxo CP layout: /opt/kloxo/httpdocs (ROOT may be a symlink into the clone).
+# Legacy Kloxo-MR used /opt/kloxo/kloxo/httpdocs via programname — keep as fallback.
+set -eu
+ROOT="${KLOXO_ROOT:-/opt/kloxo}"
+PROG=""
+if [ -f /script/programname ]; then
+	PROG="$(tr -d '\n\r' < /script/programname 2>/dev/null || true)"
+fi
+PROG="${PROG:-kloxo}"
+
+if [ -d "${ROOT}/httpdocs" ]; then
+	cd "${ROOT}/httpdocs"
+elif [ -d "${ROOT}/${PROG}/httpdocs" ]; then
+	cd "${ROOT}/${PROG}/httpdocs"
+elif [ -d "/home/kloxo/httpd/httpdocs" ]; then
+	cd /home/kloxo/httpd/httpdocs
+else
+	echo "error: cannot find httpdocs under ${ROOT} (is Kloxo CP installed?)" >&2
+	exit 1
+fi
