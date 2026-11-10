@@ -181,10 +181,18 @@ if (str_contains($web, 'case "webfeatures":') && str_contains($web, 'syncUbuntuP
     && str_contains($web, 'KloxoPhpfpm::removeDomain')
     && str_contains($web, 'posix_geteuid') && str_contains($web, 'new lxException')
     && str_contains($web, 'validateUbuntuWebConfig')
+    && str_contains($web, "array('KloxoPhpfpm', 'checkWeb')")
 ) {
     $ok('domain PHP change regenerates the pool; delete removes it');
 } else {
     $bad('domain PHP change regenerates the pool; delete removes it');
+}
+if (str_contains($web, "array('KloxoPhpfpm', 'checkWeb')")
+    && str_contains($web, 'validateUbuntuWebConfig')
+) {
+    $ok('domain add runs nginx -t as root via kloxo-backend');
+} else {
+    $bad('domain add runs nginx -t as root via kloxo-backend');
 }
 
 $got = KloxoPhpfpm::applyDomain('noroot.example', 'alice', '8.3', 'php8.3');
@@ -248,6 +256,52 @@ if ($ng === [$base . '/usr/sbin/nginx'] && $ap !== [] && !in_array('also-nginx',
 } else {
     $bad('validateWeb tests only the selected web server');
 }
+
+$check = KloxoPhpfpm::checkWeb('nginx');
+$euidCheck = function_exists('posix_geteuid') ? (int) posix_geteuid() : 1;
+if ($euidCheck !== 0 && is_array($check) && empty($check['ok']) && ($check['error'] ?? '') === 'not root') {
+    $ok('checkWeb refuses nginx -t when not root');
+} elseif ($euidCheck === 0 && is_array($check) && !empty($check['ok'])) {
+    $ok('checkWeb refuses nginx -t when not root');
+} else {
+    $bad('checkWeb refuses nginx -t when not root');
+}
+
+KloxoPhpfpm::$runCmd = static function (array $argv): array {
+    return [
+        'code' => 1,
+        'out' => "2026/11/10 09:07:47 [warn] 1#1: the \"user\" directive makes sense only if the master process runs with super-user privileges, ignored in /etc/nginx/nginx.conf:1\n"
+            . "nginx: the configuration file /etc/nginx/nginx.conf syntax is ok\n"
+            . "2026/11/10 09:07:47 [emerg] 1#1: open() \"/var/log/nginx/error.log\" failed (13: Permission denied)\n"
+            . "nginx: configuration file /etc/nginx/nginx.conf test failed\n",
+    ];
+};
+try {
+    KloxoPhpfpm::validateWeb('nginx');
+    $bad('nginx -t failure prefers the emerg line');
+} catch (KloxoPhpfpmException $e) {
+    $msg = $e->getMessage();
+    if (str_contains($msg, '[emerg]') && str_contains($msg, 'Permission denied') && !str_contains($msg, '[warn]')) {
+        $ok('nginx -t failure prefers the emerg line');
+    } else {
+        $bad('nginx -t failure prefers the emerg line');
+    }
+}
+KloxoPhpfpm::$runCmd = static function (array $argv) use (&$calls): array {
+    $calls[] = $argv;
+    $bin = (string) ($argv[0] ?? '');
+    if (str_contains($bin, 'php-fpm') && in_array('-t', $argv, true)) {
+        return ['code' => 0, 'out' => 'test is successful'];
+    }
+    if (str_contains($bin, 'nginx') || str_contains($bin, 'apache')) {
+        return ['code' => 0, 'out' => 'syntax ok'];
+    }
+    if (str_contains($bin, 'systemctl') || $argv[0] === 'systemctl') {
+        return ['code' => 0, 'out' => ''];
+    }
+
+    return ['code' => 0, 'out' => ''];
+};
 
 $remote = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/remotelib.php');
 if (str_contains($remote, 'function kloxo_rethrow_local_action')

@@ -141,13 +141,15 @@
     Kloxo CP <strong>10.1-2026110601</strong> (AGPLv3, Ubuntu 24.04 / 26.x only — CentOS/RHEL installer removed)
     · vs <strong>cPanel &amp; WHM</strong>
     · Section 1 also vs <strong>ISPConfig 3.3</strong> (BSD) and <strong>Hestia CP</strong> (GPLv3)
-    · Ratings 0–10 · refreshed 10 Nov 2026 (post <code>curl …/get | sudo bash</code> install cleanup)
+    · Ratings 0–10 · refreshed 10 Nov 2026 (post <code>kloxocp upcp</code> with auto-rollback)
   </p>
   <p class="note">
     Ratings weigh <strong>utility for hosting operators/customers</strong> and
     <strong>security posture</strong>. Kloxo scores are capped where features are
     coded but still live-unverified or incomplete on Ubuntu. Still
-    <strong>not production-safe</strong>; <code>kloxocp update</code> still exits 2.
+    <strong>not production-safe</strong> (legacy PHP / live gaps). Panel updates:
+    <code>kloxocp upcp</code> / <code>update</code> (snapshot → apply → health → auto-rollback)
+    are built and php-cli tested; signed apt packaging is not.
     ISPConfig / Hestia ratings reflect typical current stable releases (open-source panels).
   </p>
   <p class="legend">
@@ -196,21 +198,21 @@
       </tr>
       <tr>
         <td class="feature">Updates + rollback</td>
-        <td class="panel"><span class="bar r3">3</span><br>Re-run installer pulls <code>origin/main</code> (keeps admin password). CLI snapshot/rollback skeleton only; <code>kloxocp update</code> still exits 2; signed apt packaging not built.</td>
+        <td class="panel"><span class="bar r7">7</span><br><code>kloxocp upcp</code>/<code>update</code> + <code>/script/upcp</code>: pre-flight → snapshot → git sync → health check → <strong>auto-rollback</strong> on failure (php-cli tested). Still git-tree based; signed apt / full component upgrades not built; live Ubuntu UNVERIFIED.</td>
         <td class="panel"><span class="bar r9">9</span><br>Mature <code>upcp</code>, vendor channels, support for failed updates.</td>
         <td class="panel"><span class="bar r8">8</span><br><code>ispconfig_update.sh</code> / <code>update.php</code> — routine one-command updates; not cPanel-class rollback tooling.</td>
         <td class="panel"><span class="bar r8">8</span><br>Apt packages; automatic updates on by default; managed in Server Settings → Updates.</td>
       </tr>
       <tr>
         <td class="feature">Production readiness</td>
-        <td class="panel"><span class="bar r2">2</span><br>Docs/README: not safe for public production. Legacy PHP still not PHP 8.3-safe end-to-end. Many live paths UNVERIFIED.</td>
+        <td class="panel"><span class="bar r2">2</span><br>Docs/README: not safe for public production. Legacy PHP still not PHP 8.3-safe end-to-end. Many live paths UNVERIFIED. New upcp does not change that.</td>
         <td class="panel"><span class="bar r10">10</span><br>Industry default for shared hosting.</td>
         <td class="panel"><span class="bar r9">9</span><br>Long-running production OSS panel; multi-server / service nodes widely used.</td>
         <td class="panel"><span class="bar r9">9</span><br>Widely deployed in production for VPS/single-server hosting; active releases.</td>
       </tr>
       <tr class="total">
         <td class="feature">Section 1 average</td>
-        <td class="panel"><span class="bar r6">5.6</span><br>Install improved; readiness/updates still hold it back.</td>
+        <td class="panel"><span class="bar r6">6.4</span><br>Install + upcp/auto-rollback lifted; production readiness still caps the score.</td>
         <td class="panel"><span class="bar r9">9.0</span><br>Mature commercial platform.</td>
         <td class="panel"><span class="bar r9">9.0</span><br>Best free multi-OS / multi-server platform of this group.</td>
         <td class="panel"><span class="bar r9">8.8</span><br>Best free Ubuntu/Debian single-server onboarding of this group.</td>
@@ -586,8 +588,8 @@
       <tr class="section"><td colspan="5">Category totals (simple average of rows above) — Kloxo vs cPanel; see four-panel table for ISPConfig / Hestia on platform</td></tr>
       <tr class="total">
         <td class="feature">1. Platform</td>
-        <td class="rate">5.6</td>
-        <td>curl|bash install improved; production/update path still weak. (ISPConfig ~9.0, Hestia ~8.8.)</td>
+        <td class="rate">6.4</td>
+        <td>curl|bash + <code>upcp</code> auto-rollback; production readiness still weak. (ISPConfig ~9.0, Hestia ~8.8.)</td>
         <td class="rate">9.0</td>
         <td>Mature commercial platform.</td>
       </tr>
@@ -653,12 +655,12 @@
   <div class="scorebox">
     <div class="score">
       <h3>Kloxo CP — overall</h3>
-      <div class="big">5.5 / 10</div>
-      <p><strong>Utility: 5.0</strong> · <strong>Security: 6.3</strong> <span style="font-weight:400;color:var(--muted)">(was 5.3 / 4.8 / 6.1)</span></p>
+      <div class="big">5.8 / 10</div>
+      <p><strong>Utility: 5.4</strong> · <strong>Security: 6.4</strong> <span style="font-weight:400;color:var(--muted)">(was 5.5 / 5.0 / 6.3)</span></p>
       <ul>
-        <li>Recent lift: <code>curl …/get | sudo bash</code> install, CentOS removal, Backup Now clarity, Aux login, default_plan, SMTP overlay, UI toasts.</li>
-        <li>Security design and recovery/resilience still punch above overall maturity.</li>
-        <li>Utility still held down by apps, transfers, mail UI (P4), API, signed updates, and production readiness.</li>
+        <li>Latest lift: <code>kloxocp upcp</code> (cPanel-style) with snapshot, health check, and automatic rollback — php-cli tested.</li>
+        <li>Also recent: <code>curl …/get | sudo bash</code>, CentOS removal, Backup Now, Aux login, default_plan, SMTP overlay, UI toasts.</li>
+        <li>Utility still held down by apps, transfers, mail UI (P4), public API, signed apt, and production readiness.</li>
         <li><strong>Still not recommended as a public cPanel/Hestia/ISPConfig replacement today.</strong></li>
       </ul>
     </div>
@@ -689,19 +691,19 @@
       <tr>
         <td class="feature">Utility (60%)</td>
         <td>Day-to-day hosting usefulness: web/apps, DNS, mail UX, DB/files/backup, reseller/transfers, UI/API/ecosystem, install/update readiness.</td>
-        <td class="rate"><span class="bar r5">5.0</span></td>
+        <td class="rate"><span class="bar r5">5.4</span></td>
         <td class="rate"><span class="bar r9">9.1</span></td>
       </tr>
       <tr>
         <td class="feature">Security (40%)</td>
-        <td>Defaults and ops safety: mail invariants, firewall/Fail2Ban, recovery console, watchdog, panel DB resilience, core hygiene, WAF/commercial suites.</td>
-        <td class="rate"><span class="bar r6">6.3</span></td>
+        <td>Defaults and ops safety: mail invariants, firewall/Fail2Ban, recovery console, watchdog, panel DB resilience, core hygiene, WAF/commercial suites, update auto-rollback.</td>
+        <td class="rate"><span class="bar r6">6.4</span></td>
         <td class="rate"><span class="bar r8">8.3</span></td>
       </tr>
       <tr class="total">
         <td class="feature">Overall</td>
         <td>0.6 × Utility + 0.4 × Security</td>
-        <td class="rate"><span class="bar r6">5.5</span></td>
+        <td class="rate"><span class="bar r6">5.8</span></td>
         <td class="rate"><span class="bar r9">8.8</span></td>
       </tr>
     </tbody>
@@ -730,10 +732,10 @@
         <td>Customers and hosters cannot trust it as a live panel. This single gap caps every other feature’s value — install polish does not fix it.</td>
       </tr>
       <tr>
-        <td class="feature">Updates + rollback</td>
-        <td class="rate"><span class="bar r3">3</span></td>
-        <td>Re-run <code>install.sh</code> can refresh the tree, but <code>kloxocp update</code> exits 2; signed apt + automatic validated rollback are not built.</td>
-        <td>Without a real update product, operators will not deploy. Trails cPanel <code>upcp</code>, Hestia apt, and ISPConfig <code>ispconfig_update.sh</code>.</td>
+        <td class="feature">Signed apt / full component updates</td>
+        <td class="rate"><span class="bar r4">4</span></td>
+        <td>Panel <code>upcp</code> exists, but no signed apt repo; no guided MariaDB/PHP major upgrades in the same tool.</td>
+        <td>Still trails cPanel/Hestia packaging maturity; git-tree updates need a clone and live proof.</td>
       </tr>
       <tr>
         <td class="feature">App / CMS installers</td>
@@ -869,7 +871,7 @@
       <tr class="total">
         <td class="feature">2nd</td>
         <td class="rate">—</td>
-        <td colspan="2">Ship signed updates with automatic rollback (<code>kloxocp update</code>) — re-run install is not enough.</td>
+        <td colspan="2">Live-verify <code>kloxocp upcp</code> on Ubuntu; then signed apt packaging for components.</td>
       </tr>
       <tr class="total">
         <td class="feature">3rd</td>
@@ -883,10 +885,16 @@
       </tr>
       <tr class="section"><td colspan="4">Recently improved (no longer top weakeners, but still not parity)</td></tr>
       <tr>
+        <td class="feature">Panel upcp + auto-rollback</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td><code>kloxocp upcp</code>/<code>update</code> + <code>/script/upcp</code>; snapshot; health; auto-rollback; <code>--check</code>; lock + log.</td>
+        <td>Closes the old “update exits 2” gap vs Hestia/ISPConfig; still git-based, live Ubuntu UNVERIFIED, no signed apt.</td>
+      </tr>
+      <tr>
         <td class="feature">Install one-liner</td>
         <td class="rate"><span class="bar r8">8</span></td>
         <td><code>curl …/get | sudo bash</code>; CentOS tree removed; stepped progress.</td>
-        <td>Now competitive with Hestia/ISPConfig onboarding shape — still not a production-safe outcome.</td>
+        <td>Competitive with Hestia/ISPConfig onboarding shape — still not a production-safe outcome.</td>
       </tr>
       <tr>
         <td class="feature">Backup Now / Restore UX</td>
@@ -1124,7 +1132,7 @@
         <td class="feature">upcp / Easy updates</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Admins search how to update cPanel safely.</td>
-        <td><span class="bar r3">Missing</span> <code>kloxocp update</code> unfinished; signed apt path not built.</td>
+        <td><span class="bar r7">Partial</span> <code>kloxocp upcp</code> with auto-rollback is built (php-cli tested); signed apt / live Ubuntu still missing.</td>
       </tr>
       <tr>
         <td class="feature">PostgreSQL + phpPgAdmin</td>
@@ -1173,8 +1181,8 @@
       </tr>
       <tr class="total">
         <td class="feature">6</td>
-        <td class="rate">9</td>
-        <td colspan="2">Signed one-command panel updates (<code>upcp</code> equivalent)</td>
+        <td class="rate">8</td>
+        <td colspan="2">Live-verify <code>upcp</code> on Ubuntu + signed apt packaging (panel upcp itself now exists)</td>
       </tr>
       <tr class="total">
         <td class="feature">7</td>
@@ -1201,7 +1209,7 @@
 
   <p class="footer">
     Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, version 10.1-2026110601
-    (refreshed after Ubuntu-only <code>get</code>/<code>install.sh</code> consolidation, CentOS removal, Backup/Aux/login/SMTP/UI work) ·
+    (refreshed after <code>kloxocp upcp</code> auto-rollback, Ubuntu-only <code>get</code>/<code>install.sh</code>, CentOS removal, Backup/Aux/login/SMTP/UI work) ·
     cPanel Feature Manager / product documentation (general capability set, Nov 2026) ·
     ISPConfig 3.3 docs/download (BSD; Debian/Ubuntu/Alma/Rocky; <code>ispconfig_update.sh</code>) ·
     Hestia CP docs/GitHub (GPLv3; Debian/Ubuntu; <code>hst-install.sh</code>; apt updates) ·

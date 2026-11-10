@@ -422,7 +422,7 @@ final class KloxoPhpfpm
             }
             $r = self::run([$apache, 'configtest']);
             if ($r['code'] !== 0) {
-                throw new KloxoPhpfpmException('apache configtest failed: ' . self::oneLine($r['out']));
+                throw new KloxoPhpfpmException('apache configtest failed: ' . self::failDetail($r['out']));
             }
 
             return;
@@ -433,8 +433,30 @@ final class KloxoPhpfpm
         }
         $r = self::run([$nginx, '-t']);
         if ($r['code'] !== 0) {
-            throw new KloxoPhpfpmException('nginx -t failed: ' . self::oneLine($r['out']));
+            throw new KloxoPhpfpmException('nginx -t failed: ' . self::failDetail($r['out']));
         }
+    }
+
+    /**
+     * Root-side entry for domain add / web config check. Returns ok=false when
+     * not root so the panel can send this through kloxo-backend: nginx -t as
+     * lxlabs warns on the user directive and then emergs on /var/log/nginx.
+     *
+     * @return array{ok:bool,euid:int,error?:string}
+     */
+    public static function checkWeb(string $driver = 'nginx'): array
+    {
+        $euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+        if ($euid !== 0) {
+            return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
+        }
+        try {
+            self::validateWeb($driver);
+        } catch (Throwable $e) {
+            return ['ok' => false, 'euid' => $euid, 'error' => $e->getMessage()];
+        }
+
+        return ['ok' => true, 'euid' => $euid];
     }
 
     public static function reloadFpm(string $series): void
@@ -744,5 +766,28 @@ final class KloxoPhpfpm
         $s = trim(preg_replace('/\\s+/', ' ', $s) ?? $s);
 
         return substr($s, 0, 240);
+    }
+
+    /** Prefer emerg/error/alert lines so a truncated toast still shows the real fail. */
+    private static function failDetail(string $s): string
+    {
+        $n = preg_match_all('/\\[(?:emerg|error|alert)\\][^\\r\\n]*/i', $s, $m);
+        if ($n > 0 && isset($m[0]) && is_array($m[0]) && $m[0] !== []) {
+            return self::oneLine(implode(' ', $m[0]));
+        }
+        foreach (preg_split('/\\r?\\n/', $s) ?: [] as $line) {
+            $line = trim((string) $line);
+            if ($line === '' || stripos($line, '[warn]') !== false) {
+                continue;
+            }
+            if (stripos($line, 'syntax is ok') !== false || stripos($line, 'test is successful') !== false) {
+                continue;
+            }
+            if (stripos($line, 'failed') !== false || stripos($line, 'emerg') !== false) {
+                return self::oneLine($line);
+            }
+        }
+
+        return self::oneLine($s);
     }
 }

@@ -288,13 +288,46 @@ class web__ extends lxDriverClass
 		if (!KloxoIpaddr::isUbuntu()) {
 			return;
 		}
-		$sync = isset($this->main->__syncserver) ? $this->main->__syncserver : 'localhost';
-		$driver = '';
+		$server = 'localhost';
+		if (isset($this->main->syncserver) && is_string($this->main->syncserver) && $this->main->syncserver !== '') {
+			$server = $this->main->syncserver;
+		} elseif (isset($this->main->__syncserver) && is_string($this->main->__syncserver) && $this->main->__syncserver !== '') {
+			$server = $this->main->__syncserver;
+		}
+		$driver = 'nginx';
 		if (isset($gbl) && is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
-			$driver = (string) $gbl->getSyncClass('localhost', $sync, 'web');
+			$got = (string) $gbl->getSyncClass('localhost', $server, 'web');
+			if ($got !== '') {
+				$driver = $got;
+			}
+		}
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
+		// Panel PHP-FPM is lxlabs. nginx -t as non-root warns on "user" then
+		// emergs on /var/log/nginx — same root hand-off as applyDomain.
+		if ($euid !== 0 && function_exists('rl_exec_get')) {
+			try {
+				$got = rl_exec_get(null, $server, array('KloxoPhpfpm', 'checkWeb'), array($driver), false);
+			} catch (lxException $e) {
+				throw $e;
+			} catch (Throwable $e) {
+				throw new lxException('web config check failed: ' . $e->getMessage(), '', $this->getDomainname());
+			}
+			if (!is_array($got) || empty($got['ok'])) {
+				$why = 'kloxo-backend (127.0.0.1:7776) did not handle the request';
+				if (is_array($got) && isset($got['error']) && (string) $got['error'] !== '' && (string) $got['error'] !== 'not root') {
+					$why = (string) $got['error'];
+				}
+				throw new lxException($why, '', $this->getDomainname());
+			}
+
+			return;
 		}
 		try {
-			KloxoPhpfpm::validateWeb($driver !== '' ? $driver : 'nginx');
+			$got = KloxoPhpfpm::checkWeb($driver);
+			if (!is_array($got) || empty($got['ok'])) {
+				$why = (is_array($got) && isset($got['error'])) ? (string) $got['error'] : 'web config check failed';
+				throw new lxException($why, '', $this->getDomainname());
+			}
 		} catch (lxException $e) {
 			throw $e;
 		} catch (Throwable $e) {

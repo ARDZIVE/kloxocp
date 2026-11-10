@@ -175,7 +175,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Update does not run `/script/fixweb` in the HTTP request (that printed
     into the page and blocked until php-fpm/nginx finished, leaving only the
     simplicity background). A failed pool write is an `lxException` with the
-    real reason. `validateWeb` tests only the active web driver.     Webserver Configure
+    real reason. Domain add runs `KloxoPhpfpm::checkWeb` (`nginx -t` /
+    apache configtest) as root via kloxo-backend — as lxlabs it warns on
+    the `user` directive then emergs on `/var/log/nginx` and aborts Add
+    Domain. `validateWeb` tests only the active web driver.     Webserver Configure
     Multiple PHP Install submits selected `phpX.Y` ids (dual-listbox
     Available and/or Selected) and sends `KloxoPhpver::queueInstall` to
     kloxo-backend (`rl_exec_get`; the panel user cannot systemd-run or apt)
