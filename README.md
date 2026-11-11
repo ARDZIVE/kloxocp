@@ -1,7 +1,7 @@
 # Kloxo CP
 
 Hosting control panel for **Ubuntu 24.04** (PHP 8.3) and **Ubuntu 26.x** (PHP 8.5).
-GNU AGPLv3. Version **10.1-2026111003**.
+GNU AGPLv3. Version **10.1-2026111101**.
 
 https://github.com/ARDZIVE/kloxocp.git
 

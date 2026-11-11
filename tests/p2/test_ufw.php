@@ -119,6 +119,10 @@ if (!str_contains($ufwUi, 'listaddform_ufwfirewall')
 	&& !str_contains($ufwUi, 'Blank From = anywhere')
 	&& !str_contains($ufwUi, 'Save Defaults')
 	&& !str_contains($ufwUi, "printActionForm('ufwenable'")
+	&& str_contains($ufwUi, 'frm_subaction" value="ufwenable"')
+	&& str_contains($ufwUi, 'Enable UFW')
+	&& str_contains($ufwUi, ', false)')
+	&& str_contains($ufwUi, 'no in-process fallback')
 	&& !str_contains($ufwUi, 'frm_ufw_edit')) {
 	ok('UFW list: Add Rule page, Comment, no Family, multi-delete, if16 icons');
 } else {

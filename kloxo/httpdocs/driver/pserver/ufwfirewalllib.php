@@ -261,11 +261,26 @@ class ufwfirewall extends lxclass
 			return;
 		}
 		if (!$active) {
-			echo '<p class="messagetext" style="color:#a00;margin:8px 25px">'
-				. 'UFW is inactive on this host (install normally enables it). '
-				. 'As root run the panel installer again, or '
-				. '<code>php -r \'require "…/kloxo_ufw.php"; KloxoUfw::enable();\'</code>.'
-				. '</p>';
+			$enableIcon = self::faIcon('shield-halved', '#a00', 'Enable UFW');
+			echo '<div class="messagetext" style="color:#a00;margin:8px 25px;text-align:center">'
+				. '<p style="margin:0 0 10px">UFW is inactive on this host '
+				. '(install normally enables it). Enable now to apply the default '
+				. 'panel ports (SSH, HTTP/S, FTP, DNS, mail, 7777/7778) and turn the firewall on.</p>';
+			echo '<form method="post" action="/display.php" accept-charset="utf-8"'
+				. ' style="display:inline;margin:0" onsubmit="return confirm('
+				. htmlspecialchars(json_encode(
+					'Enable UFW? Panel ports 7777/7778 plus SSH, HTTP/S, FTP, DNS and mail are allowed first.'
+				), ENT_QUOTES) . ')">';
+			echo '<input type="hidden" name="frm_token" value="'
+				. htmlspecialchars((string) $token, ENT_QUOTES) . '">';
+			echo '<input type="hidden" name="frm_action" value="update">';
+			echo '<input type="hidden" name="frm_subaction" value="ufwenable">';
+			$this->printObjectPathInputs();
+			echo '<button type="submit" class="submitbutton" title="Enable UFW"'
+				. ' style="cursor:pointer;padding:6px 14px;vertical-align:middle">'
+				. ($enableIcon !== '' ? $enableIcon . ' ' : '')
+				. 'Enable UFW</button>';
+			echo '</form></div>';
 		}
 		if ($conflictNote !== '') {
 			echo '<p class="messagetext" style="color:#a00;margin:8px 25px;text-align:center">'
@@ -1376,6 +1391,11 @@ class ufwfirewall extends lxclass
 		return $out;
 	}
 
+	/**
+	 * Run a KloxoUfw method as root (kloxo-backend) when the panel is not root.
+	 * Never fall back to in-process as lxlabs: ufw needs root. php-cli
+	 * (tests / operator scripts) still runs in-process.
+	 */
 	function execUfw($method, $args)
 	{
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ufw.php';
@@ -1384,26 +1404,7 @@ class ufwfirewall extends lxclass
 		$panel = function_exists('php_sapi_name') ? php_sapi_name() : 'cli';
 		$useBackend = $euid !== 0 && $panel !== 'cli' && function_exists('rl_exec_get');
 		if ($useBackend) {
-			try {
-				$got = rl_exec_get(null, $this->syncServerName(), array('KloxoUfw', $method), $args);
-				if (is_array($got)) {
-					return $got;
-				}
-			} catch (Throwable $e) {
-				return array(
-					'ok' => false,
-					'out' => '',
-					'error' => 'ufw_backend_failed',
-					'active' => false,
-					'installed' => false,
-					'default_in' => '',
-					'default_out' => '',
-					'raw' => '',
-					'rules' => array(),
-				);
-			}
-
-			return array(
+			$fail = array(
 				'ok' => false,
 				'out' => '',
 				'error' => 'ufw_backend_failed',
@@ -1414,6 +1415,20 @@ class ufwfirewall extends lxclass
 				'raw' => '',
 				'rules' => array(),
 			);
+			try {
+				// 5th arg false: no in-process fallback as the panel user.
+				$got = rl_exec_get(null, $this->syncServerName(), array('KloxoUfw', $method), $args, false);
+				if (is_array($got)) {
+					return $got;
+				}
+			} catch (Throwable $e) {
+				$msg = trim((string) $e->getMessage());
+				if ($msg !== '') {
+					$fail['error'] = 'ufw_backend_failed: ' . $msg;
+				}
+			}
+
+			return $fail;
 		}
 
 		return call_user_func_array(array('KloxoUfw', $method), $args);

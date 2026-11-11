@@ -803,6 +803,15 @@ final class KloxoFail2ban
         if (!$st['active']) {
             return $st;
         }
+        // The control socket is root-only. Callers that are not root must go
+        // through kloxo-backend (execF2b with no local fallback). Skip when
+        // $fsPrefix is set (unit tests use a fake client).
+        $euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
+        if ($euid !== 0 && self::$fsPrefix === '') {
+            $st['error'] = 'fail2ban_backend_failed: fail2ban-client needs root (start kloxo-backend)';
+
+            return $st;
+        }
         $r = self::run([self::clientBin(), 'status'], 20);
         if ($r['code'] !== 0) {
             $st['error'] = 'fail2ban_status_failed: ' . self::clean($r['err'] . ' ' . $r['out']);

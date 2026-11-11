@@ -231,7 +231,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111003**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111101**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -487,7 +487,8 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     at least `localhost`). LxGuard list tabs omit the Find/search input too.
     Security has a **UFW Firewall** tile (`a=show&o=ufwfirewall`).
     `install.sh` **enables UFW by default** (`enable_ufw` /
-    `KloxoUfw::enable`, panel ports first). Page has **no** Enable/Disable/
+    `KloxoUfw::enable`, panel ports first). When inactive, show offers an
+    **Enable UFW** button (`sa=ufwenable` → `KloxoUfw::enable`); no Disable/
     defaults controls and no Managed/Backend line. Show is **list-only**;
     Add Rule / Edit Rule are separate `updateform` pages (`sa=addrule` /
     `sa=editrule`) with TCP/UDP/ICMP and optional Comment. Toolbar:
@@ -956,7 +957,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111003**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111101**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

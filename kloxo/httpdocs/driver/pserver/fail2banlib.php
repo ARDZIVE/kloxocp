@@ -203,6 +203,11 @@ class fail2ban extends lxclass
 		}
 		if ($err !== '') {
 			echo '<p class="messagetext formtablerow2">Error: ' . $h($this->errorText($err)) . '</p>';
+			if (str_contains($err, 'fail2ban_backend_failed') || str_contains($err, 'must be root')) {
+				echo '<p class="messagetext" style="color:#a00;margin:8px 25px">'
+					. 'Fail2Ban control needs root via <code>kloxo-backend</code> '
+					. '(Services → start <code>kloxo-backend</code>), then Refresh.</p>';
+			}
 		}
 		if (empty($st['active'])) {
 			echo '<p class="messagetext" style="color:#a00;margin:8px 25px">'
@@ -712,7 +717,12 @@ class fail2ban extends lxclass
 			? $this->nname : 'localhost';
 	}
 
-	/** Run a KloxoFail2ban method as root (kloxo-backend) when the panel is not root. */
+	/**
+	 * Run a KloxoFail2ban method as root (kloxo-backend) when the panel is not root.
+	 * Never fall back to in-process as lxlabs: fail2ban-client needs the root
+	 * socket (/var/run/fail2ban/fail2ban.sock) or it prints "you must be root".
+	 * php-cli (tests / operator scripts) still runs in-process.
+	 */
 	function execF2b($method, $args)
 	{
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_fail2ban.php';
@@ -727,13 +737,19 @@ class fail2ban extends lxclass
 			return $method === 'config' ? KloxoFail2ban::loadConfig() : call_user_func_array(array('KloxoFail2ban', $method), $args);
 		}
 		try {
+			// 5th arg false: no in-process fallback as the panel user.
 			$got = $method === 'config'
-				? rl_exec_get(null, $this->syncServerName(), array('KloxoFail2ban', 'loadConfig'), array())
-				: rl_exec_get(null, $this->syncServerName(), array('KloxoFail2ban', $method), $args);
+				? rl_exec_get(null, $this->syncServerName(), array('KloxoFail2ban', 'loadConfig'), array(), false)
+				: rl_exec_get(null, $this->syncServerName(), array('KloxoFail2ban', $method), $args, false);
 			if (is_array($got)) {
 				return $got;
 			}
 		} catch (Throwable $e) {
+			$msg = trim((string) $e->getMessage());
+			if ($msg !== '') {
+				$fail['error'] = 'fail2ban_backend_failed: ' . $msg;
+				$fail['status']['error'] = $fail['error'];
+			}
 		}
 
 		return $fail;
