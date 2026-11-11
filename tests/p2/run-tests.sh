@@ -915,6 +915,13 @@ if grep -q 'tls_require_ciphers = SECURE128' "$ROOT/kloxo/file/mail/exim/exim4.c
 else
   bad "Exim template is GnuTLS-safe (no openssl_options)"
 fi
+if grep -q 'forbid_file' "$ROOT/kloxo/file/mail/exim/exim4.conf" \
+  && grep -q 'forbid_pipe' "$ROOT/kloxo/file/mail/exim/exim4.conf" \
+  && ! grep -q 'forbid_filter' "$ROOT/kloxo/file/mail/exim/exim4.conf"; then
+  ok "Exim redirect routers omit unknown forbid_filter"
+else
+  bad "Exim redirect routers omit unknown forbid_filter"
+fi
 if grep -F -q "['name' => 'postfix'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \
   && grep -q 'smtp__postfix' "$ROOT/kloxo/httpdocs/lib/driver_define.php" \
   && grep -q 'array("none", "exim", "postfix")' "$ROOT/kloxo/file/driver/debian.inc" \
