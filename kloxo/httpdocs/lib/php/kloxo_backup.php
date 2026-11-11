@@ -684,6 +684,12 @@ final class KloxoBackup
 			}
 		}
 		if (($env['scope'] ?? '') === 'admin') {
+			$ini = self::p('/etc/kloxo/mail.ini');
+			if (is_file($ini)) {
+				$rel = 'extras/mail.ini';
+				self::copyFile($ini, rtrim($dir, '/') . '/' . $rel);
+				$packed[] = $rel;
+			}
 			$sql = self::dumpMailDatabase($ex);
 			if ($sql !== '') {
 				$packed[] = 'extras/' . basename($sql);
@@ -703,6 +709,17 @@ final class KloxoBackup
 			return array();
 		}
 		$done = array();
+		$iniSrc = $ex . '/mail.ini';
+		$iniDst = self::p('/etc/kloxo/mail.ini');
+		if (is_file($iniSrc) && !is_file($iniDst)) {
+			$iniDir = dirname($iniDst);
+			if (!is_dir($iniDir)) {
+				@mkdir($iniDir, 0750, true);
+			}
+			self::copyFile($iniSrc, $iniDst);
+			@chmod($iniDst, 0600);
+			$done[] = 'mail.ini';
+		}
 		$dkimSrc = $ex . '/dkim';
 		if (is_dir($dkimSrc)) {
 			$dest = self::p('/var/lib/rspamd/dkim');
@@ -801,6 +818,22 @@ final class KloxoBackup
 		) as $label => $script) {
 			$argv = array(self::phpBinary(), $script);
 			if ($label === 'kloxo-mail apply') {
+				$ini = self::p('/etc/kloxo/mail.ini');
+				if (!is_file($ini)) {
+					$host = self::mailFqdn($src);
+					if ($host === '') {
+						$failed[] = 'kloxo-mail: /etc/kloxo/mail.ini is missing. As root run: '
+							. 'kloxo-mail init --hostname=mail.example.com && kloxo-mail apply';
+						continue;
+					}
+					$init = array(self::phpBinary(), $script, 'init', '--hostname=' . $host);
+					$ir = self::run($init);
+					if (($ir['code'] ?? 1) !== 0) {
+						$failed[] = 'kloxo-mail init: ' . self::shortErr($ir['out'] ?? '');
+						continue;
+					}
+					$applied[] = 'kloxo-mail init (' . $host . ')';
+				}
 				$argv[] = 'apply';
 			}
 			$r = self::run($argv);
@@ -812,6 +845,60 @@ final class KloxoBackup
 		}
 
 		return array('applied' => $applied, 'failed' => $failed, 'rewrote_ip' => $rewrote);
+	}
+
+	/**
+	 * FQDN for `kloxo-mail init --hostname=` (ASCII domain with a dot).
+	 * environmentSnapshot hostname is run through safeName (dots stripped), so
+	 * prefer a live hostname -f / gethostname, then qualify a short name.
+	 *
+	 * @param array<string,mixed> $src
+	 */
+	public static function mailFqdn(array $src = array()): string
+	{
+		$candidates = array();
+		foreach (array($src['mail_hostname'] ?? null, $src['hostname'] ?? null) as $h) {
+			if (is_string($h) && trim($h) !== '') {
+				$candidates[] = strtolower(trim($h));
+			}
+		}
+		if (function_exists('gethostname')) {
+			$g = (string) gethostname();
+			if ($g !== '') {
+				$candidates[] = strtolower(trim($g));
+			}
+		}
+		$r = self::run(array('hostname', '-f'), null, null, true);
+		$hf = trim((string) ($r['out'] ?? ''));
+		if ($hf !== '' && !str_contains($hf, ' ')) {
+			$candidates[] = strtolower($hf);
+		}
+		foreach ($candidates as $h) {
+			if (self::isMailHostname($h)) {
+				return $h;
+			}
+			if ($h !== '' && !str_contains($h, '.') && preg_match('/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i', $h) === 1) {
+				$fq = strtolower($h) . '.localdomain';
+				if (self::isMailHostname($fq)) {
+					return $fq;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	public static function isMailHostname(string $h): bool
+	{
+		$h = strtolower(trim($h));
+		if ($h === '' || strlen($h) > 253 || str_contains($h, '..')) {
+			return false;
+		}
+
+		return preg_match(
+			'/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/',
+			$h
+		) === 1;
 	}
 
 	/**

@@ -596,7 +596,11 @@ KloxoBackup::$runCmd = static function (array $argv) use (&$cmds): array {
 $applyDest = KloxoBackup::$snapshotOverride;
 $applyDest['ips'] = array('9.9.9.9');
 KloxoBackup::$snapshotOverride = $applyDest;
-$applied = KloxoBackup::applyAfterRestore(array('ips' => array('1.2.3.4')));
+// No mail.ini under the fake root → applyAfterRestore must init then apply.
+$applied = KloxoBackup::applyAfterRestore(array(
+	'ips' => array('1.2.3.4'),
+	'mail_hostname' => 'mail.example.test',
+));
 KloxoBackup::$snapshotOverride = $env;
 KloxoBackup::$runCmd = null;
 $flat = array();
@@ -607,12 +611,52 @@ $joined = implode("\n", $flat);
 check(in_array('fixweb', $applied['applied'], true)
 	&& in_array('fixdns', $applied['applied'], true)
 	&& in_array('kloxo-mail apply', $applied['applied'], true)
+	&& str_contains(implode("\n", $applied['applied']), 'kloxo-mail init')
 	&& str_contains($joined, 'fixdnschangeip.php')
 	&& str_contains($joined, '--oldip=1.2.3.4')
 	&& str_contains($joined, '--newip=9.9.9.9')
 	&& str_contains($joined, 'fixweb.php')
-	&& str_contains($joined, 'kloxo-mail'),
-	'applyAfterRestore rewrites DNS IPs and runs fixweb, fixdns, kloxo-mail apply');
+	&& str_contains($joined, 'kloxo-mail')
+	&& str_contains($joined, 'init')
+	&& str_contains($joined, '--hostname=mail.example.test')
+	&& str_contains($joined, 'apply'),
+	'applyAfterRestore inits mail.ini when missing, then fixweb/fixdns/apply');
+check(KloxoBackup::isMailHostname('mail.example.com')
+	&& KloxoBackup::isMailHostname('a.localdomain')
+	&& !KloxoBackup::isMailHostname('localhost')
+	&& KloxoBackup::mailFqdn(array('mail_hostname' => 'mx.demo.test')) === 'mx.demo.test',
+	'mailFqdn / isMailHostname accept FQDNs for kloxo-mail init');
+// Admin packExtras includes mail.ini when present.
+$packMailBase = sys_get_temp_dir() . '/kloxo-packmail-' . getmypid();
+@mkdir($packMailBase . '/etc/kloxo', 0755, true);
+@mkdir($packMailBase . '/backup', 0755, true);
+file_put_contents($packMailBase . '/etc/kloxo/mail.ini', "hostname=\"mail.example.test\"\n");
+$prevFs2 = KloxoBackup::$fsPrefix;
+KloxoBackup::$fsPrefix = $packMailBase;
+$packedMail = KloxoBackup::packExtras($packMailBase . '/backup', array(
+	'scope' => 'admin',
+	'domains' => array(),
+));
+check(in_array('extras/mail.ini', $packedMail, true)
+	&& is_file($packMailBase . '/backup/extras/mail.ini'),
+	'admin packExtras copies /etc/kloxo/mail.ini');
+@unlink($packMailBase . '/etc/kloxo/mail.ini');
+$unMail = KloxoBackup::unpackExtras($packMailBase . '/backup');
+check(in_array('mail.ini', $unMail, true)
+	&& is_file($packMailBase . '/etc/kloxo/mail.ini'),
+	'unpackExtras restores mail.ini when missing');
+KloxoBackup::$fsPrefix = $prevFs2;
+foreach (array($packMailBase) as $tree) {
+	if ($tree !== '' && is_dir($tree)) {
+		$it = new RecursiveDirectoryIterator($tree, FilesystemIterator::SKIP_DOTS);
+		$ri = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::CHILD_FIRST);
+		foreach ($ri as $f) {
+			$p = $f->getPathname();
+			$f->isDir() ? @rmdir($p) : @unlink($p);
+		}
+		@rmdir($tree);
+	}
+}
 $notes = KloxoBackup::preBackupNotes($env);
 $afterNone = KloxoBackup::postRestoreNotes(array());
 $afterSome = KloxoBackup::postRestoreNotes($moved);
