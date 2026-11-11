@@ -401,23 +401,23 @@ $core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $htmlSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
 check(str_contains($lxlib, 'function kloxo_is_long_backend_update')
 	&& str_contains($lxlib, 'restore_confirm_confirm')
-	&& str_contains($lxlib, 'function kloxo_print_backup_finished_page')
-	&& str_contains($lxlib, 'function kloxo_backup_finished_from_redirect')
+	&& str_contains($lxlib, 'function kloxo_backup_panel_redirect')
+	&& str_contains($lxlib, 'function kloxo_backup_result_url')
 	&& str_contains($lxlib, 'function kloxo_backup_safe_continue_url')
-	&& str_contains($lxlib, 'frm_m_emessage_data')
+	&& str_contains($lxlib, 'frm_smessage=')
 	&& str_contains($core, '__kloxo_defer_chrome')
 	&& str_contains($core, '@ob_start()')
 	&& str_contains($core, 'Deferred Backup/Restore must never end with an empty body')
 	&& str_contains($htmlSrc, '__kloxo_defer_chrome')
-	&& str_contains($htmlSrc, 'kloxo_print_backup_finished_page')
-	&& str_contains($htmlSrc, 'kloxo_backup_safe_continue_url')
-	&& str_contains($htmlSrc, '__kloxo_defer_chrome')
+	&& str_contains($htmlSrc, 'kloxo_backup_panel_redirect')
+	&& str_contains($htmlSrc, 'kloxo_backup_result_url')
 	&& str_contains($bak, 'function backupShowUrl')
-	&& str_contains($bak, 'kloxo_print_backup_finished_page')
-	&& str_contains($bak, 'Restore completed'),
-	'Backup/Restore finished page uses a short Continue URL (no huge emessage query)');
+	&& str_contains($bak, 'kloxo_backup_panel_redirect')
+	&& str_contains($bak, 'frm_smessage=restore_completed')
+	&& !str_contains($bak, 'Continue to Backup / Restore'),
+	'Backup/Restore returns to panel show with Status toast (no separate layout)');
 
-// Runtime: load only the finished-page helpers (full lxlib needs panel paths).
+// Runtime: load only the redirect helpers (full lxlib needs panel paths).
 $helperSrc = '';
 if (preg_match(
 	'/function kloxo_backup_safe_continue_url\(.*?\nfunction kloxo_download_filename/s',
@@ -429,20 +429,19 @@ if (preg_match(
 $helpersOk = $helperSrc !== '';
 if ($helpersOk) {
 	eval($helperSrc);
-	$parsed = kloxo_backup_finished_from_redirect(
-		'/display.php?frm_action=show&frm_emessage=restore_failed&frm_m_emessage_data='
-		. rawurlencode('Restore failed due to disk full')
-	);
-	$helpersOk = $parsed[0] === 'Restore failed'
-		&& str_contains($parsed[1], 'disk full')
-		&& $parsed[2] === 'error';
 	$safe = kloxo_backup_safe_continue_url();
-	$helpersOk = $helpersOk
-		&& str_contains($safe, 'frm_action=show')
+	$okUrl = kloxo_backup_result_url('success', 'restore_completed');
+	$errUrl = kloxo_backup_result_url('error', 'restore_failed', 'Restore failed due to disk full');
+	$helpersOk = str_contains($safe, 'frm_action=show')
 		&& !str_contains($safe, 'frm_emessage')
-		&& !str_contains($safe, 'frm_m_emessage_data');
+		&& !str_contains($safe, 'frm_m_emessage_data')
+		&& str_contains($okUrl, 'frm_smessage=restore_completed')
+		&& !str_contains($okUrl, 'frm_emessage')
+		&& str_contains($errUrl, 'frm_emessage=restore_failed')
+		&& str_contains($errUrl, 'disk')
+		&& strlen($errUrl) < 800;
 }
-check($helpersOk, 'finished-page helpers parse restore_failed and keep Continue URL short');
+check($helpersOk, 'panel redirect helpers keep show URL short and attach toast query');
 
 // trimming() must accept restore _accountselect nested arrays (PHP 8 TypeError).
 $trimSrc = '';

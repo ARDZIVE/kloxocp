@@ -620,30 +620,24 @@ class lxbackup extends Lxdb
 			$this->write();
 			$this->dbaction = 'clean';
 			if (trim($stage) === 'done' || str_starts_with(trim($stage), 'done')) {
-				$url = self::backupShowUrl();
-				$continue = function_exists('kloxo_backup_safe_continue_url')
-					? kloxo_backup_safe_continue_url()
-					: $url;
-				// Exit here: a later head-only redirect after backup prints is a blank page.
-				if (function_exists('kloxo_print_backup_finished_page')) {
-					try {
-						if (function_exists('save_login')) {
-							save_login();
-						}
-					} catch (Throwable $e) {
-						log_log('error', 'save_login after backup: ' . $e->getMessage());
+				$url = function_exists('kloxo_backup_result_url')
+					? kloxo_backup_result_url('success', 'backup_completed')
+					: (self::backupShowUrl() . (str_contains(self::backupShowUrl(), '?') ? '&' : '?')
+						. 'frm_smessage=backup_completed');
+				// Exit here: progress output would blank a head-only redirect.
+				try {
+					if (function_exists('save_login')) {
+						save_login();
 					}
-					kloxo_print_backup_finished_page(
-						'Backup completed',
-						'The backup finished successfully. The archive is in File Manager under Backup / Restore.',
-						$continue,
-						'success'
-					);
+				} catch (Throwable $e) {
+					log_log('error', 'save_login after backup: ' . $e->getMessage());
+				}
+				if (function_exists('kloxo_backup_panel_redirect')) {
+					kloxo_backup_panel_redirect($url);
 				}
 				if (is_object($gbl)) {
 					$gbl->__no_debug_redirect = true;
-					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
-						. 'frm_smessage=backup_completed';
+					$gbl->__this_redirect = $url;
 				}
 
 				return $param;
@@ -675,39 +669,25 @@ class lxbackup extends Lxdb
 			$this->dbaction = 'update';
 			$this->write();
 			$this->dbaction = 'clean';
-			$url = self::backupShowUrl();
 			if (str_starts_with(trim($stage), 'done')) {
-				$continue = function_exists('kloxo_backup_safe_continue_url')
-					? kloxo_backup_safe_continue_url()
-					: $url;
+				$url = function_exists('kloxo_backup_result_url')
+					? kloxo_backup_result_url('success', 'restore_completed')
+					: (self::backupShowUrl() . (str_contains(self::backupShowUrl(), '?') ? '&' : '?')
+						. 'frm_smessage=restore_completed');
 				// Exit here: restore progress prints make Location fail → blank page.
-				if (function_exists('kloxo_print_backup_finished_page')) {
-					try {
-						if (function_exists('save_login')) {
-							save_login();
-						}
-					} catch (Throwable $e) {
-						log_log('error', 'save_login after restore: ' . $e->getMessage());
+				try {
+					if (function_exists('save_login')) {
+						save_login();
 					}
-					$extra = '';
-					if (is_string($stage) && strlen(trim($stage)) > 4) {
-						$tail = trim(substr(trim($stage), 4));
-						if ($tail !== '' && $tail !== '.') {
-							$extra = "\n\n" . $tail;
-						}
-					}
-					kloxo_print_backup_finished_page(
-						'Restore completed',
-						'The restore finished successfully.' . $extra
-							. "\n\nOpen Backup / Restore for Last Restore Status and anything still left to do by hand.",
-						$continue,
-						'success'
-					);
+				} catch (Throwable $e) {
+					log_log('error', 'save_login after restore: ' . $e->getMessage());
+				}
+				if (function_exists('kloxo_backup_panel_redirect')) {
+					kloxo_backup_panel_redirect($url);
 				}
 				if (is_object($gbl)) {
 					$gbl->__no_debug_redirect = true;
-					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
-						. 'frm_smessage=restore_completed';
+					$gbl->__this_redirect = $url;
 				}
 
 				return $param;

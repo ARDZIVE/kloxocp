@@ -3074,150 +3074,74 @@ function kloxo_backup_safe_continue_url(): string
 }
 
 /**
- * Full HTML result after Backup/Restore. Never emit a head-only meta refresh:
- * when restore printed progress, Location fails and the browser shows a blank page.
- * Error pages do not auto-redirect (the old Continue URL was the referer plus a
- * huge frm_m_emessage_data — that navigation was the blank screen).
+ * Backup/Restore show URL with a Status toast query (frm_smessage / frm_emessage).
+ * Detail for failures stays in Last Restore/Backup Status; toast data is capped.
  *
- * @param 'success'|'error'|'info' $kind
+ * @param 'success'|'error' $kind
  */
-function kloxo_print_backup_finished_page(string $title, string $message, string $continueUrl, string $kind = 'success'): void
+function kloxo_backup_result_url(string $kind, string $key, string $detail = ''): string
+{
+	$base = kloxo_backup_safe_continue_url();
+	$key = trim($key);
+	if ($key === '') {
+		$key = ($kind === 'error') ? 'restore_failed' : 'restore_completed';
+	}
+	$sep = str_contains($base, '?') ? '&' : '?';
+	if ($kind === 'success') {
+		return $base . $sep . 'frm_smessage=' . rawurlencode($key);
+	}
+	$url = $base . $sep . 'frm_emessage=' . rawurlencode($key);
+	$detail = trim($detail);
+	if ($detail !== '') {
+		if (strlen($detail) > 200) {
+			$detail = substr($detail, 0, 200) . '…';
+		}
+		$url .= '&frm_m_emessage_data=' . rawurlencode($detail);
+	}
+
+	return $url;
+}
+
+/**
+ * Leave the long Backup/Restore POST for the normal panel page + Status toast.
+ * Clears restore progress output so Location is not blocked (blank page).
+ */
+function kloxo_backup_panel_redirect(string $url): void
 {
 	while (ob_get_level() > 0) {
 		@ob_end_clean();
 	}
 	@ini_set('zlib.output_compression', '0');
+	$url = trim($url);
+	if ($url === '') {
+		$url = kloxo_backup_safe_continue_url();
+	}
+	if (!str_starts_with($url, '/') && !preg_match('#^https?://#i', $url)) {
+		$url = '/' . ltrim($url, '/');
+	}
+	$esc = htmlspecialchars($url, ENT_QUOTES);
 	if (!headers_sent()) {
 		header('Content-Type: text/html; charset=utf-8');
 		header('Cache-Control: no-store, no-cache, must-revalidate');
+		header('Location: ' . $url);
 	}
-	$title = trim($title) !== '' ? $title : 'Backup / Restore';
-	$message = trim($message) !== '' ? $message : 'Finished.';
-	// Keep the body readable; do not put this text into the Continue URL.
-	if (strlen($message) > 8000) {
-		$message = substr($message, 0, 8000) . "\n… (truncated)";
-	}
-	$continueUrl = trim($continueUrl);
-	if ($continueUrl === '' || strlen($continueUrl) > 1500
-		|| str_contains($continueUrl, 'frm_emessage=')
-		|| str_contains($continueUrl, 'frm_m_emessage_data=')) {
-		$continueUrl = kloxo_backup_safe_continue_url();
-	}
-	$escUrl = htmlspecialchars($continueUrl, ENT_QUOTES);
-	$escTitle = htmlspecialchars($title, ENT_QUOTES);
-	$escMsg = nl2br(htmlspecialchars($message, ENT_QUOTES));
-	$bg = ($kind === 'error') ? '#fee' : (($kind === 'info') ? '#eef6ff' : '#eef8ee');
-	$border = ($kind === 'error') ? '#c00' : (($kind === 'info') ? '#369' : '#2a7');
-	$autoMeta = '';
-	$hint = 'Use the button above when you are ready.';
-	// Only auto-follow a short, clean success URL. Errors stay until the click —
-	// auto-refresh into a broken/huge URL was the blank page.
-	if ($kind === 'success' && strlen($continueUrl) < 800) {
-		$autoMeta = '<meta http-equiv="Refresh" content="5;URL=' . $escUrl . '">';
-		$hint = 'You will be taken there automatically in a few seconds, or use the button.';
-	}
-	echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
-		. $autoMeta
-		. '<title>' . $escTitle . '</title>'
-		. '<style>'
-		. 'body{margin:0;font-family:Georgia,serif;background:#f5e6c8;color:#222}'
-		. '.bar{background:#a00;color:#fff;padding:12px 20px;font-size:18px}'
-		. '.box{max-width:720px;margin:40px auto;padding:24px 28px;background:' . $bg . ';'
-		. 'border:2px solid ' . $border . ';box-shadow:0 2px 8px rgba(0,0,0,.12)}'
-		. 'h1{margin:0 0 12px;font-size:22px;color:' . $border . '}'
-		. 'p{margin:0 0 18px;line-height:1.45;font-size:16px}'
-		. '.msg{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,Menlo,Consolas,monospace;'
-		. 'font-size:13px;background:rgba(255,255,255,.55);padding:12px;border:1px solid ' . $border . '}'
-		. 'a.btn{display:inline-block;padding:10px 18px;background:#2a2;color:#fff;'
-		. 'text-decoration:none;font-weight:bold;border-radius:3px}'
-		. 'a.btn:hover{background:#1a1}'
-		. '.hint{margin-top:16px;font-size:13px;color:#666}'
-		. '</style></head><body>'
-		. '<div class="bar">Kloxo CP — Backup / Restore</div>'
-		. '<div class="box"><h1>' . $escTitle . '</h1>'
-		. '<div class="msg">' . $escMsg . '</div>'
-		. '<p style="margin-top:18px"><a class="btn" href="' . $escUrl . '">Continue to Backup / Restore</a></p>'
-		. '<p class="hint">' . htmlspecialchars($hint, ENT_QUOTES) . '</p>'
-		. '</div></body></html>';
+	// Complete document fallback when Location cannot be sent (progress already flushed).
+	echo '<!DOCTYPE html><html><head><meta charset="utf-8">'
+		. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
+		. '<title>Kloxo CP</title></head><body>'
+		. '<p style="font-family:sans-serif;margin:2em"><a href="' . $esc . '">Continue</a></p>'
+		. '</body></html>';
 	exit(0);
 }
 
-/**
- * Human text for a Backup/Restore exception (key + detail), without stuffing
- * the detail into a redirect query string.
- */
-function kloxo_backup_finished_message_from_exception(Throwable $e): array
+/** @deprecated Use kloxo_backup_panel_redirect — kept name for older call sites. */
+function kloxo_print_backup_finished_page(string $title, string $message, string $continueUrl, string $kind = 'success'): void
 {
-	$key = trim((string) $e->getMessage());
-	if ($key === '') {
-		$key = 'error';
-	}
-	$detail = '';
-	if (isset($e->value) && (is_string($e->value) || is_numeric($e->value))) {
-		$detail = trim((string) $e->value);
-	}
-	if ($detail === '' && isset($e->__full_message) && is_string($e->__full_message)) {
-		$detail = trim($e->__full_message);
-	}
-	$title = 'Backup / Restore failed';
-	$kind = 'error';
-	$lk = strtolower($key);
-	if (str_contains($lk, 'restore')) {
-		$title = 'Restore failed';
-	} elseif (str_contains($lk, 'backup')) {
-		$title = 'Backup failed';
-	}
-	$prettyKey = str_replace('_', ' ', $key);
-	$message = $prettyKey;
-	if ($detail !== '' && strcasecmp($detail, $key) !== 0) {
-		$message = $prettyKey . "\n\n" . $detail;
-	}
-
-	return array($title, $message, $kind);
-}
-
-/** Parse Backup/Restore redirect URL into a finished-page title/message/kind. */
-function kloxo_backup_finished_from_redirect(string $redirectUrl): array
-{
-	$title = 'Backup / Restore';
-	$message = 'Finished.';
-	$kind = 'info';
-	if (str_contains($redirectUrl, 'frm_smessage=restore_completed')) {
-		$title = 'Restore completed';
-		$message = 'The restore finished successfully. Open Backup / Restore to see Last Restore Status and anything still left to do by hand.';
-		$kind = 'success';
-	} elseif (str_contains($redirectUrl, 'frm_smessage=backup_completed')) {
-		$title = 'Backup completed';
-		$message = 'The backup finished successfully. The archive is in File Manager under Backup / Restore.';
-		$kind = 'success';
-	} elseif (str_contains($redirectUrl, 'restore_failed') || str_contains($redirectUrl, 'backup_failed')
-		|| str_contains($redirectUrl, 'frm_emessage=')) {
-		$title = 'Backup / Restore finished with a message';
-		$message = 'There was a message from the last Backup or Restore.';
-		$kind = 'error';
-		if (preg_match('/frm_emessage=([^&]+)/', $redirectUrl, $km) === 1) {
-			$key = rawurldecode(str_replace('+', ' ', $km[1]));
-			$key = html_entity_decode($key, ENT_QUOTES);
-			$key = trim($key);
-			if ($key !== '') {
-				$title = str_contains(strtolower($key), 'restore') ? 'Restore failed'
-					: (str_contains(strtolower($key), 'backup') ? 'Backup failed' : $title);
-				$message = str_replace('_', ' ', $key);
-			}
-		}
-		if (preg_match('/frm_m_(?:s|e)message_data=([^&]*)/', $redirectUrl, $m) === 1) {
-			$detail = rawurldecode(str_replace('+', ' ', $m[1]));
-			$detail = html_entity_decode($detail, ENT_QUOTES);
-			$detail = trim($detail);
-			if ($detail !== '') {
-				$message = ($message !== '' && $message !== 'There was a message from the last Backup or Restore.')
-					? ($message . "\n\n" . $detail)
-					: $detail;
-			}
-		}
-	}
-
-	return array($title, $message, $kind);
+	$key = ($kind === 'error')
+		? (str_contains(strtolower($title), 'backup') ? 'backup_failed' : 'restore_failed')
+		: (str_contains(strtolower($title), 'backup') ? 'backup_completed' : 'restore_completed');
+	$detail = ($kind === 'error') ? $message : '';
+	kloxo_backup_panel_redirect(kloxo_backup_result_url($kind === 'error' ? 'error' : 'success', $key, $detail));
 }
 
 function kloxo_download_filename(string $name): string

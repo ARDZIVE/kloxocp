@@ -6046,27 +6046,18 @@ class HtmlLib
 			$message = $message[0];
 		}
 
-		// Backup/Restore: show the error on a finished page and Continue to a
-		// short show URL. Putting the whole restore log into frm_m_emessage_data
-		// made meta-refresh navigate to a broken URL → blank page.
+		// Backup/Restore: return to the panel show page with a Status toast.
+		// Huge frm_m_emessage_data used to blank the next page; detail is capped
+		// and also stored in Last Restore/Backup Status.
 		if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome)
-			&& function_exists('kloxo_print_backup_finished_page')) {
-			$key = is_string($message) ? $message : 'error';
+			&& function_exists('kloxo_backup_panel_redirect')
+			&& function_exists('kloxo_backup_result_url')) {
+			$key = is_string($message) ? $message : 'restore_failed';
 			$detail = '';
 			if ($value !== null && $value !== '') {
 				$detail = is_string($value) || is_numeric($value) ? (string) $value : '';
 			}
-			$lk = strtolower($key);
-			$title = str_contains($lk, 'restore') ? 'Restore failed'
-				: (str_contains($lk, 'backup') ? 'Backup failed' : 'Backup / Restore failed');
-			$body = str_replace('_', ' ', $key);
-			if ($detail !== '' && strcasecmp($detail, $key) !== 0) {
-				$body .= "\n\n" . $detail;
-			}
-			$continue = function_exists('kloxo_backup_safe_continue_url')
-				? kloxo_backup_safe_continue_url()
-				: '/display.php?frm_action=show';
-			kloxo_print_backup_finished_page($title, $body, $continue, 'error');
+			kloxo_backup_panel_redirect(kloxo_backup_result_url('error', $key, $detail));
 		}
 
 		$message = self::redirectQueryValue($message);
@@ -6168,24 +6159,18 @@ class HtmlLib
 
 		$current_url = $this->get_get_from_current_post(null);
 
-		// Backup/Restore: always a full confirmation page (never head-only).
-		// Location after restore prints fails → blank page; this is the fix.
+		// Backup/Restore: clear progress buffers then Location/meta to the panel
+		// show URL (toast via frm_smessage / frm_emessage). Never a separate layout.
 		$isBackupResult = is_object($gbl) && !empty($gbl->__kloxo_defer_chrome);
 		if (!$isBackupResult && is_string($redirect_url)
 			&& (str_contains($redirect_url, 'frm_smessage=restore_completed')
 				|| str_contains($redirect_url, 'frm_smessage=backup_completed')
-				|| str_contains($redirect_url, 'frm_smessage=restore_failed')
-				|| str_contains($redirect_url, 'frm_smessage=backup_failed'))) {
+				|| str_contains($redirect_url, 'frm_emessage=restore_failed')
+				|| str_contains($redirect_url, 'frm_emessage=backup_failed'))) {
 			$isBackupResult = true;
 		}
-		if ($isBackupResult && !$windowurl && function_exists('kloxo_print_backup_finished_page')) {
-			list($btitle, $bmsg, $bkind) = function_exists('kloxo_backup_finished_from_redirect')
-				? kloxo_backup_finished_from_redirect($redirect_url)
-				: array('Backup / Restore', 'Finished.', 'success');
-			$continue = function_exists('kloxo_backup_safe_continue_url')
-				? kloxo_backup_safe_continue_url()
-				: '/display.php?frm_action=show';
-			kloxo_print_backup_finished_page($btitle, $bmsg, $continue, $bkind);
+		if ($isBackupResult && !$windowurl && function_exists('kloxo_backup_panel_redirect')) {
+			kloxo_backup_panel_redirect((string) $redirect_url);
 		}
 
 		if (ifSplashScreen() || $windowurl) {
