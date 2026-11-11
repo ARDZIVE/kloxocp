@@ -6140,37 +6140,21 @@ class HtmlLib
 
 		$current_url = $this->get_get_from_current_post(null);
 
-		// Backup/Restore deferred chrome: discard buffered restore/backup prints,
-		// then send a complete tiny page (gzip-safe) so the browser never sits
-		// on a blank body after Location fails because output already started.
-		if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome) && !$windowurl) {
-			while (ob_get_level() > 0) {
-				@ob_end_clean();
-			}
-			@ini_set('zlib.output_compression', '0');
-			if (!headers_sent()) {
-				header('Content-Type: text/html; charset=utf-8');
-				header('Cache-Control: no-store, no-cache, must-revalidate');
-				header('Location: ' . $redirect_url);
-			}
-			$esc = htmlspecialchars($redirect_url, ENT_QUOTES);
-			$msg = 'Restore/Backup finished. Redirecting…';
-			if (str_contains($redirect_url, 'frm_smessage=restore_completed')) {
-				$msg = 'Restore completed. Redirecting to Backup / Restore…';
-			} elseif (str_contains($redirect_url, 'frm_smessage=backup_completed')) {
-				$msg = 'Backup completed. Redirecting to Backup / Restore…';
-			} elseif (str_contains($redirect_url, 'frm_emessage=') || str_contains($redirect_url, 'frm_smessage=restore_failed')
-				|| str_contains($redirect_url, 'frm_smessage=backup_failed')) {
-				$msg = 'Finished with a message. Redirecting…';
-			}
-			print('<!DOCTYPE html><html><head><meta charset="utf-8">'
-				. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
-				. '<title>' . htmlspecialchars($msg, ENT_QUOTES) . '</title></head><body>'
-				. '<p style="font-family:sans-serif;margin:2em">'
-				. htmlspecialchars($msg, ENT_QUOTES)
-				. ' <a href="' . $esc . '">Continue</a>.</p>'
-				. '</body></html>');
-			exit(0);
+		// Backup/Restore: always a full confirmation page (never head-only).
+		// Location after restore prints fails → blank page; this is the fix.
+		$isBackupResult = is_object($gbl) && !empty($gbl->__kloxo_defer_chrome);
+		if (!$isBackupResult && is_string($redirect_url)
+			&& (str_contains($redirect_url, 'frm_smessage=restore_completed')
+				|| str_contains($redirect_url, 'frm_smessage=backup_completed')
+				|| str_contains($redirect_url, 'frm_smessage=restore_failed')
+				|| str_contains($redirect_url, 'frm_smessage=backup_failed'))) {
+			$isBackupResult = true;
+		}
+		if ($isBackupResult && !$windowurl && function_exists('kloxo_print_backup_finished_page')) {
+			list($btitle, $bmsg, $bkind) = function_exists('kloxo_backup_finished_from_redirect')
+				? kloxo_backup_finished_from_redirect($redirect_url)
+				: array('Backup / Restore', 'Finished.', 'success');
+			kloxo_print_backup_finished_page($btitle, $bmsg, $redirect_url, $bkind);
 		}
 
 		if (ifSplashScreen() || $windowurl) {
@@ -6178,29 +6162,34 @@ class HtmlLib
 			dprint(" <b><br /> <br />  Click <a href=\"$redirect_url\"><b> here to go to Continue. </a> </b> \n");
 
 			if ($sgbl->dbg < 0 || (isset($gbl->__no_debug_redirect) && $gbl->__no_debug_redirect)) {
-?>
-			<head>
-				<meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">
-				<META HTTP-EQUIV="Refresh" CONTENT="0;URL=<?= $redirect_url ?>">
-<?php
+				// Complete document — the old path printed only <head> + Refresh
+				// (and forgot </head> when there was no windowurl) = blank page.
+				$esc = htmlspecialchars($redirect_url, ENT_QUOTES);
+				while (ob_get_level() > 0) {
+					@ob_end_clean();
+				}
+				if (!headers_sent()) {
+					header('Content-Type: text/html; charset=utf-8');
+				}
+				print('<!DOCTYPE html><html><head><meta charset="utf-8">'
+					. '<meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">'
+					. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
+					. '<title>Continue</title></head><body>'
+					. '<p style="font-family:sans-serif;margin:2em">Continue: '
+					. '<a href="' . $esc . '">click here</a>.</p>');
 				if ($windowurl) {
+					print('<script>window.open(' . json_encode((string) $windowurl) . ');</script>');
+				}
+				print('</body></html>');
+				exit(0);
+			}
+			if ($windowurl) {
 ?>
 				<script>
 					window.open('<?=$windowurl?>');
 				</script>
 
-				</head>
 <?php
-				}
-			} else {
-				if ($windowurl) {
-?>
-				<script>
-					window.open('<?=$windowurl?>');
-				</script>
-
-<?php
-				}
 			}
 
 			exit(0);
@@ -6219,14 +6208,22 @@ class HtmlLib
 			- Click <a href="<?= $redirect_url ?>">here</a> to go there Anyways.
 <?php
 		} else {
-			header("Location:$redirect_url");
-?>
-
-			<head>
-				<meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">
-				<META HTTP-EQUIV="Refresh" CONTENT="0;URL=<?= $redirect_url ?>">
-			</head>
-<?php
+			// Always a complete document as well as Location (headers may already
+			// have been sent by a long backup/restore print).
+			while (ob_get_level() > 0) {
+				@ob_end_clean();
+			}
+			$esc = htmlspecialchars($redirect_url, ENT_QUOTES);
+			if (!headers_sent()) {
+				header('Content-Type: text/html; charset=utf-8');
+				header('Location: ' . $redirect_url);
+			}
+			print('<!DOCTYPE html><html><head><meta charset="utf-8">'
+				. '<meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">'
+				. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
+				. '<title>Continue</title></head><body>'
+				. '<p style="font-family:sans-serif;margin:2em">Continue: '
+				. '<a href="' . $esc . '">click here</a>.</p></body></html>');
 		}
 
 		exit(0);

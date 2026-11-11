@@ -621,10 +621,27 @@ class lxbackup extends Lxdb
 			$this->dbaction = 'clean';
 			if (trim($stage) === 'done' || str_starts_with(trim($stage), 'done')) {
 				$url = self::backupShowUrl();
+				$continue = $url . (str_contains($url, '?') ? '&' : '?')
+					. 'frm_smessage=backup_completed';
+				// Exit here: a later head-only redirect after backup prints is a blank page.
+				if (function_exists('kloxo_print_backup_finished_page')) {
+					try {
+						if (function_exists('save_login')) {
+							save_login();
+						}
+					} catch (Throwable $e) {
+						log_log('error', 'save_login after backup: ' . $e->getMessage());
+					}
+					kloxo_print_backup_finished_page(
+						'Backup completed',
+						'The backup finished successfully. The archive is in File Manager under Backup / Restore.',
+						$continue,
+						'success'
+					);
+				}
 				if (is_object($gbl)) {
 					$gbl->__no_debug_redirect = true;
-					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
-						. 'frm_smessage=backup_completed';
+					$gbl->__this_redirect = $continue;
 				}
 
 				return $param;
@@ -658,10 +675,35 @@ class lxbackup extends Lxdb
 			$this->dbaction = 'clean';
 			$url = self::backupShowUrl();
 			if (str_starts_with(trim($stage), 'done')) {
+				$continue = $url . (str_contains($url, '?') ? '&' : '?')
+					. 'frm_smessage=restore_completed';
+				// Exit here: restore progress prints make Location fail → blank page.
+				if (function_exists('kloxo_print_backup_finished_page')) {
+					try {
+						if (function_exists('save_login')) {
+							save_login();
+						}
+					} catch (Throwable $e) {
+						log_log('error', 'save_login after restore: ' . $e->getMessage());
+					}
+					$extra = '';
+					if (is_string($stage) && strlen(trim($stage)) > 4) {
+						$tail = trim(substr(trim($stage), 4));
+						if ($tail !== '' && $tail !== '.') {
+							$extra = ' ' . $tail;
+						}
+					}
+					kloxo_print_backup_finished_page(
+						'Restore completed',
+						'The restore finished successfully.' . $extra
+							. ' Open Backup / Restore for Last Restore Status and anything still left to do by hand.',
+						$continue,
+						'success'
+					);
+				}
 				if (is_object($gbl)) {
 					$gbl->__no_debug_redirect = true;
-					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
-						. 'frm_smessage=restore_completed';
+					$gbl->__this_redirect = $continue;
 				}
 
 				return $param;

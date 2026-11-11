@@ -3031,6 +3031,88 @@ function kloxo_is_long_backend_update(): bool
 	return in_array($sub, array('backup', 'restore_confirm_confirm', 'restore_confirm', 'restore'), true);
 }
 
+/**
+ * Full HTML result after Backup/Restore. Never emit a head-only meta refresh:
+ * when restore printed progress, Location fails and the browser shows a blank page.
+ *
+ * @param 'success'|'error'|'info' $kind
+ */
+function kloxo_print_backup_finished_page(string $title, string $message, string $continueUrl, string $kind = 'success'): void
+{
+	while (ob_get_level() > 0) {
+		@ob_end_clean();
+	}
+	@ini_set('zlib.output_compression', '0');
+	if (!headers_sent()) {
+		header('Content-Type: text/html; charset=utf-8');
+		header('Cache-Control: no-store, no-cache, must-revalidate');
+		// Do not send Location: a second request is optional; this page is the confirmation.
+	}
+	$title = trim($title) !== '' ? $title : 'Backup / Restore';
+	$message = trim($message) !== '' ? $message : 'Finished.';
+	if ($continueUrl === '') {
+		$continueUrl = '/display.php?frm_action=show';
+	}
+	$escUrl = htmlspecialchars($continueUrl, ENT_QUOTES);
+	$escTitle = htmlspecialchars($title, ENT_QUOTES);
+	$escMsg = htmlspecialchars($message, ENT_QUOTES);
+	$bg = ($kind === 'error') ? '#fee' : (($kind === 'info') ? '#eef6ff' : '#eef8ee');
+	$border = ($kind === 'error') ? '#c00' : (($kind === 'info') ? '#369' : '#2a7');
+	$auto = ($kind === 'error') ? '8' : '3';
+	echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+		. '<meta http-equiv="Refresh" content="' . $auto . ';URL=' . $escUrl . '">'
+		. '<title>' . $escTitle . '</title>'
+		. '<style>'
+		. 'body{margin:0;font-family:Georgia,serif;background:#f5e6c8;color:#222}'
+		. '.bar{background:#a00;color:#fff;padding:12px 20px;font-size:18px}'
+		. '.box{max-width:640px;margin:40px auto;padding:24px 28px;background:' . $bg . ';'
+		. 'border:2px solid ' . $border . ';box-shadow:0 2px 8px rgba(0,0,0,.12)}'
+		. 'h1{margin:0 0 12px;font-size:22px;color:' . $border . '}'
+		. 'p{margin:0 0 18px;line-height:1.45;font-size:16px}'
+		. 'a.btn{display:inline-block;padding:10px 18px;background:#2a2;color:#fff;'
+		. 'text-decoration:none;font-weight:bold;border-radius:3px}'
+		. 'a.btn:hover{background:#1a1}'
+		. '.hint{margin-top:16px;font-size:13px;color:#666}'
+		. '</style></head><body>'
+		. '<div class="bar">Kloxo CP — Backup / Restore</div>'
+		. '<div class="box"><h1>' . $escTitle . '</h1><p>' . $escMsg . '</p>'
+		. '<p><a class="btn" href="' . $escUrl . '">Continue to Backup / Restore</a></p>'
+		. '<p class="hint">You will be taken there automatically in a few seconds.</p>'
+		. '</div></body></html>';
+	exit(0);
+}
+
+/** Parse Backup/Restore redirect URL into a finished-page title/message/kind. */
+function kloxo_backup_finished_from_redirect(string $redirectUrl): array
+{
+	$title = 'Backup / Restore';
+	$message = 'Finished.';
+	$kind = 'info';
+	if (str_contains($redirectUrl, 'frm_smessage=restore_completed')) {
+		$title = 'Restore completed';
+		$message = 'The restore finished successfully. Open Backup / Restore to see Last Restore Status and anything still left to do by hand.';
+		$kind = 'success';
+	} elseif (str_contains($redirectUrl, 'frm_smessage=backup_completed')) {
+		$title = 'Backup completed';
+		$message = 'The backup finished successfully. The archive is in File Manager under Backup / Restore.';
+		$kind = 'success';
+	} elseif (str_contains($redirectUrl, 'restore_failed') || str_contains($redirectUrl, 'backup_failed')
+		|| str_contains($redirectUrl, 'frm_emessage=')) {
+		$title = 'Backup / Restore finished with a message';
+		$message = 'There was a message from the last Backup or Restore. Continue to see the details on the Backup / Restore page.';
+		$kind = 'error';
+		if (preg_match('/frm_m_(?:s|e)message_data=([^&]+)/', $redirectUrl, $m) === 1) {
+			$detail = rawurldecode(str_replace('+', ' ', $m[1]));
+			$detail = html_entity_decode($detail, ENT_QUOTES);
+			if ($detail !== '') {
+				$message = $detail;
+			}
+		}
+	}
+
+	return array($title, $message, $kind);
+}
+
 function kloxo_download_filename(string $name): string
 {
 	$base = basename(str_replace("\0", '', $name));
