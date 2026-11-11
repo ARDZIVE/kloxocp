@@ -39,7 +39,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111128"
+KCP_VERSION="10.1-2026111129"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -892,13 +892,13 @@ ensure_installer_php() {
       return 0
     fi
   fi
-  for p in /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.3 /usr/bin/php; do
+  for p in /usr/bin/php8.6 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.3 /usr/bin/php; do
     if [[ -x "$p" ]] && php_ext_loaded "$p" pdo_sqlite; then
       pin_panel_php "$p"
       return 0
     fi
   done
-  die "PHP PDO sqlite driver missing (apt-get install php${ver:-}-sqlite3). PHP Branch may have switched /usr/bin/php to a version without sqlite3."
+  die "PHP PDO sqlite driver missing (apt-get install php${ver:-}-sqlite3 php8.5-sqlite3 php8.6-sqlite3). PHP Branch may have switched /usr/bin/php to a version without sqlite3."
 }
 
 prepare_knot() {

@@ -20,7 +20,60 @@ declare(strict_types=1);
  * Usage: kloxocp <command> [arguments] [--options]
  */
 
-const KCP_VERSION = '10.1-2026111128';
+// Prefer the pinned panel PHP (etc/path/php) when this process has no
+// pdo_sqlite — Ubuntu 26 may leave /usr/bin/php on 8.6 RC without sqlite3
+// while the pin stays on php8.5 with the extension.
+(static function (): void {
+	if (extension_loaded('pdo_sqlite')) {
+		return;
+	}
+	$root = getenv('KLOXO_ROOT');
+	if (!is_string($root) || $root === '') {
+		$root = '/opt/kloxo';
+	}
+	$candidates = array();
+	$pinFile = $root . '/etc/path/php';
+	if (is_file($pinFile)) {
+		$pin = trim((string) file_get_contents($pinFile));
+		if ($pin !== '' && is_executable($pin)) {
+			$candidates[] = $pin;
+		}
+	}
+	foreach (array('/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.3', '/usr/bin/php8.6', '/usr/bin/php') as $p) {
+		$candidates[] = $p;
+	}
+	$self = realpath((string) (PHP_BINARY ?: '')) ?: '';
+	$script = realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? __FILE__)) ?: __FILE__;
+	foreach ($candidates as $bin) {
+		if (!is_executable($bin)) {
+			continue;
+		}
+		$real = realpath($bin) ?: $bin;
+		if ($self !== '' && $real === $self) {
+			continue;
+		}
+		$p = @proc_open(
+			array($bin, '-r', 'exit(extension_loaded("pdo_sqlite") ? 0 : 1);'),
+			array(0 => array('file', '/dev/null', 'r'), 1 => array('file', '/dev/null', 'w'), 2 => array('file', '/dev/null', 'w')),
+			$pipes
+		);
+		if (!is_resource($p) || proc_close($p) !== 0) {
+			continue;
+		}
+		$argv = array_merge(array($bin, $script), array_slice($_SERVER['argv'] ?? array(), 1));
+		if (function_exists('pcntl_exec')) {
+			pcntl_exec($bin, array_slice($argv, 1));
+		}
+		$cmd = '';
+		foreach ($argv as $a) {
+			$cmd .= ($cmd === '' ? '' : ' ') . escapeshellarg((string) $a);
+		}
+		passthru($cmd, $rc);
+		exit(is_int($rc) ? $rc : 1);
+	}
+})();
+
+const KCP_VERSION = '10.1-2026111129';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -452,12 +505,6 @@ TXT;
         $cli = is_file($this->root . '/init/php-cli.sh') && is_readable($this->root . '/init/php-cli.sh');
         $checks[] = $this->check('php_cli_wrapper', $cli ? 'pass' : 'warn', $cli ? 'init/php-cli.sh' : 'init/php-cli.sh missing');
 
-        $sqliteOk = extension_loaded('pdo_sqlite');
-        $checks[] = $this->check(
-            'pdo_sqlite',
-            $sqliteOk ? 'pass' : 'fail',
-            $sqliteOk ? 'pdo_sqlite loaded' : 'missing (apt install php-sqlite3; pin etc/path/php; restart kloxo-backend)'
-        );
         $pinFile = $this->root . '/etc/path/php';
         $pin = is_file($pinFile) ? trim((string) file_get_contents($pinFile)) : '';
         $pinOk = $pin !== '' && is_executable($pin);
@@ -466,6 +513,27 @@ TXT;
             $pinOk ? 'pass' : 'warn',
             $pinOk ? $pin : 'missing etc/path/php (install or kloxo-backend.sh will create it)'
         );
+
+        $thisPhp = PHP_BINARY !== '' ? PHP_BINARY : 'php';
+        $thisSqlite = extension_loaded('pdo_sqlite');
+        $pinSqlite = $pinOk ? $this->phpHasExt($pin, 'pdo_sqlite') : false;
+        $aptHint = $this->sqliteAptHint($pinOk ? $pin : $thisPhp);
+        if ($pinOk && $pinSqlite) {
+            $checks[] = $this->check(
+                'pdo_sqlite',
+                'pass',
+                'pdo_sqlite on pin ' . $pin
+                    . ($thisSqlite ? '' : ' (this CLI was ' . PHP_VERSION . ' without sqlite; re-exec uses pin)')
+            );
+        } elseif ($thisSqlite) {
+            $checks[] = $this->check('pdo_sqlite', 'pass', 'pdo_sqlite loaded in ' . PHP_VERSION);
+        } else {
+            $checks[] = $this->check(
+                'pdo_sqlite',
+                'fail',
+                'missing — ' . $aptHint . '; then: systemctl restart kloxo-backend kloxo-php'
+            );
+        }
 
         $key = $this->root . '/init/backend.key';
         if (!is_file($key)) {
@@ -586,6 +654,52 @@ TXT;
     private function check(string $id, string $result, string $message): array
     {
         return ['id' => $id, 'result' => $result, 'message' => $message];
+    }
+
+    /** True when $bin loads the named extension (subprocess; never hangs long). */
+    private function phpHasExt(string $bin, string $ext): bool
+    {
+        if ($bin === '' || !is_executable($bin) || !preg_match('/^[A-Za-z0-9_]+$/', $ext)) {
+            return false;
+        }
+        $self = realpath((string) (PHP_BINARY ?: '')) ?: '';
+        $real = realpath($bin) ?: $bin;
+        if ($self !== '' && $real === $self) {
+            return extension_loaded($ext);
+        }
+        $p = @proc_open(
+            array($bin, '-r', 'exit(extension_loaded(' . var_export($ext, true) . ') ? 0 : 1);'),
+            array(0 => array('file', '/dev/null', 'r'), 1 => array('file', '/dev/null', 'w'), 2 => array('file', '/dev/null', 'w')),
+            $pipes
+        );
+        if (!is_resource($p)) {
+            return false;
+        }
+
+        return proc_close($p) === 0;
+    }
+
+    /** apt package name(s) for pdo_sqlite for this PHP binary. */
+    private function sqliteAptHint(string $bin): string
+    {
+        $ver = '';
+        if (is_executable($bin)) {
+            $p = @proc_open(
+                array($bin, '-r', 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;'),
+                array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('file', '/dev/null', 'w')),
+                $pipes
+            );
+            if (is_resource($p)) {
+                $ver = trim((string) stream_get_contents($pipes[1]));
+                fclose($pipes[1]);
+                proc_close($p);
+            }
+        }
+        if (preg_match('/^[0-9]+\.[0-9]+$/', $ver) === 1) {
+            return 'apt-get install -y php' . $ver . '-sqlite3';
+        }
+
+        return 'apt-get install -y php-sqlite3 php8.5-sqlite3 php8.6-sqlite3';
     }
 
     public static function ubuntuSupported(string $id, string $version): bool

@@ -155,7 +155,7 @@ function kloxo_php_binary()
 		&& strpos(PHP_BINARY, 'php-cgi') === false) {
 		$candidates[] = PHP_BINARY;
 	}
-	foreach (array('/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.3', '/usr/bin/php') as $p) {
+	foreach (array('/usr/bin/php8.6', '/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.3', '/usr/bin/php') as $p) {
 		$candidates[] = $p;
 	}
 	$fallback = '';
@@ -216,7 +216,7 @@ class Sgbl
 		$verfile = $root . '/bin/kloxoversion';
 		$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
 		if ($t === '') {
-			$t = '10.1-2026111128';
+			$t = '10.1-2026111129';
 		}
 
 		$this->__ver_name = 'Kloxo CP';
