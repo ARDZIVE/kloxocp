@@ -99,6 +99,10 @@ Safety properties (all covered by tests):
   validation failure (no silent skip);
 * your customisations live in `/etc/kloxo/mail.d/` (`exim4.conf` is inserted into the generated
   main section; `dovecot.conf` is appended) so updates never overwrite them;
+* **Dovecot series:** Ubuntu 24.04 uses the 2.3 templates (`dovecot/dovecot.conf` +
+  `dovecot-sql.conf.ext`). Ubuntu 26.x (Dovecot 2.4+) uses `dovecot/dovecot24.conf` (SQL inline;
+  `dovecot_config_version` first). `kloxo-mail` picks the series from `dovecot --version`
+  (override with `KLOXO_DOVECOT_VERSION=2.3|2.4`);
 * purge operations refuse to delete anything outside the mail store.
 
 ## 3. Security and robustness choices

@@ -307,11 +307,9 @@ final class Dkim
 // ---------------------------------------------------------------------------
 final class Renderer
 {
-    /** template (relative to template dir) => [target path (relative to root), mode, group|null] */
-    private const MAP = [
+    /** Shared templates (relative to template dir) => [target, mode, group|null] */
+    private const MAP_COMMON = [
         'exim/exim4.conf'                 => ['etc/exim4/exim4.conf', 0640, 'Debian-exim'],
-        'dovecot/dovecot.conf'            => ['etc/dovecot/dovecot.conf', 0644, null],
-        'dovecot/dovecot-sql.conf.ext'    => ['etc/dovecot/dovecot-sql.conf.ext', 0640, 'vmail'],
         'sieve/before.sieve'              => ['var/lib/dovecot/sieve/before.d/00-kloxo-spam.sieve', 0644, null],
         'rspamd/worker-proxy.inc'         => ['etc/rspamd/local.d/worker-proxy.inc', 0644, null],
         'rspamd/worker-normal.inc'        => ['etc/rspamd/local.d/worker-normal.inc', 0644, null],
@@ -324,6 +322,17 @@ final class Renderer
         'fail2ban/kloxo-mail.conf'        => ['etc/fail2ban/jail.d/kloxo-mail.conf', 0644, null],
     ];
 
+    /** Dovecot 2.3 (Ubuntu 24.04): main conf + separate SQL ext. */
+    private const MAP_DOVECOT_23 = [
+        'dovecot/dovecot.conf'            => ['etc/dovecot/dovecot.conf', 0644, null],
+        'dovecot/dovecot-sql.conf.ext'    => ['etc/dovecot/dovecot-sql.conf.ext', 0640, 'vmail'],
+    ];
+
+    /** Dovecot 2.4+ (Ubuntu 26.x): single conf; SQL is inline. */
+    private const MAP_DOVECOT_24 = [
+        'dovecot/dovecot24.conf'          => ['etc/dovecot/dovecot.conf', 0644, null],
+    ];
+
     /** custom snippets merged into generated files: target => custom file name */
     private const CUSTOM = [
         'etc/exim4/exim4.conf'     => 'exim4.conf',
@@ -332,6 +341,40 @@ final class Renderer
 
     public function __construct(private Conf $c, private string $tplDir)
     {
+    }
+
+    /**
+     * '2.4' when doveconf is 2.4+, else '2.3'. Override with KLOXO_DOVECOT_VERSION=2.3|2.4.
+     */
+    public static function dovecotSeries(): string
+    {
+        $env = getenv('KLOXO_DOVECOT_VERSION');
+        if (is_string($env) && ($env === '2.3' || $env === '2.4')) {
+            return $env;
+        }
+        foreach ([['dovecot', '--version'], ['doveconf', '-v']] as [$bin, $flag]) {
+            if (!Proc::exists($bin)) {
+                continue;
+            }
+            [$rc, $out] = Proc::run([$bin, $flag]);
+            $text = trim($out);
+            if ($rc !== 0 || $text === '') {
+                continue;
+            }
+            if (preg_match('/\b(2)\.(\d+)\b/', $text, $m) === 1) {
+                return ((int) $m[2] >= 4) ? '2.4' : '2.3';
+            }
+        }
+
+        return '2.3';
+    }
+
+    /** @return array<string,array{0:string,1:int,2:?string}> */
+    private function map(): array
+    {
+        $dovecot = self::dovecotSeries() === '2.4' ? self::MAP_DOVECOT_24 : self::MAP_DOVECOT_23;
+
+        return self::MAP_COMMON + $dovecot;
     }
 
     /** @return array<string,string> */
@@ -399,7 +442,7 @@ final class Renderer
     {
         $vars = $this->vars();
         $written = [];
-        foreach (self::MAP as $tpl => [$target, $mode, $group]) {
+        foreach ($this->map() as $tpl => [$target, $mode, $group]) {
             $src = $this->tplDir . '/' . $tpl;
             $text = file_get_contents($src);
             if ($text === false) {
@@ -451,7 +494,7 @@ final class Renderer
     public function targets(): array
     {
         $r = [];
-        foreach (self::MAP as [$t, $m, $g]) {
+        foreach ($this->map() as [$t, $m, $g]) {
             $r[$t] = [$m, $g];
         }
         return $r;

@@ -922,6 +922,16 @@ if grep -q 'forbid_file' "$ROOT/kloxo/file/mail/exim/exim4.conf" \
 else
   bad "Exim redirect routers omit unknown forbid_filter"
 fi
+if test -f "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
+  && head -n 20 "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" | grep -q '^dovecot_config_version' \
+  && grep -q 'dovecotSeries' "$ROOT/kloxo/bin/mail/kloxo-mail" \
+  && grep -q 'MAP_DOVECOT_24' "$ROOT/kloxo/bin/mail/kloxo-mail" \
+  && grep -q 'ssl_server_cert_file' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
+  && grep -q 'passdb sql' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf"; then
+  ok "Dovecot 2.4 template and series picker exist for Ubuntu 26.x"
+else
+  bad "Dovecot 2.4 template and series picker exist for Ubuntu 26.x"
+fi
 if grep -F -q "['name' => 'postfix'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \
   && grep -q 'smtp__postfix' "$ROOT/kloxo/httpdocs/lib/driver_define.php" \
   && grep -q 'array("none", "exim", "postfix")' "$ROOT/kloxo/file/driver/debian.inc" \
