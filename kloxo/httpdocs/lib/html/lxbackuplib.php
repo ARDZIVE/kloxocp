@@ -604,14 +604,16 @@ class lxbackup extends Lxdb
 			@ignore_user_abort(true);
 			$stage = '';
 			try {
-				$got = rl_exec_get(null, null, array("lxbackup", "execbackupphp"),
+				$got = rl_exec_get(null, 'localhost', array("lxbackup", "execbackupphp"),
 					array($pclass, $pname, $param), false);
 				$stage = is_string($got) ? $got : '';
 			} catch (Throwable $e) {
-				$stage = 'Failed due to: ' . $e->getMessage();
+				$stage = 'Failed due to: ' . self::backendVersionSkewHint($e->getMessage());
 			}
 			if ($stage === '' || $stage === 'doing') {
 				$stage = 'Failed due to: backup did not finish';
+			} elseif (self::isBackendVersionSkew($stage)) {
+				$stage = 'Failed due to: ' . self::backendVersionSkewHint($stage);
 			}
 			$this->backupstage = $stage;
 			$this->dbaction = 'update';
@@ -643,14 +645,16 @@ class lxbackup extends Lxdb
 			@ignore_user_abort(true);
 			$stage = '';
 			try {
-				$got = rl_exec_get(null, null, array("lxbackup", "execrestorephp"),
+				$got = rl_exec_get(null, 'localhost', array("lxbackup", "execrestorephp"),
 					array($pclass, $pname, $file, $param), false);
 				$stage = is_string($got) ? $got : '';
 			} catch (Throwable $e) {
-				$stage = 'Restore failed due to ' . $e->getMessage();
+				$stage = 'Restore failed due to ' . self::backendVersionSkewHint($e->getMessage());
 			}
 			if ($stage === '' || $stage === 'doing') {
 				$stage = 'Restore failed due to: restore did not finish';
+			} elseif (self::isBackendVersionSkew($stage)) {
+				$stage = 'Restore failed due to ' . self::backendVersionSkewHint($stage);
 			}
 			$this->restorestage = $stage;
 			$this->dbaction = 'update';
@@ -962,6 +966,28 @@ class lxbackup extends Lxdb
 		}
 
 		return (string) $backup->restorestage;
+	}
+
+	/** True when kloxo-backend still has a pre-upcp version stamp in memory. */
+	static function isBackendVersionSkew($msg)
+	{
+		$msg = strtolower((string) $msg);
+
+		return str_contains($msg, 'slave_upgrading')
+			|| str_contains($msg, 'backend_server_restarting')
+			|| str_contains($msg, 'please_try_after_a_few_minutes');
+	}
+
+	/** Clear operator hint: deploy remotelib + restart clears slave_upgrading. */
+	static function backendVersionSkewHint($msg)
+	{
+		$msg = trim((string) $msg);
+		if (!self::isBackendVersionSkew($msg)) {
+			return $msg !== '' ? $msg : 'unknown backup/restore error';
+		}
+
+		return 'kloxo-backend is stale after an update (slave_upgrading). '
+			. 'As root run: systemctl restart kloxo-backend kloxo-php';
 	}
 
 	/** One-line stderr/stdout for Status toast when stage stayed "doing". */

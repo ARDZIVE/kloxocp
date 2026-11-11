@@ -2,6 +2,26 @@
 
 include_once dirname(__FILE__) . '/remote_auth_gate.php';
 
+/**
+ * True for panel → kloxo-backend on this host (null/empty/"localhost"/loopback).
+ * Used so Backup/Restore never hit the slave_upgrading version gate.
+ */
+function kloxo_remote_is_localhost($machine): bool
+{
+	if ($machine === null) {
+		return true;
+	}
+	if (!is_string($machine)) {
+		return false;
+	}
+	$m = strtolower(trim($machine));
+	if ($m === '' || $m === 'localhost' || $m === '127.0.0.1' || $m === '::1') {
+		return true;
+	}
+
+	return function_exists('isLocalhost') && isLocalhost($machine);
+}
+
 function do_remote($rmt)
 {
 	if ($rmt->action === 'set') {
@@ -138,9 +158,11 @@ function check_for_remote($rmt)
 	// C1 always authenticates localhost envelopes, so $local is false for
 	// panel → kloxo-backend. Version skew after upcp used to hit the slave
 	// upgrade gate (slave_upgrading_please_try_after_a_few_minutes) and
-	// blocked Fail2Ban/UFW. Localhost shares one tree: skip that gate and
-	// run the action. (upcp still restarts kloxo-backend so code reloads.)
-	$localhostCall = $local || (function_exists('isLocalhost') && isLocalhost($machine));
+	// blocked Backup / Restore / Fail2Ban / UFW. Localhost shares one tree:
+	// skip that gate and run the action. (upcp try-restarts kloxo-backend.)
+	$localhostCall = $local
+		|| (function_exists('kloxo_remote_is_localhost') && kloxo_remote_is_localhost($machine))
+		|| (function_exists('isLocalhost') && isLocalhost($machine));
 	if ($localhostCall) {
 		if ($local) {
 			$memCmp = version_cmp($rmt->version, (string) $sgbl->__ver_major_minor_release);

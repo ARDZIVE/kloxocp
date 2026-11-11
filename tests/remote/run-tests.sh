@@ -23,8 +23,9 @@ else
 fi
 # After C1 every localhost envelope is authenticated, so the old $local restart
 # path never ran and a newer panel stamp hit slave_upgrading (Fail2Ban/UFW).
-if grep -A 70 'function check_for_remote' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'localhostCall' \
-  && grep -A 70 'function check_for_remote' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'Localhost shares one tree'; then
+if grep -A 80 'function check_for_remote' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'localhostCall' \
+  && grep -q 'function kloxo_remote_is_localhost' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" \
+  && grep -A 80 'function check_for_remote' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'skip that gate'; then
   ok "localhost backend skips slave_upgrading version gate"
 else
   bad "localhost backend skips slave_upgrading version gate"
@@ -33,6 +34,13 @@ if grep -q 'function kloxo_refresh_sgbl_version' "$ROOT/kloxo/httpdocs/lib/sgbl.
   ok "kloxo_refresh_sgbl_version re-reads bin/kloxoversion"
 else
   bad "kloxo_refresh_sgbl_version re-reads bin/kloxoversion"
+fi
+if grep -q "rl_exec_get(null, 'localhost', array(\"lxbackup\", \"execbackupphp\")" \
+  "$ROOT/kloxo/httpdocs/lib/html/lxbackuplib.php" \
+  && grep -q 'backendVersionSkewHint' "$ROOT/kloxo/httpdocs/lib/html/lxbackuplib.php"; then
+  ok "Backup Now uses localhost RPC and explains slave_upgrading"
+else
+  bad "Backup Now uses localhost RPC and explains slave_upgrading"
 fi
 if grep -A 20 'function os_isSelfSystemOrLxlabsUser' "$ROOT/kloxo/httpdocs/lib/html/linuxlib.php" | grep -q 'return false'; then
   ok "os_isSelfSystemOrLxlabsUser returns false for other users"

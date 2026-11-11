@@ -334,6 +334,11 @@ check(str_contains($bak, "\$param['_accountselect'] = array('all')")
 	&& str_contains($bak, "\$gbl->__var_list_flag = false")
 	&& str_contains($bak, '__restore_flag = true'),
 	'restoreAccountInProcess defaults accounts=all and clears list-only flag');
+check(str_contains($bak, "rl_exec_get(null, 'localhost', array(\"lxbackup\", \"execbackupphp\")")
+	&& str_contains($bak, "rl_exec_get(null, 'localhost', array(\"lxbackup\", \"execrestorephp\")")
+	&& str_contains($bak, 'function backendVersionSkewHint')
+	&& str_contains($bak, 'systemctl restart kloxo-backend'),
+	'Backup/Restore call localhost backend and hint restart on slave_upgrading');
 check(str_contains($bak, 'mail after restore:')
 	|| (str_contains($bak, 'contactemail') && str_contains($bak, 'lx_mail')),
 	'client restore skips notify mail when contactemail is empty');
