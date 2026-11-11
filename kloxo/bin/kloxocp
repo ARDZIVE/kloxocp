@@ -20,7 +20,7 @@ declare(strict_types=1);
  * Usage: kloxocp <command> [arguments] [--options]
  */
 
-const KCP_VERSION = '10.1-2026111101';
+const KCP_VERSION = '10.1-2026111102';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -840,6 +840,11 @@ TXT;
             $this->ulog($logFile, 'host links');
             $plan['host_links'] = $this->refreshHostLinks();
 
+            // Reload panel PHP + backend so the in-memory version stamp matches
+            // bin/kloxoversion (otherwise Fail2Ban/UFW hit slave_upgrading).
+            $this->ulog($logFile, 'restart panel services');
+            $plan['restarted'] = $this->restartPanelServices();
+
             $this->ulog($logFile, "update ok {$toVersion} snapshot={$stamp}");
             $plan['ok'] = true;
             $plan['rolled_back'] = false;
@@ -1101,6 +1106,27 @@ TXT;
             }
         }
         return $synced;
+    }
+
+    /**
+     * Restart panel FPM and kloxo-backend after upcp so they reload the new
+     * tree and version stamp. Best-effort; missing systemctl is fine in tests.
+     *
+     * @return list<string>
+     */
+    private function restartPanelServices(): array
+    {
+        $done = [];
+        $uid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+        if ($uid !== 0 || !Proc::exists('systemctl')) {
+            return ['(skipped)'];
+        }
+        foreach (['kloxo-backend', 'kloxo-php'] as $unit) {
+            [$rc] = Proc::run(['systemctl', 'try-restart', $unit]);
+            $done[] = $unit . ($rc === 0 ? ': restarted' : ': try-restart rc=' . $rc);
+        }
+
+        return $done;
     }
 
     /**

@@ -192,6 +192,10 @@ if grep -q 'kloxocp upcp\|/script/upcp' "$ROOT/kloxo/pscript/update" \
 else
   bad "pscript/update delegates to upcp"
 fi
+grep -q 'restartPanelServices' "$ROOT/kloxo/bin/kloxocp" \
+  && grep -q 'try-restart' "$ROOT/kloxo/bin/kloxocp" \
+  && ok "upcp restarts kloxo-backend after apply" \
+  || bad "upcp restarts kloxo-backend after apply"
 grep -q "'pscript'" "$ROOT/kloxo/bin/kloxocp" && grep -q 'refreshHostLinks' "$ROOT/kloxo/bin/kloxocp" \
   && ok "upcp syncs pscript and refreshes /script links" \
   || bad "upcp syncs pscript and refreshes /script links"

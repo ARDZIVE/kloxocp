@@ -134,16 +134,33 @@ function check_for_remote($rmt)
 		log_message("Successful Access access to $rmt->remote_login from $rmt->machine");
 	}
 
-	$vercmp = version_cmp($rmt->version, $sgbl->__ver_major_minor_release);
+	$machine = (isset($rmt->machine) && is_string($rmt->machine)) ? $rmt->machine : '';
+	// C1 always authenticates localhost envelopes, so $local is false for
+	// panel → kloxo-backend. Version skew after upcp used to hit the slave
+	// upgrade gate (slave_upgrading_please_try_after_a_few_minutes) and
+	// blocked Fail2Ban/UFW. Localhost shares one tree: skip that gate and
+	// run the action. (upcp still restarts kloxo-backend so code reloads.)
+	$localhostCall = $local || (function_exists('isLocalhost') && isLocalhost($machine));
+	if ($localhostCall) {
+		if ($local) {
+			$memCmp = version_cmp($rmt->version, (string) $sgbl->__ver_major_minor_release);
+			if ($memCmp > 0) {
+				$res->exception = new lxException("backend_server_restarting", $machine);
+				os_restart_program();
 
-	if ($local) {
-		if ($vercmp > 0) {
-			$res->exception = new lxException("backend_server_restarting", $rmt->machine);
-			os_restart_program();
-
-			return $res;
+				return $res;
+			}
 		}
+		do_the_action($rmt, $res);
+		$res->state = 'success';
+
+		return $res;
 	}
+
+	if (function_exists('kloxo_refresh_sgbl_version')) {
+		kloxo_refresh_sgbl_version();
+	}
+	$vercmp = version_cmp($rmt->version, $sgbl->__ver_major_minor_release);
 
 //	dprintr($rmt);
 

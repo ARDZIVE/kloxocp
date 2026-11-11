@@ -21,6 +21,19 @@ if grep -A 50 'function remote_exec' "$ROOT/kloxo/httpdocs/lib/html/remotelib.ph
 else
   bad "localhost File Manager uses kloxo-backend as root, in-process fallback"
 fi
+# After C1 every localhost envelope is authenticated, so the old $local restart
+# path never ran and a newer panel stamp hit slave_upgrading (Fail2Ban/UFW).
+if grep -A 70 'function check_for_remote' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'localhostCall' \
+  && grep -A 70 'function check_for_remote' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" | grep -q 'Localhost shares one tree'; then
+  ok "localhost backend skips slave_upgrading version gate"
+else
+  bad "localhost backend skips slave_upgrading version gate"
+fi
+if grep -q 'function kloxo_refresh_sgbl_version' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
+  ok "kloxo_refresh_sgbl_version re-reads bin/kloxoversion"
+else
+  bad "kloxo_refresh_sgbl_version re-reads bin/kloxoversion"
+fi
 if grep -A 20 'function os_isSelfSystemOrLxlabsUser' "$ROOT/kloxo/httpdocs/lib/html/linuxlib.php" | grep -q 'return false'; then
   ok "os_isSelfSystemOrLxlabsUser returns false for other users"
 else

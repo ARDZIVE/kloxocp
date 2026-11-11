@@ -10,6 +10,39 @@ function kloxo_program_root()
 	return dirname(__DIR__, 2);
 }
 
+/**
+ * Re-read bin/kloxoversion into $sgbl. Long-running kloxo-backend keeps the
+ * pre-upcp stamp in memory; slave version compares should use the file.
+ */
+function kloxo_refresh_sgbl_version()
+{
+	global $sgbl;
+
+	if (!is_object($sgbl)) {
+		return;
+	}
+	$root = isset($sgbl->__path_program_root) && is_string($sgbl->__path_program_root)
+		&& $sgbl->__path_program_root !== ''
+		? $sgbl->__path_program_root
+		: kloxo_program_root();
+	$verfile = $root . '/bin/kloxoversion';
+	$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
+	if ($t === '') {
+		return;
+	}
+	$sgbl->__ver_major_minor_release = $t;
+	$sgbl->__ver_full = $t;
+	if (preg_match('/^(\d+)\.(\d+)(?:\.(\d+))?(?:\.([^-]+))?(?:-([A-Za-z0-9]+))?$/', $t, $m) === 1) {
+		$sgbl->__ver_major = $m[1];
+		$sgbl->__ver_minor = $m[2];
+		$sgbl->__ver_release = (isset($m[3]) && $m[3] !== '') ? $m[3] : '0';
+		$sgbl->__ver_extra = (isset($m[4]) && $m[4] !== '') ? $m[4] : '';
+		$sgbl->__ver_step = $sgbl->__ver_extra;
+		$sgbl->__ver_stamp = (isset($m[5]) && $m[5] !== '') ? $m[5] : '';
+		$sgbl->__ver_major_minor = $sgbl->__ver_major . '.' . $sgbl->__ver_minor;
+	}
+}
+
 /** File that pins the panel CLI PHP (must provide pdo_sqlite). Not affected by PHP Used. */
 function kloxo_panel_php_pin_file()
 {
@@ -183,7 +216,7 @@ class Sgbl
 		$verfile = $root . '/bin/kloxoversion';
 		$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
 		if ($t === '') {
-			$t = '10.1-2026111101';
+			$t = '10.1-2026111102';
 		}
 
 		$this->__ver_name = 'Kloxo CP';
