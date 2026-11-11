@@ -103,11 +103,16 @@ class client__sync extends lxDriverClass {
 		if (!$sgbl->isKloxo()) {
 			return;
 		}
+
+		$user = isset($this->main->username) ? trim((string) $this->main->username) : '';
+		if ($user === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $user) !== 1) {
+			return;
+		}
 		
 		$pass = $this->main->password;
 		
 		// Need to use single quotes.
-		lxshell_return("usermod", "-p", $pass, $this->main->username);
+		lxshell_return("usermod", "-p", $pass, $user);
 	}
 
 	function shellModify()
@@ -203,32 +208,46 @@ class client__sync extends lxDriverClass {
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$username = $sgbl->__var_program_name;
+		// Panel login password is already in SQLite (postUpdate wrote it).
+		// This only keeps MariaDB `kloxo` + kloxo.pass in sync for customer SQL.
+		// Never use the interactive mysql CLI: a hung or prompting client left
+		// the busy modal on forever after a successful password change.
+		if ($this->main->nname !== 'admin') {
+			return;
+		}
 
-		if ($this->main->nname === 'admin') {
-			dprint($this->main->realpass);
-			$newp = client::createDbPass($this->main->realpass);
-			$oldpass = lfile_get_contents("__path_admin_pass");
+		$real = isset($this->main->realpass) ? (string) $this->main->realpass : '';
+		if ($real === '') {
+			return;
+		}
+		$newp = client::createDbPass($real);
+		if (!is_string($newp) || $newp === '') {
+			return;
+		}
 
-			exec("echo 'set Password=Password(\"$newp\")' | mysql -u $username -p$oldpass 2>&1", $out, $return);
+		$user = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__var_program_name))
+			? (string) $sgbl->__var_program_name
+			: 'kloxo';
 
-			if ($return) {
-				$out = implode(" ", $out);
-				log_log("admin_error", "mysql change password Failed $out");
-
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
-				throw new lxException($login->getThrow("could_not_change_admin_pass"), '', $out);
+		try {
+			if (!class_exists('KloxoMariadb', false)) {
+				$mariadbLib = dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
+				if (is_file($mariadbLib)) {
+					include_once $mariadbLib;
+				}
 			}
-
-			$return = lfile_put_contents("__path_admin_pass", $newp);
-
-			if (!$return) {
-				log_log("admin_error", "Admin pass change failed $last_error");
-
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
-				
-				throw new lxException($login->getThrow("could_not_change_admin_pass"), '', $last_error);
+			if (!class_exists('KloxoMariadb', false)) {
+				throw new RuntimeException('KloxoMariadb missing');
 			}
+			$db = KloxoMariadb::connectAdmin();
+			$db->setProgramAccountPassword($newp, $user);
+			$wrote = lfile_put_contents("__path_admin_pass", $newp);
+			if (!$wrote) {
+				log_log('admin_error', 'MariaDB program password updated but kloxo.pass write failed');
+			}
+		} catch (Throwable $e) {
+			// Soft-fail: do not block the UI. Panel login works from SQLite.
+			log_log('admin_error', 'MariaDB program password not updated: ' . $e->getMessage());
 		}
 	}
 

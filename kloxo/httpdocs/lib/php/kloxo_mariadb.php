@@ -199,6 +199,27 @@ final class KloxoMariadb
 		$this->run('FLUSH PRIVILEGES');
 	}
 
+	/**
+	 * Update the panel MariaDB account (`kloxo` / program name). That name is
+	 * reserved for customer CREATE USER, so setPassword() cannot be used.
+	 * Hosts are localhost + 127.0.0.1 only (no %).
+	 */
+	public function setProgramAccountPassword(string $password, string $user = 'kloxo'): void
+	{
+		if (preg_match('/^[A-Za-z0-9_]{1,32}$/', $user) !== 1) {
+			throw new KloxoMariadbException('Invalid program database user');
+		}
+		if ($password === '' || strlen($password) > 64) {
+			throw new KloxoMariadbException('Invalid database password');
+		}
+		$q = $this->quotePassword($password);
+		foreach (array('localhost', '127.0.0.1') as $host) {
+			$uh = "'" . str_replace("'", "''", $user) . "'@'" . str_replace("'", "''", $host) . "'";
+			$this->run('ALTER USER ' . $uh . ' IDENTIFIED BY ' . $q);
+		}
+		$this->run('FLUSH PRIVILEGES');
+	}
+
 	public function dropUser(string $username): void
 	{
 		if (!self::userIdent($username)) {

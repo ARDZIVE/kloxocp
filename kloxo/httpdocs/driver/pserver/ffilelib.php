@@ -293,20 +293,56 @@ class Ffile extends Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$this->up_temp_file_name = $_FILES['upload_file_f']['tmp_name'];
-		$this->__var_upload_filepass = cp_fileserv($this->up_temp_file_name);
-		$this->__var_upload_tmp_server = getOneIPForLocalhost($this->syncserver);
-		$this->upload_file_name = $_FILES["upload_file_f"]["name"];
+		$tmp = isset($_FILES['upload_file_f']['tmp_name'])
+			? (string) $_FILES['upload_file_f']['tmp_name'] : '';
+		$this->upload_file_name = isset($_FILES['upload_file_f']['name'])
+			? (string) $_FILES['upload_file_f']['name'] : '';
 
-		if (!$this->upload_file_name) {
+		if ($this->upload_file_name === '' || $tmp === '' || !is_uploaded_file($tmp)) {
 			throw new lxException($login->getThrow('no_file_in_upload'), '', $this->upload_file_name);
 		}
 
-		$this->upload_file_name = str_replace("'", "", $this->upload_file_name);
-		$this->setUpdateSubaction('upload_s');
-		$gbl->__this_redirect = $this->getCurDirUrl();
-	//	$this->upload_overwrite_f = $param['upload_overwrite_f'];
+		$this->upload_file_name = str_replace(array("'", "\0", "/", "\\"), '', $this->upload_file_name);
+		if ($this->upload_file_name === '' || $this->upload_file_name === '.' || $this->upload_file_name === '..') {
+			throw new lxException($login->getThrow('no_file_in_upload'), '', $this->upload_file_name);
+		}
+
 		$this->upload_overwrite_f = 'on';
+		$gbl->__this_redirect = $this->getCurDirUrl();
+
+		// Backup / Restore __backup is owned by lxlabs: write in-process so the
+		// XHR does not sit on "Wait for redirecting..." while kloxo-backend
+		// tries to read PHP-FPM PrivateTmp.
+		$destDir = '';
+		try {
+			$destDir = (string) $this->getFullPath();
+		} catch (Throwable $e) {
+			$destDir = '';
+		}
+		$rootBase = basename((string) ($this->root ?? ''));
+		$isBackupStore = ($rootBase === '__backup' || basename($destDir) === '__backup'
+			|| str_ends_with($destDir, '/__backup') || str_ends_with($destDir, '/__backup/'));
+		if ($isBackupStore && $destDir !== '' && is_dir($destDir) && is_writable($destDir)) {
+			$dest = rtrim($destDir, '/') . '/' . $this->upload_file_name;
+			if (is_file($dest)) {
+				@unlink($dest);
+			}
+			if (@move_uploaded_file($tmp, $dest) || @copy($tmp, $dest)) {
+				@chmod($dest, 0640);
+				if (function_exists('lxfile_generic_chown')) {
+					lxfile_generic_chown($dest, 'lxlabs');
+				}
+				$this->dbaction = 'clean';
+				$this->subaction = null;
+
+				return null;
+			}
+		}
+
+		$this->up_temp_file_name = $tmp;
+		$this->__var_upload_filepass = cp_fileserv($tmp);
+		$this->__var_upload_tmp_server = getOneIPForLocalhost($this->syncserver);
+		$this->setUpdateSubaction('upload_s');
 
 		return null;
 	}

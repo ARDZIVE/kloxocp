@@ -8737,9 +8737,31 @@ function fileSelected(e) {
 	}
 }
 
+var uploadRedirectUrl = '/display.php?<?php echo str_replace("frm_action=updateform&frm_subaction=upload", "frm_action=show", $_SERVER['QUERY_STRING'] ?? ''); ?>';
+var uploadRedirectTimer = 0;
+var uploadDidRedirect = false;
+
+function uploadGoNext() {
+	if (uploadDidRedirect) {
+		return;
+	}
+	uploadDidRedirect = true;
+	if (uploadRedirectTimer) {
+		clearTimeout(uploadRedirectTimer);
+		uploadRedirectTimer = 0;
+	}
+	clearInterval(oTimer);
+	window.location.href = uploadRedirectUrl;
+}
+
 function startUploading(e) {
 	// cleanup all temp states
 	iPreviousBytesLoaded = 0;
+	uploadDidRedirect = false;
+	if (uploadRedirectTimer) {
+		clearTimeout(uploadRedirectTimer);
+		uploadRedirectTimer = 0;
+	}
 	document.getElementById('progress_error2').style.display = 'none';
 	document.getElementById('progress_abort').style.display = 'none';
 	document.getElementById('progress_warnsize').style.display = 'none';
@@ -8756,7 +8778,12 @@ function startUploading(e) {
 		var oXHR = new XMLHttpRequest();		
 		oXHR.upload.addEventListener('progress', uploadProgress, false);
 		oXHR.addEventListener('load', uploadFinish, false);
-		oXHR.addEventListener('progress_abort', uploadAbort, false);
+		oXHR.addEventListener('error', uploadError, false);
+		oXHR.addEventListener('abort', uploadAbort, false);
+		oXHR.addEventListener('timeout', uploadFinish, false);
+		// Server work after the bytes arrive (fileserv → backend copy) can take
+		// a while; do not wait forever on "Wait for redirecting...".
+		oXHR.timeout = 180000;
 		oXHR.open('POST', '/display.php');
 		oXHR.send(vFD);
 
@@ -8807,31 +8834,43 @@ function uploadProgress(e) { // upload process in progress
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
 			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
+			// Bytes are on the server; if the response never arrives (PrivateTmp /
+			// backend hang), leave this page after a short grace period.
+			if (!uploadRedirectTimer) {
+				uploadRedirectTimer = setTimeout(uploadGoNext, 45000);
+			}
 		}
 	} else {
 		document.getElementById('progress').innerHTML = 'unable to compute';
 	}
 }
 
-function uploadFinish(e) { // upload successfully finished
-	window.location.href = '/display.php?<?php echo str_replace("frm_action=updateform&frm_subaction=upload", "frm_action=show", $_SERVER['QUERY_STRING']); ?>';
-
+function uploadFinish(e) { // upload finished (or timed out waiting for the server)
 	document.getElementById('progress_percent').innerHTML = '100%';
 	document.getElementById('progress').style.width = '400px';
-	document.getElementById('filesize').innerHTML = sResultFileSize;
+	if (document.getElementById('filesize')) {
+		document.getElementById('filesize').innerHTML = sResultFileSize;
+	}
 	document.getElementById('progress_remaining').innerHTML = '00:00:00';
-
-	clearInterval(oTimer);
+	uploadGoNext();
 }
 
 function uploadError(e) { // upload error
 	document.getElementById('progress_error2').style.display = 'block';
 	clearInterval(oTimer);
+	if (uploadRedirectTimer) {
+		clearTimeout(uploadRedirectTimer);
+		uploadRedirectTimer = 0;
+	}
 }  
 
 function uploadAbort(e) { // upload abort
 	document.getElementById('progress_abort').style.display = 'block';
 	clearInterval(oTimer);
+	if (uploadRedirectTimer) {
+		clearTimeout(uploadRedirectTimer);
+		uploadRedirectTimer = 0;
+	}
 }
 </script>
 

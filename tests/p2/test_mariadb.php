@@ -77,6 +77,29 @@ check(!$grantHasIdent, 'GRANT does not use IDENTIFIED BY');
 check(!$identHasPlaceholder && KloxoMariadb::quoteString("a'b\\c") === "'a''b\\\\c'",
 	'IDENTIFIED BY quotes the password (MariaDB rejects native ?)');
 
+$prog = new KloxoMariadb(null);
+$prog->setProgramAccountPassword('AbCdEf1234', 'kloxo');
+$progSql = implode("\n", array_map(static fn (array $row): string => $row[0], $prog->log));
+check(str_contains($progSql, "ALTER USER 'kloxo'@'localhost' IDENTIFIED BY 'AbCdEf1234'")
+	&& str_contains($progSql, "ALTER USER 'kloxo'@'127.0.0.1' IDENTIFIED BY 'AbCdEf1234'")
+	&& str_contains($progSql, 'FLUSH PRIVILEGES')
+	&& !str_contains($progSql, "'kloxo'@'%'"),
+	'setProgramAccountPassword ALTERs kloxo@localhost/127.0.0.1 only');
+$progBad = false;
+try {
+	$prog->setProgramAccountPassword('x', 'kloxo;drop');
+} catch (KloxoMariadbException $e) {
+	$progBad = true;
+}
+check($progBad, 'setProgramAccountPassword rejects a bad program user');
+
+$sync = (string) file_get_contents($doc . '/lib/client/client__synclib.php');
+check(str_contains($sync, 'setProgramAccountPassword')
+	&& str_contains($sync, 'KloxoMariadb::connectAdmin')
+	&& !preg_match('/echo\s+[\'"]set\s+Password/i', $sync)
+	&& !preg_match('/\|\s*mysql\s+-u/', $sync),
+	'changeAdminPass uses KloxoMariadb, not a hanging mysql CLI pipe');
+
 $bad = new KloxoMariadb(null);
 $badName = false;
 try {

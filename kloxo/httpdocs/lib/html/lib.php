@@ -1700,14 +1700,31 @@ function cp_fileserv($file)
 
 	$basebase = basename($file);
 	$base = basename(ltempnam($sgbl->__path_serverfile, $basebase));
-	$pass = md5($file . time());
-	$ar = array('filename' => $file, 'password' => $pass);
+	// PHP-FPM often has PrivateTmp: the upload lives under a private /tmp that
+	// kloxo-backend cannot see. Copy into shared serverfile/tmp first so sync
+	// (and "Wait for redirecting...") can finish.
+	lxfile_mkdir("{$path}/tmp");
+	lxfile_generic_chown("{$path}/tmp", "lxlabs:lxlabs");
+	$shared = expand_real_root("{$path}/tmp/{$base}");
+	$copied = false;
+	if (is_readable($file)) {
+		$copied = @copy($file, $shared);
+		if (!$copied && function_exists('lxfile_cp')) {
+			$copied = (bool) lxfile_cp($file, $shared);
+		}
+	}
+	$stored = $copied ? $shared : $file;
+	if ($copied) {
+		lxfile_generic_chown($shared, "lxlabs");
+		@chmod($shared, 0600);
+	}
+	$pass = md5($stored . time());
+	$ar = array('filename' => $stored, 'password' => $pass);
 	lfile_put_serialize("{$path}/$base", $ar);
 	lxfile_generic_chown("{$path}/$base", "lxlabs");
 	$res['file'] = $base;
 	$res['pass'] = $pass;
-//	$stat = llstat("{$path}/$base");
-	$res['size'] = lxfile_size($file);
+	$res['size'] = lxfile_size($stored);
 
 	return $res;
 }
@@ -2987,7 +3004,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111120';
+	return '10.1-2026111121';
 }
 
 function getDownloadServer()
@@ -3227,7 +3244,77 @@ function lx_mail($from, $to, $subject, $message, $extra = null)
 
 	log_log("mail_send", "Sending Mail to {$to} {$subject} from {$from}");
 
-	mail($to, $subject, $message, $header);
+	// Never call PHP mail() synchronously: Exim/sendmail can block for minutes
+	// (DNS / greylist), which left the panel busy modal stuck after Add Client
+	// even though the account was already created. Prefer sendmail -t with a
+	// short write timeout; on failure, queue via background shell.
+	$to = is_string($to) ? trim($to) : '';
+	$subject = is_string($subject) ? str_replace(array("\r", "\n"), '', $subject) : '';
+	if ($to === '' || !function_exists('validate_email') || !validate_email($to)) {
+		log_log('mail_send', "skip invalid To: {$to}");
+
+		return;
+	}
+
+	$body = "To: {$to}\nSubject: {$subject}\n{$header}\n{$message}\n";
+	$sendmail = '';
+	foreach (array('/usr/sbin/sendmail', '/usr/lib/sendmail') as $bin) {
+		if (is_executable($bin)) {
+			$sendmail = $bin;
+			break;
+		}
+	}
+	if ($sendmail !== '' && function_exists('proc_open')) {
+		$pipes = array();
+		$p = @proc_open(
+			array($sendmail, '-t', '-i', '-f', $from),
+			array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
+			$pipes
+		);
+		if (is_resource($p)) {
+			stream_set_blocking($pipes[0], false);
+			$offset = 0;
+			$len = strlen($body);
+			$deadline = microtime(true) + 5.0;
+			$ok = true;
+			while ($offset < $len) {
+				$w = array($pipes[0]);
+				$r = $e = array();
+				$left = $deadline - microtime(true);
+				if ($left <= 0) {
+					$ok = false;
+					break;
+				}
+				$n = @stream_select($r, $w, $e, (int) $left, (int) (($left - (int) $left) * 1e6));
+				if ($n === false || $n === 0) {
+					$ok = false;
+					break;
+				}
+				$wrote = @fwrite($pipes[0], substr($body, $offset));
+				if ($wrote === false || $wrote === 0) {
+					$ok = false;
+					break;
+				}
+				$offset += $wrote;
+			}
+			@fclose($pipes[0]);
+			@stream_get_contents($pipes[1]);
+			@fclose($pipes[1]);
+			@stream_get_contents($pipes[2]);
+			@fclose($pipes[2]);
+			if ($ok) {
+				@proc_close($p);
+
+				return;
+			}
+			@proc_terminate($p);
+			@proc_close($p);
+			log_log('mail_send', 'sendmail timed out; falling back to background');
+		}
+	}
+
+	// Do not fall back to PHP mail(): it can block the panel for minutes on Exim/DNS.
+	log_log('mail_send', 'sendmail unavailable or timed out; skipped blocking PHP mail()');
 }
 
 function download_and_print_file($server, $file)

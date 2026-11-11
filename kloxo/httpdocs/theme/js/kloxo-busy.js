@@ -41,6 +41,7 @@
 
 	var KEY = 'kloxo-busy';
 	var MAX_AGE = 15 * 60 * 1000;   // a flag older than this is a navigation that never finished
+	var MAX_WAIT = 90 * 1000;       // never leave the modal up forever on a hung request
 	var DEFAULT_TEXT = 'Please wait...';
 	var DELAY = 500;                // ms a navigation may take before the modal appears
 
@@ -48,6 +49,7 @@
 	var label = null;
 	var suppressUntil = 0;
 	var pending = null;
+	var maxWaitTimer = null;
 
 	function store() {
 		try {
@@ -144,12 +146,29 @@
 		}
 	}
 
+	function cancelMaxWait() {
+		if (maxWaitTimer !== null) {
+			win.clearTimeout(maxWaitTimer);
+			maxWaitTimer = null;
+		}
+	}
+
+	function armMaxWait() {
+		cancelMaxWait();
+		maxWaitTimer = win.setTimeout(function () {
+			maxWaitTimer = null;
+			flagClear();
+			api.hide();
+		}, MAX_WAIT);
+	}
+
 	function overlayOn() {
 		return !!overlay && overlay.className === 'on';
 	}
 
 	function present(text) {
 		api.show(text);
+		armMaxWait();
 		var f = flagGet();
 		if (f) {
 			flagSet(f.text, true);
@@ -186,6 +205,7 @@
 		},
 		hide: function () {
 			cancelPending();
+			cancelMaxWait();
 			if (overlay) {
 				overlay.className = '';
 			}

@@ -4832,22 +4832,33 @@ function change_db_pass()
 
 	$pass = randomString(10);
 	$newp = client::createDbPass($pass);
-	$oldpass = lfile_get_contents("__path_admin_pass");
-	$username = $sgbl->__var_program_name;
+	$user = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__var_program_name))
+		? (string) $sgbl->__var_program_name
+		: 'kloxo';
 
-	exec("echo 'set Password=Password(\"$newp\")' | mysql -u $username -p$oldpass 2>&1", $out, $return);
+	if (!class_exists('KloxoMariadb', false)) {
+		$mariadbLib = __DIR__ . '/kloxo_mariadb.php';
+		if (is_file($mariadbLib)) {
+			include_once $mariadbLib;
+		}
+	}
+	if (!class_exists('KloxoMariadb', false)) {
+		throw new lxException($login->getThrow('could_not_change_admin_pass'), '', 'KloxoMariadb missing');
+	}
 
-	if ($return) {
-		$out = implode(" ", $out);
-		log_log("admin_error", "mysql change password Failed $out");
-		throw new lxException ($login->getThrow("could_not_change_admin_pass"), '', $out);
+	try {
+		$db = KloxoMariadb::connectAdmin();
+		$db->setProgramAccountPassword($newp, $user);
+	} catch (Throwable $e) {
+		log_log('admin_error', 'mysql change password Failed ' . $e->getMessage());
+		throw new lxException($login->getThrow('could_not_change_admin_pass'), '', $e->getMessage());
 	}
 
 	$return = lfile_put_contents("__path_admin_pass", $newp);
 
 	if (!$return) {
-		log_log("admin_error", "Admin pass change failed  $last_error");
-		throw new lxException ($login->getThrow("could_not_change_admin_pass"), '', $last_error);
+		log_log('admin_error', 'Admin pass change failed writing kloxo.pass');
+		throw new lxException($login->getThrow('could_not_change_admin_pass'), '', 'kloxo.pass');
 	}
 }
 

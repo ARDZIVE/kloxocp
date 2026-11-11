@@ -678,6 +678,27 @@ foreach (array($exBase) as $tree) {
 	}
 }
 
+echo "== Backup Upload (no hang on Wait for redirecting)\n";
+$htmlUpload = (string) file_get_contents($doc . '/theme/htmllib.php');
+$ffileSrc = (string) file_get_contents($doc . '/driver/pserver/ffilelib.php');
+$libSrc = (string) file_get_contents($doc . '/lib/html/lib.php');
+check(str_contains($htmlUpload, 'function uploadGoNext')
+	&& str_contains($htmlUpload, 'uploadRedirectTimer')
+	&& str_contains($htmlUpload, 'oXHR.timeout')
+	&& str_contains($htmlUpload, "addEventListener('error'")
+	&& str_contains($htmlUpload, "addEventListener('abort'")
+	&& !str_contains($htmlUpload, "addEventListener('progress_abort'"),
+	'Upload XHR redirects on load/timeout and arms a grace timer after 100%');
+check(preg_match(
+	'/function cp_fileserv\(\$file\).*?serverfile\/tmp.*?copy\(/s',
+	$libSrc
+) === 1,
+	'cp_fileserv copies uploads into shared serverfile/tmp (PrivateTmp-safe)');
+check(str_contains($ffileSrc, "rootBase === '__backup'")
+	&& str_contains($ffileSrc, 'move_uploaded_file')
+	&& str_contains($ffileSrc, 'is_writable($destDir)'),
+	'Backup __backup upload writes in-process when the dir is writable');
+
 echo "== panel Help text\n";
 $__information = array();
 include $doc . '/lang/en-us/messagelib.php';

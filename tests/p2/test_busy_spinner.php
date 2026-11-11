@@ -67,15 +67,17 @@ if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") &&
 } else {
 	bad('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form');
 }
-// Quick pages never show it: one show-delay timer (showSoon), no CSS animation (it does
-// not run in an unpainted new document) and no timer that hides the modal.
+// Quick pages: DELAY show timer; MAX_WAIT failsafe so a hung POST cannot leave
+// the modal forever (password change / add client used to stick). No CSS fade.
 $code = (string)preg_replace('#/\*.*?\*/#s', '', $js);
-if (substr_count($code, 'setTimeout(') === 1 && str_contains($code, 'function showSoon(')
-	&& preg_match('/var DELAY = \d+;/', $code) === 1 && !str_contains($code, 'animation')
-	&& !preg_match('/setTimeout\([^)]*hide/', $code)) {
-	ok('modal appears after DELAY ms through one show timer; no CSS animation, no hide time-out');
+if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait')
+	&& preg_match('/var DELAY = \d+;/', $code) === 1
+	&& preg_match('/var MAX_WAIT = \d+/', $code) === 1
+	&& !str_contains($code, 'animation')
+	&& substr_count($code, 'setTimeout(') === 2) {
+	ok('modal appears after DELAY ms; MAX_WAIT failsafe hides a stuck modal');
 } else {
-	bad('modal appears after DELAY ms through one show timer; no CSS animation, no hide time-out');
+	bad('modal appears after DELAY ms; MAX_WAIT failsafe hides a stuck modal');
 }
 
 // The hrefs the Services list really renders must match the JS patterns.
