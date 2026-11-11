@@ -6046,12 +6046,40 @@ class HtmlLib
 			$message = $message[0];
 		}
 
+		// Backup/Restore: show the error on a finished page and Continue to a
+		// short show URL. Putting the whole restore log into frm_m_emessage_data
+		// made meta-refresh navigate to a broken URL → blank page.
+		if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome)
+			&& function_exists('kloxo_print_backup_finished_page')) {
+			$key = is_string($message) ? $message : 'error';
+			$detail = '';
+			if ($value !== null && $value !== '') {
+				$detail = is_string($value) || is_numeric($value) ? (string) $value : '';
+			}
+			$lk = strtolower($key);
+			$title = str_contains($lk, 'restore') ? 'Restore failed'
+				: (str_contains($lk, 'backup') ? 'Backup failed' : 'Backup / Restore failed');
+			$body = str_replace('_', ' ', $key);
+			if ($detail !== '' && strcasecmp($detail, $key) !== 0) {
+				$body .= "\n\n" . $detail;
+			}
+			$continue = function_exists('kloxo_backup_safe_continue_url')
+				? kloxo_backup_safe_continue_url()
+				: '/display.php?frm_action=show';
+			kloxo_print_backup_finished_page($title, $body, $continue, 'error');
+		}
+
 		$message = self::redirectQueryValue($message);
 
 		$vstring = null;
 
 		if ($value) {
-			$value = self::redirectQueryValue($value);
+			// Cap query detail — browsers blank on multi-KB Refresh URLs.
+			$raw = is_string($value) || is_numeric($value) ? (string) $value : '';
+			if (strlen($raw) > 500) {
+				$raw = substr($raw, 0, 500) . '…';
+			}
+			$value = self::redirectQueryValue($raw);
 			$vstring = "&frm_m_emessage_data=$value";
 		}
 
@@ -6154,7 +6182,10 @@ class HtmlLib
 			list($btitle, $bmsg, $bkind) = function_exists('kloxo_backup_finished_from_redirect')
 				? kloxo_backup_finished_from_redirect($redirect_url)
 				: array('Backup / Restore', 'Finished.', 'success');
-			kloxo_print_backup_finished_page($btitle, $bmsg, $redirect_url, $bkind);
+			$continue = function_exists('kloxo_backup_safe_continue_url')
+				? kloxo_backup_safe_continue_url()
+				: '/display.php?frm_action=show';
+			kloxo_print_backup_finished_page($btitle, $bmsg, $continue, $bkind);
 		}
 
 		if (ifSplashScreen() || $windowurl) {

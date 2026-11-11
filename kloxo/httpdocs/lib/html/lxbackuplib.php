@@ -621,8 +621,9 @@ class lxbackup extends Lxdb
 			$this->dbaction = 'clean';
 			if (trim($stage) === 'done' || str_starts_with(trim($stage), 'done')) {
 				$url = self::backupShowUrl();
-				$continue = $url . (str_contains($url, '?') ? '&' : '?')
-					. 'frm_smessage=backup_completed';
+				$continue = function_exists('kloxo_backup_safe_continue_url')
+					? kloxo_backup_safe_continue_url()
+					: $url;
 				// Exit here: a later head-only redirect after backup prints is a blank page.
 				if (function_exists('kloxo_print_backup_finished_page')) {
 					try {
@@ -641,7 +642,8 @@ class lxbackup extends Lxdb
 				}
 				if (is_object($gbl)) {
 					$gbl->__no_debug_redirect = true;
-					$gbl->__this_redirect = $continue;
+					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
+						. 'frm_smessage=backup_completed';
 				}
 
 				return $param;
@@ -675,8 +677,9 @@ class lxbackup extends Lxdb
 			$this->dbaction = 'clean';
 			$url = self::backupShowUrl();
 			if (str_starts_with(trim($stage), 'done')) {
-				$continue = $url . (str_contains($url, '?') ? '&' : '?')
-					. 'frm_smessage=restore_completed';
+				$continue = function_exists('kloxo_backup_safe_continue_url')
+					? kloxo_backup_safe_continue_url()
+					: $url;
 				// Exit here: restore progress prints make Location fail → blank page.
 				if (function_exists('kloxo_print_backup_finished_page')) {
 					try {
@@ -690,20 +693,21 @@ class lxbackup extends Lxdb
 					if (is_string($stage) && strlen(trim($stage)) > 4) {
 						$tail = trim(substr(trim($stage), 4));
 						if ($tail !== '' && $tail !== '.') {
-							$extra = ' ' . $tail;
+							$extra = "\n\n" . $tail;
 						}
 					}
 					kloxo_print_backup_finished_page(
 						'Restore completed',
 						'The restore finished successfully.' . $extra
-							. ' Open Backup / Restore for Last Restore Status and anything still left to do by hand.',
+							. "\n\nOpen Backup / Restore for Last Restore Status and anything still left to do by hand.",
 						$continue,
 						'success'
 					);
 				}
 				if (is_object($gbl)) {
 					$gbl->__no_debug_redirect = true;
-					$gbl->__this_redirect = $continue;
+					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
+						. 'frm_smessage=restore_completed';
 				}
 
 				return $param;

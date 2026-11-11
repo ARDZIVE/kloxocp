@@ -403,15 +403,46 @@ check(str_contains($lxlib, 'function kloxo_is_long_backend_update')
 	&& str_contains($lxlib, 'restore_confirm_confirm')
 	&& str_contains($lxlib, 'function kloxo_print_backup_finished_page')
 	&& str_contains($lxlib, 'function kloxo_backup_finished_from_redirect')
+	&& str_contains($lxlib, 'function kloxo_backup_safe_continue_url')
+	&& str_contains($lxlib, 'frm_m_emessage_data')
 	&& str_contains($core, '__kloxo_defer_chrome')
 	&& str_contains($core, '@ob_start()')
 	&& str_contains($core, 'Deferred Backup/Restore must never end with an empty body')
 	&& str_contains($htmlSrc, '__kloxo_defer_chrome')
 	&& str_contains($htmlSrc, 'kloxo_print_backup_finished_page')
+	&& str_contains($htmlSrc, 'kloxo_backup_safe_continue_url')
+	&& str_contains($htmlSrc, '__kloxo_defer_chrome')
 	&& str_contains($bak, 'function backupShowUrl')
 	&& str_contains($bak, 'kloxo_print_backup_finished_page')
 	&& str_contains($bak, 'Restore completed'),
-	'Backup/Restore prints a full finished page (never head-only redirect)');
+	'Backup/Restore finished page uses a short Continue URL (no huge emessage query)');
+
+// Runtime: load only the finished-page helpers (full lxlib needs panel paths).
+$helperSrc = '';
+if (preg_match(
+	'/function kloxo_backup_safe_continue_url\(.*?\nfunction kloxo_download_filename/s',
+	$lxlib,
+	$hm
+) === 1) {
+	$helperSrc = substr($hm[0], 0, -strlen('function kloxo_download_filename'));
+}
+$helpersOk = $helperSrc !== '';
+if ($helpersOk) {
+	eval($helperSrc);
+	$parsed = kloxo_backup_finished_from_redirect(
+		'/display.php?frm_action=show&frm_emessage=restore_failed&frm_m_emessage_data='
+		. rawurlencode('Restore failed due to disk full')
+	);
+	$helpersOk = $parsed[0] === 'Restore failed'
+		&& str_contains($parsed[1], 'disk full')
+		&& $parsed[2] === 'error';
+	$safe = kloxo_backup_safe_continue_url();
+	$helpersOk = $helpersOk
+		&& str_contains($safe, 'frm_action=show')
+		&& !str_contains($safe, 'frm_emessage')
+		&& !str_contains($safe, 'frm_m_emessage_data');
+}
+check($helpersOk, 'finished-page helpers parse restore_failed and keep Continue URL short');
 check(str_contains($bak, "dbaction = 'clean'")
 	&& str_contains($bak, 'collectquota after restore'),
 	'Restore marks lxbackup clean and does not abort on collectquota');
