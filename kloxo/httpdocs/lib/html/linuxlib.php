@@ -295,7 +295,13 @@ function os_create_system_user($basename, $password, $id, $shell, $dir = "/tmp")
 		}
 	}
 	
-	$ret = lxshell_return("useradd", "-m", "-c", uuser::getUserDescription($id), "-d", $dir, "-s", $shell, "-p", $password, $name);
+	// Cap useradd: NSS/PAM hangs used to leave Add Client waiting on kloxo-backend
+	// until the panel's 60s RPC read timeout.
+	if (is_executable('/usr/bin/timeout')) {
+		$ret = lxshell_return('/usr/bin/timeout', '20', 'useradd', '-m', '-c', uuser::getUserDescription($id), '-d', $dir, '-s', $shell, '-p', $password, $name);
+	} else {
+		$ret = lxshell_return('useradd', '-m', '-c', uuser::getUserDescription($id), '-d', $dir, '-s', $shell, '-p', $password, $name);
+	}
 
 	if ($ret) {
 		// --- issue #638 - installation fails if 'admin' group already exists

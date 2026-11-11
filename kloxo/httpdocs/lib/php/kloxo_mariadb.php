@@ -82,8 +82,47 @@ final class KloxoMariadb
 	}
 
 	/**
-	 * Admin connection: kloxo_pma@127.0.0.1 (dbadmin / pma.pass), then
-	 * unix_socket as root (kloxo-backend runs as root on Ubuntu).
+	 * True when a local MariaDB looks answerable within ~1s.
+	 * Used to skip password sync instead of hanging the panel request.
+	 */
+	public static function isQuicklyReachable(): bool
+	{
+		if (self::$injected instanceof self) {
+			return true;
+		}
+		foreach (array('/run/mysqld/mysqld.sock', '/var/run/mysqld/mysqld.sock') as $sock) {
+			if (is_string($sock) && $sock !== '' && file_exists($sock)) {
+				return true;
+			}
+		}
+
+		return self::tcpReady('127.0.0.1', 3306, 1.0);
+	}
+
+	/** TCP accept probe so PDO is not left waiting on a black-hole port. */
+	private static function tcpReady(string $host, int $port, float $timeout = 1.0): bool
+	{
+		$errno = 0;
+		$errstr = '';
+		$fp = @stream_socket_client(
+			'tcp://' . $host . ':' . $port,
+			$errno,
+			$errstr,
+			max($timeout, 0.2)
+		);
+		if (is_resource($fp)) {
+			fclose($fp);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Admin connection: unix_socket as root first (kloxo-backend is root on
+	 * Ubuntu), then kloxo_pma@127.0.0.1. Each attempt is capped so a wedged
+	 * MariaDB cannot hold the password-change HTTP request for tens of seconds.
 	 */
 	public static function connectAdmin(string $user = '', string $pass = '', ?string $root = null): self
 	{
@@ -95,9 +134,15 @@ final class KloxoMariadb
 		}
 
 		$attempts = array();
-		if ($user !== '' && $pass !== '') {
+		// Socket first: no TCP handshake hang when mysqld is down / half-dead.
+		foreach (array('/run/mysqld/mysqld.sock', '/var/run/mysqld/mysqld.sock') as $sock) {
+			if (is_string($sock) && $sock !== '' && file_exists($sock)) {
+				$attempts[] = array('mysql:unix_socket=' . $sock . ';charset=utf8mb4', 'root', '');
+			}
+		}
+		$tcpOk = self::tcpReady('127.0.0.1', 3306, 1.0);
+		if ($user !== '' && $pass !== '' && $tcpOk) {
 			$attempts[] = array('mysql:host=127.0.0.1;port=3306;charset=utf8mb4', $user, $pass);
-			$attempts[] = array('mysql:host=localhost;charset=utf8mb4', $user, $pass);
 		}
 		if (!function_exists('kloxo_pma_login')) {
 			$pma = dirname(__FILE__) . '/kloxo_pma.php';
@@ -105,7 +150,7 @@ final class KloxoMariadb
 				include_once $pma;
 			}
 		}
-		if (function_exists('kloxo_pma_login')) {
+		if ($tcpOk && function_exists('kloxo_pma_login')) {
 			$cred = kloxo_pma_login($root);
 			if (($cred['pass'] ?? '') !== '') {
 				$attempts[] = array(
@@ -115,30 +160,33 @@ final class KloxoMariadb
 				);
 			}
 		}
-		foreach (array('/run/mysqld/mysqld.sock', '/var/run/mysqld/mysqld.sock') as $sock) {
-			if (is_string($sock) && $sock !== '' && file_exists($sock)) {
-				$attempts[] = array('mysql:unix_socket=' . $sock . ';charset=utf8mb4', 'root', '');
-			}
-		}
 
 		$errors = array();
 		$seen = array();
-		foreach ($attempts as $a) {
-			$key = $a[0] . "\0" . $a[1];
-			if (isset($seen[$key])) {
-				continue;
-			}
-			$seen[$key] = true;
-			try {
-				$pdo = new PDO($a[0], $a[1], $a[2], array(
-					PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-					PDO::ATTR_TIMEOUT => 8,
-					PDO::ATTR_EMULATE_PREPARES => false,
-				));
+		$prevSock = ini_get('default_socket_timeout');
+		@ini_set('default_socket_timeout', '2');
+		try {
+			foreach ($attempts as $a) {
+				$key = $a[0] . "\0" . $a[1];
+				if (isset($seen[$key])) {
+					continue;
+				}
+				$seen[$key] = true;
+				try {
+					$pdo = new PDO($a[0], $a[1], $a[2], array(
+						PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+						PDO::ATTR_TIMEOUT => 2,
+						PDO::ATTR_EMULATE_PREPARES => false,
+					));
 
-				return new self($pdo);
-			} catch (PDOException $e) {
-				$errors[] = trim(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '');
+					return new self($pdo);
+				} catch (PDOException $e) {
+					$errors[] = trim(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '');
+				}
+			}
+		} finally {
+			if ($prevSock !== false) {
+				@ini_set('default_socket_timeout', (string) $prevSock);
 			}
 		}
 

@@ -3055,7 +3055,9 @@ function kloxo_backend_io_timeouts(string $raddress = 'localhost'): array
 		return array($local ? 10 : 30, 86400);
 	}
 
-	return array($local ? 3 : 15, $local ? 60 : 120);
+	// Keep well under a minute: a wedged sync must not leave the browser
+	// waiting with the busy modal after SQLite already saved the change.
+	return array($local ? 3 : 15, $local ? 20 : 60);
 }
 
 /**

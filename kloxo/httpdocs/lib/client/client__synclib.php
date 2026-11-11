@@ -111,8 +111,13 @@ class client__sync extends lxDriverClass {
 		
 		$pass = $this->main->password;
 		
-		// Need to use single quotes.
-		lxshell_return("usermod", "-p", $pass, $user);
+		// Cap usermod: a wedged NSS/PAM stack used to hold login->was() (and the
+		// browser) until the 60s backend read timeout.
+		if (is_executable('/usr/bin/timeout')) {
+			lxshell_return('/usr/bin/timeout', '5', 'usermod', '-p', $pass, $user);
+		} else {
+			lxshell_return('usermod', '-p', $pass, $user);
+		}
 	}
 
 	function shellModify()
@@ -238,6 +243,13 @@ class client__sync extends lxDriverClass {
 			}
 			if (!class_exists('KloxoMariadb', false)) {
 				throw new RuntimeException('KloxoMariadb missing');
+			}
+			// Skip when mysqld is down / not answering: connectAdmin used to sit
+			// on TCP for many seconds and the panel waited on kloxo-backend.
+			if (!KloxoMariadb::isQuicklyReachable()) {
+				log_log('admin_error', 'MariaDB program password skipped: server not reachable');
+
+				return;
 			}
 			$db = KloxoMariadb::connectAdmin();
 			$db->setProgramAccountPassword($newp, $user);

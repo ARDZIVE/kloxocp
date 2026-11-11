@@ -119,13 +119,17 @@ class Service extends Lxdb
 		if ($unit === '') {
 			return null;
 		}
-		$active = Service__Linux::systemdShow($unit, 'ActiveState');
+		// One systemctl show for the live fields (cached with resolveInstalledUnit).
+		$props = Service__Linux::systemdShowProps($unit, array(
+			'ActiveState', 'SubState', 'UnitFileState', 'SourcePath', 'LoadState',
+		));
+		$active = isset($props['ActiveState']) ? (string) $props['ActiveState'] : '';
 
 		return array(
 			'state' => $active === 'active' ? 'on' : 'off',
 			'boot_state' => Service__Linux::bootStateOn($unit) ? 'on' : 'off',
 			'active_state' => $active,
-			'sub_state' => Service__Linux::systemdShow($unit, 'SubState'),
+			'sub_state' => isset($props['SubState']) ? (string) $props['SubState'] : '',
 		);
 	}
 

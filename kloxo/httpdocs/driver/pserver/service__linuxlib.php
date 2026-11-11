@@ -635,6 +635,10 @@ class Service__Linux extends Lxlclass
 	/** Set by tests: callable(string $unit, string $prop): string replacing `systemctl show`. */
 	public static $showProbe = null;
 
+	/** Request-scoped cache: Services list used to call systemctl dozens of times. */
+	/** @var array<string, array<string, string>> */
+	private static $showCache = array();
+
 	/** @return array<string,string> */
 	static function systemctlEnv()
 	{
@@ -650,48 +654,123 @@ class Service__Linux extends Lxlclass
 		return $env;
 	}
 
-	static function systemdShow($unit, $prop)
+	/** Clear the per-request systemctl show cache (tests). */
+	static function clearShowCache()
 	{
-		if (is_callable(self::$showProbe) && self::isSafeUnit($unit) && self::isSafeUnit($prop)) {
-			$r = call_user_func(self::$showProbe, (string) $unit, (string) $prop);
+		self::$showCache = array();
+	}
 
-			return is_string($r) ? trim($r) : '';
+	/**
+	 * One systemctl show for several properties (cached per unit for this request).
+	 *
+	 * @param list<string> $props
+	 * @return array<string, string>
+	 */
+	static function systemdShowProps($unit, array $props)
+	{
+		$unit = (string) $unit;
+		$want = array();
+		foreach ($props as $p) {
+			$p = (string) $p;
+			if (self::isSafeUnit($p)) {
+				$want[$p] = true;
+			}
 		}
-		if (!self::hasSystemd() || !self::isSafeUnit($unit) || !self::isSafeUnit($prop)) {
-			return '';
+		if ($unit === '' || $want === array() || !self::isSafeUnit($unit)) {
+			return array();
+		}
+
+		$out = array();
+		$missing = array();
+		foreach (array_keys($want) as $p) {
+			if (isset(self::$showCache[$unit][$p])) {
+				$out[$p] = self::$showCache[$unit][$p];
+			} else {
+				$missing[] = $p;
+			}
+		}
+		if ($missing === array()) {
+			return $out;
+		}
+
+		if (is_callable(self::$showProbe)) {
+			foreach ($missing as $p) {
+				$r = call_user_func(self::$showProbe, $unit, $p);
+				$v = is_string($r) ? trim($r) : '';
+				self::$showCache[$unit][$p] = $v;
+				$out[$p] = $v;
+			}
+
+			return $out;
+		}
+		if (!self::hasSystemd()) {
+			return $out;
 		}
 		$bin = self::systemctlBin();
 		if ($bin === '') {
-			return '';
+			return $out;
 		}
+
+		$argv = array($bin, '--system', 'show', '--no-pager');
+		foreach ($missing as $p) {
+			$argv[] = '-p';
+			$argv[] = $p;
+		}
+		$argv[] = $unit;
+
 		try {
-			$p = @proc_open(array($bin, '--system', 'show', '--no-pager', '-p', $prop, '--value', $unit), array(
+			$proc = @proc_open($argv, array(
 				0 => array('file', '/dev/null', 'r'),
 				1 => array('pipe', 'w'),
 				2 => array('pipe', 'w'),
 			), $pipes, null, self::systemctlEnv());
 		} catch (Throwable $e) {
-			return '';
+			return $out;
 		}
-		if ($p === false || $p === null) {
-			return '';
+		if ($proc === false || $proc === null) {
+			return $out;
 		}
-		$out = '';
+		$raw = '';
 		if (isset($pipes[1])) {
-			$out = self::readPipeLimited($pipes[1], 3);
+			$raw = self::readPipeLimited($pipes[1], 2);
 			fclose($pipes[1]);
 		}
 		if (isset($pipes[2])) {
-			self::readPipeLimited($pipes[2], 3);
+			self::readPipeLimited($pipes[2], 1);
 			fclose($pipes[2]);
 		}
-		$status = @proc_get_status($p);
+		$status = @proc_get_status($proc);
 		if (is_array($status) && !empty($status['running'])) {
-			@proc_terminate($p);
+			@proc_terminate($proc);
 		}
-		proc_close($p);
+		proc_close($proc);
 
-		return is_string($out) ? trim($out) : '';
+		$parsed = array();
+		foreach (preg_split("/\r\n|\n|\r/", (string) $raw) as $line) {
+			$line = trim((string) $line);
+			if ($line === '' || !str_contains($line, '=')) {
+				continue;
+			}
+			$eq = strpos($line, '=');
+			$key = substr($line, 0, $eq);
+			if (isset($want[$key])) {
+				$parsed[$key] = substr($line, $eq + 1);
+			}
+		}
+		foreach ($missing as $p) {
+			$v = isset($parsed[$p]) ? (string) $parsed[$p] : '';
+			self::$showCache[$unit][$p] = $v;
+			$out[$p] = $v;
+		}
+
+		return $out;
+	}
+
+	static function systemdShow($unit, $prop)
+	{
+		$props = self::systemdShowProps((string) $unit, array((string) $prop));
+
+		return isset($props[$prop]) ? (string) $props[$prop] : '';
 	}
 
 	/** Prefix for the file checks below; tests point it at a throw-away tree. */

@@ -96,9 +96,21 @@ check($progBad, 'setProgramAccountPassword rejects a bad program user');
 $sync = (string) file_get_contents($doc . '/lib/client/client__synclib.php');
 check(str_contains($sync, 'setProgramAccountPassword')
 	&& str_contains($sync, 'KloxoMariadb::connectAdmin')
+	&& str_contains($sync, 'isQuicklyReachable')
+	&& str_contains($sync, '/usr/bin/timeout')
 	&& !preg_match('/echo\s+[\'"]set\s+Password/i', $sync)
 	&& !preg_match('/\|\s*mysql\s+-u/', $sync),
-	'changeAdminPass uses KloxoMariadb, not a hanging mysql CLI pipe');
+	'changeAdminPass skips unreachable MariaDB; usermod is time-capped');
+
+$mdbSrc = (string) file_get_contents($doc . '/lib/php/kloxo_mariadb.php');
+check(str_contains($mdbSrc, 'function isQuicklyReachable')
+	&& str_contains($mdbSrc, 'function tcpReady')
+	&& str_contains($mdbSrc, 'unix_socket=')
+	&& preg_match('/ATTR_TIMEOUT\s*=>\s*2/', $mdbSrc) === 1
+	&& strpos($mdbSrc, 'unix_socket=') < strpos($mdbSrc, 'host=127.0.0.1'),
+	'connectAdmin prefers socket and uses a 2s timeout');
+check(KloxoMariadb::isQuicklyReachable() === true || KloxoMariadb::isQuicklyReachable() === false,
+	'isQuicklyReachable returns a bool without hanging');
 
 $bad = new KloxoMariadb(null);
 $badName = false;
