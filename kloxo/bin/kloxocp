@@ -20,7 +20,7 @@ declare(strict_types=1);
  * Usage: kloxocp <command> [arguments] [--options]
  */
 
-const KCP_VERSION = '10.1-2026111127';
+const KCP_VERSION = '10.1-2026111128';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -489,6 +489,53 @@ TXT;
             is_file($passfile) ? 'pass' : 'warn',
             is_file($passfile) ? 'etc/conf/kloxo.pass' : 'missing (run init-panel-db)'
         );
+
+        $mariadbLib = $this->root . '/httpdocs/lib/php/kloxo_mariadb.php';
+        if (is_file($mariadbLib)) {
+            require_once $mariadbLib;
+            if (class_exists('KloxoMariadb', false) && method_exists('KloxoMariadb', 'diagnose')) {
+                $md = KloxoMariadb::diagnose($this->root);
+                if ($md['ok']) {
+                    $checks[] = $this->check('mariadb_connect', 'pass', 'connectAdmin ok in ' . $md['ms'] . 'ms');
+                } elseif (!$md['reachable']) {
+                    $checks[] = $this->check('mariadb_connect', 'warn', 'MariaDB not listening (' . $md['ms'] . 'ms)');
+                } else {
+                    $checks[] = $this->check(
+                        'mariadb_connect',
+                        'warn',
+                        substr($md['error'] !== '' ? $md['error'] : 'connectAdmin failed', 0, 120) . ' (' . $md['ms'] . 'ms)'
+                    );
+                }
+            }
+        }
+
+        $sqliteLib = $this->root . '/httpdocs/lib/php/kloxo_sqlite.php';
+        if (is_file($sqliteLib)) {
+            require_once $sqliteLib;
+            $varLib = $this->root . '/var/lib/kloxo';
+            $panelDb = is_file('/var/lib/kloxo/panel.sqlite')
+                ? '/var/lib/kloxo/panel.sqlite'
+                : ($varLib . '/panel.sqlite');
+            if (getenv('KLOXO_VAR_LIB') === false && is_dir($varLib)) {
+                putenv('KLOXO_VAR_LIB=' . $varLib);
+            }
+            if (class_exists('KloxoSqlite', false) && method_exists('KloxoSqlite', 'diagnose')) {
+                $sd = KloxoSqlite::diagnose(is_file($panelDb) ? $panelDb : null);
+                if ($sd['ok']) {
+                    $checks[] = $this->check(
+                        'sqlite_connect',
+                        'pass',
+                        'panel.sqlite ok (' . $sd['tables'] . ' tables, ' . $sd['journal'] . ', ' . $sd['ms'] . 'ms)'
+                    );
+                } else {
+                    $checks[] = $this->check(
+                        'sqlite_connect',
+                        extension_loaded('pdo_sqlite') ? 'warn' : 'fail',
+                        substr($sd['error'] !== '' ? $sd['error'] : 'open failed', 0, 120) . ' (' . $sd['ms'] . 'ms)'
+                    );
+                }
+            }
+        }
 
         $os = $this->osId();
         $ubuntu = self::ubuntuSupported($os['id'], $os['version']);

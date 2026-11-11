@@ -106,12 +106,21 @@ $mdbSrc = (string) file_get_contents($doc . '/lib/php/kloxo_mariadb.php');
 check(str_contains($mdbSrc, 'function isQuicklyReachable')
 	&& str_contains($mdbSrc, 'function streamReady')
 	&& str_contains($mdbSrc, 'function liveUnixSockets')
+	&& str_contains($mdbSrc, 'function diagnose')
 	&& str_contains($mdbSrc, 'unix://')
-	&& str_contains($mdbSrc, 'unix_socket=')
+	&& str_contains($mdbSrc, 'isRootProcess')
+	&& str_contains($mdbSrc, 'kloxo_pma@127.0.0.1')
 	&& preg_match('/ATTR_TIMEOUT\s*=>\s*2/', $mdbSrc) === 1,
-	'connectAdmin probes live sockets (not stale sock files) with a 2s timeout');
+	'connectAdmin probes sockets, prefers kloxo_pma when not root, 2s timeout');
 check(KloxoMariadb::isQuicklyReachable() === true || KloxoMariadb::isQuicklyReachable() === false,
 	'isQuicklyReachable returns a bool without hanging');
+$diag = KloxoMariadb::diagnose('/tmp/kloxo-no-such-root');
+check(is_array($diag) && array_key_exists('ok', $diag) && array_key_exists('ms', $diag)
+	&& array_key_exists('reachable', $diag) && is_int($diag['ms']) && $diag['ms'] < 5000,
+	'diagnose returns a timed report without hanging');
+$chk = $repo . '/kloxo/bin/install/check-mariadb';
+check(is_file($chk) && str_contains((string) file_get_contents($chk), 'KloxoMariadb::diagnose'),
+	'check-mariadb CLI uses diagnose');
 
 $clientLib = (string) file_get_contents($doc . '/lib/client/clientlib.php');
 $lxclient = (string) file_get_contents($doc . '/lib/client/lxclient.php');

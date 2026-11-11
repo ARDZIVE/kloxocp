@@ -493,4 +493,99 @@ final class KloxoSqlite
 
         return $out;
     }
+
+    /**
+     * Probe the panel SQLite file the same way the UI does (never hangs more
+     * than busy_timeout). Used by check-sqlite / kloxocp doctor.
+     *
+     * @return array{
+     *   path:string,
+     *   exists:bool,
+     *   readable:bool,
+     *   writable:bool,
+     *   pdo_sqlite:bool,
+     *   ok:bool,
+     *   journal:string,
+     *   busy_timeout:int,
+     *   tables:int,
+     *   admin:bool,
+     *   ms:int,
+     *   error:string
+     * }
+     */
+    public static function diagnose(?string $path = null): array
+    {
+        $t0 = microtime(true);
+        if ($path === null || $path === '') {
+            if (!class_exists('KloxoStore', false)) {
+                $store = __DIR__ . '/storage/KloxoStore.php';
+                if (is_file($store)) {
+                    require_once $store;
+                }
+            }
+            $path = class_exists('KloxoStore', false)
+                ? KloxoStore::panelPath()
+                : '/var/lib/kloxo/panel.sqlite';
+        }
+        $out = array(
+            'path' => $path,
+            'exists' => is_file($path),
+            'readable' => is_file($path) && is_readable($path),
+            'writable' => is_file($path) && is_writable($path),
+            'pdo_sqlite' => extension_loaded('pdo_sqlite'),
+            'ok' => false,
+            'journal' => '',
+            'busy_timeout' => 0,
+            'tables' => 0,
+            'admin' => false,
+            'ms' => 0,
+            'error' => '',
+        );
+        if (!$out['pdo_sqlite']) {
+            $out['error'] = 'pdo_sqlite is not loaded';
+            $out['ms'] = (int) round((microtime(true) - $t0) * 1000);
+
+            return $out;
+        }
+        if (!$out['exists']) {
+            $out['error'] = 'panel database does not exist (run init-panel-db)';
+            $out['ms'] = (int) round((microtime(true) - $t0) * 1000);
+
+            return $out;
+        }
+        if (!$out['readable']) {
+            $out['error'] = 'panel database is not readable by this process';
+            $out['ms'] = (int) round((microtime(true) - $t0) * 1000);
+
+            return $out;
+        }
+        try {
+            // Fresh connection (no pool) so diagnose reflects a real open.
+            if (class_exists('KloxoStore', false)) {
+                KloxoStore::resetPool();
+            }
+            $pdo = self::open($path, false);
+            $out['journal'] = (string) $pdo->query('PRAGMA journal_mode')->fetchColumn();
+            $out['busy_timeout'] = (int) $pdo->query('PRAGMA busy_timeout')->fetchColumn();
+            $out['tables'] = (int) $pdo->query(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )->fetchColumn();
+            try {
+                $out['admin'] = (int) $pdo->query(
+                    "SELECT COUNT(*) FROM client WHERE nname = 'admin'"
+                )->fetchColumn() === 1;
+            } catch (Throwable $e) {
+                $out['admin'] = false;
+            }
+            // Timed write probe: confirms busy_timeout and that we are not stuck.
+            $pdo->exec('BEGIN IMMEDIATE');
+            $pdo->exec('COMMIT');
+            $out['ok'] = true;
+        } catch (Throwable $e) {
+            $out['error'] = trim(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '');
+        }
+        $out['ms'] = (int) round((microtime(true) - $t0) * 1000);
+
+        return $out;
+    }
 }

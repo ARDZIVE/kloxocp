@@ -98,6 +98,12 @@ final class KloxoMariadb
 		return self::streamReady('tcp://127.0.0.1:3306', 1.0);
 	}
 
+	/** True when this process is root (kloxo-backend); panel FPM is lxlabs. */
+	private static function isRootProcess(): bool
+	{
+		return function_exists('posix_geteuid') && (int) posix_geteuid() === 0;
+	}
+
 	/**
 	 * Unix sockets that actually accept a connection (mysqld is up).
 	 *
@@ -139,8 +145,78 @@ final class KloxoMariadb
 	}
 
 	/**
-	 * Admin connection: live unix_socket as root first (kloxo-backend is root),
-	 * then kloxo_pma@127.0.0.1 only if TCP answers. Never try a stale socket.
+	 * Probe + login report for doctor / operators (never hangs more than a few seconds).
+	 *
+	 * @return array{
+	 *   reachable:bool,
+	 *   tcp:bool,
+	 *   sockets:list<string>,
+	 *   pma_pass:bool,
+	 *   as_root:bool,
+	 *   ok:bool,
+	 *   via:string,
+	 *   ms:int,
+	 *   error:string
+	 * }
+	 */
+	public static function diagnose(?string $root = null): array
+	{
+		$t0 = microtime(true);
+		$out = array(
+			'reachable' => false,
+			'tcp' => false,
+			'sockets' => array(),
+			'pma_pass' => false,
+			'as_root' => self::isRootProcess(),
+			'ok' => false,
+			'via' => '',
+			'ms' => 0,
+			'error' => '',
+		);
+		if (self::$injected instanceof self) {
+			$out['reachable'] = true;
+			$out['ok'] = true;
+			$out['via'] = 'injected';
+			$out['ms'] = (int) round((microtime(true) - $t0) * 1000);
+
+			return $out;
+		}
+		$out['sockets'] = self::liveUnixSockets();
+		$out['tcp'] = self::streamReady('tcp://127.0.0.1:3306', 1.0);
+		$out['reachable'] = $out['sockets'] !== array() || $out['tcp'];
+		if (!function_exists('kloxo_pma_login')) {
+			$pma = dirname(__FILE__) . '/kloxo_pma.php';
+			if (is_file($pma)) {
+				include_once $pma;
+			}
+		}
+		if (function_exists('kloxo_pma_pass_file')) {
+			$pf = kloxo_pma_pass_file($root);
+			$out['pma_pass'] = is_readable($pf) && trim((string) @file_get_contents($pf)) !== '';
+		}
+		if (!$out['reachable']) {
+			$out['error'] = 'MariaDB not accepting connections on socket or 127.0.0.1:3306';
+			$out['ms'] = (int) round((microtime(true) - $t0) * 1000);
+
+			return $out;
+		}
+		try {
+			self::connectAdmin('', '', $root);
+			$out['ok'] = true;
+			$out['via'] = 'connected';
+		} catch (Throwable $e) {
+			$out['error'] = $e->getMessage();
+		}
+		$out['ms'] = (int) round((microtime(true) - $t0) * 1000);
+
+		return $out;
+	}
+
+	/**
+	 * Admin connection.
+	 * - root (kloxo-backend): live unix_socket as root, then kloxo_pma@127.0.0.1
+	 * - panel FPM (lxlabs): kloxo_pma@127.0.0.1 only — root@localhost is
+	 *   unix_socket auth and fails for non-root (error 1698); never try it.
 	 */
 	public static function connectAdmin(string $user = '', string $pass = '', ?string $root = null): self
 	{
@@ -151,33 +227,74 @@ final class KloxoMariadb
 			throw new KloxoMariadbException('pdo_mysql is not loaded');
 		}
 
-		$attempts = array();
-		foreach (self::liveUnixSockets() as $sock) {
-			$attempts[] = array('mysql:unix_socket=' . $sock . ';charset=utf8mb4', 'root', '');
-		}
+		$asRoot = self::isRootProcess();
+		$socks = self::liveUnixSockets();
 		$tcpOk = self::streamReady('tcp://127.0.0.1:3306', 1.0);
-		if ($user !== '' && $pass !== '' && $tcpOk) {
-			$attempts[] = array('mysql:host=127.0.0.1;port=3306;charset=utf8mb4', $user, $pass);
+		if ($socks === array() && !$tcpOk) {
+			throw new KloxoMariadbException('Could not connect to MariaDB: server not reachable');
 		}
+
 		if (!function_exists('kloxo_pma_login')) {
 			$pma = dirname(__FILE__) . '/kloxo_pma.php';
 			if (is_file($pma)) {
 				include_once $pma;
 			}
 		}
-		if ($tcpOk && function_exists('kloxo_pma_login')) {
+
+		/** @var list<array{0:string,1:string,2:string,3:string}> dsn, user, pass, label */
+		$attempts = array();
+		if ($asRoot) {
+			foreach ($socks as $sock) {
+				$attempts[] = array(
+					'mysql:unix_socket=' . $sock . ';charset=utf8mb4',
+					'root',
+					'',
+					'root@unix_socket',
+				);
+			}
+		}
+		if ($user !== '' && $pass !== '' && $tcpOk) {
+			$attempts[] = array(
+				'mysql:host=127.0.0.1;port=3306;charset=utf8mb4',
+				$user,
+				$pass,
+				$user . '@127.0.0.1',
+			);
+		}
+		$pmaPass = '';
+		if (function_exists('kloxo_pma_login')) {
 			$cred = kloxo_pma_login($root);
-			if (($cred['pass'] ?? '') !== '') {
+			$pmaPass = (string) ($cred['pass'] ?? '');
+			if ($pmaPass !== '' && $tcpOk) {
 				$attempts[] = array(
 					'mysql:host=127.0.0.1;port=3306;charset=utf8mb4',
-					(string) $cred['user'],
-					(string) $cred['pass'],
+					(string) ($cred['user'] ?? 'kloxo_pma'),
+					$pmaPass,
+					'kloxo_pma@127.0.0.1',
+				);
+			}
+		}
+		// Non-root + socket only (skip-networking): use socket as kloxo_pma if we
+		// have the password (MariaDB maps host as localhost for unix socket).
+		if (!$asRoot && !$tcpOk && $socks !== array() && $pmaPass !== '' && function_exists('kloxo_pma_login')) {
+			$cred = kloxo_pma_login($root);
+			foreach ($socks as $sock) {
+				$attempts[] = array(
+					'mysql:unix_socket=' . $sock . ';charset=utf8mb4',
+					(string) ($cred['user'] ?? 'kloxo_pma'),
+					$pmaPass,
+					'kloxo_pma@unix_socket',
 				);
 			}
 		}
 
 		if ($attempts === array()) {
-			throw new KloxoMariadbException('Could not connect to MariaDB: server not reachable');
+			$why = !$tcpOk && $socks === array()
+				? 'server not reachable'
+				: ($pmaPass === ''
+					? 'no pma.pass (and not root for unix_socket)'
+					: 'no usable login method');
+			throw new KloxoMariadbException('Could not connect to MariaDB: ' . $why);
 		}
 
 		$errors = array();
@@ -200,7 +317,7 @@ final class KloxoMariadb
 
 					return new self($pdo);
 				} catch (PDOException $e) {
-					$errors[] = trim(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '');
+					$errors[] = $a[3] . ': ' . trim(preg_replace('/\s+/', ' ', $e->getMessage()) ?? '');
 				}
 			}
 		} finally {

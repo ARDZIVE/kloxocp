@@ -1,0 +1,54 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Probe panel.sqlite the same way the panel UI does.
+ * Usage: php kloxo/bin/install/check-sqlite [--root=/opt/kloxo] [--path=FILE]
+ * Exit 0 when the database opens and a write lock succeeds.
+ */
+
+$path = null;
+$root = null;
+foreach (array_slice($argv, 1) as $a) {
+	if (str_starts_with($a, '--root=')) {
+		$root = substr($a, 7);
+	} elseif (str_starts_with($a, '--path=')) {
+		$path = substr($a, 7);
+	} elseif ($a === '--help' || $a === '-h') {
+		fwrite(STDOUT, "Usage: check-sqlite [--root=DIR] [--path=FILE]\n");
+		exit(0);
+	}
+}
+
+$httpdocs = dirname(__DIR__, 2) . '/httpdocs';
+if ($root === null || $root === '') {
+	$env = getenv('KLOXO_ROOT');
+	$root = (is_string($env) && $env !== '') ? $env : '/opt/kloxo';
+}
+putenv('KLOXO_ROOT=' . $root);
+// Prefer the install's var lib when testing a tree that is not /opt/kloxo.
+$varLib = $root . '/var/lib/kloxo';
+if ($path === null && is_dir($varLib)) {
+	putenv('KLOXO_VAR_LIB=' . $varLib);
+}
+
+require $httpdocs . '/lib/php/kloxo_sqlite.php';
+
+$d = KloxoSqlite::diagnose($path);
+printf("SQLite diagnose (%d ms)\n", $d['ms']);
+printf("  path:          %s\n", $d['path']);
+printf("  exists:        %s\n", $d['exists'] ? 'yes' : 'no');
+printf("  readable:      %s\n", $d['readable'] ? 'yes' : 'no');
+printf("  writable:      %s\n", $d['writable'] ? 'yes' : 'no');
+printf("  pdo_sqlite:    %s\n", $d['pdo_sqlite'] ? 'yes' : 'no');
+printf("  journal:       %s\n", $d['journal'] !== '' ? $d['journal'] : '-');
+printf("  busy_timeout:  %s\n", $d['busy_timeout'] > 0 ? $d['busy_timeout'] . ' ms' : '-');
+printf("  tables:        %s\n", $d['ok'] || $d['tables'] > 0 ? (string) $d['tables'] : '-');
+printf("  admin row:     %s\n", $d['admin'] ? 'yes' : 'no');
+printf("  open+lock:     %s\n", $d['ok'] ? 'OK' : 'FAIL');
+if ($d['error'] !== '') {
+	printf("  error:         %s\n", $d['error']);
+}
+
+exit($d['ok'] ? 0 : 1);

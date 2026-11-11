@@ -149,6 +149,20 @@ check(!in_array('mariadb', $prot, true) && !in_array('mysqld', $prot, true)
 	&& Service__Linux::mayControlUnit('mysqld', 'disable') === true,
 	'MariaDB is not a critical service; stop/disable from the panel is allowed');
 
+$diag = KloxoSqlite::diagnose($panelFile);
+check($diag['ok'] && $diag['pdo_sqlite'] && $diag['admin'] && $diag['tables'] >= 40
+	&& strcasecmp($diag['journal'], 'wal') === 0
+	&& $diag['busy_timeout'] === KloxoSqlite::BUSY_TIMEOUT_MS
+	&& $diag['ms'] < 5000,
+	'diagnose opens panel.sqlite (WAL, busy_timeout, admin) without hanging',
+	json_encode($diag) ?: '');
+$chk = $repo . '/kloxo/bin/install/check-sqlite';
+check(is_file($chk) && str_contains((string) file_get_contents($chk), 'KloxoSqlite::diagnose'),
+	'check-sqlite CLI uses diagnose');
+$missing = KloxoSqlite::diagnose($tmp . '/no-such-panel.sqlite');
+check(!$missing['ok'] && !$missing['exists'] && $missing['ms'] < 2000,
+	'diagnose reports a missing file quickly');
+
 exec('rm -rf ' . escapeshellarg($tmp));
 printf("%d passed, %d failed\n", $pass, $fail);
 exit($fail === 0 ? 0 : 1);

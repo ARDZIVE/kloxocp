@@ -1,0 +1,42 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Probe local MariaDB the same way the panel does (socket / TCP / kloxo_pma).
+ * Usage: php kloxo/bin/install/check-mariadb [--root=/opt/kloxo]
+ * Exit 0 when connectAdmin succeeds.
+ */
+
+$root = null;
+foreach (array_slice($argv, 1) as $a) {
+	if (str_starts_with($a, '--root=')) {
+		$root = substr($a, 7);
+	} elseif ($a === '--help' || $a === '-h') {
+		fwrite(STDOUT, "Usage: check-mariadb [--root=DIR]\n");
+		exit(0);
+	}
+}
+
+$httpdocs = dirname(__DIR__, 2) . '/httpdocs';
+if ($root === null || $root === '') {
+	$env = getenv('KLOXO_ROOT');
+	$root = (is_string($env) && $env !== '') ? $env : '/opt/kloxo';
+}
+putenv('KLOXO_ROOT=' . $root);
+
+require $httpdocs . '/lib/php/kloxo_mariadb.php';
+
+$d = KloxoMariadb::diagnose($root);
+printf("MariaDB diagnose (%d ms)\n", $d['ms']);
+printf("  process root:  %s\n", $d['as_root'] ? 'yes' : 'no (panel-style)');
+printf("  reachable:     %s\n", $d['reachable'] ? 'yes' : 'no');
+printf("  tcp 3306:      %s\n", $d['tcp'] ? 'yes' : 'no');
+printf("  live sockets:  %s\n", $d['sockets'] === array() ? '(none)' : implode(', ', $d['sockets']));
+printf("  pma.pass:      %s\n", $d['pma_pass'] ? 'yes' : 'no/empty');
+printf("  connectAdmin:  %s\n", $d['ok'] ? 'OK (' . $d['via'] . ')' : 'FAIL');
+if ($d['error'] !== '') {
+	printf("  error:         %s\n", $d['error']);
+}
+
+exit($d['ok'] ? 0 : 1);
