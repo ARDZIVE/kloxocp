@@ -3005,7 +3005,9 @@ abstract class Lxclass
 
 		if ($this->isCoreBackup() && is_array($trulist) && $trulist && (($trulist[0] ?? '') !== 'all') && !array_search_bool($this->getClName(), $trulist)) {
 			$this->AddMEssageOnlyIfClientDomain("Not Selected");
-			$this->dbaction == 'clean';
+			// Must assign: `==` left unselected clients/domains with their
+			// serialized dbaction and was() restored them anyway.
+			$this->dbaction = 'clean';
 			$coreflag = true;
 			$return = true;
 		} else {
@@ -6029,7 +6031,7 @@ abstract class Lxclass
 				$file = "{$vd}/{$progname}.file";
 				$rem = getObjectFromFileWithThrow($file);
 				$ob = $rem->bobject;
-			} catch (Exception $e) {
+			} catch (Throwable $e) {
 				$file = "{$vd}/lxadmin.file";
 				$rem = getObjectFromFileWithThrow($file);
 				$ob = $rem->bobject;
@@ -6040,11 +6042,20 @@ abstract class Lxclass
 			$ob = $rem->bobject;
 		}
 
+		if (!is_object($ob) || !method_exists($ob, 'getClName')) {
+			throw new lxException($login->getThrow('backup_file_corrupted'), '', $file);
+		}
+
 		if ($ob->getClName() !== $this->getClName()) {
 			throw new lxException($login->getThrow('objectclassname_does_not_match'), '', "{$ob->getClName()} - {$this->getClName()}");
 		}
 
 		$gbl->__var_serverlist = isset($param['switchserverlist']) ? $param['switchserverlist'] : null;
+		// Client Restore From File must apply, not only list (restore.php sets
+		// this; restoreAccountInProcess did not and a leftover true skipped unpack).
+		if (!isset($gbl->__var_list_flag) || $gbl->__var_list_flag !== true) {
+			$gbl->__var_list_flag = false;
+		}
 
 		if ($gbl->__var_list_flag) {
 			print("Contents of the backfile: Owner: {$ob->nname}.....\n");
@@ -6052,8 +6063,17 @@ abstract class Lxclass
 			print("Restoring backup for {$ob->nname}.....\n");
 		}
 
+		$accounts = null;
+		if (isset($param['_accountselect']) && is_array($param['_accountselect']) && $param['_accountselect'] !== array()) {
+			$accounts = $param['_accountselect'];
+		} else {
+			// Empty checkbox list used to mean "restore nothing useful"; treat
+			// as restore all for client Restore From File.
+			$accounts = array('all');
+		}
+
 		try {
-			$ob->checkForConsistency(null, isset($param['_accountselect']) ? $param['_accountselect'] : null, true);
+			$ob->checkForConsistency(null, $accounts, true);
 		} catch (Throwable $e) {
 			print("Error '{$e}'\n");
 			log_log("restore", "Error '{$e}");

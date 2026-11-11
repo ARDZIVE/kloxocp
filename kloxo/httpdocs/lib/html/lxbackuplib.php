@@ -911,10 +911,18 @@ class lxbackup extends Lxdb
 		if (!is_array($param)) {
 			$param = array();
 		}
+		if (!isset($param['_accountselect']) || !is_array($param['_accountselect'])
+			|| $param['_accountselect'] === array()) {
+			$param['_accountselect'] = array('all');
+		}
 		if (!is_object($login) || (method_exists($login, 'isAdmin') && !$login->isAdmin())) {
 			if (function_exists('initProgram')) {
 				initProgram('admin');
 			}
+		}
+		if (is_object($gbl)) {
+			$gbl->__var_list_flag = false;
+			$gbl->__restore_flag = true;
 		}
 
 		$object = new $class(null, 'localhost', $name);
@@ -1297,11 +1305,17 @@ class lxbackup extends Lxdb
 		}
 
 		if (!$gbl->__var_list_flag) {
-		//	$text1 = "$cprogname Restore on " . date('Y-M-d') . " at " . date('H') . " Hours";
 			$text1 = "$cprogname Restore on " . date('Y-m-d') . " at " . date('H') . " Hours";
 			$text2 = "$cprogname Restore Succeeded for '{$parent->nname}' on '$parent->syncserver'";
-
-			lx_mail(null, $parent->contactemail, $text1, $text2 . "\n");
+			$to = (isset($parent->contactemail) && is_string($parent->contactemail))
+				? trim($parent->contactemail) : '';
+			if ($to !== '' && function_exists('lx_mail')) {
+				try {
+					lx_mail(null, $to, $text1, $text2 . "\n");
+				} catch (Throwable $e) {
+					log_log('restore', 'mail after restore: ' . $e->getMessage());
+				}
+			}
 			log_log("restore", "* " . $text1 . " - " . $text2);
 		}
 

@@ -320,6 +320,23 @@ check(str_contains($lx, "KloxoBackup::unbackupNames()")
 check(str_contains($lx, 'catch (Throwable')
 	&& substr_count($lx, 'catch (Throwable') >= 2,
 	'backup/restore object loops catch Throwable not only Exception');
+// Selective client restore: unselected core objects must be cleaned, not left
+// with the serialized dbaction (was `$this->dbaction == 'clean'` — a no-op).
+check(str_contains($lx, "\$this->dbaction = 'clean'")
+	&& !preg_match('/AddMEssageOnlyIfClientDomain\("Not Selected"\);\s*\$this->dbaction == \'clean\'/', $lx),
+	'unselected client/domain restore sets dbaction = clean (not ==)');
+check(str_contains($lx, "array('all')")
+	&& str_contains($lx, 'Empty checkbox list')
+	&& str_contains($lx, 'catch (Throwable $e)')
+	&& str_contains($lx, 'backup_file_corrupted'),
+	'client doCoreRestore defaults empty account select to all; kloxo.file fallback catches Throwable');
+check(str_contains($bak, "\$param['_accountselect'] = array('all')")
+	&& str_contains($bak, "\$gbl->__var_list_flag = false")
+	&& str_contains($bak, '__restore_flag = true'),
+	'restoreAccountInProcess defaults accounts=all and clears list-only flag');
+check(str_contains($bak, 'mail after restore:')
+	|| (str_contains($bak, 'contactemail') && str_contains($bak, 'lx_mail')),
+	'client restore skips notify mail when contactemail is empty');
 check(str_contains($lx, "!is_array(\$res) || !isset(\$res['file'])"),
 	'backMeUp skips getFromFileserv when the driver returned nothing');
 check(str_contains($bak, 'KloxoBackup::runBackup')
