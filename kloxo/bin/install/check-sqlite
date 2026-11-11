@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 /**
  * Probe panel.sqlite the same way the panel UI does.
- * Usage: php kloxo/bin/install/check-sqlite [--root=/opt/kloxo] [--path=FILE]
+ * Usage:
+ *   /opt/kloxo/init/php-cli.sh /opt/kloxo/bin/install/check-sqlite
+ *   php8.5 /opt/kloxo/bin/install/check-sqlite
  * Exit 0 when the database opens and a write lock succeeds.
+ *
+ * If this process has no pdo_sqlite, re-exec with etc/path/php (or php8.5…).
  */
 
 $path = null;
@@ -21,22 +25,71 @@ foreach (array_slice($argv, 1) as $a) {
 	}
 }
 
-$httpdocs = dirname(__DIR__, 2) . '/httpdocs';
 if ($root === null || $root === '') {
 	$env = getenv('KLOXO_ROOT');
 	$root = (is_string($env) && $env !== '') ? $env : '/opt/kloxo';
 }
 putenv('KLOXO_ROOT=' . $root);
-// Prefer the install's var lib when testing a tree that is not /opt/kloxo.
+
+if (!extension_loaded('pdo_sqlite')) {
+	$candidates = array();
+	$pinFile = $root . '/etc/path/php';
+	if (is_file($pinFile)) {
+		$pin = trim((string) file_get_contents($pinFile));
+		if ($pin !== '' && is_executable($pin)) {
+			$candidates[] = $pin;
+		}
+	}
+	foreach (array('/usr/bin/php8.5', '/usr/bin/php8.6', '/usr/bin/php8.4', '/usr/bin/php8.3', '/usr/bin/php') as $p) {
+		$candidates[] = $p;
+	}
+	$self = realpath((string) (PHP_BINARY ?: '')) ?: '';
+	$script = realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? __FILE__)) ?: __FILE__;
+	foreach ($candidates as $bin) {
+		if (!is_executable($bin)) {
+			continue;
+		}
+		$real = realpath($bin) ?: $bin;
+		if ($self !== '' && $real === $self) {
+			continue;
+		}
+		$p = @proc_open(
+			array($bin, '-r', 'exit(extension_loaded("pdo_sqlite") ? 0 : 1);'),
+			array(0 => array('file', '/dev/null', 'r'), 1 => array('file', '/dev/null', 'w'), 2 => array('file', '/dev/null', 'w')),
+			$pipes
+		);
+		if (!is_resource($p) || proc_close($p) !== 0) {
+			continue;
+		}
+		$args = array_slice($argv, 1);
+		if (function_exists('pcntl_exec')) {
+			pcntl_exec($bin, array_merge(array($script), $args));
+		}
+		$cmd = escapeshellarg($bin) . ' ' . escapeshellarg($script);
+		foreach ($args as $a) {
+			$cmd .= ' ' . escapeshellarg((string) $a);
+		}
+		passthru($cmd, $rc);
+		exit(is_int($rc) ? $rc : 1);
+	}
+	$ver = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+	fwrite(STDERR, "pdo_sqlite missing in " . PHP_BINARY . " (PHP {$ver}).\n");
+	fwrite(STDERR, "  apt-get install -y php{$ver}-sqlite3 php8.5-sqlite3\n");
+	fwrite(STDERR, "  then: /opt/kloxo/init/php-cli.sh {$script}\n");
+	fwrite(STDERR, "  or:   /usr/bin/php8.5 {$script}\n");
+	exit(1);
+}
+
+$httpdocs = dirname(__DIR__, 2) . '/httpdocs';
 $varLib = $root . '/var/lib/kloxo';
-if ($path === null && is_dir($varLib)) {
+if ($path === null && is_dir($varLib) && !is_file('/var/lib/kloxo/panel.sqlite')) {
 	putenv('KLOXO_VAR_LIB=' . $varLib);
 }
 
 require $httpdocs . '/lib/php/kloxo_sqlite.php';
 
 $d = KloxoSqlite::diagnose($path);
-printf("SQLite diagnose (%d ms)\n", $d['ms']);
+printf("SQLite diagnose (%d ms)  PHP %s\n", $d['ms'], PHP_VERSION);
 printf("  path:          %s\n", $d['path']);
 printf("  exists:        %s\n", $d['exists'] ? 'yes' : 'no');
 printf("  readable:      %s\n", $d['readable'] ? 'yes' : 'no');
