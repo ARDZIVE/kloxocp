@@ -2987,7 +2987,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111108';
+	return '10.1-2026111109';
 }
 
 function getDownloadServer()
@@ -8255,13 +8255,32 @@ function getTimeZoneList()
 	return $list;
 }
 
+/**
+ * Trim string form values. Nested arrays (restore _accountselect, multi-selects)
+ * must not be passed to trim() — PHP 8 TypeError blanked Backup/Restore.
+ *
+ * @param mixed $data
+ * @return mixed
+ */
 function trimming($data)
 {
-	if (gettype($data) == 'array') {
-		return array_map("trim", $data);
-	} else {
+	if (is_array($data)) {
+		$out = array();
+		foreach ($data as $k => $v) {
+			$out[$k] = trimming($v);
+		}
+
+		return $out;
+	}
+	if (is_string($data)) {
 		return trim($data);
 	}
+	if (is_int($data) || is_float($data) || is_bool($data) || $data === null) {
+		return $data;
+	}
+
+	// Objects / resources: leave unchanged (never cast through trim).
+	return $data;
 }
 
 function getFSBlockSizeInKb()

@@ -443,6 +443,31 @@ if ($helpersOk) {
 		&& !str_contains($safe, 'frm_m_emessage_data');
 }
 check($helpersOk, 'finished-page helpers parse restore_failed and keep Continue URL short');
+
+// trimming() must accept restore _accountselect nested arrays (PHP 8 TypeError).
+$trimSrc = '';
+if (preg_match('/function trimming\(\$data\)\s*\{.*?\n\}\n\nfunction getFSBlockSizeInKb/s', $lib, $tm) === 1
+	|| preg_match('/function trimming\(\$data\)\s*\{.*?\n\}\n\nfunction getFSBlockSizeInKb/s',
+		(string) file_get_contents($doc . '/lib/html/lib.php'), $tm) === 1) {
+	$trimSrc = preg_replace('/\nfunction getFSBlockSizeInKb.*$/s', '', $tm[0]) ?? '';
+}
+$trimOk = false;
+if ($trimSrc !== '' && str_contains($trimSrc, 'is_array($data)')) {
+	eval($trimSrc);
+	$got = trimming(array(
+		'backup_from_file_f' => '  a.tgz  ',
+		'_accountselect' => array(' client-a ', 'domain-b'),
+		'flag' => true,
+		'n' => 3,
+	));
+	$trimOk = is_array($got)
+		&& ($got['backup_from_file_f'] ?? '') === 'a.tgz'
+		&& ($got['_accountselect'][0] ?? '') === 'client-a'
+		&& ($got['_accountselect'][1] ?? '') === 'domain-b'
+		&& ($got['flag'] ?? null) === true
+		&& ($got['n'] ?? null) === 3;
+}
+check($trimOk, 'trimming() recurses nested restore _accountselect without TypeError');
 check(str_contains($bak, "dbaction = 'clean'")
 	&& str_contains($bak, 'collectquota after restore'),
 	'Restore marks lxbackup clean and does not abort on collectquota');
