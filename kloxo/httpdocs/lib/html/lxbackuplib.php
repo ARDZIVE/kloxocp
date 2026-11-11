@@ -1316,14 +1316,40 @@ class lxbackup extends Lxdb
 		global $sgbl, $login;
 
 		$progname = $sgbl->__var_program_name;
-		$vd = tempnam("/tmp", "backup");
+		$file = is_string($file) ? $file : '';
+		if ($file === '' || !is_file($file)) {
+			throw new lxException($login->getThrow('could_not_find_file'), '', $file);
+		}
+		if (!is_readable($file)) {
+			throw new lxException($login->getThrow('could_not_unzip_file'), '',
+				"file not readable: {$file}");
+		}
+		$size = @filesize($file);
+		if ($size === false || $size < 24) {
+			throw new lxException($login->getThrow('could_not_unzip_file'), '',
+				"archive empty or truncated: {$file} (size=" . (string) $size . ")");
+		}
+
+		// Prefer shared serverfile/tmp over /tmp: PHP-FPM PrivateTmp made
+		// /tmp paths unusable across the panel ↔ kloxo-backend boundary.
+		$base = '/tmp';
+		if (isset($sgbl->__path_serverfile) && is_string($sgbl->__path_serverfile) && $sgbl->__path_serverfile !== '') {
+			$cand = rtrim($sgbl->__path_serverfile, '/') . '/tmp';
+			lxfile_mkdir($cand);
+			if (is_dir($cand) && is_writable($cand)) {
+				$base = $cand;
+			}
+		}
+		$vd = tempnam($base, 'backup');
 
 		if (!$vd) {
 			throw new lxException($login->getThrow('could_not_create_tmp_dir'));
 		}
 
 		lunlink($vd);
-		mkdir($vd);
+		if (!@mkdir($vd, 0700) && !is_dir($vd)) {
+			throw new lxException($login->getThrow('could_not_create_tmp_dir'), '', $vd);
+		}
 		lxfile_generic_chmod($vd, "0700");
 
 		if (!class_exists('KloxoBackup', false)) {
@@ -1345,9 +1371,29 @@ class lxbackup extends Lxdb
 					}
 				}
 			}
+			// Old simple-backup packs stored metadata under absolute-looking
+			// paths (tmp/.../kloxo.file). Promote them to the extract root.
+			foreach (array(
+				"{$progname}.file", "{$progname}.metadata",
+				'lxadmin.file', 'lxadmin.metadata', 'kloxo.env.json',
+			) as $need) {
+				$top = $vd . '/' . $need;
+				if (is_file($top)) {
+					continue;
+				}
+				if (!function_exists('recursively_get_file')) {
+					continue;
+				}
+				$found = recursively_get_file($vd, $need);
+				if (is_string($found) && $found !== '' && is_file($found) && $found !== $top) {
+					@copy($found, $top);
+				}
+			}
 		} catch (Throwable $e) {
+			$why = trim($e->getMessage());
 			lxfile_tmp_rm_rec($vd);
-			throw new lxException($login->getThrow('could_not_unzip_file'), '', "dir: {$vd}; file: {$file}");
+			throw new lxException($login->getThrow('could_not_unzip_file'), '',
+				"dir: {$vd}; file: {$file}" . ($why !== '' ? "; reason: {$why}" : ''));
 		}
 
 		return $vd;

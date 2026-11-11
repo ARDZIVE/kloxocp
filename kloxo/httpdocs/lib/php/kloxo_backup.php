@@ -1257,6 +1257,13 @@ final class KloxoBackup
 		if (!is_file($archive) || $dest === '' || str_contains($dest, "\0")) {
 			throw new KloxoBackupException('invalid archive or destination');
 		}
+		if (!is_readable($archive)) {
+			throw new KloxoBackupException('archive not readable: ' . basename($archive));
+		}
+		$size = @filesize($archive);
+		if ($size === false || $size < 24) {
+			throw new KloxoBackupException('archive empty or truncated: ' . basename($archive));
+		}
 		if (!is_dir($dest)) {
 			@mkdir($dest, 0700, true);
 		}
@@ -1265,21 +1272,35 @@ final class KloxoBackup
 		}
 		$listed = self::listArchiveMembers($archive);
 		$safe = array();
+		$skipped = 0;
 		foreach ($listed as $entry) {
 			$name = (string) ($entry['name'] ?? '');
-			if (!self::archiveMemberIsSafe($name)) {
-				throw new KloxoBackupException('archive contains an unsafe path');
+			// Normalise leading ./ and a single leading / (old simple-backup
+			// packs used absolute paths; GNU tar stores them without /).
+			$norm = preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $name)) ?? $name;
+			$norm = ltrim($norm, '/');
+			if ($norm === '' || !self::archiveMemberIsSafe($norm)) {
+				$skipped++;
+				continue;
 			}
 			if (!empty($entry['link'])) {
 				continue;
 			}
+			// Keep the name tar expects (may still have ./ prefix).
 			$safe[] = $name;
+		}
+		if ($safe === array() && $listed !== array()) {
+			throw new KloxoBackupException(
+				'archive has no safe members to extract'
+				. ($skipped > 0 ? " ({$skipped} skipped)" : '')
+			);
 		}
 		$extract = $safe;
 		if ($members !== array()) {
 			$want = array();
 			foreach ($members as $m) {
 				$m = str_replace(array(';', "\n", "\r", "\0"), '', (string) $m);
+				$m = ltrim(preg_replace('#^(?:\./)+#', '', $m) ?? $m, '/');
 				if ($m === '' || str_contains($m, '*') || !self::archiveMemberIsSafe($m)) {
 					throw new KloxoBackupException('archive contains an unsafe path');
 				}
@@ -1287,12 +1308,16 @@ final class KloxoBackup
 			}
 			$extract = array();
 			foreach ($safe as $n) {
-				if (in_array($n, $want, true) || in_array(preg_replace('#^(?:\./)+#', '', $n), $want, true)) {
+				$nn = ltrim(preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $n)) ?? $n, '/');
+				if (in_array($nn, $want, true) || in_array(basename($nn), $want, true)) {
 					$extract[] = $n;
 				}
 			}
 			if ($extract === array()) {
-				throw new KloxoBackupException('could not untar ' . basename($archive));
+				throw new KloxoBackupException(
+					'archive missing ' . implode(',', $want) . ' (listed '
+					. (string) count($listed) . ' members)'
+				);
 			}
 		}
 		if ($extract === array()) {
@@ -1307,7 +1332,10 @@ final class KloxoBackup
 			}
 			$r = self::run($argv);
 			if (($r['code'] ?? 1) !== 0) {
-				throw new KloxoBackupException('could not unzip ' . basename($archive));
+				$detail = self::shortCmdError($r['out'] ?? '');
+				throw new KloxoBackupException(
+					'could not unzip ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
+				);
 			}
 
 			return;
@@ -1323,7 +1351,10 @@ final class KloxoBackup
 		}
 		$r = self::run($argv);
 		if (($r['code'] ?? 1) !== 0) {
-			throw new KloxoBackupException('could not untar ' . basename($archive));
+			$detail = self::shortCmdError($r['out'] ?? '');
+			throw new KloxoBackupException(
+				'could not untar ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
+			);
 		}
 	}
 
@@ -1432,6 +1463,16 @@ final class KloxoBackup
 	}
 
 	/** @return list<array{name:string,link:bool}> */
+	private static function shortCmdError(string $out): string
+	{
+		$out = trim(preg_replace('/\s+/', ' ', $out) ?? '');
+		if ($out === '') {
+			return '';
+		}
+
+		return strlen($out) > 220 ? substr($out, 0, 220) . '…' : $out;
+	}
+
 	private static function listTarMembers(string $archive, bool $gzip): array
 	{
 		$tar = self::firstExec(array('/usr/bin/tar', '/bin/tar', 'tar'));
@@ -1440,14 +1481,40 @@ final class KloxoBackup
 		if ($gzip) {
 			array_splice($argv, 1, 0, '-z');
 		}
-		$r = self::run($argv, null, null, true);
+		// Capture stderr too so a failed list shows "not in gzip format" / permission.
+		$r = self::run($argv, null, null, false);
 		if (($r['code'] ?? 1) !== 0) {
-			throw new KloxoBackupException('could not list ' . basename($archive));
+			// Retry the other compression guess when magic/extension disagree
+			// (truncated upload often has gzip magic but a broken stream).
+			$alt = $argv;
+			$zPos = array_search('-z', $alt, true);
+			if ($gzip && $zPos !== false) {
+				unset($alt[$zPos]);
+				$alt = array_values($alt);
+			} elseif (!$gzip) {
+				array_splice($alt, 1, 0, '-z');
+			} else {
+				$alt = array();
+			}
+			if ($alt !== array()) {
+				$r2 = self::run($alt, null, null, false);
+				if (($r2['code'] ?? 1) === 0) {
+					$r = $r2;
+					$argv = $alt;
+				}
+			}
+		}
+		if (($r['code'] ?? 1) !== 0) {
+			$detail = self::shortCmdError($r['out'] ?? '');
+			throw new KloxoBackupException(
+				'could not list ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
+			);
 		}
 		$names = array();
 		foreach (preg_split("/\r\n|\n|\r/", (string) ($r['out'] ?? '')) as $line) {
 			$name = trim($line);
-			if ($name === '' || str_starts_with($name, 'tar:')) {
+			if ($name === '' || str_starts_with($name, 'tar:')
+				|| str_starts_with($name, 'gzip:') || str_contains($name, ': ')) {
 				continue;
 			}
 			$names[] = $name;

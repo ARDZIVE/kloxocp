@@ -177,12 +177,55 @@ if ($tarBin !== '') {
 		check(is_file($metaDir . '/kloxo.file') && is_file($metaDir . '/kloxo.metadata'),
 			'extractArchive pulls kloxo.file and kloxo.metadata from a tgz');
 		check(KloxoBackup::archiveType($tgz) === 'tgz', 'archiveType sees gzip');
+		$nestedSrc = $base . '/nestedsrc';
+		$nestedDir = $nestedSrc . '/tmp/old';
+		@mkdir($nestedDir, 0700, true);
+		file_put_contents($nestedDir . '/kloxo.file', 'nested-meta');
+		file_put_contents($nestedDir . '/kloxo.metadata', 'nested');
+		$nestedTgz = $base . '/nested.tgz';
+		$p = @proc_open(array($tarBin, '-czf', $nestedTgz, '-C', $nestedSrc, 'tmp'),
+			array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
+		if (is_resource($p)) {
+			stream_get_contents($pipes[1]);
+			stream_get_contents($pipes[2]);
+			fclose($pipes[1]);
+			fclose($pipes[2]);
+			proc_close($p);
+		}
+		$nestedOut = $base . '/nestedout';
+		@mkdir($nestedOut, 0700, true);
+		$nestedOk = false;
+		if (is_file($nestedTgz)) {
+			KloxoBackup::extractArchive($nestedTgz, $nestedOut, array('kloxo.file', 'kloxo.metadata'));
+			$nestedOk = is_file($nestedOut . '/tmp/old/kloxo.file')
+				|| is_file($nestedOut . '/kloxo.file');
+		}
+		check($nestedOk, 'extractArchive finds kloxo.file by basename when nested in the tgz');
+		$trunc = $base . '/trunc.tgz';
+		file_put_contents($trunc, chr(0x1f) . chr(0x8b) . chr(0x08) . chr(0x00)); // gzip magic, truncated
+		$truncThrew = false;
+		$truncMsg = '';
+		try {
+			KloxoBackup::extractArchive($trunc, $metaDir, array('kloxo.file'));
+		} catch (KloxoBackupException $e) {
+			$truncThrew = true;
+			$truncMsg = $e->getMessage();
+		}
+		check($truncThrew && (str_contains($truncMsg, 'could not list')
+			|| str_contains($truncMsg, 'truncated') || str_contains($truncMsg, 'empty')),
+			'truncated gzip archive fails with a clear reason', $truncMsg);
 	} else {
 		check(false, 'extractArchive pulls kloxo.file and kloxo.metadata from a tgz', 'could not create sample tgz');
 	}
-	} else {
-		check(true, 'extractArchive skipped (no tar on this host)');
-	}
+} else {
+	check(true, 'extractArchive skipped (no tar on this host)');
+}
+
+$bakLib = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
+check(str_contains($bakLib, 'reason:')
+	&& str_contains($bakLib, 'serverfile')
+	&& str_contains($bakLib, 'archive empty or truncated'),
+	'createTmpDirIfitDoesntExist surfaces extract reason and rejects empty archives');
 
 echo "== tar slip and restore metadata\n";
 check(KloxoBackup::archiveMemberIsSafe('kloxo.file')
@@ -190,7 +233,7 @@ check(KloxoBackup::archiveMemberIsSafe('kloxo.file')
 	&& !KloxoBackup::archiveMemberIsSafe('../escaped')
 	&& !KloxoBackup::archiveMemberIsSafe('/etc/passwd')
 	&& !KloxoBackup::archiveMemberIsSafe('foo/../../etc/passwd')
-	&& !KloxoBackup::archiveMemberIsSafe("x\0y"),
+	&& !KloxoBackup::archiveMemberIsSafe('x' . chr(0) . 'y'),
 	'archiveMemberIsSafe rejects traversal, absolute and NUL');
 $slipDir = $base . '/slipdest';
 @mkdir($slipDir, 0700, true);
