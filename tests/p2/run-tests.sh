@@ -909,6 +909,12 @@ if grep -q "exim/exim4.conf" "$ROOT/kloxo/bin/mail/kloxo-mail" \
 else
   bad "hosted mail templates and installer stay Exim"
 fi
+if grep -q 'tls_require_ciphers = SECURE128' "$ROOT/kloxo/file/mail/exim/exim4.conf" \
+  && ! grep -q '^openssl_options' "$ROOT/kloxo/file/mail/exim/exim4.conf"; then
+  ok "Exim template is GnuTLS-safe (no openssl_options)"
+else
+  bad "Exim template is GnuTLS-safe (no openssl_options)"
+fi
 if grep -F -q "['name' => 'postfix'" "$ROOT/kloxo/httpdocs/lib/php/kloxo_component.php" \
   && grep -q 'smtp__postfix' "$ROOT/kloxo/httpdocs/lib/driver_define.php" \
   && grep -q 'array("none", "exim", "postfix")' "$ROOT/kloxo/file/driver/debian.inc" \

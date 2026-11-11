@@ -105,7 +105,9 @@ Safety properties (all covered by tests):
 
 * **TLS everywhere:** TLS 1.2+, login only over TLS (Dovecot `ssl = required`, Exim
   `auth_advertise_hosts` only when TLS is up on 587/465); implicit TLS (465, 993, 995) and
-  STARTTLS (587, 143, 110) offered. Port 25 never advertises AUTH.
+  STARTTLS (587, 143, 110) offered. Port 25 never advertises AUTH. Ubuntu Exim is
+  **GnuTLS**-built: the template uses a GnuTLS `tls_require_ciphers` priority string and must
+  not set `openssl_options` (Exim rejects that with "we're using GnuTLS").
 * **Passwords:** Argon2id in the database (Dovecot verifies the PHP-generated hash; tested).
 * **Submission only for authenticated users**, and **the sender must belong to the login**
   (MAIL ACL compares `$sender_address` to `$authenticated_id` via mailbox UNION alias-owner):
