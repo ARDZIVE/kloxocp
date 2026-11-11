@@ -737,10 +737,16 @@ check(preg_match(
 	$libSrc
 ) === 1,
 	'cp_fileserv copies uploads into shared serverfile/tmp (PrivateTmp-safe)');
+$ffileCommon = (string) file_get_contents($doc . '/driver/pserver/ffile__commonlib.php');
 check(str_contains($ffileSrc, "rootBase === '__backup'")
 	&& str_contains($ffileSrc, 'move_uploaded_file')
-	&& str_contains($ffileSrc, 'is_writable($destDir)'),
-	'Backup __backup upload writes in-process when the dir is writable');
+	&& str_contains($ffileSrc, 'is_writable($destDir)')
+	&& str_contains($ffileSrc, 'empty upload (0 bytes)')
+	&& str_contains($ffileSrc, '.uploading.')
+	&& str_contains($ffileCommon, '.uploading.')
+	&& str_contains($ffileCommon, 'empty upload after fileserv')
+	&& str_contains($libSrc, 'Refusing empty fileserv'),
+	'Backup upload rejects 0-byte files and replaces atomically');
 
 echo "== panel Help text\n";
 $__information = array();

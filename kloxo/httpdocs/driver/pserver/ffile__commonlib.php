@@ -438,18 +438,39 @@ class ffile__common
 		
 		dprintr($this->main->upload_overwrite_f);
 		
-		if (lfile_exists($filename)) {
-			if (!$this->main->isOn('upload_overwrite_f')) {
-				throw new lxException($login->getThrow('file_upload_already_exists'), '', $filename);
-			} else {
-				lxfile_rm("$filename");
-			}
+		if (lfile_exists($filename) && !$this->main->isOn('upload_overwrite_f')) {
+			throw new lxException($login->getThrow('file_upload_already_exists'), '', $filename);
 		}
-		
+
 		dprintr($this->main);
-		
-		getFromFileserv($this->main->__var_upload_tmp_server, $this->main->__var_upload_filepass, "$filename");
-		
+
+		// Write to a sidecare then rename so a failed fileserv copy cannot
+		// leave a 0-byte archive that Restore then rejects as truncated.
+		$part = $filename . '.uploading.' . getmypid();
+		if (lfile_exists($part)) {
+			lxfile_rm($part);
+		}
+		getFromFileserv($this->main->__var_upload_tmp_server, $this->main->__var_upload_filepass, $part);
+		$size = @filesize($part);
+		if (!is_file($part) || $size === false || (int) $size < 1) {
+			if (lfile_exists($part)) {
+				lxfile_rm($part);
+			}
+			throw new lxException($login->getThrow('no_file_in_upload'), '',
+				'empty upload after fileserv (0 bytes)');
+		}
+		if (lfile_exists($filename)) {
+			lxfile_rm($filename);
+		}
+		if (!@rename($part, $filename)) {
+			lxfile_cp($part, $filename);
+			lxfile_rm($part);
+		}
+		if (!is_file($filename) || (int) @filesize($filename) < 1) {
+			throw new lxException($login->getThrow('no_file_in_upload'), '',
+				'could not install uploaded file');
+		}
+
 		return $filename;
 	}
 

@@ -1861,13 +1861,34 @@ function doRealGetFromFileServ($cmd, $serv, $filepass, $copyto = null)
 		log_log("servfile", "get local file $realfile");
 
 		if (lxfile_exists($realfile) && lis_readable($realfile)) {
+			$srcSize = @filesize($realfile);
 			lunlink($path);
 
 			if ($cmd === 'fileprint') {
 				slow_print($realfile);
 			} else {
+				if ($srcSize === false || (int) $srcSize < 1) {
+					log_log("servfile", "Refusing empty local fileserv source $realfile");
+					fileserv_unlink_if_tmp($realfile);
+
+					return;
+				}
 				lxfile_mkdir(dirname($copyto));
-				lxfile_cp($realfile, $copyto);
+				$part = $copyto . '.part.' . getmypid();
+				lxfile_cp($realfile, $part);
+				$dstSize = @filesize($part);
+				if ($dstSize === false || (int) $dstSize < 1) {
+					@unlink($part);
+					log_log("servfile", "Refusing empty local fileserv copy for $copyto");
+					fileserv_unlink_if_tmp($realfile);
+
+					return;
+				}
+				@unlink($copyto);
+				if (!@rename($part, $copyto)) {
+					lxfile_cp($part, $copyto);
+					@unlink($part);
+				}
 			}
 
 			fileserv_unlink_if_tmp($realfile);
@@ -1883,24 +1904,42 @@ function doRealGetFromFileServ($cmd, $serv, $filepass, $copyto = null)
 	}
 
 	$fd = null;
+	$part = null;
 
 	if ($copyto) {
 		lxfile_mkdir(dirname($copyto));
-		$fd = fopen($copyto, "wb");
+		// Sidecar write: a failed stream must not leave a 0-byte final file
+		// (Restore then reports "archive empty or truncated").
+		$part = $copyto . '.part.' . getmypid();
+		$fd = fopen($part, "wb");
 
 		if (!$fd) {
-			log_log("servfile", "Could not write to $copyto... Returning.");
+			log_log("servfile", "Could not write to $part... Returning.");
 
 			return;
 		}
 
-		lxfile_generic_chmod($copyto, "0700");
+		lxfile_generic_chmod($part, "0700");
 	}
 
 	doGetOrPrintFromFileServ($serv, $filepass, $cmd, $fd);
 
 	if ($fd) {
 		fclose($fd);
+	}
+	if ($part !== null) {
+		$size = @filesize($part);
+		if ($size === false || (int) $size < 1) {
+			@unlink($part);
+			log_log("servfile", "Refusing empty fileserv result for $copyto");
+
+			return;
+		}
+		@unlink($copyto);
+		if (!@rename($part, $copyto)) {
+			@copy($part, $copyto);
+			@unlink($part);
+		}
 	}
 }
 
@@ -3004,7 +3043,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111122';
+	return '10.1-2026111123';
 }
 
 function getDownloadServer()

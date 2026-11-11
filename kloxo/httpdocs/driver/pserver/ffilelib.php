@@ -297,9 +297,23 @@ class Ffile extends Lxclass
 			? (string) $_FILES['upload_file_f']['tmp_name'] : '';
 		$this->upload_file_name = isset($_FILES['upload_file_f']['name'])
 			? (string) $_FILES['upload_file_f']['name'] : '';
+		$uploadErr = isset($_FILES['upload_file_f']['error']) ? (int) $_FILES['upload_file_f']['error'] : UPLOAD_ERR_NO_FILE;
+		$uploadSize = isset($_FILES['upload_file_f']['size']) ? (int) $_FILES['upload_file_f']['size'] : 0;
 
-		if ($this->upload_file_name === '' || $tmp === '' || !is_uploaded_file($tmp)) {
-			throw new lxException($login->getThrow('no_file_in_upload'), '', $this->upload_file_name);
+		if ($uploadErr !== UPLOAD_ERR_OK || $this->upload_file_name === '' || $tmp === '' || !is_uploaded_file($tmp)) {
+			$hint = $this->upload_file_name;
+			if ($uploadErr === UPLOAD_ERR_INI_SIZE || $uploadErr === UPLOAD_ERR_FORM_SIZE) {
+				$hint = 'file too large for upload_max_filesize/post_max_size';
+			} elseif ($uploadErr !== UPLOAD_ERR_OK && $uploadErr !== UPLOAD_ERR_NO_FILE) {
+				$hint = 'upload error ' . $uploadErr;
+			}
+			throw new lxException($login->getThrow('no_file_in_upload'), '', $hint);
+		}
+
+		$tmpSize = @filesize($tmp);
+		if ($uploadSize < 1 || $tmpSize === false || $tmpSize < 1) {
+			throw new lxException($login->getThrow('no_file_in_upload'), '',
+				'empty upload (0 bytes) — choose the backup .tgz again');
 		}
 
 		$this->upload_file_name = str_replace(array("'", "\0", "/", "\\"), '', $this->upload_file_name);
@@ -324,19 +338,33 @@ class Ffile extends Lxclass
 			|| str_ends_with($destDir, '/__backup') || str_ends_with($destDir, '/__backup/'));
 		if ($isBackupStore && $destDir !== '' && is_dir($destDir) && is_writable($destDir)) {
 			$dest = rtrim($destDir, '/') . '/' . $this->upload_file_name;
-			if (is_file($dest)) {
-				@unlink($dest);
+			$part = $dest . '.uploading.' . getmypid();
+			@unlink($part);
+			$ok = @move_uploaded_file($tmp, $part);
+			if (!$ok) {
+				$ok = @copy($tmp, $part);
 			}
-			if (@move_uploaded_file($tmp, $dest) || @copy($tmp, $dest)) {
-				@chmod($dest, 0640);
+			$written = $ok ? @filesize($part) : false;
+			if ($ok && is_numeric($written) && (int) $written > 0) {
+				@chmod($part, 0640);
 				if (function_exists('lxfile_generic_chown')) {
-					lxfile_generic_chown($dest, 'lxlabs');
+					lxfile_generic_chown($part, 'lxlabs');
 				}
-				$this->dbaction = 'clean';
-				$this->subaction = null;
+				// Atomic replace: never leave a 0-byte dest if the write fails.
+				if (!@rename($part, $dest)) {
+					@unlink($dest);
+					$ok = @rename($part, $dest) || (@copy($part, $dest) && @unlink($part));
+				}
+				if ($ok && is_file($dest) && (int) @filesize($dest) > 0) {
+					$this->dbaction = 'clean';
+					$this->subaction = null;
 
-				return null;
+					return null;
+				}
 			}
+			@unlink($part);
+			throw new lxException($login->getThrow('no_file_in_upload'), '',
+				'could not save upload to ' . $this->upload_file_name);
 		}
 
 		$this->up_temp_file_name = $tmp;

@@ -8777,10 +8777,16 @@ function startUploading(e) {
 		// create XMLHttpRequest object, adding few event listeners, and POSTing our data
 		var oXHR = new XMLHttpRequest();		
 		oXHR.upload.addEventListener('progress', uploadProgress, false);
-		oXHR.addEventListener('load', uploadFinish, false);
+		oXHR.addEventListener('load', function (ev) {
+			if (oXHR.status >= 200 && oXHR.status < 400) {
+				uploadFinish(ev);
+			} else {
+				uploadError(ev);
+			}
+		}, false);
 		oXHR.addEventListener('error', uploadError, false);
 		oXHR.addEventListener('abort', uploadAbort, false);
-		oXHR.addEventListener('timeout', uploadFinish, false);
+		oXHR.addEventListener('timeout', uploadError, false);
 		// Server work after the bytes arrive (fileserv → backend copy) can take
 		// a while; do not wait forever on "Wait for redirecting...".
 		oXHR.timeout = 180000;
@@ -8834,10 +8840,17 @@ function uploadProgress(e) { // upload process in progress
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
 			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
-			// Bytes are on the server; if the response never arrives (PrivateTmp /
-			// backend hang), leave this page after a short grace period.
+			// Bytes are on the server. If the response never arrives, open File
+			// Manager after a grace period — but only then (do not assume success
+			// on XHR timeout; that left 0-byte archives before).
 			if (!uploadRedirectTimer) {
-				uploadRedirectTimer = setTimeout(uploadGoNext, 45000);
+				uploadRedirectTimer = setTimeout(function () {
+					var info = document.getElementById('progress_info');
+					if (info) {
+						info.innerHTML = 'Still saving on the server… opening File Manager. Check the file size before Restore.';
+					}
+					uploadGoNext();
+				}, 90000);
 			}
 		}
 	} else {
