@@ -20,7 +20,7 @@ declare(strict_types=1);
  * Usage: kloxocp <command> [arguments] [--options]
  */
 
-const KCP_VERSION = '10.1-2026111114';
+const KCP_VERSION = '10.1-2026111115';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
