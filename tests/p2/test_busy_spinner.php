@@ -53,13 +53,16 @@ if (str_contains($login, '/theme/js/kloxo-busy.js')) {
 } else {
 	bad('the login page includes kloxo-busy.js');
 }
-// Every navigation shows the modal and the new page shows it again from its <head> until it has all its HTML.
+// In-panel click/submit marks intent; beforeunload only keeps the flag for that
+// navigation (tab close must not leave a leftover spinner for the next visit).
 if (str_contains($js, "addEventListener('beforeunload'") && str_contains($js, 'sessionStorage')
 	&& str_contains($js, "'DOMContentLoaded'") && str_contains($js, 'arrivedFully')
-	&& str_contains($js, 'doc.documentElement')) {
-	ok('JS shows the modal on beforeunload, keeps it across the page change and hides it at DOMContentLoaded');
+	&& str_contains($js, 'doc.documentElement')
+	&& str_contains($js, 'function markIntent') && str_contains($js, 'intentUntil')
+	&& str_contains($js, "addEventListener('pagehide'")) {
+	ok('JS keeps the modal across an in-panel navigation and clears leftover flags on tab close');
 } else {
-	bad('JS shows the modal on beforeunload, keeps it across the page change and hides it at DOMContentLoaded');
+	bad('JS keeps the modal across an in-panel navigation and clears leftover flags on tab close');
 }
 if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") && str_contains($js, 'mailto:')
 	&& str_contains($js, 'hasChosenFile') && !str_contains($js, "enctype === 'multipart/form-data'") && str_contains($js, 'frm_subaction=download')) {
@@ -69,15 +72,19 @@ if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") &&
 }
 // Quick pages: DELAY show timer; MAX_WAIT failsafe so a hung POST cannot leave
 // the modal forever (password change / add client used to stick). No CSS fade.
+// settled/navToken stop a late timer from resurrecting the modal after DCL.
 $code = (string)preg_replace('#/\*.*?\*/#s', '', $js);
+$setTimeouts = substr_count($code, 'setTimeout(');
 if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait')
 	&& preg_match('/var DELAY = \d+;/', $code) === 1
 	&& preg_match('/var MAX_WAIT = \d+/', $code) === 1
+	&& str_contains($code, 'settled') && str_contains($code, 'navToken')
+	&& str_contains($code, 'function isImmediateRefresh')
 	&& !str_contains($code, 'animation')
-	&& substr_count($code, 'setTimeout(') === 2) {
-	ok('modal appears after DELAY ms; MAX_WAIT failsafe hides a stuck modal');
+	&& $setTimeouts === 2) {
+	ok('modal appears after DELAY ms; MAX_WAIT failsafe; no resurrect after DCL');
 } else {
-	bad('modal appears after DELAY ms; MAX_WAIT failsafe hides a stuck modal');
+	bad('modal appears after DELAY ms; MAX_WAIT failsafe; no resurrect after DCL', 'setTimeouts=' . $setTimeouts);
 }
 
 // The hrefs the Services list really renders must match the JS patterns.

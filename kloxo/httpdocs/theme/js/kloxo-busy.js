@@ -5,32 +5,29 @@
  *
  * KloxoBusy.show(text) / KloxoBusy.hide()
  *
- * Every navigation away from a page can show it: link click, form submit, a
- * script that sets location or calls form.submit() (all of them end in
- * `beforeunload`). It appears only when the page is slow: DELAY ms after the
- * navigation started (counted across the page change, so quick pages never
- * show it). Once shown it stays until the next page has received its whole
- * HTML (DOMContentLoaded), with no time-out. Because the panel streams
- * its pages (the header is flushed, then the action runs for seconds), the new
- * document would otherwise replace the old one and take the modal with it; so
- * the "busy" state is kept in sessionStorage and the new page shows the modal
- * again from the first line of its <head>, before the body exists. A page that
- * ends with <meta http-equiv="Refresh" content="0;URL=..."> (the panel's
- * redirect after an action) keeps the modal up until the page it redirects to
- * has loaded.
+ * Every in-panel navigation can show it: link click, form submit, a script
+ * that sets location or calls form.submit(). It appears only when the page
+ * is slow: DELAY ms after the navigation started (counted across the page
+ * change, so quick pages never show it). Once shown it stays until the next
+ * page has received its whole HTML (DOMContentLoaded), with a MAX_WAIT
+ * failsafe. Because the panel can stream its pages (header first, then a
+ * long action), the new document would otherwise replace the old one and
+ * take the modal with it; so the "busy" state is kept in sessionStorage and
+ * the new page shows the modal again from the first line of its <head>.
+ * A page that ends with <meta http-equiv="Refresh" content="0;URL=...">
+ * keeps the modal up until the page it redirects to has loaded.
+ *
+ * The flag is only written when a real in-panel click/submit started the
+ * navigation. Tab close / external leave must not leave a leftover flag
+ * that makes the next visit open with a stuck spinner.
  *
  * It is not shown for navigations that leave the page showing (they would
  * never hide it): downloads, mailto:, links or forms with a target, forms
  * with a chosen file (an upload has its own progress display), and links or
- * forms marked data-kloxo-nobusy. The delay is a timer in whichever document is
- * alive (the old page while the server has not answered, then the new page for
- * the rest of it), not a CSS fade: a CSS animation does not run in a document
- * that has not painted yet. A modal that was already shown before a redirect
- * is shown again at once by the next page (no gap between the hops).
- *
- * Service list icons (Sb, State, Start, Stop, Restart) run their action in the
- * background (fetch) and then follow the server's redirect. Any link or form
- * can set its own text with data-kloxo-busy="text".
+ * forms marked data-kloxo-nobusy. Service list icons (Sb, State, Start,
+ * Stop, Restart) run their action in the background (fetch) and then follow
+ * the server's redirect. Any link or form can set its own text with
+ * data-kloxo-busy="text".
  */
 (function (win, doc) {
 	'use strict';
@@ -40,16 +37,20 @@
 	}
 
 	var KEY = 'kloxo-busy';
-	var MAX_AGE = 15 * 60 * 1000;   // a flag older than this is a navigation that never finished
+	var MAX_AGE = 2 * 60 * 1000;    // abandon leftover flags quickly (tab close used to leave 15 min)
 	var MAX_WAIT = 90 * 1000;       // never leave the modal up forever on a hung request
 	var DEFAULT_TEXT = 'Please wait...';
 	var DELAY = 500;                // ms a navigation may take before the modal appears
+	var INTENT_MS = 8000;           // click/submit intent window for beforeunload
 
 	var overlay = null;
 	var label = null;
 	var suppressUntil = 0;
 	var pending = null;
 	var maxWaitTimer = null;
+	var intentUntil = 0;
+	var settled = false;            // this document already finished loading
+	var navToken = 0;               // invalidate late timers across hops
 
 	function store() {
 		try {
@@ -99,6 +100,18 @@
 				// ignore
 			}
 		}
+	}
+
+	function isImmediateRefresh() {
+		var metas = doc.getElementsByTagName('meta');
+		for (var i = 0; i < metas.length; i++) {
+			var he = (metas[i].getAttribute('http-equiv') || '').toLowerCase();
+			var c = metas[i].getAttribute('content') || '';
+			if (he === 'refresh' && /^\s*[01]?\s*(?:;|$)/.test(c) && /url\s*=/i.test(c)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	function build() {
@@ -155,8 +168,12 @@
 
 	function armMaxWait() {
 		cancelMaxWait();
+		var token = navToken;
 		maxWaitTimer = win.setTimeout(function () {
 			maxWaitTimer = null;
+			if (token !== navToken || settled) {
+				return;
+			}
 			flagClear();
 			api.hide();
 		}, MAX_WAIT);
@@ -166,7 +183,20 @@
 		return !!overlay && overlay.className === 'on';
 	}
 
+	function markIntent(text) {
+		intentUntil = Date.now() + INTENT_MS;
+		if (!flagGet()) {
+			flagSet(text || DEFAULT_TEXT, false);
+		} else if (text) {
+			var f = flagGet();
+			flagSet(text, !!(f && f.shown));
+		}
+	}
+
 	function present(text) {
+		if (settled) {
+			return;
+		}
 		api.show(text);
 		armMaxWait();
 		var f = flagGet();
@@ -182,6 +212,10 @@
 	 */
 	function showSoon(text, since, shown) {
 		cancelPending();
+		if (settled) {
+			return;
+		}
+		var token = navToken;
 		var wait = shown ? 0 : DELAY - (Date.now() - since);
 		if (wait <= 0) {
 			present(text);
@@ -189,6 +223,9 @@
 		}
 		pending = win.setTimeout(function () {
 			pending = null;
+			if (token !== navToken || settled) {
+				return;
+			}
 			present(text);
 		}, wait);
 	}
@@ -213,12 +250,56 @@
 	};
 	win.KloxoBusy = api;
 
-	// The page we arrived on was left while busy: carry on counting (or show it at once
-	// if it was already on screen).
+	// ---- hiding it ---------------------------------------------------------------------
+
+	// The page has all its HTML. If it is only a redirect page, stay busy for the next one.
+	function arrivedFully() {
+		if (isImmediateRefresh()) {
+			return;
+		}
+		settled = true;
+		navToken += 1;
+		flagClear();
+		api.hide();
+	}
+
+	// Carry over a busy state only when this document is still loading. A leftover
+	// flag from a closed tab must not open a spinner on an already-complete page.
 	var arrived = flagGet();
 	if (arrived) {
-		showSoon(arrived.text, arrived.t, !!arrived.shown);
+		if (doc.readyState === 'loading' || isImmediateRefresh()) {
+			showSoon(arrived.text, arrived.t, !!arrived.shown);
+		} else {
+			flagClear();
+		}
 	}
+
+	if (doc.readyState === 'loading') {
+		doc.addEventListener('DOMContentLoaded', arrivedFully);
+	} else {
+		arrivedFully();
+	}
+	win.addEventListener('load', function () {
+		if (doc.readyState === 'complete' && !isImmediateRefresh()) {
+			arrivedFully();
+		}
+	});
+
+	// Back/forward cache restores the page with the modal still open.
+	win.addEventListener('pageshow', function (ev) {
+		if (ev.persisted || (doc.readyState === 'complete' && !isImmediateRefresh())) {
+			settled = true;
+			flagClear();
+			api.hide();
+		}
+	});
+
+	// Tab close (no click intent): drop the flag so the next visit is clean.
+	win.addEventListener('pagehide', function () {
+		if (Date.now() > intentUntil && !isImmediateRefresh()) {
+			flagClear();
+		}
+	});
 
 	// ---- Services icons: run in the background, then follow the redirect ----------------
 
@@ -245,6 +326,9 @@
 	var refreshRe = /http-equiv\s*=\s*["']?refresh["']?\s+content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*([^"'>\s]+)/i;
 
 	function run(href, text) {
+		settled = false;
+		navToken += 1;
+		markIntent(text);
 		flagSet(text, false);
 		showSoon(text, Date.now(), false);
 		if (!win.fetch) {
@@ -264,6 +348,7 @@
 			}
 			// No redirect (an error page, for instance): show what the server sent.
 			flagClear();
+			settled = true;
 			doc.open();
 			doc.write(r.body);
 			doc.close();
@@ -276,11 +361,12 @@
 	// ---- which navigations get the modal -------------------------------------------------
 
 	// Navigations that leave the page on screen (the modal would never hide).
-	var noNavigate = /^(?:mailto:|tel:|sms:|blob:|data:|#)/i;
+	var noNavigate = /^(?:mailto:|tel:|sms:|blob:|data:|javascript:|#)/i;
 	var downloadUrl = /[?&]frm_subaction=download(?:&|$)|\/filedownload\.php/i;
 
 	function suppress() {
 		suppressUntil = Date.now() + 2000;
+		intentUntil = 0;
 	}
 
 	// The panel renders almost every form as multipart/form-data, so the encoding says
@@ -324,9 +410,7 @@
 			return;
 		}
 		var own = n.getAttribute('data-kloxo-busy');
-		if (own) {
-			flagSet(own, false);   // beforeunload shows the modal with this text
-		}
+		markIntent(own || DEFAULT_TEXT);
 	}, true);
 
 	doc.addEventListener('submit', function (ev) {
@@ -338,16 +422,18 @@
 			suppress();
 			return;
 		}
-		var t = f.getAttribute('data-kloxo-busy');
-		if (t) {
-			flagSet(t, false);
-			showSoon(t, Date.now(), false);
-		}
+		var t = f.getAttribute('data-kloxo-busy') || DEFAULT_TEXT;
+		markIntent(t);
+		showSoon(t, Date.now(), false);
 	}, true);
 
-	// Any other way of leaving the page (links, forms, location, form.submit()).
+	// Only continue the busy flag across a real in-panel navigation (click/submit
+	// intent). Tab close must not leave sessionStorage busy for the next visit.
 	win.addEventListener('beforeunload', function () {
 		if (Date.now() < suppressUntil) {
+			return;
+		}
+		if (Date.now() > intentUntil && !overlayOn()) {
 			return;
 		}
 		var f = flagGet();
@@ -355,42 +441,5 @@
 		var shown = overlayOn() || !!(f && f.shown);
 		flagSet(text, shown);
 		showSoon(text, Date.now(), shown);
-	});
-
-	// ---- hiding it ---------------------------------------------------------------------
-
-	// The page has all its HTML. If it is only a redirect page, stay busy for the next one.
-	function arrivedFully() {
-		var metas = doc.getElementsByTagName('meta');
-		for (var i = 0; i < metas.length; i++) {
-			var he = (metas[i].getAttribute('http-equiv') || '').toLowerCase();
-			var c = metas[i].getAttribute('content') || '';
-			if (he === 'refresh' && /^\s*[01]?\s*(?:;|$)/.test(c) && /url\s*=/i.test(c)) {
-				return;
-			}
-		}
-		flagClear();
-		api.hide();
-	}
-
-	if (doc.readyState === 'loading') {
-		doc.addEventListener('DOMContentLoaded', arrivedFully);
-	} else {
-		arrivedFully();
-	}
-	win.addEventListener('load', function () {
-		// DOMContentLoaded already hid it; this only covers a missed event.
-		if (doc.readyState === 'complete' && !doc.querySelector('meta[http-equiv="refresh" i]')) {
-			flagClear();
-			api.hide();
-		}
-	});
-
-	// Back/forward cache restores the page with the modal still open.
-	win.addEventListener('pageshow', function (ev) {
-		if (ev.persisted) {
-			flagClear();
-			api.hide();
-		}
 	});
 })(window, document);
