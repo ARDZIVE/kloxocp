@@ -929,6 +929,7 @@ if test -f "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
   && grep -q 'ssl_server_cert_file' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
   && grep -q 'ssl_server_prefer_ciphers = client' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
   && ! grep -q 'ssl_server_prefer_ciphers = yes' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
+  && ! grep -q 'inet_listener {' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
   && grep -q 'passdb sql' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf"; then
   ok "Dovecot 2.4 template and series picker exist for Ubuntu 26.x"
 else
