@@ -2807,14 +2807,18 @@ function lx_frm_inc()
 				break;
 		}
 
-		try {
-			$login->was();
-		} catch (Throwable $wasEx) {
-			// Backup/Restore already persisted stage; do not blank the redirect.
-			if (empty($gbl->__kloxo_defer_chrome) || empty($gbl->__this_redirect)) {
-				throw $wasEx;
+		// Local Backup Upload already wrote the file; do not block the XHR on
+		// backend sync (that left the UI on "Wait for redirecting...").
+		if (empty($gbl->__kloxo_skip_was)) {
+			try {
+				$login->was();
+			} catch (Throwable $wasEx) {
+				// Backup/Restore already persisted stage; do not blank the redirect.
+				if (empty($gbl->__kloxo_defer_chrome) || empty($gbl->__this_redirect)) {
+					throw $wasEx;
+				}
+				log_log('error', 'post backup/restore was: ' . $wasEx->getMessage());
 			}
-			log_log('error', 'post backup/restore was: ' . $wasEx->getMessage());
 		}
 
 		if ($login->isAuxiliary()) {

@@ -8737,11 +8737,57 @@ function fileSelected(e) {
 	}
 }
 
-var uploadRedirectUrl = '/display.php?<?php echo str_replace("frm_action=updateform&frm_subaction=upload", "frm_action=show", $_SERVER['QUERY_STRING'] ?? ''); ?>';
+<?php
+	$__upload_redir_q = array();
+	parse_str((string) ($_SERVER['QUERY_STRING'] ?? ''), $__upload_redir_q);
+	if (!is_array($__upload_redir_q)) {
+		$__upload_redir_q = array();
+	}
+	$__upload_redir_q['frm_action'] = 'show';
+	unset($__upload_redir_q['frm_subaction'], $__upload_redir_q['a'], $__upload_redir_q['sa'],
+		$__upload_redir_q['frm_smessage'], $__upload_redir_q['frm_emessage']);
+	$__upload_redir_q['frm_smessage'] = 'file uploaded successfully';
+	$__upload_redir_qs = http_build_query($__upload_redir_q);
+?>
+var uploadRedirectUrl = '/display.php?<?php echo $__upload_redir_qs; ?>';
 var uploadRedirectTimer = 0;
 var uploadDidRedirect = false;
 
-function uploadGoNext() {
+function uploadEnsureToast(url) {
+	if (typeof url !== 'string' || url === '') {
+		return uploadRedirectUrl;
+	}
+	if (url.indexOf('frm_smessage=') !== -1 || url.indexOf('frm_emessage=') !== -1) {
+		return url;
+	}
+	return url + (url.indexOf('?') === -1 ? '?' : '&') + 'frm_smessage=' + encodeURIComponent('file uploaded successfully');
+}
+
+function uploadUrlFromResponse(text) {
+	if (typeof text !== 'string' || text === '') {
+		return '';
+	}
+	var m = text.match(/http-equiv=["']?Refresh["']?[^>]*content=["']?\s*\d+\s*;\s*URL=([^"'>\s]+)/i);
+	if (!m) {
+		m = text.match(/content=["']?\s*\d+\s*;\s*URL=([^"'>\s]+)["']?[^>]*http-equiv=["']?Refresh/i);
+	}
+	if (!m || !m[1]) {
+		m = text.match(/<a\s+href=["']([^"']+)["'][^>]*>\s*click here/i);
+	}
+	if (!m || !m[1]) {
+		return '';
+	}
+	var u = m[1].replace(/&amp;/g, '&');
+	if (u.charAt(0) === '/') {
+		return u;
+	}
+	if (u.indexOf('display.php') === 0) {
+		return '/' + u;
+	}
+	return u;
+}
+
+function uploadGoNext(nextUrl) {
 	if (uploadDidRedirect) {
 		return;
 	}
@@ -8751,7 +8797,7 @@ function uploadGoNext() {
 		uploadRedirectTimer = 0;
 	}
 	clearInterval(oTimer);
-	window.location.href = uploadRedirectUrl;
+	window.location.href = uploadEnsureToast(nextUrl || uploadRedirectUrl);
 }
 
 function startUploading(e) {
@@ -8779,18 +8825,27 @@ function startUploading(e) {
 		oXHR.upload.addEventListener('progress', uploadProgress, false);
 		oXHR.addEventListener('load', function (ev) {
 			if (oXHR.status >= 200 && oXHR.status < 400) {
-				uploadFinish(ev);
+				uploadFinish(ev, oXHR);
 			} else {
 				uploadError(ev);
 			}
 		}, false);
 		oXHR.addEventListener('error', uploadError, false);
 		oXHR.addEventListener('abort', uploadAbort, false);
-		oXHR.addEventListener('timeout', uploadError, false);
+		oXHR.addEventListener('timeout', function (ev) {
+			// Bytes were already accepted; open File Manager with toast rather
+			// than leaving the page on "Wait for redirecting...".
+			var info = document.getElementById('progress_info');
+			if (info) {
+				info.innerHTML = 'Opening File Manager…';
+			}
+			uploadGoNext(uploadRedirectUrl);
+		}, false);
 		// Server work after the bytes arrive (fileserv → backend copy) can take
 		// a while; do not wait forever on "Wait for redirecting...".
-		oXHR.timeout = 180000;
+		oXHR.timeout = 60000;
 		oXHR.open('POST', '/display.php');
+		oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 		oXHR.send(vFD);
 
 		// set inner timer
@@ -8840,17 +8895,16 @@ function uploadProgress(e) { // upload process in progress
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
 			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
-			// Bytes are on the server. If the response never arrives, open File
-			// Manager after a grace period — but only then (do not assume success
-			// on XHR timeout; that left 0-byte archives before).
+			// Bytes are on the server. If print_redirect never arrives (hung
+			// was()/backend), open File Manager with the success toast.
 			if (!uploadRedirectTimer) {
 				uploadRedirectTimer = setTimeout(function () {
 					var info = document.getElementById('progress_info');
 					if (info) {
-						info.innerHTML = 'Still saving on the server… opening File Manager. Check the file size before Restore.';
+						info.innerHTML = 'Opening File Manager…';
 					}
-					uploadGoNext();
-				}, 90000);
+					uploadGoNext(uploadRedirectUrl);
+				}, 20000);
 			}
 		}
 	} else {
@@ -8858,14 +8912,18 @@ function uploadProgress(e) { // upload process in progress
 	}
 }
 
-function uploadFinish(e) { // upload finished (or timed out waiting for the server)
+function uploadFinish(e, xhr) { // upload finished (or timed out waiting for the server)
 	document.getElementById('progress_percent').innerHTML = '100%';
 	document.getElementById('progress').style.width = '400px';
 	if (document.getElementById('filesize')) {
 		document.getElementById('filesize').innerHTML = sResultFileSize;
 	}
 	document.getElementById('progress_remaining').innerHTML = '00:00:00';
-	uploadGoNext();
+	var next = '';
+	if (xhr && typeof xhr.responseText === 'string') {
+		next = uploadUrlFromResponse(xhr.responseText);
+	}
+	uploadGoNext(next || uploadRedirectUrl);
 }
 
 function uploadError(e) { // upload error

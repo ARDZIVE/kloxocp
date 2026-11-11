@@ -724,14 +724,23 @@ foreach (array($exBase) as $tree) {
 echo "== Backup Upload (no hang on Wait for redirecting)\n";
 $htmlUpload = (string) file_get_contents($doc . '/theme/htmllib.php');
 $ffileSrc = (string) file_get_contents($doc . '/driver/pserver/ffilelib.php');
+$coreDisp = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $libSrc = (string) file_get_contents($doc . '/lib/html/lib.php');
 check(str_contains($htmlUpload, 'function uploadGoNext')
 	&& str_contains($htmlUpload, 'uploadRedirectTimer')
+	&& str_contains($htmlUpload, 'function uploadEnsureToast')
+	&& str_contains($htmlUpload, 'function uploadUrlFromResponse')
+	&& str_contains($htmlUpload, 'frm_smessage')
 	&& str_contains($htmlUpload, 'oXHR.timeout')
 	&& str_contains($htmlUpload, "addEventListener('error'")
 	&& str_contains($htmlUpload, "addEventListener('abort'")
 	&& !str_contains($htmlUpload, "addEventListener('progress_abort'"),
-	'Upload XHR redirects on load/timeout and arms a grace timer after 100%');
+	'Upload XHR redirects on load/timeout with File Manager toast URL');
+check(str_contains($ffileSrc, 'function uploadSuccessRedirectUrl')
+	&& str_contains($ffileSrc, '__kloxo_skip_was')
+	&& str_contains($ffileSrc, 'file uploaded successfully')
+	&& str_contains($coreDisp, '__kloxo_skip_was'),
+	'Local backup upload skips was() and sets success toast redirect');
 check(preg_match(
 	'/function cp_fileserv\(\$file\).*?serverfile\/tmp.*?copy\(/s',
 	$libSrc

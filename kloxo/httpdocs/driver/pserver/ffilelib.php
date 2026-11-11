@@ -322,7 +322,7 @@ class Ffile extends Lxclass
 		}
 
 		$this->upload_overwrite_f = 'on';
-		$gbl->__this_redirect = $this->getCurDirUrl();
+		$gbl->__this_redirect = $this->uploadSuccessRedirectUrl();
 
 		// Backup / Restore __backup is owned by lxlabs: write in-process so the
 		// XHR does not sit on "Wait for redirecting..." while kloxo-backend
@@ -358,6 +358,10 @@ class Ffile extends Lxclass
 				if ($ok && is_file($dest) && (int) @filesize($dest) > 0) {
 					$this->dbaction = 'clean';
 					$this->subaction = null;
+					// File is already on disk: skip login->was() so the XHR
+					// gets print_redirect instead of hanging on backend sync.
+					$gbl->__kloxo_skip_was = true;
+					$gbl->__this_redirect = $this->uploadSuccessRedirectUrl();
 
 					return null;
 				}
@@ -373,6 +377,23 @@ class Ffile extends Lxclass
 		$this->setUpdateSubaction('upload_s');
 
 		return null;
+	}
+
+	/**
+	 * File Manager / Backup Upload: show the directory list with a success toast.
+	 */
+	function uploadSuccessRedirectUrl()
+	{
+		$url = $this->getCurDirUrl();
+		if (!is_string($url) || $url === '') {
+			$url = '/display.php?frm_action=show';
+		}
+		if (!str_contains($url, 'frm_smessage=')) {
+			$url .= (str_contains($url, '?') ? '&' : '?')
+				. 'frm_smessage=' . rawurlencode('file uploaded successfully');
+		}
+
+		return $url;
 	}
 
 	function updateDownload($param)
