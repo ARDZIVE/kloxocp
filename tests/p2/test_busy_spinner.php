@@ -53,16 +53,16 @@ if (str_contains($login, '/theme/js/kloxo-busy.js')) {
 } else {
 	bad('the login page includes kloxo-busy.js');
 }
-// In-panel click/submit marks intent; beforeunload only keeps the flag for that
-// navigation (tab close must not leave a leftover spinner for the next visit).
+// Click/submit must beginNavigation (clear settled) or the spinner never shows
+// again after the first page's DOMContentLoaded.
 if (str_contains($js, "addEventListener('beforeunload'") && str_contains($js, 'sessionStorage')
 	&& str_contains($js, "'DOMContentLoaded'") && str_contains($js, 'arrivedFully')
 	&& str_contains($js, 'doc.documentElement')
-	&& str_contains($js, 'function markIntent') && str_contains($js, 'intentUntil')
-	&& str_contains($js, "addEventListener('pagehide'")) {
-	ok('JS keeps the modal across an in-panel navigation and clears leftover flags on tab close');
+	&& str_contains($js, 'function beginNavigation')
+	&& str_contains($js, 'settled = false')) {
+	ok('JS shows the modal on click/submit and resets settled so later navigations work');
 } else {
-	bad('JS keeps the modal across an in-panel navigation and clears leftover flags on tab close');
+	bad('JS shows the modal on click/submit and resets settled so later navigations work');
 }
 if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") && str_contains($js, 'mailto:')
 	&& str_contains($js, 'hasChosenFile') && !str_contains($js, "enctype === 'multipart/form-data'") && str_contains($js, 'frm_subaction=download')) {

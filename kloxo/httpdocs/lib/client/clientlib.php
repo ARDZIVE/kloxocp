@@ -68,6 +68,12 @@ class Client extends ClientBase
 		if ($this->subaction === 'boxpos' || $this->subaction === 'cron_mailto') {
 			return false;
 		}
+		// Admin panel password lives in SQLite (already written in postUpdate).
+		// Pushing it through kloxo-backend → MariaDB/usermod left the browser
+		// hung even when login already worked after a refresh.
+		if ($this->subaction === 'password' && $this->nname === 'admin') {
+			return false;
+		}
 
 		return true;
 	}

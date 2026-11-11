@@ -17,10 +17,6 @@
  * A page that ends with <meta http-equiv="Refresh" content="0;URL=...">
  * keeps the modal up until the page it redirects to has loaded.
  *
- * The flag is only written when a real in-panel click/submit started the
- * navigation. Tab close / external leave must not leave a leftover flag
- * that makes the next visit open with a stuck spinner.
- *
  * It is not shown for navigations that leave the page showing (they would
  * never hide it): downloads, mailto:, links or forms with a target, forms
  * with a chosen file (an upload has its own progress display), and links or
@@ -37,20 +33,18 @@
 	}
 
 	var KEY = 'kloxo-busy';
-	var MAX_AGE = 2 * 60 * 1000;    // abandon leftover flags quickly (tab close used to leave 15 min)
-	var MAX_WAIT = 90 * 1000;       // never leave the modal up forever on a hung request
+	var MAX_AGE = 2 * 60 * 1000;
+	var MAX_WAIT = 90 * 1000;
 	var DEFAULT_TEXT = 'Please wait...';
-	var DELAY = 500;                // ms a navigation may take before the modal appears
-	var INTENT_MS = 8000;           // click/submit intent window for beforeunload
+	var DELAY = 500;
 
 	var overlay = null;
 	var label = null;
 	var suppressUntil = 0;
 	var pending = null;
 	var maxWaitTimer = null;
-	var intentUntil = 0;
-	var settled = false;            // this document already finished loading
-	var navToken = 0;               // invalidate late timers across hops
+	var settled = false;
+	var navToken = 0;
 
 	function store() {
 		try {
@@ -66,7 +60,7 @@
 			try {
 				s.setItem(KEY, JSON.stringify({t: Date.now(), text: text, shown: !!shown}));
 			} catch (e) {
-				// storage full or disabled: the modal just will not survive the page change
+				// storage full or disabled
 			}
 		}
 	}
@@ -86,7 +80,7 @@
 				s.removeItem(KEY);
 			}
 		} catch (e) {
-			// unreadable flag: ignore
+			// unreadable flag
 		}
 		return null;
 	}
@@ -141,7 +135,7 @@
 		var box = doc.createElement('div');
 		box.className = 'kb-box';
 		var img = doc.createElement('img');
-		img.src = '/theme/img/kloxo-spinner.gif?v=2';
+		img.src = '/theme/img/kloxo-spinner.gif?v=3';
 		img.alt = '';
 		img.width = 64;
 		img.height = 64;
@@ -183,14 +177,11 @@
 		return !!overlay && overlay.className === 'on';
 	}
 
-	function markIntent(text) {
-		intentUntil = Date.now() + INTENT_MS;
-		if (!flagGet()) {
-			flagSet(text || DEFAULT_TEXT, false);
-		} else if (text) {
-			var f = flagGet();
-			flagSet(text, !!(f && f.shown));
-		}
+	/** Leaving this page: allow showSoon again (settled was true after DCL). */
+	function beginNavigation(text, shown) {
+		settled = false;
+		navToken += 1;
+		flagSet(text || DEFAULT_TEXT, !!shown);
 	}
 
 	function present(text) {
@@ -205,11 +196,6 @@
 		}
 	}
 
-	/*
-	 * Show the modal once the navigation that started at `since` has been running for
-	 * DELAY ms (at once when it was already shown before a redirect). The timer lives
-	 * in the current document; if the page changes first, the next one carries on.
-	 */
 	function showSoon(text, since, shown) {
 		cancelPending();
 		if (settled) {
@@ -250,9 +236,6 @@
 	};
 	win.KloxoBusy = api;
 
-	// ---- hiding it ---------------------------------------------------------------------
-
-	// The page has all its HTML. If it is only a redirect page, stay busy for the next one.
 	function arrivedFully() {
 		if (isImmediateRefresh()) {
 			return;
@@ -263,8 +246,6 @@
 		api.hide();
 	}
 
-	// Carry over a busy state only when this document is still loading. A leftover
-	// flag from a closed tab must not open a spinner on an already-complete page.
 	var arrived = flagGet();
 	if (arrived) {
 		if (doc.readyState === 'loading' || isImmediateRefresh()) {
@@ -285,25 +266,17 @@
 		}
 	});
 
-	// Back/forward cache restores the page with the modal still open.
+	// Only bfcache restores need an extra clear (persisted document).
 	win.addEventListener('pageshow', function (ev) {
-		if (ev.persisted || (doc.readyState === 'complete' && !isImmediateRefresh())) {
+		if (ev.persisted) {
 			settled = true;
 			flagClear();
 			api.hide();
 		}
 	});
 
-	// Tab close (no click intent): drop the flag so the next visit is clean.
-	win.addEventListener('pagehide', function () {
-		if (Date.now() > intentUntil && !isImmediateRefresh()) {
-			flagClear();
-		}
-	});
+	// ---- Services icons ---------------------------------------------------------------
 
-	// ---- Services icons: run in the background, then follow the redirect ----------------
-
-	// /display.php?frm_action=update&frm_subaction=stop&...&frm_o_o[1][class]=service&...
 	var serviceAct = /[?&]frm_subaction=(start|stop|restart|toggle_state|toggle_boot_state)(?:&|$)/;
 	var serviceObj = /[?&]frm_o_o(?:\[|%5B)\d+(?:\]|%5D)(?:\[|%5B)class(?:\]|%5D)=service(?:&|$)/;
 	var texts = {
@@ -319,17 +292,10 @@
 		return (m && serviceObj.test(href)) ? texts[m[1]] : '';
 	}
 
-	/*
-	 * The finished response ends with <meta http-equiv="Refresh" content="0;URL=...">:
-	 * follow that URL ourselves once the whole response (= the action) is done.
-	 */
 	var refreshRe = /http-equiv\s*=\s*["']?refresh["']?\s+content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*([^"'>\s]+)/i;
 
 	function run(href, text) {
-		settled = false;
-		navToken += 1;
-		markIntent(text);
-		flagSet(text, false);
+		beginNavigation(text, false);
 		showSoon(text, Date.now(), false);
 		if (!win.fetch) {
 			win.location.href = href;
@@ -346,31 +312,23 @@
 				win.location.assign(target);
 				return;
 			}
-			// No redirect (an error page, for instance): show what the server sent.
 			flagClear();
 			settled = true;
 			doc.open();
 			doc.write(r.body);
 			doc.close();
 		}).catch(function () {
-			// The action may have run; never repeat it, just show the current state.
 			win.location.reload();
 		});
 	}
 
-	// ---- which navigations get the modal -------------------------------------------------
-
-	// Navigations that leave the page on screen (the modal would never hide).
 	var noNavigate = /^(?:mailto:|tel:|sms:|blob:|data:|javascript:|#)/i;
 	var downloadUrl = /[?&]frm_subaction=download(?:&|$)|\/filedownload\.php/i;
 
 	function suppress() {
 		suppressUntil = Date.now() + 2000;
-		intentUntil = 0;
 	}
 
-	// The panel renders almost every form as multipart/form-data, so the encoding says
-	// nothing; only a form that is really uploading a file has its own progress display.
 	function hasChosenFile(f) {
 		var inputs = f.querySelectorAll ? f.querySelectorAll('input[type="file"]') : [];
 		for (var i = 0; i < inputs.length; i++) {
@@ -409,8 +367,9 @@
 			run(href, n.getAttribute('data-kloxo-busy') || svc);
 			return;
 		}
-		var own = n.getAttribute('data-kloxo-busy');
-		markIntent(own || DEFAULT_TEXT);
+		var own = n.getAttribute('data-kloxo-busy') || DEFAULT_TEXT;
+		beginNavigation(own, false);
+		showSoon(own, Date.now(), false);
 	}, true);
 
 	doc.addEventListener('submit', function (ev) {
@@ -423,23 +382,24 @@
 			return;
 		}
 		var t = f.getAttribute('data-kloxo-busy') || DEFAULT_TEXT;
-		markIntent(t);
+		beginNavigation(t, false);
 		showSoon(t, Date.now(), false);
 	}, true);
 
-	// Only continue the busy flag across a real in-panel navigation (click/submit
-	// intent). Tab close must not leave sessionStorage busy for the next visit.
 	win.addEventListener('beforeunload', function () {
 		if (Date.now() < suppressUntil) {
-			return;
-		}
-		if (Date.now() > intentUntil && !overlayOn()) {
 			return;
 		}
 		var f = flagGet();
 		var text = f ? f.text : DEFAULT_TEXT;
 		var shown = overlayOn() || !!(f && f.shown);
-		flagSet(text, shown);
+		// Navigation may have started without a click we saw (location= / form.submit()).
+		if (!f && !overlayOn()) {
+			beginNavigation(text, false);
+		} else {
+			settled = false;
+			flagSet(text, shown);
+		}
 		showSoon(text, Date.now(), shown);
 	});
 })(window, document);

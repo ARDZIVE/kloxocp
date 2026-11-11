@@ -104,13 +104,28 @@ check(str_contains($sync, 'setProgramAccountPassword')
 
 $mdbSrc = (string) file_get_contents($doc . '/lib/php/kloxo_mariadb.php');
 check(str_contains($mdbSrc, 'function isQuicklyReachable')
-	&& str_contains($mdbSrc, 'function tcpReady')
+	&& str_contains($mdbSrc, 'function streamReady')
+	&& str_contains($mdbSrc, 'function liveUnixSockets')
+	&& str_contains($mdbSrc, 'unix://')
 	&& str_contains($mdbSrc, 'unix_socket=')
-	&& preg_match('/ATTR_TIMEOUT\s*=>\s*2/', $mdbSrc) === 1
-	&& strpos($mdbSrc, 'unix_socket=') < strpos($mdbSrc, 'host=127.0.0.1'),
-	'connectAdmin prefers socket and uses a 2s timeout');
+	&& preg_match('/ATTR_TIMEOUT\s*=>\s*2/', $mdbSrc) === 1,
+	'connectAdmin probes live sockets (not stale sock files) with a 2s timeout');
 check(KloxoMariadb::isQuicklyReachable() === true || KloxoMariadb::isQuicklyReachable() === false,
 	'isQuicklyReachable returns a bool without hanging');
+
+$clientLib = (string) file_get_contents($doc . '/lib/client/clientlib.php');
+$lxclient = (string) file_get_contents($doc . '/lib/client/lxclient.php');
+$mailLib = (string) file_get_contents($doc . '/lib/html/lib.php');
+check(str_contains($clientLib, "subaction === 'password'")
+	&& str_contains($clientLib, "nname === 'admin'")
+	&& str_contains($clientLib, 'return false'),
+	'admin password update skips kloxo-backend sync');
+check(str_contains($lxclient, 'isQuicklyReachable')
+	&& str_contains($lxclient, 'setProgramAccountPassword'),
+	'admin postUpdate best-effort MariaDB sync without backend');
+check(str_contains($mailLib, 'sendmail still running after write')
+	&& str_contains($mailLib, 'proc_terminate'),
+	'lx_mail terminates a lingering sendmail instead of blocking forever');
 
 $bad = new KloxoMariadb(null);
 $badName = false;

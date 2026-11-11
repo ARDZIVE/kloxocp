@@ -82,30 +82,49 @@ final class KloxoMariadb
 	}
 
 	/**
-	 * True when a local MariaDB looks answerable within ~1s.
-	 * Used to skip password sync instead of hanging the panel request.
+	 * True when a local MariaDB answers within ~1s.
+	 * file_exists on the socket is NOT enough: a stale sock after mysqld dies
+	 * still exists and PDO can hang on it for a long time.
 	 */
 	public static function isQuicklyReachable(): bool
 	{
 		if (self::$injected instanceof self) {
 			return true;
 		}
+		foreach (self::liveUnixSockets() as $sock) {
+			return true;
+		}
+
+		return self::streamReady('tcp://127.0.0.1:3306', 1.0);
+	}
+
+	/**
+	 * Unix sockets that actually accept a connection (mysqld is up).
+	 *
+	 * @return list<string>
+	 */
+	private static function liveUnixSockets(): array
+	{
+		$live = array();
 		foreach (array('/run/mysqld/mysqld.sock', '/var/run/mysqld/mysqld.sock') as $sock) {
-			if (is_string($sock) && $sock !== '' && file_exists($sock)) {
-				return true;
+			if (!is_string($sock) || $sock === '' || !file_exists($sock)) {
+				continue;
+			}
+			if (self::streamReady('unix://' . $sock, 1.0)) {
+				$live[] = $sock;
 			}
 		}
 
-		return self::tcpReady('127.0.0.1', 3306, 1.0);
+		return $live;
 	}
 
-	/** TCP accept probe so PDO is not left waiting on a black-hole port. */
-	private static function tcpReady(string $host, int $port, float $timeout = 1.0): bool
+	/** Accept probe so PDO is never pointed at a black-hole sock/port. */
+	private static function streamReady(string $target, float $timeout = 1.0): bool
 	{
 		$errno = 0;
 		$errstr = '';
 		$fp = @stream_socket_client(
-			'tcp://' . $host . ':' . $port,
+			$target,
 			$errno,
 			$errstr,
 			max($timeout, 0.2)
@@ -120,9 +139,8 @@ final class KloxoMariadb
 	}
 
 	/**
-	 * Admin connection: unix_socket as root first (kloxo-backend is root on
-	 * Ubuntu), then kloxo_pma@127.0.0.1. Each attempt is capped so a wedged
-	 * MariaDB cannot hold the password-change HTTP request for tens of seconds.
+	 * Admin connection: live unix_socket as root first (kloxo-backend is root),
+	 * then kloxo_pma@127.0.0.1 only if TCP answers. Never try a stale socket.
 	 */
 	public static function connectAdmin(string $user = '', string $pass = '', ?string $root = null): self
 	{
@@ -134,13 +152,10 @@ final class KloxoMariadb
 		}
 
 		$attempts = array();
-		// Socket first: no TCP handshake hang when mysqld is down / half-dead.
-		foreach (array('/run/mysqld/mysqld.sock', '/var/run/mysqld/mysqld.sock') as $sock) {
-			if (is_string($sock) && $sock !== '' && file_exists($sock)) {
-				$attempts[] = array('mysql:unix_socket=' . $sock . ';charset=utf8mb4', 'root', '');
-			}
+		foreach (self::liveUnixSockets() as $sock) {
+			$attempts[] = array('mysql:unix_socket=' . $sock . ';charset=utf8mb4', 'root', '');
 		}
-		$tcpOk = self::tcpReady('127.0.0.1', 3306, 1.0);
+		$tcpOk = self::streamReady('tcp://127.0.0.1:3306', 1.0);
 		if ($user !== '' && $pass !== '' && $tcpOk) {
 			$attempts[] = array('mysql:host=127.0.0.1;port=3306;charset=utf8mb4', $user, $pass);
 		}
@@ -159,6 +174,10 @@ final class KloxoMariadb
 					(string) $cred['pass'],
 				);
 			}
+		}
+
+		if ($attempts === array()) {
+			throw new KloxoMariadbException('Could not connect to MariaDB: server not reachable');
 		}
 
 		$errors = array();

@@ -3043,7 +3043,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111126';
+	return '10.1-2026111127';
 }
 
 function getDownloadServer()
@@ -3337,18 +3337,56 @@ function lx_mail($from, $to, $subject, $message, $extra = null)
 				$offset += $wrote;
 			}
 			@fclose($pipes[0]);
-			@stream_get_contents($pipes[1]);
-			@fclose($pipes[1]);
-			@stream_get_contents($pipes[2]);
-			@fclose($pipes[2]);
+			// After stdin is closed, Exim/sendmail can still sit on DNS for
+			// minutes. Never stream_get_contents()/proc_close() without a
+			// deadline — that is what stuck Add Client after the account
+			// was already created.
+			foreach (array(1, 2) as $fd) {
+				if (!isset($pipes[$fd]) || !is_resource($pipes[$fd])) {
+					continue;
+				}
+				stream_set_blocking($pipes[$fd], false);
+				$drainUntil = microtime(true) + 1.5;
+				while (microtime(true) < $drainUntil) {
+					$chunk = @fread($pipes[$fd], 8192);
+					if ($chunk === false || $chunk === '') {
+						$r = array($pipes[$fd]);
+						$w = $e = array();
+						$left = $drainUntil - microtime(true);
+						if ($left <= 0) {
+							break;
+						}
+						$n = @stream_select($r, $w, $e, 0, (int) max(1, $left * 1e6));
+						if ($n === false || $n === 0) {
+							break;
+						}
+						continue;
+					}
+				}
+				@fclose($pipes[$fd]);
+			}
+			$status = @proc_get_status($p);
+			if (is_array($status) && !empty($status['running'])) {
+				// Give sendmail a moment to accept, then detach.
+				$waitUntil = microtime(true) + 1.0;
+				while (microtime(true) < $waitUntil) {
+					$status = @proc_get_status($p);
+					if (!is_array($status) || empty($status['running'])) {
+						break;
+					}
+					usleep(50000);
+				}
+			}
+			$status = @proc_get_status($p);
+			if (is_array($status) && !empty($status['running'])) {
+				@proc_terminate($p);
+				log_log('mail_send', 'sendmail still running after write; terminated to unblock panel');
+			}
+			@proc_close($p);
 			if ($ok) {
-				@proc_close($p);
-
 				return;
 			}
-			@proc_terminate($p);
-			@proc_close($p);
-			log_log('mail_send', 'sendmail timed out; falling back to background');
+			log_log('mail_send', 'sendmail timed out writing; skipped');
 		}
 	}
 
