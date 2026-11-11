@@ -231,7 +231,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111131**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111132**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -866,11 +866,15 @@ Work in this order. Keep every change small, tested and committed separately. Do
    is saved instead of shown as text.
     Clicking **Upload** selects that tab and shows the three Kloxo-MR multi-upload
     forms (local overwrite warning + file, HTTP URL, FTP credentials/file). After a
-    successful local `__backup` save the panel sets `__kloxo_skip_was` so the XHR
-    is not left on "Wait for redirecting…", redirects to File Manager `a=show`
-    with `frm_smessage=file uploaded successfully` (toast), and the client parses
-    the meta Refresh URL / arms a 20s grace redirect (`uploadEnsureToast`). Live
-    Upload toast after deploy is **UNVERIFIED**. File
+    successful local `__backup` save the panel sets `__kloxo_skip_was`, flushes
+    `print_redirect` immediately (`finishUploadRedirectNow`), and sends File Manager
+    `a=show` with `frm_smessage=file uploaded successfully` built from the object
+    parent chain (`backupFileManagerPathArray`); the client also rebuilds that URL
+    from form `frm_o_o` fields (`uploadRedirectFromForm`) and arms a 20s grace
+    redirect. File Manager under Backup prefers in-process `getLocalBackupStat` /
+    `get_full_stat` for `__backup`, always re-chowns the folder to `lxlabs`
+    (`MakeSureDirectoryExists`), and hides `.uploading.*` sidecars. Live Upload /
+    File Manager after deploy is **UNVERIFIED**. File
     Manager and Upload create `__backup/` in-process when kloxo-backend is down
     (`getFfileFromVirtualList`), keep `ttype=directory` for `/`, and print
     Address `(Backup / Restore: …) /`. Forms still render when `sp_specialplay`
@@ -967,7 +971,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111131**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111132**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

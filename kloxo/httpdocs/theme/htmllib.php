@@ -8753,6 +8753,22 @@ var uploadRedirectUrl = '/display.php?<?php echo $__upload_redir_qs; ?>';
 var uploadRedirectTimer = 0;
 var uploadDidRedirect = false;
 
+function uploadRedirectFromForm(form) {
+	if (!form || !form.elements) {
+		return uploadRedirectUrl;
+	}
+	var parts = ['frm_action=show', 'frm_smessage=' + encodeURIComponent('file uploaded successfully')];
+	var i, el, name;
+	for (i = 0; i < form.elements.length; i++) {
+		el = form.elements[i];
+		name = el && el.name ? String(el.name) : '';
+		if (name.indexOf('frm_o_o[') === 0 && el.value != null && String(el.value) !== '') {
+			parts.push(encodeURIComponent(name) + '=' + encodeURIComponent(String(el.value)));
+		}
+	}
+	return '/display.php?' + parts.join('&');
+}
+
 function uploadEnsureToast(url) {
 	if (typeof url !== 'string' || url === '') {
 		return uploadRedirectUrl;
@@ -8818,7 +8834,12 @@ function startUploading(e) {
 
 	if (typeof FormData !== "undefined") {
 		// get form data for POSTing
-		var vFD = new FormData(document.getElementById(e.form.id)); 
+		var uploadForm = document.getElementById(e.form.id);
+		var vFD = new FormData(uploadForm);
+		var formRedirectUrl = uploadRedirectFromForm(uploadForm);
+		if (formRedirectUrl) {
+			uploadRedirectUrl = formRedirectUrl;
+		}
 
 		// create XMLHttpRequest object, adding few event listeners, and POSTing our data
 		var oXHR = new XMLHttpRequest();		

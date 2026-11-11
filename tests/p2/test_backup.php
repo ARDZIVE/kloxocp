@@ -730,17 +730,26 @@ check(str_contains($htmlUpload, 'function uploadGoNext')
 	&& str_contains($htmlUpload, 'uploadRedirectTimer')
 	&& str_contains($htmlUpload, 'function uploadEnsureToast')
 	&& str_contains($htmlUpload, 'function uploadUrlFromResponse')
+	&& str_contains($htmlUpload, 'function uploadRedirectFromForm')
 	&& str_contains($htmlUpload, 'frm_smessage')
 	&& str_contains($htmlUpload, 'oXHR.timeout')
 	&& str_contains($htmlUpload, "addEventListener('error'")
 	&& str_contains($htmlUpload, "addEventListener('abort'")
 	&& !str_contains($htmlUpload, "addEventListener('progress_abort'"),
 	'Upload XHR redirects on load/timeout with File Manager toast URL');
+$bakSrcUpload = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
 check(str_contains($ffileSrc, 'function uploadSuccessRedirectUrl')
+	&& str_contains($ffileSrc, 'function backupFileManagerPathArray')
+	&& str_contains($ffileSrc, 'function getLocalBackupStat')
+	&& str_contains($ffileSrc, 'function finishUploadRedirectNow')
+	&& str_contains($ffileSrc, 'function isBackupStorePath')
 	&& str_contains($ffileSrc, '__kloxo_skip_was')
 	&& str_contains($ffileSrc, 'file uploaded successfully')
-	&& str_contains($coreDisp, '__kloxo_skip_was'),
-	'Local backup upload skips was() and sets success toast redirect');
+	&& str_contains($ffileSrc, '.uploading.')
+	&& str_contains($coreDisp, '__kloxo_skip_was')
+	&& str_contains($bakSrcUpload, 'lxfile_generic_chown($dir, \'lxlabs\')')
+	&& str_contains($bakSrcUpload, 'getLocalBackupStat'),
+	'Backup File Manager lists locally and Upload redirects with toast');
 check(preg_match(
 	'/function cp_fileserv\(\$file\).*?serverfile\/tmp.*?copy\(/s',
 	$libSrc

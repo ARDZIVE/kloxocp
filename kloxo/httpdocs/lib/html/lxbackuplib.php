@@ -71,6 +71,9 @@ class lxbackup extends Lxdb
 			$syncserver = $parent->syncserver;
 		}
 
+		// Always ensure + chown locally first (Backup Now as root can leave
+		// __backup root-owned; panel FPM is lxlabs and must list/upload).
+		self::MakeSureDirectoryExists($root);
 		try {
 			rl_exec_get(null, $syncserver, array("lxbackup", "MakeSureDirectoryExists"), array($root));
 		} catch (Throwable $e) {
@@ -79,13 +82,19 @@ class lxbackup extends Lxdb
 
 		$ffile = new Ffile(null, $syncserver, $root, $name, 'lxlabs');
 		$ffile->__parent_o = $this;
+		// Prefer in-process read for __backup so File Manager does not hang
+		// waiting on kloxo-backend when the dir is already local and owned.
 		try {
-			$ffile->get();
+			$ffile->getLocalBackupStat();
 		} catch (Throwable $e) {
-			$ffile->ttype = 'directory';
-			$ffile->readonly = 'off';
-			$ffile->__flag_showheader = true;
-			$ffile->setFileType();
+			try {
+				$ffile->get();
+			} catch (Throwable $e2) {
+				$ffile->ttype = 'directory';
+				$ffile->readonly = 'off';
+				$ffile->__flag_showheader = true;
+				$ffile->setFileType();
+			}
 		}
 		if (!isset($ffile->ttype) || $ffile->ttype === '' || $ffile->nname === '/') {
 			$ffile->ttype = 'directory';
@@ -99,9 +108,20 @@ class lxbackup extends Lxdb
 
 	static function MakeSureDirectoryExists($name)
 	{
-		if (!lxfile_exists($name)) {
-			lxfile_mkdir($name);
-			lxfile_generic_chown($name, "lxlabs");
+		$dir = rtrim((string) $name, '/');
+		if ($dir === '') {
+			return;
+		}
+		if (!lxfile_exists($dir)) {
+			lxfile_mkdir($dir);
+		}
+		if (function_exists('lxfile_generic_chown')) {
+			lxfile_generic_chown($dir, 'lxlabs');
+		}
+		if (function_exists('lxfile_unix_chmod')) {
+			@lxfile_unix_chmod($dir, '0755');
+		} else {
+			@chmod($dir, 0755);
 		}
 	}
 

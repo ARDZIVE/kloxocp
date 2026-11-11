@@ -263,6 +263,11 @@ class Ffile extends Lxclass
 			return false;
 		}
 
+		// Sidecar from an in-progress Upload; never list as a restoreable archive.
+		if (is_string($this->base) && str_contains($this->base, '.uploading.')) {
+			return false;
+		}
+
 		if (!isOn($dot)) {
 			if (csb($this->base, ".") && !csa($this->base, ".trash")) {
 				return false;
@@ -333,42 +338,53 @@ class Ffile extends Lxclass
 		} catch (Throwable $e) {
 			$destDir = '';
 		}
-		$rootBase = basename((string) ($this->root ?? ''));
-		$isBackupStore = ($rootBase === '__backup' || basename($destDir) === '__backup'
-			|| str_ends_with($destDir, '/__backup') || str_ends_with($destDir, '/__backup/'));
-		if ($isBackupStore && $destDir !== '' && is_dir($destDir) && is_writable($destDir)) {
-			$dest = rtrim($destDir, '/') . '/' . $this->upload_file_name;
-			$part = $dest . '.uploading.' . getmypid();
-			@unlink($part);
-			$ok = @move_uploaded_file($tmp, $part);
-			if (!$ok) {
-				$ok = @copy($tmp, $part);
+		if ($this->isBackupStorePath($destDir)) {
+			$destDir = rtrim($destDir, '/');
+			if ($destDir !== '' && !is_dir($destDir)) {
+				@mkdir($destDir, 0755, true);
 			}
-			$written = $ok ? @filesize($part) : false;
-			if ($ok && is_numeric($written) && (int) $written > 0) {
-				@chmod($part, 0640);
+			if ($destDir !== '' && is_dir($destDir) && !is_writable($destDir)) {
+				// Backup Now as root can leave the folder root-owned.
 				if (function_exists('lxfile_generic_chown')) {
-					lxfile_generic_chown($part, 'lxlabs');
+					lxfile_generic_chown($destDir, 'lxlabs');
 				}
-				// Atomic replace: never leave a 0-byte dest if the write fails.
-				if (!@rename($part, $dest)) {
-					@unlink($dest);
-					$ok = @rename($part, $dest) || (@copy($part, $dest) && @unlink($part));
-				}
-				if ($ok && is_file($dest) && (int) @filesize($dest) > 0) {
-					$this->dbaction = 'clean';
-					$this->subaction = null;
-					// File is already on disk: skip login->was() so the XHR
-					// gets print_redirect instead of hanging on backend sync.
-					$gbl->__kloxo_skip_was = true;
-					$gbl->__this_redirect = $this->uploadSuccessRedirectUrl();
-
-					return null;
-				}
+				@chmod($destDir, 0755);
 			}
-			@unlink($part);
-			throw new lxException($login->getThrow('no_file_in_upload'), '',
-				'could not save upload to ' . $this->upload_file_name);
+			if ($destDir !== '' && is_dir($destDir) && is_writable($destDir)) {
+				$dest = $destDir . '/' . $this->upload_file_name;
+				$part = $dest . '.uploading.' . getmypid();
+				@unlink($part);
+				$ok = @move_uploaded_file($tmp, $part);
+				if (!$ok) {
+					$ok = @copy($tmp, $part);
+				}
+				$written = $ok ? @filesize($part) : false;
+				if ($ok && is_numeric($written) && (int) $written > 0) {
+					@chmod($part, 0640);
+					if (function_exists('lxfile_generic_chown')) {
+						lxfile_generic_chown($part, 'lxlabs');
+					}
+					// Atomic replace: never leave a 0-byte dest if the write fails.
+					if (!@rename($part, $dest)) {
+						@unlink($dest);
+						$ok = @rename($part, $dest) || (@copy($part, $dest) && @unlink($part));
+					}
+					if ($ok && is_file($dest) && (int) @filesize($dest) > 0) {
+						$this->dbaction = 'clean';
+						$this->subaction = null;
+						// File is already on disk: skip login->was() so the XHR
+						// gets print_redirect instead of hanging on backend sync.
+						$gbl->__kloxo_skip_was = true;
+						$gbl->__this_redirect = $this->uploadSuccessRedirectUrl();
+						$this->finishUploadRedirectNow();
+
+						return null;
+					}
+				}
+				@unlink($part);
+				throw new lxException($login->getThrow('no_file_in_upload'), '',
+					'could not save upload to ' . $this->upload_file_name);
+			}
 		}
 
 		$this->up_temp_file_name = $tmp;
@@ -379,12 +395,58 @@ class Ffile extends Lxclass
 		return null;
 	}
 
+	function isBackupStorePath($destDir = null)
+	{
+		if ($destDir === null) {
+			try {
+				$destDir = (string) $this->getFullPath();
+			} catch (Throwable $e) {
+				$destDir = '';
+			}
+		}
+		$destDir = (string) $destDir;
+		$rootBase = basename(rtrim((string) ($this->root ?? ''), '/'));
+		if ($rootBase === '__backup' || basename(rtrim($destDir, '/')) === '__backup'
+			|| str_ends_with($destDir, '/__backup') || str_ends_with($destDir, '/__backup/')) {
+			return true;
+		}
+		try {
+			$po = $this->getParentO();
+			if (is_object($po) && method_exists($po, 'isClass') && $po->isClass('lxbackup')) {
+				return true;
+			}
+		} catch (Throwable $e) {
+		}
+
+		return false;
+	}
+
 	/**
 	 * File Manager / Backup Upload: show the directory list with a success toast.
+	 * Prefer the object parent chain so a bare XHR POST still lands on
+	 * Backup / Restore → File Manager (not a pathless ffile show).
 	 */
 	function uploadSuccessRedirectUrl()
 	{
-		$url = $this->getCurDirUrl();
+		global $ghtml;
+
+		$url = '';
+		$path = $this->backupFileManagerPathArray();
+		if ($path !== array() && is_object($ghtml) && method_exists($ghtml, 'get_get_from_post')) {
+			$npost = array(
+				'frm_action' => 'show',
+				'frm_o_o' => $path,
+				'frm_smessage' => 'file uploaded successfully',
+			);
+			$url = '/display.php?' . $ghtml->get_get_from_post(null, $npost);
+		}
+		if ($url === '' || !is_string($url)) {
+			try {
+				$url = $this->getCurDirUrl();
+			} catch (Throwable $e) {
+				$url = '';
+			}
+		}
 		if (!is_string($url) || $url === '') {
 			$url = '/display.php?frm_action=show';
 		}
@@ -394,6 +456,94 @@ class Ffile extends Lxclass
 		}
 
 		return $url;
+	}
+
+	/**
+	 * @return list<array{class:string,nname?:string}>
+	 */
+	function backupFileManagerPathArray()
+	{
+		$path = array();
+		$chain = array($this);
+		$guard = 0;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
+		while (is_object($parent) && $guard < 20) {
+			$guard++;
+			$chain[] = $parent;
+			$stop = false;
+			if (method_exists($parent, 'getClass')) {
+				try {
+					$pc = strtolower((string) $parent->getClass());
+					// Walk up to the account client (admin or reseller customer).
+					if ($pc === 'client') {
+						$stop = true;
+					}
+				} catch (Throwable $e) {
+				}
+			}
+			if ($stop) {
+				break;
+			}
+			try {
+				$parent = method_exists($parent, 'getParentO') ? $parent->getParentO() : null;
+			} catch (Throwable $e) {
+				$parent = null;
+			}
+		}
+		$chain = array_reverse($chain);
+		foreach ($chain as $o) {
+			if (!is_object($o) || !method_exists($o, 'getClass')) {
+				continue;
+			}
+			try {
+				$class = strtolower((string) $o->getClass());
+			} catch (Throwable $e) {
+				continue;
+			}
+			if ($class === '') {
+				continue;
+			}
+			$entry = array('class' => $class);
+			if (isset($o->nname) && is_scalar($o->nname) && (string) $o->nname !== '') {
+				$entry['nname'] = (string) $o->nname;
+			}
+			$path[] = $entry;
+		}
+		if ($path === array()) {
+			$path[] = array(
+				'class' => 'ffile',
+				'nname' => isset($this->nname) ? (string) $this->nname : '/',
+			);
+		}
+
+		return $path;
+	}
+
+	/**
+	 * Flush the File Manager redirect for XHR Upload without waiting for
+	 * the rest of display.php (save_login still runs when possible).
+	 */
+	function finishUploadRedirectNow()
+	{
+		global $gbl, $ghtml;
+
+		if (empty($gbl->__this_redirect) || !is_object($ghtml) || !method_exists($ghtml, 'print_redirect')) {
+			return;
+		}
+		if (function_exists('save_login')) {
+			try {
+				save_login();
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'save_login after upload: ' . $e->getMessage());
+				}
+			}
+		}
+		$ghtml->print_redirect((string) $gbl->__this_redirect);
 	}
 
 	function updateDownload($param)
@@ -1623,9 +1773,48 @@ class Ffile extends Lxclass
 		return "{$this->root}$core";
 	}
 
+	/**
+	 * Local __backup Directory stat (no backend round trip).
+	 */
+	function getLocalBackupStat()
+	{
+		$path = $this->getFullPath();
+		if (!is_string($path) || $path === '') {
+			throw new Exception('empty backup path');
+		}
+		if (!is_dir($path) && $this->nname === '/') {
+			@mkdir($path, 0755, true);
+		}
+		$stat = null;
+		if (class_exists('coreFfile', false) && is_callable(array('coreFfile', 'getLxStat'))) {
+			$stat = coreFfile::getLxStat($this->__username_o, $this->root, $path, null, false);
+		}
+		if (!is_array($stat)) {
+			$stat = array('name' => $path, 'size' => 0, 'ttype' => 'directory');
+		}
+		if (!isset($stat['ttype']) || $stat['ttype'] === '') {
+			$stat['ttype'] = 'directory';
+		}
+		$this->readonly = 'off';
+		$this->__flag_showheader = true;
+		$this->setFromArray($stat);
+		$this->setFileType();
+		if ($this->nname === '/') {
+			$this->ttype = 'directory';
+		}
+	}
+
 	static function initThisList($parent, $class)
 	{
 		$fpathp = $parent->fullpath;
+		if ((!is_string($fpathp) || $fpathp === '') && method_exists($parent, 'getFullPath')) {
+			try {
+				$fpathp = (string) $parent->getFullPath();
+				$parent->fullpath = $fpathp;
+			} catch (Throwable $e) {
+				$fpathp = '';
+			}
+		}
 
 		if (!$parent->is_dir()) {
 			return null;
@@ -1634,14 +1823,35 @@ class Ffile extends Lxclass
 		$duflag = self::listShowsDiskUsage($parent);
 		$parent->duflag = $duflag;
 
-		try {
-			$list = rl_exec_get($parent->__masterserver, $parent->__readserver, array("coreFfile", "get_full_stat"),
-				array($parent->__username_o, $parent->root, $fpathp, $duflag));
-		} catch (Throwable $e) {
+		$preferLocal = false;
+		if (is_object($parent) && method_exists($parent, 'isBackupStorePath')) {
+			try {
+				$preferLocal = $parent->isBackupStorePath($fpathp);
+			} catch (Throwable $e) {
+				$preferLocal = false;
+			}
+		} elseif (function_exists('kloxo_ffile_is_backup_list')) {
+			$preferLocal = kloxo_ffile_is_backup_list($parent);
+		}
+
+		$list = null;
+		if ($preferLocal) {
 			try {
 				$list = coreFfile::get_full_stat($parent->__username_o, $parent->root, $fpathp, $duflag);
-			} catch (Throwable $e2) {
-				return null;
+			} catch (Throwable $e) {
+				$list = null;
+			}
+		}
+		if (!is_array($list)) {
+			try {
+				$list = rl_exec_get($parent->__masterserver, $parent->__readserver, array("coreFfile", "get_full_stat"),
+					array($parent->__username_o, $parent->root, $fpathp, $duflag));
+			} catch (Throwable $e) {
+				try {
+					$list = coreFfile::get_full_stat($parent->__username_o, $parent->root, $fpathp, $duflag);
+				} catch (Throwable $e2) {
+					return null;
+				}
 			}
 		}
 
@@ -1733,12 +1943,22 @@ class Ffile extends Lxclass
 			$this->duflag = true;
 		}
 		$this->numlines = $numlines;
+		$stat = null;
+		$path = $this->getFullPath();
+		if ($numlines !== 'download' && $this->isBackupStorePath($path)) {
+			try {
+				$this->getLocalBackupStat();
+				return;
+			} catch (Throwable $e) {
+				log_log("error", "ffile local backup get: " . $e->getMessage());
+			}
+		}
 		try {
 			$stat = rl_exec_get($this->__masterserver, $this->__readserver, array("coreFfile", "getLxStat"),
-				array($this->__username_o, $this->root, $this->getFullPath(), $numlines, $this->duflag));
+				array($this->__username_o, $this->root, $path, $numlines, $this->duflag));
 		} catch (Throwable $e) {
 			log_log("error", "ffile getLxStat: " . $e->getMessage());
-			$stat = array('name' => $this->getFullPath(), 'size' => 0, 'ttype' => 'directory');
+			$stat = array('name' => $path, 'size' => 0, 'ttype' => 'directory');
 		}
 
 	//	dprintr($stat);
