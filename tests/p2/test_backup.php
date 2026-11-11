@@ -402,8 +402,12 @@ $htmlSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
 check(str_contains($lxlib, 'function kloxo_is_long_backend_update')
 	&& str_contains($lxlib, 'restore_confirm_confirm')
 	&& str_contains($core, '__kloxo_defer_chrome')
-	&& str_contains($htmlSrc, '__kloxo_defer_chrome'),
-	'Backup/Restore defer page chrome so restore cannot end on a blank page');
+	&& str_contains($core, '@ob_start()')
+	&& str_contains($core, 'Deferred Backup/Restore must never end with an empty body')
+	&& str_contains($htmlSrc, '__kloxo_defer_chrome')
+	&& str_contains($htmlSrc, 'Restore completed. Redirecting')
+	&& str_contains($bak, 'function backupShowUrl'),
+	'Backup/Restore defer chrome buffers output and always redirects with a message');
 check(str_contains($bak, "dbaction = 'clean'")
 	&& str_contains($bak, 'collectquota after restore'),
 	'Restore marks lxbackup clean and does not abort on collectquota');

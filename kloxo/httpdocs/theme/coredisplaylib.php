@@ -2565,10 +2565,18 @@ function do_display_init()
 		return;
 	}
 	// Backup/Restore: no chrome until the backend finishes (avoids blank page).
+	// Buffer every print() from doCoreBackup/doCoreRestore so the body is not
+	// flushed early — that blocked Location and left a blank/incomplete page.
 	if (function_exists('kloxo_is_long_backend_update') && kloxo_is_long_backend_update()) {
 		$gbl->__this_redirect = null;
 		$gbl->__kloxo_defer_chrome = true;
 		@ini_set('default_socket_timeout', '86400');
+		@ini_set('zlib.output_compression', '0');
+		@ini_set('output_buffering', '0');
+		while (ob_get_level() > 0) {
+			@ob_end_clean();
+		}
+		@ob_start();
 
 		return;
 	}
@@ -2856,6 +2864,17 @@ function lx_frm_inc()
 		}
 
 		$ghtml->print_redirect($gbl->__this_redirect, $windowurl);
+	}
+
+	// Deferred Backup/Restore must never end with an empty body: if the
+	// action forgot to set a redirect, send the user back to Backup / Restore.
+	if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome) && empty($gbl->__this_redirect)
+		&& is_object($ghtml) && method_exists($ghtml, 'print_redirect')) {
+		$url = method_exists($ghtml, 'getFullUrl') ? $ghtml->getFullUrl('a=show') : 'display.php?frm_action=show';
+		if (!is_string($url) || $url === '') {
+			$url = 'display.php?frm_action=show';
+		}
+		$ghtml->print_redirect($url);
 	}
 
 	// This is a misnomer.. It just saves the lx_http_refer, ssession variables... And also saves the login, if it exists.

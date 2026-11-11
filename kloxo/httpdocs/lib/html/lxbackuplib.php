@@ -619,12 +619,8 @@ class lxbackup extends Lxdb
 			$this->dbaction = 'update';
 			$this->write();
 			$this->dbaction = 'clean';
-			if ($stage === 'done') {
-				$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
-					? $ghtml->getFullUrl('a=show') : 'display.php?a=show';
-				if (!is_string($url) || $url === '') {
-					$url = 'display.php?a=show';
-				}
+			if (trim($stage) === 'done' || str_starts_with(trim($stage), 'done')) {
+				$url = self::backupShowUrl();
 				if (is_object($gbl)) {
 					$gbl->__no_debug_redirect = true;
 					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
@@ -660,12 +656,8 @@ class lxbackup extends Lxdb
 			$this->dbaction = 'update';
 			$this->write();
 			$this->dbaction = 'clean';
-			$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
-				? $ghtml->getFullUrl('a=show') : 'display.php?a=show';
-			if (!is_string($url) || $url === '') {
-				$url = 'display.php?a=show';
-			}
-			if (str_starts_with($stage, 'done')) {
+			$url = self::backupShowUrl();
+			if (str_starts_with(trim($stage), 'done')) {
 				if (is_object($gbl)) {
 					$gbl->__no_debug_redirect = true;
 					$gbl->__this_redirect = $url . (str_contains($url, '?') ? '&' : '?')
@@ -966,6 +958,29 @@ class lxbackup extends Lxdb
 		}
 
 		return (string) $backup->restorestage;
+	}
+
+	/** Backup / Restore show URL (keeps client/admin object path when possible). */
+	static function backupShowUrl()
+	{
+		global $ghtml;
+
+		$url = '';
+		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+			try {
+				$got = $ghtml->getFullUrl('a=show');
+				if (is_string($got) && $got !== '') {
+					$url = $got;
+				}
+			} catch (Throwable $e) {
+				$url = '';
+			}
+		}
+		if ($url === '') {
+			$url = 'display.php?frm_action=show';
+		}
+
+		return $url;
 	}
 
 	/** True when kloxo-backend still has a pre-upcp version stamp in memory. */

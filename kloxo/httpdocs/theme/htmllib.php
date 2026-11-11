@@ -6140,19 +6140,35 @@ class HtmlLib
 
 		$current_url = $this->get_get_from_current_post(null);
 
-		// Backup/Restore deferred chrome: send a complete tiny page (gzip-safe).
+		// Backup/Restore deferred chrome: discard buffered restore/backup prints,
+		// then send a complete tiny page (gzip-safe) so the browser never sits
+		// on a blank body after Location fails because output already started.
 		if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome) && !$windowurl) {
 			while (ob_get_level() > 0) {
 				@ob_end_clean();
 			}
+			@ini_set('zlib.output_compression', '0');
 			if (!headers_sent()) {
+				header('Content-Type: text/html; charset=utf-8');
+				header('Cache-Control: no-store, no-cache, must-revalidate');
 				header('Location: ' . $redirect_url);
 			}
 			$esc = htmlspecialchars($redirect_url, ENT_QUOTES);
+			$msg = 'Restore/Backup finished. Redirecting…';
+			if (str_contains($redirect_url, 'frm_smessage=restore_completed')) {
+				$msg = 'Restore completed. Redirecting to Backup / Restore…';
+			} elseif (str_contains($redirect_url, 'frm_smessage=backup_completed')) {
+				$msg = 'Backup completed. Redirecting to Backup / Restore…';
+			} elseif (str_contains($redirect_url, 'frm_emessage=') || str_contains($redirect_url, 'frm_smessage=restore_failed')
+				|| str_contains($redirect_url, 'frm_smessage=backup_failed')) {
+				$msg = 'Finished with a message. Redirecting…';
+			}
 			print('<!DOCTYPE html><html><head><meta charset="utf-8">'
 				. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
-				. '<title>Redirect</title></head><body>'
-				. '<p>Continue: <a href="' . $esc . '">here</a>.</p>'
+				. '<title>' . htmlspecialchars($msg, ENT_QUOTES) . '</title></head><body>'
+				. '<p style="font-family:sans-serif;margin:2em">'
+				. htmlspecialchars($msg, ENT_QUOTES)
+				. ' <a href="' . $esc . '">Continue</a>.</p>'
 				. '</body></html>');
 			exit(0);
 		}
