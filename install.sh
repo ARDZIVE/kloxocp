@@ -39,7 +39,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111110"
+KCP_VERSION="10.1-2026111111"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -267,6 +267,7 @@ fresh_wipe() {
   systemctl reload fail2ban >/dev/null 2>&1 || true
 
   rm -f /script /usr/bin/lxphp.exe /usr/bin/lphp.exe /usr/local/sbin/kloxocp \
+    /usr/local/sbin/kloxo-mail \
     /root/kloxo-admin-password /root/kloxo-recovery-password || true
 
   if [[ -L "$ROOT" ]]; then
@@ -731,7 +732,9 @@ ln -sfn "$ROOT/pscript" /script
 ln -sfn "$ROOT/init/php-cli.sh" /usr/bin/lxphp.exe
 ln -sfn "$ROOT/init/php-cli.sh" /usr/bin/lphp.exe
 ln -sfn "$ROOT/bin/kloxocp" /usr/local/sbin/kloxocp
+ln -sfn "$ROOT/bin/mail/kloxo-mail" /usr/local/sbin/kloxo-mail
 chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" \
+  "$ROOT/bin/mail/kloxo-mail" \
   "$ROOT/init/kloxo-backend.sh" \
   "$ROOT/bin/install/generate-tls-keys" \
   "$ROOT/bin/install/init-panel-db" \

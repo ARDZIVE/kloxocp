@@ -20,7 +20,7 @@ declare(strict_types=1);
  * Usage: kloxocp <command> [arguments] [--options]
  */
 
-const KCP_VERSION = '10.1-2026111110';
+const KCP_VERSION = '10.1-2026111111';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -1165,6 +1165,14 @@ TXT;
             @unlink('/usr/local/sbin/kloxocp');
             if (@symlink($kloxocp, '/usr/local/sbin/kloxocp')) {
                 $done[] = '/usr/local/sbin/kloxocp';
+            }
+        }
+        $kloxomail = $this->root . '/bin/mail/kloxo-mail';
+        if (is_file($kloxomail)) {
+            @chmod($kloxomail, 0755);
+            @unlink('/usr/local/sbin/kloxo-mail');
+            if (@symlink($kloxomail, '/usr/local/sbin/kloxo-mail')) {
+                $done[] = '/usr/local/sbin/kloxo-mail';
             }
         }
         // Ensure /script/upcp and /script/directory are executable wrappers.

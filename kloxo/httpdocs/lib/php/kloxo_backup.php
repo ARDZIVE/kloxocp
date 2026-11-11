@@ -823,7 +823,8 @@ final class KloxoBackup
 					$host = self::mailFqdn($src);
 					if ($host === '') {
 						$failed[] = 'kloxo-mail: /etc/kloxo/mail.ini is missing. As root run: '
-							. 'kloxo-mail init --hostname=mail.example.com && kloxo-mail apply';
+							. 'php /opt/kloxo/bin/mail/kloxo-mail init --hostname=mail.example.com'
+							. ' && php /opt/kloxo/bin/mail/kloxo-mail apply';
 						continue;
 					}
 					$init = array(self::phpBinary(), $script, 'init', '--hostname=' . $host);

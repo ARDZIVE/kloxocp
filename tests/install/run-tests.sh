@@ -122,6 +122,13 @@ else
 fi
 check "get bash -n" bash -n "$ROOT/get"
 check "install.sh bash -n" bash -n "$ROOT/install.sh"
+if grep -q 'bin/mail/kloxo-mail' "$ROOT/install.sh" \
+  && grep -q '/usr/local/sbin/kloxo-mail' "$ROOT/install.sh" \
+  && grep -q 'bin/mail/kloxo-mail' "$ROOT/kloxo/bin/kloxocp"; then
+  ok "install/upcp put kloxo-mail on PATH via /usr/local/sbin"
+else
+  bad "install/upcp put kloxo-mail on PATH via /usr/local/sbin"
+fi
 if grep -q 'repair_apt_cache' "$ROOT/install.sh" \
   && grep -q 'apt_update' "$ROOT/install.sh" \
   && grep -q 'srcpkgcache.bin' "$ROOT/install.sh" \
