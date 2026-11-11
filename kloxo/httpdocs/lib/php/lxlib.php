@@ -3032,6 +3032,33 @@ function kloxo_is_long_backend_update(): bool
 }
 
 /**
+ * Connect and read timeouts (seconds) for kloxo-backend / slave RPC.
+ * Normal page loads must not wait a day when the backend is wedged.
+ *
+ * @return array{0:int,1:int} connect timeout, read timeout
+ */
+function kloxo_backend_io_timeouts(string $raddress = 'localhost'): array
+{
+	global $gbl;
+
+	$local = $raddress === '' || $raddress === 'localhost' || $raddress === '127.0.0.1'
+		|| (function_exists('isLocalhost') && isLocalhost($raddress));
+	$long = false;
+	if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome)) {
+		$long = true;
+	} elseif (kloxo_is_long_backend_update()) {
+		$long = true;
+	}
+
+	if ($long) {
+		// Backup/Restore: keep a long read window; still bound connect.
+		return array($local ? 10 : 30, 86400);
+	}
+
+	return array($local ? 3 : 15, $local ? 60 : 120);
+}
+
+/**
  * Safe Backup / Restore landing URL: show of lxbackup, never the long
  * referer+emessage query that blanked the next page after meta refresh.
  */

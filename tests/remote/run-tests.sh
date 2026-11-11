@@ -35,6 +35,15 @@ if grep -q 'function kloxo_refresh_sgbl_version' "$ROOT/kloxo/httpdocs/lib/sgbl.
 else
   bad "kloxo_refresh_sgbl_version re-reads bin/kloxoversion"
 fi
+# Normal pages must not wait 86400s on a wedged kloxo-backend.
+if grep -q 'function kloxo_backend_io_timeouts' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php" \
+  && grep -q 'kloxo_backend_io_timeouts' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" \
+  && ! grep -q '30000000000' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php" \
+  && grep -q 'timed_out' "$ROOT/kloxo/httpdocs/lib/html/remotelib.php"; then
+  ok "backend RPC uses short connect/read timeouts (not 3e10/86400 always)"
+else
+  bad "backend RPC uses short connect/read timeouts (not 3e10/86400 always)"
+fi
 if grep -q "rl_exec_get(null, 'localhost', array(\"lxbackup\", \"execbackupphp\")" \
   "$ROOT/kloxo/httpdocs/lib/html/lxbackuplib.php" \
   && grep -q 'backendVersionSkewHint' "$ROOT/kloxo/httpdocs/lib/html/lxbackuplib.php"; then

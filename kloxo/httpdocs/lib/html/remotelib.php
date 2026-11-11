@@ -502,8 +502,22 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 		$rraddress = "127.0.0.1";
 	}
 
+	// Connect/read timeouts: the old values (3e10s connect, 86400s read) left
+	// the busy modal up for ages when kloxo-backend was slow or wedged.
+	$timeouts = function_exists('kloxo_backend_io_timeouts')
+		? kloxo_backend_io_timeouts((string) $raddress)
+		: array(3, 60);
+	$connectTimeout = (int) ($timeouts[0] ?? 3);
+	$readTimeout = (int) ($timeouts[1] ?? 60);
+	if ($connectTimeout < 1) {
+		$connectTimeout = 3;
+	}
+	if ($readTimeout < 5) {
+		$readTimeout = 60;
+	}
+
 	if ($raddress === "localhost") {
-		$socket = stream_socket_client("{$con}://{$rraddress}:{$port}", $errno, $errstr, 30000000000);
+		$socket = stream_socket_client("{$con}://{$rraddress}:{$port}", $errno, $errstr, $connectTimeout);
 	} else {
 		$opts = array(
 			$con => array(
@@ -515,7 +529,7 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 
 		$ctx = stream_context_create($opts);
 
-		$socket = stream_socket_client("{$con}://{$rraddress}:{$port}", $errno, $errstr, 30000000000, STREAM_CLIENT_CONNECT, $ctx);
+		$socket = stream_socket_client("{$con}://{$rraddress}:{$port}", $errno, $errstr, $connectTimeout, STREAM_CLIENT_CONNECT, $ctx);
 	}
 
 //	$socket =  fsockopen("$con://$raddress", $port);
@@ -533,8 +547,7 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 		}
 	}
 
-	// Backup/Restore can run longer than php.ini default_socket_timeout (600s).
-	@stream_set_timeout($socket, 86400);
+	@stream_set_timeout($socket, $readTimeout);
 
 	$in = $var;
 	fwrite($socket, $in);
@@ -552,6 +565,15 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 		$out = fgets($socket, 8092);
 
 		if (!$out) {
+			$meta = @stream_get_meta_data($socket);
+			if (is_array($meta) && !empty($meta['timed_out'])) {
+				fclose($socket);
+				throw new lxException(
+					$login->getThrow('no_socket_connect_to_server'),
+					'',
+					$raddress . " (backend timed out after {$readTimeout}s)"
+				);
+			}
 			if (!$totalout) {
 				dprint("Got Nothing\n");
 			}
