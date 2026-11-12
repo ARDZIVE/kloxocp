@@ -329,9 +329,8 @@ class Ffile extends Lxclass
 		$this->upload_overwrite_f = 'on';
 		$gbl->__this_redirect = $this->uploadSuccessRedirectUrl();
 
-		// Backup / Restore __backup is owned by lxlabs: write in-process so the
-		// XHR does not sit on "Wait for redirecting..." while kloxo-backend
-		// tries to read PHP-FPM PrivateTmp.
+		// Backup / Restore __backup: write in-process so the XHR does not sit
+		// on "Wait for redirecting..." while kloxo-backend reads PrivateTmp.
 		$destDir = '';
 		try {
 			$destDir = (string) $this->getFullPath();
@@ -343,12 +342,25 @@ class Ffile extends Lxclass
 			if ($destDir !== '' && !is_dir($destDir)) {
 				@mkdir($destDir, 0755, true);
 			}
+			// Backup Now as root can leave the folder root-owned; FPM is lxlabs
+			// and cannot chown — ask the backend, then retry local write.
 			if ($destDir !== '' && is_dir($destDir) && !is_writable($destDir)) {
-				// Backup Now as root can leave the folder root-owned.
 				if (function_exists('lxfile_generic_chown')) {
 					lxfile_generic_chown($destDir, 'lxlabs');
 				}
 				@chmod($destDir, 0755);
+				if (!is_writable($destDir) && function_exists('rl_exec_get')
+					&& class_exists('lxbackup', false)) {
+					try {
+						$srv = isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== ''
+							? $this->syncserver : 'localhost';
+						rl_exec_get(null, $srv, array('lxbackup', 'MakeSureDirectoryExists'), array($destDir . '/'));
+					} catch (Throwable $e) {
+						if (function_exists('log_log')) {
+							log_log('error', 'backup upload chown: ' . $e->getMessage());
+						}
+					}
+				}
 			}
 			if ($destDir !== '' && is_dir($destDir) && is_writable($destDir)) {
 				$dest = $destDir . '/' . $this->upload_file_name;
@@ -373,8 +385,13 @@ class Ffile extends Lxclass
 						$this->dbaction = 'clean';
 						$this->subaction = null;
 						// File is already on disk: skip login->was() so the XHR
-						// gets print_redirect instead of hanging on backend sync.
-						$gbl->__kloxo_skip_was = true;
+						// gets a tiny 200 redirect body (not Location → full page).
+						if (function_exists('kloxo_skip_was_now')) {
+							kloxo_skip_was_now();
+						} else {
+							$gbl->__kloxo_skip_was = true;
+							$GLOBALS['kloxo_skip_was'] = true;
+						}
 						$gbl->__this_redirect = $this->uploadSuccessRedirectUrl();
 						$this->finishUploadRedirectNow();
 
@@ -531,8 +548,12 @@ class Ffile extends Lxclass
 	{
 		global $gbl, $ghtml;
 
-		if (empty($gbl->__this_redirect) || !is_object($ghtml) || !method_exists($ghtml, 'print_redirect')) {
-			return;
+		$url = '';
+		if (is_object($gbl) && !empty($gbl->__this_redirect) && is_string($gbl->__this_redirect)) {
+			$url = (string) $gbl->__this_redirect;
+		}
+		if ($url === '') {
+			$url = $this->uploadSuccessRedirectUrl();
 		}
 		if (function_exists('save_login')) {
 			try {
@@ -543,7 +564,21 @@ class Ffile extends Lxclass
 				}
 			}
 		}
-		$ghtml->print_redirect((string) $gbl->__this_redirect);
+		// XHR must not get Location (browser follows into File Manager show).
+		if (function_exists('kloxo_is_xhr_request') && kloxo_is_xhr_request()
+			&& function_exists('kloxo_xhr_redirect_response')) {
+			kloxo_xhr_redirect_response($url);
+		}
+		if (is_object($ghtml) && method_exists($ghtml, 'print_redirect')) {
+			$ghtml->print_redirect($url);
+		}
+		if (function_exists('kloxo_finish_local_redirect')) {
+			if (is_object($gbl)) {
+				$gbl->__this_redirect = $url;
+			}
+			kloxo_finish_local_redirect();
+		}
+		exit(0);
 	}
 
 	function updateDownload($param)

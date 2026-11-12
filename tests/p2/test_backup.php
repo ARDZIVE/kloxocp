@@ -732,18 +732,37 @@ check(str_contains($htmlUpload, 'function uploadGoNext')
 	&& str_contains($htmlUpload, 'function uploadEnsureToast')
 	&& str_contains($htmlUpload, 'function uploadUrlFromResponse')
 	&& str_contains($htmlUpload, 'function uploadRedirectFromForm')
+	&& str_contains($htmlUpload, 'data-kloxo-redirect')
+	&& str_contains($htmlUpload, 'X-Kloxo-Redirect')
 	&& str_contains($htmlUpload, 'frm_smessage')
 	&& str_contains($htmlUpload, 'oXHR.timeout')
 	&& str_contains($htmlUpload, "addEventListener('error'")
 	&& str_contains($htmlUpload, "addEventListener('abort'")
 	&& !str_contains($htmlUpload, "addEventListener('progress_abort'"),
 	'Upload XHR redirects on load/timeout with File Manager toast URL');
+$lxlibSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+check(str_contains($lxlibSrc, 'function kloxo_is_xhr_request')
+	&& str_contains($lxlibSrc, 'function kloxo_xhr_redirect_response')
+	&& str_contains($lxlibSrc, 'X-Kloxo-Redirect')
+	&& str_contains($lxlibSrc, 'data-kloxo-redirect'),
+	'XHR upload redirect helpers exist');
+$xhrFn = '';
+if (preg_match('/function kloxo_xhr_redirect_response\(.*?^\}/sm', $lxlibSrc, $mXhr) === 1) {
+	$xhrFn = $mXhr[0];
+}
+check($xhrFn !== ''
+	&& !str_contains($xhrFn, "header('Location:")
+	&& str_contains($xhrFn, 'X-Kloxo-Redirect')
+	&& str_contains($xhrFn, 'http_response_code(200)'),
+	'XHR redirect response has no Location header');
 $bakSrcUpload = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
 check(str_contains($ffileSrc, 'function uploadSuccessRedirectUrl')
 	&& str_contains($ffileSrc, 'function backupFileManagerPathArray')
 	&& str_contains($ffileSrc, 'function getLocalBackupStat')
 	&& str_contains($ffileSrc, 'function finishUploadRedirectNow')
 	&& str_contains($ffileSrc, 'function isBackupStorePath')
+	&& str_contains($ffileSrc, 'kloxo_xhr_redirect_response')
+	&& str_contains($ffileSrc, 'MakeSureDirectoryExists')
 	&& str_contains($ffileSrc, '__kloxo_skip_was')
 	&& str_contains($ffileSrc, 'file uploaded successfully')
 	&& str_contains($ffileSrc, '.uploading.')

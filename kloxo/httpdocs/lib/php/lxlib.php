@@ -3132,10 +3132,34 @@ function kloxo_backup_result_url(string $kind, string $key, string $detail = '')
 }
 
 /**
- * Leave the long Backup/Restore POST for the normal panel page + Status toast.
- * Clears restore progress output so Location is not blocked (blank page).
+ * True when the panel Upload XHR (or similar) posted with X-Requested-With.
  */
-function kloxo_backup_panel_redirect(string $url): void
+function kloxo_is_xhr_request(): bool
+{
+	$h = '';
+	if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && is_string($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+		$h = $_SERVER['HTTP_X_REQUESTED_WITH'];
+	} elseif (function_exists('apache_request_headers')) {
+		$all = apache_request_headers();
+		if (is_array($all)) {
+			foreach ($all as $k => $v) {
+				if (strcasecmp((string) $k, 'X-Requested-With') === 0) {
+					$h = (string) $v;
+					break;
+				}
+			}
+		}
+	}
+
+	return strcasecmp(trim($h), 'XMLHttpRequest') === 0;
+}
+
+/**
+ * Tiny 200 response for Upload XHR. Never send Location — XMLHttpRequest
+ * would follow it into a full File Manager page and sit on
+ * "Wait for redirecting..." until that page finished (or timed out).
+ */
+function kloxo_xhr_redirect_response(string $url): void
 {
 	while (ob_get_level() > 0) {
 		@ob_end_clean();
@@ -3143,8 +3167,48 @@ function kloxo_backup_panel_redirect(string $url): void
 	@ini_set('zlib.output_compression', '0');
 	$url = trim($url);
 	if ($url === '') {
+		$url = '/display.php?frm_action=show';
+	}
+	if (!str_starts_with($url, '/') && !preg_match('#^https?://#i', $url)) {
+		$url = '/' . ltrim($url, '/');
+	}
+	$esc = htmlspecialchars($url, ENT_QUOTES);
+	$jsonUrl = json_encode($url, JSON_UNESCAPED_SLASHES);
+	if (!is_string($jsonUrl) || $jsonUrl === '') {
+		$jsonUrl = '"' . addcslashes($url, "\\\"\0..\x1f") . '"';
+	}
+	if (!headers_sent()) {
+		header('Content-Type: text/html; charset=utf-8');
+		header('Cache-Control: no-store, no-cache, must-revalidate');
+		header('X-Kloxo-Redirect: ' . str_replace(array("\r", "\n"), '', $url));
+		http_response_code(200);
+	}
+	echo '<!DOCTYPE html><html><head><meta charset="utf-8">'
+		. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
+		. '<title>Upload OK</title></head><body data-kloxo-redirect="' . $esc . '">'
+		. '<a href="' . $esc . '">click here</a>'
+		. '<script type="application/json" id="kloxo-redirect-json">' . $jsonUrl . '</script>'
+		. '</body></html>';
+	exit(0);
+}
+
+/**
+ * Leave the long Backup/Restore POST for the normal panel page + Status toast.
+ * Clears restore progress output so Location is not blocked (blank page).
+ */
+function kloxo_backup_panel_redirect(string $url): void
+{
+	$url = trim($url);
+	if ($url === '') {
 		$url = kloxo_backup_safe_continue_url();
 	}
+	if (function_exists('kloxo_is_xhr_request') && kloxo_is_xhr_request()) {
+		kloxo_xhr_redirect_response($url);
+	}
+	while (ob_get_level() > 0) {
+		@ob_end_clean();
+	}
+	@ini_set('zlib.output_compression', '0');
 	if (!str_starts_with($url, '/') && !preg_match('#^https?://#i', $url)) {
 		$url = '/' . ltrim($url, '/');
 	}
@@ -3388,6 +3452,10 @@ function kloxo_finish_local_redirect(): void
 		} catch (Throwable $e) {
 			// no-op helper
 		}
+	}
+	if (function_exists('kloxo_is_xhr_request') && kloxo_is_xhr_request()
+		&& function_exists('kloxo_xhr_redirect_response')) {
+		kloxo_xhr_redirect_response($url);
 	}
 	if (is_object($ghtml) && method_exists($ghtml, 'print_redirect')) {
 		$ghtml->print_redirect($url);

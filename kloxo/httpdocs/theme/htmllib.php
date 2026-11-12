@@ -6224,6 +6224,10 @@ class HtmlLib
 			- Click <a href="<?= $redirect_url ?>">here</a> to go there Anyways.
 <?php
 		} else {
+			if (function_exists('kloxo_is_xhr_request') && kloxo_is_xhr_request()
+				&& function_exists('kloxo_xhr_redirect_response')) {
+				kloxo_xhr_redirect_response((string) $redirect_url);
+			}
 			// Always a complete document as well as Location (headers may already
 			// have been sent by a long backup/restore print).
 			while (ob_get_level() > 0) {
@@ -8779,9 +8783,34 @@ function uploadEnsureToast(url) {
 	return url + (url.indexOf('?') === -1 ? '?' : '&') + 'frm_smessage=' + encodeURIComponent('file uploaded successfully');
 }
 
-function uploadUrlFromResponse(text) {
+function uploadUrlFromResponse(text, xhr) {
+	if (xhr && xhr.getResponseHeader) {
+		try {
+			var hdr = xhr.getResponseHeader('X-Kloxo-Redirect');
+			if (hdr && typeof hdr === 'string' && hdr !== '') {
+				return hdr.replace(/&amp;/g, '&');
+			}
+		} catch (eHdr) {
+			// ignore
+		}
+	}
 	if (typeof text !== 'string' || text === '') {
 		return '';
+	}
+	var jm = text.match(/id=["']kloxo-redirect-json["'][^>]*>\s*(\{[^<]*\}|"[^"]+")\s*</i);
+	if (jm && jm[1]) {
+		try {
+			var parsed = JSON.parse(jm[1]);
+			if (typeof parsed === 'string' && parsed !== '') {
+				return parsed.replace(/&amp;/g, '&');
+			}
+		} catch (eJson) {
+			// fall through
+		}
+	}
+	var dm = text.match(/data-kloxo-redirect=["']([^"']+)["']/i);
+	if (dm && dm[1]) {
+		return dm[1].replace(/&amp;/g, '&');
 	}
 	var m = text.match(/http-equiv=["']?Refresh["']?[^>]*content=["']?\s*\d+\s*;\s*URL=([^"'>\s]+)/i);
 	if (!m) {
@@ -8842,11 +8871,29 @@ function startUploading(e) {
 		}
 
 		// create XMLHttpRequest object, adding few event listeners, and POSTing our data
-		var oXHR = new XMLHttpRequest();		
+		var oXHR = new XMLHttpRequest();
+		// Do not follow Location into File Manager show (that left the UI on
+		// "Wait for redirecting..." while the full page loaded).
+		try {
+			if ('redirect' in oXHR) {
+				oXHR.redirect = 'manual';
+			}
+		} catch (eRedir) {
+			// older browsers
+		}
 		oXHR.upload.addEventListener('progress', uploadProgress, false);
 		oXHR.addEventListener('load', function (ev) {
 			if (oXHR.status >= 200 && oXHR.status < 400) {
 				uploadFinish(ev, oXHR);
+			} else if (oXHR.status >= 300 && oXHR.status < 400) {
+				// manual redirect mode: treat Location as success target
+				var loc = '';
+				try {
+					loc = oXHR.getResponseHeader('Location') || oXHR.getResponseHeader('X-Kloxo-Redirect') || '';
+				} catch (eLoc) {
+					loc = '';
+				}
+				uploadGoNext(loc || uploadRedirectUrl);
 			} else {
 				uploadError(ev);
 			}
@@ -8862,9 +8909,8 @@ function startUploading(e) {
 			}
 			uploadGoNext(uploadRedirectUrl);
 		}, false);
-		// Server work after the bytes arrive (fileserv → backend copy) can take
-		// a while; do not wait forever on "Wait for redirecting...".
-		oXHR.timeout = 60000;
+		// Local __backup save returns a tiny 200 quickly; keep a safety net.
+		oXHR.timeout = 45000;
 		oXHR.open('POST', '/display.php');
 		oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 		oXHR.send(vFD);
@@ -8916,8 +8962,8 @@ function uploadProgress(e) { // upload process in progress
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
 			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
-			// Bytes are on the server. If print_redirect never arrives (hung
-			// was()/backend), open File Manager with the success toast.
+			// Bytes are on the server. If the tiny XHR redirect body never
+			// arrives (hung was()/backend), open File Manager anyway.
 			if (!uploadRedirectTimer) {
 				uploadRedirectTimer = setTimeout(function () {
 					var info = document.getElementById('progress_info');
@@ -8925,7 +8971,7 @@ function uploadProgress(e) { // upload process in progress
 						info.innerHTML = 'Opening File Manager…';
 					}
 					uploadGoNext(uploadRedirectUrl);
-				}, 20000);
+				}, 12000);
 			}
 		}
 	} else {
@@ -8941,8 +8987,11 @@ function uploadFinish(e, xhr) { // upload finished (or timed out waiting for the
 	}
 	document.getElementById('progress_remaining').innerHTML = '00:00:00';
 	var next = '';
-	if (xhr && typeof xhr.responseText === 'string') {
-		next = uploadUrlFromResponse(xhr.responseText);
+	if (xhr) {
+		next = uploadUrlFromResponse(
+			(typeof xhr.responseText === 'string') ? xhr.responseText : '',
+			xhr
+		);
 	}
 	uploadGoNext(next || uploadRedirectUrl);
 }
