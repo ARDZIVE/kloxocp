@@ -95,6 +95,22 @@ if (str_contains($core, 'kloxo_finish_client_add')
 } else {
 	bad('Add Client defers continue chrome, returns 200 stub, drop-queues sync');
 }
+
+// Domain add must not treat every deferred was() failure as Backup success
+// ("Domain was added successfully" with an empty Domains list).
+$lxFrm = '';
+if (preg_match('/try \{\s*\$login->was\(\);.*?^[\t ]*if \(\$login->isAuxiliary/sm', $core, $mWas) === 1) {
+	$lxFrm = $mWas[0];
+}
+if ($lxFrm !== ''
+	&& str_contains($lxFrm, 'kloxo_is_long_backend_update')
+	&& str_contains($lxFrm, 'post-sync local write')
+	&& str_contains($lxFrm, 'throw $wasEx')
+	&& !str_contains($lxFrm, "empty(\$gbl->__kloxo_defer_chrome) || empty(\$gbl->__this_redirect)")) {
+	ok('was() failures after Add Domain are not swallowed as success');
+} else {
+	bad('was() failures after Add Domain are not swallowed as success');
+}
 if (str_contains($js, '/theme/img/kloxo-spinner.gif') && str_contains($js, 'KloxoBusy')
 	&& str_contains($js, "'pageshow'")) {
 	ok('JS shows the GIF and hides on pageshow');

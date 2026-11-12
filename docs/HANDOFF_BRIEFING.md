@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111226**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111227**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1026,8 +1026,12 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Fix: defer chrome for `continue` (flush chrome only if the next step is
    another form); writeonly-was + **HTTP 200 stub** (no Location); drop-queue
    `log/client-sync.request` + `log/background.queue` for backend/watchdog;
-   never spawn useradd from panel FPM. Live Add Client after this path
-   **UNVERIFIED**.
+   never spawn useradd from panel FPM. Related: deferred chrome + a broad
+   `login->was()` catch (meant for Backup) swallowed sync failures on Add
+   Domain, so the UI said "Domain was added successfully" while
+   `writeEntireObject` never ran (empty Domains list). Catch is Backup-only
+   again; on other was() failures the panel SQLite row is still written then
+   the real error is shown. Live Add Domain after this path **UNVERIFIED**.
    Verify: hotfix `$domain` in live exim4.conf, `exim4 -qff`, then Add
    Customer / `test-mail --to=real@…`. Tests: `tests/p2/test_panel_mail.php`,
    `run-tests.sh` domainlist check. Live welcome delivery after apply
@@ -1046,7 +1050,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111226**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111227**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

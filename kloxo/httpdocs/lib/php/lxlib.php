@@ -3713,7 +3713,43 @@ function kloxo_finish_client_add(string $nname): void
 	}
 
 	kloxo_emit_local_redirect();
+	// Close the browser connection first, then kick the drop-queue so the
+	// Unix user exists before the admin adds a domain (sync used to fail
+	// silently and show "added successfully" with an empty Domains list).
+	if (function_exists('kloxo_close_client_connection')) {
+		kloxo_close_client_connection();
+	}
+	if (function_exists('kloxo_kick_dropped_client_jobs')) {
+		kloxo_kick_dropped_client_jobs();
+	}
 	exit(0);
+}
+
+/**
+ * Fire-and-forget: run-dropped-client-jobs.php as a detached process.
+ * Safe after fastcgi_finish_request / emit — must not block the browser.
+ */
+function kloxo_kick_dropped_client_jobs(): void
+{
+	global $sgbl;
+
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
+		? (string) $sgbl->__path_php_path
+		: (function_exists('kloxo_php_binary') ? (string) kloxo_php_binary() : '/usr/bin/php');
+	$runner = $root . '/bin/common/run-dropped-client-jobs.php';
+	if (!is_file($runner)) {
+		return;
+	}
+	// Panel FPM is lxlabs: useradd needs root. Prefer asking kloxo-backend
+	// (root) via a tiny drop the backend loop already drains; also try a
+	// detached runner in case the process can elevate. Backend do_server_stuff
+	// always drains client-sync.request as root.
+	if (function_exists('lxshell_background')) {
+		lxshell_background($php, $runner, '--root=' . $root);
+	}
 }
 
 /**

@@ -2933,11 +2933,31 @@ function lx_frm_inc()
 		try {
 			$login->was();
 		} catch (Throwable $wasEx) {
-			// Backup/Restore already persisted stage; do not blank the redirect.
-			if (empty($gbl->__kloxo_defer_chrome) || empty($gbl->__this_redirect)) {
+			// Only Backup/Restore may keep a success redirect after was() fails
+			// (stage already on disk). For Add Domain / Add Client / etc.,
+			// swallowing here showed "added successfully" with nothing in the
+			// list — sync threw before writeEntireObject ran.
+			$backupWas = function_exists('kloxo_is_long_backend_update')
+				&& kloxo_is_long_backend_update()
+				&& is_object($gbl) && !empty($gbl->__this_redirect);
+			if ($backupWas) {
+				log_log('error', 'post backup/restore was: ' . $wasEx->getMessage());
+			} else {
+				// Persist panel.sqlite even when kloxo-backend sync failed
+				// (e.g. client Unix user still pending) so the Domains list
+				// is not empty after a failed add.
+				try {
+					if (function_exists('kloxo_skip_was_now')) {
+						kloxo_skip_was_now();
+					}
+					if (is_object($login) && method_exists($login, 'was')) {
+						$login->was();
+					}
+				} catch (Throwable $writeEx) {
+					log_log('error', 'post-sync local write: ' . $writeEx->getMessage());
+				}
 				throw $wasEx;
 			}
-			log_log('error', 'post backup/restore was: ' . $wasEx->getMessage());
 		}
 
 		if ($login->isAuxiliary()) {
