@@ -73,6 +73,10 @@ check(str_contains($exim, 'trusted_users = lxlabs')
 	&& str_contains($exim, 'never_users = root'),
 	'Exim trusts lxlabs for panel -f From');
 
+check(str_contains($exim, "quote_mysql:\$domain")
+	&& !str_contains($exim, "quote_mysql:\$key"),
+	'Exim domainlist uses $domain not $key (4.99)');
+
 $cin = '';
 if (preg_match('/function callInBackground\(.*?^function /sm', $lib, $m)) {
 	$cin = $m[0];

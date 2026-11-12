@@ -927,6 +927,12 @@ if grep -q 'forbid_file' "$ROOT/kloxo/file/mail/exim/exim4.conf" \
 else
   bad "Exim redirect routers omit unknown forbid_filter"
 fi
+if grep -q "quote_mysql:\$domain" "$ROOT/kloxo/file/mail/exim/exim4.conf" \
+  && ! grep -q "quote_mysql:\$key" "$ROOT/kloxo/file/mail/exim/exim4.conf"; then
+  ok "Exim domainlist uses \$domain (Exim 4.99 has no \$key)"
+else
+  bad "Exim domainlist uses \$domain (Exim 4.99 has no \$key)"
+fi
 if test -f "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
   && head -n 20 "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" | grep -q '^dovecot_config_version' \
   && grep -q 'dovecotSeries' "$ROOT/kloxo/bin/mail/kloxo-mail" \
