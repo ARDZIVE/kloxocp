@@ -544,13 +544,14 @@ class ClientBase extends ClientCore
 
 		foreach ($nlist as $client) {
 			if ($client['contactemail']) {
+				$subject = (string) ($param['wall_subject_f'] ?? '');
 				if ($sgbl->dbg > 0) {
-					$subject = $param['wall_subject_f'] . " ({$client['nname']})";
+					$subject = $subject . " ({$client['nname']})";
 				}
 
 				$contactemail = $client['contactemail'];
 
-				lx_mail(null, $contactemail, $subject, $param['wall_message_f']);
+				lx_mail(null, $contactemail, $subject, $param['wall_message_f'] ?? '');
 			}
 		}
 

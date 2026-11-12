@@ -230,6 +230,11 @@ if php "$HERE/test_mariadb.php"; then
 else
   bad "test_mariadb.php"
 fi
+if php "$HERE/test_panel_mail.php"; then
+  ok "test_panel_mail.php"
+else
+  bad "test_panel_mail.php"
+fi
 if php "$HERE/test_backup.php"; then
   ok "test_backup.php"
 else

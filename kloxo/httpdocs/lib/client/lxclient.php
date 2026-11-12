@@ -286,10 +286,13 @@ abstract class Lxclient extends Lxdb
 			$from = $noto->fromaddress;
 		}
 		
-		callInBackground("lx_mail", array($from, $obj->contactemail, $subject, $txt));
+		// lx_mail is already non-blocking (sendmail write deadline). Send here
+		// so welcome mail does not depend on the background worker (which used
+		// a cwd-relative path and silently never ran under FPM).
+		lx_mail($from, $obj->contactemail, $subject, $txt);
 
 		if (isset($obj->extra_email_f) && $obj->extra_email_f) {
-			callInBackground("lx_mail", array($from, $obj->extra_email_f, $subject, $txt));
+			lx_mail($from, $obj->extra_email_f, $subject, $txt);
 		}
 	}
 

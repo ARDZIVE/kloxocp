@@ -3043,7 +3043,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111214';
+	return '10.1-2026111215';
 }
 
 function getDownloadServer()
@@ -3263,39 +3263,72 @@ function remove_if_older_than_a_minute($file)
 	}
 }
 
+/**
+ * Split a To field that may be "a@x, b@y" (ticket getAllContactEmail).
+ *
+ * @return list<string>
+ */
+function kloxo_mail_recipients($to): array
+{
+	if (is_array($to)) {
+		$parts = $to;
+	} else {
+		$parts = preg_split('/[\s,;]+/', (string) $to) ?: array();
+	}
+	$out = array();
+	foreach ($parts as $p) {
+		$p = trim((string) $p);
+		if ($p === '' || !function_exists('validate_email') || !validate_email($p)) {
+			continue;
+		}
+		$out[$p] = $p;
+	}
+
+	return array_values($out);
+}
+
+function kloxo_mail_header_safe(string $value): string
+{
+	return str_replace(array("\r", "\n", "\0"), '', $value);
+}
+
+/**
+ * Panel → user mail via local sendmail -t (welcome, tickets, wall, …).
+ * Never uses PHP mail() (can block the UI for minutes on Exim/DNS).
+ */
 function lx_mail($from, $to, $subject, $message, $extra = null)
 {
-	if (!$from) {
-		$server = getFQDNforServer('localhost');
-		$from = "admin@{$server}";
-	}
-
-	$header = "From: {$from}\n";
-
-	$header .= "MIME-Version: 1.0\n";
-	$header .= "Content-type: text/html; charset=utf-8\n";
-
-	if ($extra) {
-		$header .= "{$extra}\n";
-	}
-
-	$message = str_replace("\n", "<br>\n", $message);
-
-	log_log("mail_send", "Sending Mail to {$to} {$subject} from {$from}");
-
-	// Never call PHP mail() synchronously: Exim/sendmail can block for minutes
-	// (DNS / greylist), which left the panel busy modal stuck after Add Client
-	// even though the account was already created. Prefer sendmail -t with a
-	// short write timeout; on failure, queue via background shell.
-	$to = is_string($to) ? trim($to) : '';
-	$subject = is_string($subject) ? str_replace(array("\r", "\n"), '', $subject) : '';
-	if ($to === '' || !function_exists('validate_email') || !validate_email($to)) {
-		log_log('mail_send', "skip invalid To: {$to}");
+	$recipients = kloxo_mail_recipients($to);
+	if ($recipients === array()) {
+		log_log('mail_send', 'skip: no valid To address in ' . (is_string($to) ? $to : '(list)'));
 
 		return;
 	}
 
-	$body = "To: {$to}\nSubject: {$subject}\n{$header}\n{$message}\n";
+	$from = is_string($from) ? trim($from) : '';
+	$from = kloxo_mail_header_safe($from);
+	if ($from === '' || !function_exists('validate_email') || !validate_email($from)) {
+		$server = function_exists('getFQDNforServer') ? (string) getFQDNforServer('localhost') : 'localhost';
+		$from = 'admin@' . $server;
+	}
+
+	$subject = kloxo_mail_header_safe(is_string($subject) ? $subject : '');
+	$header = "From: {$from}\n";
+	$header .= "MIME-Version: 1.0\n";
+	$header .= "Content-type: text/html; charset=utf-8\n";
+	if (is_string($extra) && $extra !== '') {
+		foreach (preg_split("/\r\n|\n|\r/", $extra) ?: array() as $line) {
+			$line = trim($line);
+			if ($line === '' || !str_contains($line, ':') || preg_match('/[\r\n]/', $line) === 1) {
+				continue;
+			}
+			$header .= $line . "\n";
+		}
+	}
+
+	$message = is_string($message) ? $message : '';
+	$message = str_replace("\n", "<br>\n", $message);
+
 	$sendmail = '';
 	foreach (array('/usr/sbin/sendmail', '/usr/lib/sendmail') as $bin) {
 		if (is_executable($bin)) {
@@ -3303,95 +3336,107 @@ function lx_mail($from, $to, $subject, $message, $extra = null)
 			break;
 		}
 	}
-	if ($sendmail !== '' && function_exists('proc_open')) {
-		$pipes = array();
-		$p = @proc_open(
-			array($sendmail, '-t', '-i', '-f', $from),
-			array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
-			$pipes
-		);
-		if (is_resource($p)) {
-			stream_set_blocking($pipes[0], false);
-			$offset = 0;
-			$len = strlen($body);
-			$deadline = microtime(true) + 5.0;
-			$ok = true;
-			while ($offset < $len) {
-				$w = array($pipes[0]);
-				$r = $e = array();
-				$left = $deadline - microtime(true);
-				if ($left <= 0) {
-					$ok = false;
-					break;
-				}
-				$n = @stream_select($r, $w, $e, (int) $left, (int) (($left - (int) $left) * 1e6));
-				if ($n === false || $n === 0) {
-					$ok = false;
-					break;
-				}
-				$wrote = @fwrite($pipes[0], substr($body, $offset));
-				if ($wrote === false || $wrote === 0) {
-					$ok = false;
-					break;
-				}
-				$offset += $wrote;
-			}
-			@fclose($pipes[0]);
-			// After stdin is closed, Exim/sendmail can still sit on DNS for
-			// minutes. Never stream_get_contents()/proc_close() without a
-			// deadline — that is what stuck Add Client after the account
-			// was already created.
-			foreach (array(1, 2) as $fd) {
-				if (!isset($pipes[$fd]) || !is_resource($pipes[$fd])) {
-					continue;
-				}
-				stream_set_blocking($pipes[$fd], false);
-				$drainUntil = microtime(true) + 1.5;
-				while (microtime(true) < $drainUntil) {
-					$chunk = @fread($pipes[$fd], 8192);
-					if ($chunk === false || $chunk === '') {
-						$r = array($pipes[$fd]);
-						$w = $e = array();
-						$left = $drainUntil - microtime(true);
-						if ($left <= 0) {
-							break;
-						}
-						$n = @stream_select($r, $w, $e, 0, (int) max(1, $left * 1e6));
-						if ($n === false || $n === 0) {
-							break;
-						}
-						continue;
-					}
-				}
-				@fclose($pipes[$fd]);
-			}
-			$status = @proc_get_status($p);
-			if (is_array($status) && !empty($status['running'])) {
-				// Give sendmail a moment to accept, then detach.
-				$waitUntil = microtime(true) + 1.0;
-				while (microtime(true) < $waitUntil) {
-					$status = @proc_get_status($p);
-					if (!is_array($status) || empty($status['running'])) {
-						break;
-					}
-					usleep(50000);
-				}
-			}
-			$status = @proc_get_status($p);
-			if (is_array($status) && !empty($status['running'])) {
-				@proc_terminate($p);
-				log_log('mail_send', 'sendmail still running after write; terminated to unblock panel');
-			}
-			@proc_close($p);
-			if ($ok) {
-				return;
-			}
-			log_log('mail_send', 'sendmail timed out writing; skipped');
-		}
+	if ($sendmail === '' || !function_exists('proc_open')) {
+		log_log('mail_send', 'sendmail unavailable; skipped blocking PHP mail()');
+
+		return;
 	}
 
-	// Do not fall back to PHP mail(): it can block the panel for minutes on Exim/DNS.
-	log_log('mail_send', 'sendmail unavailable or timed out; skipped blocking PHP mail()');
+	foreach ($recipients as $addr) {
+		log_log('mail_send', "Sending Mail to {$addr} {$subject} from {$from}");
+		$body = "To: {$addr}\nSubject: {$subject}\n{$header}\n{$message}\n";
+		kloxo_mail_sendmail_once($sendmail, $from, $body);
+	}
+}
+
+/**
+ * Hand one message to sendmail with a short deadline (never block the UI).
+ */
+function kloxo_mail_sendmail_once(string $sendmail, string $from, string $body): bool
+{
+	$pipes = array();
+	$p = @proc_open(
+		array($sendmail, '-t', '-i', '-f', $from),
+		array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
+		$pipes
+	);
+	if (!is_resource($p)) {
+		log_log('mail_send', 'sendmail proc_open failed');
+
+		return false;
+	}
+	stream_set_blocking($pipes[0], false);
+	$offset = 0;
+	$len = strlen($body);
+	$deadline = microtime(true) + 5.0;
+	$ok = true;
+	while ($offset < $len) {
+		$w = array($pipes[0]);
+		$r = $e = array();
+		$left = $deadline - microtime(true);
+		if ($left <= 0) {
+			$ok = false;
+			break;
+		}
+		$n = @stream_select($r, $w, $e, (int) $left, (int) (($left - (int) $left) * 1e6));
+		if ($n === false || $n === 0) {
+			$ok = false;
+			break;
+		}
+		$wrote = @fwrite($pipes[0], substr($body, $offset));
+		if ($wrote === false || $wrote === 0) {
+			$ok = false;
+			break;
+		}
+		$offset += $wrote;
+	}
+	@fclose($pipes[0]);
+	foreach (array(1, 2) as $fd) {
+		if (!isset($pipes[$fd]) || !is_resource($pipes[$fd])) {
+			continue;
+		}
+		stream_set_blocking($pipes[$fd], false);
+		$drainUntil = microtime(true) + 1.5;
+		while (microtime(true) < $drainUntil) {
+			$chunk = @fread($pipes[$fd], 8192);
+			if ($chunk === false || $chunk === '') {
+				$r = array($pipes[$fd]);
+				$w = $e = array();
+				$left = $drainUntil - microtime(true);
+				if ($left <= 0) {
+					break;
+				}
+				$n = @stream_select($r, $w, $e, 0, (int) max(1, $left * 1e6));
+				if ($n === false || $n === 0) {
+					break;
+				}
+				continue;
+			}
+		}
+		@fclose($pipes[$fd]);
+	}
+	$status = @proc_get_status($p);
+	if (is_array($status) && !empty($status['running'])) {
+		$waitUntil = microtime(true) + 1.0;
+		while (microtime(true) < $waitUntil) {
+			$status = @proc_get_status($p);
+			if (!is_array($status) || empty($status['running'])) {
+				break;
+			}
+			usleep(50000);
+		}
+	}
+	$status = @proc_get_status($p);
+	if (is_array($status) && !empty($status['running'])) {
+		@proc_terminate($p);
+		log_log('mail_send', 'sendmail still running after write; terminated to unblock panel');
+	}
+	@proc_close($p);
+	if (!$ok) {
+		log_log('mail_send', 'sendmail timed out writing; skipped');
+	}
+
+	return $ok;
 }
 
 function download_and_print_file($server, $file)
@@ -3447,15 +3492,20 @@ function get_title()
 
 function send_mail_to_admin($subject, $message)
 {
-	global $sgbl;
-
-	$progname = $sgbl->__var_program_name;
-
 	$rawdb = new Sqlite(null, "client");
-	$email = $rawdb->rawQuery("select contactemail from client where cttype = 'admin'");
-	$email = $email[0]['contactemail'];
+	$rows = $rawdb->rawQuery("select contactemail from client where cttype = 'admin'");
+	$email = '';
+	if (is_array($rows) && isset($rows[0]) && is_array($rows[0])) {
+		$email = trim((string) ($rows[0]['contactemail'] ?? ''));
+	}
+	if ($email === '') {
+		log_log('mail_send', 'send_mail_to_admin: admin contactemail empty');
 
-	callInBackground("lx_mail", array($progname, $email, $subject, $message));
+		return;
+	}
+
+	// From null → lx_mail uses admin@FQDN (never the bare program name).
+	callInBackground("lx_mail", array(null, $email, $subject, $message));
 }
 
 function save_admin_email($nolog = null)
@@ -3521,32 +3571,76 @@ function callInChild($func, $arglist)
 	return $rmt;
 }
 
+/**
+ * Queue a function for bin/common/background.php.
+ * Job file lives under the program root (not /tmp) so PrivateTmp FPM and the
+ * detached worker share it; script path is absolute so a cwd of / still works.
+ */
 function callInBackground($func, $arglist)
 {
 	global $sgbl;
 
+	$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
+		? (string) $sgbl->__path_php_path
+		: (function_exists('kloxo_php_binary') ? (string) kloxo_php_binary() : '/usr/bin/php');
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$bg = $root . '/bin/common/background.php';
+	if (!is_file($bg)) {
+		log_log('mail_send', "callInBackground: missing {$bg}");
+		if (is_string($func) && $func === 'lx_mail' && is_array($arglist)) {
+			call_user_func_array('lx_mail', $arglist);
+		}
+
+		return;
+	}
+
+	$jobDir = $root . '/pid';
+	if (!is_dir($jobDir)) {
+		@mkdir($jobDir, 0750, true);
+	}
+	$name = @tempnam($jobDir, 'background');
+	if ($name === false) {
+		$name = $jobDir . '/background.' . getmypid() . '.' . mt_rand(1000, 9999);
+	}
 	$res = new Remote();
 	$res->__type = 'function';
 	$res->func = $func;
 	$res->arglist = $arglist;
-	$name = tempnam("/tmp", "background");
 	lxfile_generic_chmod($name, "700");
 	lfile_put_contents($name, serialize($res));
 
-	lxshell_background($sgbl->__path_php_path, "../bin/common/background.php", $name);
+	lxshell_background($php, $bg, $name);
 }
 
 function callObjectInBackground($object, $func)
 {
+	global $sgbl;
+
+	$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
+		? (string) $sgbl->__path_php_path
+		: (function_exists('kloxo_php_binary') ? (string) kloxo_php_binary() : '/usr/bin/php');
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$bg = $root . '/bin/common/background.php';
+	$jobDir = $root . '/pid';
+	if (!is_dir($jobDir)) {
+		@mkdir($jobDir, 0750, true);
+	}
+	$name = @tempnam($jobDir, 'background');
+	if ($name === false) {
+		$name = $jobDir . '/background.' . getmypid() . '.' . mt_rand(1000, 9999);
+	}
 	$res = new Remote();
 	$res->__type = 'object';
 	$res->__exec_object = $object;
 	$res->func = $func;
-	$name = tempnam("/tmp", "background");
 	lxfile_generic_chmod($name, "700");
 	lfile_put_contents($name, serialize($res));
 
-	lxshell_background("__path_php_path", "../bin/common/background.php", $name);
+	lxshell_background($php, $bg, $name);
 }
 
 function get_with_cache($file, $cmdarglist)
