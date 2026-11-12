@@ -4,9 +4,13 @@
 # Easiest install (no questions, full stack):
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 #
-# With flags:
+# With flags (bash -s --):
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --yes
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
+#
+# Panel: https://<ip>:7777/  admin / admin
+# Panel CLI (pdo_sqlite): /opt/kloxo/init/php-cli.sh /opt/kloxo/bin/kloxocp …
 #
 # Pipe-safe: this script does `exec </dev/null` before apt so package tools never
 # consume the pipe. Prefer the `get` bootstrap (downloads this file, then runs it).
@@ -39,7 +43,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111209"
+KCP_VERSION="10.1-2026111210"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -877,8 +881,8 @@ pin_panel_php() {
 
 ensure_installer_php() {
   local ver p pkgs=()
-  # Install sqlite3 for every installed CLI series (PHP Used may leave
-  # /usr/bin/php on 8.6 without sqlite while 8.5 still has it).
+  # Install phpX.Y-sqlite3 for every installed CLI series (PHP Used may leave
+  # /usr/bin/php on 8.6 without the driver while 8.5 still has it).
   for p in /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6 /usr/bin/php; do
     [[ -x "$p" ]] || continue
     ver="$("$p" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"

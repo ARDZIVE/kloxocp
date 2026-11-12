@@ -3043,7 +3043,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111209';
+	return '10.1-2026111210';
 }
 
 function getDownloadServer()

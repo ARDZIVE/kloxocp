@@ -1,7 +1,7 @@
 #!/bin/bash
 # Kloxo CP — one-line installer bootstrap.
 #
-# Fresh Ubuntu 24.04 or 26.x as root:
+# Fresh Ubuntu 24.04 or 26.x as root (full stack, no questions):
 #
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 #
@@ -11,8 +11,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
 #
-# No questions by default. Full stack (Nginx, MariaDB, Exim, Dovecot, Rspamd,
-# BIND, Pure-FTPd, UFW, Fail2Ban). Panel opens on https://<ip>:7777/ as admin/admin.
+# Panel: https://<ip>:7777/  admin / admin
+# After PHP Used, panel CLI tools: /opt/kloxo/init/php-cli.sh … (not bare php).
 #
 # This file only fetches install.sh and runs it. apt never reads the pipe
 # (install.sh redirects stdin from /dev/null before any package work).
