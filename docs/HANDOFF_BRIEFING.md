@@ -137,8 +137,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Program root is derived from the tree / `KLOXO_ROOT` (not a missing `/opt/kloxo`).
     PHP binary is distro `php` (`kloxo_php_binary()`, `init/php-cli.sh`, pin
     `etc/path/php`). Prefer `/opt/kloxo/init/php-cli.sh` over bare `php` after
-    PHP Used (Sury 8.6 may lack `pdo_sqlite`). `init-panel-db` re-execs under a
-    PHP that has sqlite when the current one does not. Login page files
+    PHP Used (Sury 8.6 may lack `pdo_sqlite`). A stale pin at 8.6 without
+    sqlite is ignored (php-cli / backend / FPM re-pick 8.3/8.5 with sqlite and
+    rewrite the pin). `init-panel-db` re-execs under a PHP that has sqlite when
+    the current one does not. Login page files
     are shipped under `httpdocs/login/`. Hiawatha 12 drops TLS 1.0/1.1 (no
     `MinTLSversion` directive). PHP-FPM unit runs `init/kloxo-php-fpm.sh`
     (php-fpm8.3 on 24.04, php-fpm8.5 on 26.04). Browser login
@@ -238,7 +240,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111207**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111208**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -988,7 +990,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111207**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111208**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

@@ -437,8 +437,9 @@ check(str_contains($bak, 'extension_loaded(\'pdo_sqlite\')')
 	'Backup Now skips in-process when pdo_sqlite is missing');
 $be = (string) file_get_contents($repo . '/kloxo/init/kloxo-backend.sh');
 check(str_contains($be, 'etc/path/php')
-	&& str_contains($be, 'pdo_sqlite'),
-	'kloxo-backend.sh prefers pinned PHP with pdo_sqlite');
+	&& str_contains($be, 'pdo_sqlite')
+	&& str_contains($be, 'php_has_sqlite'),
+	'kloxo-backend.sh prefers pinned PHP with pdo_sqlite and ignores a stale pin');
 $lxlib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 $core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $htmlSrc = (string) file_get_contents($doc . '/theme/htmllib.php');

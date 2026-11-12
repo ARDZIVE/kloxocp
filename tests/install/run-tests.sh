@@ -405,9 +405,16 @@ else
   bad "init-panel-db re-execs under a PHP with pdo_sqlite"
 fi
 # Prefer distro 8.3 before Sury 8.6 so bare php-cli picks sqlite first.
-php_cli_order="$(grep -n 'php8\.[0-9]' "$ROOT/kloxo/init/php-cli.sh" | head -5)"
-if echo "$php_cli_order" | head -1 | grep -q 'php8.3' \
-  && grep -n "foreach (array('/usr/bin/php8.3'" "$ROOT/kloxo/httpdocs/lib/sgbl.php" | grep -q .; then
+if grep -q 'php_has_sqlite' "$ROOT/kloxo/init/php-cli.sh" \
+  && grep -q 'php_has_sqlite' "$ROOT/kloxo/init/kloxo-backend.sh" \
+  && awk '/etc\/path\/php/,/exec/ { if (/php_has_sqlite/) found=1 } END { exit found?0:1 }' \
+       "$ROOT/kloxo/init/php-cli.sh"; then
+  ok "php-cli and backend ignore a stale pin without pdo_sqlite"
+else
+  bad "php-cli and backend ignore a stale pin without pdo_sqlite"
+fi
+if grep -n 'php8\.3' "$ROOT/kloxo/init/php-cli.sh" | head -1 | grep -q 'php8.3' \
+  && grep -F "foreach (array('/usr/bin/php8.3'" "$ROOT/kloxo/httpdocs/lib/sgbl.php" | grep -q .; then
   ok "php-cli and sgbl prefer php8.3 before php8.6 for pdo_sqlite"
 else
   bad "php-cli and sgbl prefer php8.3 before php8.6 for pdo_sqlite"
