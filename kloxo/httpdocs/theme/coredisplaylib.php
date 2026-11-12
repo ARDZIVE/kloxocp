@@ -1550,6 +1550,10 @@ function __ac_desc_add($object, $param = null)
 	if ($class === 'domain' || $class === 'client' || $class === 'vps') {
 		$gbl->setSessionV('__refresh_lpanel', 'true');
 	}
+	// DNS templates already wrote in postAdd; do not wait on backend was().
+	if ($class === 'dnstemplate') {
+		$gbl->__kloxo_skip_was = true;
+	}
 }
 
 function check_for_select_one($param)

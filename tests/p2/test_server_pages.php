@@ -1390,6 +1390,8 @@ try {
 	$short->mmailipaddress = '203.0.113.9';
 	$short->nameserver_f = 'ns1';
 	$short->secnameserver_f = 'ns2';
+	// clean: exercise NS fill without writing panel.sqlite (live add uses dbaction=add).
+	$short->dbaction = 'clean';
 	$short->postAdd();
 	if (($short->soanameserver ?? '') === 'ns1.default.dnst'
 		&& isset($short->dns_record_a['ns_ns1.default.dnst'], $short->dns_record_a['ns_ns2.default.dnst'], $short->dns_record_a['a___base__'])) {
@@ -1457,15 +1459,20 @@ try {
 	$delSrc = (string) file_get_contents($doc . '/driver/dns/dnstemplatelib.php');
 	$delCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 	$delOk = method_exists($delTpl, 'deleteSpecific')
+		&& method_exists($delTpl, 'postAdd')
+		&& method_exists($delTpl, 'writeLocalAndSkipWas')
 		&& method_exists($delTpl, 'isSync') && $delTpl->isSync() === false
+		&& str_contains($delSrc, 'writeLocalAndSkipWas')
+		&& str_contains($delSrc, "writeLocalAndSkipWas('add')")
+		&& str_contains($delSrc, "writeLocalAndSkipWas('delete')")
 		&& str_contains($delSrc, '__kloxo_skip_was')
-		&& str_contains($delSrc, 'dnstemplate delete write')
 		&& str_contains($delCore, "\$cname === 'dnstemplate'")
+		&& str_contains($delCore, "\$class === 'dnstemplate'")
 		&& str_contains($delCore, '__kloxo_skip_was');
 	if ($delOk) {
-		ok('DNS template delete writes locally and skips backend was()');
+		ok('DNS template add/delete write locally and skip backend was() on redirect');
 	} else {
-		bad('DNS template delete writes locally and skips backend was()');
+		bad('DNS template add/delete write locally and skip backend was() on redirect');
 	}
 
 	$zone = new Dns(null, 'localhost', 'example.com');

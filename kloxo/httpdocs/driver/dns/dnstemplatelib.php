@@ -22,28 +22,52 @@ class Dnstemplate extends DnsBase
 	}
 
 	/**
-	 * Templates live only in the panel DB (isSync false). Still, login->was()
-	 * after delete used to wait on kloxo-backend for unrelated dirty objects.
-	 * Write the row out here and skip that round trip.
+	 * Templates are panel-DB only (isSync false). After add/delete the SQLite
+	 * row is already correct; login->was() still walks dirty parents and waits
+	 * on kloxo-backend, which is what stalls the success redirect/refresh.
+	 * Persist here and skip that round trip so the browser redirects at once.
 	 */
-	function deleteSpecific()
+	function writeLocalAndSkipWas(string $context)
 	{
 		global $gbl;
 
 		$this->metadbaction = 'writeonly';
-		if ($this->dbaction === 'delete') {
-			try {
-				$this->write();
-				$this->dbaction = 'delete_done';
-			} catch (Throwable $e) {
-				if (function_exists('log_log')) {
-					log_log('error', 'dnstemplate delete write: ' . $e->getMessage());
-				}
-				throw $e;
+		try {
+			$this->write();
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', "dnstemplate {$context} write: " . $e->getMessage());
 			}
+			throw $e;
+		}
+		if ($this->dbaction === 'add') {
+			$this->dbaction = 'clean';
+		} elseif ($this->dbaction === 'delete') {
+			$this->dbaction = 'delete_done';
 		}
 		if (is_object($gbl)) {
 			$gbl->__kloxo_skip_was = true;
+		}
+	}
+
+	function postAdd()
+	{
+		parent::postAdd();
+		// Unit tests call postAdd to check NS qualification without a panel DB.
+		if ($this->dbaction === 'add') {
+			$this->writeLocalAndSkipWas('add');
+		}
+	}
+
+	function deleteSpecific()
+	{
+		if ($this->dbaction === 'delete') {
+			$this->writeLocalAndSkipWas('delete');
+		} else {
+			global $gbl;
+			if (is_object($gbl)) {
+				$gbl->__kloxo_skip_was = true;
+			}
 		}
 
 		return true;
