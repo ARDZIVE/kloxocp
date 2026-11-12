@@ -231,7 +231,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111132**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111201**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -627,16 +627,19 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     **UNVERIFIED**.
     DNS Template menu and dashboard tiles list `dnstemplate` (not
     `lxbackup`); opening the list no longer throws `no_ip_address`
-    when the IP table is empty.     The list tab keeps the add form;
+    when the IP table is empty. The list tab keeps the add form;
     there is no separate Add this template tab. The add form leaves DNS
-    Template Name, Primary DNS and Secondary DNS empty. Adding a template
-    uses live Ubuntu
-    IPs (or a typed IP when that list is empty), does not run
-    `fixIpAddress.php`, strips a duplicate `.dnst` suffix, qualifies a
-    blank/short nameserver to `ns1.<template>.dnst`, validates primary
-    and secondary NS separately, and writes default NS/A/MX records to
-    `dns_record_a`. Opening a template without a loaded parent still
-    shows the add-record tabs. Live template-create after deploy is
+    Template Name, Primary DNS and Secondary DNS empty (typed IP fields
+    when the IP table is empty; no blocking `no_ip_address` banner).
+    Adding a template uses live Ubuntu IPs (or a typed IP when that list
+    is empty), does not run `fixIpAddress.php`, strips a duplicate `.dnst`
+    suffix, qualifies a blank/short nameserver to `ns1.<template>.dnst`,
+    validates primary and secondary NS separately, and writes default
+    NS/A/MX records to `dns_record_a`. Opening a template always shows the
+    add-record beige tabs (NS/A/AAAA/…/General Settings; no Rebuild) even
+    when `parent_clname` is empty or mismatched (`createShowPropertyList`
+    + forced `dnstemplate` tabs in `kloxo_print_object_property_tabs`);
+    Find is omitted on the show page. Live template-create after deploy is
     **UNVERIFIED**.
     FTP Configure (`serverftp`) beige tab is labelled **FTP Configure**
     (`serverftp::ftpPropertyTabs`). Live FTP Configure after deploy is
@@ -971,7 +974,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111132**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111201**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

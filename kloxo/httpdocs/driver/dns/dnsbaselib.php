@@ -687,8 +687,29 @@ abstract class Dnsbase extends Lxdb
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		if ($this->isRightParent()) {
-			$rebuild = !cse($this->get__table(), "template")
+		if (!isset($alist['property']) || !is_array($alist['property'])) {
+			$alist['property'] = array();
+		}
+
+		$table = '';
+		try {
+			$table = (string) $this->get__table();
+		} catch (Throwable $e) {
+			$table = '';
+		}
+		$isTemplate = ($table === 'dnstemplate' || cse($table, 'template'));
+		// DNS Templates are shared: always show NS/A/MX/… tabs. Live zones
+		// still honour ownership, but an empty parent_clname used to blank
+		// the beige strip when a parent object was already loaded.
+		$showTabs = $isTemplate || $this->isRightParent();
+		if (!$showTabs) {
+			$pcl = isset($this->parent_clname) ? (string) $this->parent_clname : '';
+			if ($pcl === '') {
+				$showTabs = true;
+			}
+		}
+		if ($showTabs) {
+			$rebuild = !$isTemplate
 				&& (!isset($sgbl) || !is_object($sgbl) || $sgbl->isKloxo());
 			foreach (self::dnsPropertyTabs($rebuild) as $tab) {
 				$alist['property'][] = $tab;

@@ -817,9 +817,10 @@ function kloxo_print_object_property_tabs($object)
 		$prlist['property'] = $tabs;
 	}
 
-	if ($class === 'dns' && $prlist['property'] === array()
+	if (($class === 'dns' || $class === 'dnstemplate') && $prlist['property'] === array()
 		&& class_exists('Dnsbase') && is_callable(array('Dnsbase', 'dnsPropertyTabs'))) {
-		$prlist['property'] = Dnsbase::dnsPropertyTabs();
+		// Templates have no Rebuild tab (that is for live Manage DNS zones).
+		$prlist['property'] = Dnsbase::dnsPropertyTabs($class === 'dns');
 	}
 
 	if ($class === 'serverftp' && $prlist['property'] === array()

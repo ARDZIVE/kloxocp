@@ -788,7 +788,7 @@ if (is_array($rows)
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
 	&& str_contains($src, "'sshconfig', 'lxguard', 'ufwfirewall', 'fail2ban', 'sshclient', 'ffile', 'ticket', 'notification'")
-	&& str_contains($src, "'lxupdate', 'dns', 'dns_record_a', 'web', 'servermail', 'mail_graylist_wlist_a'")
+	&& str_contains($src, "'lxupdate', 'dns', 'dnstemplate', 'dns_record_a', 'web', 'servermail', 'mail_graylist_wlist_a'")
 	&& str_contains($src, "'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist'")) {
 	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns show pages');
 } else {
@@ -804,6 +804,7 @@ if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('notification')
 	&& kloxo_skip_find_class('lxupdate')
 	&& kloxo_skip_find_class('dns')
+	&& kloxo_skip_find_class('dnstemplate')
 	&& kloxo_skip_find_class('dns_record_a')
 	&& kloxo_skip_find_class('web')
 	&& kloxo_skip_find_class('dbadmin')
@@ -1419,10 +1420,35 @@ try {
 	} catch (Throwable $e) {
 		$rightErr = $e->getMessage();
 	}
-	if ($okRight) {
+	$showTabs = array('property' => array());
+	$show->createShowPropertyList($showTabs);
+	$showProps = $showTabs['property'] ?? array();
+	$adminParent = new Client(null, 'localhost', 'admin');
+	$adminParent->nname = 'admin';
+	$adminParent->cttype = 'admin';
+	$mismatch = new Dnstemplate(null, null, 'default.dnst');
+	$mismatch->nname = 'default.dnst';
+	$mismatch->parent_clname = 'client-other';
+	$mismatch->__parent_o = $adminParent;
+	$misTabs = array('property' => array());
+	$mismatch->createShowPropertyList($misTabs);
+	$misProps = $misTabs['property'] ?? array();
+	$forcedDns = Dnsbase::dnsPropertyTabs(false);
+	$coreSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+	$tplShowOk = $okRight
+		&& in_array('a=show', $showProps, true)
+		&& in_array('a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=ns', $showProps, true)
+		&& in_array('a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=a', $showProps, true)
+		&& !in_array('a=updateform&sa=rebuild', $showProps, true)
+		&& in_array('a=show', $misProps, true)
+		&& in_array('a=addform&c=dns_record_a&dta[var]=ttype&dta[val]=mx', $misProps, true)
+		&& is_array($forcedDns) && !in_array('a=updateform&sa=rebuild', $forcedDns, true)
+		&& str_contains($coreSrc, "\$class === 'dns' || \$class === 'dnstemplate'");
+	if ($tplShowOk) {
 		ok('DNS template show still offers add-record tabs without a loaded parent');
 	} else {
-		bad('DNS template show still offers add-record tabs without a loaded parent', $rightErr);
+		bad('DNS template show still offers add-record tabs without a loaded parent',
+			$rightErr . ' props=' . implode(',', $showProps) . ' mis=' . implode(',', $misProps));
 	}
 
 	$zone = new Dns(null, 'localhost', 'example.com');

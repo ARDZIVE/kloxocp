@@ -20,10 +20,16 @@ class Dnstemplate extends DnsBase
 	{
 		global $login;
 
-		if ($this->getParentO()->getClName() !== $this->parent_clname) {
-		//	throw new lxException($login->getThrow('template_not_owner'));
+		try {
+			$parent = $this->getParentO();
+			if (is_object($parent) && method_exists($parent, 'getClName')
+				&& isset($this->parent_clname) && (string) $this->parent_clname !== ''
+				&& $parent->getClName() !== $this->parent_clname) {
+				// Shared templates stay editable; ownership check is informational.
+			}
+		} catch (Throwable $e) {
 		}
-		
+
 		return $param;
 	}
 
@@ -142,9 +148,10 @@ class Dnstemplate extends DnsBase
 			$vlist['webipaddress'] = array('s', $res);
 			$vlist['mmailipaddress'] = array('s', $res);
 		} else {
+			// Typed IP fields when the IP table / live probe is empty — do not
+			// show a blocking "no_ip_address" banner on the list add form.
 			$vlist['webipaddress'] = null;
 			$vlist['mmailipaddress'] = null;
-			$vlist['__m_message_pre'] = 'no_ip_address';
 		}
 		$vlist['nameserver_f'] = array('m', array('value' => ''));
 		$vlist['secnameserver_f'] = array('m', array('value' => ''));
