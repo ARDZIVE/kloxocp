@@ -41,11 +41,13 @@ check(str_contains($lib, 'function kloxo_mail_recipients')
 	'lx_mail queues via sendmail -odq and splits recipients');
 
 check(str_contains($lib, 'function kloxo_mail_from_ok')
+	&& str_contains($lib, 'function kloxo_mail_from_host_candidates')
 	&& str_contains($lib, 'kloxo_mail_default_from')
+	&& str_contains($lib, '/etc/mailname')
 	&& str_contains($lib, 'FILTER_VALIDATE_IP')
 	&& str_contains($lib, 'admin@localhost')
 	&& str_contains($lib, "class_exists('Sqlite')"),
-	'default From allows single-label host; Sqlite optional');
+	'default From prefers /etc/mailname FQDN; Sqlite optional');
 
 // Standalone copy of kloxo_mail_from_ok (mirrors lib.php).
 function test_kloxo_mail_from_ok(string $from): bool
@@ -103,6 +105,10 @@ check(str_contains($kcp, "'test-mail'")
 	&& str_contains($kcp, 'function testMail')
 	&& str_contains($kcp, 'lx_mail'),
 	'kloxocp test-mail queues via lx_mail');
+
+check(str_contains($kcp, 'example.com')
+	&& str_contains($kcp, 'documentation/placeholder'),
+	'test-mail rejects you@example.com placeholder');
 
 check(str_contains($base, "\$subject = (string) (\$param['wall_subject_f'] ?? '')"),
 	'updateWall always sets subject (PHP 8)');

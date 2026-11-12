@@ -53,7 +53,11 @@ final class Conf
     public static function load(string $path): self
     {
         if (!is_file($path)) {
-            throw new KmException("Config file not found: $path (run `kloxo-mail init` first)");
+            throw new KmException(
+                "Config file not found: $path (run `kloxo-mail init --hostname=mail.example.com` "
+                . "then `kloxo-mail apply`; for SMTP-protection only without hosted mail: "
+                . "`kloxo-mail policy:apply --mta=exim`)"
+            );
         }
         $c = new self();
         foreach (file($path, FILE_IGNORE_NEW_LINES) ?: [] as $line) {

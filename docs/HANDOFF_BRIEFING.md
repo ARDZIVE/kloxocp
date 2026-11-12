@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111217**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111218**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1003,10 +1003,15 @@ Work in this order. Keep every change small, tested and committed separately. Do
    and untrusted `-f` queued empty `<>` senders that froze; fix drops root
    to `lxlabs` for sendmail and sets `trusted_users = lxlabs` in
    `file/mail/exim/exim4.conf` (re-apply with `kloxo-mail apply`). Frozen
-   leftovers: `exim4 -Mvh <id>` / `exim4 -M <id>` or `exim4 -qff`. Verify:
-   `sudo kloxocp test-mail --to=you@example.com`
-   then `mailq` / `journalctl -u exim4`. Tests: `tests/p2/test_panel_mail.php`.
-   Live welcome after deploy **UNVERIFIED**.
+   leftovers: `exim4 -Mvh <id>` / `exim4 -Mrm <id>` (frozen `<>` rows are often
+   bounce DSNs with `-localerror`, not the original welcome). Live: queueing
+   works (`admin@srv` → recipient); `/etc/kloxo/mail.ini` may be missing until
+   `kloxo-mail init --hostname=<FQDN>` + `apply` (full hosted stack); short
+   hostname `srv` and placeholder `you@example.com` will not deliver — use a
+   real inbox and a dotted FQDN in `/etc/mailname`. Verify:
+   `sudo kloxocp test-mail --to=real@yourdomain.com` then `mailq` /
+   `grep … /var/log/exim4/mainlog`. Tests: `tests/p2/test_panel_mail.php`.
+   Live welcome delivery after deploy **UNVERIFIED**.
    For New Accounts defaults to the %name%/%password% hosting welcome text
    (`Notification::defaultWelcomeMessage`, `file/welcome.txt`). Live
    notification page after re-install is **UNVERIFIED**.
@@ -1021,7 +1026,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111217**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111218**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

@@ -3056,7 +3056,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111217';
+	return '10.1-2026111218';
 }
 
 function getDownloadServer()
@@ -3318,34 +3318,77 @@ function kloxo_mail_from_ok(string $from): bool
 }
 
 /**
+ * Hostnames for panel From, best first. Prefer a dotted FQDN (/etc/mailname,
+ * realhostname) over a short name like "srv" that remote MTAs often reject.
+ *
+ * @return list<string>
+ */
+function kloxo_mail_from_host_candidates(): array
+{
+	$raw = array();
+	foreach (array('/etc/mailname', '/etc/hostname') as $f) {
+		if (!is_readable($f)) {
+			continue;
+		}
+		$t = strtolower(trim((string) @file_get_contents($f)));
+		$t = preg_replace('/\s.*/', '', $t) ?? $t;
+		if ($t !== '') {
+			$raw[] = $t;
+		}
+	}
+	if (function_exists('getFQDNforServer')) {
+		try {
+			$fq = getFQDNforServer('localhost');
+			if (is_string($fq) && $fq !== '') {
+				$raw[] = $fq;
+			}
+		} catch (Throwable $e) {
+			// ignore
+		}
+	}
+	$host = function_exists('gethostname') ? (string) gethostname() : '';
+	if ($host !== '') {
+		$raw[] = $host;
+	}
+	$raw[] = 'localhost';
+
+	$out = array();
+	$seen = array();
+	foreach ($raw as $h) {
+		$h = strtolower(trim($h));
+		$h = preg_replace('/\.$/', '', $h) ?? $h;
+		if ($h === '' || filter_var($h, FILTER_VALIDATE_IP) || isset($seen[$h])) {
+			continue;
+		}
+		$seen[$h] = true;
+		$out[] = $h;
+	}
+	usort($out, static function (string $a, string $b): int {
+		$ad = str_contains($a, '.') ? 0 : 1;
+		$bd = str_contains($b, '.') ? 0 : 1;
+		if ($ad !== $bd) {
+			return $ad - $bd;
+		}
+		if ($a === 'localhost') {
+			return 1;
+		}
+		if ($b === 'localhost') {
+			return -1;
+		}
+
+		return 0;
+	});
+
+	return $out;
+}
+
+/**
  * Envelope/header From for panel mail. Prefer a real hostname; never
  * "admin@" + null/IP-only (that made Exim reject and welcome mail vanish).
  */
 function kloxo_mail_default_from(): string
 {
-	$candidates = array();
-	if (function_exists('getFQDNforServer')) {
-		try {
-			$fq = getFQDNforServer('localhost');
-			if (is_string($fq) && $fq !== '') {
-				$candidates[] = $fq;
-			}
-		} catch (Throwable $e) {
-			// Fall through to gethostname / localhost.
-		}
-	}
-	$host = function_exists('gethostname') ? (string) gethostname() : '';
-	if ($host !== '') {
-		$candidates[] = $host;
-	}
-	$candidates[] = 'localhost';
-	foreach ($candidates as $h) {
-		$h = strtolower(trim($h));
-		$h = preg_replace('/\.$/', '', $h) ?? $h;
-		// Reject bare IPv4 — admin@1.2.3.4 is a poor From and often refused.
-		if ($h === '' || filter_var($h, FILTER_VALIDATE_IP)) {
-			continue;
-		}
+	foreach (kloxo_mail_from_host_candidates() as $h) {
 		$from = 'admin@' . $h;
 		if (kloxo_mail_from_ok($from)) {
 			return $from;

@@ -73,7 +73,7 @@ declare(strict_types=1);
 	}
 })();
 
-const KCP_VERSION = '10.1-2026111217';
+const KCP_VERSION = '10.1-2026111218';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -393,6 +393,16 @@ TXT;
         $to = trim($to);
         if (!preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $to)) {
             throw new KcpException('invalid --to address');
+        }
+        $domain = strtolower((string) substr(strrchr($to, '@') ?: '', 1));
+        // Docs use you@example.com — that domain will never accept real mail.
+        foreach (['example.com', 'example.net', 'example.org', 'invalid', 'localhost', 'test'] as $bad) {
+            if ($domain === $bad || str_ends_with($domain, '.' . $bad)) {
+                throw new KcpException(
+                    '--to uses a documentation/placeholder domain (' . $domain
+                    . '); give a real inbox you can open, e.g. --to=you@yourdomain.com'
+                );
+            }
         }
 
         $sendmail = '';
