@@ -3325,6 +3325,71 @@ function save_login()
 	return;
 }
 
+/**
+ * Mark this request so login->was() must not talk to kloxo-backend.
+ * Prefer $GLOBALS: Gbllib::__get() returns false for unset props, so a
+ * bare empty($gbl->__kloxo_skip_was) can look unset even after a write.
+ */
+function kloxo_skip_was_now(): void
+{
+	global $gbl;
+
+	$GLOBALS['kloxo_skip_was'] = true;
+	if (is_object($gbl)) {
+		$gbl->__kloxo_skip_was = true;
+		$gbl->__no_debug_redirect = true;
+	}
+}
+
+function kloxo_should_skip_was(): bool
+{
+	global $gbl;
+
+	if (!empty($GLOBALS['kloxo_skip_was'])) {
+		return true;
+	}
+	if (is_object($gbl) && !empty($gbl->__kloxo_skip_was)) {
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Panel-DB-only actions (DNS templates, local Backup Upload): the SQLite
+ * row is already written; flush the session file and Location/meta-redirect
+ * immediately so the browser is not held on a 20s backend was() timeout.
+ */
+function kloxo_finish_local_redirect(): void
+{
+	global $gbl, $ghtml;
+
+	kloxo_skip_was_now();
+	if (!is_object($gbl) || empty($gbl->__this_redirect) || !is_string($gbl->__this_redirect)) {
+		return;
+	}
+	if (!is_object($ghtml) || !method_exists($ghtml, 'print_redirect')) {
+		return;
+	}
+	if (isset($gbl->c_session) && is_object($gbl->c_session) && method_exists($gbl->c_session, 'write')) {
+		try {
+			$gbl->c_session->write();
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'session write before local redirect: ' . $e->getMessage());
+			}
+		}
+	}
+	if (function_exists('save_login')) {
+		try {
+			save_login();
+		} catch (Throwable $e) {
+			// no-op helper
+		}
+	}
+	$ghtml->print_redirect((string) $gbl->__this_redirect);
+}
+
 function isLocalhost($var)
 {
 	if ($var && $var !== "localhost") {

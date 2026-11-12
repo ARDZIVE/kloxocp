@@ -231,7 +231,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111204**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111205**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -640,12 +640,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     when `parent_clname` is empty or mismatched (`createShowPropertyList`
     + forced `dnstemplate` tabs in `kloxo_print_object_property_tabs`);
     Find is omitted on the show page. Add (`postAdd`) and delete
-    (`deleteSpecific`) write the SQLite row via `writeLocalAndSkipWas` and set
-    `__kloxo_skip_was` (also in `__ac_desc_add` / `__ac_desc_delete`) so the
-    success redirect does not wait on kloxo-backend for dirty parents
-    (templates are `isSync` false / panel-DB only; the hang was the refresh,
-    not the create/delete). Live template add/delete redirect after deploy is
-    **UNVERIFIED**.
+    (`deleteSpecific`) write the SQLite row via `writeLocalAndSkipWas`, then
+    `__ac_desc_add` / `__ac_desc_delete` call `kloxo_finish_local_redirect()`
+    (session write + Location/meta, exit) so the browser is not held on
+    `login->was()` / the 20s kloxo-backend timeout (templates are panel-DB
+    only; the hang was the success redirect, not the create/delete). Skip
+    flag is `$GLOBALS['kloxo_skip_was']` plus `$gbl->__kloxo_skip_was`
+    (`kloxo_should_skip_was`). Live template add/delete redirect after deploy
+    is **UNVERIFIED**.
     FTP Configure (`serverftp`) beige tab is labelled **FTP Configure**
     (`serverftp::ftpPropertyTabs`). Live FTP Configure after deploy is
     **UNVERIFIED**. FTP Configure (`serverftp`) is seeded as `pserver-localhost` and
@@ -979,7 +981,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111204**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111205**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

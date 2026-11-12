@@ -1,5 +1,6 @@
 <?php
 
+#[AllowDynamicProperties]
 class Gbllib  extends Lxclass
 {
 	function write() {}
@@ -13,6 +14,9 @@ class Gbllib  extends Lxclass
 		$this->__fvar_dont_redirect = null;
 		$this->c_session = null;
 		$this->__this_warning = null;
+		$this->__kloxo_skip_was = false;
+		$this->__no_debug_redirect = null;
+		$this->__this_redirect = null;
 	}
 
 	function setWarning($message, $var, $val)

@@ -1458,6 +1458,7 @@ try {
 	$delTpl->dbaction = 'delete';
 	$delSrc = (string) file_get_contents($doc . '/driver/dns/dnstemplatelib.php');
 	$delCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+	$lxlibSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 	$delOk = method_exists($delTpl, 'deleteSpecific')
 		&& method_exists($delTpl, 'postAdd')
 		&& method_exists($delTpl, 'writeLocalAndSkipWas')
@@ -1465,14 +1466,18 @@ try {
 		&& str_contains($delSrc, 'writeLocalAndSkipWas')
 		&& str_contains($delSrc, "writeLocalAndSkipWas('add')")
 		&& str_contains($delSrc, "writeLocalAndSkipWas('delete')")
-		&& str_contains($delSrc, '__kloxo_skip_was')
+		&& str_contains($delSrc, 'kloxo_skip_was_now')
 		&& str_contains($delCore, "\$cname === 'dnstemplate'")
 		&& str_contains($delCore, "\$class === 'dnstemplate'")
-		&& str_contains($delCore, '__kloxo_skip_was');
+		&& str_contains($delCore, 'kloxo_finish_local_redirect')
+		&& str_contains($delCore, 'kloxo_should_skip_was')
+		&& str_contains($lxlibSrc, 'function kloxo_finish_local_redirect')
+		&& str_contains($lxlibSrc, 'function kloxo_should_skip_was')
+		&& str_contains($lxlibSrc, "\$GLOBALS['kloxo_skip_was']");
 	if ($delOk) {
-		ok('DNS template add/delete write locally and skip backend was() on redirect');
+		ok('DNS template add/delete write locally and finish redirect without was()');
 	} else {
-		bad('DNS template add/delete write locally and skip backend was() on redirect');
+		bad('DNS template add/delete write locally and finish redirect without was()');
 	}
 
 	$zone = new Dns(null, 'localhost', 'example.com');

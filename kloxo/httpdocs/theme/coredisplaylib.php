@@ -929,8 +929,13 @@ function __ac_desc_delete($object)
 			$gbl->setSessionV('__refresh_lpanel', 'true');
 		}
 		// DNS templates are panel-DB only; deleteSpecific already wrote the row.
+		// Redirect now — do not return to lx_frm_inc / login->was() (20s hang).
 		if ($cname === 'dnstemplate') {
+			if (function_exists('kloxo_finish_local_redirect')) {
+				kloxo_finish_local_redirect();
+			}
 			$gbl->__kloxo_skip_was = true;
+			$GLOBALS['kloxo_skip_was'] = true;
 		}
 	} else {
 		$gbl->setSessionV("lx_delete_return_url", $gbl->getHttpReferer());
@@ -1550,9 +1555,14 @@ function __ac_desc_add($object, $param = null)
 	if ($class === 'domain' || $class === 'client' || $class === 'vps') {
 		$gbl->setSessionV('__refresh_lpanel', 'true');
 	}
-	// DNS templates already wrote in postAdd; do not wait on backend was().
+	// DNS templates already wrote in postAdd; redirect now so the browser
+	// is not held on login->was() / kloxo-backend (record is already saved).
 	if ($class === 'dnstemplate') {
+		if (function_exists('kloxo_finish_local_redirect')) {
+			kloxo_finish_local_redirect();
+		}
 		$gbl->__kloxo_skip_was = true;
+		$GLOBALS['kloxo_skip_was'] = true;
 	}
 }
 
@@ -2816,9 +2826,12 @@ function lx_frm_inc()
 				break;
 		}
 
-		// Local Backup Upload already wrote the file; do not block the XHR on
-		// backend sync (that left the UI on "Wait for redirecting...").
-		if (empty($gbl->__kloxo_skip_was)) {
+		// Local Backup Upload / DNS template already wrote; do not block the
+		// browser on backend sync (that left the UI waiting on redirect).
+		$skipWas = function_exists('kloxo_should_skip_was')
+			? kloxo_should_skip_was()
+			: (!empty($GLOBALS['kloxo_skip_was']) || !empty($gbl->__kloxo_skip_was));
+		if (!$skipWas) {
 			try {
 				$login->was();
 			} catch (Throwable $wasEx) {

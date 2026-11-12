@@ -29,8 +29,6 @@ class Dnstemplate extends DnsBase
 	 */
 	function writeLocalAndSkipWas(string $context)
 	{
-		global $gbl;
-
 		$this->metadbaction = 'writeonly';
 		try {
 			$this->write();
@@ -45,8 +43,14 @@ class Dnstemplate extends DnsBase
 		} elseif ($this->dbaction === 'delete') {
 			$this->dbaction = 'delete_done';
 		}
-		if (is_object($gbl)) {
-			$gbl->__kloxo_skip_was = true;
+		if (function_exists('kloxo_skip_was_now')) {
+			kloxo_skip_was_now();
+		} else {
+			global $gbl;
+			$GLOBALS['kloxo_skip_was'] = true;
+			if (is_object($gbl)) {
+				$gbl->__kloxo_skip_was = true;
+			}
 		}
 	}
 
