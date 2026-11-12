@@ -1133,29 +1133,19 @@ abstract class Lxclient extends Lxdb
 		if ($this->nname === 'admin') {
 			// The watchdog (own service, no DB) mails this address when it restarts a service.
 			save_admin_contactemail($this->contactemail);
-			// Best-effort kloxo.pass + MariaDB (no backend round-trip). Soft-fail.
+			// Panel login hash is in SQLite. Only rewrite kloxo.pass here.
+			// Do NOT touch MariaDB from FPM (lxlabs): connectAdmin/ALTER USER
+			// can hang the busy modal; kloxo-backend/install owns DB passwords.
 			if ($isPassword && isset($this->realpass) && (string) $this->realpass !== '') {
 				try {
-					if (!class_exists('KloxoMariadb', false)) {
-						$mariadbLib = dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
-						if (is_file($mariadbLib)) {
-							include_once $mariadbLib;
-						}
-					}
-					if (class_exists('KloxoMariadb', false) && method_exists('client', 'createDbPass')) {
+					if (method_exists('client', 'createDbPass')) {
 						$newp = client::createDbPass((string) $this->realpass);
 						if (is_string($newp) && $newp !== '') {
 							lfile_put_contents('__path_admin_pass', $newp);
-							if (KloxoMariadb::isQuicklyReachable()) {
-								global $sgbl;
-								$user = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__var_program_name))
-									? (string) $sgbl->__var_program_name : 'kloxo';
-								KloxoMariadb::connectAdmin()->setProgramAccountPassword($newp, $user);
-							}
 						}
 					}
 				} catch (Throwable $e) {
-					log_log('admin_error', 'admin password MariaDB sync skipped: ' . $e->getMessage());
+					log_log('admin_error', 'admin kloxo.pass update skipped: ' . $e->getMessage());
 				}
 			}
 		}

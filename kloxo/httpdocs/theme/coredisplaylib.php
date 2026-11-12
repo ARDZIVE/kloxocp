@@ -2826,21 +2826,32 @@ function lx_frm_inc()
 				break;
 		}
 
-		// Local Backup Upload / DNS template already wrote; do not block the
-		// browser on backend sync (that left the UI waiting on redirect).
+		// Local Backup Upload / DNS template / password already wrote SQLite.
+		// Redirect now — never fall through to login->was() / kloxo-backend.
 		$skipWas = function_exists('kloxo_should_skip_was')
 			? kloxo_should_skip_was()
 			: (!empty($GLOBALS['kloxo_skip_was']) || !empty($gbl->__kloxo_skip_was));
-		if (!$skipWas) {
-			try {
-				$login->was();
-			} catch (Throwable $wasEx) {
-				// Backup/Restore already persisted stage; do not blank the redirect.
-				if (empty($gbl->__kloxo_defer_chrome) || empty($gbl->__this_redirect)) {
-					throw $wasEx;
-				}
-				log_log('error', 'post backup/restore was: ' . $wasEx->getMessage());
+		if ($skipWas) {
+			if (empty($gbl->__this_redirect) || !is_string($gbl->__this_redirect)) {
+				$gbl->__this_redirect = '/display.php?frm_action=show';
 			}
+			if (function_exists('kloxo_finish_local_redirect')) {
+				kloxo_finish_local_redirect();
+			}
+			// Unreachable if finish exits; keep a hard stop anyway.
+			if (is_object($ghtml) && method_exists($ghtml, 'print_redirect')) {
+				$ghtml->print_redirect((string) $gbl->__this_redirect);
+			}
+			exit(0);
+		}
+		try {
+			$login->was();
+		} catch (Throwable $wasEx) {
+			// Backup/Restore already persisted stage; do not blank the redirect.
+			if (empty($gbl->__kloxo_defer_chrome) || empty($gbl->__this_redirect)) {
+				throw $wasEx;
+			}
+			log_log('error', 'post backup/restore was: ' . $wasEx->getMessage());
 		}
 
 		if ($login->isAuxiliary()) {

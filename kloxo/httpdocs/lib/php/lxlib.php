@@ -3055,9 +3055,9 @@ function kloxo_backend_io_timeouts(string $raddress = 'localhost'): array
 		return array($local ? 10 : 30, 86400);
 	}
 
-	// Keep well under a minute: a wedged sync must not leave the browser
-	// waiting with the busy modal after SQLite already saved the change.
-	return array($local ? 3 : 15, $local ? 20 : 60);
+	// Keep short: a wedged sync must not leave the busy modal up after
+	// SQLite already saved the change. Local backend: 2s connect / 5s read.
+	return array($local ? 2 : 15, $local ? 5 : 60);
 }
 
 /**
@@ -3356,20 +3356,22 @@ function kloxo_should_skip_was(): bool
 }
 
 /**
- * Panel-DB-only actions (DNS templates, local Backup Upload): the SQLite
- * row is already written; flush the session file and Location/meta-redirect
- * immediately so the browser is not held on a 20s backend was() timeout.
+ * Panel-DB-only actions (DNS templates, password, local Backup Upload): the
+ * SQLite row is already written. Flush the session and Location/meta-redirect
+ * immediately so the browser is not held on login->was() / kloxo-backend.
+ * Always exits (never returns): a missing redirect URL falls back to Home.
  */
 function kloxo_finish_local_redirect(): void
 {
 	global $gbl, $ghtml;
 
 	kloxo_skip_was_now();
-	if (!is_object($gbl) || empty($gbl->__this_redirect) || !is_string($gbl->__this_redirect)) {
-		return;
+	$url = '/display.php?frm_action=show';
+	if (is_object($gbl) && !empty($gbl->__this_redirect) && is_string($gbl->__this_redirect)) {
+		$url = (string) $gbl->__this_redirect;
 	}
-	if (!is_object($ghtml) || !method_exists($ghtml, 'print_redirect')) {
-		return;
+	if (is_object($gbl)) {
+		$gbl->__this_redirect = $url;
 	}
 	if (isset($gbl->c_session) && is_object($gbl->c_session) && method_exists($gbl->c_session, 'write')) {
 		try {
@@ -3387,7 +3389,17 @@ function kloxo_finish_local_redirect(): void
 			// no-op helper
 		}
 	}
-	$ghtml->print_redirect((string) $gbl->__this_redirect);
+	if (is_object($ghtml) && method_exists($ghtml, 'print_redirect')) {
+		$ghtml->print_redirect($url);
+	}
+	// print_redirect should exit; if headers already broke it, still stop.
+	if (!headers_sent()) {
+		header('Location: ' . $url);
+	}
+	echo '<!DOCTYPE html><html><head><meta charset="utf-8">'
+		. '<meta http-equiv="Refresh" content="0;URL=' . htmlspecialchars($url, ENT_QUOTES) . '">'
+		. '</head><body><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Continue</a></body></html>';
+	exit(0);
 }
 
 function isLocalhost($var)

@@ -1471,9 +1471,13 @@ try {
 		&& str_contains($delCore, "\$class === 'dnstemplate'")
 		&& str_contains($delCore, 'kloxo_finish_local_redirect')
 		&& str_contains($delCore, 'kloxo_should_skip_was')
+		&& str_contains($delCore, 'if ($skipWas)')
+		&& str_contains($delCore, 'exit(0)')
 		&& str_contains($lxlibSrc, 'function kloxo_finish_local_redirect')
 		&& str_contains($lxlibSrc, 'function kloxo_should_skip_was')
-		&& str_contains($lxlibSrc, "\$GLOBALS['kloxo_skip_was']");
+		&& str_contains($lxlibSrc, "\$GLOBALS['kloxo_skip_was']")
+		&& str_contains($lxlibSrc, 'Always exits')
+		&& str_contains((string) file_get_contents($doc . '/lib/php/lxclass.php'), 'kloxo_should_skip_was');
 	if ($delOk) {
 		ok('DNS template add/delete write locally and finish redirect without was()');
 	} else {

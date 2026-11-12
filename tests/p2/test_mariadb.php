@@ -129,11 +129,11 @@ check(str_contains($clientLib, "subaction === 'password'")
 	&& str_contains($clientLib, "nname === 'admin'")
 	&& str_contains($clientLib, 'return false'),
 	'admin password update skips kloxo-backend sync');
-check(str_contains($lxclient, 'isQuicklyReachable')
-	&& str_contains($lxclient, 'setProgramAccountPassword')
-	&& str_contains($lxclient, 'kloxo_finish_local_redirect')
-	&& str_contains($lxclient, 'kloxo_skip_was_now'),
-	'admin password postUpdate finishes redirect without backend was()');
+check(str_contains($lxclient, 'kloxo_finish_local_redirect')
+	&& str_contains($lxclient, 'kloxo_skip_was_now')
+	&& str_contains($lxclient, '__path_admin_pass')
+	&& !str_contains($lxclient, 'setProgramAccountPassword'),
+	'admin password postUpdate finishes redirect without backend/MariaDB');
 check(str_contains($mailLib, 'sendmail still running after write')
 	&& str_contains($mailLib, 'proc_terminate'),
 	'lx_mail terminates a lingering sendmail instead of blocking forever');

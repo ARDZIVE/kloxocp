@@ -920,6 +920,23 @@ abstract class Lxclass
 			return;
 		}
 
+		// Panel-DB-only actions (DNS template, password, …) already wrote
+		// SQLite and set kloxo_skip_was. Never talk to kloxo-backend here —
+		// that was the 20s busy-modal hang after a successful local save.
+		if (function_exists('kloxo_should_skip_was') && kloxo_should_skip_was()) {
+			try {
+				$this->metadbaction = 'writeonly';
+				$this->writeEntireObject();
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'skip-was local write: ' . $e->getMessage());
+				}
+			}
+			$this->metadbaction = 'all';
+
+			return;
+		}
+
 	//	dprint("Master: {$this->dbaction}: {$this->nname} {$this->getParentO()->nname} {$this->get__table()}\n");
 
 		try {
