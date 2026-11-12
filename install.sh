@@ -43,7 +43,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111210"
+KCP_VERSION="10.1-2026111211"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -752,8 +752,65 @@ chmod +x "$ROOT/init/php-cli.sh" "$ROOT/bin/kloxocp" \
   "$ROOT/bin/storage/kloxo-stats" \
   "$ROOT/bin/storage/kloxo-backup-sqlite" || true
 
+php_ext_loaded() {
+  local bin="${1:-php}" ext="${2:-pdo_sqlite}"
+  command -v "$bin" >/dev/null 2>&1 || return 1
+  "$bin" -r "exit(extension_loaded('$ext') ? 0 : 1);" >/dev/null 2>&1
+}
+
+# Panel SQLite (init-panel-db / kloxo-backend) needs pdo_sqlite.
+# PHP Used may point /usr/bin/php at a Sury series without pdo_sqlite; pin a
+# working binary under $ROOT/etc/path/php so backend/CLI stay on panel PHP.
+pin_panel_php() {
+  local bin="${1:-}"
+  [[ -n "$bin" && -x "$bin" ]] || return 1
+  mkdir -p "$ROOT/etc/path"
+  printf '%s\n' "$bin" > "$ROOT/etc/path/php"
+  log "pinned panel PHP: $bin"
+}
+
+ensure_installer_php() {
+  local ver p pkgs=()
+  # Install phpX.Y-sqlite3 for every installed CLI series (PHP Used may leave
+  # /usr/bin/php on 8.6 without the driver while 8.5 still has it).
+  for p in /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6 /usr/bin/php; do
+    [[ -x "$p" ]] || continue
+    ver="$("$p" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
+    [[ "$ver" =~ ^[0-9]+\.[0-9]+$ ]] || continue
+    if ! php_ext_loaded "$p" pdo_sqlite; then
+      pkgs+=("php${ver}-sqlite3" "php${ver}-mysql")
+    fi
+  done
+  if ((${#pkgs[@]} > 0)); then
+    wait_for_apt_locks
+    # shellcheck disable=SC2068
+    apt-get install -y ${pkgs[@]} \
+      || log "warn: could not apt-get install ${pkgs[*]}"
+  fi
+  # Prefer distro panel PHP with sqlite; pin it for php-cli / backend / FPM.
+  for p in /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6 /usr/bin/php; do
+    if [[ -x "$p" ]] && php_ext_loaded "$p" pdo_sqlite; then
+      pin_panel_php "$p"
+      return 0
+    fi
+  done
+  die "PHP PDO sqlite driver missing (apt-get install php8.3-sqlite3 php8.5-sqlite3). PHP Used may have switched /usr/bin/php to a version without sqlite3."
+}
+
+# Always run panel tools with a PHP that has pdo_sqlite (not bare `php` after
+# PHP Used / Sury). Prefer the wrapper once the tree is laid out.
+run_panel_php() {
+  if [[ -x "${ROOT:-/opt/kloxo}/init/php-cli.sh" ]]; then
+    "${ROOT:-/opt/kloxo}/init/php-cli.sh" "$@"
+  elif [[ -x /usr/bin/lxphp.exe ]]; then
+    /usr/bin/lxphp.exe "$@"
+  else
+    command php "$@"
+  fi
+}
+
 if [[ ! -f "$ROOT/init/backend.key" ]]; then
-  php "$ROOT/bin/install/generate-tls-keys" --root="$ROOT" --hostname="$(hostname -f 2>/dev/null || hostname)"
+  run_panel_php "$ROOT/bin/install/generate-tls-keys" --root="$ROOT" --hostname="$(hostname -f 2>/dev/null || hostname)"
 fi
 if [[ -f "$ROOT/file/ssl/default.pem" && ! -f "$ROOT/etc/program.pem" ]]; then
   install -m 0600 "$ROOT/file/ssl/default.pem" "$ROOT/etc/program.pem"
@@ -849,7 +906,7 @@ enable_default_stack() {
 
 prepare_apache() {
   chmod 0755 "$ROOT/bin/install/install-apache" || true
-  php "$ROOT/bin/install/install-apache" --root="$ROOT" \
+  run_panel_php "$ROOT/bin/install/install-apache" --root="$ROOT" \
     || log "warn: install-apache failed; Switch Program can retry"
   standby_off apache2
   systemctl enable --now nginx 2>/dev/null || true
@@ -858,53 +915,8 @@ prepare_apache() {
 prepare_webfront() {
   chmod 0755 "$ROOT/bin/install/install-webfront" "$ROOT/bin/install/install-webcache" \
     "$ROOT/pscript/restart-webcache" "$ROOT/pscript/restart-webproxy" || true
-  php "$ROOT/bin/install/install-webfront" --root="$ROOT" \
+  run_panel_php "$ROOT/bin/install/install-webfront" --root="$ROOT" \
     || log "warn: install-webfront failed; webcache/webproxy stay down"
-}
-
-php_ext_loaded() {
-  local bin="${1:-php}" ext="${2:-pdo_sqlite}"
-  command -v "$bin" >/dev/null 2>&1 || return 1
-  "$bin" -r "exit(extension_loaded('$ext') ? 0 : 1);" >/dev/null 2>&1
-}
-
-# Panel SQLite (init-panel-db / kloxo-backend) needs pdo_sqlite.
-# PHP Used may point /usr/bin/php at a Sury series without pdo_sqlite; pin a
-# working binary under $ROOT/etc/path/php so backend/CLI stay on panel PHP.
-pin_panel_php() {
-  local bin="${1:-}"
-  [[ -n "$bin" && -x "$bin" ]] || return 1
-  mkdir -p "$ROOT/etc/path"
-  printf '%s\n' "$bin" > "$ROOT/etc/path/php"
-  log "pinned panel PHP: $bin"
-}
-
-ensure_installer_php() {
-  local ver p pkgs=()
-  # Install phpX.Y-sqlite3 for every installed CLI series (PHP Used may leave
-  # /usr/bin/php on 8.6 without the driver while 8.5 still has it).
-  for p in /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6 /usr/bin/php; do
-    [[ -x "$p" ]] || continue
-    ver="$("$p" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
-    [[ "$ver" =~ ^[0-9]+\.[0-9]+$ ]] || continue
-    if ! php_ext_loaded "$p" pdo_sqlite; then
-      pkgs+=("php${ver}-sqlite3" "php${ver}-mysql")
-    fi
-  done
-  if ((${#pkgs[@]} > 0)); then
-    wait_for_apt_locks
-    # shellcheck disable=SC2068
-    apt-get install -y ${pkgs[@]} \
-      || log "warn: could not apt-get install ${pkgs[*]}"
-  fi
-  # Prefer distro panel PHP with sqlite; pin it for php-cli / backend / FPM.
-  for p in /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6 /usr/bin/php; do
-    if [[ -x "$p" ]] && php_ext_loaded "$p" pdo_sqlite; then
-      pin_panel_php "$p"
-      return 0
-    fi
-  done
-  die "PHP PDO sqlite driver missing (apt-get install php8.3-sqlite3 php8.5-sqlite3). PHP Used may have switched /usr/bin/php to a version without sqlite3."
 }
 
 prepare_knot() {
@@ -916,7 +928,7 @@ prepare_knot() {
     apt-get install -y knot knot-dnsutils knot-dnssecutils \
       || log "warn: could not apt-get install knot knot-dnsutils knot-dnssecutils"
   fi
-  php "$ROOT/bin/install/install-knot" --root="$ROOT" \
+  run_panel_php "$ROOT/bin/install/install-knot" --root="$ROOT" \
     || log "warn: install-knot failed; Switch Program can retry"
   standby_off knot
 }
@@ -961,7 +973,7 @@ prepare_fail2ban() {
   touch "$ROOT/log/auth-failures.log" 2>/dev/null || true
   chmod 0664 "$ROOT/log/auth-failures.log" 2>/dev/null || true
   chown lxlabs:lxlabs "$ROOT/log/auth-failures.log" 2>/dev/null || true
-  php "$ROOT/bin/install/install-fail2ban" --root="$ROOT" "${args[@]}" \
+  run_panel_php "$ROOT/bin/install/install-fail2ban" --root="$ROOT" "${args[@]}" \
     || log "warn: install-fail2ban failed; Security > Fail2Ban can retry (Reload)"
 }
 
@@ -1006,12 +1018,23 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
 fi
 
 php_fpm=""
-for p in /usr/sbin/php-fpm8.5 /usr/sbin/php-fpm8.4 /usr/sbin/php-fpm8.3 /usr/sbin/php-fpm; do
-  if [[ -x "$p" ]]; then
-    php_fpm="$p"
+# Prefer FPM that matches a CLI with pdo_sqlite (same order as php-cli.sh).
+for ver in 8.3 8.5 8.4 8.6; do
+  if [[ -x "/usr/bin/php${ver}" ]] && php_ext_loaded "/usr/bin/php${ver}" pdo_sqlite \
+    && [[ -x "/usr/sbin/php-fpm${ver}" ]]; then
+    php_fpm="/usr/sbin/php-fpm${ver}"
+    pin_panel_php "/usr/bin/php${ver}"
     break
   fi
 done
+if [[ -z "$php_fpm" ]]; then
+  for p in /usr/sbin/php-fpm8.5 /usr/sbin/php-fpm8.4 /usr/sbin/php-fpm8.3 /usr/sbin/php-fpm8.6 /usr/sbin/php-fpm; do
+    if [[ -x "$p" ]]; then
+      php_fpm="$p"
+      break
+    fi
+  done
+fi
 chmod +x "$ROOT/init/kloxo-php-fpm.sh" || true
 if [[ -z "$php_fpm" ]]; then
   die "no php-fpm binary (install php-fpm)"
@@ -1063,13 +1086,13 @@ if [[ "$admin_env" != "admin" && ${#admin_env} -lt 8 ]]; then
 fi
 if [[ "$keep_admin" -eq 1 ]]; then
   log "existing install: keeping the current admin password (set KLOXO_ADMIN_PASSWORD to change it)"
-  php "$ROOT/bin/install/init-panel-db" \
+  run_panel_php "$ROOT/bin/install/init-panel-db" \
       --root="$ROOT" --keep-admin-password --db-rootuser=root
 else
   install -d -m 0700 /root
   printf '%s\n' "$admin_env" > /root/kloxo-admin-password
   chmod 600 /root/kloxo-admin-password
-  KLOXO_ADMIN_PASSWORD="$admin_env" php "$ROOT/bin/install/init-panel-db" \
+  KLOXO_ADMIN_PASSWORD="$admin_env" run_panel_php "$ROOT/bin/install/init-panel-db" \
       --root="$ROOT" --admin-password-env=KLOXO_ADMIN_PASSWORD --db-rootuser=root
 fi
 if id -u lxlabs >/dev/null 2>&1; then
@@ -1082,11 +1105,11 @@ if id -u lxlabs >/dev/null 2>&1; then
     chmod 0640 "$ROOT/etc/conf/pma.pass"
   fi
   chown -R lxlabs:lxlabs /var/lib/kloxo || true
-  chmod 0700 /var/lib/kloxo || true
+  chmod 0750 /var/lib/kloxo || true
   [[ -f /var/lib/kloxo/panel.sqlite ]] && chmod 0600 /var/lib/kloxo/panel.sqlite
   [[ -f /var/lib/kloxo/stats.sqlite ]] && chmod 0600 /var/lib/kloxo/stats.sqlite
 fi
-php "$ROOT/bin/storage/kloxo-migrate" >/dev/null 2>&1 || true
+run_panel_php "$ROOT/bin/storage/kloxo-migrate" >/dev/null 2>&1 || true
 log "panel schema ready"
 
 # Recovery console login (a file, not the database): created on first install,
@@ -1098,14 +1121,14 @@ else
   install -d -m 0700 "$ROOT/var/recovery"
 fi
 if [[ ! -s "$ROOT/etc/conf/recovery.json" ]]; then
-  if recovery_pw="$(php "$ROOT/bin/kloxocp" recovery-password --generate --raw --root="$ROOT")" && [[ -n "$recovery_pw" ]]; then
+  if recovery_pw="$(run_panel_php "$ROOT/bin/kloxocp" recovery-password --generate --raw --root="$ROOT")" && [[ -n "$recovery_pw" ]]; then
     install -d -m 0700 /root
     printf '%s\n' "$recovery_pw" > /root/kloxo-recovery-password
     chmod 600 /root/kloxo-recovery-password
     log "recovery console password created (/root/kloxo-recovery-password)"
   else
     recovery_pw=""
-    log "warn: could not create the recovery console password; run: php $ROOT/bin/kloxocp recovery-password --generate"
+    log "warn: could not create the recovery console password; run: /opt/kloxo/init/php-cli.sh $ROOT/bin/kloxocp recovery-password --generate"
   fi
 else
   log "recovery console password kept (unchanged)"
@@ -1116,10 +1139,14 @@ log "installing site PHP (distro latest plus extras from packages.sury.org); pan
 if ! bash "$ROOT/bin/install/install-site-php" --root="$ROOT"; then
   log "warn: extra site PHP versions failed; Webserver Configure can retry"
 fi
+# Site PHP / PHP Used may switch /usr/bin/php to a series without sqlite —
+# re-pin panel PHP and restart FPM/backend so login and password change work.
+ensure_installer_php
 force_fcgi_tcp
-systemctl reset-failed kloxo-php 2>/dev/null || true
+systemctl reset-failed kloxo-php kloxo-backend 2>/dev/null || true
 rm -f "$ROOT/init/kloxo-phpcgi.pid" "$ROOT/init/kloxo-phpcgi.sock"
 systemctl restart kloxo-php || true
+systemctl try-restart kloxo-backend 2>/dev/null || systemctl restart kloxo-backend 2>/dev/null || true
 if ! wait_unit kloxo-php; then
   sed -i 's/^Type=notify/Type=simple/' /etc/systemd/system/kloxo-php.service
   systemctl daemon-reload
@@ -1173,7 +1200,7 @@ if [[ -f "$SRC/tests/p2/test_boot.php" ]]; then
   php "$SRC/tests/p2/test_boot.php" >/dev/null || log "warn: boot smoke did not pass"
 fi
 
-php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
+run_panel_php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
 
 install_backend
 install_watchdog

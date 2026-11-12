@@ -1120,14 +1120,21 @@ abstract class Lxclient extends Lxdb
 
 	function postUpdate()
 	{
-		// We need to write because reads everything from the database.
+		global $gbl, $ghtml;
+
+		// Password: write SQLite only (no kloxo-backend). Other updates keep
+		// the normal metadbaction so was() can sync shell/quota/etc.
+		$isPassword = ($this->subaction === 'password');
+		if ($isPassword) {
+			$this->metadbaction = 'writeonly';
+		}
 		$this->write();
 
 		if ($this->nname === 'admin') {
 			// The watchdog (own service, no DB) mails this address when it restarts a service.
 			save_admin_contactemail($this->contactemail);
 			// Best-effort kloxo.pass + MariaDB (no backend round-trip). Soft-fail.
-			if ($this->subaction === 'password' && isset($this->realpass) && (string) $this->realpass !== '') {
+			if ($isPassword && isset($this->realpass) && (string) $this->realpass !== '') {
 				try {
 					if (!class_exists('KloxoMariadb', false)) {
 						$mariadbLib = dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
@@ -1150,6 +1157,26 @@ abstract class Lxclient extends Lxdb
 				} catch (Throwable $e) {
 					log_log('admin_error', 'admin password MariaDB sync skipped: ' . $e->getMessage());
 				}
+			}
+		}
+
+		// First-login / Change Password: SQLite already has the hash. Do not
+		// wait on login->was() / kloxo-backend (20s hang with the busy modal).
+		if ($isPassword && ($this->isLogin() || $this->nname === 'admin')) {
+			$this->dbaction = 'clean';
+			if (function_exists('kloxo_skip_was_now')) {
+				kloxo_skip_was_now();
+			} else {
+				$GLOBALS['kloxo_skip_was'] = true;
+				if (is_object($gbl)) {
+					$gbl->__kloxo_skip_was = true;
+				}
+			}
+			if (is_object($gbl) && empty($gbl->__this_redirect)) {
+				$gbl->__this_redirect = '/display.php?frm_action=show';
+			}
+			if (function_exists('kloxo_finish_local_redirect')) {
+				kloxo_finish_local_redirect();
 			}
 		}
 

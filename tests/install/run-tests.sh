@@ -685,10 +685,19 @@ if grep -q 'bind9 knot knot-dnsutils knot-dnssecutils' "$ROOT/install.sh" \
   && grep -q 'standby_off knot' "$ROOT/install.sh" \
   && grep -q 'ensure_installer_php' "$ROOT/install.sh" \
   && grep -q 'pin_panel_php' "$ROOT/install.sh" \
+  && grep -q 'run_panel_php' "$ROOT/install.sh" \
+  && grep -q 'chmod 0750 /var/lib/kloxo' "$ROOT/install.sh" \
   && grep -q 'etc/path/php' "$ROOT/install.sh"; then
   ok "install.sh packages knot and leaves it disabled"
 else
   bad "install.sh packages knot and leaves it disabled"
+fi
+if grep -q 'run_panel_php()' "$ROOT/install.sh" \
+  && grep -A20 'install-site-php' "$ROOT/install.sh" | grep -q 'ensure_installer_php' \
+  && grep -q 'run_panel_php.*init-panel-db' "$ROOT/install.sh"; then
+  ok "install.sh re-pins panel PHP after site PHP and uses php-cli for init-panel-db"
+else
+  bad "install.sh re-pins panel PHP after site PHP and uses php-cli for init-panel-db"
 fi
 if grep -q 'Temporary Kloxo CP policy' "$ROOT/install.sh" \
   && grep -q 'exit 101' "$ROOT/install.sh" \
