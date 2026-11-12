@@ -1574,6 +1574,19 @@ function __ac_desc_add($object, $param = null)
 		$gbl->__kloxo_skip_was = true;
 		$GLOBALS['kloxo_skip_was'] = true;
 	}
+	// Add Client: SQLite write + redirect immediately; useradd/mysqldb sync
+	// runs in the background. Waiting on kloxo-backend left the busy spinner
+	// on the Add form after the client row already existed.
+	if ($class === 'client' && function_exists('kloxo_finish_client_add')) {
+		$nname = '';
+		if (is_array($param) && isset($param['nname'])) {
+			$nname = trim((string) $param['nname']);
+		}
+		if ($nname === '' && is_object($ghtml) && isset($ghtml->__http_vars['frm_client_c_nname'])) {
+			$nname = trim((string) $ghtml->__http_vars['frm_client_c_nname']);
+		}
+		kloxo_finish_client_add($nname);
+	}
 }
 
 function check_for_select_one($param)

@@ -35,10 +35,20 @@ if (!is_dir($doc . '/theme/loadingio') && !str_contains($notice, 'Loading.io')) 
 } else {
 	bad('no Loading.io asset or attribution is left');
 }
-if (str_contains($html, '"kloxo-busy.js"')) {
+if (str_contains($html, 'kloxo-busy.js')) {
 	ok('kloxo-busy.js is included on every panel page');
 } else {
 	bad('kloxo-busy.js is included on every panel page');
+}
+$core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$lxlib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+if (str_contains($core, 'kloxo_finish_client_add')
+	&& str_contains($lxlib, 'function kloxo_finish_client_add')
+	&& str_contains($lxlib, 'function kloxo_client_system_sync')
+	&& str_contains($lxlib, "callInBackground('kloxo_client_system_sync'")) {
+	ok('Add Client redirects before backend sync (background useradd)');
+} else {
+	bad('Add Client redirects before backend sync (background useradd)');
 }
 if (str_contains($js, '/theme/img/kloxo-spinner.gif') && str_contains($js, 'KloxoBusy')
 	&& str_contains($js, "'pageshow'")) {

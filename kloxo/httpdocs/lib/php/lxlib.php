@@ -3492,6 +3492,117 @@ function kloxo_finish_local_redirect(): void
 	exit(0);
 }
 
+/**
+ * After Add Client: write SQLite only, redirect the browser, then sync
+ * useradd / mysqldb in a background process. Waiting on login->was() →
+ * kloxo-backend left the busy spinner on the Add form even though the
+ * client row was already saved.
+ */
+function kloxo_finish_client_add(string $nname): void
+{
+	global $login;
+
+	kloxo_skip_was_now();
+	if (is_object($login) && method_exists($login, 'was')) {
+		try {
+			$login->was();
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'client add local write: ' . $e->getMessage());
+			}
+		}
+	}
+
+	$nname = trim($nname);
+	if ($nname !== '' && preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) === 1
+		&& function_exists('callInBackground')) {
+		callInBackground('kloxo_client_system_sync', array($nname));
+		if (function_exists('log_log')) {
+			log_log('info', "client add: queued system sync for {$nname}");
+		}
+	}
+
+	kloxo_finish_local_redirect();
+}
+
+/**
+ * Background worker: create the Unix user / default DB for a client that
+ * was already written to panel.sqlite (see kloxo_finish_client_add).
+ */
+function kloxo_client_system_sync(string $nname): void
+{
+	$nname = trim($nname);
+	if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1) {
+		return;
+	}
+	if (!class_exists('Client', false) && function_exists('getClass')) {
+		// Autoload via normal panel map when background.php included include.php.
+	}
+	if (!class_exists('Client')) {
+		if (function_exists('log_log')) {
+			log_log('error', 'client system sync: Client class missing');
+		}
+
+		return;
+	}
+
+	$GLOBALS['kloxo_skip_was'] = false;
+	global $gbl;
+	if (is_object($gbl)) {
+		$gbl->__kloxo_skip_was = false;
+	}
+
+	try {
+		$client = new Client(null, null, $nname);
+		$client->get();
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('error', "client system sync get {$nname}: " . $e->getMessage());
+		}
+
+		return;
+	}
+
+	$client->dbaction = 'syncadd';
+	if (method_exists($client, 'createSyncClass')) {
+		$client->createSyncClass();
+	}
+	foreach (array('mysqldb', 'domain', 'mmail') as $listClass) {
+		if (!method_exists($client, 'getList')) {
+			break;
+		}
+		try {
+			$list = $client->getList($listClass);
+		} catch (Throwable $e) {
+			continue;
+		}
+		foreach ((array) $list as $child) {
+			if (!is_object($child)) {
+				continue;
+			}
+			$child->dbaction = 'syncadd';
+			if (method_exists($child, 'createSyncClass')) {
+				try {
+					$child->createSyncClass();
+				} catch (Throwable $e) {
+					// keep going
+				}
+			}
+		}
+	}
+
+	try {
+		$client->was();
+		if (function_exists('log_log')) {
+			log_log('info', "client system sync ok for {$nname}");
+		}
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('error', "client system sync {$nname}: " . $e->getMessage());
+		}
+	}
+}
+
 function isLocalhost($var)
 {
 	if ($var && $var !== "localhost") {

@@ -5894,7 +5894,11 @@ class HtmlLib
 		$this->print_jscript_source($lxa_path);
 		$this->print_jscript_source($helptext_path);
 		$this->print_jscript_source($preop_path);
-		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js")));
+		$busyJs = str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js"));
+		if (is_string($busyJs) && $busyJs !== '' && !str_contains($busyJs, '?')) {
+			$busyJs .= '?v=4';
+		}
+		$this->print_jscript_source($busyJs);
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-toast.js")));
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-sitephp.js")));
 
