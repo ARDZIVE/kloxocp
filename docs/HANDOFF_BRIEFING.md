@@ -145,12 +145,16 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `install` after a clean doctor still exits **2**. `install.sh` bootstraps
     Ubuntu 24.04 from `https://github.com/ARDZIVE/kloxocp.git` (public; apt packages,
     `/opt/kloxo` symlink, TLS keys, `kloxo-php` unit, pinned Hiawatha 12.4 build,
-    `init-panel-db`). Default panel login is **admin / admin**;
+    `init-panel-db`).     Default panel login is **admin / admin**;
     `password_contact_check()` blocks the UI until that password is changed
-    (`check_raw_password('client', 'admin', 'admin')`). Apt repo, Debian
+    (`check_raw_password('client', 'admin', 'admin')`). The login page
+    soft-fails a missing/unreadable `panel.sqlite` (or missing `pdo_sqlite`)
+    so the form still prints instead of logos-only with `display_errors=0`;
+    it shows a short DB-repair hint. `/var/lib/kloxo` is `0750` lxlabs (was
+    `0700`, which blanked login when chown failed). Apt repo, Debian
     packages, and package-level update/rollback are **not built**. Tests:
-    `tests/p3/` and `tests/install/` (php-cli; do not run the Ubuntu installer
-    or a Hiawatha compile).
+    `tests/p3/`, `tests/install/`, `tests/p2/test_login_session.php` (php-cli;
+    do not run the Ubuntu installer or a Hiawatha compile).
 15. **Ubuntu panel schema + Hiawatha:** `kloxo/bin/install/init-panel-db` writes
     `/var/lib/kloxo/panel.sqlite` from `file/sql/db-structure-base.sql` plus
     `file/storage/migrations` (`KloxoStore` / `KloxoSqlite`; `--sqlite-only`
@@ -231,7 +235,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111205**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111206**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -981,7 +985,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111205**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111206**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

@@ -133,5 +133,54 @@ if (!$threw) {
 	ok('client cookie restore does not fatal when get_login fails');
 }
 
+$incSrc = (string) file_get_contents($doc . '/login/inc.php');
+$pageSrc = (string) file_get_contents($root . '/file/pages/login_inc.php');
+if (str_contains($incSrc, 'login welcome text')
+	&& str_contains($incSrc, 'defaultLoginMessage')
+	&& str_contains($incSrc, 'catch (Throwable')
+	&& str_contains($pageSrc, 'login welcome text')
+	&& str_contains($pageSrc, 'defaultLoginMessage')) {
+	ok('login/inc soft-fails welcome DB read so the form still prints');
+} else {
+	bad('login/inc soft-fails welcome DB read so the form still prints');
+}
+
+$missing = sys_get_temp_dir() . '/kloxo-login-nodb-' . getmypid();
+@mkdir($missing, 0700, true);
+$prevVar = getenv('KLOXO_VAR_LIB');
+putenv('KLOXO_VAR_LIB=' . $missing);
+$_ENV['KLOXO_VAR_LIB'] = $missing;
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+$_SERVER['REQUEST_URI'] = '/login/';
+$_SERVER['PHP_SELF'] = '/login/index.php';
+$prevCwd = getcwd();
+chdir($doc . '/login');
+ob_start();
+$renderFatal = '';
+try {
+	include $doc . '/login/index.php';
+} catch (Throwable $e) {
+	$renderFatal = $e->getMessage();
+}
+$html = (string) ob_get_clean();
+chdir(is_string($prevCwd) ? $prevCwd : $doc);
+putenv('KLOXO_VAR_LIB');
+unset($_ENV['KLOXO_VAR_LIB']);
+if ($prevVar !== false && $prevVar !== '') {
+	putenv('KLOXO_VAR_LIB=' . $prevVar);
+	$_ENV['KLOXO_VAR_LIB'] = $prevVar;
+}
+@rmdir($missing);
+if ($renderFatal === ''
+	&& str_contains($html, 'name="frm_clientname"')
+	&& str_contains($html, 'name="frm_password"')
+	&& str_contains($html, 'Login')) {
+	ok('login page shows the form when panel.sqlite is missing');
+} else {
+	bad('login page shows the form when panel.sqlite is missing',
+		$renderFatal !== '' ? $renderFatal : ('len=' . strlen($html)
+			. ' form=' . (str_contains($html, 'frm_clientname') ? 'yes' : 'no')));
+}
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

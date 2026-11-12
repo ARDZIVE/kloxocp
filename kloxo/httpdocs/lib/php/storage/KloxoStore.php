@@ -133,10 +133,13 @@ final class KloxoStore
         if ($dir === '' || $dir === '/') {
             throw new RuntimeException('refusing to create filesystem root');
         }
-        if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
+        // 0750 + lxlabs owner/group: PHP-FPM is lxlabs. 0700 left the dir
+        // root-only when chown failed and blanked the login form (FPM could
+        // not open panel.sqlite; display_errors off → logos only).
+        if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
             throw new RuntimeException("cannot create {$dir}");
         }
-        @chmod($dir, 0700);
+        @chmod($dir, 0750);
         self::chownPanel($dir);
     }
 
@@ -147,6 +150,11 @@ final class KloxoStore
         }
         @chmod($path, 0600);
         self::chownPanel($path);
+        $dir = dirname($path);
+        if (is_dir($dir)) {
+            @chmod($dir, 0750);
+            self::chownPanel($dir);
+        }
         foreach ([$path . '-wal', $path . '-shm'] as $side) {
             if (is_file($side)) {
                 @chmod($side, 0600);

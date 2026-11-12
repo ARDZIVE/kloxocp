@@ -52,10 +52,10 @@ final class KloxoSqlite
         }
         if ($create) {
             $dir = dirname($path);
-            if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
+            if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
                 throw new RuntimeException("cannot create {$dir}");
             }
-            @chmod($dir, 0700);
+            @chmod($dir, 0750);
         }
         $pdo = new PDO('sqlite:' . $path, null, null, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -74,7 +74,7 @@ final class KloxoSqlite
         return $pdo;
     }
 
-    /** Owner and mode of the database file: 0600, directory 0700, owner lxlabs. */
+    /** Owner and mode of the database file: 0600, directory 0750, owner lxlabs. */
     public static function secureFile(string $path, string $owner = 'lxlabs'): void
     {
         if (class_exists('KloxoStore', false)) {
@@ -86,7 +86,7 @@ final class KloxoSqlite
         }
         @chmod($path, 0600);
         $dir = dirname($path);
-        @chmod($dir, 0700);
+        @chmod($dir, 0750);
         if (function_exists('posix_getpwnam') && posix_getpwnam($owner) !== false) {
             @chown($path, $owner);
             @chgrp($path, $owner);

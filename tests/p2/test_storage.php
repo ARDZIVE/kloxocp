@@ -80,7 +80,7 @@ $sync = (int) $pdo->query('PRAGMA synchronous')->fetchColumn();
 check($mode === 'wal' && $fk === 1 && $busy === 5000 && $sync === 1,
     'WAL, foreign_keys=ON, busy_timeout=5000, synchronous=NORMAL',
     "mode={$mode} fk={$fk} busy={$busy} sync={$sync}");
-check(is_dir($data) && (fileperms($data) & 0777) === 0700, 'database directory mode 0700');
+check(is_dir($data) && (fileperms($data) & 0777) === 0750, 'database directory mode 0750 (FPM/lxlabs readable)');
 check(is_file(KloxoStore::panelPath()) && (fileperms(KloxoStore::panelPath()) & 0777) === 0600,
     'panel.sqlite mode 0600');
 

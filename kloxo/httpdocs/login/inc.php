@@ -30,8 +30,34 @@ if ($sgbl->is_this_slave()) {
 	exit;
 }
 
-$logfo = db_get_value("general", "admin", "login_pre");
-$logfo = str_replace("<%programname%>", $sgbl->__var_program_name, $logfo);
+// Welcome text is optional. A missing/unreadable panel.sqlite or missing
+// pdo_sqlite used to fatal here with display_errors=0 and leave only the
+// header logos (no login form) after a broken fresh install.
+$logfo = '';
+$dbWarn = '';
+try {
+	$got = db_get_value("general", "admin", "login_pre");
+	if (is_string($got) && $got !== '') {
+		$logfo = $got;
+	}
+} catch (Throwable $e) {
+	$dbWarn = $e->getMessage();
+	if (function_exists('log_log')) {
+		log_log('error', 'login welcome text: ' . $dbWarn);
+	}
+}
+if ($logfo === '') {
+	$logfo = class_exists('general', false) && method_exists('general', 'defaultLoginMessage')
+		? (string) general::defaultLoginMessage()
+		: "<p> Welcome to <%programname%>  </p><p>Use a valid username and password to gain access to the console. </p>";
+}
+$logfo = str_replace("<%programname%>", (string) $sgbl->__var_program_name, $logfo);
+if ($dbWarn !== '') {
+	$logfo .= '<p style="color:#a00"><b>Panel database is not ready.</b> '
+		. 'As root run <code>php /opt/kloxo/bin/install/init-panel-db --sqlite-only</code>, '
+		. 'install <code>php-sqlite3</code> for the panel PHP, then '
+		. '<code>systemctl restart kloxo-php kloxo-web</code>.</p>';
+}
 
 if (!$cgi_forgotpwd) {
 //	if (session_status() == PHP_SESSION_NONE) {
@@ -39,7 +65,13 @@ if (!$cgi_forgotpwd) {
 		session_start();
 	}
 
-	$ghtml->print_message();
+	try {
+		$ghtml->print_message();
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('error', 'login print_message: ' . $e->getMessage());
+		}
+	}
 
 	$_SESSION['frm_token'] = mt_rand();
 ?>

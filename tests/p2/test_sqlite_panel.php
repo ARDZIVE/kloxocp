@@ -61,7 +61,10 @@ check(KloxoSqlite::translateQuery("ALTER TABLE t MODIFY COLUMN x int") === null,
 check(KloxoSqlite::convertLiterals("x = 'a\\'b'") === "x = 'a''b'",
 	'MySQL backslash quotes become SQLite doubled quotes');
 
-$cmd = array(PHP_BINARY, $repo . '/kloxo/bin/install/init-panel-db', '--root=' . $tmp, '--sqlite-only', '--admin-password=admin');
+// Do not inherit a leftover KLOXO_VAR_LIB from other tests (login soft-fail).
+putenv('KLOXO_VAR_LIB');
+unset($_ENV['KLOXO_VAR_LIB']);
+$cmd = array(PHP_BINARY, $repo . '/kloxo/bin/install/init-panel-db', '--root=' . $tmp, '--data-dir=' . $tmp . '/var/lib/kloxo', '--sqlite-only', '--admin-password=admin');
 $p = proc_open($cmd, array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
 $out = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
 fclose($pipes[1]);
@@ -88,7 +91,7 @@ $reopen = static function () use ($panelFile) {
 };
 $runDb = static function (array $extra) use ($repo, $tmp): array {
 	$cmd = array_merge(
-		array(PHP_BINARY, $repo . '/kloxo/bin/install/init-panel-db', '--root=' . $tmp, '--sqlite-only'),
+		array(PHP_BINARY, $repo . '/kloxo/bin/install/init-panel-db', '--root=' . $tmp, '--data-dir=' . $tmp . '/var/lib/kloxo', '--sqlite-only'),
 		$extra
 	);
 	$p = proc_open($cmd, array(0 => array('file', '/dev/null', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
