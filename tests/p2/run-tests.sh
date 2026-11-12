@@ -220,6 +220,11 @@ if php "$HERE/test_phpfpm.php"; then
 else
   bad "test_phpfpm.php"
 fi
+if php "$HERE/test_client_unix.php"; then
+  ok "test_client_unix.php"
+else
+  bad "test_client_unix.php"
+fi
 if php "$HERE/test_knot.php"; then
   ok "test_knot.php"
 else

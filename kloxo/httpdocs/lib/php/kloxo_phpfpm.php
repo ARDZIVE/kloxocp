@@ -268,6 +268,25 @@ final class KloxoPhpfpm
         if ($euid !== 0) {
             return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
         }
+        // Pool user= must resolve before php-fpm -t ("cannot get uid for user").
+        if (!class_exists('KloxoClientUnix', false)) {
+            include_once __DIR__ . '/kloxo_client_unix.php';
+        }
+        if (class_exists('KloxoClientUnix', false)) {
+            $eu = KloxoClientUnix::ensureUnixName($user);
+            if (!is_array($eu) || empty($eu['ok'])) {
+                $why = (is_array($eu) && isset($eu['error'])) ? (string) $eu['error'] : 'missing';
+
+                return [
+                    'ok' => false,
+                    'euid' => $euid,
+                    'error' => "unix user '{$user}' not available ({$why})",
+                ];
+            }
+            if (isset($eu['user']) && is_string($eu['user']) && $eu['user'] !== '') {
+                $user = $eu['user'];
+            }
+        }
         $touched = self::switchDomain($domain, $user, $series);
         if ($phpId !== '') {
             include_once __DIR__ . '/kloxo_phpver.php';

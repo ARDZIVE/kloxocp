@@ -24,6 +24,7 @@ include_once "$dir/lib/php/kloxo_mta.php";
 include_once "$dir/lib/php/kloxo_webcache.php";
 include_once "$dir/lib/php/kloxo_phpver.php";
 include_once "$dir/lib/php/kloxo_phpfpm.php";
+include_once "$dir/lib/php/kloxo_client_unix.php";
 include_once "$dir/lib/php/kloxo_mailpolicy.php";
 include_once "$dir/lib/php/kloxo_watchdog.php";
 include_once "$dir/lib/php/kloxo_recovery.php";

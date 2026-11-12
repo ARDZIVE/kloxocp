@@ -71,6 +71,7 @@ if (str_contains($core, 'kloxo_finish_client_add')
 	&& str_contains($initFn, "\$act === 'continue'")
 	&& str_contains($initFn, '__kloxo_defer_chrome')
 	&& $finishFn !== ''
+	&& str_contains($finishFn, 'kloxo_ensure_client_unix')
 	&& str_contains($finishFn, 'kloxo_queue_client_system_sync')
 	&& str_contains($finishFn, 'kloxo_release_held_background_to_queue')
 	&& !str_contains($finishFn, 'kloxo_flush_held_background_jobs')

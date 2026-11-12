@@ -3525,6 +3525,43 @@ function kloxo_finish_local_redirect(): void
 }
 
 /**
+ * Create the client's Unix account via kloxo-backend (root) before the
+ * browser can Add Domain / PHP-FPM. Panel FPM is lxlabs and cannot useradd.
+ *
+ * @return array{ok:bool,euid?:int,user?:string,created?:bool,error?:string}
+ */
+function kloxo_ensure_client_unix(string $nname): array
+{
+	$nname = trim($nname);
+	if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1) {
+		return array('ok' => false, 'error' => 'invalid client name');
+	}
+	if (!class_exists('KloxoClientUnix', false)) {
+		$p = __DIR__ . '/kloxo_client_unix.php';
+		if (is_file($p)) {
+			include_once $p;
+		}
+	}
+	$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+	if ($euid === 0 && class_exists('KloxoClientUnix', false)) {
+		return KloxoClientUnix::ensure($nname);
+	}
+	if (!function_exists('rl_exec_get') || !class_exists('KloxoClientUnix', false)) {
+		return array('ok' => false, 'error' => 'kloxo-backend ensure unavailable');
+	}
+	try {
+		$got = rl_exec_get(null, 'localhost', array('KloxoClientUnix', 'ensure'), array($nname), false);
+	} catch (Throwable $e) {
+		return array('ok' => false, 'error' => $e->getMessage());
+	}
+	if (!is_array($got)) {
+		return array('ok' => false, 'error' => 'kloxo-backend did not handle ensure');
+	}
+
+	return $got;
+}
+
+/**
  * Append a client nname for kloxo-backend / watchdog to useradd (never spawn
  * from panel FPM — that held the busy spinner even after the SQLite write).
  */
@@ -3706,6 +3743,25 @@ function kloxo_finish_client_add(string $nname): void
 	}
 
 	if ($nname !== '' && preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) === 1) {
+		// useradd must finish before redirect: a raced Add Domain hits
+		// php-fpm -t "cannot get uid for user '<client>'". Full sync
+		// (default domain / dirs) still goes through the drop-queue.
+		$got = kloxo_ensure_client_unix($nname);
+		if (!is_array($got) || empty($got['ok'])) {
+			$why = (is_array($got) && isset($got['error'])) ? (string) $got['error'] : 'useradd failed';
+			if (function_exists('log_log')) {
+				log_log('error', "client add unix ensure {$nname}: {$why}");
+			}
+			global $gbl, $ghtml;
+			if (is_object($gbl) && is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+				$text = 'Could not create system user ' . $nname . ': ' . $why;
+				$msg = class_exists('HtmlLib', false)
+					? HtmlLib::redirectQueryValue($text)
+					: rawurlencode($text);
+				$gbl->__this_redirect = '/' . $ghtml->getFullUrl("a=list&c=client")
+					. "&frm_emessage={$msg}";
+			}
+		}
 		kloxo_queue_client_system_sync($nname);
 	}
 	if (function_exists('kloxo_release_held_background_to_queue')) {
@@ -3713,9 +3769,8 @@ function kloxo_finish_client_add(string $nname): void
 	}
 
 	kloxo_emit_local_redirect();
-	// Close the browser connection first, then kick the drop-queue so the
-	// Unix user exists before the admin adds a domain (sync used to fail
-	// silently and show "added successfully" with an empty Domains list).
+	// Close the browser connection first, then kick the drop-queue for the
+	// rest of client sync (dirs / default domain) after Unix ensure above.
 	if (function_exists('kloxo_close_client_connection')) {
 		kloxo_close_client_connection();
 	}

@@ -209,11 +209,22 @@ if ($euid !== 0 && is_array($got) && empty($got['ok']) && ($got['error'] ?? '') 
 $inc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/include.php');
 $def = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/definecore.php');
 if (str_contains($inc, 'kloxo_phpfpm.php') && str_contains($inc, 'kloxo_phpver.php')
+    && str_contains($inc, 'kloxo_client_unix.php')
     && str_contains($def, "gl_class_array['kloxophpfpm']")
 ) {
     $ok('backend autoloads KloxoPhpfpm for applyDomain');
 } else {
     $bad('backend autoloads KloxoPhpfpm for applyDomain');
+}
+
+$fpmSrc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/kloxo_phpfpm.php');
+$applyPos = strpos($fpmSrc, 'public static function applyDomain');
+$ensurePos = $applyPos === false ? false : strpos($fpmSrc, 'KloxoClientUnix::ensureUnixName', $applyPos);
+$switchPos = $applyPos === false ? false : strpos($fpmSrc, '$touched = self::switchDomain', $applyPos);
+if ($ensurePos !== false && $switchPos !== false && $ensurePos < $switchPos) {
+    $ok('applyDomain ensures Unix pool user before switchDomain');
+} else {
+    $bad('applyDomain ensures Unix pool user before switchDomain');
 }
 
 @mkdir($base . '/usr/sbin', 0755, true);
