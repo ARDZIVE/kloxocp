@@ -39,7 +39,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111208"
+KCP_VERSION="10.1-2026111209"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -876,29 +876,31 @@ pin_panel_php() {
 }
 
 ensure_installer_php() {
-  local ver p
-  if php_ext_loaded php pdo_sqlite; then
-    pin_panel_php "$(command -v php)"
-    return 0
-  fi
-  ver="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
-  if [[ "$ver" =~ ^[0-9]+\.[0-9]+$ ]]; then
-    wait_for_apt_locks
-    apt-get install -y "php${ver}-sqlite3" "php${ver}-mysql" \
-      || log "warn: could not apt-get install php${ver}-sqlite3 php${ver}-mysql"
-    if php_ext_loaded php pdo_sqlite; then
-      log "installed php${ver}-sqlite3 for installer PHP"
-      pin_panel_php "$(command -v php)"
-      return 0
+  local ver p pkgs=()
+  # Install sqlite3 for every installed CLI series (PHP Used may leave
+  # /usr/bin/php on 8.6 without sqlite while 8.5 still has it).
+  for p in /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6 /usr/bin/php; do
+    [[ -x "$p" ]] || continue
+    ver="$("$p" -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || true)"
+    [[ "$ver" =~ ^[0-9]+\.[0-9]+$ ]] || continue
+    if ! php_ext_loaded "$p" pdo_sqlite; then
+      pkgs+=("php${ver}-sqlite3" "php${ver}-mysql")
     fi
+  done
+  if ((${#pkgs[@]} > 0)); then
+    wait_for_apt_locks
+    # shellcheck disable=SC2068
+    apt-get install -y ${pkgs[@]} \
+      || log "warn: could not apt-get install ${pkgs[*]}"
   fi
-  for p in /usr/bin/php8.6 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.3 /usr/bin/php; do
+  # Prefer distro panel PHP with sqlite; pin it for php-cli / backend / FPM.
+  for p in /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6 /usr/bin/php; do
     if [[ -x "$p" ]] && php_ext_loaded "$p" pdo_sqlite; then
       pin_panel_php "$p"
       return 0
     fi
   done
-  die "PHP PDO sqlite driver missing (apt-get install php${ver:-}-sqlite3 php8.5-sqlite3 php8.6-sqlite3). PHP Branch may have switched /usr/bin/php to a version without sqlite3."
+  die "PHP PDO sqlite driver missing (apt-get install php8.3-sqlite3 php8.5-sqlite3). PHP Used may have switched /usr/bin/php to a version without sqlite3."
 }
 
 prepare_knot() {
