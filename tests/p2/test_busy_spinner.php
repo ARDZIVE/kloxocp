@@ -80,11 +80,13 @@ if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait
 	&& preg_match('/var MAX_WAIT = \d+/', $code) === 1
 	&& str_contains($code, 'settled') && str_contains($code, 'navToken')
 	&& str_contains($code, 'function isImmediateRefresh')
+	&& str_contains($code, 'function followRedirectStub')
+	&& str_contains($code, 'location.replace')
 	&& !str_contains($code, 'animation')
 	&& $setTimeouts === 2) {
-	ok('modal appears after DELAY ms; MAX_WAIT failsafe; no resurrect after DCL');
+	ok('modal appears after DELAY ms; MAX_WAIT failsafe; redirect stubs navigate');
 } else {
-	bad('modal appears after DELAY ms; MAX_WAIT failsafe; no resurrect after DCL', 'setTimeouts=' . $setTimeouts);
+	bad('modal appears after DELAY ms; MAX_WAIT failsafe; redirect stubs navigate', 'setTimeouts=' . $setTimeouts);
 }
 
 // The hrefs the Services list really renders must match the JS patterns.

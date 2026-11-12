@@ -96,16 +96,49 @@
 		}
 	}
 
-	function isImmediateRefresh() {
+	function refreshTarget() {
 		var metas = doc.getElementsByTagName('meta');
 		for (var i = 0; i < metas.length; i++) {
 			var he = (metas[i].getAttribute('http-equiv') || '').toLowerCase();
 			var c = metas[i].getAttribute('content') || '';
 			if (he === 'refresh' && /^\s*[01]?\s*(?:;|$)/.test(c) && /url\s*=/i.test(c)) {
-				return true;
+				var m = /url\s*=\s*([^;\s]+)/i.exec(c);
+				if (m && m[1]) {
+					return m[1].replace(/&amp;/g, '&').replace(/^['"]|['"]$/g, '');
+				}
 			}
 		}
-		return false;
+		var body = doc.body;
+		if (body && body.getAttribute) {
+			var d = body.getAttribute('data-kloxo-redirect');
+			if (d) {
+				return d;
+			}
+		}
+		return '';
+	}
+
+	function isImmediateRefresh() {
+		return refreshTarget() !== '';
+	}
+
+	/** Meta-refresh / Continue stubs: clear busy and navigate (do not wait). */
+	function followRedirectStub() {
+		var u = refreshTarget();
+		if (!u) {
+			return false;
+		}
+		flagClear();
+		settled = true;
+		cancelPending();
+		cancelMaxWait();
+		api.hide();
+		try {
+			win.location.replace(u);
+		} catch (e) {
+			win.location.href = u;
+		}
+		return true;
 	}
 
 	function build() {
@@ -237,7 +270,7 @@
 	win.KloxoBusy = api;
 
 	function arrivedFully() {
-		if (isImmediateRefresh()) {
+		if (followRedirectStub()) {
 			return;
 		}
 		settled = true;
@@ -248,11 +281,15 @@
 
 	var arrived = flagGet();
 	if (arrived) {
-		if (doc.readyState === 'loading' || isImmediateRefresh()) {
+		if (isImmediateRefresh()) {
+			followRedirectStub();
+		} else if (doc.readyState === 'loading') {
 			showSoon(arrived.text, arrived.t, !!arrived.shown);
 		} else {
 			flagClear();
 		}
+	} else if (isImmediateRefresh()) {
+		followRedirectStub();
 	}
 
 	if (doc.readyState === 'loading') {
@@ -261,7 +298,7 @@
 		arrivedFully();
 	}
 	win.addEventListener('load', function () {
-		if (doc.readyState === 'complete' && !isImmediateRefresh()) {
+		if (doc.readyState === 'complete') {
 			arrivedFully();
 		}
 	});

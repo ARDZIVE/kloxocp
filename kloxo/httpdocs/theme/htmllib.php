@@ -6178,25 +6178,28 @@ class HtmlLib
 			dprint(" <b><br /> <br />  Click <a href=\"$redirect_url\"><b> here to go to Continue. </a> </b> \n");
 
 			if ($sgbl->dbg < 0 || (isset($gbl->__no_debug_redirect) && $gbl->__no_debug_redirect)) {
-				// Complete document — the old path printed only <head> + Refresh
-				// (and forgot </head> when there was no windowurl) = blank page.
-				$esc = htmlspecialchars($redirect_url, ENT_QUOTES);
 				while (ob_get_level() > 0) {
 					@ob_end_clean();
 				}
 				if (!headers_sent()) {
 					header('Content-Type: text/html; charset=utf-8');
+					http_response_code(303);
+					$abs = function_exists('kloxo_redirect_abs_url')
+						? kloxo_redirect_abs_url((string) $redirect_url)
+						: (string) $redirect_url;
+					header('Location: ' . $abs);
 				}
-				print('<!DOCTYPE html><html><head><meta charset="utf-8">'
-					. '<meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">'
-					. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
-					. '<title>Continue</title></head><body>'
-					. '<p style="font-family:sans-serif;margin:2em">Continue: '
-					. '<a href="' . $esc . '">click here</a>.</p>');
 				if ($windowurl) {
 					print('<script>window.open(' . json_encode((string) $windowurl) . ');</script>');
 				}
-				print('</body></html>');
+				if (function_exists('kloxo_redirect_stub_html')) {
+					print(kloxo_redirect_stub_html((string) $redirect_url));
+				} else {
+					$esc = htmlspecialchars((string) $redirect_url, ENT_QUOTES);
+					print('<!DOCTYPE html><html><head><meta charset="utf-8">'
+						. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
+						. '</head><body><a href="' . $esc . '">click here</a></body></html>');
+				}
 				exit(0);
 			}
 			if ($windowurl) {
@@ -6228,22 +6231,22 @@ class HtmlLib
 				&& function_exists('kloxo_xhr_redirect_response')) {
 				kloxo_xhr_redirect_response((string) $redirect_url);
 			}
-			// Always a complete document as well as Location (headers may already
-			// have been sent by a long backup/restore print).
 			while (ob_get_level() > 0) {
 				@ob_end_clean();
 			}
-			$esc = htmlspecialchars($redirect_url, ENT_QUOTES);
+			$abs = function_exists('kloxo_redirect_abs_url')
+				? kloxo_redirect_abs_url((string) $redirect_url)
+				: (string) $redirect_url;
 			if (!headers_sent()) {
 				header('Content-Type: text/html; charset=utf-8');
-				header('Location: ' . $redirect_url);
+				http_response_code(303);
+				header('Location: ' . $abs);
 			}
-			print('<!DOCTYPE html><html><head><meta charset="utf-8">'
-				. '<meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT">'
-				. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
-				. '<title>Continue</title></head><body>'
-				. '<p style="font-family:sans-serif;margin:2em">Continue: '
-				. '<a href="' . $esc . '">click here</a>.</p></body></html>');
+			print(function_exists('kloxo_redirect_stub_html')
+				? kloxo_redirect_stub_html((string) $redirect_url)
+				: ('<!DOCTYPE html><html><head><meta charset="utf-8">'
+					. '<meta http-equiv="Refresh" content="0;URL='
+					. htmlspecialchars($abs, ENT_QUOTES) . '"></head><body></body></html>'));
 		}
 
 		exit(0);

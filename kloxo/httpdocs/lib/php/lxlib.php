@@ -3155,6 +3155,45 @@ function kloxo_is_xhr_request(): bool
 }
 
 /**
+ * Absolute panel path for Location / location.replace (leading slash).
+ */
+function kloxo_redirect_abs_url(string $url): string
+{
+	$url = trim($url);
+	if ($url === '') {
+		$url = '/display.php?frm_action=show';
+	}
+	if (!str_starts_with($url, '/') && !preg_match('#^https?://#i', $url)) {
+		$url = '/' . ltrim($url, '/');
+	}
+
+	return $url;
+}
+
+/**
+ * Tiny HTML that clears the busy spinner flag and navigates. Meta Refresh alone
+ * left Add Client stuck on "Please wait..." inside the panel frame.
+ */
+function kloxo_redirect_stub_html(string $url): string
+{
+	$url = kloxo_redirect_abs_url($url);
+	$esc = htmlspecialchars($url, ENT_QUOTES);
+	$js = json_encode($url, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS);
+	if (!is_string($js) || $js === '') {
+		$js = '"' . addcslashes($url, "\\\"\0..\x1f") . '"';
+	}
+
+	return '<!DOCTYPE html><html><head><meta charset="utf-8">'
+		. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
+		. '<title>Continue</title></head><body data-kloxo-redirect="' . $esc . '">'
+		. '<p style="font-family:sans-serif;margin:2em"><a href="' . $esc . '">click here</a></p>'
+		. '<script type="application/json" id="kloxo-redirect-json">' . $js . '</script>'
+		. '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");}catch(e){}'
+		. 'var u=' . $js . ';try{location.replace(u);}catch(e2){location.href=u;}})();</script>'
+		. '</body></html>';
+}
+
+/**
  * Tiny 200 response for Upload XHR. Never send Location — XMLHttpRequest
  * would follow it into a full File Manager page and sit on
  * "Wait for redirecting..." until that page finished (or timed out).
@@ -3165,36 +3204,20 @@ function kloxo_xhr_redirect_response(string $url): void
 		@ob_end_clean();
 	}
 	@ini_set('zlib.output_compression', '0');
-	$url = trim($url);
-	if ($url === '') {
-		$url = '/display.php?frm_action=show';
-	}
-	if (!str_starts_with($url, '/') && !preg_match('#^https?://#i', $url)) {
-		$url = '/' . ltrim($url, '/');
-	}
-	$esc = htmlspecialchars($url, ENT_QUOTES);
-	$jsonUrl = json_encode($url, JSON_UNESCAPED_SLASHES);
-	if (!is_string($jsonUrl) || $jsonUrl === '') {
-		$jsonUrl = '"' . addcslashes($url, "\\\"\0..\x1f") . '"';
-	}
+	$url = kloxo_redirect_abs_url($url);
 	if (!headers_sent()) {
 		header('Content-Type: text/html; charset=utf-8');
 		header('Cache-Control: no-store, no-cache, must-revalidate');
 		header('X-Kloxo-Redirect: ' . str_replace(array("\r", "\n"), '', $url));
 		http_response_code(200);
 	}
-	echo '<!DOCTYPE html><html><head><meta charset="utf-8">'
-		. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
-		. '<title>Upload OK</title></head><body data-kloxo-redirect="' . $esc . '">'
-		. '<a href="' . $esc . '">click here</a>'
-		. '<script type="application/json" id="kloxo-redirect-json">' . $jsonUrl . '</script>'
-		. '</body></html>';
+	echo kloxo_redirect_stub_html($url);
 	exit(0);
 }
 
 /**
- * Leave the long Backup/Restore POST for the normal panel page + Status toast.
- * Clears restore progress output so Location is not blocked (blank page).
+ * Deferred Add/Update/Backup redirect: 303 Location + stub that clears the
+ * busy spinner and location.replace (meta Refresh alone stalled in-frame).
  */
 function kloxo_backup_panel_redirect(string $url): void
 {
@@ -3209,21 +3232,14 @@ function kloxo_backup_panel_redirect(string $url): void
 		@ob_end_clean();
 	}
 	@ini_set('zlib.output_compression', '0');
-	if (!str_starts_with($url, '/') && !preg_match('#^https?://#i', $url)) {
-		$url = '/' . ltrim($url, '/');
-	}
-	$esc = htmlspecialchars($url, ENT_QUOTES);
+	$url = kloxo_redirect_abs_url($url);
 	if (!headers_sent()) {
 		header('Content-Type: text/html; charset=utf-8');
 		header('Cache-Control: no-store, no-cache, must-revalidate');
+		http_response_code(303);
 		header('Location: ' . $url);
 	}
-	// Complete document fallback when Location cannot be sent (progress already flushed).
-	echo '<!DOCTYPE html><html><head><meta charset="utf-8">'
-		. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
-		. '<title>Kloxo CP</title></head><body>'
-		. '<p style="font-family:sans-serif;margin:2em"><a href="' . $esc . '">Continue</a></p>'
-		. '</body></html>';
+	echo kloxo_redirect_stub_html($url);
 	exit(0);
 }
 
@@ -3457,16 +3473,22 @@ function kloxo_finish_local_redirect(): void
 		&& function_exists('kloxo_xhr_redirect_response')) {
 		kloxo_xhr_redirect_response($url);
 	}
+	if (function_exists('kloxo_backup_panel_redirect')) {
+		kloxo_backup_panel_redirect($url);
+	}
 	if (is_object($ghtml) && method_exists($ghtml, 'print_redirect')) {
 		$ghtml->print_redirect($url);
 	}
-	// print_redirect should exit; if headers already broke it, still stop.
+	$url = function_exists('kloxo_redirect_abs_url') ? kloxo_redirect_abs_url($url) : $url;
 	if (!headers_sent()) {
+		http_response_code(303);
 		header('Location: ' . $url);
 	}
-	echo '<!DOCTYPE html><html><head><meta charset="utf-8">'
-		. '<meta http-equiv="Refresh" content="0;URL=' . htmlspecialchars($url, ENT_QUOTES) . '">'
-		. '</head><body><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Continue</a></body></html>';
+	echo function_exists('kloxo_redirect_stub_html')
+		? kloxo_redirect_stub_html($url)
+		: ('<!DOCTYPE html><html><head><meta charset="utf-8">'
+			. '<meta http-equiv="Refresh" content="0;URL=' . htmlspecialchars($url, ENT_QUOTES) . '">'
+			. '</head><body><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Continue</a></body></html>');
 	exit(0);
 }
 
