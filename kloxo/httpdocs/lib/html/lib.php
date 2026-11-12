@@ -3043,7 +3043,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111215';
+	return '10.1-2026111216';
 }
 
 function getDownloadServer()
@@ -3293,8 +3293,44 @@ function kloxo_mail_header_safe(string $value): string
 }
 
 /**
+ * Envelope/header From for panel mail. Prefer a real hostname; never
+ * "admin@" + null/IP-only (that made Exim reject and welcome mail vanish).
+ */
+function kloxo_mail_default_from(): string
+{
+	$candidates = array();
+	if (function_exists('getFQDNforServer')) {
+		$fq = getFQDNforServer('localhost');
+		if (is_string($fq) && $fq !== '') {
+			$candidates[] = $fq;
+		}
+	}
+	$host = function_exists('gethostname') ? (string) gethostname() : '';
+	if ($host !== '') {
+		$candidates[] = $host;
+	}
+	$candidates[] = 'localhost';
+	foreach ($candidates as $h) {
+		$h = strtolower(trim($h));
+		$h = preg_replace('/\.$/', '', $h) ?? $h;
+		// Reject bare IPv4 — admin@1.2.3.4 is a poor From and often refused.
+		if ($h === '' || filter_var($h, FILTER_VALIDATE_IP)) {
+			continue;
+		}
+		$from = 'admin@' . $h;
+		if (function_exists('validate_email') && validate_email($from)) {
+			return $from;
+		}
+	}
+
+	return 'admin@localhost';
+}
+
+/**
  * Panel → user mail via local sendmail -t (welcome, tickets, wall, …).
  * Never uses PHP mail() (can block the UI for minutes on Exim/DNS).
+ *
+ * @return bool true when every recipient was handed to sendmail
  */
 function lx_mail($from, $to, $subject, $message, $extra = null)
 {
@@ -3302,14 +3338,13 @@ function lx_mail($from, $to, $subject, $message, $extra = null)
 	if ($recipients === array()) {
 		log_log('mail_send', 'skip: no valid To address in ' . (is_string($to) ? $to : '(list)'));
 
-		return;
+		return false;
 	}
 
 	$from = is_string($from) ? trim($from) : '';
 	$from = kloxo_mail_header_safe($from);
 	if ($from === '' || !function_exists('validate_email') || !validate_email($from)) {
-		$server = function_exists('getFQDNforServer') ? (string) getFQDNforServer('localhost') : 'localhost';
-		$from = 'admin@' . $server;
+		$from = kloxo_mail_default_from();
 	}
 
 	$subject = kloxo_mail_header_safe(is_string($subject) ? $subject : '');
@@ -3329,34 +3364,50 @@ function lx_mail($from, $to, $subject, $message, $extra = null)
 	$message = is_string($message) ? $message : '';
 	$message = str_replace("\n", "<br>\n", $message);
 
-	$sendmail = '';
-	foreach (array('/usr/sbin/sendmail', '/usr/lib/sendmail') as $bin) {
-		if (is_executable($bin)) {
-			$sendmail = $bin;
-			break;
-		}
-	}
+	$sendmail = kloxo_mail_sendmail_bin();
 	if ($sendmail === '' || !function_exists('proc_open')) {
 		log_log('mail_send', 'sendmail unavailable; skipped blocking PHP mail()');
 
-		return;
+		return false;
 	}
 
+	$allOk = true;
 	foreach ($recipients as $addr) {
 		log_log('mail_send', "Sending Mail to {$addr} {$subject} from {$from}");
 		$body = "To: {$addr}\nSubject: {$subject}\n{$header}\n{$message}\n";
-		kloxo_mail_sendmail_once($sendmail, $from, $body);
+		if (!kloxo_mail_sendmail_once($sendmail, $from, $body)) {
+			$allOk = false;
+		}
 	}
+
+	return $allOk;
+}
+
+function kloxo_mail_sendmail_bin(): string
+{
+	foreach (array('/usr/sbin/sendmail', '/usr/lib/sendmail') as $bin) {
+		if (is_executable($bin)) {
+			return $bin;
+		}
+	}
+
+	return '';
 }
 
 /**
- * Hand one message to sendmail with a short deadline (never block the UI).
+ * Hand one message to sendmail. Queue-only (-odq) so Exim/Postfix accepts
+ * without doing delivery DNS in-process. Waiting only a second then
+ * proc_terminate() was killing the MTA before the message was queued —
+ * welcome mail never left the panel.
  */
 function kloxo_mail_sendmail_once(string $sendmail, string $from, string $body): bool
 {
 	$pipes = array();
+	// -odq: queue only (do not attempt delivery now). Keeps the panel fast
+	// and stops us from SIGTERM'ing sendmail mid-accept.
+	$cmd = array($sendmail, '-t', '-i', '-odq', '-f', $from);
 	$p = @proc_open(
-		array($sendmail, '-t', '-i', '-f', $from),
+		$cmd,
 		array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
 		$pipes
 	);
@@ -3368,7 +3419,7 @@ function kloxo_mail_sendmail_once(string $sendmail, string $from, string $body):
 	stream_set_blocking($pipes[0], false);
 	$offset = 0;
 	$len = strlen($body);
-	$deadline = microtime(true) + 5.0;
+	$deadline = microtime(true) + 8.0;
 	$ok = true;
 	while ($offset < $len) {
 		$w = array($pipes[0]);
@@ -3391,12 +3442,13 @@ function kloxo_mail_sendmail_once(string $sendmail, string $from, string $body):
 		$offset += $wrote;
 	}
 	@fclose($pipes[0]);
+	$err = '';
 	foreach (array(1, 2) as $fd) {
 		if (!isset($pipes[$fd]) || !is_resource($pipes[$fd])) {
 			continue;
 		}
 		stream_set_blocking($pipes[$fd], false);
-		$drainUntil = microtime(true) + 1.5;
+		$drainUntil = microtime(true) + 2.0;
 		while (microtime(true) < $drainUntil) {
 			$chunk = @fread($pipes[$fd], 8192);
 			if ($chunk === false || $chunk === '') {
@@ -3412,31 +3464,50 @@ function kloxo_mail_sendmail_once(string $sendmail, string $from, string $body):
 				}
 				continue;
 			}
+			if ($fd === 2) {
+				$err .= $chunk;
+			}
 		}
 		@fclose($pipes[$fd]);
 	}
-	$status = @proc_get_status($p);
-	if (is_array($status) && !empty($status['running'])) {
-		$waitUntil = microtime(true) + 1.0;
-		while (microtime(true) < $waitUntil) {
-			$status = @proc_get_status($p);
-			if (!is_array($status) || empty($status['running'])) {
-				break;
-			}
-			usleep(50000);
+	// Wait for queue accept (normally <1s with -odq). Only kill if wedged.
+	$waitUntil = microtime(true) + 15.0;
+	$exit = null;
+	while (microtime(true) < $waitUntil) {
+		$status = @proc_get_status($p);
+		if (!is_array($status)) {
+			break;
 		}
+		if (empty($status['running'])) {
+			$exit = isset($status['exitcode']) ? (int) $status['exitcode'] : 0;
+			break;
+		}
+		usleep(50000);
 	}
 	$status = @proc_get_status($p);
 	if (is_array($status) && !empty($status['running'])) {
 		@proc_terminate($p);
-		log_log('mail_send', 'sendmail still running after write; terminated to unblock panel');
+		log_log('mail_send', 'sendmail still running after 15s queue; terminated (mail may be lost)');
+		$ok = false;
 	}
-	@proc_close($p);
+	$code = @proc_close($p);
+	if ($exit === null) {
+		$exit = is_int($code) ? $code : -1;
+	}
 	if (!$ok) {
 		log_log('mail_send', 'sendmail timed out writing; skipped');
-	}
 
-	return $ok;
+		return false;
+	}
+	if ($exit !== 0) {
+		$err = trim(preg_replace('/\s+/', ' ', $err) ?? '');
+		log_log('mail_send', 'sendmail exit ' . $exit . ($err !== '' ? (': ' . $err) : ''));
+
+		return false;
+	}
+	log_log('mail_send', 'queued ok via sendmail -odq');
+
+	return true;
 }
 
 function download_and_print_file($server, $file)

@@ -225,10 +225,19 @@ abstract class Lxclient extends Lxdb
 			try {
 				$noto = $parent->getObject('notification');
 			} catch (Throwable $e) {
-				return;
+				log_log('mail_send', 'notifyObjects: notification load failed: ' . $e->getMessage());
+				$noto = null;
 			}
+			// Missing notification row must not skip welcome mail when the
+			// Add Client form asked for it — use built-in defaults.
 			if (!is_object($noto)) {
-				return;
+				$noto = new notification(null, null, is_object($parent) ? $parent->getClName() : 'client-admin');
+				$noto->text_newaccountmessage = class_exists('Notification', false)
+					&& method_exists('Notification', 'defaultWelcomeMessage')
+					? Notification::defaultWelcomeMessage()
+					: "Username: %name%\nPassword: %password%\n";
+				$noto->text_newsubject = '';
+				$noto->fromaddress = '';
 			}
 
 			$message = null;
@@ -237,7 +246,12 @@ abstract class Lxclient extends Lxdb
 				? $noto->notflag_b : null;
 
 			if ($type == 'add' && $this->isOn('send_welcome_f')) {
-				$message = $this->replace_keywords((string)($noto->text_newaccountmessage ?? ''), $this);
+				$rawMsg = trim((string) ($noto->text_newaccountmessage ?? ''));
+				if ($rawMsg === '' && class_exists('Notification', false)
+					&& method_exists('Notification', 'defaultWelcomeMessage')) {
+					$rawMsg = Notification::defaultWelcomeMessage();
+				}
+				$message = $this->replace_keywords($rawMsg, $this);
 				$subject = "Your account has been Setup by {$parent->nname}";
 
 				if (!empty($noto->text_newsubject)) {
@@ -286,10 +300,20 @@ abstract class Lxclient extends Lxdb
 			$from = $noto->fromaddress;
 		}
 		
-		// lx_mail is already non-blocking (sendmail write deadline). Send here
-		// so welcome mail does not depend on the background worker (which used
-		// a cwd-relative path and silently never ran under FPM).
-		lx_mail($from, $obj->contactemail, $subject, $txt);
+		// lx_mail queues via sendmail -odq (no delivery DNS in-process).
+		$ok = lx_mail($from, $obj->contactemail, $subject, $txt);
+		if (!$ok) {
+			log_log('mail_send', "FAILED welcome/notify to {$obj->contactemail} (see mail_send log; check exim4 and contactemail)");
+			global $gbl;
+			if (is_object($gbl) && method_exists($gbl, 'setWarning')) {
+				$gbl->setWarning(
+					'Welcome email could not be queued. Check Exim (systemctl status exim4), '
+					. 'log/mail_send, and that sendmail exists at /usr/sbin/sendmail.',
+					'contactemail',
+					(string) $obj->contactemail
+				);
+			}
+		}
 
 		if (isset($obj->extra_email_f) && $obj->extra_email_f) {
 			lx_mail($from, $obj->extra_email_f, $subject, $txt);

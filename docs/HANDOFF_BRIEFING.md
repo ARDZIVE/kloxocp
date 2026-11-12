@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111215**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111216**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -991,16 +991,17 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `exim4.conf` (it would have failed `exim -bV` and rolled the apply back).
    Live reboot from the UI is **UNVERIFIED**. Notification Welcome Message
    Panel → client mail (welcome, tickets, wall) goes through `lx_mail` →
-   local `/usr/sbin/sendmail -t` (not PHPMailer/SMTP). Welcome mail was
-   broken under FPM: `callInBackground` used cwd-relative
-   `../bin/common/background.php` and that script included
-   `lib/html/include.php` by CWD, so the worker never ran. Fixed:
-   `background.php` bootstraps from `__DIR__/httpdocs`; `callInBackground`
-   uses absolute paths and job files under `$ROOT/pid`;
-   `sendNotification` calls `lx_mail` directly; multi-recipient To
-   (`getAllContactEmail`) is split; `send_mail_to_admin` / `updateWall`
-   null-safe. Tests: `tests/p2/test_panel_mail.php`. Live welcome/ticket
-   send after deploy is **UNVERIFIED**.
+   local `/usr/sbin/sendmail -t -odq` (queue only; not PHPMailer/SMTP).
+   Welcome mail failed for three reasons: (1) `callInBackground` used a
+   cwd-relative `background.php` under FPM; (2) `lx_mail` SIGTERM'd
+   sendmail after ~1s, often before Exim finished queueing; (3) From
+   could become `admin@` + null/IP. Fixed: queue-only `-odq`, wait up to
+   15s, sane From (`kloxo_mail_default_from`), direct `lx_mail` from
+   `sendNotification`, default welcome text if notification row missing,
+   UI warning on queue failure. Verify: `sudo kloxocp test-mail
+   --to=you@example.com` then `mailq` / `journalctl -u exim4`. Tests:
+   `tests/p2/test_panel_mail.php`. Live welcome after deploy
+   **UNVERIFIED**.
    For New Accounts defaults to the %name%/%password% hosting welcome text
    (`Notification::defaultWelcomeMessage`, `file/welcome.txt`). Live
    notification page after re-install is **UNVERIFIED**.
@@ -1015,7 +1016,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111215**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111216**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

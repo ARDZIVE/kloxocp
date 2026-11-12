@@ -33,9 +33,16 @@ $base = (string) file_get_contents($doc . '/lib/client/clientbaselib.php');
 
 check(str_contains($lib, 'function kloxo_mail_recipients')
 	&& str_contains($lib, 'function kloxo_mail_sendmail_once')
+	&& str_contains($lib, 'function kloxo_mail_default_from')
 	&& str_contains($lib, 'function lx_mail')
+	&& str_contains($lib, "'-odq'")
 	&& str_contains($lib, 'foreach ($recipients as $addr)'),
-	'lx_mail splits recipients and sends via sendmail once each');
+	'lx_mail queues via sendmail -odq and splits recipients');
+
+check(str_contains($lib, 'kloxo_mail_default_from')
+	&& str_contains($lib, 'FILTER_VALIDATE_IP')
+	&& str_contains($lib, 'admin@localhost'),
+	'default From rejects bare IP / null host');
 
 $cin = '';
 if (preg_match('/function callInBackground\(.*?^function /sm', $lib, $m)) {
@@ -59,8 +66,16 @@ check(str_contains($bg, 'dirname(__DIR__, 2)')
 	'background.php bootstraps from __DIR__/httpdocs, not FPM cwd');
 
 check(str_contains($client, 'lx_mail($from, $obj->contactemail')
+	&& str_contains($client, 'Welcome email could not be queued')
+	&& str_contains($client, 'defaultWelcomeMessage')
 	&& !str_contains($client, 'callInBackground("lx_mail", array($from, $obj->contactemail'),
-	'sendNotification calls lx_mail directly (no cwd-relative background)');
+	'sendNotification calls lx_mail directly and warns on queue failure');
+
+$kcp = (string) file_get_contents($root . '/kloxo/bin/kloxocp');
+check(str_contains($kcp, "'test-mail'")
+	&& str_contains($kcp, 'function testMail')
+	&& str_contains($kcp, 'lx_mail'),
+	'kloxocp test-mail queues via lx_mail');
 
 check(str_contains($base, "\$subject = (string) (\$param['wall_subject_f'] ?? '')"),
 	'updateWall always sets subject (PHP 8)');

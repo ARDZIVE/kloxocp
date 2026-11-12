@@ -134,9 +134,10 @@ check(str_contains($lxclient, 'kloxo_finish_local_redirect')
 	&& str_contains($lxclient, '__path_admin_pass')
 	&& !str_contains($lxclient, 'setProgramAccountPassword'),
 	'admin password postUpdate finishes redirect without backend/MariaDB');
-check(str_contains($mailLib, 'sendmail still running after write')
-	&& str_contains($mailLib, 'proc_terminate'),
-	'lx_mail terminates a lingering sendmail instead of blocking forever');
+check(str_contains($mailLib, "'-odq'")
+	&& str_contains($mailLib, 'proc_terminate')
+	&& str_contains($mailLib, 'sendmail still running after 15s queue'),
+	'lx_mail queues with -odq and only terminates sendmail if wedged 15s');
 
 $bad = new KloxoMariadb(null);
 $badName = false;
