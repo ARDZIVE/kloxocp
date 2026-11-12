@@ -1647,6 +1647,12 @@ function __ac_desc_continue($object)
 		return;
 	}
 
+	// continue was deferred (Add Client plan→addnow must not flush chrome
+	// first). This step needs the normal page shell for the next form.
+	if (function_exists('kloxo_flush_deferred_chrome_for_form')) {
+		kloxo_flush_deferred_chrome_for_form();
+	}
+
 	$alist = exec_class_method($cname, "createListAlist", $object, $cname);
 
 	if ($alist) {
@@ -2595,11 +2601,7 @@ function do_display_init()
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$skindir = $login->getSkinDir();
-	$col = $login->getSkinColor();
 	check_if_disabled_and_exit();
-
-	$buttontype = $login->getSpecialObject('sp_specialplay')->button_type;
 
 	if ($gbl->getSessionV('__refresh_lpanel') == 'true') {
 		print("<script> top.leftframe.window.location.reload() ; </script>");
@@ -2636,14 +2638,17 @@ function do_display_init()
 
 		return;
 	}
-	// Modify POSTs that always redirect (update / add / confirmed delete):
-	// do NOT print Home chrome first — that flushed headers so Location
-	// failed and left the busy spinner on Change Password. Do NOT defer for
-	// unconfirmed delete: that page must show the confirm UI (defer + the
-	// empty-redirect fallback used to dump the user on Home with no delete).
+	// Modify POSTs that redirect (update / add / continue→addnow / confirmed
+	// delete): do NOT print Home chrome first — that flushed headers so the
+	// Add Client continue→addnow path streamed chrome, then hung on
+	// login->was()/useradd while the busy overlay sat on a half-built page.
+	// Do NOT defer unconfirmed delete (needs the confirm UI).
 	$deferModify = false;
-	if (function_exists('isModifyAction') && isModifyAction() && is_object($ghtml)) {
-		$act = strtolower((string) ($ghtml->frm_action ?? ''));
+	$act = is_object($ghtml) ? strtolower((string) ($ghtml->frm_action ?? '')) : '';
+	if ($act === 'continue') {
+		// Add Client with a Resource Plan POSTs continue and addnow's in-request.
+		$deferModify = true;
+	} elseif (function_exists('isModifyAction') && isModifyAction() && is_object($ghtml)) {
 		if ($act === 'update' || $act === 'add') {
 			$deferModify = true;
 		} elseif ($act === 'delete'
@@ -2662,6 +2667,22 @@ function do_display_init()
 
 		return;
 	}
+
+	kloxo_print_display_chrome();
+}
+
+/**
+ * Page chrome skipped when __kloxo_defer_chrome is set. Called from
+ * do_display_init for normal pages, and from __ac_desc_continue when a
+ * multi-step continue must show the next form (not addnow).
+ */
+function kloxo_print_display_chrome(): void
+{
+	global $gbl, $sgbl, $login, $ghtml;
+
+	$skindir = $login->getSkinDir();
+	$col = $login->getSkinColor();
+	$buttontype = $login->getSpecialObject('sp_specialplay')->button_type;
 ?>
 	<html>
 	<head>
@@ -2711,22 +2732,6 @@ function do_display_init()
 <?php
 	}
 
-	if ($gbl->c_session->consuming_parent) {
-	/*
-?>
-
-		<table cellpadding=0 cellspacing=0 bgcolor="<?=$col?>">
-			<tr>
-				<td nowrap> Consumed Login</td>
-				<td><a href="/display.php?frm_consumedlogin=true&frm_action=desktop">Desktop </a></td>
-				<td width='100%'></td>
-				<td><a href="/lib/php/logout.php?frm_consumedlogin=true"> Logout </a></td>
-			</tr>
-		</table>
-<?php
-	*/
-	}
-
 	$ghtml->print_splash();
 
 	$ghtml->print_start();
@@ -2757,6 +2762,24 @@ function do_display_init()
 
 		exit;
 	}
+}
+
+/**
+ * After a deferred continue that needs another form step (not addnow):
+ * drop the empty buffer and print normal page chrome so the form has a shell.
+ */
+function kloxo_flush_deferred_chrome_for_form(): void
+{
+	global $gbl;
+
+	if (!is_object($gbl) || empty($gbl->__kloxo_defer_chrome)) {
+		return;
+	}
+	while (ob_get_level() > 0) {
+		@ob_end_clean();
+	}
+	$gbl->__kloxo_defer_chrome = false;
+	kloxo_print_display_chrome();
 }
 
 function do_display_exec()

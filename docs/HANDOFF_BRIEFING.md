@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111225**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111226**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1018,16 +1018,16 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `mail.yourdomain.com`. Add Customer "Please wait…" with Welcome checked
    was held on in-request `lx_mail` while Exim deferred; welcome now goes
    through `callInBackground` so Add returns after client sync only. Add
-   Client left the busy spinner up after success: (1) a **303 Location** made
-   the browser discard the stub that clears `kloxo-busy` and load the clients
-   list with the spinner still on — Add Client now returns **HTTP 200 + stub
-   only** (no Location; stub clears sessionStorage and navigates `mainframe`);
-   (2) hang was `login->was()` → kloxo-backend useradd; (3) FPM must not spawn
-   welcome/useradd itself. Add Client holds spawns, writeonly-was, drop-queues
-   `log/client-sync.request` + `log/background.queue`, exits; kloxo-backend
-   `do_server_stuff` and kloxo-watchdog (`run-dropped-client-jobs.php`) drain
-   them. `lxshell_background` uses `setsid`. Live Add Client redirect after
-   this path **UNVERIFIED**.
+   Client left the busy spinner up after success — root cause was not the
+   spinner itself: Add Client with a Resource Plan POSTs `frm_action=continue`
+   which `addnow`s in-request, but `isModifyAction()` excludes `continue`, so
+   **page chrome was flushed before the add** while `login->was()` →
+   kloxo-backend useradd still ran; the browser sat on a half-built page.
+   Fix: defer chrome for `continue` (flush chrome only if the next step is
+   another form); writeonly-was + **HTTP 200 stub** (no Location); drop-queue
+   `log/client-sync.request` + `log/background.queue` for backend/watchdog;
+   never spawn useradd from panel FPM. Live Add Client after this path
+   **UNVERIFIED**.
    Verify: hotfix `$domain` in live exim4.conf, `exim4 -qff`, then Add
    Customer / `test-mail --to=real@…`. Tests: `tests/p2/test_panel_mail.php`,
    `run-tests.sh` domainlist check. Live welcome delivery after apply
@@ -1046,7 +1046,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111225**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111226**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

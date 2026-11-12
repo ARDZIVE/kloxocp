@@ -2908,6 +2908,22 @@ try {
 		bad('client continueForm with a plan adds immediately', (string)($now['action'] ?? ''));
 	}
 
+	// continue→addnow must defer page chrome (isModifyAction excludes continue).
+	$coreDisp = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+	$initFn = '';
+	if (preg_match('/function do_display_init\(.*?^function /sm', $coreDisp, $mInit) === 1) {
+		$initFn = $mInit[0];
+	}
+	if ($initFn !== ''
+		&& str_contains($initFn, "\$act === 'continue'")
+		&& str_contains($initFn, '__kloxo_defer_chrome')
+		&& str_contains($coreDisp, 'function kloxo_flush_deferred_chrome_for_form')
+		&& str_contains($coreDisp, 'kloxo_flush_deferred_chrome_for_form()')) {
+		ok('continue action defers chrome so Add Client addnow can redirect cleanly');
+	} else {
+		bad('continue action defers chrome so Add Client addnow can redirect cleanly');
+	}
+
 	$step = Client::continueForm($admin, 'client', array(
 		'nname' => 'kloxocptestcli',
 		'password' => 'Secret12',

@@ -59,8 +59,17 @@ $stubFn = '';
 if (preg_match('/function kloxo_redirect_stub_html\(.*?^function /sm', $lxlib, $mSt) === 1) {
 	$stubFn = $mSt[0];
 }
+$initFn = '';
+if (preg_match('/function do_display_init\(.*?^function /sm', $core, $mInit) === 1) {
+	$initFn = $mInit[0];
+}
 if (str_contains($core, 'kloxo_finish_client_add')
 	&& str_contains($core, 'kloxo_hold_background_spawn(true)')
+	&& str_contains($core, 'function kloxo_flush_deferred_chrome_for_form')
+	&& str_contains($core, 'kloxo_flush_deferred_chrome_for_form()')
+	&& $initFn !== ''
+	&& str_contains($initFn, "\$act === 'continue'")
+	&& str_contains($initFn, '__kloxo_defer_chrome')
 	&& $finishFn !== ''
 	&& str_contains($finishFn, 'kloxo_queue_client_system_sync')
 	&& str_contains($finishFn, 'kloxo_release_held_background_to_queue')
@@ -82,9 +91,9 @@ if (str_contains($core, 'kloxo_finish_client_add')
 	&& preg_match('/function lxshell_background\(.*?^function /sm', $linuxFs, $bgFn) === 1
 	&& str_contains($bgFn[0], 'setsid')
 	&& !str_contains($bgFn[0], 'ionice -c3')) {
-	ok('Add Client returns 200 stub (no Location) and drop-queues sync for backend');
+	ok('Add Client defers continue chrome, returns 200 stub, drop-queues sync');
 } else {
-	bad('Add Client returns 200 stub (no Location) and drop-queues sync for backend');
+	bad('Add Client defers continue chrome, returns 200 stub, drop-queues sync');
 }
 if (str_contains($js, '/theme/img/kloxo-spinner.gif') && str_contains($js, 'KloxoBusy')
 	&& str_contains($js, "'pageshow'")) {
