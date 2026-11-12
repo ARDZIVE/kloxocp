@@ -54,8 +54,8 @@ if ($logfo === '') {
 $logfo = str_replace("<%programname%>", (string) $sgbl->__var_program_name, $logfo);
 if ($dbWarn !== '') {
 	$logfo .= '<p style="color:#a00"><b>Panel database is not ready.</b> '
-		. 'As root run <code>php /opt/kloxo/bin/install/init-panel-db --sqlite-only</code>, '
-		. 'install <code>php-sqlite3</code> for the panel PHP, then '
+		. 'As root run <code>/opt/kloxo/init/php-cli.sh /opt/kloxo/bin/install/init-panel-db --sqlite-only</code> '
+		. '(not bare <code>php</code> after PHP Used), then '
 		. '<code>systemctl restart kloxo-php kloxo-web</code>.</p>';
 }
 

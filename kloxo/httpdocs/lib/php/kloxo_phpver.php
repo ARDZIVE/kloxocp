@@ -1715,6 +1715,20 @@ final class KloxoPhpver
                 $ok = false;
             }
         }
+        // Keep etc/path/php on a binary with pdo_sqlite. PHP Used may point
+        // /usr/bin/php at a Sury series without sqlite3; panel tools must not.
+        if ($ok && function_exists('kloxo_php_has_pdo_sqlite') && function_exists('kloxo_write_panel_php_pin')) {
+            if (kloxo_php_has_pdo_sqlite($php)) {
+                kloxo_write_panel_php_pin($php);
+            } else {
+                foreach (array('/usr/bin/php8.3', '/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.6', '/usr/bin/php') as $cand) {
+                    if ($cand !== $php && self::isExec($cand) && kloxo_php_has_pdo_sqlite($cand)) {
+                        kloxo_write_panel_php_pin($cand);
+                        break;
+                    }
+                }
+            }
+        }
 
         return $ok;
     }

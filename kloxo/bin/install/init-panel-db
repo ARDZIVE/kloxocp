@@ -22,9 +22,111 @@ declare(strict_types=1);
  *   init-panel-db --root=DIR [--data-dir=DIR] [--admin-password-env=VAR] [--db-socket=PATH]
  *   init-panel-db --print-schema-stats --root=DIR
  *   init-panel-db --help
+ *
+ * Prefer the panel wrapper so PHP Used cannot break this tool:
+ *   /opt/kloxo/init/php-cli.sh /opt/kloxo/bin/install/init-panel-db --sqlite-only
  */
 
 const IPDB_VERSION = '0.1.0';
+
+/**
+ * PHP Used / update-alternatives may point `php` at a Sury series without
+ * pdo_sqlite. Re-exec under a pinned or distro binary that has the driver.
+ */
+function ipdb_ensure_pdo_sqlite(array $argv): void
+{
+    if (extension_loaded('pdo_sqlite')) {
+        return;
+    }
+    if (getenv('KLOXO_IPDB_REEXEC') === '1') {
+        $ver = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+        fwrite(STDERR, "error: PHP PDO sqlite driver missing for PHP {$ver}.\n"
+            . "  apt-get install -y php{$ver}-sqlite3\n"
+            . "  # or use the panel PHP (has sqlite):\n"
+            . "  /opt/kloxo/init/php-cli.sh {$argv[0]} --sqlite-only\n");
+        exit(1);
+    }
+
+    $script = $argv[0] ?? '';
+    if ($script === '' || !is_file($script)) {
+        $script = __FILE__;
+    }
+    $root = getenv('KLOXO_ROOT');
+    if (!is_string($root) || $root === '') {
+        $guess = dirname(__DIR__, 2);
+        $root = (is_dir($guess . '/httpdocs') && is_dir($guess . '/file/sql')) ? $guess : '/opt/kloxo';
+    }
+    $root = rtrim($root, '/');
+
+    $candidates = [];
+    $envPhp = getenv('KLOXO_PHP');
+    if (is_string($envPhp) && $envPhp !== '' && is_executable($envPhp)) {
+        $candidates[] = $envPhp;
+    }
+    $pin = $root . '/etc/path/php';
+    if (is_file($pin)) {
+        $bin = trim((string) file_get_contents($pin));
+        if ($bin !== '' && is_executable($bin)) {
+            $candidates[] = $bin;
+        }
+    }
+    // Distro panel PHP first; Sury site series last (often missing sqlite3).
+    foreach (['/usr/bin/php8.3', '/usr/bin/php8.5', '/usr/bin/php8.4', '/usr/bin/php8.6', '/usr/bin/php'] as $p) {
+        $candidates[] = $p;
+    }
+
+    $seen = [];
+    foreach ($candidates as $bin) {
+        if ($bin === '' || !is_executable($bin) || isset($seen[$bin])) {
+            continue;
+        }
+        $seen[$bin] = true;
+        $spec = [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $p = @proc_open([$bin, '-r', 'exit(extension_loaded("pdo_sqlite") ? 0 : 1);'], $spec, $pipes);
+        if (!is_resource($p)) {
+            continue;
+        }
+        if (isset($pipes[1]) && is_resource($pipes[1])) {
+            stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+        }
+        if (isset($pipes[2]) && is_resource($pipes[2])) {
+            stream_get_contents($pipes[2]);
+            fclose($pipes[2]);
+        }
+        if (proc_close($p) !== 0) {
+            continue;
+        }
+        $pinDir = $root . '/etc/path';
+        if (is_dir($pinDir) || @mkdir($pinDir, 0755, true) || is_dir($pinDir)) {
+            @file_put_contents($pinDir . '/php', $bin . "\n");
+        }
+        $args = array_merge([$script], array_slice($argv, 1));
+        fwrite(STDERR, "init-panel-db: re-exec with {$bin} (current PHP lacks pdo_sqlite)\n");
+        putenv('KLOXO_IPDB_REEXEC=1');
+        if (function_exists('pcntl_exec')) {
+            // Does not return on success.
+            @pcntl_exec($bin, $args);
+        }
+        $cmd = array_merge([$bin], $args);
+        $spec2 = [0 => STDIN, 1 => STDOUT, 2 => STDERR];
+        $child = @proc_open($cmd, $spec2, $pipes2);
+        if (is_resource($child)) {
+            exit(proc_close($child));
+        }
+        break;
+    }
+
+    $ver = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+    fwrite(STDERR, "error: PHP PDO sqlite driver missing for PHP {$ver}.\n"
+        . "  apt-get install -y php{$ver}-sqlite3\n"
+        . "  # or run with a panel PHP that already has sqlite:\n"
+        . "  /opt/kloxo/init/php-cli.sh /opt/kloxo/bin/install/init-panel-db --sqlite-only\n"
+        . "  # PHP Used may have switched /usr/bin/php; panel tools use etc/path/php\n");
+    exit(1);
+}
+
+ipdb_ensure_pdo_sqlite($argv);
 
 final class IpdbException extends RuntimeException
 {
@@ -336,8 +438,9 @@ TXT;
             if (stripos($msg, 'could not find driver') !== false) {
                 $ver = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
                 throw new IpdbException(
-                    "PHP PDO sqlite driver missing for PHP {$ver}. apt-get install php{$ver}-sqlite3"
-                    . ' (PHP Branch may have switched /usr/bin/php away from distro PHP)'
+                    "PHP PDO sqlite driver missing for PHP {$ver}. apt-get install -y php{$ver}-sqlite3"
+                    . ' — or run: /opt/kloxo/init/php-cli.sh /opt/kloxo/bin/install/init-panel-db --sqlite-only'
+                    . ' (PHP Used may have switched /usr/bin/php; panel tools use etc/path/php)'
                 );
             }
             throw new IpdbException($msg);

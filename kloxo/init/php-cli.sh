@@ -13,14 +13,15 @@ if [ -f "${ROOT}/etc/path/php" ]; then
 		exec "${PIN}" "$@"
 	fi
 fi
-for p in /usr/bin/php8.6 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.3 /usr/bin/php; do
+# Distro panel PHP first (usually has phpX.Y-sqlite3). Sury site series last.
+for p in /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6 /usr/bin/php; do
 	if [ -x "$p" ] && "$p" -r 'exit(extension_loaded("pdo_sqlite") ? 0 : 1);' >/dev/null 2>&1; then
 		mkdir -p "${ROOT}/etc/path" 2>/dev/null || true
 		printf '%s\n' "$p" > "${ROOT}/etc/path/php" 2>/dev/null || true
 		exec "$p" "$@"
 	fi
 done
-for p in /usr/bin/php /usr/bin/php8.6 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.3; do
+for p in /usr/bin/php /usr/bin/php8.3 /usr/bin/php8.5 /usr/bin/php8.4 /usr/bin/php8.6; do
 	if [ -x "$p" ]; then
 		exec "$p" "$@"
 	fi

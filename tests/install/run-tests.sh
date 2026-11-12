@@ -397,6 +397,21 @@ if grep -q '/usr/bin/php8.5' "$ROOT/kloxo/init/php-cli.sh" && grep -q '/usr/bin/
 else
   bad "php-cli and sgbl look for php8.5 and php8.3"
 fi
+if grep -q 'ipdb_ensure_pdo_sqlite' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'KLOXO_IPDB_REEXEC' "$ROOT/kloxo/bin/install/init-panel-db" \
+  && grep -q 'init/php-cli.sh' "$ROOT/kloxo/bin/install/init-panel-db"; then
+  ok "init-panel-db re-execs under a PHP with pdo_sqlite"
+else
+  bad "init-panel-db re-execs under a PHP with pdo_sqlite"
+fi
+# Prefer distro 8.3 before Sury 8.6 so bare php-cli picks sqlite first.
+php_cli_order="$(grep -n 'php8\.[0-9]' "$ROOT/kloxo/init/php-cli.sh" | head -5)"
+if echo "$php_cli_order" | head -1 | grep -q 'php8.3' \
+  && grep -n "foreach (array('/usr/bin/php8.3'" "$ROOT/kloxo/httpdocs/lib/sgbl.php" | grep -q .; then
+  ok "php-cli and sgbl prefer php8.3 before php8.6 for pdo_sqlite"
+else
+  bad "php-cli and sgbl prefer php8.3 before php8.6 for pdo_sqlite"
+fi
 if grep -q "str_starts_with(\$version, '26.')" "$ROOT/kloxo/bin/kloxocp"; then
   ok "kloxocp doctor accepts Ubuntu 26.x"
 else
