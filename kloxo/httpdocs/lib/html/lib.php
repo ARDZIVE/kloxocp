@@ -1543,8 +1543,18 @@ function getFQDNforServer($v)
 		return null;
 	}
 
-	$sql = new Sqlite(null, "pserver");
-	$server = $sql->rawQuery("select * from pserver where nname = '$v'");
+	// CLI helpers (kloxocp test-mail) may load lib.php before the Sqlite
+	// autoload map is ready; never fatal on a missing class.
+	if (!class_exists('Sqlite')) {
+		return null;
+	}
+
+	try {
+		$sql = new Sqlite(null, "pserver");
+		$server = $sql->rawQuery("select * from pserver where nname = '$v'");
+	} catch (Throwable $e) {
+		return null;
+	}
 	if (is_array($server) && isset($server[0]) && is_array($server[0])) {
 		$servername = trim((string)($server[0]['realhostname'] ?? ''));
 		if ($servername !== '') {
@@ -1557,6 +1567,9 @@ function getFQDNforServer($v)
 
 function getOneIPForServer($v)
 {
+	if (!class_exists('Sqlite')) {
+		return null;
+	}
 	try {
 		$sql = new Sqlite(null, "ipaddress");
 		$ipaddr = $sql->rawQuery("select * from ipaddress where syncserver = '$v'");
@@ -3043,7 +3056,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111216';
+	return '10.1-2026111217';
 }
 
 function getDownloadServer()
@@ -3293,6 +3306,18 @@ function kloxo_mail_header_safe(string $value): string
 }
 
 /**
+ * Local envelope/header From may use a single-label host (Exim
+ * qualify_domain). validate_email() rejects those; do not use it here.
+ */
+function kloxo_mail_from_ok(string $from): bool
+{
+	$from = trim($from);
+
+	return $from !== '' && (bool) preg_match('/^[^@\s]+@[^@\s]+$/', $from)
+		&& !filter_var(substr(strrchr($from, '@') ?: '', 1), FILTER_VALIDATE_IP);
+}
+
+/**
  * Envelope/header From for panel mail. Prefer a real hostname; never
  * "admin@" + null/IP-only (that made Exim reject and welcome mail vanish).
  */
@@ -3300,9 +3325,13 @@ function kloxo_mail_default_from(): string
 {
 	$candidates = array();
 	if (function_exists('getFQDNforServer')) {
-		$fq = getFQDNforServer('localhost');
-		if (is_string($fq) && $fq !== '') {
-			$candidates[] = $fq;
+		try {
+			$fq = getFQDNforServer('localhost');
+			if (is_string($fq) && $fq !== '') {
+				$candidates[] = $fq;
+			}
+		} catch (Throwable $e) {
+			// Fall through to gethostname / localhost.
 		}
 	}
 	$host = function_exists('gethostname') ? (string) gethostname() : '';
@@ -3318,7 +3347,7 @@ function kloxo_mail_default_from(): string
 			continue;
 		}
 		$from = 'admin@' . $h;
-		if (function_exists('validate_email') && validate_email($from)) {
+		if (kloxo_mail_from_ok($from)) {
 			return $from;
 		}
 	}
@@ -3343,7 +3372,7 @@ function lx_mail($from, $to, $subject, $message, $extra = null)
 
 	$from = is_string($from) ? trim($from) : '';
 	$from = kloxo_mail_header_safe($from);
-	if ($from === '' || !function_exists('validate_email') || !validate_email($from)) {
+	if ($from === '' || !kloxo_mail_from_ok($from)) {
 		$from = kloxo_mail_default_from();
 	}
 
@@ -3395,6 +3424,35 @@ function kloxo_mail_sendmail_bin(): string
 }
 
 /**
+ * proc_open options for panel → sendmail. Exim's never_users=root refuses
+ * root callers; drop to lxlabs (else Debian-exim) when we are root so
+ * kloxocp test-mail and root cron can queue. Panel FPM is already lxlabs.
+ *
+ * @return array<string, mixed>
+ */
+function kloxo_mail_sendmail_proc_opts(): array
+{
+	$opts = array('bypass_shell' => true);
+	if (!function_exists('posix_geteuid') || !function_exists('posix_getpwnam')) {
+		return $opts;
+	}
+	if ((int) posix_geteuid() !== 0) {
+		return $opts;
+	}
+	foreach (array('lxlabs', 'Debian-exim') as $user) {
+		$pw = @posix_getpwnam($user);
+		if (!is_array($pw) || !isset($pw['uid'], $pw['gid'])) {
+			continue;
+		}
+		$opts['uid'] = (int) $pw['uid'];
+		$opts['gid'] = (int) $pw['gid'];
+		break;
+	}
+
+	return $opts;
+}
+
+/**
  * Hand one message to sendmail. Queue-only (-odq) so Exim/Postfix accepts
  * without doing delivery DNS in-process. Waiting only a second then
  * proc_terminate() was killing the MTA before the message was queued —
@@ -3405,11 +3463,16 @@ function kloxo_mail_sendmail_once(string $sendmail, string $from, string $body):
 	$pipes = array();
 	// -odq: queue only (do not attempt delivery now). Keeps the panel fast
 	// and stops us from SIGTERM'ing sendmail mid-accept.
+	// -f needs Exim trusted_users (lxlabs); without it untrusted callers can
+	// end up with an empty envelope (<>) that freezes in the queue.
 	$cmd = array($sendmail, '-t', '-i', '-odq', '-f', $from);
 	$p = @proc_open(
 		$cmd,
 		array(0 => array('pipe', 'r'), 1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
-		$pipes
+		$pipes,
+		null,
+		null,
+		kloxo_mail_sendmail_proc_opts()
 	);
 	if (!is_resource($p)) {
 		log_log('mail_send', 'sendmail proc_open failed');

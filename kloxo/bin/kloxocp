@@ -73,7 +73,7 @@ declare(strict_types=1);
 	}
 })();
 
-const KCP_VERSION = '10.1-2026111216';
+const KCP_VERSION = '10.1-2026111217';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -436,13 +436,15 @@ TXT;
         $subject = 'Kloxo CP panel test mail';
         $body = "This is a test from kloxocp test-mail on " . gethostname()
             . ".\nIf you received this, panel welcome mail can queue through sendmail.\n";
-        $ok = lx_mail(null, $to, $subject, $body);
+        $from = function_exists('kloxo_mail_default_from') ? kloxo_mail_default_from() : ('admin@' . gethostname());
+        $ok = lx_mail($from, $to, $subject, $body);
         $rep = [
             'to' => $to,
+            'from' => $from,
             'sendmail' => $sendmail,
             'queued' => $ok,
             'hint' => $ok
-                ? 'queued; check the inbox and: mailq | tail; journalctl -u exim4 -n 30'
+                ? 'queued; mailq; if *** frozen *** see: exim4 -Mvh <id>; thaw: exim4 -M <id> or exim4 -qff; re-apply Exim (trusted_users): php ' . $this->root . '/bin/mail/kloxo-mail apply'
                 : 'not queued; see ' . $this->root . '/log/mail_send and systemctl status exim4',
         ];
         if (!$ok) {
@@ -451,7 +453,7 @@ TXT;
             return 1;
         }
 
-        return $this->say($rep, 'test-mail queued for ' . $to);
+        return $this->say($rep, 'test-mail queued for ' . $to . ' from ' . $from);
     }
 
     private function recoveryPassword(): int

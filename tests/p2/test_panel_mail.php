@@ -34,15 +34,42 @@ $base = (string) file_get_contents($doc . '/lib/client/clientbaselib.php');
 check(str_contains($lib, 'function kloxo_mail_recipients')
 	&& str_contains($lib, 'function kloxo_mail_sendmail_once')
 	&& str_contains($lib, 'function kloxo_mail_default_from')
+	&& str_contains($lib, 'function kloxo_mail_sendmail_proc_opts')
 	&& str_contains($lib, 'function lx_mail')
 	&& str_contains($lib, "'-odq'")
 	&& str_contains($lib, 'foreach ($recipients as $addr)'),
 	'lx_mail queues via sendmail -odq and splits recipients');
 
-check(str_contains($lib, 'kloxo_mail_default_from')
+check(str_contains($lib, 'function kloxo_mail_from_ok')
+	&& str_contains($lib, 'kloxo_mail_default_from')
 	&& str_contains($lib, 'FILTER_VALIDATE_IP')
-	&& str_contains($lib, 'admin@localhost'),
-	'default From rejects bare IP / null host');
+	&& str_contains($lib, 'admin@localhost')
+	&& str_contains($lib, "class_exists('Sqlite')"),
+	'default From allows single-label host; Sqlite optional');
+
+// Standalone copy of kloxo_mail_from_ok (mirrors lib.php).
+function test_kloxo_mail_from_ok(string $from): bool
+{
+	$from = trim($from);
+
+	return $from !== '' && (bool) preg_match('/^[^@\s]+@[^@\s]+$/', $from)
+		&& !filter_var(substr(strrchr($from, '@') ?: '', 1), FILTER_VALIDATE_IP);
+}
+
+check(test_kloxo_mail_from_ok('admin@srv') && test_kloxo_mail_from_ok('admin@example.com')
+	&& !test_kloxo_mail_from_ok('admin@1.2.3.4') && !test_kloxo_mail_from_ok(''),
+	'kloxo_mail_from_ok accepts hostnames, rejects IP From');
+
+check(str_contains($lib, "posix_geteuid()")
+	&& str_contains($lib, "'lxlabs'")
+	&& str_contains($lib, 'kloxo_mail_sendmail_proc_opts()'),
+	'sendmail drops root to lxlabs (Exim never_users=root)');
+
+$exim = (string) file_get_contents($root . '/kloxo/file/mail/exim/exim4.conf');
+check(str_contains($exim, 'trusted_users = lxlabs')
+	&& !str_contains($exim, 'untrusted_set_sender')
+	&& str_contains($exim, 'never_users = root'),
+	'Exim trusts lxlabs for panel -f From');
 
 $cin = '';
 if (preg_match('/function callInBackground\(.*?^function /sm', $lib, $m)) {
