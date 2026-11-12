@@ -134,9 +134,17 @@
 		cancelMaxWait();
 		api.hide();
 		try {
-			win.location.replace(u);
+			if (win.parent && win.parent !== win && win.parent.frames && win.parent.frames.mainframe) {
+				win.parent.frames.mainframe.location.replace(u);
+			} else {
+				win.location.replace(u);
+			}
 		} catch (e) {
-			win.location.href = u;
+			try {
+				win.location.replace(u);
+			} catch (e2) {
+				win.location.href = u;
+			}
 		}
 		return true;
 	}

@@ -3173,6 +3173,9 @@ function kloxo_redirect_abs_url(string $url): string
 /**
  * Tiny HTML that clears the busy spinner flag and navigates. Meta Refresh alone
  * left Add Client stuck on "Please wait..." inside the panel frame.
+ * Prefer this with HTTP 200 (no Location): a 303 makes the browser discard the
+ * stub and open the next page with kloxo-busy still set, so the spinner stays
+ * until that page's DOMContentLoaded (or forever if the list page is slow).
  */
 function kloxo_redirect_stub_html(string $url): string
 {
@@ -3185,11 +3188,15 @@ function kloxo_redirect_stub_html(string $url): string
 
 	return '<!DOCTYPE html><html><head><meta charset="utf-8">'
 		. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
-		. '<title>Continue</title></head><body data-kloxo-redirect="' . $esc . '">'
+		. '<title>Continue</title>'
+		. '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");}catch(e){}'
+		. 'var u=' . $js . ';'
+		. 'try{if(window.parent&&window.parent!==window&&window.parent.frames&&window.parent.frames.mainframe){'
+		. 'window.parent.frames.mainframe.location.replace(u);}else{location.replace(u);}}'
+		. 'catch(e2){try{location.replace(u);}catch(e3){location.href=u;}}})();</script>'
+		. '</head><body data-kloxo-redirect="' . $esc . '">'
 		. '<p style="font-family:sans-serif;margin:2em"><a href="' . $esc . '">click here</a></p>'
 		. '<script type="application/json" id="kloxo-redirect-json">' . $js . '</script>'
-		. '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");}catch(e){}'
-		. 'var u=' . $js . ';try{location.replace(u);}catch(e2){location.href=u;}})();</script>'
 		. '</body></html>';
 }
 
@@ -3451,8 +3458,9 @@ function kloxo_close_client_connection(): void
 }
 
 /**
- * Session + stub redirect body/headers. Does not exit (caller may still
- * spawn held background jobs after fastcgi_finish_request).
+ * Session + stub redirect. Always HTTP 200 + stub (no Location): a 303 makes
+ * the browser discard the stub that clears kloxo-busy and load the next page
+ * with the spinner still on. Does not exit.
  */
 function kloxo_emit_local_redirect(): string
 {
@@ -3489,20 +3497,11 @@ function kloxo_emit_local_redirect(): string
 	@ini_set('zlib.output_compression', '0');
 
 	$url = function_exists('kloxo_redirect_abs_url') ? kloxo_redirect_abs_url($url) : $url;
-	if (function_exists('kloxo_is_xhr_request') && kloxo_is_xhr_request()) {
-		if (!headers_sent()) {
-			header('Content-Type: text/html; charset=utf-8');
-			header('Cache-Control: no-store, no-cache, must-revalidate');
-			header('X-Kloxo-Redirect: ' . str_replace(array("\r", "\n"), '', $url));
-			http_response_code(200);
-		}
-	} else {
-		if (!headers_sent()) {
-			header('Content-Type: text/html; charset=utf-8');
-			header('Cache-Control: no-store, no-cache, must-revalidate');
-			http_response_code(303);
-			header('Location: ' . $url);
-		}
+	if (!headers_sent()) {
+		header('Content-Type: text/html; charset=utf-8');
+		header('Cache-Control: no-store, no-cache, must-revalidate');
+		header('X-Kloxo-Redirect: ' . str_replace(array("\r", "\n"), '', $url));
+		http_response_code(200);
 	}
 	echo function_exists('kloxo_redirect_stub_html')
 		? kloxo_redirect_stub_html($url)
@@ -3515,7 +3514,7 @@ function kloxo_emit_local_redirect(): string
 
 /**
  * Panel-DB-only actions (DNS templates, password, local Backup Upload): the
- * SQLite row is already written. Flush the session and Location/meta-redirect
+ * SQLite row is already written. Flush the session and stub-redirect
  * immediately so the browser is not held on login->was() / kloxo-backend.
  * Always exits (never returns): a missing redirect URL falls back to Home.
  */
@@ -3526,10 +3525,152 @@ function kloxo_finish_local_redirect(): void
 }
 
 /**
- * After Add Client: write SQLite only, send the redirect, close the client
- * connection, THEN spawn welcome-mail / useradd workers. Spawning before the
- * redirect (or without fastcgi_finish_request) left the busy spinner on the
- * Add form even though the client row was already saved.
+ * Append a client nname for kloxo-backend / watchdog to useradd (never spawn
+ * from panel FPM — that held the busy spinner even after the SQLite write).
+ */
+function kloxo_queue_client_system_sync(string $nname): void
+{
+	$nname = trim($nname);
+	if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1) {
+		return;
+	}
+	global $sgbl;
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/log';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$path = $dir . '/client-sync.request';
+	@file_put_contents($path, $nname . "\n", FILE_APPEND | LOCK_EX);
+	@chmod($path, 0640);
+	if (function_exists('log_log')) {
+		log_log('info', "client add: queued system sync drop for {$nname}");
+	}
+}
+
+/**
+ * Move held background.php job paths to log/background.queue (root workers
+ * run them). Does not spawn from this FPM request.
+ */
+function kloxo_release_held_background_to_queue(): void
+{
+	$jobs = array();
+	if (isset($GLOBALS['kloxo_held_background_jobs']) && is_array($GLOBALS['kloxo_held_background_jobs'])) {
+		$jobs = $GLOBALS['kloxo_held_background_jobs'];
+	}
+	$GLOBALS['kloxo_held_background_jobs'] = array();
+	$GLOBALS['kloxo_hold_background_spawn'] = false;
+
+	global $sgbl;
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/log';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$queue = $dir . '/background.queue';
+	$lines = '';
+	foreach ($jobs as $job) {
+		if (!is_array($job) || count($job) < 3) {
+			continue;
+		}
+		$name = (string) $job[2];
+		if ($name !== '' && is_file($name)) {
+			$lines .= $name . "\n";
+		}
+	}
+	if ($lines !== '') {
+		@file_put_contents($queue, $lines, FILE_APPEND | LOCK_EX);
+		@chmod($queue, 0640);
+	}
+}
+
+/**
+ * Root / backend: run dropped background.php jobs and client-sync requests.
+ */
+function kloxo_run_dropped_client_jobs(): void
+{
+	global $sgbl;
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
+		? (string) $sgbl->__path_php_path
+		: (function_exists('kloxo_php_binary') ? (string) kloxo_php_binary() : '/usr/bin/php');
+	$bg = $root . '/bin/common/background.php';
+
+	$queue = $root . '/log/background.queue';
+	if (is_file($queue) && is_readable($queue)) {
+		$running = $queue . '.running.' . getmypid();
+		if (@rename($queue, $running)) {
+			$raw = (string) @file_get_contents($running);
+			@unlink($running);
+			foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $job) {
+				$job = trim($job);
+				if ($job === '' || !is_file($job) || !is_file($bg)) {
+					continue;
+				}
+				if (function_exists('lxshell_background')) {
+					lxshell_background($php, $bg, $job);
+				}
+			}
+		}
+	}
+
+	$req = $root . '/log/client-sync.request';
+	if (!is_file($req) || !is_readable($req)) {
+		return;
+	}
+	$running = $req . '.running.' . getmypid();
+	if (!@rename($req, $running)) {
+		return;
+	}
+	$raw = (string) @file_get_contents($running);
+	@unlink($running);
+	$seen = array();
+	foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $nname) {
+		$nname = trim($nname);
+		if ($nname === '' || isset($seen[$nname])
+			|| preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1) {
+			continue;
+		}
+		$seen[$nname] = true;
+		if (!is_file($bg)) {
+			continue;
+		}
+		$jobDir = $root . '/pid';
+		if (!is_dir($jobDir)) {
+			@mkdir($jobDir, 0750, true);
+		}
+		$name = @tempnam($jobDir, 'background');
+		if ($name === false) {
+			$name = $jobDir . '/background.' . getmypid() . '.' . mt_rand(1000, 9999);
+		}
+		$res = new Remote();
+		$res->__type = 'function';
+		$res->func = 'kloxo_client_system_sync';
+		$res->arglist = array($nname);
+		if (function_exists('lxfile_generic_chmod')) {
+			lxfile_generic_chmod($name, '700');
+		}
+		if (function_exists('lfile_put_contents')) {
+			lfile_put_contents($name, serialize($res));
+		} else {
+			@file_put_contents($name, serialize($res));
+		}
+		if (function_exists('lxshell_background')) {
+			lxshell_background($php, $bg, $name);
+		}
+	}
+}
+
+/**
+ * After Add Client: write SQLite only, return a 200 stub (clears busy), and
+ * queue useradd/mail for kloxo-backend/watchdog. Never Location-redirect and
+ * never spawn workers from this FPM request.
  */
 function kloxo_finish_client_add(string $nname): void
 {
@@ -3539,7 +3680,22 @@ function kloxo_finish_client_add(string $nname): void
 		kloxo_hold_background_spawn(true);
 	}
 	kloxo_skip_was_now();
-	if (is_object($login) && method_exists($login, 'was')) {
+
+	$nname = trim($nname);
+	$wrote = false;
+	if ($nname !== '' && is_object($login) && isset($login->client_l)
+		&& is_array($login->client_l) && isset($login->client_l[$nname])
+		&& is_object($login->client_l[$nname]) && method_exists($login->client_l[$nname], 'was')) {
+		try {
+			$login->client_l[$nname]->was();
+			$wrote = true;
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'client add local write (child): ' . $e->getMessage());
+			}
+		}
+	}
+	if (!$wrote && is_object($login) && method_exists($login, 'was')) {
 		try {
 			$login->was();
 		} catch (Throwable $e) {
@@ -3549,20 +3705,14 @@ function kloxo_finish_client_add(string $nname): void
 		}
 	}
 
-	$nname = trim($nname);
-	if ($nname !== '' && preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) === 1
-		&& function_exists('callInBackground')) {
-		callInBackground('kloxo_client_system_sync', array($nname));
-		if (function_exists('log_log')) {
-			log_log('info', "client add: queued system sync for {$nname}");
-		}
+	if ($nname !== '' && preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) === 1) {
+		kloxo_queue_client_system_sync($nname);
+	}
+	if (function_exists('kloxo_release_held_background_to_queue')) {
+		kloxo_release_held_background_to_queue();
 	}
 
 	kloxo_emit_local_redirect();
-	kloxo_close_client_connection();
-	if (function_exists('kloxo_flush_held_background_jobs')) {
-		kloxo_flush_held_background_jobs();
-	}
 	exit(0);
 }
 

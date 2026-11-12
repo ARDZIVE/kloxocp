@@ -44,25 +44,47 @@ $core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $lxlib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 $libHtml = (string) file_get_contents($doc . '/lib/html/lib.php');
 $linuxFs = (string) file_get_contents($doc . '/lib/html/linuxfslib.php');
+$serverLib = (string) file_get_contents($doc . '/lib/html/lxserverlib.php');
+$wd = (string) file_get_contents($doc . '/lib/php/kloxo_watchdog.php');
+$runner = (string) @file_get_contents($root . '/kloxo/bin/common/run-dropped-client-jobs.php');
+$finishFn = '';
+if (preg_match('/function kloxo_finish_client_add\(.*?^function /sm', $lxlib, $mFin) === 1) {
+	$finishFn = $mFin[0];
+}
+$emitFn = '';
+if (preg_match('/function kloxo_emit_local_redirect\(.*?^function /sm', $lxlib, $mEm) === 1) {
+	$emitFn = $mEm[0];
+}
+$stubFn = '';
+if (preg_match('/function kloxo_redirect_stub_html\(.*?^function /sm', $lxlib, $mSt) === 1) {
+	$stubFn = $mSt[0];
+}
 if (str_contains($core, 'kloxo_finish_client_add')
 	&& str_contains($core, 'kloxo_hold_background_spawn(true)')
-	&& str_contains($lxlib, 'function kloxo_finish_client_add')
-	&& str_contains($lxlib, 'function kloxo_client_system_sync')
-	&& str_contains($lxlib, 'function kloxo_emit_local_redirect')
-	&& str_contains($lxlib, 'function kloxo_close_client_connection')
-	&& str_contains($lxlib, 'fastcgi_finish_request')
-	&& str_contains($lxlib, "callInBackground('kloxo_client_system_sync'")
-	&& str_contains($lxlib, 'kloxo_flush_held_background_jobs')
+	&& $finishFn !== ''
+	&& str_contains($finishFn, 'kloxo_queue_client_system_sync')
+	&& str_contains($finishFn, 'kloxo_release_held_background_to_queue')
+	&& !str_contains($finishFn, 'kloxo_flush_held_background_jobs')
+	&& !str_contains($finishFn, "callInBackground('kloxo_client_system_sync'")
+	&& $emitFn !== ''
+	&& str_contains($emitFn, 'http_response_code(200)')
+	&& !str_contains($emitFn, 'http_response_code(303)')
+	&& !str_contains($emitFn, "header('Location:")
+	&& $stubFn !== ''
+	&& str_contains($stubFn, 'sessionStorage.removeItem("kloxo-busy")')
+	&& str_contains($stubFn, 'mainframe')
+	&& str_contains($lxlib, 'function kloxo_run_dropped_client_jobs')
+	&& str_contains($lxlib, 'client-sync.request')
+	&& str_contains($serverLib, 'kloxo_run_dropped_client_jobs')
+	&& str_contains($wd, 'runClientAddJobs')
+	&& str_contains($runner, 'kloxo_run_dropped_client_jobs')
 	&& str_contains($libHtml, 'function kloxo_hold_background_spawn')
-	&& str_contains($libHtml, 'function kloxo_flush_held_background_jobs')
-	&& str_contains($libHtml, 'kloxo_hold_background_spawn')
 	&& preg_match('/function lxshell_background\(.*?^function /sm', $linuxFs, $bgFn) === 1
 	&& str_contains($bgFn[0], 'setsid')
-	&& str_contains($bgFn[0], '</dev/null >/dev/null 2>&1 &')
 	&& !str_contains($bgFn[0], 'ionice -c3')) {
-	ok('Add Client flushes redirect before spawning useradd/mail workers');
+	ok('Add Client returns 200 stub (no Location) and drop-queues sync for backend');
 } else {
-	bad('Add Client flushes redirect before spawning useradd/mail workers');
+	bad('Add Client returns 200 stub (no Location) and drop-queues sync for backend');
 }
 if (str_contains($js, '/theme/img/kloxo-spinner.gif') && str_contains($js, 'KloxoBusy')
 	&& str_contains($js, "'pageshow'")) {

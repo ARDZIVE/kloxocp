@@ -73,6 +73,18 @@ function do_server_stuff()
 		}
 	}
 
+	// Add Client: welcome-mail / useradd jobs dropped so panel FPM never spawns.
+	if (function_exists('posix_geteuid') && posix_geteuid() === 0
+		&& function_exists('kloxo_run_dropped_client_jobs')) {
+		try {
+			kloxo_run_dropped_client_jobs();
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'client-sync job: ' . $e->getMessage());
+			}
+		}
+	}
+
 //	dprint("in Do server stuff\n");
 
 	try {

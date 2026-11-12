@@ -430,6 +430,28 @@ final class KloxoWatchdog
         ($this->run)([$php, $bin, '--root=' . $this->root]);
     }
 
+    /**
+     * Root: run Add Client drop-files (background.queue + client-sync.request)
+     * via a one-shot PHP include — panel FPM must not spawn these itself.
+     */
+    private function runClientAddJobs(): void
+    {
+        $queue = $this->root . '/log/background.queue';
+        $req = $this->root . '/log/client-sync.request';
+        if (!is_file($queue) && !is_file($req)) {
+            return;
+        }
+        $php = '/usr/bin/php';
+        if (defined('PHP_BINARY') && is_string(PHP_BINARY) && PHP_BINARY !== '' && is_executable(PHP_BINARY)) {
+            $php = PHP_BINARY;
+        }
+        $runner = $this->root . '/bin/common/run-dropped-client-jobs.php';
+        if (!is_file($runner)) {
+            return;
+        }
+        ($this->run)([$php, $runner, '--root=' . $this->root]);
+    }
+
     // ------------------------------------------------------------------ cycle
 
     /**
@@ -440,6 +462,7 @@ final class KloxoWatchdog
     public function cycle(): array
     {
         $this->runSitePhpJob();
+        $this->runClientAddJobs();
         $cfg = self::config($this->root);
         $events = [];
         if (($this->uptime)() < $cfg['grace']) {
