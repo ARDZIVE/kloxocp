@@ -300,23 +300,37 @@ abstract class Lxclient extends Lxdb
 			$from = $noto->fromaddress;
 		}
 		
-		// lx_mail queues via sendmail -odq (no delivery DNS in-process).
-		$ok = lx_mail($from, $obj->contactemail, $subject, $txt);
-		if (!$ok) {
-			log_log('mail_send', "FAILED welcome/notify to {$obj->contactemail} (see mail_send log; check exim4 and contactemail)");
-			global $gbl;
-			if (is_object($gbl) && method_exists($gbl, 'setWarning')) {
-				$gbl->setWarning(
-					'Welcome email could not be queued. Check Exim (systemctl status exim4), '
-					. 'log/mail_send, and that sendmail exists at /usr/sbin/sendmail.',
-					'contactemail',
-					(string) $obj->contactemail
-				);
+		// Never block Add Client / the busy spinner on sendmail. Exim can
+		// sit on a bad domainlist or DNS for many seconds even with -odq;
+		// callInBackground returns after writing the job (background.php is
+		// absolute). Fall back to a direct lx_mail only if the helper is gone.
+		$to = (string) $obj->contactemail;
+		if (function_exists('callInBackground')) {
+			callInBackground('lx_mail', array($from, $to, $subject, $txt));
+			log_log('mail_send', "welcome/notify queued in background for {$to}");
+		} elseif (function_exists('lx_mail')) {
+			$ok = lx_mail($from, $to, $subject, $txt);
+			if (!$ok) {
+				log_log('mail_send', "FAILED welcome/notify to {$to} (see mail_send log; check exim4 and contactemail)");
+				global $gbl;
+				if (is_object($gbl) && method_exists($gbl, 'setWarning')) {
+					$gbl->setWarning(
+						'Welcome email could not be queued. Check Exim (systemctl status exim4), '
+						. 'log/mail_send, and that sendmail exists at /usr/sbin/sendmail.',
+						'contactemail',
+						$to
+					);
+				}
 			}
 		}
 
 		if (isset($obj->extra_email_f) && $obj->extra_email_f) {
-			lx_mail($from, $obj->extra_email_f, $subject, $txt);
+			$extra = (string) $obj->extra_email_f;
+			if (function_exists('callInBackground')) {
+				callInBackground('lx_mail', array($from, $extra, $subject, $txt));
+			} elseif (function_exists('lx_mail')) {
+				lx_mail($from, $extra, $subject, $txt);
+			}
 		}
 	}
 

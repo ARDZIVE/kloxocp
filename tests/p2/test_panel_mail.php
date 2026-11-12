@@ -98,11 +98,11 @@ check(str_contains($bg, 'dirname(__DIR__, 2)')
 	&& !preg_match('/^include_once\s+"lib\/html\/include\.php"/m', $bg),
 	'background.php bootstraps from __DIR__/httpdocs, not FPM cwd');
 
-check(str_contains($client, 'lx_mail($from, $obj->contactemail')
-	&& str_contains($client, 'Welcome email could not be queued')
+check(str_contains($client, "callInBackground('lx_mail'")
+	&& str_contains($client, 'queued in background')
 	&& str_contains($client, 'defaultWelcomeMessage')
-	&& !str_contains($client, 'callInBackground("lx_mail", array($from, $obj->contactemail'),
-	'sendNotification calls lx_mail directly and warns on queue failure');
+	&& str_contains($client, 'Welcome email could not be queued'),
+	'sendNotification queues lx_mail in background (Add Client must not wait on Exim)');
 
 $kcp = (string) file_get_contents($root . '/kloxo/bin/kloxocp');
 check(str_contains($kcp, "'test-mail'")
