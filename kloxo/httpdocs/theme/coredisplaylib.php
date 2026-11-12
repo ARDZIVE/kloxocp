@@ -928,6 +928,10 @@ function __ac_desc_delete($object)
 		if ($cname === 'domain' || $cname === 'client' || $cname === 'vps') {
 			$gbl->setSessionV('__refresh_lpanel', 'true');
 		}
+		// DNS templates are panel-DB only; deleteSpecific already wrote the row.
+		if ($cname === 'dnstemplate') {
+			$gbl->__kloxo_skip_was = true;
+		}
 	} else {
 		$gbl->setSessionV("lx_delete_return_url", $gbl->getHttpReferer());
 

@@ -231,7 +231,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111202**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111203**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -635,12 +635,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     is empty), does not run `fixIpAddress.php`, strips a duplicate `.dnst`
     suffix, qualifies a blank/short nameserver to `ns1.<template>.dnst`,
     validates primary and secondary NS separately, and writes default
-    NS/A/MX records to `dns_record_a`. Opening a template always shows the
+    NS/A/MX records to `dns_record_a`.     Opening a template always shows the
     add-record beige tabs (NS/A/AAAA/…/General Settings; no Rebuild) even
     when `parent_clname` is empty or mismatched (`createShowPropertyList`
     + forced `dnstemplate` tabs in `kloxo_print_object_property_tabs`);
-    Find is omitted on the show page. Live template-create after deploy is
-    **UNVERIFIED**.
+    Find is omitted on the show page. Delete writes the SQLite row in
+    `deleteSpecific` and sets `__kloxo_skip_was` so confirmed delete does not
+    wait on kloxo-backend (templates are `isSync` false / panel-DB only).
+    Live template-create / delete after deploy is **UNVERIFIED**.
     FTP Configure (`serverftp`) beige tab is labelled **FTP Configure**
     (`serverftp::ftpPropertyTabs`). Live FTP Configure after deploy is
     **UNVERIFIED**. FTP Configure (`serverftp`) is seeded as `pserver-localhost` and
@@ -974,7 +976,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111202**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111203**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

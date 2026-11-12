@@ -1451,6 +1451,23 @@ try {
 			$rightErr . ' props=' . implode(',', $showProps) . ' mis=' . implode(',', $misProps));
 	}
 
+	$delTpl = new Dnstemplate(null, null, 'delete-me.dnst');
+	$delTpl->nname = 'delete-me.dnst';
+	$delTpl->dbaction = 'delete';
+	$delSrc = (string) file_get_contents($doc . '/driver/dns/dnstemplatelib.php');
+	$delCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+	$delOk = method_exists($delTpl, 'deleteSpecific')
+		&& method_exists($delTpl, 'isSync') && $delTpl->isSync() === false
+		&& str_contains($delSrc, '__kloxo_skip_was')
+		&& str_contains($delSrc, 'dnstemplate delete write')
+		&& str_contains($delCore, "\$cname === 'dnstemplate'")
+		&& str_contains($delCore, '__kloxo_skip_was');
+	if ($delOk) {
+		ok('DNS template delete writes locally and skips backend was()');
+	} else {
+		bad('DNS template delete writes locally and skips backend was()');
+	}
+
 	$zone = new Dns(null, 'localhost', 'example.com');
 	$zone->nname = 'example.com';
 	$zone->parent_clname = '';

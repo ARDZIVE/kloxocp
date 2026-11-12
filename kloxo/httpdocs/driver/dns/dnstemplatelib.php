@@ -18,19 +18,35 @@ class Dnstemplate extends DnsBase
 
 	function update($subaction, $param)
 	{
-		global $login;
+		return $param;
+	}
 
-		try {
-			$parent = $this->getParentO();
-			if (is_object($parent) && method_exists($parent, 'getClName')
-				&& isset($this->parent_clname) && (string) $this->parent_clname !== ''
-				&& $parent->getClName() !== $this->parent_clname) {
-				// Shared templates stay editable; ownership check is informational.
+	/**
+	 * Templates live only in the panel DB (isSync false). Still, login->was()
+	 * after delete used to wait on kloxo-backend for unrelated dirty objects.
+	 * Write the row out here and skip that round trip.
+	 */
+	function deleteSpecific()
+	{
+		global $gbl;
+
+		$this->metadbaction = 'writeonly';
+		if ($this->dbaction === 'delete') {
+			try {
+				$this->write();
+				$this->dbaction = 'delete_done';
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'dnstemplate delete write: ' . $e->getMessage());
+				}
+				throw $e;
 			}
-		} catch (Throwable $e) {
+		}
+		if (is_object($gbl)) {
+			$gbl->__kloxo_skip_was = true;
 		}
 
-		return $param;
+		return true;
 	}
 
 	static function createListAlist($parent, $class)
