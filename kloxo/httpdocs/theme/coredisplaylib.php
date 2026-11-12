@@ -2599,6 +2599,21 @@ function do_display_init()
 
 		return;
 	}
+	// Password change, DNS template add/delete, and every other modify POST:
+	// do NOT print the Home chrome first. That flushed headers so Location
+	// failed, left the busy "Please wait..." on the old Change Password form,
+	// and made login->was() look like a hang. Run the action, then redirect.
+	if (function_exists('isModifyAction') && isModifyAction()) {
+		$gbl->__this_redirect = null;
+		$gbl->__kloxo_defer_chrome = true;
+		@ini_set('zlib.output_compression', '0');
+		while (ob_get_level() > 0) {
+			@ob_end_clean();
+		}
+		@ob_start();
+
+		return;
+	}
 ?>
 	<html>
 	<head>
@@ -2965,6 +2980,16 @@ function display_exec()
 	} catch (Throwable $e) {
 		log_redirect("Caught except");
 		log_log("error", "display_exec: " . $e->getMessage());
+		$defer = is_object($gbl) && !empty($gbl->__kloxo_defer_chrome);
+		if ($defer && is_object($ghtml) && method_exists($ghtml, 'print_redirect_back')) {
+			$evlist = '';
+			if (isset($e->variable)) {
+				$evlist = is_array($e->variable) ? implode(',', $e->variable) : (string) $e->variable;
+			}
+			$eval = isset($e->value) ? $e->value : null;
+			$ghtml->print_redirect_back($e->getMessage(), $evlist, $eval);
+			exit(0);
+		}
 ?>
 		<div class="div_content" style="padding: 16px">
 			The resource you requested could not be retrieved... <?= kloxo_html($e->getMessage()) ?>
