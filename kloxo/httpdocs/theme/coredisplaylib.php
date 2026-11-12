@@ -923,7 +923,17 @@ function __ac_desc_delete($object)
 	if ($ghtml->frm_confirmed === "yes") {
 		do_desc_delete($object, $cname, $ll);
 		$desc = get_classvar_description($cname);
-		$gbl->__this_redirect = $gbl->getSessionV("lx_delete_return_url") . "&frm_smessage=$desc[2]+successfully+deleted.";
+		$ret = $gbl->getSessionV("lx_delete_return_url");
+		if (!is_string($ret) || $ret === '') {
+			// Confirm step never saved a return URL (or session lost it).
+			// Prefer the class list — never fall through to bare Home.
+			$ret = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
+				? (string) $ghtml->getFullUrl("a=list&c={$cname}")
+				: "/display.php?frm_action=list&frm_o_cname={$cname}";
+		}
+		$msg = is_array($desc) && isset($desc[2]) ? (string) $desc[2] : $cname;
+		$sep = str_contains($ret, '?') ? '&' : '?';
+		$gbl->__this_redirect = $ret . $sep . 'frm_smessage=' . rawurlencode($msg . ' successfully deleted.');
 
 		if ($cname === 'domain' || $cname === 'client' || $cname === 'vps') {
 			$gbl->setSessionV('__refresh_lpanel', 'true');
@@ -2599,11 +2609,22 @@ function do_display_init()
 
 		return;
 	}
-	// Password change, DNS template add/delete, and every other modify POST:
-	// do NOT print the Home chrome first. That flushed headers so Location
-	// failed, left the busy "Please wait..." on the old Change Password form,
-	// and made login->was() look like a hang. Run the action, then redirect.
-	if (function_exists('isModifyAction') && isModifyAction()) {
+	// Modify POSTs that always redirect (update / add / confirmed delete):
+	// do NOT print Home chrome first — that flushed headers so Location
+	// failed and left the busy spinner on Change Password. Do NOT defer for
+	// unconfirmed delete: that page must show the confirm UI (defer + the
+	// empty-redirect fallback used to dump the user on Home with no delete).
+	$deferModify = false;
+	if (function_exists('isModifyAction') && isModifyAction() && is_object($ghtml)) {
+		$act = strtolower((string) ($ghtml->frm_action ?? ''));
+		if ($act === 'update' || $act === 'add') {
+			$deferModify = true;
+		} elseif ($act === 'delete'
+			&& strtolower((string) ($ghtml->frm_confirmed ?? '')) === 'yes') {
+			$deferModify = true;
+		}
+	}
+	if ($deferModify) {
 		$gbl->__this_redirect = null;
 		$gbl->__kloxo_defer_chrome = true;
 		@ini_set('zlib.output_compression', '0');
@@ -2920,7 +2941,10 @@ function lx_frm_inc()
 
 	// Deferred Backup/Restore must never end with an empty body: if the
 	// action forgot to set a redirect, send the user back to Backup / Restore.
+	// Do not use this for ordinary modify defer (unconfirmed delete must keep
+	// its confirm HTML — redirecting to Home skipped the delete entirely).
 	if (is_object($gbl) && !empty($gbl->__kloxo_defer_chrome) && empty($gbl->__this_redirect)
+		&& function_exists('kloxo_is_long_backend_update') && kloxo_is_long_backend_update()
 		&& is_object($ghtml) && method_exists($ghtml, 'print_redirect')) {
 		$url = method_exists($ghtml, 'getFullUrl') ? $ghtml->getFullUrl('a=show') : 'display.php?frm_action=show';
 		if (!is_string($url) || $url === '') {

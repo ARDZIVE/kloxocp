@@ -156,10 +156,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Password writes SQLite (`metadbaction=writeonly`), updates `kloxo.pass`
     only (no MariaDB from FPM), then `kloxo_finish_local_redirect()` which
     always exits. `lx_frm_inc` also hard-exits when `kloxo_skip_was` is set,
-    and `Lxclass::was()` refuses backend sync under that flag. Modify POSTs
-    (password, DNS template add/delete, …) defer page chrome
-    (`__kloxo_defer_chrome`) so `Location` can fire; printing Home first
-    left the busy "Please wait..." stuck on the Change Password form.
+    and `Lxclass::was()` refuses backend sync under that flag.     Modify POSTs that always redirect (update / add / confirmed delete)
+    defer page chrome (`__kloxo_defer_chrome`) so `Location` can fire;
+    unconfirmed delete still prints the confirm UI (deferring it made the
+    empty-redirect fallback send users to Home with no delete). Delete
+    return URL falls back to the class list when the session value is
+    missing. Printing Home first left the busy "Please wait..." stuck on
+    the Change Password form.
     The login page soft-fails a
     missing/unreadable `panel.sqlite` (or missing `pdo_sqlite`) so the form
     still prints instead of logos-only with `display_errors=0`; it shows a
@@ -251,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111213**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111214**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1001,7 +1004,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111213**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111214**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
