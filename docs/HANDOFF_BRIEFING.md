@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111223**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111224**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1020,10 +1020,14 @@ Work in this order. Keep every change small, tested and committed separately. Do
    through `callInBackground` so Add returns after client sync only. Add
    Client left the busy spinner up after success: (1) deferred chrome used a
    meta-Refresh stub that kept `kloxo-busy` in sessionStorage — fixed with
-   **303** + stub that clears the flag and `location.replace`; (2) the real
-   hang was `login->was()` waiting on kloxo-backend useradd after the SQLite
-   row existed — Add Client now `kloxo_finish_client_add` (writeonly was +
-   redirect) then `callInBackground(kloxo_client_system_sync)`. Live Add
+   **303** + stub that clears the flag and `location.replace`; (2) hang was
+   `login->was()` → kloxo-backend useradd after SQLite write; (3) even after
+   writeonly + `callInBackground`, FPM still held the request while welcome
+   mail / `kloxo_client_system_sync` workers ran (ionice wrap / no
+   `fastcgi_finish_request`). Add Client now holds background spawns from
+   `do_desc_add` onward, `kloxo_finish_client_add` writeonly-was + emit
+   redirect + `fastcgi_finish_request`, then `kloxo_flush_held_background_jobs`;
+   `lxshell_background` uses `setsid` + `</dev/null` (no ionice). Live Add
    Client redirect after this path **UNVERIFIED**.
    Verify: hotfix `$domain` in live exim4.conf, `exim4 -qff`, then Add
    Customer / `test-mail --to=real@…`. Tests: `tests/p2/test_panel_mail.php`,
@@ -1043,7 +1047,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111223**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111224**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

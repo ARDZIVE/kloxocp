@@ -836,40 +836,30 @@ function lxfile_unix_chown($file, $mod)
 
 function lxshell_background($cmd)
 {
-	global $gbl, $sgbl, $login, $ghtml; 
+	global $gbl, $sgbl, $login, $ghtml;
 	global $global_dontlogshell;
 
-	$username = '__system__';
-	$start = 1;
-	$transforming_func = null;
-
-	if (version_compare(PHP_VERSION, '5.3.0', '<')) {
-		eval($sgbl->arg_getting_string);
-	} else {
-	//	$arglist = get_function_arglist($start, $transforming_func);
-
-		$arglist = array();
-
-		for ($i = $start; $i < func_num_args(); $i++) {
-			$arglist[] = func_get_arg($i);
-		}
-
+	$arglist = array();
+	for ($i = 1; $i < func_num_args(); $i++) {
+		$arglist[] = func_get_arg($i);
 	}
 
 	$cmd = getShellCommand($cmd, $arglist);
-	$cmd .= " >/dev/null 2>&1 &";
-//	$pwd = getcwd();
+	// Fully detach: new session, closed stdio, shell returns at once.
+	// Do not wrap with ionice — a missing/privileged ionice left FPM waiting
+	// on the worker (Add Client busy spinner) while useradd/mail ran.
+	$setsid = is_executable('/usr/bin/setsid') ? '/usr/bin/setsid ' : '';
+	$full = $setsid . $cmd . ' </dev/null >/dev/null 2>&1 &';
 	$pwd = '';
 
 	if (!$global_dontlogshell) {
-		log_shell("Background: ($pwd) $cmd");
+		log_shell("Background: ($pwd) $full");
 	} else {
-		log_log("other_cmd", "Background: ($pwd) $cmd");
+		log_log("other_cmd", "Background: ($pwd) $full");
 	}
 
-//	exec($cmd);
-//	exec("ionice -c 2 -n 7 " . $cmd);
-	exec("nice -n +10 ionice -c3 " . $cmd);
+	exec($full);
+
 	return true;
 }
 

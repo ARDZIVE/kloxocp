@@ -84,9 +84,21 @@ if (preg_match('/function callInBackground\(.*?^function /sm', $lib, $m)) {
 check($cin !== ''
 	&& str_contains($cin, "bin/common/background.php")
 	&& str_contains($cin, "\$root . '/pid'")
+	&& str_contains($cin, 'kloxo_hold_background_spawn')
 	&& !str_contains($cin, '../bin/common/background.php')
 	&& !str_contains($cin, 'tempnam("/tmp"'),
-	'callInBackground uses absolute background.php; job file under program pid/');
+	'callInBackground uses absolute background.php; job file under program pid/; can hold spawn');
+
+$linuxFs = (string) file_get_contents($doc . '/lib/html/linuxfslib.php');
+$bgFn = '';
+if (preg_match('/function lxshell_background\(.*?^function /sm', $linuxFs, $mBg) === 1) {
+	$bgFn = $mBg[0];
+}
+check($bgFn !== ''
+	&& str_contains($bgFn, 'setsid')
+	&& !str_contains($bgFn, 'ionice -c3')
+	&& str_contains($bgFn, '</dev/null >/dev/null 2>&1 &'),
+	'lxshell_background detaches with setsid (no ionice wrap)');
 
 check(str_contains($lib, "callInBackground(\"lx_mail\", array(null, \$email")
 	&& str_contains($lib, 'admin contactemail empty'),

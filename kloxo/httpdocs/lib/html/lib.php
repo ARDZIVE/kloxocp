@@ -3056,7 +3056,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111223';
+	return '10.1-2026111224';
 }
 
 function getDownloadServer()
@@ -3749,6 +3749,46 @@ function callInChild($func, $arglist)
 }
 
 /**
+ * When set, callInBackground writes the job file but does not spawn until
+ * kloxo_flush_held_background_jobs(). Used so Add Client can flush the
+ * redirect to the browser before welcome-mail / useradd workers start
+ * (FPM otherwise held the busy spinner until those children finished).
+ */
+function kloxo_hold_background_spawn(bool $hold = true): void
+{
+	$GLOBALS['kloxo_hold_background_spawn'] = $hold;
+	if ($hold && (!isset($GLOBALS['kloxo_held_background_jobs'])
+		|| !is_array($GLOBALS['kloxo_held_background_jobs']))) {
+		$GLOBALS['kloxo_held_background_jobs'] = array();
+	}
+}
+
+function kloxo_flush_held_background_jobs(): void
+{
+	$jobs = array();
+	if (isset($GLOBALS['kloxo_held_background_jobs']) && is_array($GLOBALS['kloxo_held_background_jobs'])) {
+		$jobs = $GLOBALS['kloxo_held_background_jobs'];
+	}
+	$GLOBALS['kloxo_held_background_jobs'] = array();
+	$GLOBALS['kloxo_hold_background_spawn'] = false;
+
+	foreach ($jobs as $job) {
+		if (!is_array($job) || count($job) < 3) {
+			continue;
+		}
+		$php = (string) $job[0];
+		$bg = (string) $job[1];
+		$name = (string) $job[2];
+		if ($php === '' || $bg === '' || $name === '' || !is_file($bg) || !is_file($name)) {
+			continue;
+		}
+		if (function_exists('lxshell_background')) {
+			lxshell_background($php, $bg, $name);
+		}
+	}
+}
+
+/**
  * Queue a function for bin/common/background.php.
  * Job file lives under the program root (not /tmp) so PrivateTmp FPM and the
  * detached worker share it; script path is absolute so a cwd of / still works.
@@ -3766,6 +3806,9 @@ function callInBackground($func, $arglist)
 	$bg = $root . '/bin/common/background.php';
 	if (!is_file($bg)) {
 		log_log('mail_send', "callInBackground: missing {$bg}");
+		if (!empty($GLOBALS['kloxo_hold_background_spawn'])) {
+			return;
+		}
 		if (is_string($func) && $func === 'lx_mail' && is_array($arglist)) {
 			call_user_func_array('lx_mail', $arglist);
 		}
@@ -3787,6 +3830,15 @@ function callInBackground($func, $arglist)
 	$res->arglist = $arglist;
 	lxfile_generic_chmod($name, "700");
 	lfile_put_contents($name, serialize($res));
+
+	if (!empty($GLOBALS['kloxo_hold_background_spawn'])) {
+		if (!isset($GLOBALS['kloxo_held_background_jobs']) || !is_array($GLOBALS['kloxo_held_background_jobs'])) {
+			$GLOBALS['kloxo_held_background_jobs'] = array();
+		}
+		$GLOBALS['kloxo_held_background_jobs'][] = array($php, $bg, $name);
+
+		return;
+	}
 
 	lxshell_background($php, $bg, $name);
 }

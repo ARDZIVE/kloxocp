@@ -1549,6 +1549,22 @@ function __ac_desc_add($object, $param = null)
 		$param = $ghtml->createCurrentParam($class);
 	}
 
+	// Add Client: hold welcome-mail / sync spawns and skip kloxo-backend until
+	// after the redirect is flushed (busy spinner used to wait on useradd).
+	if ($class === 'client') {
+		if (function_exists('kloxo_hold_background_spawn')) {
+			kloxo_hold_background_spawn(true);
+		}
+		if (function_exists('kloxo_skip_was_now')) {
+			kloxo_skip_was_now();
+		} else {
+			$GLOBALS['kloxo_skip_was'] = true;
+			if (is_object($gbl)) {
+				$gbl->__kloxo_skip_was = true;
+			}
+		}
+	}
+
 	do_desc_add($object, $class, $param);
 
 	if (!isset($gbl->__this_redirect)) {
@@ -1574,9 +1590,7 @@ function __ac_desc_add($object, $param = null)
 		$gbl->__kloxo_skip_was = true;
 		$GLOBALS['kloxo_skip_was'] = true;
 	}
-	// Add Client: SQLite write + redirect immediately; useradd/mysqldb sync
-	// runs in the background. Waiting on kloxo-backend left the busy spinner
-	// on the Add form after the client row already existed.
+	// Add Client: SQLite write + redirect + fastcgi_finish_request, then spawn.
 	if ($class === 'client' && function_exists('kloxo_finish_client_add')) {
 		$nname = '';
 		if (is_array($param) && isset($param['nname'])) {

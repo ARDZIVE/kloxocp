@@ -3436,12 +3436,25 @@ function kloxo_should_skip_was(): bool
 }
 
 /**
- * Panel-DB-only actions (DNS templates, password, local Backup Upload): the
- * SQLite row is already written. Flush the session and Location/meta-redirect
- * immediately so the browser is not held on login->was() / kloxo-backend.
- * Always exits (never returns): a missing redirect URL falls back to Home.
+ * Close the FastCGI / HTTP client connection so the browser can navigate
+ * while this PHP worker still has cleanup to do (background job spawn).
  */
-function kloxo_finish_local_redirect(): void
+function kloxo_close_client_connection(): void
+{
+	while (ob_get_level() > 0) {
+		@ob_end_flush();
+	}
+	@flush();
+	if (function_exists('fastcgi_finish_request')) {
+		@fastcgi_finish_request();
+	}
+}
+
+/**
+ * Session + stub redirect body/headers. Does not exit (caller may still
+ * spawn held background jobs after fastcgi_finish_request).
+ */
+function kloxo_emit_local_redirect(): string
 {
 	global $gbl, $ghtml;
 
@@ -3469,39 +3482,62 @@ function kloxo_finish_local_redirect(): void
 			// no-op helper
 		}
 	}
-	if (function_exists('kloxo_is_xhr_request') && kloxo_is_xhr_request()
-		&& function_exists('kloxo_xhr_redirect_response')) {
-		kloxo_xhr_redirect_response($url);
+
+	while (ob_get_level() > 0) {
+		@ob_end_clean();
 	}
-	if (function_exists('kloxo_backup_panel_redirect')) {
-		kloxo_backup_panel_redirect($url);
-	}
-	if (is_object($ghtml) && method_exists($ghtml, 'print_redirect')) {
-		$ghtml->print_redirect($url);
-	}
+	@ini_set('zlib.output_compression', '0');
+
 	$url = function_exists('kloxo_redirect_abs_url') ? kloxo_redirect_abs_url($url) : $url;
-	if (!headers_sent()) {
-		http_response_code(303);
-		header('Location: ' . $url);
+	if (function_exists('kloxo_is_xhr_request') && kloxo_is_xhr_request()) {
+		if (!headers_sent()) {
+			header('Content-Type: text/html; charset=utf-8');
+			header('Cache-Control: no-store, no-cache, must-revalidate');
+			header('X-Kloxo-Redirect: ' . str_replace(array("\r", "\n"), '', $url));
+			http_response_code(200);
+		}
+	} else {
+		if (!headers_sent()) {
+			header('Content-Type: text/html; charset=utf-8');
+			header('Cache-Control: no-store, no-cache, must-revalidate');
+			http_response_code(303);
+			header('Location: ' . $url);
+		}
 	}
 	echo function_exists('kloxo_redirect_stub_html')
 		? kloxo_redirect_stub_html($url)
 		: ('<!DOCTYPE html><html><head><meta charset="utf-8">'
 			. '<meta http-equiv="Refresh" content="0;URL=' . htmlspecialchars($url, ENT_QUOTES) . '">'
 			. '</head><body><a href="' . htmlspecialchars($url, ENT_QUOTES) . '">Continue</a></body></html>');
+
+	return $url;
+}
+
+/**
+ * Panel-DB-only actions (DNS templates, password, local Backup Upload): the
+ * SQLite row is already written. Flush the session and Location/meta-redirect
+ * immediately so the browser is not held on login->was() / kloxo-backend.
+ * Always exits (never returns): a missing redirect URL falls back to Home.
+ */
+function kloxo_finish_local_redirect(): void
+{
+	kloxo_emit_local_redirect();
 	exit(0);
 }
 
 /**
- * After Add Client: write SQLite only, redirect the browser, then sync
- * useradd / mysqldb in a background process. Waiting on login->was() →
- * kloxo-backend left the busy spinner on the Add form even though the
- * client row was already saved.
+ * After Add Client: write SQLite only, send the redirect, close the client
+ * connection, THEN spawn welcome-mail / useradd workers. Spawning before the
+ * redirect (or without fastcgi_finish_request) left the busy spinner on the
+ * Add form even though the client row was already saved.
  */
 function kloxo_finish_client_add(string $nname): void
 {
 	global $login;
 
+	if (function_exists('kloxo_hold_background_spawn')) {
+		kloxo_hold_background_spawn(true);
+	}
 	kloxo_skip_was_now();
 	if (is_object($login) && method_exists($login, 'was')) {
 		try {
@@ -3522,7 +3558,12 @@ function kloxo_finish_client_add(string $nname): void
 		}
 	}
 
-	kloxo_finish_local_redirect();
+	kloxo_emit_local_redirect();
+	kloxo_close_client_connection();
+	if (function_exists('kloxo_flush_held_background_jobs')) {
+		kloxo_flush_held_background_jobs();
+	}
+	exit(0);
 }
 
 /**
