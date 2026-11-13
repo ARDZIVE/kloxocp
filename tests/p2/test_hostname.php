@@ -118,10 +118,11 @@ if (str_contains($src, 'a=updateform&sa=hostname')
 }
 
 $clientSrc = (string) file_get_contents($doc . '/lib/client/clientlib.php');
-if (str_contains($clientSrc, "a=updateform&sa=hostname&l[class]=pserver&l[nname]=localhost")) {
-	ok('Administration section links to localhost Hostname');
+if (!str_contains($clientSrc, "a=updateform&sa=hostname&l[class]=pserver&l[nname]=localhost")
+	&& !str_contains($clientSrc, "sa=hostname")) {
+	ok('Administration section does not link Hostname');
 } else {
-	bad('Administration section links to localhost Hostname');
+	bad('Administration section does not link Hostname');
 }
 
 $msg = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
