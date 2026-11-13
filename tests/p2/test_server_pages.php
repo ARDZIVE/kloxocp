@@ -821,14 +821,16 @@ if (function_exists('kloxo_skip_find_show_class')
 	&& kloxo_skip_find_show_class('mailaccount')
 	&& kloxo_skip_find_show_class('smessage')
 	&& kloxo_skip_find_show_class('auxiliary')
+	&& kloxo_skip_find_show_class('sslcert')
 	&& !kloxo_skip_find_class('mailaccount')
 	&& !kloxo_skip_find_class('smessage')
 	&& !kloxo_skip_find_class('auxiliary')
+	&& !kloxo_skip_find_class('sslcert')
 	&& !kloxo_skip_find_show_class('client')
 	&& str_contains($showSrc, 'kloxo_skip_find_show_class($show_class)')) {
-	ok('Mail Account, Message and Auxiliary Login show pages drop the Find box while their lists keep search');
+	ok('Mail Account, Message, Auxiliary Login and SSL Certificate show pages drop the Find box while their lists keep search');
 } else {
-	bad('Mail Account, Message and Auxiliary Login show pages drop the Find box while their lists keep search');
+	bad('Mail Account, Message, Auxiliary Login and SSL Certificate show pages drop the Find box while their lists keep search');
 }
 
 $welcomeDefault = Notification::defaultWelcomeMessage();
