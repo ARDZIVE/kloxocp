@@ -1,7 +1,7 @@
 # Kloxo CP
 
 Hosting control panel for **Ubuntu 24.04** (PHP 8.3) and **Ubuntu 26.x** (PHP 8.5).
-GNU AGPLv3. Version **10.1-2026111302**.
+GNU AGPLv3. Version **10.1-2026111303**.
 
 https://github.com/ARDZIVE/kloxocp.git
 
@@ -17,13 +17,15 @@ hardened it and verified the install on your own host.
 | Panel UI | Hiawatha 12.4 (ports 7777 / 7778) | — |
 | Panel PHP | Distro PHP with `pdo_sqlite` (pinned in `etc/path/php`) | — |
 | DNS | BIND 9 | Knot DNS |
-| Mail | Exim + Dovecot + Rspamd | Postfix (replaces Exim) |
+| Mail | Exim + Dovecot + Rspamd | Postfix (replaces Exim); spam is Rspamd only |
 | SQL | MariaDB | phpMyAdmin (SQL Manager) |
 | FTP / cache / firewall | Pure-FTPd, Redis, UFW, Fail2Ban | Nginx web cache in front of the site server |
 | Panel database | SQLite (`/var/lib/kloxo/panel.sqlite`) | — |
 
 No billing. Mailboxes live under `/var/vmail`. Switch Program chooses web, DNS,
-SMTP, IMAP and spam. Apache and Knot stay installed but disabled until selected.
+SMTP, IMAP/POP3 and spam (**Rspamd** only — no SpamAssassin). Rspamd can be set
+to none only when POP3/IMAP and SMTP are both none. Apache and Knot stay installed
+but disabled until selected.
 
 ## Install
 
@@ -35,14 +37,14 @@ curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bas
 ```
 
 That is the whole install. No questions, no hostname quiz, no service picker.
-Full stack by default (Nginx, MariaDB, Exim, Dovecot, Rspamd, BIND, Pure-FTPd,
-UFW, Fail2Ban). Progress prints as `[1/8] … [8/8]`. Log:
-`/var/log/kloxo-install.log`.
+Full stack by default (Nginx, MariaDB, Exim, Dovecot, **Rspamd**, BIND, Pure-FTPd,
+UFW, Fail2Ban). SpamAssassin is not installed. Progress prints as `[1/8] … [8/8]`.
+Log: `/var/log/kloxo-install.log`.
 
 | Flag | Use |
 |---|---|
-| *(none)* | Full stack |
-| `--profile=core` | Panel + sites, no MTA packages |
+| *(none)* / `--profile=full` | Full stack (Exim + Dovecot + Rspamd) |
+| `--profile=core` | Panel + sites + DNS + FTP; no MTA / Rspamd packages |
 | `--force` | Below the RAM/disk floor |
 | `--fresh --yes` | Wipe the previous panel first, then install |
 | `--slave --slave-password=SECRET` | Backend host, no UI (open TCP 7779 from the master) |
@@ -50,10 +52,13 @@ UFW, Fail2Ban). Progress prints as `[1/8] … [8/8]`. Log:
 Pass flags after `bash -s --`:
 
 ```bash
-# Full stack (same as no flags)
+# Full stack: Exim + Dovecot + Rspamd (same as no flags)
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 
-# Panel + sites only
+# Same, explicit profile
+curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=full
+
+# Panel + sites only (no Exim / Dovecot / Rspamd packages)
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
 
 # Wipe previous panel install, then reinstall (keeps sites, mail, UFW, apt packages)
@@ -112,7 +117,7 @@ You can still re-run the install one-liner (keeps the admin password unless
 ### After install
 
 - **Webserver Configure** — default PHP, extra `phpX.Y` install/remove
-- **Switch Program** — Nginx/Apache, BIND/Knot, Exim/Postfix, Dovecot
+- **Switch Program** — Nginx/Apache, BIND/Knot, Exim/Postfix, Dovecot, Rspamd (spam; enable/disable only here)
 - **Security** — UFW Firewall, Fail2Ban, SSH, LxGuard
 - **SQL Manager** — phpMyAdmin in a new tab
 - **SSH Terminal** — admin, in-browser, as root

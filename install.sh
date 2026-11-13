@@ -1,11 +1,12 @@
 #!/bin/bash
 # Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
-# Easiest install (no questions, full stack):
+# Easiest install (no questions, full stack = Exim + Dovecot + Rspamd):
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 #
 # With flags (bash -s --):
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --yes
+#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=full
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
 #
@@ -24,8 +25,9 @@
 # Knot DNS packaged and prepared (disabled; BIND stays default on 53),
 # Apache packaged and prepared (disabled; Nginx stays default on 80/443),
 # MariaDB enabled as the default SQL (mysqld/mysql aliases not separately enabled),
-# imagemagick for File Manager Thumbnail, Exim default MTA on --profile=full
-# (Postfix is not co-installed; Switch Program installs Postfix),
+# imagemagick for File Manager Thumbnail, Exim + Dovecot + Rspamd on --profile=full
+# (SpamAssassin is not installed; Switch Program spam is none/rspamd only;
+# Postfix is not co-installed — Switch Program installs Postfix),
 # ufw packaged and enabled by default (panel ports allowed first),
 # fail2ban packaged and configured by install-fail2ban (nftables bans; jails for SSH,
 # panel, mail, FTP, web auth; the installer's SSH client is whitelisted),
@@ -43,7 +45,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111302"
+KCP_VERSION="10.1-2026111303"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -64,13 +66,15 @@ Kloxo CP ${KCP_VERSION} — Ubuntu 24.04 or 26.x
 
   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 
-No questions. Full stack by default. Panel: https://<server-ip>:7777/  (admin/admin)
+No questions. Full stack by default (Exim + Dovecot + Rspamd; no SpamAssassin).
+Panel: https://<server-ip>:7777/  (admin/admin)
 
   sudo bash install.sh [--profile=full|core] [--yes] [--force]
   sudo bash install.sh --slave --slave-password=SECRET
 
-  --profile=full   default: Exim + Dovecot + Rspamd (Postfix via Switch Program later)
-  --profile=core   panel + sites + DNS + FTP; no MTA packages
+  --profile=full   default: Exim + Dovecot + Rspamd (spam filter; Switch Program
+                   can switch SMTP to Postfix; Rspamd on/off only there)
+  --profile=core   panel + sites + DNS + FTP; no MTA / Rspamd packages
   --slave          backend-only host (no UI on 7777)
   --slave-password=SECRET
   --yes            non-interactive (default when stdin is not a TTY)
@@ -360,7 +364,7 @@ plan: Kloxo CP ${KCP_VERSION}
   ftp     pure-ftpd (enabled)
   redis   redis-server (enabled; Rspamd Bayes backend)
   f2b     fail2ban (enabled; jails for SSH, panel, mail, FTP, web auth; nftables bans)
-  skip    no bogofilter/spamassassin/sqlite apt packages
+  skip    no SpamAssassin/bogofilter/sqlite apt packages (spam is Rspamd)
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
   exit 0
