@@ -74,8 +74,9 @@ final class KloxoLogwatch
      */
     public static function defaults(): array
     {
+        // Package is installed by default; schedule stays off until the admin enables it.
         return [
-            'enabled' => true,
+            'enabled' => false,
             'mailto' => 'root',
             'mailfrom' => 'logwatch',
             'detail' => 'Low',
@@ -279,7 +280,8 @@ final class KloxoLogwatch
                 return ['ok' => false, 'error' => 'cannot_write_logwatch_conf', 'installed' => true,
                     'enabled' => !empty($cfg['enabled']), 'report_dir' => self::REPORT_DIR];
             }
-            self::muteStockDaily(!empty($cfg['enabled']));
+            // Always mute Ubuntu's cron.daily LogWatch; only our cron.d runs when enabled.
+            self::muteStockDaily(true);
         }
 
         $cronText = self::renderCron($cfg, $root);
@@ -299,11 +301,15 @@ final class KloxoLogwatch
         ];
     }
 
-    private static function muteStockDaily(bool $oursEnabled): void
+    /**
+     * Stop Ubuntu's /etc/cron.daily/00logwatch so only Security > LogWatch
+     * (our cron.d entry) can schedule runs when the admin enables it.
+     */
+    private static function muteStockDaily(bool $mute): void
     {
         $daily = self::p(self::STOCK_DAILY);
         $disabled = $daily . '.kloxo-disabled';
-        if ($oursEnabled) {
+        if ($mute) {
             if (is_file($daily) && !is_file($disabled)) {
                 @rename($daily, $disabled);
             }

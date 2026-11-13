@@ -15,6 +15,7 @@
 # Panel: https://<ip>:7777/  admin / admin
 # After PHP Used, panel CLI tools: /opt/kloxo/init/php-cli.sh … (not bare php).
 # Spam filter is Rspamd (Switch Program); SpamAssassin is not installed.
+# LogWatch is packaged but disabled until Security > LogWatch.
 #
 # This file only fetches install.sh and runs it. apt never reads the pipe
 # (install.sh redirects stdin from /dev/null before any package work).

@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111308**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111309**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -486,15 +486,15 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     **LogWatch** (Security > LogWatch, class `logwatch`): backend
     `lib/php/kloxo_logwatch.php`, page `driver/pserver/logwatchlib.php`,
     CLI `bin/logwatch/kloxo-logwatch`, installer `bin/install/install-logwatch`
-    (`install.sh` packages `logwatch` and runs `prepare_logwatch`). Settings in
-    `etc/conf/logwatch.json` (enable, mailto/mailfrom, detail Low/Med/High,
-    range, format text/html, archives, frequency daily/weekly/monthly/none,
-    hour/minute, save reports, mail reports, keep_days). Renders
-    `/etc/logwatch/conf/logwatch.conf` and `/etc/cron.d/kloxo-logwatch`, mutes
-    stock `/etc/cron.daily/00logwatch` while enabled, saves dated reports under
-    `/var/log/logwatch/` and prunes older than keep_days. Page explains where
-    to open reports (Log Manager → LogWatch). `tests/p2/test_logwatch.php`.
-    Live LogWatch after deploy is **UNVERIFIED**.
+    (`install.sh` packages `logwatch` and runs `prepare_logwatch`). The package
+    is installed by default but **disabled** until the admin enables it
+    (`enabled: false` in `etc/conf/logwatch.json`). Stock
+    `/etc/cron.daily/00logwatch` stays muted so it does not run on its own;
+    only `/etc/cron.d/kloxo-logwatch` runs when enabled. Settings: mailto/
+    mailfrom, detail, range, format, archives, frequency, hour/minute, save/
+    mail reports, keep_days. Reports under `/var/log/logwatch/` (Log Manager →
+    LogWatch). `tests/p2/test_logwatch.php`. Live LogWatch after deploy is
+    **UNVERIFIED**.
     SSH Configure has one beige tab labelled **SSH Configure** (not Home).
     Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
     **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,
@@ -1079,7 +1079,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111308**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111309**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

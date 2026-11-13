@@ -31,6 +31,8 @@
 # ufw packaged and enabled by default (panel ports allowed first),
 # fail2ban packaged and configured by install-fail2ban (nftables bans; jails for SSH,
 # panel, mail, FTP, web auth; the installer's SSH client is whitelisted),
+# logwatch packaged and prepared by install-logwatch (disabled until Security >
+# LogWatch; stock cron.daily muted; reports under /var/log/logwatch/),
 # webcache (8080) and webproxy (30080) as nginx frontends (install-webfront),
 # kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
 # and skips the panel UI.
@@ -45,7 +47,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111308"
+KCP_VERSION="10.1-2026111309"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -67,13 +69,15 @@ Kloxo CP ${KCP_VERSION} — Ubuntu 24.04 or 26.x
   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 
 No questions. Full stack by default (Exim + Dovecot + Rspamd; no SpamAssassin).
+LogWatch is installed but disabled until enabled under Security > LogWatch.
 Panel: https://<server-ip>:7777/  (admin/admin)
 
   sudo bash install.sh [--profile=full|core] [--yes] [--force]
   sudo bash install.sh --slave --slave-password=SECRET
 
   --profile=full   default: Exim + Dovecot + Rspamd (spam filter; Switch Program
-                   can switch SMTP to Postfix; Rspamd on/off only there)
+                   can switch SMTP to Postfix; Rspamd on/off only there;
+                   LogWatch packaged, off until enabled in the panel)
   --profile=core   panel + sites + DNS + FTP; no MTA / Rspamd packages
   --slave          backend-only host (no UI on 7777)
   --slave-password=SECRET
@@ -364,6 +368,7 @@ plan: Kloxo CP ${KCP_VERSION}
   ftp     pure-ftpd (enabled)
   redis   redis-server (enabled; Rspamd Bayes backend)
   f2b     fail2ban (enabled; jails for SSH, panel, mail, FTP, web auth; nftables bans)
+  logwatch packaged; disabled until Security > LogWatch (reports in /var/log/logwatch)
   skip    no SpamAssassin/bogofilter/sqlite apt packages (spam is Rspamd)
   token   $([ -n "${KLOXO_GIT_TOKEN:-}" ] && echo set || echo unset)
 EOF
@@ -985,9 +990,9 @@ prepare_fail2ban() {
     || log "warn: install-fail2ban failed; Security > Fail2Ban can retry (Reload)"
 }
 
-# LogWatch: daily (or weekly/monthly) system log summary. Settings and schedule
-# live in etc/conf/logwatch.json; saved reports under /var/log/logwatch/ are
-# listed in Log Manager → LogWatch. Configure in Security > LogWatch.
+# LogWatch: package installed by default; schedule stays off until the admin
+# enables it under Security > LogWatch. Settings in etc/conf/logwatch.json;
+# saved reports under /var/log/logwatch/ (Log Manager → LogWatch).
 prepare_logwatch() {
   chmod 0755 "$ROOT/bin/install/install-logwatch" "$ROOT/bin/logwatch/kloxo-logwatch" || true
   if ! command -v logwatch >/dev/null 2>&1; then

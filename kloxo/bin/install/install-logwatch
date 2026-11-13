@@ -47,19 +47,26 @@ if ($dry && is_string(getenv('KLOXO_LW_FSPREFIX')) && getenv('KLOXO_LW_FSPREFIX'
 
 @chmod($root . '/bin/logwatch/kloxo-logwatch', 0755);
 
+$cfgPath = KloxoLogwatch::configPath($root);
+$fresh = !is_file($cfgPath);
 $cfg = KloxoLogwatch::loadConfig($root);
 if ($mailto !== '') {
     $cfg['mailto'] = $mailto;
+}
+// First install: package present, schedule off until Security > LogWatch Enable.
+if ($fresh) {
+    $cfg['enabled'] = false;
 }
 $cfg = KloxoLogwatch::normalizeConfig($cfg);
 
 if ($dry) {
     echo "would write conf:\n" . KloxoLogwatch::renderConf($cfg);
     echo "would write cron:\n" . KloxoLogwatch::renderCron($cfg, $root);
+    echo "enabled=" . (!empty($cfg['enabled']) ? 'yes' : 'no') . "\n";
     exit(0);
 }
 
-if (!is_file(KloxoLogwatch::configPath($root))) {
+if ($fresh) {
     KloxoLogwatch::saveConfig($cfg, $root);
 }
 
@@ -68,7 +75,8 @@ if (empty($r['ok'])) {
     fwrite(STDERR, 'error: ' . ($r['error'] ?? 'apply failed') . "\n");
     exit(1);
 }
-echo "LogWatch configured; reports in " . KloxoLogwatch::REPORT_DIR . "\n";
+echo "LogWatch installed; reports in " . KloxoLogwatch::REPORT_DIR
+    . ' (disabled until enabled in Security > LogWatch)' . "\n";
 if (empty($r['installed'])) {
     echo "warn: logwatch package not found; apt-install logwatch then re-run\n";
 }

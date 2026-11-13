@@ -1,7 +1,7 @@
 # Kloxo CP
 
 Hosting control panel for **Ubuntu 24.04** (PHP 8.3) and **Ubuntu 26.x** (PHP 8.5).
-GNU AGPLv3. Version **10.1-2026111308**.
+GNU AGPLv3. Version **10.1-2026111309**.
 
 https://github.com/ARDZIVE/kloxocp.git
 
@@ -20,6 +20,7 @@ hardened it and verified the install on your own host.
 | Mail | Exim + Dovecot + Rspamd | Postfix (replaces Exim); spam is Rspamd only |
 | SQL | MariaDB | phpMyAdmin (SQL Manager) |
 | FTP / cache / firewall | Pure-FTPd, Redis, UFW, Fail2Ban | Nginx web cache in front of the site server |
+| Log summary | LogWatch (installed, **disabled** until enabled) | Security → LogWatch; reports in Log Manager |
 | Panel database | SQLite (`/var/lib/kloxo/panel.sqlite`) | — |
 
 No billing. Mailboxes live under `/var/vmail`. Switch Program chooses web, DNS,
@@ -38,12 +39,14 @@ curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bas
 
 That is the whole install. No questions, no hostname quiz, no service picker.
 Full stack by default (Nginx, MariaDB, Exim, Dovecot, **Rspamd**, BIND, Pure-FTPd,
-UFW, Fail2Ban). SpamAssassin is not installed. Progress prints as `[1/8] … [8/8]`.
-Log: `/var/log/kloxo-install.log`.
+UFW, Fail2Ban, **LogWatch**). LogWatch is packaged and prepared but **not
+enabled** — turn it on under Security → LogWatch when you want scheduled
+reports (also listed in Log Manager → LogWatch). SpamAssassin is not installed.
+Progress prints as `[1/8] … [8/8]`. Log: `/var/log/kloxo-install.log`.
 
 | Flag | Use |
 |---|---|
-| *(none)* / `--profile=full` | Full stack (Exim + Dovecot + Rspamd) |
+| *(none)* / `--profile=full` | Full stack (Exim + Dovecot + Rspamd; LogWatch installed, off) |
 | `--profile=core` | Panel + sites + DNS + FTP; no MTA / Rspamd packages |
 | `--force` | Below the RAM/disk floor |
 | `--fresh --yes` | Wipe the previous panel first, then install |
@@ -52,7 +55,7 @@ Log: `/var/log/kloxo-install.log`.
 Pass flags after `bash -s --`:
 
 ```bash
-# Full stack: Exim + Dovecot + Rspamd (same as no flags)
+# Full stack: Exim + Dovecot + Rspamd; LogWatch installed but disabled (same as no flags)
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 
 # Same, explicit profile
@@ -118,7 +121,8 @@ You can still re-run the install one-liner (keeps the admin password unless
 
 - **Webserver Configure** — default PHP, extra `phpX.Y` install/remove
 - **Switch Program** — Nginx/Apache, BIND/Knot, Exim/Postfix, Dovecot, Rspamd (spam; enable/disable only here)
-- **Security** — UFW Firewall, Fail2Ban, SSH, LxGuard
+- **Security** — UFW Firewall, Fail2Ban, LogWatch (enable when wanted), SSH, LxGuard
+- **Log Manager** — application + log file pickers (includes LogWatch reports under `/var/log/logwatch/`)
 - **SQL Manager** — phpMyAdmin in a new tab
 - **SSH Terminal** — admin, in-browser, as root
 

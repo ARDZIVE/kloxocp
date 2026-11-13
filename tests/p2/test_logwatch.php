@@ -51,6 +51,13 @@ $cfgRoot = $fs . '/kloxo-root';
 @mkdir($cfgRoot . '/bin/logwatch', 0755, true);
 file_put_contents($cfgRoot . '/bin/logwatch/kloxo-logwatch', "#!/bin/sh\n");
 
+$def = KloxoLogwatch::defaults();
+if (empty($def['enabled'])) {
+	ok('defaults leave LogWatch disabled until the admin enables it');
+} else {
+	bad('defaults leave LogWatch disabled until the admin enables it');
+}
+
 $cfg = KloxoLogwatch::normalizeConfig(array(
 	'enabled' => true,
 	'mailto' => 'admin@example.com',
@@ -114,6 +121,19 @@ if (!empty($ret['ok']) && is_file($fs . '/etc/logwatch/conf/logwatch.conf')
 	ok('apply writes conf+cron and mutes stock daily cron');
 } else {
 	bad('apply writes conf+cron and mutes stock daily cron', var_export($ret, true));
+}
+
+// Disabled install still mutes stock daily so LogWatch does not run until enabled.
+file_put_contents($fs . '/etc/cron.daily/00logwatch', "#!/bin/sh\n");
+@unlink($fs . '/etc/cron.daily/00logwatch.kloxo-disabled');
+$dis = KloxoLogwatch::apply(array_merge($cfg, array('enabled' => false)), $cfgRoot);
+$cronDis = (string) file_get_contents($fs . '/etc/cron.d/kloxo-logwatch');
+if (!empty($dis['ok']) && str_contains($cronDis, 'disabled')
+	&& is_file($fs . '/etc/cron.daily/00logwatch.kloxo-disabled')
+	&& !is_file($fs . '/etc/cron.daily/00logwatch')) {
+	ok('disabled apply keeps stock daily muted and cron.d off');
+} else {
+	bad('disabled apply keeps stock daily muted and cron.d off', $cronDis);
 }
 
 $old = $fs . '/var/log/logwatch/logwatch-2000-01-01.txt';
