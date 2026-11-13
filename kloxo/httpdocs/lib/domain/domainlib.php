@@ -55,8 +55,8 @@ class Domaind extends DomainBase
 	static $__desc_pvview_f = array("b", "", "", "__stub_domain_view_url");
 	static $__desc_dnvview_f = array("b", "", "", "__stub_domain_preview_url");
 	static $__desc_webmail_f = array("b", "", "", "__stub_domain_webmail");
-	static $__desc_stats_f = array("b", "", "", "__stub_domain_stats");
-	static $__desc_awstats_f = array("b", "", "", "__stub_domain_awstats");
+	static $__desc_stats_f = array("b", "", "", "n=web&a=show&sa=stats");
+	static $__desc_awstats_f = array("b", "", "", "n=web&a=show&sa=stats");
 	static $__desc_check_dns_f = array("b", "", "", "__stub_check_dns");
 
 	static $__desc_webhome_f = array("b", "", "", 'o=web&a=show');
@@ -272,14 +272,12 @@ class Domaind extends DomainBase
 			return create_simpleObject(array('url' => "http://webmail.[%s]", 'purl' => 'c=mailaccount&a=updateform&sa=webmail', 'target' => "target=_blank"));
 		}
 		
-		if ($name === '__stub_domain_stats') {
-		//	return create_simpleObject(array('url' => "http://[%s]/stats/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target=_blank"));
-			return create_simpleObject(array('url' => "http://stats.[%s]/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target=_blank"));
-		}
-
-		if ($name === '__stub_domain_awstats') {
-		//	return create_simpleObject(array('url' => "http://[%s]/awstats/awstats.pl?config=[%s]", 'purl' => 'c=domain&a=updateform&sa=show_awstats', 'target' => "target=_blank"));
-			return create_simpleObject(array('url' => "http://stats.[%s]/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target=_blank"));
+		if ($name === '__stub_domain_stats' || $name === '__stub_domain_awstats') {
+			return create_simpleObject(array(
+				'url' => 'n=web&a=show&sa=stats',
+				'purl' => 'n=web&a=show&sa=stats',
+				'target' => '',
+			));
 		}
 		
 		if ($name === '__stub_check_dns') {
@@ -1456,14 +1454,7 @@ class Domaind extends DomainBase
 		$tmpurl = "n=web&a=show&l[class]=ffile&l[nname]=__lx_php_log";
 		$alist[] = create_simpleObject(array('url' => "$tmpurl", 'purl' => "o=web&a=updateform&sa=php_log", 'target' => "", '__internal' => true));
 
-		if ($webstatsprog === 'awstats') {
-		//	$alist[] = create_simpleObject(array('url' => "http://$this->nname/awstats/awstats.pl?config=$this->nname", 'purl' => 'c=domain&a=updateform&sa=show_awstats', 'target' => "target='_blank'"));
-			$alist[] = create_simpleObject(array('url' => "http://stats.$this->nname/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target='_blank'"));
-		} else {
-			if ($webstatsprog === 'webalizer') {
-				$alist[] = create_simpleObject(array('url' => "http://stats.$this->nname/", 'purl' => 'c=domain&a=updateform&sa=show_stats', 'target' => "target='_blank'"));
-			}
-		}
+		$alist[] = 'n=web&a=show&sa=stats';
 
 
 	//	$alist[] = "n=web&a=graph&sa=webtraffic";

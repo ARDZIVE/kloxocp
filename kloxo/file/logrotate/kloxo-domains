@@ -9,8 +9,9 @@
     compress
     delaycompress
     sharedscripts
-    create 0640 lxlabs lxlabs
+    create 0640 www-data www-data
     postrotate
-        /usr/bin/systemctl reload kloxo-web >/dev/null 2>&1 || true
+        /usr/bin/systemctl reload nginx >/dev/null 2>&1 || true
+        /usr/bin/systemctl reload apache2 >/dev/null 2>&1 || true
     endscript
 }

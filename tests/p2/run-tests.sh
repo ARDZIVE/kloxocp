@@ -215,6 +215,11 @@ if php "$HERE/test_ssl.php"; then
 else
   bad "test_ssl.php"
 fi
+if php "$HERE/test_stats.php"; then
+  ok "test_stats.php"
+else
+  bad "test_stats.php"
+fi
 if php "$HERE/test_mailpolicy.php"; then
   ok "test_mailpolicy.php"
 else

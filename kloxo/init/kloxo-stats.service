@@ -1,0 +1,14 @@
+[Unit]
+Description=Kloxo CP domain visitor stats aggregator
+Documentation=file:///opt/kloxo/httpdocs/lib/php/storage/README.md
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/php /opt/kloxo/bin/storage/kloxo-stats
+Nice=10
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/kloxo /var/log/kloxo
+NoNewPrivileges=true

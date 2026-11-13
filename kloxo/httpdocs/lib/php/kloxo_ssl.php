@@ -22,6 +22,13 @@ final class KloxoSsl
     /** @var callable|null fn(list<string> $argv): array{code:int,out:string} */
     public static $runCmd = null;
 
+    /**
+     * Tests / hooks: install packages (e.g. certbot). Live default uses KloxoApt.
+     *
+     * @var callable|null fn(list<string> $packages): array{ok:bool,error:string}
+     */
+    public static $installPackages = null;
+
     private static function p(string $abs): string
     {
         return self::$fsPrefix . $abs;
@@ -250,6 +257,62 @@ final class KloxoSsl
     }
 
     /**
+     * Find certbot, or apt-install it (install.sh ships it; older hosts may lack it).
+     * Skips apt when $fsPrefix is set (unit tests) unless $installPackages is hooked.
+     */
+    public static function ensureCertbot(): string
+    {
+        $certbot = self::which('certbot');
+        if ($certbot !== '') {
+            return $certbot;
+        }
+        if (self::$installPackages === null && self::$fsPrefix !== '') {
+            return '';
+        }
+        $r = self::installAptPackages(['certbot']);
+        if (!$r['ok']) {
+            throw new KloxoSslException(
+                'certbot not found and apt install failed'
+                . ($r['error'] !== '' ? ': ' . $r['error'] : '')
+                . '; run: apt install -y certbot'
+            );
+        }
+        $certbot = self::which('certbot');
+        if ($certbot === '') {
+            throw new KloxoSslException(
+                'certbot still missing after apt install; check PATH (/usr/bin/certbot)'
+            );
+        }
+
+        return $certbot;
+    }
+
+    /**
+     * @param list<string> $packages
+     * @return array{ok:bool,error:string}
+     */
+    private static function installAptPackages(array $packages): array
+    {
+        if (self::$installPackages !== null) {
+            /** @var array{ok:bool,error:string} $r */
+            $r = (self::$installPackages)($packages);
+
+            return $r;
+        }
+        $apt = __DIR__ . '/kloxo_apt.php';
+        if (!is_file($apt)) {
+            return ['ok' => false, 'error' => 'kloxo_apt.php missing'];
+        }
+        require_once $apt;
+        if (!class_exists('KloxoApt', false)) {
+            return ['ok' => false, 'error' => 'KloxoApt unavailable'];
+        }
+        $got = KloxoApt::install($packages);
+
+        return ['ok' => !empty($got['ok']), 'error' => (string) ($got['error'] ?? '')];
+    }
+
+    /**
      * Issue (or renew) a Let's Encrypt cert with certbot, else acme.sh.
      *
      * @param list<string> $sans
@@ -282,7 +345,7 @@ final class KloxoSsl
             return self::issueWithAcmeSh($acme, $domain, $email, $sans, $keyBits);
         }
 
-        $certbot = self::which('certbot');
+        $certbot = self::ensureCertbot();
         if ($certbot === '') {
             throw new KloxoSslException(
                 'neither certbot nor /root/.acme.sh/acme.sh found; install certbot (apt install certbot)'

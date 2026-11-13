@@ -67,8 +67,9 @@ $panelApplied = KloxoMigrate::apply(KloxoStore::panel(true), KloxoMigrate::panel
 $statsApplied = KloxoMigrate::apply(KloxoStore::stats(true), KloxoMigrate::statsDir($repo . '/kloxo'));
 check($panelApplied === ['001_init.sql'] && KloxoMigrate::userVersion(KloxoStore::panel()) === 1,
     'panel 001_init.sql applied; user_version=1', implode(',', $panelApplied));
-check($statsApplied === ['001_init.sql'] && KloxoMigrate::userVersion(KloxoStore::stats()) === 1,
-    'stats 001_init.sql applied; user_version=1', implode(',', $statsApplied));
+check($statsApplied === ['001_init.sql', '002_visitor_details.sql']
+    && KloxoMigrate::userVersion(KloxoStore::stats()) === 2,
+    'stats 001+002 applied; user_version=2', implode(',', $statsApplied));
 $again = KloxoMigrate::apply(KloxoStore::panel(), KloxoMigrate::panelDir($repo . '/kloxo'));
 check($again === [], 'second migrate is a no-op');
 

@@ -139,6 +139,7 @@ else
   bad "install.sh/get repair a corrupted apt package cache"
 fi
 if grep -q 'pure-ftpd redis-server iproute2 ufw imagemagick' "$ROOT/install.sh" \
+  && grep -q 'fail2ban python3-systemd nftables logwatch certbot' "$ROOT/install.sh" \
   && grep -q 'PROFILE="full"' "$ROOT/install.sh" \
   && grep -q 'WITH_MAIL=1' "$ROOT/install.sh" \
   && grep -q 'ensure_ubuntu_universe' "$ROOT/install.sh" \
@@ -148,9 +149,9 @@ if grep -q 'pure-ftpd redis-server iproute2 ufw imagemagick' "$ROOT/install.sh" 
   && grep -q 'Default SQL is MariaDB' "$ROOT/install.sh" \
   && ! grep -E 'apt-get install -y.*(bogofilter|spamassassin)' "$ROOT/install.sh" \
   && ! grep -E '(^|[[:space:]])sqlite3([[:space:]]|$)' "$ROOT/install.sh"; then
-  ok "install.sh defaults to full; packages pure-ftpd/redis/imagemagick; MariaDB default SQL"
+  ok "install.sh defaults to full; packages pure-ftpd/redis/imagemagick/certbot; MariaDB default SQL"
 else
-  bad "install.sh defaults to full; packages pure-ftpd/redis/imagemagick; MariaDB default SQL"
+  bad "install.sh defaults to full; packages pure-ftpd/redis/imagemagick/certbot; MariaDB default SQL"
 fi
 if grep -q 'function hasImageMagick' "$ROOT/kloxo/httpdocs/driver/pserver/ffile__commonlib.php" \
   && ! grep -q 'rpm.*-q.*ImageMagick\|"rpm", "-q", "ImageMagick"' "$ROOT/kloxo/httpdocs/driver/pserver/ffile__commonlib.php" \

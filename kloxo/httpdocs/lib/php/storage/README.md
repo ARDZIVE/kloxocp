@@ -8,7 +8,7 @@ on disk; they are never stored in SQLite.
 | Path | Role |
 |---|---|
 | `/var/lib/kloxo/panel.sqlite` | Users, domains, DNS, mail accounts, vhosts, settings |
-| `/var/lib/kloxo/stats.sqlite` | Daily/monthly bandwidth and disk usage |
+| `/var/lib/kloxo/stats.sqlite` | Daily/monthly bandwidth, visitors, top pages/referrers/status/UA (no raw logs) |
 | `/var/lib/kloxo/backup/` | Nightly `VACUUM INTO` copies (last 7 kept) |
 | `/var/log/kloxo/domains/<domain>/access.log` | Per-domain access log (logrotate) |
 | `/var/log/kloxo/domains/<domain>/error.log` | Per-domain error log |

@@ -168,6 +168,7 @@ $fs2 = $tmp . '/fs2';
 mkdir("$fs2/home/kloxo/ssl", 0755, true);
 mkdir("$fs2/var/run/letsencrypt/.well-known/acme-challenge", 0755, true);
 KloxoSsl::$fsPrefix = $fs2;
+KloxoSsl::$installPackages = null; // fsPrefix skips apt
 try {
 	KloxoSsl::issueLetsEncrypt('example.com', 'a@b.co', ['example.com'], '2048');
 	bad('issueLetsEncrypt without tools should throw');
@@ -175,6 +176,46 @@ try {
 	check(str_contains($e->getMessage(), 'certbot') || str_contains($e->getMessage(), 'acme'),
 		'clear missing-tool message', $e->getMessage());
 }
+
+echo "== ensureCertbot apt-installs then issues\n";
+$fs3 = $tmp . '/fs3';
+foreach ([
+	"$fs3/usr/bin", "$fs3/home/kloxo/ssl",
+	"$fs3/var/run/letsencrypt/.well-known/acme-challenge",
+	"$fs3/etc/letsencrypt/live/example.com",
+] as $d) {
+	mkdir($d, 0755, true);
+}
+KloxoSsl::$fsPrefix = $fs3;
+putenv('KLOXO_SSL_FS=' . $fs3);
+$installed = false;
+KloxoSsl::$installPackages = static function (array $packages) use ($fs, $fs3, &$installed): array {
+	check($packages === ['certbot'], 'installPackages asked for certbot');
+	copy("$fs/usr/bin/certbot", "$fs3/usr/bin/certbot");
+	chmod("$fs3/usr/bin/certbot", 0755);
+	$installed = true;
+
+	return ['ok' => true, 'error' => ''];
+};
+KloxoSsl::$runCmd = static function (array $argv) use ($fs3): array {
+	$bin = $argv[0];
+	if (str_ends_with($bin, '/certbot') || basename($bin) === 'certbot') {
+		$argv[0] = $fs3 . '/usr/bin/certbot';
+	}
+	$cmd = '';
+	foreach ($argv as $a) {
+		$cmd .= escapeshellarg((string) $a) . ' ';
+	}
+	$out = [];
+	$code = 0;
+	exec($cmd . '2>&1', $out, $code);
+
+	return ['code' => $code, 'out' => implode("\n", $out)];
+};
+$le2 = KloxoSsl::issueLetsEncrypt('example.com', 'admin@example.com', ['example.com'], '2048');
+check($installed, 'ensureCertbot ran installPackages');
+check(!empty($le2['ok']) && $le2['tool'] === 'certbot', 'issueLetsEncrypt after auto-install');
+KloxoSsl::$installPackages = null;
 
 echo "== sslUrlsFromParent / rememberSslRedirects source\n";
 $sslLib = $repo . '/kloxo/httpdocs/driver/pserver/sslcertlib.php';
@@ -250,6 +291,7 @@ check(!str_contains($tpl, 'letsencrypt-auto certonly'), 'template does not requi
 // cleanup
 KloxoSsl::$fsPrefix = '';
 KloxoSsl::$runCmd = null;
+KloxoSsl::$installPackages = null;
 passthru('rm -rf ' . escapeshellarg($tmp));
 
 printf("\n%d passed, %d failed\n", $pass, $fail);

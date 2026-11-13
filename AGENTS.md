@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111321. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111322. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -45,7 +45,7 @@ top-centre, white, light shadow, typed icon info/success/warning/error;
 content does not print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
 (`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026111321** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111322** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -237,8 +237,14 @@ of panel-critical units is refused on click (`kloxo-php`, `kloxo-web`, `kloxo-ba
 refused. MariaDB (`mariadb`/`mysql`/`mysqld`/`mariadbd`) is not critical: the panel
 database is SQLite, so Stop/Sb/State on the MariaDB row work. The panel's own database is `/var/lib/kloxo/panel.sqlite` (`Sgbl::__var_database_type=sqlite`,
 `KloxoStore` WAL factory, `KloxoSqlite`, `init-panel-db --sqlite-only`): login and the UI work with MariaDB
-and every other service stopped. Stats live in `/var/lib/kloxo/stats.sqlite`; raw domain logs stay
-under `/var/log/kloxo/domains/` (logrotate; never in SQLite). Hiawatha reads only rendered files
+and every other service stopped. Stats live in `/var/lib/kloxo/stats.sqlite` (daily/monthly plus top pages,
+referrers, status, UA, hashed visitors — migration `002_visitor_details`);
+raw domain logs stay under `/var/log/kloxo/domains/` (Nginx dual-writes
+`access.log` there and the legacy custom_log; logrotate; never in SQLite).
+Domain list stats icon and Domain Home open in-panel **Visitor Stats**
+(`n=web&a=show&sa=stats`, `KloxoStats` / `Web::printVisitorStats`);
+`kloxo-stats.timer` runs the aggregator every 5 minutes (`install_stats_timer`).
+Tested: `tests/p2/test_stats.php`, `test_storage.php`. Live traffic on Ubuntu is UNVERIFIED. Hiawatha reads only rendered files
 (`kloxo-regen`: flock, `hiawatha -k -c`, rename or keep old). Nightly `VACUUM INTO` keeps 7
 (`kloxo-backup-sqlite`). `tests/p2/test_sqlite_panel.php`, `tests/p2/test_storage.php`. Live panel
 on SQLite after deploy is UNVERIFIED.
@@ -402,6 +408,7 @@ php tests/p2/test_disable_policy.php  # Disable Policy percentage / warn / disab
 php tests/p2/test_auxiliary.php       # Auxiliary Login class, hash, delete/pserver flags (no live login)
 php tests/p2/test_sshauthorizedkey.php # SSH Authorized Keys ~/.ssh/authorized_keys parse/add/delete
 php tests/p2/test_ssl.php             # domain SSL install + Let's Encrypt redirects (fake certbot)
+php tests/p2/test_stats.php           # visitor stats aggregator + dashboard HTML (fake logs)
 bash tests/p3/run-tests.sh            # P3 kloxocp CLI + snapshot/rollback (php-cli only)
 bash tests/install/run-tests.sh       # Ubuntu schema + Hiawatha installer invariants (php-cli only)
 php kloxo/bin/install/init-panel-db --help

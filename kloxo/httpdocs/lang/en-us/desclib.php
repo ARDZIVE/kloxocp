@@ -1048,6 +1048,7 @@ $__description["traffic"] = array("Traffic (in MB)");
 $__description["disk"] = array("Disk (in MB)");
 $__description["domain_home"] = array("Domain Home");
 $__description["show_stats"] = array("Show Stats");
+$__description["visitor_stats"] = array("Visitor Stats");
 $__description["view_site"] = array("View Site");
 $__description["dnsless_preview"] = array("DNSless Preview");
 $__description["advanced"] = array("Advanced");

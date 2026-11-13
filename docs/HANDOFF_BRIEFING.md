@@ -178,7 +178,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `/var/lib/kloxo/panel.sqlite` from `file/sql/db-structure-base.sql` plus
     `file/storage/migrations` (`KloxoStore` / `KloxoSqlite`; `--sqlite-only`
     skips MariaDB; `--data-dir` / `KLOXO_VAR_LIB` for tests). Stats are
-    `/var/lib/kloxo/stats.sqlite`. MariaDB is still created when it is up
+    `/var/lib/kloxo/stats.sqlite` (migration **002_visitor_details**: top pages,
+    referrers, status codes, UA families, hashed visitors; panel UI at
+    `n=web&a=show&sa=stats`; `kloxo-stats.timer` every 5 minutes; Nginx dual-logs
+    to `/var/log/kloxo/domains/<domain>/access.log`). MariaDB is still created when it is up
     (customer databases, phpMyAdmin, mail; 10.11 `CREATE USER` + `GRANT`).
     The panel UI does not need MariaDB. `kloxo/bin/install/install-hiawatha` pins
     Hiawatha 12.4. `create.php` calls `init-panel-db` and skips CentOS
@@ -254,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111321**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111322**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -533,7 +536,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     (`KloxoSsl` in `lib/php/kloxo_ssl.php`: write `/home/kloxo/ssl`,
     `certbot` or `/root/.acme.sh/acme.sh`, then `/script/fixweb`); the
     obsolete `letsencrypt-auto` path is gone (`file/letsencrypt/tpl` prefers
-    certbot; `install.sh` packages `certbot`). On failure the addform stays
+    certbot; `install.sh` packages `certbot`; missing certbot is
+    apt-installed on issue via `KloxoSsl::ensureCertbot` / `kloxocp upcp`,
+    and `kloxocp doctor` warns when neither certbot nor acme.sh is present).
+    On failure the addform stays
     open (`$gbl->__kloxo_redirect_back` / `rememberSslRedirects` /
     `resolveRedirectBackUrl` — no bounce to admin Home); on success the
     SSL Certificates list for that domain is shown. Tested:
@@ -842,7 +848,7 @@ Full detail: `docs/MAIL_DESIGN.md`. Essentials:
 
 ### NOT verified / not built
 
-Real server with systemd; real DNS/PTR/certificate; outbound delivery and deliverability to Gmail/Outlook; greylisting; ClamAV; fail2ban in action; load/performance; backups. Not built: Roundcube, per-domain TLS (SNI), autoresponders in UI (Sieve vacation available), mailing lists (ezmlm replacement), traffic stats, qmail data import, DNS auto-publishing, MTA-STS/TLS-RPT/DANE, AlmaLinux support. Mail Queue UI has `mailqueue__exim`.
+Real server with systemd; real DNS/PTR/certificate; outbound delivery and deliverability to Gmail/Outlook; greylisting; ClamAV; fail2ban in action; load/performance; backups. Not built: Roundcube, per-domain TLS (SNI), autoresponders in UI (Sieve vacation available), mailing lists (ezmlm replacement), qmail data import, DNS auto-publishing, MTA-STS/TLS-RPT/DANE, AlmaLinux support. Visitor Stats (in-panel, `KloxoStats` / `kloxo-stats.timer`) is implemented against fakes; live Ubuntu traffic is **UNVERIFIED**. Mail Queue UI has `mailqueue__exim`.
 
 ---
 
@@ -1106,7 +1112,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111321**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111322**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

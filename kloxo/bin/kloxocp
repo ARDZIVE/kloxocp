@@ -73,7 +73,7 @@ declare(strict_types=1);
 	}
 })();
 
-const KCP_VERSION = '10.1-2026111321';
+const KCP_VERSION = '10.1-2026111322';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -710,6 +710,25 @@ TXT;
             );
         }
 
+        // Let's Encrypt (Add SSL → Let's Encrypt) needs certbot or acme.sh.
+        $acmeSh = is_file('/root/.acme.sh/acme.sh') && is_executable('/root/.acme.sh/acme.sh');
+        $certbot = Proc::exists('certbot')
+            || is_executable('/usr/bin/certbot')
+            || is_executable('/usr/local/bin/certbot');
+        if ($certbot || $acmeSh) {
+            $checks[] = $this->check(
+                'bin_certbot',
+                'pass',
+                $certbot ? 'certbot found' : 'acme.sh found (/root/.acme.sh)'
+            );
+        } else {
+            $checks[] = $this->check(
+                'bin_certbot',
+                'warn',
+                'missing — apt-get install -y certbot (or re-run install / Add Let\'s Encrypt will try)'
+            );
+        }
+
         if ($install) {
             $uid = function_exists('posix_geteuid') ? posix_geteuid() : -1;
             $checks[] = $this->check('root', $uid === 0 ? 'pass' : 'fail', $uid === 0 ? 'euid 0' : 'installer must run as root');
@@ -1089,6 +1108,10 @@ TXT;
             $this->ulog($logFile, 'host links');
             $plan['host_links'] = $this->refreshHostLinks();
 
+            // Older installs may lack certbot (needed for Let's Encrypt).
+            $this->ulog($logFile, 'ensure certbot');
+            $plan['certbot'] = $this->ensureCertbotPackage();
+
             // Reload panel PHP + backend so the in-memory version stamp matches
             // bin/kloxoversion (otherwise Fail2Ban/UFW hit slave_upgrading).
             $this->ulog($logFile, 'restart panel services');
@@ -1376,6 +1399,42 @@ TXT;
         }
 
         return $done;
+    }
+
+    /**
+     * Ensure certbot is on PATH (Let's Encrypt). Best-effort; never fails upcp.
+     *
+     * @return array{ok:bool,detail:string}
+     */
+    private function ensureCertbotPackage(): array
+    {
+        if (Proc::exists('certbot')
+            || is_executable('/usr/bin/certbot')
+            || is_executable('/usr/local/bin/certbot')
+            || (is_file('/root/.acme.sh/acme.sh') && is_executable('/root/.acme.sh/acme.sh'))) {
+            return ['ok' => true, 'detail' => 'already present'];
+        }
+        $uid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+        if ($uid !== 0) {
+            return ['ok' => false, 'detail' => 'not root; skip apt'];
+        }
+        $aptLib = $this->root . '/httpdocs/lib/php/kloxo_apt.php';
+        if (!is_file($aptLib)) {
+            return ['ok' => false, 'detail' => 'kloxo_apt.php missing'];
+        }
+        require_once $aptLib;
+        if (!class_exists('KloxoApt', false)) {
+            return ['ok' => false, 'detail' => 'KloxoApt unavailable'];
+        }
+        $r = KloxoApt::install(['certbot']);
+        if (!empty($r['ok'])) {
+            return ['ok' => true, 'detail' => 'installed'];
+        }
+
+        return [
+            'ok' => false,
+            'detail' => 'apt failed: ' . (string) ($r['error'] ?? 'unknown'),
+        ];
     }
 
     /**

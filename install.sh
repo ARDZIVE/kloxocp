@@ -47,7 +47,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111321"
+KCP_VERSION="10.1-2026111322"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -1016,6 +1016,25 @@ install_watchdog() {
   wait_unit kloxo-watchdog || log "warn: kloxo-watchdog is not active"
 }
 
+# Visitor stats: aggregate domain access logs into stats.sqlite every 5 minutes.
+install_stats_timer() {
+  chmod 0755 "$ROOT/bin/storage/kloxo-stats" || true
+  install -d -m 0750 -o www-data -g www-data /var/log/kloxo/domains 2>/dev/null \
+    || mkdir -p /var/log/kloxo/domains
+  install -d -m 0750 /var/lib/kloxo
+  if [[ -f "$ROOT/file/logrotate/kloxo-domains" ]]; then
+    install -m 0644 "$ROOT/file/logrotate/kloxo-domains" /etc/logrotate.d/kloxo-domains
+  fi
+  install -m 0644 "$ROOT/init/kloxo-stats.service" /etc/systemd/system/kloxo-stats.service
+  install -m 0644 "$ROOT/init/kloxo-stats.timer" /etc/systemd/system/kloxo-stats.timer
+  systemctl daemon-reload
+  systemctl enable --now kloxo-stats.timer >/dev/null 2>&1 || true
+  # Seed schema / first pass (safe if no domains yet).
+  run_panel_php "$ROOT/bin/storage/kloxo-stats" >/dev/null 2>&1 \
+    || php "$ROOT/bin/storage/kloxo-stats" >/dev/null 2>&1 \
+    || log "warn: initial kloxo-stats run deferred"
+}
+
 if [[ "$INSTALL_TYPE" == "slave" ]]; then
   slave_pw="${SLAVE_PASSWORD:-${KLOXO_SLAVE_PASSWORD:-}}"
   if [[ -z "$slave_pw" ]]; then
@@ -1036,6 +1055,7 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
   fi
   install_backend
   install_watchdog
+  install_stats_timer
   prepare_fail2ban
   prepare_logwatch
   host="$(hostname -f 2>/dev/null || hostname)"
@@ -1231,6 +1251,7 @@ run_panel_php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
 
 install_backend
 install_watchdog
+install_stats_timer
 prepare_fail2ban
 prepare_logwatch
 

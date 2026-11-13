@@ -375,6 +375,7 @@ class Web extends Lxdb
 	static $__acdesc_update_extra_tag = array("", "", "add_extra_tags");
 	static $__acdesc_update_phpinfo = array("", "", "phpinfo");
 	static $__acdesc_show_phpinfo = array("", "", "phpinfo");
+	static $__acdesc_show_stats = array("", "", "visitor_stats");
 	static $__acdesc_update_docroot = array("", "", "document_root");
 	static $__acdesc_update_run_stats = array("", "", "run_stats");
 	static $__acdesc_update_lighty_rewrite = array("", "", "lighttpd_rewrite_rule");
@@ -925,6 +926,16 @@ class Web extends Lxdb
 
 		$cust_log = "{$log_path1}/{$this->nname}-custom_log";
 		$err_log = "{$log_path1}/{$this->nname}-error_log";
+
+		// Modern aggregator path (kloxo-stats → stats.sqlite).
+		$kloxoLog = '/var/log/kloxo/domains/' . $this->nname;
+		if (!is_dir($kloxoLog)) {
+			@mkdir($kloxoLog, 0750, true);
+		}
+		if (is_dir($kloxoLog)) {
+			@chown($kloxoLog, 'www-data');
+			@chgrp($kloxoLog, 'www-data');
+		}
 		$awstat_conf = "{$sgbl->__path_real_etc_root}/awstats/";
 		$awstat_dirdata = "{$sgbl->__path_kloxo_httpd_root}/awstats/";
 
@@ -1349,12 +1360,55 @@ class Web extends Lxdb
 
 	function showRawPrint($subaction = null)
 	{
-		if ($subaction !== 'phpinfo') {
+		if ($subaction === 'phpinfo') {
+			$html = $this->phpInfoHtml();
+			echo '<style type="text/css">' . self::phpInfoNativeCss() . '</style>';
+			echo $html;
+
 			return;
 		}
-		$html = $this->phpInfoHtml();
-		echo '<style type="text/css">' . self::phpInfoNativeCss() . '</style>';
-		echo $html;
+		if ($subaction === 'stats') {
+			$this->printVisitorStats();
+
+			return;
+		}
+	}
+
+	/**
+	 * Modern in-panel visitor dashboard (stats.sqlite). Replaces the old
+	 * external Awstats / stats.domain hop for day-to-day use.
+	 */
+	function printVisitorStats()
+	{
+		global $ghtml;
+
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_stats.php';
+		include_once dirname(__DIR__, 2) . '/lib/php/storage/bootstrap.php';
+
+		$domain = (isset($this->nname) && is_string($this->nname)) ? $this->nname : '';
+		$days = 30;
+		if (is_object($ghtml) && isset($ghtml->__http_vars['frm_stats_days'])) {
+			$days = (int) $ghtml->__http_vars['frm_stats_days'];
+		} elseif (isset($_GET['frm_stats_days'])) {
+			$days = (int) $_GET['frm_stats_days'];
+		}
+		$days = max(1, min(366, $days));
+
+		$base = '';
+		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+			$got = $ghtml->getFullUrl('a=show&sa=stats');
+			if (is_string($got) && $got !== '') {
+				$base = $got;
+			}
+		}
+		try {
+			$data = KloxoStats::dashboard($domain, $days);
+			echo KloxoStats::renderHtml($data, $base);
+		} catch (Throwable $e) {
+			echo '<div class="kloxo-stats"><p class="kloxo-stats-empty">Stats unavailable: '
+				. htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8')
+				. '</p></div>';
+		}
 	}
 
 	static function createSession($ar)
@@ -1467,6 +1521,9 @@ class Web extends Lxdb
 		switch ($ghtml->frm_subaction) {
 			case 'phpinfo':
 				$alist['property'][] = "a=show&sa=phpinfo";
+				break;
+			case 'stats':
+				$alist['property'][] = "a=show&sa=stats";
 				break;
 			case 'stats_protect':
 				$alist['property'][] = "a=updateform&sa=stats_protect";

@@ -582,7 +582,10 @@ server {
 ?>
 
 	#include '<?=getLinkCustomfile($globalspath, "stats_log.conf");?>';
+	# Modern Kloxo CP stats (kloxo-stats → stats.sqlite) plus legacy custom_log.
+	access_log /var/log/kloxo/domains/<?=$domainname;?>/access.log main;
 	access_log /home/httpd/<?=$domainname;?>/stats/<?=$domainname;?>-custom_log main;
+	error_log /var/log/kloxo/domains/<?=$domainname;?>/error.log error;
 	error_log /home/httpd/<?=$domainname;?>/stats/<?=$domainname;?>-error_log error;
 
 	rewrite ^/stats(/|) <?=$protocol;?>stats.$var_domain/ permanent;
