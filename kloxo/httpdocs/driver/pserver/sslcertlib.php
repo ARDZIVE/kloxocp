@@ -1066,8 +1066,20 @@ class SslCert extends Lxdb
 		$email = isset($temp['emailAddress']) ? (string) $temp['emailAddress'] : '';
 		$keyBits = isset($temp['key_bits']) ? (string) $temp['key_bits'] : '2048';
 
+		$docroot = '';
+		if (self::sslParentIsWeb($parent) && method_exists($parent, 'getFullDocRoot')) {
+			try {
+				$gotRoot = $parent->getFullDocRoot();
+				if (is_string($gotRoot) && $gotRoot !== '') {
+					$docroot = $gotRoot;
+				}
+			} catch (Throwable $e) {
+				$docroot = '';
+			}
+		}
+
 		try {
-			$got = $this->execSsl('issueLetsEncrypt', array($name, $email, $sans, $keyBits));
+			$got = $this->execSsl('issueLetsEncrypt', array($name, $email, $sans, $keyBits, $docroot));
 		} catch (lxException $e) {
 			throw $e;
 		} catch (Throwable $e) {

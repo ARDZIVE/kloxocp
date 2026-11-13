@@ -118,7 +118,12 @@ $dir = "\tDocumentRoot \"{$root}\"\n"
 	. $block
 	. "\t</Directory>\n"
 	. "\tDirectoryIndex {$indexorder}\n"
-	. "\tAlias /.well-known/acme-challenge /var/run/letsencrypt/.well-known/acme-challenge\n"
+	// ACME HTTP-01 from DocumentRoot (same as Nginx); no Alias to /var/run.
+	. "\t<Directory \"{$root}/.well-known/acme-challenge\">\n"
+	. "\t\tOptions -Indexes\n"
+	. "\t\tAllowOverride None\n"
+	. "\t\tRequire all granted\n"
+	. "\t</Directory>\n"
 	. $phpHandler
 	. ($extra !== '' ? "\t# apache extra\n{$extra}\n" : '');
 

@@ -25,7 +25,9 @@ require $repo . '/kloxo/httpdocs/lib/php/kloxo_ssl.php';
 $tmp = sys_get_temp_dir() . '/kloxo-ssl-test-' . getmypid();
 $fs = $tmp . '/fs';
 foreach ([
-	"$fs/usr/bin", "$fs/home/kloxo/ssl", "$fs/var/run/letsencrypt/.well-known/acme-challenge",
+	"$fs/usr/bin", "$fs/home/kloxo/ssl",
+	"$fs/home/httpd/example.com/httpdocs",
+	"$fs/var/lib/kloxo/acme/.well-known/acme-challenge",
 	"$fs/etc/letsencrypt/live/example.com", "$fs/script",
 ] as $d) {
 	mkdir($d, 0755, true);
@@ -96,11 +98,13 @@ chmod("$fs/script/fixweb", 0755);
 
 KloxoSsl::$fsPrefix = $fs;
 putenv('KLOXO_SSL_FS=' . $fs);
-KloxoSsl::$runCmd = static function (array $argv) use ($fs): array {
+$lastCertbotArgv = [];
+KloxoSsl::$runCmd = static function (array $argv) use ($fs, &$lastCertbotArgv): array {
 	$bin = $argv[0];
 	if (str_ends_with($bin, '/openssl') || basename($bin) === 'openssl') {
 		$argv[0] = $fs . '/usr/bin/openssl';
 	} elseif (str_ends_with($bin, '/certbot') || basename($bin) === 'certbot') {
+		$lastCertbotArgv = $argv;
 		$argv[0] = $fs . '/usr/bin/certbot';
 	} elseif (str_contains($bin, 'fixweb') || (isset($argv[1]) && str_contains((string) $argv[1], 'fixweb'))) {
 		return ['code' => 0, 'out' => 'fixweb ok'];
@@ -153,11 +157,23 @@ check(!empty($s['ok']) && str_contains($s['key'], 'PRIVATE KEY'), 'createSelfSig
 check(str_contains($s['crt'], 'CERTIFICATE'), 'createSelfSigned crt');
 check(is_file("$fs/home/kloxo/ssl/self.example.com.key"), 'self-signed on disk');
 
+echo "== resolveWebroot prefers httpdocs\n";
+$wr = KloxoSsl::resolveWebroot('example.com', '');
+check($wr === "$fs/home/httpd/example.com/httpdocs", 'resolveWebroot uses /home/httpd/domain/httpdocs', $wr);
+mkdir("$fs/home/alice/example.com", 0755, true);
+$wr2 = KloxoSsl::resolveWebroot('example.com', '/home/alice/example.com');
+check($wr2 === "$fs/home/alice/example.com",
+	'resolveWebroot accepts passed docroot', $wr2);
+
 echo "== issueLetsEncrypt (fake certbot)\n";
 $le = KloxoSsl::issueLetsEncrypt('example.com', 'admin@example.com', ['example.com', 'www.example.com'], '2048');
 check(!empty($le['ok']) && $le['tool'] === 'certbot', 'issueLetsEncrypt via certbot');
 check(str_contains($le['key'], 'PRIVATE KEY'), 'LE key returned');
 check(is_file("$fs/home/kloxo/ssl/example.com.key"), 'LE installed under ssl dir');
+check(in_array("$fs/home/httpd/example.com/httpdocs", $lastCertbotArgv, true),
+	'certbot --webroot-path is domain httpdocs');
+check(is_dir("$fs/home/httpd/example.com/httpdocs/.well-known/acme-challenge"),
+	'challenge dir created under httpdocs');
 
 echo "== missing certbot/acme fails clearly\n";
 KloxoSsl::$runCmd = static function (array $argv): array {
@@ -166,7 +182,8 @@ KloxoSsl::$runCmd = static function (array $argv): array {
 // Hide certbot by pointing which() at empty prefix without binaries — use a fresh prefix
 $fs2 = $tmp . '/fs2';
 mkdir("$fs2/home/kloxo/ssl", 0755, true);
-mkdir("$fs2/var/run/letsencrypt/.well-known/acme-challenge", 0755, true);
+mkdir("$fs2/home/httpd/example.com/httpdocs", 0755, true);
+mkdir("$fs2/var/lib/kloxo/acme/.well-known/acme-challenge", 0755, true);
 KloxoSsl::$fsPrefix = $fs2;
 KloxoSsl::$installPackages = null; // fsPrefix skips apt
 try {
@@ -181,7 +198,8 @@ echo "== ensureCertbot apt-installs then issues\n";
 $fs3 = $tmp . '/fs3';
 foreach ([
 	"$fs3/usr/bin", "$fs3/home/kloxo/ssl",
-	"$fs3/var/run/letsencrypt/.well-known/acme-challenge",
+	"$fs3/home/httpd/example.com/httpdocs",
+	"$fs3/var/lib/kloxo/acme/.well-known/acme-challenge",
 	"$fs3/etc/letsencrypt/live/example.com",
 ] as $d) {
 	mkdir($d, 0755, true);
@@ -291,7 +309,10 @@ check(!str_contains($tpl, 'letsencrypt-auto certonly'), 'template does not requi
 echo "== ACME nginx location + redirect skip\n";
 $acmeConf = (string) file_get_contents($repo . '/kloxo/file/nginx/conf/globals/acme-challenge.conf');
 check(str_contains($acmeConf, 'location ^~ /.well-known/acme-challenge/'), 'acme location uses ^~');
-check(str_contains($acmeConf, 'root /var/run/letsencrypt'), 'acme location uses root webroot');
+check(str_contains($acmeConf, 'try_files $uri =404'), 'acme location uses vhost docroot try_files');
+check(!str_contains($acmeConf, 'root /var/run/letsencrypt')
+	&& !str_contains($acmeConf, 'alias /var/run/letsencrypt'),
+	'acme location no longer points at /var/run/letsencrypt');
 $domTpl = (string) file_get_contents($repo . '/kloxo/file/nginx/tpl/domains.conf.tpl');
 check(str_contains($domTpl, 'well-known/acme-challenge'), 'domains tpl mentions ACME path');
 check(str_contains($domTpl, 'request_uri !~* "^/\\.well-known/acme-challenge/"'),
@@ -301,8 +322,11 @@ check(str_contains($sslSrc, '"{$d} www.{$d}"') || str_contains($sslSrc, "{\$d} w
 	'default LE SAN is domain + www only');
 check(!str_contains($sslSrc, 'webmail.{$d} mail.{$d}'),
 	'default LE SAN no longer forces webmail/mail');
+check(str_contains($sslSrc, 'getFullDocRoot'), 'createLetsencrypt passes docroot');
 $sslPhp = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/kloxo_ssl.php');
 check(str_contains($sslPhp, 'ensureAcmeNginxSnippet'), 'issueLetsEncrypt refreshes ACME snippet');
+check(str_contains($sslPhp, 'preflightAcmeHttp'), 'issueLetsEncrypt preflights HTTP-01');
+check(str_contains($sslPhp, 'resolveWebroot'), 'issueLetsEncrypt resolves docroot webroot');
 
 // cleanup
 KloxoSsl::$fsPrefix = '';

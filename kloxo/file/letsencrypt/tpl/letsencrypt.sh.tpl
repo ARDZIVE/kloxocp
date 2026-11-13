@@ -35,7 +35,13 @@ logdir="/var/log/letsencrypt"
 lepath="/etc/letsencrypt/live"
 sslpath="/home/kloxo/ssl"
 maindom="<?php echo $basedom; ?>"
-webroot="/var/run/letsencrypt"
+<?php
+	// Prefer the domain document root so Nginx/Apache serve the token as a static file.
+	$wr = (isset($docroot) && is_string($docroot) && $docroot !== '' && $docroot[0] === '/')
+		? $docroot
+		: '/var/lib/kloxo/acme';
+?>
+webroot="<?php echo $wr; ?>"
 
 mkdir -p "${webroot}/.well-known/acme-challenge" "${sslpath}" "${logdir}"
 

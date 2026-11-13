@@ -39,9 +39,53 @@ final class KloxoSsl
         return self::p('/home/kloxo/ssl');
     }
 
+    /**
+     * Legacy shared ACME path (kept as last-resort fallback). Prefer the
+     * domain document root via resolveWebroot().
+     */
     public static function webroot(): string
     {
-        return self::p('/var/run/letsencrypt');
+        return self::p('/var/lib/kloxo/acme');
+    }
+
+    /**
+     * Resolve the certbot/acme.sh webroot: domain docroot (so Nginx/Apache
+     * try_files / DocumentRoot serve the token). Falls back to shared store.
+     */
+    public static function resolveWebroot(string $domain, string $docroot = ''): string
+    {
+        $domain = self::validateDomain($domain);
+        $candidates = [];
+        $docroot = trim($docroot);
+        if ($docroot !== ''
+            && str_starts_with($docroot, '/')
+            && !str_contains($docroot, "\0")
+            && !str_contains($docroot, '..')
+            && preg_match('#^/(home|var/lib/kloxo)(/|$)#', $docroot) === 1) {
+            $candidates[] = self::$fsPrefix !== '' ? self::p($docroot) : $docroot;
+        }
+        $candidates[] = self::p('/home/httpd/' . $domain . '/httpdocs');
+        $candidates[] = self::webroot();
+        $seen = [];
+        foreach ($candidates as $c) {
+            $c = rtrim(str_replace('\\', '/', (string) $c), '/');
+            if ($c === '' || isset($seen[$c])) {
+                continue;
+            }
+            $seen[$c] = true;
+            if (is_dir($c) || is_link($c)) {
+                return $c;
+            }
+            // Create under an existing parent (httpdocs symlink not yet made).
+            if (str_ends_with($c, '/httpdocs') && is_dir(dirname($c))) {
+                return $c;
+            }
+            if ($c === rtrim(self::webroot(), '/')) {
+                return $c;
+            }
+        }
+
+        return self::webroot();
     }
 
     /** @return non-empty-string */
@@ -113,17 +157,84 @@ final class KloxoSsl
         }
     }
 
-    public static function ensureWebroot(): void
+    public static function ensureWebroot(string $webroot = ''): void
     {
-        $w = self::webroot();
+        $w = $webroot !== '' ? rtrim($webroot, '/') : self::webroot();
         $challenge = $w . '/.well-known/acme-challenge';
         if (!is_dir($challenge) && !@mkdir($challenge, 0755, true) && !is_dir($challenge)) {
             throw new KloxoSslException('cannot create ACME webroot ' . $challenge);
         }
-        // Nginx (www-data) must read tokens written by root/certbot.
+        // Nginx/Apache (www-data) must read tokens written by root/certbot.
         @chmod($w, 0755);
         @chmod($w . '/.well-known', 0755);
         @chmod($challenge, 0755);
+    }
+
+    /**
+     * Write a probe token under $webroot and fetch it via loopback with Host.
+     * Skipped under $fsPrefix (unit tests) unless $runCmd is set to handle curl.
+     */
+    public static function preflightAcmeHttp(string $domain, string $webroot): void
+    {
+        // Unit tests use $fsPrefix; skip loopback HTTP against a fake tree.
+        if (self::$fsPrefix !== '') {
+            return;
+        }
+        $domain = self::validateDomain($domain);
+        $webroot = rtrim($webroot, '/');
+        self::ensureWebroot($webroot);
+        $token = 'kloxo-preflight-' . bin2hex(random_bytes(8));
+        $path = $webroot . '/.well-known/acme-challenge/' . $token;
+        if (@file_put_contents($path, $token) === false) {
+            throw new KloxoSslException('cannot write ACME preflight token under ' . $webroot);
+        }
+        @chmod($path, 0644);
+        $url = 'http://127.0.0.1/.well-known/acme-challenge/' . $token;
+        $code = 0;
+        $body = '';
+        try {
+            $curl = self::which('curl');
+            if ($curl !== '') {
+                $r = self::run([
+                    $curl, '-sS', '--max-time', '5',
+                    '-H', 'Host: ' . $domain,
+                    '-o', $path . '.out',
+                    '-w', '%{http_code}',
+                    $url,
+                ]);
+                $code = (int) trim($r['out']);
+                if (is_file($path . '.out')) {
+                    $body = (string) file_get_contents($path . '.out');
+                    @unlink($path . '.out');
+                }
+            } else {
+                $ctx = stream_context_create([
+                    'http' => [
+                        'method' => 'GET',
+                        'header' => "Host: {$domain}\r\n",
+                        'timeout' => 5,
+                        'ignore_errors' => true,
+                    ],
+                ]);
+                $body = (string) @file_get_contents($url, false, $ctx);
+                if (isset($http_response_header[0])
+                    && preg_match('/\s(\d{3})\s/', (string) $http_response_header[0], $m)) {
+                    $code = (int) $m[1];
+                }
+            }
+        } finally {
+            @unlink($path);
+        }
+        if ($code === 200 && trim($body) === $token) {
+            return;
+        }
+        throw new KloxoSslException(
+            'ACME HTTP-01 preflight failed for ' . $domain
+            . ' (HTTP ' . $code . ' from ' . $url . ' via docroot ' . $webroot . ')'
+            . '; Nginx/Apache must serve /.well-known/acme-challenge/ from the site'
+            . ' document root — run /script/fixweb --domain=' . $domain
+            . ' and confirm port 80 reaches this host'
+        );
     }
 
     /**
@@ -356,13 +467,14 @@ final class KloxoSsl
      * Issue (or renew) a Let's Encrypt cert with certbot, else acme.sh.
      *
      * @param list<string> $sans
-     * @return array{ok:bool, key:string, crt:string, ca:string, tool:string, out:string}
+     * @return array{ok:bool, key:string, crt:string, ca:string, tool:string, out:string, webroot?:string}
      */
     public static function issueLetsEncrypt(
         string $domain,
         string $email,
         array $sans,
-        string $keyBits = '2048'
+        string $keyBits = '2048',
+        string $docroot = ''
     ): array {
         $domain = self::validateDomain($domain);
         $email = self::validateEmail($email);
@@ -375,17 +487,20 @@ final class KloxoSsl
             array_unshift($sans, $domain);
         }
         self::ensureSslDir();
-        self::ensureWebroot();
+        $webroot = self::resolveWebroot($domain, $docroot);
+        self::ensureWebroot($webroot);
         self::ensureAcmeNginxSnippet();
         // Refresh vhost so Force-HTTPS / www redirects skip ACME before validation.
         self::fixweb($domain);
+        // Prove the site serves tokens from this docroot before burning LE attempts.
+        self::preflightAcmeHttp($domain, $webroot);
 
         $acme = self::p('/root/.acme.sh/acme.sh');
         if (!is_file($acme)) {
             $acme = '/root/.acme.sh/acme.sh';
         }
         if (is_file($acme) && is_executable($acme)) {
-            return self::issueWithAcmeSh($acme, $domain, $email, $sans, $keyBits);
+            return self::issueWithAcmeSh($acme, $domain, $email, $sans, $keyBits, $webroot);
         }
 
         $certbot = self::ensureCertbot();
@@ -395,19 +510,20 @@ final class KloxoSsl
             );
         }
 
-        return self::issueWithCertbot($certbot, $domain, $email, $sans, $keyBits);
+        return self::issueWithCertbot($certbot, $domain, $email, $sans, $keyBits, $webroot);
     }
 
     /**
      * @param list<string> $sans
-     * @return array{ok:bool, key:string, crt:string, ca:string, tool:string, out:string}
+     * @return array{ok:bool, key:string, crt:string, ca:string, tool:string, out:string, webroot:string}
      */
     private static function issueWithCertbot(
         string $certbot,
         string $domain,
         string $email,
         array $sans,
-        string $keyBits
+        string $keyBits,
+        string $webroot
     ): array {
         $argv = [
             $certbot, 'certonly',
@@ -415,7 +531,7 @@ final class KloxoSsl
             '--agree-tos',
             '--keep-until-expiring',
             '--webroot',
-            '--webroot-path', self::webroot(),
+            '--webroot-path', $webroot,
         ];
         if ($email !== '') {
             $argv[] = '--email';
@@ -445,12 +561,11 @@ final class KloxoSsl
         if ($r['code'] !== 0) {
             $tail = self::tailOut($r['out'], 12);
             $hint = '';
-            if (preg_match('/unauthorized|404|Invalid response/i', $r['out']) === 1) {
-                $hint = '; ACME HTTP-01 got 404 — use only names that resolve here'
-                    . ' (default SAN is domain + www), ensure Nginx serves'
-                    . ' /.well-known/acme-challenge/ from /var/run/letsencrypt'
-                    . ' (Force HTTPS / www redirects must skip that path; run /script/fixweb),'
-                    . ' and remove webmail/mail if they redirect elsewhere';
+            if (preg_match('/unauthorized|404|Invalid response|authenticate/i', $r['out']) === 1) {
+                $hint = '; ACME HTTP-01 failed for webroot ' . $webroot
+                    . ' — use only names that resolve here (domain + www),'
+                    . ' run /script/fixweb --domain=' . $domain
+                    . ', and ensure port 80 serves /.well-known/acme-challenge/ from the site docroot';
             }
             throw new KloxoSslException(
                 'certbot failed' . ($tail !== '' ? ': ' . $tail : ' (exit ' . $r['code'] . ')') . $hint
@@ -473,23 +588,25 @@ final class KloxoSsl
             'ca' => $ca,
             'tool' => 'certbot',
             'out' => self::tailOut($r['out'], 20),
+            'webroot' => $webroot,
         ];
     }
 
     /**
      * @param list<string> $sans
-     * @return array{ok:bool, key:string, crt:string, ca:string, tool:string, out:string}
+     * @return array{ok:bool, key:string, crt:string, ca:string, tool:string, out:string, webroot:string}
      */
     private static function issueWithAcmeSh(
         string $acme,
         string $domain,
         string $email,
         array $sans,
-        string $keyBits
+        string $keyBits,
+        string $webroot
     ): array {
         $home = dirname($acme);
         $exist = is_file($home . '/' . $domain . '/ca.cer');
-        $argv = [$acme, $exist ? '--renew' : '--issue', '--force', '--webroot', self::webroot()];
+        $argv = [$acme, $exist ? '--renew' : '--issue', '--force', '--webroot', $webroot];
         foreach ($sans as $s) {
             $argv[] = '--domain';
             $argv[] = $s;
@@ -520,6 +637,7 @@ final class KloxoSsl
             'ca' => $ca,
             'tool' => 'acme.sh',
             'out' => self::tailOut($r['out'], 20),
+            'webroot' => $webroot,
         ];
     }
 

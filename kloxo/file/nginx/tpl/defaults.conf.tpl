@@ -54,20 +54,47 @@ $defaultdocroot = "/home/kloxo/httpd/default";
 
 $globalspath = "{$srcpath}/conf/globals";
 
-$confs = array('nginx.conf', 'mime.types', 'fastcgi_params');
-
 $switches = array('', '_ssl');
 
-foreach ($confs as $k => $v) {
-	$custom_conf = getLinkCustomfile($srcconfpath, $v);
-	copy($custom_conf, "{$trgtconfpath}/{$v}");
-}
+// Ubuntu/Debian: keep distro nginx.conf (user www-data) and only drop a
+// conf.d include. Overwriting with the CentOS template (user apache) makes
+// nginx -t fail and leaves sites on /var/www/html.
+$is_debian = is_file('/etc/debian_version');
+if ($is_debian) {
+	if (!is_dir($trgtconfdpath)) {
+		@mkdir($trgtconfdpath, 0755, true);
+	}
+	$inc = "{$trgtconfdpath}/zz-kloxo.conf";
+	$incBody = "include /opt/configs/nginx/conf/defaults/*.conf;\n"
+		. "include /opt/configs/nginx/conf/domains/*.conf;\n"
+		. "include /opt/configs/nginx/conf/customs/*.conf;\n";
+	file_put_contents($inc, $incBody);
+	foreach (array('mime.types', 'fastcgi_params') as $v) {
+		$custom_conf = getLinkCustomfile($srcconfpath, $v);
+		if (is_readable($custom_conf) && !is_file("{$trgtconfpath}/{$v}")) {
+			copy($custom_conf, "{$trgtconfpath}/{$v}");
+		}
+	}
+	foreach (array(
+		"{$trgtconfpath}/sites-enabled/default",
+		"{$trgtconfpath}/sites-enabled/000-default",
+	) as $def) {
+		if (is_link($def) || is_file($def)) {
+			@unlink($def);
+		}
+	}
+} else {
+	$confs = array('nginx.conf', 'mime.types', 'fastcgi_params');
+	foreach ($confs as $k => $v) {
+		$custom_conf = getLinkCustomfile($srcconfpath, $v);
+		copy($custom_conf, "{$trgtconfpath}/{$v}");
+	}
 
-$confs = array('~kloxo.conf', 'default.conf');
-
-foreach ($confs as $k => $v) {
-	$custom_conf = getLinkCustomfile($srcconfdpath, $v);
-	copy($custom_conf, "{$trgtconfdpath}/{$v}");
+	$confs = array('~kloxo.conf', 'default.conf');
+	foreach ($confs as $k => $v) {
+		$custom_conf = getLinkCustomfile($srcconfdpath, $v);
+		copy($custom_conf, "{$trgtconfdpath}/{$v}");
+	}
 }
 
 foreach ($certnamelist as $ip => $certname) {

@@ -853,7 +853,7 @@ $__information['sslcert_addform_letsencrypt_pre'] = "<p>You can use <b>Let's Enc
 			"<li>Possible 100 SANs (Subject Alternative Names) for each domain</li>" .
 			"<li>If using 'Remote Mail' for domain, do not add 'webmail.domain.com' to SAN</li>" .
 			"<li>Don't use 'redirect' for listing in 'Subject Alternative Name (SAN)' because may trouble to verifying token. Or remove it from listing</li>" .
-			"<li>Force HTTPS / www redirects skip <code>/.well-known/acme-challenge/</code>; run Fix Web after updating the panel so Nginx picks that up</li>" .
+			"<li>Tokens are written under the site document root; Force HTTPS / www redirects skip <code>/.well-known/acme-challenge/</code> — run Fix Web after updating the panel</li>" .
 		"</ul>";
 
 $__information['sslcert_addform_startapi_pre'] = "<p>You can use <b>StartSSL API</b> free SSL here. </p>" . 

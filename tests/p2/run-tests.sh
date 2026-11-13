@@ -235,6 +235,11 @@ if php "$HERE/test_webcache.php"; then
 else
   bad "test_webcache.php"
 fi
+if php "$HERE/test_nginx_ubuntu_prepare.php"; then
+  ok "test_nginx_ubuntu_prepare.php"
+else
+  bad "test_nginx_ubuntu_prepare.php"
+fi
 if php "$HERE/test_phpfpm.php"; then
   ok "test_phpfpm.php"
 else

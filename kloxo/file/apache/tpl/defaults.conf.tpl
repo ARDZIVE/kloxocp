@@ -15,13 +15,10 @@ if (isset($webcache) && $webcache && $webcache !== 'none') {
 	$httpsPort = 8444;
 }
 
-$acme = '/var/run/letsencrypt/.well-known/acme-challenge';
-if (!is_dir($acme)) {
-	@mkdir($acme, 0755, true);
-}
 if (!is_dir($defaultdocroot)) {
 	@mkdir($defaultdocroot, 0755, true);
 }
+@mkdir($defaultdocroot . '/.well-known/acme-challenge', 0755, true);
 
 $certbase = '/home/kloxo/ssl/default';
 if (!empty($certnamelist) && is_array($certnamelist)) {
@@ -45,8 +42,6 @@ if (!empty($certnamelist) && is_array($certnamelist)) {
 	</Directory>
 	DirectoryIndex <?=$indexorder;?>
 
-	Alias /.well-known/acme-challenge <?=$acme;?>
-
 </VirtualHost>
 <?php if (is_file($certbase . '.key') && (is_file($certbase . '.pem') || is_file($certbase . '.crt'))) {
 	$certfile = is_file($certbase . '.pem') ? $certbase . '.pem' : $certbase . '.crt';
@@ -65,8 +60,6 @@ if (!empty($certnamelist) && is_array($certnamelist)) {
 		Require all granted
 	</Directory>
 	DirectoryIndex <?=$indexorder;?>
-
-	Alias /.well-known/acme-challenge <?=$acme;?>
 
 </VirtualHost>
 <?php } ?>

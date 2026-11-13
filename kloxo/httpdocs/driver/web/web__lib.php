@@ -24,6 +24,11 @@ class web__ extends lxDriverClass
 		if (!is_file('/etc/debian_version')) {
 			self::setInstallPhpfpm();
 			@exec("sh /script/fixweb --target=defaults");
+		} elseif ((string)$drivertype === 'nginx') {
+			// Ubuntu: wire conf.d includes + drop sites-enabled/default, then
+			// render domain vhosts (installMe alone used to leave /var/www/html).
+			@exec("sh /script/fixweb --target=defaults --server=localhost");
+			@exec("sh /script/fixweb --target=domains --server=localhost");
 		}
 
 		createRestartFile("restart-web");
@@ -31,7 +36,8 @@ class web__ extends lxDriverClass
 
 	static function setBaseWebConfig($webtype)
 	{
-		// MR -- only need here for apache because switch between apache 2.2 and 2.4
+		// Apache: templates + install-apache. Nginx on Ubuntu: kloxo_nginx_ubuntu_prepare
+		// (via kloxo_web_switch) — do not overwrite distro nginx.conf here.
 		if ($webtype === 'apache') {
 			setCopyWebConfFiles($webtype);
 		}
@@ -100,6 +106,11 @@ class web__ extends lxDriverClass
 		$input['dirindex'] = $this->getDirIndex();
 		$input['certnamelist'] = ($this->getSslCertNameList()) ?
 			$this->getSslCertNameList() : $this->getSslCertNameList('*');
+		// Empty IP/SSL table → nginx/apache domain templates print begin/end
+		// only (no server{}). Fallback so HTTP still works (mesrob.com case).
+		if (!is_array($input['certnamelist']) || count($input['certnamelist']) === 0) {
+			$input['certnamelist'] = array('*' => '*');
+		}
 
 		$input['stats'] = $this->getStats();
 		$input['wwwredirect'] = $this->getWwwRedirect();
