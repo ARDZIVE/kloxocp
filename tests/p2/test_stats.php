@@ -96,6 +96,11 @@ check(str_contains($html, 'Visitor Stats') && str_contains($html, 'shop.example'
 	'dashboard HTML has title, tables and chart');
 check(str_contains($html, 'frm_stats_days=7') && str_contains($html, 'kloxo-stats-range'),
 	'range links present');
+check(str_contains($html, 'width:910px') && str_contains($html, 'margin:10px auto'),
+	'stats zone uses panel 910px centered column');
+check(str_contains($html, 'Tahoma,Verdana,Arial,Helvetica,sans-serif')
+	&& !str_contains($html, 'Georgia'),
+	'stats uses panel Tahoma font stack');
 
 // Domains list stub points in-panel
 $domSrc = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/domain/domainlib.php');

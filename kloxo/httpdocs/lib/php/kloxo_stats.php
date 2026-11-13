@@ -313,29 +313,68 @@ final class KloxoStats
             . 'logging is enabled.</p>'
             : '';
 
+        // Match panel content column (.div_showhide is 910px centered) and
+        // Tahoma stack from theme/css/common.css — do not invent a display face.
         return <<<HTML
 <style type="text/css">
-.kloxo-stats{font-family:Georgia,"Times New Roman",serif;color:#2c1810;margin:0 0 1.5em}
-.kloxo-stats h2{font-size:1.35rem;margin:0 0 .35em;font-weight:700;color:#7a1f1f}
-.kloxo-stats .kloxo-stats-sub{margin:0 0 1em;font-size:.9rem;color:#5a4638}
+.kloxo-stats{
+  box-sizing:border-box;
+  width:910px;
+  max-width:100%;
+  margin:10px auto 1.5em auto;
+  padding:0 10px;
+  color:#333;
+  font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;
+  font-size:9pt;
+  font-weight:100;
+}
+.kloxo-stats h2{
+  font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;
+  font-size:11pt;
+  font-weight:bold;
+  margin:0 0 .4em;
+  color:#369;
+  border-bottom:1px solid #bce;
+  padding-bottom:.25em;
+}
+.kloxo-stats .kloxo-stats-sub{margin:0 0 1em;font-size:8pt;color:#666}
 .kloxo-stats-ranges{display:flex;flex-wrap:wrap;gap:.4em;margin:0 0 1em}
-.kloxo-stats-range{display:inline-block;padding:.35em .75em;background:#f3e6d4;border:1px solid #c9a882;color:#5a2a1a;text-decoration:none;font-size:.85rem}
-.kloxo-stats-range-on,.kloxo-stats-range:hover{background:#7a1f1f;color:#fff;border-color:#7a1f1f}
+.kloxo-stats-range{
+  display:inline-block;
+  padding:.35em .75em;
+  background:#edc;
+  border:1px solid #c9a;
+  color:#369;
+  text-decoration:none;
+  font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;
+  font-size:8pt;
+}
+.kloxo-stats-range-on,.kloxo-stats-range:hover{background:#369;color:#fff;border-color:#369}
 .kloxo-stats-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75em;margin:0 0 1.25em}
-.kloxo-stats-card{background:#fffaf3;border:1px solid #d4b896;padding:.75em .9em}
-.kloxo-stats-card .lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:#7a6352;margin:0 0 .25em}
-.kloxo-stats-card .val{font-size:1.35rem;font-weight:700;color:#1a120c;margin:0;font-variant-numeric:tabular-nums}
-.kloxo-stats-chart{background:#fff;border:1px solid #d4b896;padding:.75em;margin:0 0 1.25em}
-.kloxo-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1em}
-@media (max-width:800px){.kloxo-stats-grid{grid-template-columns:1fr}}
-.kloxo-stats-panel{background:#fff;border:1px solid #d4b896;padding:.75em}
-.kloxo-stats-panel h3{margin:0 0 .6em;font-size:1rem;color:#7a1f1f;border-bottom:2px solid #2d6a3e;padding-bottom:.3em}
-.kloxo-stats table{width:100%;border-collapse:collapse;font-size:.85rem;font-family:ui-monospace,Menlo,Consolas,monospace}
-.kloxo-stats th,.kloxo-stats td{text-align:left;padding:.35em .4em;border-bottom:1px solid #ead9c4}
-.kloxo-stats th{color:#5a4638;font-weight:600;font-family:Georgia,serif}
+.kloxo-stats-card{background:#fffae8;border:1px solid #dcb;padding:.75em .9em}
+.kloxo-stats-card .lbl{font-size:8pt;text-transform:uppercase;letter-spacing:.03em;color:#666;margin:0 0 .25em}
+.kloxo-stats-card .val{font-size:12pt;font-weight:bold;color:#333;margin:0;font-variant-numeric:tabular-nums}
+.kloxo-stats-chart{background:#fff;border:1px solid #dcb;padding:.75em;margin:0 0 1.25em;overflow:hidden}
+.kloxo-stats-chart svg{display:block;max-width:100%;height:auto}
+.kloxo-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1em;width:100%}
+@media (max-width:920px){.kloxo-stats{width:100%;padding:0 12px}.kloxo-stats-grid{grid-template-columns:1fr}}
+.kloxo-stats-panel{background:#fff;border:1px solid #dcb;padding:.75em;overflow:auto}
+.kloxo-stats-panel h3{
+  margin:0 0 .6em;
+  font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;
+  font-size:10pt;
+  font-weight:bold;
+  color:#369;
+  border-bottom:1px solid #9cf;
+  padding-bottom:.3em;
+}
+.kloxo-stats table{width:100%;border-collapse:collapse;font-size:8pt;font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif}
+.kloxo-stats th,.kloxo-stats td{text-align:left;padding:.35em .4em;border-bottom:1px solid #eee}
+.kloxo-stats th{color:#369;font-weight:bold}
 .kloxo-stats td.num{text-align:right;font-variant-numeric:tabular-nums}
-.kloxo-stats-empty{background:#fff8e8;border:1px solid #e0c48a;padding:.75em 1em;margin:0 0 1em}
-.kloxo-stats-note{font-size:.8rem;color:#7a6352;margin:1em 0 0}
+.kloxo-stats-empty{background:#fffae8;border:1px solid #dcb;padding:.75em 1em;margin:0 0 1em}
+.kloxo-stats-note{font-size:8pt;color:#666;margin:1em 0 0}
+.kloxo-stats code{font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;font-size:8pt}
 </style>
 <div class="kloxo-stats">
   <h2>Visitor Stats — {$domain}</h2>
@@ -416,7 +455,7 @@ HTML;
         return '<svg viewBox="0 0 ' . $w . ' ' . $h . '" width="100%" height="' . $h
             . '" role="img" aria-label="Daily requests chart">'
             . $axis . $bars
-            . '<text x="' . $pad . '" y="16" fill="#5a4638" font-size="12" font-family="Georgia,serif">'
+            . '<text x="' . $pad . '" y="16" fill="#666" font-size="11" font-family="Tahoma,Verdana,Arial,Helvetica,sans-serif">'
             . $label . '</text></svg>';
     }
 
