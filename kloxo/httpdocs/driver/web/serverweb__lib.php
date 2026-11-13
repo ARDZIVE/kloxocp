@@ -82,11 +82,13 @@ class serverweb__ extends lxDriverClass
 		if (is_object($this->main) && method_exists($this->main, 'selectedWebDriver')) {
 			return $this->main->selectedWebDriver();
 		}
+		if (class_exists('serverweb') && is_callable(array('serverweb', 'readLocalSlaveWebDriver'))) {
+			return serverweb::normalizeWebDriverName(serverweb::readLocalSlaveWebDriver());
+		}
 		if (function_exists('slave_get_driver')) {
-			$got = strtolower(trim((string) slave_get_driver('web')));
-			if ($got === 'apache' || $got === 'apache2' || $got === 'httpd') {
-				return 'apache';
-			}
+			return class_exists('serverweb')
+				? serverweb::normalizeWebDriverName((string) slave_get_driver('web'))
+				: 'nginx';
 		}
 
 		return 'nginx';

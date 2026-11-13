@@ -3153,6 +3153,7 @@ try {
 		bad('Webserver Configure Apache optimize apply does not TypeError', $optErr);
 	}
 
+	serverweb::$webDriverOverride = 'nginx';
 	$sw->applyDriverFieldLabels();
 	$phpNg = $sw->updateform('php_type', array());
 	$drvName = $sw->selectedWebDriver();
@@ -3166,6 +3167,51 @@ try {
 	} else {
 		bad('Webserver Configure follows Nginx web driver for PHP Type / optimize labels',
 			$drvName . ' / ' . var_export($phpNg['php_type'][0] ?? null, true));
+	}
+
+	serverweb::$webDriverOverride = 'apache';
+	$sw->applyDriverFieldLabels();
+	$phpAp = $sw->updateform('php_type', array());
+	$apOk = ($sw->selectedWebDriver() === 'apache'
+		&& isset($phpAp['php_type'][0]) && $phpAp['php_type'][0] === 's'
+		&& serverweb::$__desc_php_type[2] === 'php_type_apache'
+		&& serverweb::$__desc_apache_optimize[2] === 'apache_optimize');
+	serverweb::$webDriverOverride = null;
+	if ($apOk) {
+		ok('Webserver Configure follows Apache web driver after Switch Program change');
+	} else {
+		bad('Webserver Configure follows Apache web driver after Switch Program change',
+			$sw->selectedWebDriver() . ' / ' . var_export($phpAp['php_type'][0] ?? null, true));
+	}
+
+	$tmpSlave = sys_get_temp_dir() . '/kloxo-slave-driver-' . getmypid();
+	@mkdir($tmpSlave . '/etc/slavedb', 0755, true);
+	$slaveObj = new stdClass();
+	$slaveObj->data = array('web' => 'apache', 'dns' => 'bind', 'smtp' => 'exim');
+	file_put_contents($tmpSlave . '/etc/slavedb/driver', serialize($slaveObj));
+	global $sgbl;
+	$prevRoot = is_object($sgbl) ? ($sgbl->__path_program_root ?? null) : null;
+	if (!is_object($sgbl)) {
+		$sgbl = new stdClass();
+	}
+	$sgbl->__path_program_root = $tmpSlave;
+	$fromSlave = serverweb::readLocalSlaveWebDriver();
+	$norm = serverweb::normalizeWebDriverName($fromSlave);
+	if (is_object($sgbl)) {
+		if ($prevRoot === null) {
+			unset($sgbl->__path_program_root);
+		} else {
+			$sgbl->__path_program_root = $prevRoot;
+		}
+	}
+	@unlink($tmpSlave . '/etc/slavedb/driver');
+	@rmdir($tmpSlave . '/etc/slavedb');
+	@rmdir($tmpSlave . '/etc');
+	@rmdir($tmpSlave);
+	if ($fromSlave === 'apache' && $norm === 'apache') {
+		ok('Webserver Configure reads web driver from absolute slavedb path');
+	} else {
+		bad('Webserver Configure reads web driver from absolute slavedb path', $fromSlave);
 	}
 
 	$tmpNg = sys_get_temp_dir() . '/kloxo-nginx-opt-' . getmypid() . '.conf';
@@ -3189,7 +3235,10 @@ try {
 	bad('Webserver Configure every section form loads', $e->getMessage());
 	bad('Webserver Configure Apache optimize apply does not TypeError', $e->getMessage());
 	bad('Webserver Configure follows Nginx web driver for PHP Type / optimize labels', $e->getMessage());
+	bad('Webserver Configure follows Apache web driver after Switch Program change', $e->getMessage());
+	bad('Webserver Configure reads web driver from absolute slavedb path', $e->getMessage());
 	bad('Nginx memory optimize rewrites worker settings', $e->getMessage());
+	serverweb::$webDriverOverride = null;
 }
 
 $webSrc = (string)file_get_contents($doc . '/driver/web/serverweblib.php');

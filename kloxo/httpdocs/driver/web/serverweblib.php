@@ -33,37 +33,145 @@ class serverweb extends lxdb
 
 	static $__desc_enable_php52m_fpm = array("", "", "enable_php52m_fpm");
 
+	/** @var null|string Test hook: force nginx|apache without reading slavedb. */
+	public static $webDriverOverride = null;
+
 	/**
 	 * Switch Program web driver for this server (nginx or apache).
+	 *
+	 * Same order as Switch Program: slavedb/driver via kloxo-backend first
+	 * (written on every switch), then the panel driver table, then a local
+	 * absolute slavedb read. Falling back to getSyncClass(null, …) first was
+	 * wrong — for some logins it returns null and we always showed Nginx.
 	 *
 	 * @return string nginx|apache
 	 */
 	function selectedWebDriver()
 	{
+		if (is_string(self::$webDriverOverride) && self::$webDriverOverride !== '') {
+			return self::normalizeWebDriverName(self::$webDriverOverride);
+		}
+
 		$server = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
 			? $this->syncserver : 'localhost';
-		$got = '';
-		global $gbl;
+		if ($server === '' || $server === 'pserver-localhost') {
+			$server = 'localhost';
+		}
+
+		// Parent pserver may already hold web_driver from Switch Program.
 		try {
-			if (is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
-				$got = (string) $gbl->getSyncClass(null, $server, 'web');
+			$parent = $this->getParentO();
+			if (is_object($parent) && isset($parent->web_driver)
+				&& is_string($parent->web_driver) && $parent->web_driver !== '') {
+				return self::normalizeWebDriverName($parent->web_driver);
 			}
 		} catch (Throwable $e) {
-			$got = '';
 		}
-		if ($got === '' && function_exists('slave_get_driver')) {
+
+		$got = '';
+
+		// 1) Live slavedb on the server (authoritative after Switch Program).
+		if (function_exists('rl_exec_get')) {
 			try {
-				$got = (string) slave_get_driver('web');
+				$raw = rl_exec_get(null, $server, 'slave_get_driver', array('web'), false);
+				if (is_string($raw) && $raw !== '') {
+					$got = $raw;
+				}
 			} catch (Throwable $e) {
 				$got = '';
 			}
 		}
-		$got = strtolower(trim($got));
+
+		// 2) Panel driver table (pg_web).
+		if ($got === '') {
+			global $gbl;
+			try {
+				if (is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
+					$master = (isset($this->__masterserver) && is_string($this->__masterserver)
+						&& $this->__masterserver !== '')
+						? $this->__masterserver : 'localhost';
+					$raw = $gbl->getSyncClass($master, $server, 'web');
+					if (is_string($raw) && $raw !== '') {
+						$got = $raw;
+					}
+				}
+			} catch (Throwable $e) {
+				$got = '';
+			}
+		}
+
+		// 3) Local slavedb with an absolute path (panel FPM cwd is not always httpdocs).
+		if ($got === '') {
+			$got = self::readLocalSlaveWebDriver();
+		}
+
+		return self::normalizeWebDriverName($got);
+	}
+
+	/** @return string nginx|apache */
+	static function normalizeWebDriverName($name)
+	{
+		$got = strtolower(trim((string) $name));
 		if ($got === 'apache' || $got === 'apache2' || $got === 'httpd') {
 			return 'apache';
 		}
 
 		return 'nginx';
+	}
+
+	/** Read etc/slavedb/driver web entry from the program root. */
+	static function readLocalSlaveWebDriver()
+	{
+		global $sgbl;
+
+		$paths = array();
+		if (is_object($sgbl) && isset($sgbl->__path_program_root)
+			&& is_string($sgbl->__path_program_root) && $sgbl->__path_program_root !== '') {
+			$paths[] = rtrim($sgbl->__path_program_root, '/') . '/etc/slavedb/driver';
+		}
+		$paths[] = dirname(__DIR__, 3) . '/etc/slavedb/driver';
+		$paths[] = '../etc/slavedb/driver';
+
+		foreach ($paths as $f) {
+			if (!is_string($f) || $f === '' || !is_readable($f)) {
+				continue;
+			}
+			$raw = @file_get_contents($f);
+			if (!is_string($raw) || $raw === '') {
+				continue;
+			}
+			// allowed_classes=false yields __PHP_Incomplete_Class; cast to array for ->data.
+			$rmt = @unserialize($raw, array('allowed_classes' => false));
+			if ($rmt === false) {
+				$rmt = @unserialize($raw);
+			}
+			$data = null;
+			if (is_object($rmt)) {
+				$arr = (array) $rmt;
+				if (isset($arr['data']) && is_array($arr['data'])) {
+					$data = $arr['data'];
+				} elseif (isset($rmt->data) && is_array($rmt->data)) {
+					$data = $rmt->data;
+				}
+			} elseif (is_array($rmt) && isset($rmt['data']) && is_array($rmt['data'])) {
+				$data = $rmt['data'];
+			}
+			if (is_array($data) && isset($data['web']) && is_string($data['web']) && $data['web'] !== '') {
+				return $data['web'];
+			}
+		}
+
+		if (function_exists('slave_get_driver')) {
+			try {
+				$raw = slave_get_driver('web');
+				if (is_string($raw) && $raw !== '') {
+					return $raw;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+
+		return '';
 	}
 
 	/** Point field labels at Apache or Nginx desclib keys for this request. */
@@ -87,6 +195,11 @@ class serverweb extends lxdb
 			$uflist['fix_chownchmod_user'] = null;
 
 			return $uflist;
+		}
+
+		if ((!isset($this->syncserver) || $this->syncserver === '')
+			&& isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+			$this->syncserver = $parent->nname;
 		}
 
 		$this->applyDriverFieldLabels();
