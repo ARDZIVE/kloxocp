@@ -983,7 +983,37 @@ function kloxo_llog_cgi_path()
 }
 
 /**
- * Log Manager picker: application list + file list on the same page.
+ * Build a Log Manager show URL that keeps the object path and optional app/file.
+ *
+ * @param array<int|string,array<string,string>> $cgi_o_o
+ * @param string $app
+ * @param string $file
+ * @return string
+ */
+function kloxo_llog_show_url($cgi_o_o, $app = '', $file = '')
+{
+	$q = array('frm_action' => 'show');
+	foreach ((array) $cgi_o_o as $k => $v) {
+		if (!is_array($v) || !isset($v['class']) || (string) $v['class'] === '') {
+			continue;
+		}
+		$q['frm_o_o[' . $k . '][class]'] = (string) $v['class'];
+		if (isset($v['nname']) && (string) $v['nname'] !== '') {
+			$q['frm_o_o[' . $k . '][nname]'] = (string) $v['nname'];
+		}
+	}
+	if ((string) $app !== '') {
+		$q['frm_llog_app'] = (string) $app;
+	}
+	if ((string) $file !== '') {
+		$q['frm_llog_file'] = (string) $file;
+	}
+
+	return '/display.php?' . http_build_query($q);
+}
+
+/**
+ * Log Manager picker: application + file + refresh on one toolbar.
  *
  * @param object $object
  * @param array<string,string> $list unused (apps come from Llog::logApps)
@@ -1024,6 +1054,12 @@ function kloxo_print_llog_picker($object, $list)
 		if (!is_array($files)) {
 			$files = array();
 		}
+	}
+
+	$effectiveFile = (class_exists('Llog') && is_callable(array('Llog', 'effectiveLogKey')))
+		? Llog::effectiveLogKey($files) : $selectedFile;
+	if ($effectiveFile === '' && $selectedFile !== '') {
+		$effectiveFile = $selectedFile;
 	}
 
 	$skin_color = 'aaa';
@@ -1080,13 +1116,16 @@ function kloxo_print_llog_picker($object, $list)
 		$hiddenPath .= '<input type="hidden" name="frm_consumedlogin" value="' . $frm_consumedlogin . '"/>';
 	}
 	$hiddenPath .= '<input type="hidden" name="frm_action" value="show"/>';
+
+	$refreshUrl = kloxo_llog_show_url($cgi_o_o, $selectedApp, $effectiveFile);
+	$fileCount = count($files);
 ?>
-		<div style="background: #<?= htmlspecialchars($skin_color, ENT_QUOTES) ?> <?= $img_url ?>" class="div_select_switch">
-			<div style="float:left; padding: 4px"><span <?= $forecolorstring ?> style='font-weight:bold;'>&nbsp;Application&nbsp;</span></div>
-			<div style="float:left; margin-right:16px">
-				<form name="llogappselect" method="get" action="/display.php" accept-charset="utf-8">
+		<div class="kloxo-llog-toolbar div_select_switch" style="background: #<?= htmlspecialchars($skin_color, ENT_QUOTES) ?> <?= $img_url ?>">
+			<div class="kloxo-llog-toolbar-row">
+				<label class="kloxo-llog-label" <?= $forecolorstring ?> for="llog-app-select">Application</label>
+				<form class="kloxo-llog-form" name="llogappselect" method="get" action="/display.php" accept-charset="utf-8">
 					<?= $hiddenPath ?>
-					<select <?= $ststring ?> class="textbox select_switch" onChange="document.llogappselect.submit()" name="frm_llog_app">
+					<select id="llog-app-select" <?= $ststring ?> class="textbox select_switch kloxo-llog-select" onChange="document.llogappselect.submit()" name="frm_llog_app">
 						<option value="">— select application —</option>
 <?php
 	foreach ($apps as $appId => $meta) {
@@ -1101,50 +1140,59 @@ function kloxo_print_llog_picker($object, $list)
 ?>
 					</select>
 				</form>
-			</div>
 <?php
 	if ($selectedApp !== '') {
 ?>
-			<div style="float:left; padding: 4px"><span <?= $forecolorstring ?> style='font-weight:bold;'>&nbsp;Log file&nbsp;</span></div>
-			<div style="float:left;">
-				<form name="llogfileselect" method="get" action="/display.php" accept-charset="utf-8">
+				<label class="kloxo-llog-label" <?= $forecolorstring ?> for="llog-file-select">Log file<?= $fileCount > 0 ? ' (' . (int) $fileCount . ')' : '' ?></label>
+				<form class="kloxo-llog-form" name="llogfileselect" method="get" action="/display.php" accept-charset="utf-8">
 					<?= $hiddenPath ?>
 					<input type="hidden" name="frm_llog_app" value="<?= htmlspecialchars($selectedApp, ENT_QUOTES) ?>"/>
-					<select <?= $ststring ?> class="textbox select_switch" onChange="document.llogfileselect.submit()" name="frm_llog_file">
-						<option value="">— select a log file —</option>
+					<select id="llog-file-select" <?= $ststring ?> class="textbox select_switch kloxo-llog-select kloxo-llog-select-file" onChange="document.llogfileselect.submit()" name="frm_llog_file">
 <?php
-		foreach ($files as $row) {
-			if (!is_array($row) || !isset($row['path'])) {
-				continue;
-			}
-			$ep = htmlspecialchars(kloxo_string($row['path']), ENT_QUOTES);
-			$el = htmlspecialchars(kloxo_string($row['label'] ?? basename((string) $row['path'])), ENT_QUOTES);
-			$sel = ((string) $row['path'] === (string) $selectedFile) ? ' selected' : '';
+		if ($files === array()) {
+?>
+						<option value="">— no log files found —</option>
+<?php
+		} else {
+			foreach ($files as $row) {
+				if (!is_array($row) || !isset($row['path'])) {
+					continue;
+				}
+				$ep = htmlspecialchars(kloxo_string($row['path']), ENT_QUOTES);
+				$lab = (class_exists('Llog') && is_callable(array('Llog', 'fileOptionLabel')))
+					? Llog::fileOptionLabel($row)
+					: (string) ($row['label'] ?? basename((string) $row['path']));
+				$el = htmlspecialchars(kloxo_string($lab), ENT_QUOTES);
+				$sel = ((string) $row['path'] === (string) $effectiveFile) ? ' selected' : '';
 ?>
 						<option value="<?= $ep ?>"<?= $sel ?>><?= $el ?></option>
 <?php
+			}
 		}
 ?>
 					</select>
 				</form>
-			</div>
 <?php
+		if ($effectiveFile !== '') {
+?>
+				<a class="kloxo-llog-refresh" href="<?= htmlspecialchars($refreshUrl, ENT_QUOTES) ?>" title="Reload this log">Refresh</a>
+<?php
+		}
 	}
 ?>
+			</div>
 		</div>
-		<br style="clear:both"/>
 <?php
 	if ($hint !== '') {
-		echo '<div style="margin:4px 12px 8px;color:#666;font-size:12px">'
+		echo '<div class="kloxo-llog-hint">'
 			. htmlspecialchars($hint, ENT_QUOTES) . '</div>';
 	}
 	if ($selectedApp !== '' && $files === array()) {
-		echo '<div style="margin:4px 12px 8px;color:#666;font-size:12px">'
-			. 'No log files found yet for this application on the server.'
-			. ($selectedApp === 'logwatch'
-				? ' Configure and run Security → LogWatch to create reports in /var/log/logwatch/.'
-				: '')
-			. '</div>';
+		$empty = 'No log files found yet for this application on the server.';
+		if ($selectedApp === 'logwatch') {
+			$empty .= ' Configure and run Security → LogWatch to create reports in /var/log/logwatch/.';
+		}
+		echo '<div class="kloxo-llog-empty">' . htmlspecialchars($empty, ENT_QUOTES) . '</div>';
 	}
 }
 
@@ -1162,14 +1210,26 @@ function kloxo_print_llog_content($object)
 		return;
 	}
 
-	$key = Llog::selectedLogKey();
+	$app = Llog::selectedLogApp();
+	$files = array();
+	if ($app !== '') {
+		if (method_exists($object, 'listAppFilesLive')) {
+			$files = $object->listAppFilesLive($app);
+		} else {
+			$files = Llog::listAppFiles($app);
+		}
+		if (!is_array($files)) {
+			$files = array();
+		}
+	}
+
+	$key = is_callable(array('Llog', 'effectiveLogKey'))
+		? Llog::effectiveLogKey($files) : Llog::selectedLogKey();
 	if ($key === '') {
-		$app = class_exists('Llog') ? Llog::selectedLogApp() : '';
 		$msg = $app !== ''
-			? 'Select a log file for this application. The contents appear here on this page.'
-			: 'Select an application, then a log file. The contents appear here on this page. '
-				. 'LogWatch reports are under Application → LogWatch (files in /var/log/logwatch/; configure in Security → LogWatch).';
-		echo '<div class="kloxo-llog-view" style="margin:8px 12px 16px;padding:12px;border:1px solid #ddd;background:#fafafa;color:#666">'
+			? 'No log file is available for this application yet.'
+			: 'Choose an application above. The newest matching log opens automatically; switch files with the Log file list.';
+		echo '<div class="kloxo-llog-view kloxo-llog-placeholder">'
 			. htmlspecialchars($msg, ENT_QUOTES)
 			. '</div>';
 
@@ -1182,11 +1242,13 @@ function kloxo_print_llog_content($object)
 	} catch (Throwable $e) {
 		$view = array(
 			'key' => $key,
-			'label' => $key,
+			'label' => basename($key),
 			'path' => class_exists('Llog') ? Llog::resolveLogPath($key) : $key,
 			'content' => '',
 			'truncated' => false,
 			'missing' => true,
+			'size' => 0,
+			'mtime' => 0,
 			'error' => $e->getMessage(),
 		);
 	}
@@ -1197,39 +1259,66 @@ function kloxo_print_llog_content($object)
 	$h = static function ($v) {
 		return htmlspecialchars((string) $v, ENT_QUOTES);
 	};
-	$label = $h($view['label'] ?? $key);
+	$label = $h($view['label'] ?? basename($key));
 	$path = $h($view['path'] ?? $key);
 	$err = trim((string) ($view['error'] ?? ''));
 	$content = (string) ($view['content'] ?? '');
 	$truncated = !empty($view['truncated']);
 	$missing = !empty($view['missing']) && $content === '' && $err === '';
 	$kb = (int) Llog::VIEW_TAIL_KB;
+	$size = class_exists('Llog') && is_callable(array('Llog', 'formatBytes'))
+		? Llog::formatBytes((int) ($view['size'] ?? 0)) : '';
+	$age = class_exists('Llog') && is_callable(array('Llog', 'formatAge'))
+		? Llog::formatAge((int) ($view['mtime'] ?? 0)) : '';
+	$mtimeAbs = ((int) ($view['mtime'] ?? 0) > 0)
+		? date('Y-m-d H:i:s', (int) $view['mtime']) : '';
 
-	echo '<div class="kloxo-llog-view" style="margin:0 12px 16px">';
-	echo '<div style="margin:0 0 6px;font-weight:bold">' . $label
-		. ' <span style="font-weight:normal;color:#666">(' . $path . ')</span></div>';
+	$cgi_o_o = kloxo_llog_cgi_path();
+	$hasLlog = false;
+	foreach ($cgi_o_o as $v) {
+		if (isset($v['class']) && strtolower((string) $v['class']) === 'llog') {
+			$hasLlog = true;
+			break;
+		}
+	}
+	if (!$hasLlog) {
+		$cgi_o_o[kcount($cgi_o_o)] = array('class' => 'llog');
+	}
+	$refreshUrl = kloxo_llog_show_url($cgi_o_o, $app, $key);
+
+	echo '<div class="kloxo-llog-view">';
+	echo '<div class="kloxo-llog-head">';
+	echo '<div class="kloxo-llog-head-main">';
+	echo '<div class="kloxo-llog-title">' . $label . '</div>';
+	echo '<div class="kloxo-llog-path" title="' . $path . '">' . $path . '</div>';
+	echo '</div>';
+	echo '<div class="kloxo-llog-head-meta">';
+	if ($size !== '') {
+		echo '<span class="kloxo-llog-badge">' . $h($size) . '</span>';
+	}
+	if ($age !== '') {
+		echo '<span class="kloxo-llog-badge" title="' . $h($mtimeAbs) . '">' . $h($age) . '</span>';
+	}
+	if ($truncated) {
+		echo '<span class="kloxo-llog-badge kloxo-llog-badge-warn">last ' . (int) $kb . ' KB</span>';
+	}
+	echo '<a class="kloxo-llog-refresh" href="' . $h($refreshUrl) . '">Refresh</a>';
+	echo '</div></div>';
 
 	if ($err !== '') {
-		echo '<div style="padding:10px;border:1px solid #c66;background:#fff5f5;color:#a00">'
-			. $h($err) . '</div></div>';
+		echo '<div class="kloxo-llog-error">' . $h($err) . '</div></div>';
 
 		return;
 	}
 	if ($missing) {
-		echo '<div style="padding:10px;border:1px solid #ddd;background:#fafafa;color:#666">'
-			. 'This log file is missing or empty on the server.</div></div>';
+		echo '<div class="kloxo-llog-placeholder">This log file is missing or empty on the server.</div></div>';
 
 		return;
 	}
-	if ($truncated) {
-		echo '<div style="margin:0 0 6px;color:#666;font-size:12px">Showing the last '
-			. $kb . ' KB of the file.</div>';
-	}
 
-	echo '<pre class="kloxo-llog-pre" style="margin:0;padding:10px;border:1px solid #ccc;'
-		. 'background:#fff;color:#222;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;'
-		. 'white-space:pre-wrap;word-break:break-word;max-height:70vh;overflow:auto">'
-		. $h($content) . '</pre>';
+	echo '<pre class="kloxo-llog-pre" id="kloxo-llog-pre">' . $h($content) . '</pre>';
+	echo '<script>(function(){var p=document.getElementById("kloxo-llog-pre");'
+		. 'if(p){p.scrollTop=p.scrollHeight;}})();</script>';
 	echo '</div>';
 }
 

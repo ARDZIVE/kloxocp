@@ -36,10 +36,27 @@ if (!class_exists('Llog')) {
 ok('Llog class loads');
 
 $apps = Llog::logApps();
-if (!is_array($apps) || $apps === array() || !isset($apps['logwatch'], $apps['nginx'], $apps['syslog'])) {
-	bad('logApps includes syslog nginx logwatch');
+if (!is_array($apps) || $apps === array()
+	|| !isset($apps['logwatch'], $apps['nginx'], $apps['syslog'], $apps['dovecot'], $apps['rspamd'])) {
+	bad('logApps includes syslog nginx dovecot rspamd logwatch');
 } else {
-	ok('logApps includes syslog nginx logwatch');
+	ok('logApps includes syslog nginx dovecot rspamd logwatch');
+}
+
+if (Llog::formatBytes(0) === '0 B' && Llog::formatBytes(1536) === '1.5 KB'
+	&& str_contains(Llog::fileOptionLabel(array(
+		'label' => 'error.log',
+		'size' => 2048,
+		'mtime' => time() - 120,
+	)), 'error.log')
+	&& str_contains(Llog::fileOptionLabel(array(
+		'label' => 'error.log',
+		'size' => 2048,
+		'mtime' => time() - 120,
+	)), 'KB')) {
+	ok('formatBytes and fileOptionLabel include size');
+} else {
+	bad('formatBytes and fileOptionLabel include size');
 }
 
 if (isset($apps['logwatch']['hint']) && str_contains((string) $apps['logwatch']['hint'], '/var/log/logwatch')) {
@@ -126,6 +143,9 @@ if (Llog::selectedLogKey() === '') {
 	bad('selectedLogKey rejects paths outside the catalog');
 }
 
+$ghtml->__http_vars['frm_llog_app'] = 'nginx';
+$ghtml->__http_vars['frm_llog_file'] = '/var/log/nginx/error.log';
+
 $path = kloxo_llog_cgi_path();
 if (isset($path[0]['nname'], $path[1]['class'])
 	&& $path[0]['nname'] === 'localhost' && $path[1]['class'] === 'llog') {
@@ -139,25 +159,47 @@ kloxo_print_llog_picker($llog, array());
 $pickerHtml = (string) ob_get_clean();
 if (str_contains($pickerHtml, 'name="frm_llog_app"')
 	&& str_contains($pickerHtml, 'name="frm_llog_file"')
+	&& str_contains($pickerHtml, 'kloxo-llog-toolbar')
 	&& str_contains($pickerHtml, 'Application')
 	&& str_contains($pickerHtml, 'Log file')
 	&& str_contains($pickerHtml, 'value="pserver"')
 	&& str_contains($pickerHtml, 'value="llog"')
-	&& str_contains($pickerHtml, 'logwatch')) {
-	ok('picker has application + file lists and keeps object path');
+	&& str_contains($pickerHtml, 'logwatch')
+	&& str_contains($pickerHtml, 'Refresh')) {
+	ok('picker has toolbar, application + file lists, refresh, object path');
 } else {
-	bad('picker has application + file lists and keeps object path', substr($pickerHtml, 0, 400));
+	bad('picker has toolbar, application + file lists, refresh, object path', substr($pickerHtml, 0, 400));
+}
+
+unset($ghtml->__http_vars['frm_llog_file']);
+$eff = Llog::effectiveLogKey(array(
+	array('path' => '/var/log/nginx/error.log'),
+	array('path' => '/var/log/nginx/access.log'),
+));
+if ($eff === '/var/log/nginx/error.log') {
+	ok('effectiveLogKey falls back to newest listed file');
+} else {
+	bad('effectiveLogKey falls back to newest listed file', $eff);
+}
+
+$showUrl = kloxo_llog_show_url($path, 'nginx', '/var/log/nginx/error.log');
+if (str_contains($showUrl, 'frm_llog_app=nginx')
+	&& str_contains($showUrl, 'frm_llog_file=')
+	&& str_contains($showUrl, 'frm_action=show')) {
+	ok('kloxo_llog_show_url keeps app file and action');
+} else {
+	bad('kloxo_llog_show_url keeps app file and action', $showUrl);
 }
 
 unset($ghtml->__http_vars['frm_llog_app'], $ghtml->__http_vars['frm_llog_file']);
 ob_start();
 kloxo_print_llog_content($llog);
 $emptyHtml = (string) ob_get_clean();
-if (str_contains($emptyHtml, 'Select an application')
-	&& str_contains($emptyHtml, 'LogWatch')) {
-	ok('empty selection mentions application + LogWatch location');
+if (str_contains($emptyHtml, 'Choose an application')
+	&& str_contains($emptyHtml, 'kloxo-llog-placeholder')) {
+	ok('empty selection asks to choose an application');
 } else {
-	bad('empty selection mentions application + LogWatch location', substr($emptyHtml, 0, 200));
+	bad('empty selection asks to choose an application', substr($emptyHtml, 0, 200));
 }
 
 $ghtml->__http_vars['frm_llog_app'] = 'syslog';
@@ -172,6 +214,8 @@ $llogStub = new class {
 			'content' => "line1\n<script>",
 			'truncated' => true,
 			'missing' => false,
+			'size' => 4096,
+			'mtime' => time() - 90,
 			'error' => '',
 		);
 	}
@@ -182,10 +226,13 @@ $viewHtml = (string) ob_get_clean();
 $ghtml = $prevHtml;
 if (str_contains($viewHtml, 'kloxo-llog-pre')
 	&& str_contains($viewHtml, 'line1')
-	&& str_contains($viewHtml, '&lt;script&gt;')) {
-	ok('selected log renders escaped content under the picker');
+	&& str_contains($viewHtml, '&lt;script&gt;')
+	&& str_contains($viewHtml, 'kloxo-llog-badge')
+	&& str_contains($viewHtml, 'last 50 KB')
+	&& str_contains($viewHtml, 'Refresh')) {
+	ok('selected log renders escaped content with meta and refresh');
 } else {
-	bad('selected log renders escaped content under the picker', substr($viewHtml, 0, 300));
+	bad('selected log renders escaped content with meta and refresh', substr($viewHtml, 0, 400));
 }
 
 printf("\n%d ok, %d FAIL\n", $pass, $fail);

@@ -37,6 +37,43 @@ class Llog extends Lxclass {
 		return $alist;
 	}
 
+	function getSelfList()
+	{
+		$parent = null;
+		try {
+			$parent = $this->getParentO();
+		} catch (Throwable $e) {
+			$parent = null;
+		}
+		$current = (is_object($parent) && method_exists($parent, 'getClass')
+			&& $parent->getClass() === 'pserver')
+			? $parent : $this;
+		$canDb = function_exists('lfile_exists') && lfile_exists('__path_admin_pass')
+			&& trim((string) lfile_get_contents('__path_admin_pass')) !== '';
+		$out = array();
+		if ($canDb && class_exists('pserver') && is_callable(array('pserver', 'adminServerSwitchList'))) {
+			try {
+				$got = pserver::adminServerSwitchList($current);
+				if (is_array($got)) {
+					foreach ($got as $k => $p) {
+						if (is_object($p) && method_exists($p, 'getId')) {
+							$out[(string) $k] = $p;
+						}
+					}
+				}
+			} catch (Throwable $e) {
+				$out = array();
+			}
+		}
+		if ($out === array() && is_object($current) && method_exists($current, 'getId')) {
+			$n = (isset($current->nname) && is_string($current->nname) && $current->nname !== '')
+				? $current->nname : 'localhost';
+			$out[$n] = $current;
+		}
+
+		return $out !== array() ? $out : null;
+	}
+
 	function getFfileFromVirtualList($name)
 	{
 		if (substr($name, 0, 1) !== '/') {
@@ -107,9 +144,29 @@ class Llog extends Lxclass {
 				'label' => 'Pure-FTPd',
 				'patterns' => array('/var/log/pureftpd.log*'),
 			),
+			'dovecot' => array(
+				'label' => 'Dovecot',
+				'patterns' => array('/var/log/dovecot.log*', '/var/log/mail.log*'),
+			),
+			'rspamd' => array(
+				'label' => 'Rspamd',
+				'patterns' => array('/var/log/rspamd/rspamd.log*'),
+			),
+			'bind9' => array(
+				'label' => 'BIND',
+				'patterns' => array('/var/log/named/named.log*', '/var/log/syslog*'),
+			),
+			'knot' => array(
+				'label' => 'Knot DNS',
+				'patterns' => array('/var/log/knot/knotd.log*', '/var/log/syslog*'),
+			),
 			'fail2ban' => array(
 				'label' => 'Fail2Ban',
 				'patterns' => array('/var/log/fail2ban.log*'),
+			),
+			'redis' => array(
+				'label' => 'Redis',
+				'patterns' => array('/var/log/redis/redis-server.log*', '/var/log/redis/redis.log*'),
 			),
 			'letsencrypt' => array(
 				'label' => "Let's Encrypt",
@@ -141,7 +198,7 @@ class Llog extends Lxclass {
 			'logwatch' => array(
 				'label' => 'LogWatch',
 				'patterns' => array('/var/log/logwatch/logwatch-*'),
-				'hint' => 'Reports written by Security → LogWatch. Configure schedule and retention there; files live in /var/log/logwatch/.',
+				'hint' => 'Reports from Security → LogWatch. Enable a schedule there; files are stored in /var/log/logwatch/.',
 			),
 		);
 
@@ -322,6 +379,93 @@ class Llog extends Lxclass {
 		return '';
 	}
 
+	/**
+	 * Path to show: explicit selection, else the newest file for the app.
+	 *
+	 * @param list<array{path?:string}> $files
+	 */
+	static function effectiveLogKey($files = array())
+	{
+		$key = self::selectedLogKey();
+		if ($key !== '') {
+			return $key;
+		}
+		if (!is_array($files) || $files === array()) {
+			return '';
+		}
+		$first = $files[0];
+		if (is_array($first) && isset($first['path']) && self::isSafeLogPath((string) $first['path'])) {
+			return (string) $first['path'];
+		}
+
+		return '';
+	}
+
+	/** Human size for the file list and viewer header. */
+	static function formatBytes($bytes)
+	{
+		$n = (float) $bytes;
+		if ($n < 0) {
+			$n = 0;
+		}
+		$units = array('B', 'KB', 'MB', 'GB');
+		$i = 0;
+		while ($n >= 1024 && $i < count($units) - 1) {
+			$n /= 1024;
+			$i++;
+		}
+		if ($i === 0) {
+			return ((int) $n) . ' B';
+		}
+
+		return sprintf('%.1f %s', $n, $units[$i]);
+	}
+
+	/** Short relative age for mtime. */
+	static function formatAge($mtime)
+	{
+		$t = (int) $mtime;
+		if ($t <= 0) {
+			return '';
+		}
+		$sec = max(0, time() - $t);
+		if ($sec < 60) {
+			return $sec . 's ago';
+		}
+		if ($sec < 3600) {
+			return (int) floor($sec / 60) . 'm ago';
+		}
+		if ($sec < 86400) {
+			return (int) floor($sec / 3600) . 'h ago';
+		}
+		if ($sec < 86400 * 14) {
+			return (int) floor($sec / 86400) . 'd ago';
+		}
+
+		return date('Y-m-d', $t);
+	}
+
+	/**
+	 * Option label: basename + size + age.
+	 *
+	 * @param array{path?:string,label?:string,mtime?:int,size?:int} $row
+	 */
+	static function fileOptionLabel($row)
+	{
+		if (!is_array($row)) {
+			return '';
+		}
+		$name = (string) ($row['label'] ?? basename((string) ($row['path'] ?? '')));
+		$size = self::formatBytes((int) ($row['size'] ?? 0));
+		$age = self::formatAge((int) ($row['mtime'] ?? 0));
+		$bits = array($name, $size);
+		if ($age !== '') {
+			$bits[] = $age;
+		}
+
+		return implode(' · ', $bits);
+	}
+
 	/** @deprecated */
 	static function isValidLogKey($key)
 	{
@@ -388,7 +532,7 @@ class Llog extends Lxclass {
 
 	/**
 	 * @param string $path absolute
-	 * @return array{key:string,label:string,path:string,content:string,truncated:bool,missing:bool,error:string}
+	 * @return array{key:string,label:string,path:string,content:string,truncated:bool,missing:bool,size:int,mtime:int,error:string}
 	 */
 	function readLogView($path)
 	{
@@ -399,6 +543,8 @@ class Llog extends Lxclass {
 			'content' => '',
 			'truncated' => false,
 			'missing' => true,
+			'size' => 0,
+			'mtime' => 0,
 			'error' => '',
 		);
 		if (!self::isSafeLogPath($path)) {
@@ -417,8 +563,19 @@ class Llog extends Lxclass {
 			if (isset($ff->ttype) && $ff->ttype === 'file') {
 				$out['missing'] = false;
 			}
-			if (isset($ff->size) && (int) $ff->size === 0 && $out['content'] === '') {
-				$out['missing'] = false;
+			if (isset($ff->size)) {
+				$out['size'] = (int) $ff->size;
+				if ((int) $ff->size === 0 && $out['content'] === '') {
+					$out['missing'] = false;
+				}
+			}
+			if (isset($ff->mtime)) {
+				$out['mtime'] = (int) $ff->mtime;
+			} elseif (is_string($path) && is_file($path)) {
+				$out['mtime'] = (int) (@filemtime($path) ?: 0);
+				if ($out['size'] === 0) {
+					$out['size'] = (int) (@filesize($path) ?: 0);
+				}
 			}
 		} catch (Throwable $e) {
 			$out['error'] = $e->getMessage();

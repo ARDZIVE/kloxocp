@@ -1181,3 +1181,150 @@ html>body #quotausagebar span.last {
 	.kloxo-ufw table.tableheader {
 		margin-bottom: 10px;
 	}
+
+	.kloxo-llog-toolbar {
+		height: auto !important;
+		min-height: 24px;
+		margin: 0 0 8px;
+		padding: 6px 10px;
+		box-sizing: border-box;
+	}
+
+	.kloxo-llog-toolbar-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px 10px;
+	}
+
+	.kloxo-llog-label {
+		font-weight: bold;
+		white-space: nowrap;
+		margin: 0;
+	}
+
+	.kloxo-llog-form {
+		display: inline-flex;
+		margin: 0;
+		min-width: 0;
+	}
+
+	.kloxo-llog-select {
+		width: auto !important;
+		min-width: 160px;
+		max-width: 280px;
+		margin: 0 !important;
+	}
+
+	.kloxo-llog-select-file {
+		min-width: 220px;
+		max-width: min(520px, 100%);
+	}
+
+	.kloxo-llog-refresh {
+		display: inline-block;
+		padding: 3px 10px;
+		border: 1px solid #888;
+		background: #f5f5f5;
+		color: #222;
+		text-decoration: none;
+		font-size: 12px;
+		font-weight: bold;
+		white-space: nowrap;
+	}
+
+	.kloxo-llog-refresh:hover {
+		background: #fff;
+		border-color: #555;
+	}
+
+	.kloxo-llog-hint,
+	.kloxo-llog-empty {
+		margin: 4px 12px 8px;
+		color: #666;
+		font-size: 12px;
+	}
+
+	.kloxo-llog-view {
+		margin: 0 12px 16px;
+		border: 1px solid #ccc;
+		background: #fff;
+	}
+
+	.kloxo-llog-placeholder {
+		margin: 8px 12px 16px;
+		padding: 14px 16px;
+		border: 1px solid #ddd;
+		background: #fafafa;
+		color: #666;
+	}
+
+	.kloxo-llog-view.kloxo-llog-placeholder {
+		margin: 8px 12px 16px;
+	}
+
+	.kloxo-llog-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 8px 16px;
+		padding: 8px 12px;
+		border-bottom: 1px solid #ddd;
+		background: #f7f7f7;
+	}
+
+	.kloxo-llog-title {
+		font-weight: bold;
+		font-size: 13px;
+	}
+
+	.kloxo-llog-path {
+		color: #666;
+		font-size: 11px;
+		word-break: break-all;
+		margin-top: 2px;
+	}
+
+	.kloxo-llog-head-meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.kloxo-llog-badge {
+		display: inline-block;
+		padding: 2px 7px;
+		border: 1px solid #bbb;
+		background: #fff;
+		color: #444;
+		font-size: 11px;
+		white-space: nowrap;
+	}
+
+	.kloxo-llog-badge-warn {
+		border-color: #c9a227;
+		background: #fff8e1;
+		color: #6a5600;
+	}
+
+	.kloxo-llog-error {
+		padding: 12px;
+		border-top: 1px solid #c66;
+		background: #fff5f5;
+		color: #a00;
+	}
+
+	.kloxo-llog-pre {
+		margin: 0;
+		padding: 10px 12px;
+		border: 0;
+		background: #1e1e1e;
+		color: #e8e8e8;
+		font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		white-space: pre-wrap;
+		word-break: break-word;
+		max-height: 70vh;
+		overflow: auto;
+	}
