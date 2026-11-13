@@ -217,7 +217,7 @@ class Sgbl
 		$verfile = $root . '/bin/kloxoversion';
 		$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
 		if ($t === '') {
-			$t = '10.1-2026111306';
+			$t = '10.1-2026111307';
 		}
 
 		$this->__ver_name = 'Kloxo CP';

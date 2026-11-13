@@ -144,16 +144,52 @@ $core = file_get_contents($doc . '/theme/coredisplaylib.php');
 $coreOk = is_string($core)
 	&& str_contains($core, 'function kloxo_print_llog_picker')
 	&& str_contains($core, 'function kloxo_print_llog_content')
+	&& str_contains($core, 'function kloxo_llog_cgi_path')
 	&& str_contains($core, 'frm_llog_file')
 	&& str_contains($core, 'kloxo_print_llog_content($object)')
 	&& !str_contains($core, 'frm_o_o[<?= (int) $n ?>][class]" value="ffile"')
 	&& str_contains($core, 'isLogManagerView')
-	&& str_contains($core, 'catalogKeyFromPath');
+	&& str_contains($core, 'catalogKeyFromPath')
+	&& str_contains($core, '__http_vars')
+	&& str_contains($core, 'kloxo_llog_cgi_path()');
 if ($coreOk) {
 	ok('same-page picker uses frm_llog_file and prints content below');
 } else {
 	bad('same-page picker uses frm_llog_file and prints content below');
 }
+
+// isset($ghtml->frm_*) is always false (no __isset); path must come from __http_vars.
+$ghtml->__http_vars['frm_o_o'] = array(
+	0 => array('class' => 'pserver', 'nname' => 'localhost'),
+	1 => array('class' => 'llog'),
+);
+$path = kloxo_llog_cgi_path();
+$pathOk = isset($path[0]['class'], $path[0]['nname'], $path[1]['class'])
+	&& $path[0]['class'] === 'pserver'
+	&& $path[0]['nname'] === 'localhost'
+	&& $path[1]['class'] === 'llog'
+	&& !isset($path[1]['nname']);
+if ($pathOk) {
+	ok('kloxo_llog_cgi_path reads frm_o_o from __http_vars (not isset)');
+} else {
+	bad('kloxo_llog_cgi_path reads frm_o_o from __http_vars (not isset)', var_export($path, true));
+}
+ob_start();
+kloxo_print_llog_picker($llog, array('syslog' => 'Syslog'));
+$pickerHtml = (string) ob_get_clean();
+if (str_contains($pickerHtml, 'name="frm_o_o[0][class]"')
+	&& str_contains($pickerHtml, 'value="pserver"')
+	&& str_contains($pickerHtml, 'name="frm_o_o[0][nname]"')
+	&& str_contains($pickerHtml, 'value="localhost"')
+	&& str_contains($pickerHtml, 'name="frm_o_o[1][class]"')
+	&& str_contains($pickerHtml, 'value="llog"')
+	&& str_contains($pickerHtml, 'name="frm_llog_file"')
+	&& str_contains($pickerHtml, 'name="frm_action"')) {
+	ok('picker form keeps pserver+llog path so submit stays on Log Manager');
+} else {
+	bad('picker form keeps pserver+llog path so submit stays on Log Manager', substr($pickerHtml, 0, 500));
+}
+unset($ghtml->__http_vars['frm_o_o']);
 
 // Inline content HTML when a key is selected (no backend read required for empty key).
 ob_start();

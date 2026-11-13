@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111306**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111307**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -478,12 +478,16 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `/opt/kloxo/log/`, MariaDB, Pure-FTPd, Fail2Ban, panel PHP/FPM/watchdog,
     webcache/webproxy, per-installed `phpX.Y-fpm.log`); CentOS/removed-stack
     paths (httpd, lighttpd, yum, named/, djbdns, nsd, yadifa, rkhunter, …)
-    are gone. The picker stays on the Log Manager page (`frm_llog_file`);
+    are gone.     The picker stays on the Log Manager page (`frm_llog_file`);
     content is printed directly under the dropdown (`kloxo_print_llog_content`,
     last 50 KB via kloxo-backend). Switching logs reloads the same page.
+    The form path is taken from `__http_vars['frm_o_o']` (`kloxo_llog_cgi_path`)
+    — a property `isset()` on `frm_o_o` is always false (HtmlLib has no
+    `__isset`), which used to drop pserver+llog and land on Home.
     Legacy ffile-under-llog URLs redirect back with `frm_llog_file`. Property
     tabs are Log Manager only (no File Manager `/` root).
-    `tests/p2/test_llog.php`. Live Log Manager after deploy is **UNVERIFIED**.
+    `tests/p2/test_llog.php` (16 checks). Live Log Manager after deploy is
+    **UNVERIFIED**.
     SSH Configure has one beige tab labelled **SSH Configure** (not Home).
     Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
     **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,
@@ -1068,7 +1072,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111306**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111307**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

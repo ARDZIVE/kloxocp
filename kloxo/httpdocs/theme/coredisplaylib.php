@@ -937,6 +937,48 @@ function do_select_list($object, $sclist)
 }
 
 /**
+ * Object path for Log Manager forms. Read frm_o_o from __http_vars only —
+ * HtmlLib has no __isset, so a property isset() on frm_o_o is always false
+ * and the path was dropped (submit then landed on Home).
+ *
+ * @return array<int|string,array<string,string>>
+ */
+function kloxo_llog_cgi_path()
+{
+	global $ghtml;
+
+	if (!is_object($ghtml)) {
+		return array();
+	}
+	$oo = null;
+	if (isset($ghtml->__http_vars) && is_array($ghtml->__http_vars)
+		&& isset($ghtml->__http_vars['frm_o_o']) && is_array($ghtml->__http_vars['frm_o_o'])) {
+		$oo = $ghtml->__http_vars['frm_o_o'];
+	} else {
+		$got = $ghtml->frm_o_o;
+		if (is_array($got)) {
+			$oo = $got;
+		}
+	}
+	if (!is_array($oo)) {
+		return array();
+	}
+	$out = array();
+	foreach ($oo as $k => $v) {
+		if (!is_array($v) || !isset($v['class']) || (string) $v['class'] === '') {
+			continue;
+		}
+		$row = array('class' => (string) $v['class']);
+		if (isset($v['nname']) && (string) $v['nname'] !== '') {
+			$row['nname'] = (string) $v['nname'];
+		}
+		$out[$k] = $row;
+	}
+
+	return $out;
+}
+
+/**
  * Log Manager picker: stay on Log Manager; selection is frm_llog_file.
  *
  * @param object $object
@@ -950,9 +992,18 @@ function kloxo_print_llog_picker($object, $list)
 		return;
 	}
 
-	$cgi_o_o = is_object($ghtml) && isset($ghtml->frm_o_o) && is_array($ghtml->frm_o_o)
-		? $ghtml->frm_o_o
-		: array();
+	$cgi_o_o = kloxo_llog_cgi_path();
+	// Embedded llog often has class only (no nname). Ensure it is on the path.
+	$hasLlog = false;
+	foreach ($cgi_o_o as $v) {
+		if (isset($v['class']) && strtolower((string) $v['class']) === 'llog') {
+			$hasLlog = true;
+			break;
+		}
+	}
+	if (!$hasLlog) {
+		$cgi_o_o[kcount($cgi_o_o)] = array('class' => 'llog');
+	}
 
 	$selected = '';
 	if (class_exists('Llog') && is_callable(array('Llog', 'selectedLogKey'))) {
@@ -982,8 +1033,12 @@ function kloxo_print_llog_picker($object, $list)
 	}
 
 	$img_url = '';
-	if (is_object($ghtml) && method_exists($ghtml, 'get_expand_url')) {
-		$img_url = (string) $ghtml->get_expand_url();
+	try {
+		if (is_object($ghtml) && method_exists($ghtml, 'get_expand_url')) {
+			$img_url = (string) $ghtml->get_expand_url();
+		}
+	} catch (Throwable $e) {
+		$img_url = '';
 	}
 
 	$ststring = '';
@@ -991,6 +1046,16 @@ function kloxo_print_llog_picker($object, $list)
 	if (is_object($sgbl) && method_exists($sgbl, 'isBlackBackground') && $sgbl->isBlackBackground()) {
 		$ststring = "style='background:black;color:gray'";
 		$forecolorstring = "color=gray";
+	}
+
+	$frm_consumedlogin = '';
+	if (is_object($ghtml)) {
+		if (isset($ghtml->__http_vars) && is_array($ghtml->__http_vars)
+			&& isset($ghtml->__http_vars['frm_consumedlogin'])) {
+			$frm_consumedlogin = htmlspecialchars(kloxo_string($ghtml->__http_vars['frm_consumedlogin']), ENT_QUOTES);
+		} else {
+			$frm_consumedlogin = htmlspecialchars(kloxo_string($ghtml->frm_consumedlogin), ENT_QUOTES);
+		}
 	}
 ?>
 		<div style="background: #<?= htmlspecialchars($skin_color, ENT_QUOTES) ?> <?= $img_url ?>" class="div_select_switch">
@@ -1013,10 +1078,6 @@ function kloxo_print_llog_picker($object, $list)
 					<input type="hidden" name="frm_o_o[<?= $ek ?>][nname]" value="<?= $enname ?>"/>
 <?php
 		}
-	}
-	$frm_consumedlogin = '';
-	if (is_object($ghtml) && isset($ghtml->frm_consumedlogin)) {
-		$frm_consumedlogin = htmlspecialchars(kloxo_string($ghtml->frm_consumedlogin), ENT_QUOTES);
 	}
 	if ($frm_consumedlogin !== '') {
 ?>
