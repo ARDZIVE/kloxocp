@@ -1,6 +1,6 @@
 <?php
 /**
- * Log Manager catalog and always-visible picker invariants.
+ * Log Manager: Ubuntu catalog + same-page picker/content invariants.
  */
 declare(strict_types=1);
 
@@ -26,6 +26,7 @@ error_reporting(E_ALL & ~E_DEPRECATED);
 ini_set('display_errors', '0');
 
 include_once $doc . '/lib/html/include.php';
+include_once $doc . '/theme/coredisplaylib.php';
 
 if (!class_exists('Llog')) {
 	bad('Llog class loads');
@@ -81,6 +82,27 @@ if ($missing === array()) {
 	bad('logCatalog includes Ubuntu panel / service logs', implode(',', $missing));
 }
 
+if (Llog::isValidLogKey('syslog') && !Llog::isValidLogKey('../etc/passwd')
+	&& !Llog::isValidLogKey('not-in-catalog') && !Llog::isValidLogKey('')) {
+	ok('isValidLogKey allows catalog keys only');
+} else {
+	bad('isValidLogKey allows catalog keys only');
+}
+
+if (Llog::resolveLogPath('nginx/error.log') === '/var/log/nginx/error.log'
+	&& Llog::resolveLogPath('/opt/kloxo/log/php.err') === '/opt/kloxo/log/php.err') {
+	ok('resolveLogPath maps relative and absolute keys');
+} else {
+	bad('resolveLogPath maps relative and absolute keys');
+}
+
+if (Llog::catalogKeyFromPath('/var/log/nginx/error.log') === 'nginx/error.log'
+	&& Llog::catalogKeyFromPath('/opt/kloxo/log/php.err') === '/opt/kloxo/log/php.err') {
+	ok('catalogKeyFromPath reverses absolute paths');
+} else {
+	bad('catalogKeyFromPath reverses absolute paths');
+}
+
 $llog = new Llog(null, 'localhost', 'pserver-localhost');
 $llog->__masterserver = null;
 $llog->__readserver = 'localhost';
@@ -100,67 +122,77 @@ if (isset($sc['ffile']) && $sc['ffile'] === $cat) {
 	bad('createShowSclist uses logCatalog');
 }
 
-$sw = Llog::logSwitchList();
-$swOk = is_array($sw) && $sw !== array();
-$idsOk = true;
-foreach ($sw as $path => $stub) {
-	if (!is_object($stub) || !method_exists($stub, 'getId')) {
-		$idsOk = false;
-		break;
-	}
-	if ((string) $stub->getId() !== (string) ($cat[$path] ?? '')) {
-		$idsOk = false;
-		break;
-	}
-}
-if ($swOk && $idsOk && array_keys($sw) === array_keys($cat)) {
-	ok('logSwitchList stubs match catalog keys and labels');
+global $ghtml;
+$prevHtml = $ghtml;
+$ghtml = new HtmlLib();
+$ghtml->__http_vars = array();
+$ghtml->__http_vars['frm_llog_file'] = 'nginx/error.log';
+if (Llog::selectedLogKey() === 'nginx/error.log') {
+	ok('selectedLogKey reads frm_llog_file');
 } else {
-	bad('logSwitchList stubs match catalog keys and labels');
+	bad('selectedLogKey reads frm_llog_file', Llog::selectedLogKey());
 }
-
-$parent = new stdClass();
-$parent->username = 'root';
-$ff = new Ffile(null, 'localhost', '/', '/var/log/syslog', 'root');
-$ff->__parent_o = $llog;
-$ff->readonly = 'on';
-$ff->ttype = 'file';
-$ff->base = 'syslog';
-
-if (method_exists($ff, 'isLogManagerView') && $ff->isLogManagerView()) {
-	ok('ffile under llog isLogManagerView');
+$ghtml->__http_vars['frm_llog_file'] = '../etc/passwd';
+if (Llog::selectedLogKey() === '') {
+	ok('selectedLogKey rejects path traversal');
 } else {
-	bad('ffile under llog isLogManagerView');
+	bad('selectedLogKey rejects path traversal');
 }
-
-$self = $ff->getSelfList();
-if (is_array($self) && array_keys($self) === array_keys($cat)) {
-	ok('ffile under llog getSelfList returns the log picker list');
-} else {
-	bad('ffile under llog getSelfList returns the log picker list');
-}
-
-$fprop = array();
-$ff->createShowPropertyList($fprop);
-$fp = $fprop['property'] ?? array();
-$fpOk = is_array($fp)
-	&& isset($fp[0]) && str_contains((string) $fp[0], 'goback=1')
-	&& in_array('a=show', $fp, true)
-	&& in_array('a=update&sa=download', $fp, true)
-	&& !in_array('a=updateform&sa=perm', $fp, true);
-if ($fpOk) {
-	ok('log viewer tabs are Log Manager + show + download (not File Manager)');
-} else {
-	bad('log viewer tabs are Log Manager + show + download (not File Manager)', var_export($fp, true));
-}
+unset($ghtml->__http_vars['frm_llog_file']);
 
 $core = file_get_contents($doc . '/theme/coredisplaylib.php');
-if (is_string($core) && str_contains($core, 'function kloxo_print_llog_picker')
-	&& str_contains($core, "class === 'llog'")
-	&& str_contains($core, 'llogjumpselect')) {
-	ok('landing page uses auto-submit llog picker');
+$coreOk = is_string($core)
+	&& str_contains($core, 'function kloxo_print_llog_picker')
+	&& str_contains($core, 'function kloxo_print_llog_content')
+	&& str_contains($core, 'frm_llog_file')
+	&& str_contains($core, 'kloxo_print_llog_content($object)')
+	&& !str_contains($core, 'frm_o_o[<?= (int) $n ?>][class]" value="ffile"')
+	&& str_contains($core, 'isLogManagerView')
+	&& str_contains($core, 'catalogKeyFromPath');
+if ($coreOk) {
+	ok('same-page picker uses frm_llog_file and prints content below');
 } else {
-	bad('landing page uses auto-submit llog picker');
+	bad('same-page picker uses frm_llog_file and prints content below');
+}
+
+// Inline content HTML when a key is selected (no backend read required for empty key).
+ob_start();
+kloxo_print_llog_content($llog);
+$emptyHtml = (string) ob_get_clean();
+if (str_contains($emptyHtml, 'Select a log file above')) {
+	ok('empty selection shows on-page hint under the dropdown');
+} else {
+	bad('empty selection shows on-page hint under the dropdown', substr($emptyHtml, 0, 200));
+}
+
+$ghtml->__http_vars['frm_llog_file'] = 'syslog';
+$llogStub = new class {
+	function readLogView($key)
+	{
+		return array(
+			'key' => $key,
+			'label' => 'Syslog',
+			'path' => '/var/log/syslog',
+			'content' => "line1\nline2<script>",
+			'truncated' => true,
+			'missing' => false,
+			'error' => '',
+		);
+	}
+};
+ob_start();
+kloxo_print_llog_content($llogStub);
+$viewHtml = (string) ob_get_clean();
+unset($ghtml->__http_vars['frm_llog_file']);
+$ghtml = $prevHtml;
+if (str_contains($viewHtml, 'kloxo-llog-pre')
+	&& str_contains($viewHtml, 'line1')
+	&& str_contains($viewHtml, '&lt;script&gt;')
+	&& str_contains($viewHtml, '/var/log/syslog')
+	&& str_contains($viewHtml, 'last')) {
+	ok('selected log renders escaped content under the picker');
+} else {
+	bad('selected log renders escaped content under the picker', substr($viewHtml, 0, 300));
 }
 
 printf("\n%d ok, %d FAIL\n", $pass, $fail);

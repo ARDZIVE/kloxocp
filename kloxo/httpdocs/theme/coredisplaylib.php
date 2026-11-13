@@ -185,6 +185,28 @@ function __ac_desc_show($object)
 	$class = lget_class($object);
 	$subaction = $ghtml->frm_subaction;
 
+	// Legacy Log Manager file URLs: keep viewing on the Log Manager page.
+	if ($class === 'ffile' && is_object($object)
+		&& method_exists($object, 'isLogManagerView') && $object->isLogManagerView()
+		&& class_exists('Llog') && is_callable(array('Llog', 'catalogKeyFromPath'))) {
+		$key = Llog::catalogKeyFromPath(isset($object->nname) ? (string) $object->nname : '');
+		try {
+			$url = $ghtml->getFullUrl('goback=1&a=show');
+			if (!is_string($url) || $url === '') {
+				$url = '/display.php?frm_action=show';
+			}
+			if ($key !== '') {
+				$url .= (strpos($url, '?') !== false ? '&' : '?')
+					. 'frm_llog_file=' . rawurlencode($key);
+			}
+			$ghtml->print_redirect($url);
+
+			return;
+		} catch (Throwable $e) {
+			log_log("error", "llog redirect from ffile: " . $e->getMessage());
+		}
+	}
+
 	if (!$login->isAdmin()) {
 	//	check_for_license();
 	}
@@ -887,9 +909,10 @@ function do_select_list($object, $sclist)
 
 	$class = lget_class($object);
 
-	// Log Manager: one auto-submit picker (same feel as Switch To Another).
+	// Log Manager: picker + content on the same page (no ffile navigation).
 	if ($class === 'llog' && isset($sclist['ffile']) && is_array($sclist['ffile'])) {
 		kloxo_print_llog_picker($object, $sclist['ffile']);
+		kloxo_print_llog_content($object);
 
 		return;
 	}
@@ -914,7 +937,7 @@ function do_select_list($object, $sclist)
 }
 
 /**
- * Log Manager landing picker: choose a log and open it without a Show button.
+ * Log Manager picker: stay on Log Manager; selection is frm_llog_file.
  *
  * @param object $object
  * @param array<string,string> $list path key => label
@@ -930,7 +953,11 @@ function kloxo_print_llog_picker($object, $list)
 	$cgi_o_o = is_object($ghtml) && isset($ghtml->frm_o_o) && is_array($ghtml->frm_o_o)
 		? $ghtml->frm_o_o
 		: array();
-	$n = kcount($cgi_o_o);
+
+	$selected = '';
+	if (class_exists('Llog') && is_callable(array('Llog', 'selectedLogKey'))) {
+		$selected = Llog::selectedLogKey();
+	}
 
 	$skin_color = 'aaa';
 	try {
@@ -998,15 +1025,15 @@ function kloxo_print_llog_picker($object, $list)
 	}
 ?>
 					<input type="hidden" name="frm_action" value="show"/>
-					<input type="hidden" name="frm_o_o[<?= (int) $n ?>][class]" value="ffile"/>
-					<select <?= $ststring ?> class="textbox select_switch" onChange="document.llogjumpselect.submit()" name="frm_o_o[<?= (int) $n ?>][nname]">
-						<option value="">—</option>
+					<select <?= $ststring ?> class="textbox select_switch" onChange="document.llogjumpselect.submit()" name="frm_llog_file">
+						<option value="">— select a log —</option>
 <?php
 	foreach ($list as $path => $lab) {
 		$ep = htmlspecialchars(kloxo_string($path), ENT_QUOTES);
 		$el = htmlspecialchars(kloxo_string($lab), ENT_QUOTES);
+		$sel = ((string) $path === (string) $selected) ? ' selected' : '';
 ?>
-						<option value="<?= $ep ?>"><?= $el ?></option>
+						<option value="<?= $ep ?>"<?= $sel ?>><?= $el ?></option>
 <?php
 	}
 ?>
@@ -1014,8 +1041,88 @@ function kloxo_print_llog_picker($object, $list)
 				</form>
 			</div>
 		</div>
-		<br/>
+		<br style="clear:both"/>
 <?php
+}
+
+/**
+ * Log content directly under the Log Manager dropdown (same page).
+ *
+ * @param object $object
+ */
+function kloxo_print_llog_content($object)
+{
+	if (!is_object($object) || !method_exists($object, 'readLogView')) {
+		return;
+	}
+	if (!class_exists('Llog') || !is_callable(array('Llog', 'selectedLogKey'))) {
+		return;
+	}
+
+	$key = Llog::selectedLogKey();
+	if ($key === '') {
+		echo '<div class="kloxo-llog-view" style="margin:8px 12px 16px;padding:12px;border:1px solid #ddd;background:#fafafa;color:#666">'
+			. 'Select a log file above. The contents appear here on this page.'
+			. '</div>';
+
+		return;
+	}
+
+	$view = array();
+	try {
+		$view = $object->readLogView($key);
+	} catch (Throwable $e) {
+		$view = array(
+			'key' => $key,
+			'label' => $key,
+			'path' => class_exists('Llog') ? Llog::resolveLogPath($key) : $key,
+			'content' => '',
+			'truncated' => false,
+			'missing' => true,
+			'error' => $e->getMessage(),
+		);
+	}
+	if (!is_array($view)) {
+		$view = array();
+	}
+
+	$h = static function ($v) {
+		return htmlspecialchars((string) $v, ENT_QUOTES);
+	};
+	$label = $h($view['label'] ?? $key);
+	$path = $h($view['path'] ?? $key);
+	$err = trim((string) ($view['error'] ?? ''));
+	$content = (string) ($view['content'] ?? '');
+	$truncated = !empty($view['truncated']);
+	$missing = !empty($view['missing']) && $content === '' && $err === '';
+	$kb = (int) Llog::VIEW_TAIL_KB;
+
+	echo '<div class="kloxo-llog-view" style="margin:0 12px 16px">';
+	echo '<div style="margin:0 0 6px;font-weight:bold">' . $label
+		. ' <span style="font-weight:normal;color:#666">(' . $path . ')</span></div>';
+
+	if ($err !== '') {
+		echo '<div style="padding:10px;border:1px solid #c66;background:#fff5f5;color:#a00">'
+			. $h($err) . '</div></div>';
+
+		return;
+	}
+	if ($missing) {
+		echo '<div style="padding:10px;border:1px solid #ddd;background:#fafafa;color:#666">'
+			. 'This log file is missing or empty on the server.</div></div>';
+
+		return;
+	}
+	if ($truncated) {
+		echo '<div style="margin:0 0 6px;color:#666;font-size:12px">Showing the last '
+			. $kb . ' KB of the file.</div>';
+	}
+
+	echo '<pre class="kloxo-llog-pre" style="margin:0;padding:10px;border:1px solid #ccc;'
+		. 'background:#fff;color:#222;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;'
+		. 'white-space:pre-wrap;word-break:break-word;max-height:70vh;overflow:auto">'
+		. $h($content) . '</pre>';
+	echo '</div>';
 }
 
 function __ac_desc_delete($object)

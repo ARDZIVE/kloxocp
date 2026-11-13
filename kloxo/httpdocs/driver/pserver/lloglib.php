@@ -11,6 +11,9 @@ class Llog extends Lxclass {
 
 	static $__desc_ffile_l = array('v', '', '', '');
 
+	/** Tail size in KB for the inline viewer. */
+	const VIEW_TAIL_KB = 50;
+
 	function get() {}
 	function write() {}
 
@@ -125,7 +128,86 @@ class Llog extends Lxclass {
 	}
 
 	/**
-	 * Stub objects for Switch To Another while a log file is open.
+	 * @param mixed $key
+	 */
+	static function isValidLogKey($key)
+	{
+		if (!is_string($key) || $key === '') {
+			return false;
+		}
+		if (strpos($key, "\0") !== false || strpos($key, '..') !== false) {
+			return false;
+		}
+
+		return array_key_exists($key, self::logCatalog());
+	}
+
+	/**
+	 * Absolute filesystem path for a catalog key.
+	 *
+	 * @param string $key
+	 * @return string
+	 */
+	static function resolveLogPath($key)
+	{
+		if (!is_string($key) || $key === '') {
+			return '';
+		}
+		if (substr($key, 0, 1) === '/') {
+			return $key;
+		}
+
+		return '/var/log/' . $key;
+	}
+
+	/**
+	 * Currently selected catalog key from the request (validated).
+	 *
+	 * @return string
+	 */
+	static function selectedLogKey()
+	{
+		global $ghtml;
+
+		$req = '';
+		if (is_object($ghtml)) {
+			$v = $ghtml->frm_llog_file;
+			if (is_string($v)) {
+				$req = trim($v);
+			}
+		}
+		if (self::isValidLogKey($req)) {
+			return $req;
+		}
+
+		return '';
+	}
+
+	/**
+	 * Map an absolute or relative path back to a catalog key (legacy ffile URLs).
+	 *
+	 * @param string $path
+	 * @return string
+	 */
+	static function catalogKeyFromPath($path)
+	{
+		$path = (string) $path;
+		$cat = self::logCatalog();
+		if ($path !== '' && isset($cat[$path])) {
+			return $path;
+		}
+		if (strpos($path, '/var/log/') === 0) {
+			$rel = substr($path, strlen('/var/log/'));
+			if (isset($cat[$rel])) {
+				return $rel;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Stub objects for Switch To Another on a legacy ffile log URL.
 	 *
 	 * @return array<string,object>
 	 */
@@ -139,12 +221,54 @@ class Llog extends Lxclass {
 		return $out;
 	}
 
+	/**
+	 * Read the tail of a catalog log via kloxo-backend (root).
+	 *
+	 * @param string $key
+	 * @return array{key:string,label:string,path:string,content:string,truncated:bool,missing:bool,error:string}
+	 */
+	function readLogView($key)
+	{
+		$cat = self::logCatalog();
+		$out = array(
+			'key' => (string) $key,
+			'label' => isset($cat[$key]) ? (string) $cat[$key] : (string) $key,
+			'path' => self::resolveLogPath($key),
+			'content' => '',
+			'truncated' => false,
+			'missing' => true,
+			'error' => '',
+		);
+		if (!self::isValidLogKey($key)) {
+			$out['error'] = 'Invalid log file.';
+
+			return $out;
+		}
+
+		try {
+			$ff = $this->getFfileFromVirtualList($key);
+			$ff->numlines = self::VIEW_TAIL_KB;
+			$ff->getContent();
+			$out['content'] = isset($ff->content) && is_string($ff->content) ? $ff->content : '';
+			$out['truncated'] = method_exists($ff, 'isOn') && $ff->isOn('not_full_size');
+			$out['missing'] = ($out['content'] === '' && (!isset($ff->ttype) || $ff->ttype === '' || $ff->ttype === 'directory'));
+			if (isset($ff->ttype) && $ff->ttype === 'file') {
+				$out['missing'] = false;
+			}
+			if (isset($ff->size) && (int) $ff->size === 0 && $out['content'] === '') {
+				$out['missing'] = false;
+			}
+		} catch (Throwable $e) {
+			$out['error'] = $e->getMessage();
+		}
+
+		return $out;
+	}
+
 	function createShowSclist()
 	{
-		$sclist = array();
-		$sclist['ffile'] = self::logCatalog();
-
-		return $sclist;
+		// Triggers the on-page picker in do_select_list (does not navigate away).
+		return array('ffile' => self::logCatalog());
 	}
 }
 
