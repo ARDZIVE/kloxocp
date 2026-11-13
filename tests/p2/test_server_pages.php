@@ -808,11 +808,12 @@ if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('dns_record_a')
 	&& kloxo_skip_find_class('web')
 	&& kloxo_skip_find_class('dbadmin')
+	&& kloxo_skip_find_class('mailqueue')
 	&& !kloxo_skip_find_class('tickethistory')
 	&& !kloxo_skip_find_class('client')) {
-	ok('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
+	ok('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS, Mail Queue and PHPinfo pages skip the Find input');
 } else {
-	bad('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS and PHPinfo pages skip the Find input');
+	bad('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS, Mail Queue and PHPinfo pages skip the Find input');
 }
 
 $showSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
