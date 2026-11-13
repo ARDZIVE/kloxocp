@@ -4107,7 +4107,7 @@ $ufwEditOk = is_array($ufwEditForm) && !array_key_exists('ufw_rule', $ufwEditFor
 	&& (($ufwEditWithNo['__v_param']['ufw_rule'] ?? '') === '3')
 	&& !isset($ufwEditForm['__v_param'])
 	&& array_keys($ufwActKeys) === array('deny', 'allow', 'reject')
-	&& $ufwActKeys === array('deny' => 'DROP', 'allow' => 'ACCEPT', 'reject' => 'REJECT')
+	&& $ufwActKeys === array('deny' => 'DENY', 'allow' => 'ALLOW', 'reject' => 'REJECT')
 	// 'A' = select posts the array KEYS (deny/allow/reject, tcp/udp/icmp); 's' would post the labels.
 	&& ($ufwForm['ufw_action'][0] ?? '') === 'A' && ($ufwForm['ufw_proto'][0] ?? '') === 'A'
 	&& ($ufwEditForm['ufw_action'][0] ?? '') === 'A' && ($ufwEditForm['ufw_proto'][0] ?? '') === 'A'
@@ -4115,7 +4115,8 @@ $ufwEditOk = is_array($ufwEditForm) && !array_key_exists('ufw_rule', $ufwEditFor
 	&& array_keys($ufwForm['ufw_proto'][1]) === array('tcp', 'udp', 'icmp')
 	&& $ufwEditTab === 'Edit' && $ufwShowTab === 'UFW Firewall'
 	&& $ufwEditListOut === ''
-	&& ufwfirewall::actionDisplay('DENY') === 'DROP' && ufwfirewall::actionDisplay('ALLOW') === 'ACCEPT'
+	&& ufwfirewall::actionDisplay('DENY') === 'DENY' && ufwfirewall::actionDisplay('ALLOW') === 'ALLOW'
+	&& ufwfirewall::actionDisplay('DROP') === 'DENY' && ufwfirewall::actionDisplay('ACCEPT') === 'ALLOW'
 	&& array_key_exists('ufw_action', $ufwEditForm)
 	&& array_key_exists('ufw_port', $ufwEditForm)
 	&& array_key_exists('ufw_comment', $ufwEditForm)
@@ -4152,8 +4153,8 @@ foreach ($ufwKeys as $k) {
 	}
 }
 $ufwSum = $ufw->ruleSummary('deny', 'tcp', '2222', '', 'ssh alt');
-$ufwSumOk = $ufwSum === 'DROP 2222/tcp from Anywhere, comment: ssh alt'
-	&& $ufw->ruleSummary('allow', 'icmp', '', '10.0.0.1') === 'ACCEPT ICMP from 10.0.0.1';
+$ufwSumOk = $ufwSum === 'DENY 2222/tcp from Anywhere, comment: ssh alt'
+	&& $ufw->ruleSummary('allow', 'icmp', '', '10.0.0.1') === 'ALLOW ICMP from 10.0.0.1';
 // Old default rules without a comment show their purpose; custom rules do not.
 $ufwDefRow = $ufw->normalizeRuleRow(array('number' => 2, 'to' => '22/tcp', 'action' => 'ALLOW IN', 'from' => 'Anywhere', 'comment' => ''));
 $ufwDefRow53 = $ufw->normalizeRuleRow(array('number' => 15, 'to' => '53/udp', 'action' => 'ALLOW IN', 'from' => 'Anywhere', 'comment' => ''));

@@ -154,11 +154,11 @@ class ufwfirewall extends lxclass
 			. '<path d="' . htmlspecialchars($d, ENT_QUOTES) . '"/></svg>';
 	}
 
-	/** UFW allow/deny/reject shown as ACCEPT/DROP/REJECT. */
+	/** UFW allow/deny/reject shown as ALLOW/DENY/REJECT. */
 	static function actionDisplay($label)
 	{
 		$u = strtoupper((string) $label);
-		static $map = array('ALLOW' => 'ACCEPT', 'DENY' => 'DROP');
+		static $map = array('ACCEPT' => 'ALLOW', 'DROP' => 'DENY');
 
 		return isset($map[$u]) ? $map[$u] : $u;
 	}
@@ -839,8 +839,8 @@ class ufwfirewall extends lxclass
 		}
 
 		$policies = array('allow' => 'allow', 'deny' => 'deny', 'reject' => 'reject');
-		// First entry is the default (DROP = ufw deny).
-		$actions = array('deny' => 'DROP', 'allow' => 'ACCEPT', 'reject' => 'REJECT');
+		// First entry is the default (ufw deny).
+		$actions = array('deny' => 'DENY', 'allow' => 'ALLOW', 'reject' => 'REJECT');
 		$protos = array('tcp' => 'TCP', 'udp' => 'UDP', 'icmp' => 'ICMP');
 		$vlist = array();
 		switch ($subaction) {
@@ -991,7 +991,7 @@ class ufwfirewall extends lxclass
 		return KloxoUfw::findLogicalRule($rules, (int) $ruleId);
 	}
 
-	/** Human text for a rule (ACCEPT 443/tcp from Anywhere, comment: web). */
+	/** Human text for a rule (ALLOW 443/tcp from Anywhere, comment: web). */
 	function ruleSummary($action, $proto, $port, $from, $comment = '')
 	{
 		$a = self::actionDisplay($action);
