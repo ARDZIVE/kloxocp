@@ -1316,12 +1316,57 @@ class Ffile extends Lxclass
 		$this->dbaction = 'clean';
 	}
 
+	/**
+	 * True when this file is opened from Log Manager (read-only log viewer).
+	 */
+	function isLogManagerView()
+	{
+		try {
+			$po = $this->getParentO();
+		} catch (Throwable $e) {
+			return false;
+		}
+		if (!is_object($po)) {
+			return false;
+		}
+		if (method_exists($po, 'is__table') && $po->is__table('llog')) {
+			return true;
+		}
+		if (method_exists($po, 'getClass') && strtolower((string) $po->getClass()) === 'llog') {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Keep the log picker visible while reading a log (no need to go back).
+	 */
+	function getSelfList()
+	{
+		if ($this->isLogManagerView() && class_exists('Llog') && is_callable(array('Llog', 'logSwitchList'))) {
+			return Llog::logSwitchList();
+		}
+
+		return parent::getSelfList();
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		if ($this->base === ".trash") {
 			$alist['property'][] = 'a=show';
 
 			return null;
+		}
+
+		if ($this->isLogManagerView()) {
+			$alist['property'][] = 'goback=1&a=show';
+			$alist['property'][] = 'a=show';
+			if (!$this->is_dir()) {
+				$alist['property'][] = 'a=update&sa=download';
+			}
+
+			return $alist;
 		}
 
 		$backupParent = false;

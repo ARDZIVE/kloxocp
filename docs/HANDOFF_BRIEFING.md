@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111304**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111305**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -473,6 +473,17 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     SSH Terminal, File Manager, HelpDesk ticket show, Notification,
     Message show, Auxiliary Login show, Update, client Manage DNS, and client PHPinfo no longer show
     the left-column Find box (Message and Auxiliary lists keep the search toolbar).
+    Log Manager (`llog`) catalog is Ubuntu-only (`Llog::logCatalog`: syslog,
+    auth, dpkg, Exim, mail.log, Nginx/Apache, panel Hiawatha under
+    `/opt/kloxo/log/`, MariaDB, Pure-FTPd, Fail2Ban, panel PHP/FPM/watchdog,
+    webcache/webproxy, per-installed `phpX.Y-fpm.log`); CentOS/removed-stack
+    paths (httpd, lighttpd, yum, named/, djbdns, nsd, yadifa, rkhunter, …)
+    are gone. Landing picker auto-submits (`kloxo_print_llog_picker`); while
+    a log is open, Switch To Another stays visible (`Ffile::getSelfList` →
+    `Llog::logSwitchList`) so another file can be chosen without going back.
+    Property tabs are Log Manager only (no File Manager `/` root).
+    `tests/p2/test_llog.php` (11 checks). Live Log Manager after deploy is
+    **UNVERIFIED**.
     SSH Configure has one beige tab labelled **SSH Configure** (not Home).
     Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
     **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,
@@ -1057,7 +1068,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111304**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111305**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

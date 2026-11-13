@@ -175,6 +175,11 @@ if php "$HERE/test_server_pages.php"; then
 else
   bad "test_server_pages.php"
 fi
+if php "$HERE/test_llog.php"; then
+  ok "test_llog.php"
+else
+  bad "test_llog.php"
+fi
 if php "$HERE/test_ufw.php"; then
   ok "test_ufw.php"
 else

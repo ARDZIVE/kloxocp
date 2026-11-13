@@ -886,6 +886,14 @@ function do_select_list($object, $sclist)
 	global $gbl, $sgbl, $login, $ghtml;
 
 	$class = lget_class($object);
+
+	// Log Manager: one auto-submit picker (same feel as Switch To Another).
+	if ($class === 'llog' && isset($sclist['ffile']) && is_array($sclist['ffile'])) {
+		kloxo_print_llog_picker($object, $sclist['ffile']);
+
+		return;
+	}
+
 	$desc = get_classvar_description($class);
 
 	foreach ($sclist as $k => $s) {
@@ -903,6 +911,111 @@ function do_select_list($object, $sclist)
 		$string[] = $ghtml->object_variable_button('Show');
 		$ghtml->xml_print_page($string);
 	}
+}
+
+/**
+ * Log Manager landing picker: choose a log and open it without a Show button.
+ *
+ * @param object $object
+ * @param array<string,string> $list path key => label
+ */
+function kloxo_print_llog_picker($object, $list)
+{
+	global $sgbl, $login, $ghtml;
+
+	if (!is_array($list) || $list === array()) {
+		return;
+	}
+
+	$cgi_o_o = is_object($ghtml) && isset($ghtml->frm_o_o) && is_array($ghtml->frm_o_o)
+		? $ghtml->frm_o_o
+		: array();
+	$n = kcount($cgi_o_o);
+
+	$skin_color = 'aaa';
+	try {
+		if (is_object($login) && method_exists($login, 'getSkinColor')) {
+			$sc = $login->getSkinColor();
+			if (is_string($sc) && $sc !== '') {
+				$skin_color = $sc;
+			}
+		}
+	} catch (Throwable $e) {
+	}
+
+	$label = 'Log file';
+	try {
+		if (is_object($login) && method_exists($login, 'getKeywordUc')) {
+			$kw = $login->getKeywordUc('switchtoanother');
+			if (is_string($kw) && $kw !== '') {
+				$label = $kw;
+			}
+		}
+	} catch (Throwable $e) {
+	}
+
+	$img_url = '';
+	if (is_object($ghtml) && method_exists($ghtml, 'get_expand_url')) {
+		$img_url = (string) $ghtml->get_expand_url();
+	}
+
+	$ststring = '';
+	$forecolorstring = '';
+	if (is_object($sgbl) && method_exists($sgbl, 'isBlackBackground') && $sgbl->isBlackBackground()) {
+		$ststring = "style='background:black;color:gray'";
+		$forecolorstring = "color=gray";
+	}
+?>
+		<div style="background: #<?= htmlspecialchars($skin_color, ENT_QUOTES) ?> <?= $img_url ?>" class="div_select_switch">
+			<div style="float:left; padding: 4px"><span <?= $forecolorstring ?> style='font-weight:bold;'>&nbsp;<?= htmlspecialchars($label, ENT_QUOTES) ?>&nbsp;</span></div>
+			<div style="float:left;">
+				<form name="llogjumpselect" method="get" action="/display.php" accept-charset="utf-8">
+<?php
+	foreach ($cgi_o_o as $k => $v) {
+		if (!is_array($v)) {
+			continue;
+		}
+		$ek = htmlspecialchars(kloxo_string($k), ENT_QUOTES);
+		$eclass = htmlspecialchars(kloxo_string($v['class'] ?? ''), ENT_QUOTES);
+		$enname = htmlspecialchars(kloxo_string($v['nname'] ?? ''), ENT_QUOTES);
+?>
+					<input type="hidden" name="frm_o_o[<?= $ek ?>][class]" value="<?= $eclass ?>"/>
+<?php
+		if ($enname !== '') {
+?>
+					<input type="hidden" name="frm_o_o[<?= $ek ?>][nname]" value="<?= $enname ?>"/>
+<?php
+		}
+	}
+	$frm_consumedlogin = '';
+	if (is_object($ghtml) && isset($ghtml->frm_consumedlogin)) {
+		$frm_consumedlogin = htmlspecialchars(kloxo_string($ghtml->frm_consumedlogin), ENT_QUOTES);
+	}
+	if ($frm_consumedlogin !== '') {
+?>
+					<input type="hidden" name="frm_consumedlogin" value="<?= $frm_consumedlogin ?>"/>
+<?php
+	}
+?>
+					<input type="hidden" name="frm_action" value="show"/>
+					<input type="hidden" name="frm_o_o[<?= (int) $n ?>][class]" value="ffile"/>
+					<select <?= $ststring ?> class="textbox select_switch" onChange="document.llogjumpselect.submit()" name="frm_o_o[<?= (int) $n ?>][nname]">
+						<option value="">—</option>
+<?php
+	foreach ($list as $path => $lab) {
+		$ep = htmlspecialchars(kloxo_string($path), ENT_QUOTES);
+		$el = htmlspecialchars(kloxo_string($lab), ENT_QUOTES);
+?>
+						<option value="<?= $ep ?>"><?= $el ?></option>
+<?php
+	}
+?>
+					</select>
+				</form>
+			</div>
+		</div>
+		<br/>
+<?php
 }
 
 function __ac_desc_delete($object)

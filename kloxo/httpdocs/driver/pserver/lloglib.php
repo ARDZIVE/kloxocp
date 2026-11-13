@@ -26,8 +26,8 @@ class Llog extends Lxclass {
 
 	function createShowPropertyList(&$alist)
 	{
+		// Log Manager is a picker + viewer; no File Manager root tab.
 		$alist['property'][] = 'a=show';
-		$alist['property'][] = 'a=show&l[class]=ffile&l[nname]=/';
 	}
 
 	function createShowAlist(&$alist, $subaction = null)
@@ -40,7 +40,6 @@ class Llog extends Lxclass {
 		global $sgbl;
 
 		if (substr($name, 0, 1) !== '/') {
-		//	$name = coreFfile::getRealpath($name);
 			$name = '/var/log/' . $name;
 		}
 
@@ -53,76 +52,118 @@ class Llog extends Lxclass {
 		return $ffile;
 	}
 
-
-	function createShowSclist()
+	/**
+	 * Ubuntu log files the panel may show. Relative keys are under /var/log/.
+	 * Dead CentOS / removed-stack paths (httpd, lighttpd, yum, qmail, …) stay out.
+	 *
+	 * @return array<string,string> path key => label
+	 */
+	static function logCatalog()
 	{
-		$phplist = getMultiplePhpList();
+		$list = array(
+			'syslog' => 'Syslog',
+			'auth.log' => 'Auth (SSH)',
+			'dpkg.log' => 'Package (dpkg)',
 
-		$phploglist = array('php-error.log' => 'php error');
-		$phpfpmloglist = array('php-fpm/php-error.log' => 'php-fpm error');
-
-		foreach ($phplist as $k => $v) {
-			$phploglist["{$v}-error.log"] = "{$v} error";
-			$phpfpmloglist["php-fpm/{$v}-error.log"] = "{$v}-fpm error"; 
-		}
-
-		// MR -- only list maillog for mail because change multilog to splogger for qmail-toaster
-		$sclist['ffile'] = array(
-			'audit/audit.log' => 'Audit',
-
-			'messages' => 'Messages',
-
-			'cron' => 'Cron',
-
-			'secure' => 'Secure',
-
-			'freshclam.log' => 'Freshclam',
-
-			'letsencrypt/letsencrypt.log' => 'Letsencrypt (certbot)',
-			'acme.sh/acme.sh.log' => 'Letsencrypt (acme.sh)',
-
-			'maillog' => 'Mail log',
-
-			'httpd/access_log' => 'Apache Access',
-			'httpd/error_log' => 'Apache Error',
-
-			'lighttpd/access.log' => 'Lighttpd Access',
-			'lighttpd/error.log' => 'Lighttpd Error',
+			'exim4/mainlog' => 'Exim Main',
+			'exim4/rejectlog' => 'Exim Reject',
+			'exim4/paniclog' => 'Exim Panic',
+			'mail.log' => 'Mail (syslog)',
 
 			'nginx/access.log' => 'Nginx Access',
 			'nginx/error.log' => 'Nginx Error',
+			'apache2/access.log' => 'Apache Access',
+			'apache2/error.log' => 'Apache Error',
 
-			'hiawatha/system.log' => 'Hiawatha System',
-			'hiawatha/garbage.log' => 'Hiawatha Garbage',
-			'hiawatha/access.log' => 'Hiawatha Access',
-			'hiawatha/error.log' => 'Hiawatha Error',
-			'hiawatha/exploit.log' => 'Hiawatha Exploit',
+			'/opt/kloxo/log/hiawatha-system.log' => 'Panel Hiawatha System',
+			'/opt/kloxo/log/hiawatha-error.log' => 'Panel Hiawatha Error',
+			'/opt/kloxo/log/hiawatha-access.log' => 'Panel Hiawatha Access',
+			'/opt/kloxo/log/hiawatha-exploit.log' => 'Panel Hiawatha Exploit',
+			'/opt/kloxo/log/hiawatha-garbage.log' => 'Panel Hiawatha Garbage',
 
-			'named/' => 'Named',
-			'djbdns.log' => 'DJBDns',
-			'nsd.log' => 'NSD',
-			'yadifa/yadifa.log' => 'Yadifa',
+			'mysql/error.log' => 'MariaDB Error',
 
-			'/var/lib/mysql/mysql-slow.log' => 'MySQL Slow (MariaDB)',
-			'/var/lib/mysql/' . gethostname() . '.err' => 'MySQL Error (MariaDB)',
-			'mysqld.log' => 'MySQL Log (MySQL)',
+			'pureftpd.log' => 'Pure-FTPd',
 
-			'pureftpd.log' => 'Pure-ftp',
+			'fail2ban.log' => 'Fail2Ban',
+			'letsencrypt/letsencrypt.log' => "Let's Encrypt (certbot)",
 
-			'rkhunter/rkhunter.log' => 'RKHunter',
-			'/usr/local/maldetect/logs/event_log' => 'MalDetect',
-			'httpry/httpry.log' => 'Httpry',
-			'/var/ossec/logs/alerts/alerts.log' => 'OSSec',
+			'/opt/kloxo/log/php.err' => 'Panel PHP',
+			'/opt/kloxo/log/php-fpm-error.log' => 'Panel PHP-FPM',
+			'/opt/kloxo/log/php-fpm-slow.log' => 'Panel PHP-FPM Slow',
+			'/opt/kloxo/log/watchdog.log' => 'Watchdog',
+			'/opt/kloxo/log/auth-failures.log' => 'Panel Auth Failures',
 
-			'/opt/kloxo/log/backup' => 'Backup',
-			'/opt/kloxo/log/restore' => 'Restore',
+			'/var/log/kloxo/webcache.error.log' => 'Web Cache Error',
+			'/var/log/kloxo/webproxy.error.log' => 'Web Proxy Error',
 
-			'yum.log' => 'Yum',
+			'php/slow.log' => 'PHP-FPM Slow (sites)',
+		);
 
-			'php-fpm/slow.log' => 'php-fpm slow (all)');
+		$phplist = array();
+		if (function_exists('getMultiplePhpList')) {
+			try {
+				$phplist = getMultiplePhpList();
+			} catch (Throwable $e) {
+				$phplist = array();
+			}
+		}
+		if (is_array($phplist)) {
+			foreach ($phplist as $id) {
+				if (!is_string($id)) {
+					continue;
+				}
+				if (preg_match('/^php(\d+\.\d+)$/', $id, $m) !== 1) {
+					continue;
+				}
+				$ver = $m[1];
+				$list["php{$ver}-fpm.log"] = "PHP-FPM {$ver}";
+			}
+		}
 
-		$sclist['ffile'] = array_merge($sclist['ffile'], $phpfpmloglist, $phploglist);
+		return $list;
+	}
+
+	/**
+	 * Stub objects for Switch To Another while a log file is open.
+	 *
+	 * @return array<string,object>
+	 */
+	static function logSwitchList()
+	{
+		$out = array();
+		foreach (self::logCatalog() as $path => $label) {
+			$out[$path] = new llog_switch_stub($label);
+		}
+
+		return $out;
+	}
+
+	function createShowSclist()
+	{
+		$sclist = array();
+		$sclist['ffile'] = self::logCatalog();
 
 		return $sclist;
+	}
+}
+
+/**
+ * Display stub for Log Manager Switch To Another (label only).
+ */
+class llog_switch_stub
+{
+	/** @var string */
+	private $id;
+
+	/** @param string $id */
+	function __construct($id)
+	{
+		$this->id = (string) $id;
+	}
+
+	function getId()
+	{
+		return $this->id;
 	}
 }
