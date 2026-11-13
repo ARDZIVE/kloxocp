@@ -16,6 +16,7 @@ include_once "$dir/lib/php/lxlib.php" ;
 include_once "$dir/lib/php/kloxo_pma.php";
 include_once "$dir/lib/php/kloxo_ufw.php";
 include_once "$dir/lib/php/kloxo_fail2ban.php";
+include_once "$dir/lib/php/kloxo_ssl.php";
 include_once "$dir/lib/php/kloxo_logwatch.php";
 include_once "$dir/lib/php/kloxo_hostname.php";
 include_once "$dir/lib/php/kloxo_authlog.php";

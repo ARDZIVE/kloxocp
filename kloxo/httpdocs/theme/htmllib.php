@@ -6084,24 +6084,78 @@ class HtmlLib
 			$parm .= "&frm_ev_list=$variable";
 		}
 
-		$last_page = $gbl->getSessionV("lx_http_referer");
-
-		if (!$last_page) {
-			$last_page = "/display.php?frm_action=show";
-		}
-
 		$current_url = $this->get_get_from_current_post(null);
-
-		if ($last_page === $current_url) {
-			log_log("redirect_error", "$last_page is same as the current url...\n");
-			$last_page = "/display.php?frm_action=show";
-		}
+		$last_page = $this->resolveRedirectBackUrl($current_url);
 
 		$this->get_post_from_get($last_page, $path, $post);
 
 		$get = $this->get_get_from_post(array("frm_ev_list"), $post);
 
 		$this->print_redirect("$path?$get&$parm");
+	}
+
+	/**
+	 * Prefer the form page that led here (session referer / parent / SSL
+	 * addform / HTTP_REFERER). Never fall back to bare Home while a better
+	 * page is known — that sent SSL add failures to admin Home.
+	 *
+	 * @param string|null $current_url
+	 * @return string
+	 */
+	function resolveRedirectBackUrl($current_url = null)
+	{
+		global $gbl;
+
+		$current_url = is_string($current_url) ? $current_url : $this->get_get_from_current_post(null);
+		$candidates = array();
+		// In-request override (SSL add): setSessionV needs c_session; this does not.
+		if (is_object($gbl) && isset($gbl->__kloxo_redirect_back)
+			&& is_string($gbl->__kloxo_redirect_back) && $gbl->__kloxo_redirect_back !== '') {
+			$candidates[] = $gbl->__kloxo_redirect_back;
+		}
+		if (is_object($gbl) && method_exists($gbl, 'getSessionV')) {
+			foreach (array('kloxo_ssl_addform_referer', 'lx_http_referer', 'lx_http_referer_parent') as $key) {
+				$v = $gbl->getSessionV($key);
+				if (is_string($v) && $v !== '') {
+					$candidates[] = $v;
+				}
+			}
+		}
+		$httpRef = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
+		if ($httpRef !== '') {
+			$parts = @parse_url($httpRef);
+			if (is_array($parts) && isset($parts['path'])) {
+				$path = (string) $parts['path'];
+				$query = isset($parts['query']) ? ('?' . $parts['query']) : '';
+				if ($path !== '' && (str_contains($path, 'display.php') || str_ends_with($path, '/display.php'))) {
+					$candidates[] = $path . $query;
+				} elseif ($query !== '' && str_contains($query, 'frm_action=')) {
+					$candidates[] = '/display.php' . $query;
+				}
+			}
+		}
+
+		foreach ($candidates as $cand) {
+			if ($cand === '' || $cand === $current_url) {
+				continue;
+			}
+			// Prefer staying on an addform / list / show under the same object path.
+			if (str_contains($cand, 'frm_action=addform')
+				|| str_contains($cand, 'frm_action=list')
+				|| str_contains($cand, 'frm_action=show')
+				|| str_contains($cand, 'frm_action=updateform')) {
+				return $cand;
+			}
+		}
+		foreach ($candidates as $cand) {
+			if ($cand !== '' && $cand !== $current_url) {
+				return $cand;
+			}
+		}
+
+		log_log('redirect_error', "no usable referer; current=$current_url\n");
+
+		return '/display.php?frm_action=show';
 	}
 
 	function print_redirect_back_success($message, $variable, $value = null)
@@ -6126,11 +6180,7 @@ class HtmlLib
 			$parm .= "&frm_ev_list=$variable";
 		}
 
-		$last_page = $gbl->getSessionV("lx_http_referer");
-
-		if (!$last_page) {
-			$last_page = "/display.php?frm_action=show";
-		}
+		$last_page = $this->resolveRedirectBackUrl();
 
 		$this->get_post_from_get($last_page, $path, $post);
 

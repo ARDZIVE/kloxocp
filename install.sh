@@ -47,7 +47,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111320"
+KCP_VERSION="10.1-2026111321"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -639,7 +639,7 @@ apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-sqlite3 php-xml php-mbstring php-curl \
   mariadb-server nginx apache2 bind9 knot knot-dnsutils knot-dnssecutils \
   pure-ftpd redis-server iproute2 ufw imagemagick \
-  fail2ban python3-systemd nftables logwatch \
+  fail2ban python3-systemd nftables logwatch certbot \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
@@ -706,7 +706,7 @@ fi
 [[ -f "$SRC/kloxo/bin/kloxocp" ]] || die "clone is missing kloxo/bin/kloxocp"
 
 step "Program layout, TLS keys and system accounts"
-mkdir -p /home/kloxo/httpd/cp /home/kloxo/client /home/kloxomail/mail
+mkdir -p /home/kloxo/httpd/cp /home/kloxo/client /home/kloxo/ssl /home/kloxomail/mail
 if [[ -L "$ROOT" || ! -e "$ROOT" ]]; then
   ln -sfn "$SRC/kloxo" "$ROOT"
 elif [[ -d "$ROOT/httpdocs" && -d "$ROOT/bin" ]]; then

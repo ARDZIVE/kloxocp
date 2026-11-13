@@ -210,6 +210,11 @@ if php "$HERE/test_fail2ban.php"; then
 else
   bad "test_fail2ban.php"
 fi
+if php "$HERE/test_ssl.php"; then
+  ok "test_ssl.php"
+else
+  bad "test_ssl.php"
+fi
 if php "$HERE/test_mailpolicy.php"; then
   ok "test_mailpolicy.php"
 else

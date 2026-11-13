@@ -1,5 +1,7 @@
 <?php
 
+include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ssl.php';
+
 class Certificate_b extends LxaClass
 {
 	static $__desc_private_key = array("", "", "private_key");
@@ -82,6 +84,34 @@ class SslCert extends Lxdb
 		return '';
 	}
 
+	/**
+	 * Prefer installed /opt/configs templates; fall back to the tree under file/.
+	 *
+	 * @return string absolute path or ''
+	 */
+	static function sslTemplatePath($bundle, $file)
+	{
+		$bundle = preg_replace('/[^a-z0-9._-]/i', '', (string) $bundle);
+		$file = preg_replace('/[^a-z0-9._-]/i', '', (string) $file);
+		if ($bundle === '' || $file === '') {
+			return '';
+		}
+		$candidates = array(
+			"/opt/configs/{$bundle}/tpl/custom.{$file}",
+			"/opt/configs/{$bundle}/tpl/{$file}",
+		);
+		$root = dirname(__DIR__, 3);
+		$candidates[] = "{$root}/file/{$bundle}/tpl/custom.{$file}";
+		$candidates[] = "{$root}/file/{$bundle}/tpl/{$file}";
+		foreach ($candidates as $p) {
+			if (is_file($p) && is_readable($p)) {
+				return $p;
+			}
+		}
+
+		return '';
+	}
+
 	static function sslOwnerName($parent)
 	{
 		if (!is_object($parent)) {
@@ -148,11 +178,36 @@ class SslCert extends Lxdb
 		if (!isset($this->ssl_data_b) || $this->ssl_data_b === null) {
 			return array();
 		}
-		if (is_array($this->ssl_data_b) || is_object($this->ssl_data_b)) {
+		if (is_array($this->ssl_data_b)) {
 			return $this->ssl_data_b;
 		}
+		if (!is_object($this->ssl_data_b)) {
+			return array();
+		}
+		$out = array();
+		foreach (get_object_vars($this->ssl_data_b) as $k => $v) {
+			if (is_string($k) && cse($k, '_r')) {
+				$out[$k] = $v;
+			}
+		}
+		$known = array(
+			'countryName_r', 'stateOrProvinceName_r', 'localityName_r',
+			'organizationName_r', 'organizationalUnitName_r', 'commonName_r',
+			'emailAddress_r', 'subjectAltName_r', 'key_bits_r',
+		);
+		foreach ($known as $f) {
+			if (array_key_exists($f, $out)) {
+				continue;
+			}
+			try {
+				if (isset($this->ssl_data_b->$f)) {
+					$out[$f] = $this->ssl_data_b->$f;
+				}
+			} catch (Throwable $e) {
+			}
+		}
 
-		return array();
+		return $out;
 	}
 
 	function updateform($subaction, $param)
@@ -342,14 +397,24 @@ class SslCert extends Lxdb
 
 	static function checkKeyCert($public_key, $privatekey)
 	{
-		$pubkey_res = openssl_get_publickey($public_key);
+		if (!is_string($public_key) || trim($public_key) === ''
+			|| !is_string($privatekey) || trim($privatekey) === '') {
+			return false;
+		}
 
-		$s = "mystring";
-		$priv_key_res = openssl_get_privatekey($privatekey, "");
-		openssl_private_encrypt($s, $encrypted_string, $priv_key_res);
-		openssl_public_decrypt($encrypted_string, $decrypted_string, $public_key);
+		$pubkey_res = @openssl_get_publickey($public_key);
+		$priv_key_res = @openssl_get_privatekey($privatekey, '');
+		if ($pubkey_res === false || $priv_key_res === false) {
+			return false;
+		}
 
-		return ($decrypted_string === $s);
+		$s = 'mystring';
+		$encrypted_string = '';
+		$decrypted_string = '';
+		$okEnc = @openssl_private_encrypt($s, $encrypted_string, $priv_key_res);
+		$okDec = $okEnc && @openssl_public_decrypt($encrypted_string, $decrypted_string, $public_key);
+
+		return $okDec && ($decrypted_string === $s);
 	}
 
 	static function createListNlist($parent, $view)
@@ -494,11 +559,154 @@ class SslCert extends Lxdb
 		}
 	}
 
+	/**
+	 * Keep failure redirects on this addform (not admin Home), and success on
+	 * the SSL Certificates list for the same domain/web object path.
+	 *
+	 * @param object|null $parent
+	 * @param array<string,mixed> $param
+	 */
+	static function rememberSslRedirects($parent, $param)
+	{
+		global $gbl, $ghtml;
+
+		$kind = '';
+		if (is_array($param) && isset($param['upload']) && is_string($param['upload'])) {
+			$kind = $param['upload'];
+		}
+		$addUrl = '';
+		$listUrl = '';
+		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+			$addUrl = ($kind !== '')
+				? $ghtml->getFullUrl('a=addform&c=sslcert&dta[var]=upload&dta[val]=' . rawurlencode($kind))
+				: $ghtml->getFullUrl('a=addform&c=sslcert');
+			$listUrl = $ghtml->getFullUrl('a=list&c=sslcert');
+		}
+		// Rebuild from parent path if getFullUrl lost frm_o_o (would bounce Home).
+		if ((!is_string($addUrl) || $addUrl === '' || !str_contains((string) $addUrl, 'frm_o_o'))
+			&& is_object($parent)) {
+			$built = self::sslUrlsFromParent($parent, $kind);
+			if ($built['add'] !== '') {
+				$addUrl = $built['add'];
+			}
+			if ($built['list'] !== '') {
+				$listUrl = $built['list'];
+			}
+		}
+		if (!is_string($addUrl) || $addUrl === '') {
+			return;
+		}
+		if (is_object($gbl)) {
+			// In-memory: print_redirect_back reads this even when c_session is missing.
+			$gbl->__kloxo_redirect_back = $addUrl;
+			if (method_exists($gbl, 'setSessionV')) {
+				$gbl->setSessionV('lx_http_referer', $addUrl);
+				$gbl->setSessionV('kloxo_ssl_addform_referer', $addUrl);
+			}
+			if (is_string($listUrl) && $listUrl !== '') {
+				$gbl->__this_redirect = $listUrl;
+			}
+		}
+	}
+
+	/**
+	 * Build SSL addform / list URLs from the parent object chain.
+	 *
+	 * @return array{add:string,list:string}
+	 */
+	static function sslUrlsFromParent($parent, $kind = '')
+	{
+		$chain = array();
+		$cur = $parent;
+		$guard = 0;
+		while (is_object($cur) && $guard < 8) {
+			$guard++;
+			$class = method_exists($cur, 'getClass') ? (string) $cur->getClass() : '';
+			$nname = (isset($cur->nname) && is_string($cur->nname)) ? $cur->nname : '';
+			if ($class !== '' && $nname !== '') {
+				array_unshift($chain, array('class' => $class, 'nname' => $nname));
+			}
+			try {
+				$next = method_exists($cur, 'getParentO') ? $cur->getParentO() : null;
+			} catch (Throwable $e) {
+				$next = null;
+			}
+			if ($next === $cur || $next === null) {
+				break;
+			}
+			$cur = $next;
+		}
+		$q = array();
+		foreach ($chain as $i => $node) {
+			$q[] = 'frm_o_o[' . $i . '][class]=' . rawurlencode($node['class']);
+			$q[] = 'frm_o_o[' . $i . '][nname]=' . rawurlencode($node['nname']);
+		}
+		$base = '/display.php?' . implode('&', $q);
+		$sep = ($q === array()) ? '' : '&';
+		$list = $base . $sep . 'frm_action=list&frm_o_cname=sslcert';
+		$add = $base . $sep . 'frm_action=addform&frm_o_cname=sslcert';
+		if (is_string($kind) && $kind !== '') {
+			$add .= '&frm_dttype[var]=upload&frm_dttype[val]=' . rawurlencode($kind);
+		}
+
+		return array('add' => $add, 'list' => $list);
+	}
+
+	/**
+	 * Root SSL work via kloxo-backend (panel FPM cannot write /home/kloxo/ssl).
+	 *
+	 * @param list<mixed> $args
+	 * @return mixed
+	 */
+	function execSsl($method, $args)
+	{
+		global $login;
+
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ssl.php';
+		$server = 'localhost';
+		if (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '') {
+			$server = $this->syncserver;
+		} else {
+			try {
+				$parent = $this->getParentO();
+				if (is_object($parent) && isset($parent->syncserver)
+					&& is_string($parent->syncserver) && $parent->syncserver !== '') {
+					$server = $parent->syncserver;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+		if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+			return call_user_func_array(array('KloxoSsl', $method), $args);
+		}
+		try {
+			$got = rl_exec_get(null, $server, array('KloxoSsl', $method), $args, false);
+		} catch (Throwable $e) {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				$e->getMessage());
+		}
+		if ($got instanceof Exception || $got instanceof Throwable) {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				$got->getMessage());
+		}
+
+		return $got;
+	}
+
 	static function add($parent, $class, $param)
 	{
 		global $login;
 
+		if (!is_array($param)) {
+			$param = array();
+		}
+
+		self::rememberSslRedirects($parent, $param);
+
 		foreach ($param as $k => $v) {
+			if (!is_string($v)) {
+				continue;
+			}
 			if (strtoupper(trim($v)) === 'N/A') {
 			//	$param[$k] = '.';
 			}
@@ -587,7 +795,7 @@ class SslCert extends Lxdb
 
 	function createDomainSSL()
 	{
-		global $gbl, $login;
+		global $login;
 
 		$parent = null;
 		try {
@@ -596,42 +804,33 @@ class SslCert extends Lxdb
 			$parent = null;
 		}
 		$name = self::sslParentNname($parent);
-	//	$user = $parent->customer_name;
 
-	//	$path = "/home/kloxo/client/{$user}/ssl";
-		$path = "/home/kloxo/ssl";
+		$contentscrt = isset($this->text_crt_content) ? (string) $this->text_crt_content : '';
+		$contentskey = isset($this->text_key_content) ? (string) $this->text_key_content : '';
+		$contentscsr = isset($this->text_csr_content) ? (string) $this->text_csr_content : '';
+		$contentsca = isset($this->text_ca_content) ? trim((string) $this->text_ca_content) : '';
 
-		$contentscrt = $this->text_crt_content;
-		$contentskey = $this->text_key_content;
-
-		$contentscsr = isset($this->text_csr_content) ? $this->text_csr_content : '';
-		$contentsca = isset($this->text_ca_content) ? trim((string)$this->text_ca_content) : '';
-
-		if (!$contentscrt || !$contentskey) {
-			throw new lxException($login->getThrow("certificate_key_file_empty"));
+		if ($contentscrt === '' || $contentskey === '') {
+			throw new lxException($login->getThrow('certificate_key_file_empty'));
 		}
 
-		self::checkAndThrow($contentscrt, $contentskey, $name);
+		self::checkAndThrow($contentscrt, $contentskey, $name !== '' ? $name : null);
 
-		$list = array('key' => $contentskey, 'crt' => $contentscrt, 'csr' => $contentscsr, 'ca' => $contentsca);
-
-		foreach ($list as $k => $v) {
-			if ($v) {
-				lfile_put_contents("{$path}/{$name}.{$k}", $v);
-			}
+		if ($name === '') {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				'missing domain name for SSL install');
 		}
 
-		if (isset($this->text_ca_content)) {
-			$contentspem = "{$contentskey}\n{$contentscrt}\n{$contentsca}";
-		} else {
-			$contentspem = "{$contentskey}\n{$contentscrt}";
+		try {
+			$this->execSsl('installDomainCert', array(
+				$name, $contentskey, $contentscrt, $contentsca, $contentscsr, true,
+			));
+		} catch (lxException $e) {
+			throw $e;
+		} catch (Throwable $e) {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				$e->getMessage());
 		}
-
-		lfile_put_contents("{$path}/{$name}.pem", $contentspem);
-
-		exec("sh /script/fixweb --domain={$name}");
-	//	createRestartFile($gbl->getSyncClass(null, $this->syncserver, 'web'));
-		createRestartFile("restart-web");
 	}
 
 	function isSelect()
@@ -763,16 +962,15 @@ class SslCert extends Lxdb
 
 	function createSelfCertificate()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $login;
 
 		$temp = array();
 		foreach ($this->sslDataFields() as $key => $value) {
-			if (!cse($key, "_r")) {
+			if (!cse($key, '_r')) {
 				continue;
 			}
-
-			$nk = strtil($key, "_r");
-			$temp[$nk] = $value;
+			$nk = strtil($key, '_r');
+			$temp[$nk] = is_string($value) ? $value : (string) $value;
 		}
 
 		$parent = null;
@@ -783,66 +981,50 @@ class SslCert extends Lxdb
 		}
 
 		if (self::sslParentIsWeb($parent)) {
-			$name = $temp['name'] = self::sslParentNname($parent);
-			$user = (isset($parent->customer_name) && is_string($parent->customer_name))
-				? $parent->customer_name : '';
+			$name = self::sslParentNname($parent);
 		} else {
-			$name = $temp['name'] = 'openssl';
+			$name = (isset($this->nname) && is_string($this->nname) && $this->nname !== '')
+				? $this->nname : 'openssl';
+		}
+		if ($name === '') {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				'missing certificate name');
 		}
 
+		$subj = array();
 		foreach ($temp as $key => $t) {
-			if ($key === "countryName") {
-				$l = explode(":", $t);
-
-				$val = $l[0];
-			} else {
-				if ($key === 'commonName') {
-					$val = replace_to_space($t);
-				} else {
-					$val = $t;
-				}
-			}
-
-			$input[$key] = $val;
-		}
-
-		// MR -- disable because use ssl_data_b for key_bits
-	//	$input['key_bits'] = $this->key_bits;
-
-		if (self::sslParentIsWeb($parent)) {
-		//	$shpath = "/home/kloxo/client/{$user}/ssl";
-			$shpath = "/home/kloxo/ssl";
-		} else {
-			$shpath = "/tmp";
-		}
-
-		$tplsource = getLinkCustomfile("/opt/configs/openssl/tpl", "openssl.sh.tpl");
-
-		$tpltarget = "{$shpath}/{$name}_openssl.sh";
-
-		$tpl = lfile_get_contents($tplsource);
-
-		$tplparse = getParseInlinePhp($tpl, $input);
-
-		if (self::sslParentIsWeb($parent)) {
-			if (!file_exists($shpath)) {
-				mkdir($shpath);
+			if ($key === 'countryName') {
+				$l = explode(':', (string) $t);
+				$subj[$key] = $l[0];
+			} elseif ($key === 'commonName') {
+				$subj[$key] = replace_to_space((string) $t);
+			} elseif ($key !== 'key_bits' && $key !== 'subjectAltName' && $key !== 'name') {
+				$subj[$key] = (string) $t;
 			}
 		}
-
-		if ($tplparse) {
-			lfile_put_contents($tpltarget, $tplparse);
+		if (!isset($subj['commonName']) || $subj['commonName'] === '') {
+			$subj['commonName'] = $name;
+		}
+		$bits = 2048;
+		if (isset($temp['key_bits']) && (string) $temp['key_bits'] === '4096') {
+			$bits = 4096;
 		}
 
-		exec("cd {$shpath}; sh {$name}_openssl.sh", $out, $ret);
-
-		if ($ret !== 0) {
-			throw new lxException($login->getThrow("create_certificate_failed"), '', $parent->nname);
+		try {
+			$got = $this->execSsl('createSelfSigned', array($name, $subj, $bits, true));
+		} catch (lxException $e) {
+			throw $e;
+		} catch (Throwable $e) {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				$e->getMessage());
 		}
-
-		$this->text_key_content = lfile_get_contents("{$shpath}/{$name}.key");
-		$this->text_crt_content = lfile_get_contents("{$shpath}/{$name}.crt");
-		$this->text_csr_content = lfile_get_contents("{$shpath}/{$name}.csr");
+		if (!is_array($got) || empty($got['key']) || empty($got['crt'])) {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				'self-signed openssl returned no certificate');
+		}
+		$this->text_key_content = (string) $got['key'];
+		$this->text_crt_content = (string) $got['crt'];
+		$this->text_csr_content = isset($got['csr']) ? (string) $got['csr'] : '';
 
 		if (self::sslParentIsWeb($parent)) {
 			$this->createDomainSSL();
@@ -851,15 +1033,15 @@ class SslCert extends Lxdb
 
 	function createLetsencrypt()
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $login;
 
+		$temp = array();
 		foreach ($this->sslDataFields() as $key => $value) {
-			if (!cse($key, "_r")) {
+			if (!cse($key, '_r')) {
 				continue;
 			}
-
-			$nk = strtil($key, "_r");
-			$temp[$nk] = $value;
+			$nk = strtil($key, '_r');
+			$temp[$nk] = is_string($value) ? $value : (string) $value;
 		}
 
 		$parent = null;
@@ -868,79 +1050,37 @@ class SslCert extends Lxdb
 		} catch (Throwable $e) {
 			$parent = null;
 		}
-	//	$user = $parent->customer_name;
-
-		$name = $temp['name'] = self::sslParentNname($parent);
-
-	//	$shpath = "/home/kloxo/client/{$user}/ssl";
-		$shpath = "/home/kloxo/ssl";
-
-		foreach ($temp as $key => $t) {
-			if ($key === 'subjectAltName') {
-				$val = replace_to_space($t);
-			} else {
-				$val = $t;
-			}
-
-			$input[$key] = $val;
+		$name = self::sslParentNname($parent);
+		if ($name === '') {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				'missing domain name for Let\'s Encrypt');
 		}
 
-		// MR -- disable because use ssl_data_b for key_bits
-	//	$input['key_bits'] = $this->key_bits;
+		$sanRaw = isset($temp['subjectAltName'])
+			? replace_to_space((string) $temp['subjectAltName'])
+			: $name;
+		$sans = preg_split('/\s+/', trim($sanRaw)) ?: array();
+		$sans = array_values(array_filter($sans, static function ($s) {
+			return is_string($s) && $s !== '';
+		}));
+		$email = isset($temp['emailAddress']) ? (string) $temp['emailAddress'] : '';
+		$keyBits = isset($temp['key_bits']) ? (string) $temp['key_bits'] : '2048';
 
-		if (file_exists("/root/.acme.sh/acme.sh")) {
-			$use_acmesh = true;
-		} else {
-			$use_acmesh = false;
+		try {
+			$got = $this->execSsl('issueLetsEncrypt', array($name, $email, $sans, $keyBits));
+		} catch (lxException $e) {
+			throw $e;
+		} catch (Throwable $e) {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				$e->getMessage());
 		}
-
-		if ($use_acmesh) {
-			$tplsource = getLinkCustomfile("/opt/configs/acme.sh/tpl", "acme.sh.tpl");
-			$tpltarget = "{$shpath}/{$name}_acme.sh";
-		} else {
-			$tplsource = getLinkCustomfile("/opt/configs/letsencrypt/tpl", "letsencrypt.sh.tpl");
-			$tpltarget = "{$shpath}/{$name}_letsencrypt.sh";
+		if (!is_array($got) || empty($got['key']) || empty($got['crt'])) {
+			throw new lxException($login->getThrow('create_certificate_failed'), '',
+				'Let\'s Encrypt returned no certificate');
 		}
-
-		$tpl = lfile_get_contents($tplsource);
-
-		$tplparse = getParseInlinePhp($tpl, $input);
-
-		if (!file_exists($shpath)) {
-			mkdir($shpath);
-		}
-
-		if ($tplparse) {
-			lfile_put_contents($tpltarget, $tplparse);
-		}
-
-		if ($use_acmesh) {
-			exec("cd {$shpath}; sh {$name}_acme.sh", $out, $ret);
-		} else {
-			exec("cd {$shpath}; sh {$name}_letsencrypt.sh", $out, $ret);
-		}
-
-		if ($ret !== 0) {
-			throw new lxException($login->getThrow("create_certificate_failed"), '', $parent->nname);
-		}
-
-		if ($use_acmesh) {
-			$acpath = "/root/.acme.sh/{$name}";
-
-			$this->text_key_content = lfile_get_contents("{$acpath}/{$name}.key");
-			$this->text_crt_content = lfile_get_contents("{$acpath}/{$name}.cer");
-			$this->text_ca_content = lfile_get_contents("{$acpath}/ca.cer");
-		} else {
-			$lepath = "/etc/letsencrypt/live/{$name}";
-
-			$this->text_key_content = lfile_get_contents("{$lepath}/privkey.pem");
-			$this->text_crt_content = lfile_get_contents("{$lepath}/cert.pem");
-			$this->text_ca_content = lfile_get_contents("{$lepath}/chain.pem");
-		}
-
-		exec("sh /script/fixweb --domain={$name}");
-	//	createRestartFile($gbl->getSyncClass(null, $this->syncserver, 'web'));
-		createRestartFile("restart-web");
+		$this->text_key_content = (string) $got['key'];
+		$this->text_crt_content = (string) $got['crt'];
+		$this->text_ca_content = isset($got['ca']) ? (string) $got['ca'] : '';
 	}
 
 	function createStartapi()

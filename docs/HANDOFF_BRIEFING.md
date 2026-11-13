@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111320**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111321**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -528,8 +528,17 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     **Add Let's Encrypt**, **Add SSL Link**; Switch To Another uses sibling
     domains (`web::getSelfList` / `domainWebSwitchList`); columns are User Name,
     Certificate Name, Add Type, Parent Domain, Syncserver. Addform / parse /
-    parent-username no longer TypeError on PHP 8. Live SSL Certificates after
-    deploy is **UNVERIFIED**. HelpDesk ticket show puts Switch To Another
+    parent-username no longer TypeError on PHP 8. Domain SSL install and
+    Let's Encrypt / self-signed issue run as root through kloxo-backend
+    (`KloxoSsl` in `lib/php/kloxo_ssl.php`: write `/home/kloxo/ssl`,
+    `certbot` or `/root/.acme.sh/acme.sh`, then `/script/fixweb`); the
+    obsolete `letsencrypt-auto` path is gone (`file/letsencrypt/tpl` prefers
+    certbot; `install.sh` packages `certbot`). On failure the addform stays
+    open (`$gbl->__kloxo_redirect_back` / `rememberSslRedirects` /
+    `resolveRedirectBackUrl` — no bounce to admin Home); on success the
+    SSL Certificates list for that domain is shown. Tested:
+    `tests/p2/test_ssl.php` (fake openssl/certbot). Live Add SSL File /
+    Text / Let's Encrypt on Ubuntu is **UNVERIFIED**. HelpDesk ticket show puts Switch To Another
     at the top (sibling ticket ids) and keeps Ticket / Add Reply /
     Escalate plus the inline Add Reply form (State, Text Reason) and
     Replies list (Changed By, Text Reason, Date, State). The replies
@@ -1097,7 +1106,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111320**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111321**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
