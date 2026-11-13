@@ -288,6 +288,22 @@ $tpl = (string) file_get_contents($repo . '/kloxo/file/letsencrypt/tpl/letsencry
 check(str_contains($tpl, 'certbot'), 'template mentions certbot');
 check(!str_contains($tpl, 'letsencrypt-auto certonly'), 'template does not require letsencrypt-auto alone');
 
+echo "== ACME nginx location + redirect skip\n";
+$acmeConf = (string) file_get_contents($repo . '/kloxo/file/nginx/conf/globals/acme-challenge.conf');
+check(str_contains($acmeConf, 'location ^~ /.well-known/acme-challenge/'), 'acme location uses ^~');
+check(str_contains($acmeConf, 'root /var/run/letsencrypt'), 'acme location uses root webroot');
+$domTpl = (string) file_get_contents($repo . '/kloxo/file/nginx/tpl/domains.conf.tpl');
+check(str_contains($domTpl, 'well-known/acme-challenge'), 'domains tpl mentions ACME path');
+check(str_contains($domTpl, 'request_uri !~* "^/\\.well-known/acme-challenge/"'),
+	'https redirect skips ACME');
+$sslSrc = (string) file_get_contents($repo . '/kloxo/httpdocs/driver/pserver/sslcertlib.php');
+check(str_contains($sslSrc, '"{$d} www.{$d}"') || str_contains($sslSrc, "{\$d} www.{\$d}"),
+	'default LE SAN is domain + www only');
+check(!str_contains($sslSrc, 'webmail.{$d} mail.{$d}'),
+	'default LE SAN no longer forces webmail/mail');
+$sslPhp = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/kloxo_ssl.php');
+check(str_contains($sslPhp, 'ensureAcmeNginxSnippet'), 'issueLetsEncrypt refreshes ACME snippet');
+
 // cleanup
 KloxoSsl::$fsPrefix = '';
 KloxoSsl::$runCmd = null;

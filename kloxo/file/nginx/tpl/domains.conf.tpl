@@ -387,7 +387,15 @@ server {
 		if ($webmailremote) {
 ?>
 
+	# Skip ACME HTTP-01 (remote webmail rewrite would send the token elsewhere).
+	set $kloxo_webmail_remote "";
 	if ($host != '<?=$webmailremote;?>') {
+		set $kloxo_webmail_remote "1";
+	}
+	if ($request_uri ~* "^/\.well-known/acme-challenge/") {
+		set $kloxo_webmail_remote "0";
+	}
+	if ($kloxo_webmail_remote = "1") {
 		rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1' permanent;
 	}
 <?php
@@ -477,7 +485,15 @@ server {
 		if ($wwwredirect) {
 ?>
 
+	# Skip ACME HTTP-01 (www redirect would 404 the token).
+	set $kloxo_www_redirect "";
 	if ($host ~* ^(<?=$domainname;?>)$) {
+		set $kloxo_www_redirect "1";
+	}
+	if ($request_uri ~* "^/\.well-known/acme-challenge/") {
+		set $kloxo_www_redirect "0";
+	}
+	if ($kloxo_www_redirect = "1") {
 		rewrite ^/(.*) '<?=$protocol;?>www.<?=$domainname;?>/$1' permanent;
 	}
 <?php
@@ -486,7 +502,10 @@ server {
 		if (($count === 0) && ($httpsredirect)) {
 ?>
 
-	return 301 https://$host$request_uri;
+	# Skip ACME HTTP-01 (server-level return would run before location ^~).
+	if ($request_uri !~* "^/\.well-known/acme-challenge/") {
+		return 301 https://$host$request_uri;
+	}
 <?php
 		}
 
@@ -507,7 +526,13 @@ server {
 				} else {
 					if ($webmailremote) {
 ?>
-		rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1' permanent;
+		set $kloxo_wc_webmail_remote "1";
+		if ($request_uri ~* "^/\.well-known/acme-challenge/") {
+			set $kloxo_wc_webmail_remote "0";
+		}
+		if ($kloxo_wc_webmail_remote = "1") {
+			rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1' permanent;
+		}
 <?php
 					} else {
 ?>
@@ -917,7 +942,14 @@ server {
 					if ($webmailremote) {
 ?>
 
+	set $kloxo_park_webmail_remote "";
 	if ($host != '<?=$webmailremote;?>') {
+		set $kloxo_park_webmail_remote "1";
+	}
+	if ($request_uri ~* "^/\.well-known/acme-challenge/") {
+		set $kloxo_park_webmail_remote "0";
+	}
+	if ($kloxo_park_webmail_remote = "1") {
 		rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1';
 	}
 <?php
@@ -983,7 +1015,14 @@ server {
 					if ($webmailremote) {
 ?>
 
+	set $kloxo_redir_webmail_remote "";
 	if ($host != '<?=$webmailremote;?>') {
+		set $kloxo_redir_webmail_remote "1";
+	}
+	if ($request_uri ~* "^/\.well-known/acme-challenge/") {
+		set $kloxo_redir_webmail_remote "0";
+	}
+	if ($kloxo_redir_webmail_remote = "1") {
 		rewrite ^/(.*) '<?=$protocol;?><?=$webmailremote;?>/$1';
 	}
 <?php

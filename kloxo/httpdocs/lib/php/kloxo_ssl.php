@@ -120,6 +120,46 @@ final class KloxoSsl
         if (!is_dir($challenge) && !@mkdir($challenge, 0755, true) && !is_dir($challenge)) {
             throw new KloxoSslException('cannot create ACME webroot ' . $challenge);
         }
+        // Nginx (www-data) must read tokens written by root/certbot.
+        @chmod($w, 0755);
+        @chmod($w . '/.well-known', 0755);
+        @chmod($challenge, 0755);
+    }
+
+    /**
+     * Install/refresh the Nginx ACME snippet under /opt/configs (and reload
+     * is left to fixweb). Safe no-op when the tree is absent.
+     */
+    public static function ensureAcmeNginxSnippet(): void
+    {
+        $destDir = self::p('/opt/configs/nginx/conf/globals');
+        $dest = $destDir . '/acme-challenge.conf';
+        $candidates = [
+            self::p('/opt/kloxo/file/nginx/conf/globals/acme-challenge.conf'),
+            dirname(__DIR__, 3) . '/file/nginx/conf/globals/acme-challenge.conf',
+        ];
+        $src = '';
+        foreach ($candidates as $c) {
+            if (is_file($c) && is_readable($c)) {
+                $src = $c;
+                break;
+            }
+        }
+        if ($src === '') {
+            return;
+        }
+        if (!is_dir($destDir) && !@mkdir($destDir, 0755, true) && !is_dir($destDir)) {
+            return;
+        }
+        $body = (string) file_get_contents($src);
+        if ($body === '') {
+            return;
+        }
+        $cur = is_file($dest) ? (string) file_get_contents($dest) : '';
+        if ($cur === $body) {
+            return;
+        }
+        @file_put_contents($dest, $body);
     }
 
     /**
@@ -336,6 +376,9 @@ final class KloxoSsl
         }
         self::ensureSslDir();
         self::ensureWebroot();
+        self::ensureAcmeNginxSnippet();
+        // Refresh vhost so Force-HTTPS / www redirects skip ACME before validation.
+        self::fixweb($domain);
 
         $acme = self::p('/root/.acme.sh/acme.sh');
         if (!is_file($acme)) {
@@ -401,8 +444,16 @@ final class KloxoSsl
         $r = self::run($argv);
         if ($r['code'] !== 0) {
             $tail = self::tailOut($r['out'], 12);
+            $hint = '';
+            if (preg_match('/unauthorized|404|Invalid response/i', $r['out']) === 1) {
+                $hint = '; ACME HTTP-01 got 404 — use only names that resolve here'
+                    . ' (default SAN is domain + www), ensure Nginx serves'
+                    . ' /.well-known/acme-challenge/ from /var/run/letsencrypt'
+                    . ' (Force HTTPS / www redirects must skip that path; run /script/fixweb),'
+                    . ' and remove webmail/mail if they redirect elsewhere';
+            }
             throw new KloxoSslException(
-                'certbot failed' . ($tail !== '' ? ': ' . $tail : ' (exit ' . $r['code'] . ')')
+                'certbot failed' . ($tail !== '' ? ': ' . $tail : ' (exit ' . $r['code'] . ')') . $hint
             );
         }
         $live = self::p('/etc/letsencrypt/live/' . $domain);

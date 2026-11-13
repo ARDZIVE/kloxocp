@@ -849,9 +849,11 @@ $__information['sslcert_addform_letsencrypt_pre'] = "<p>You can use <b>Let's Enc
 		"<ul>" .
 			"<li>Expire in 90 days and then need renew (update) before expire</li>" .
 			"<li>Use 'Add SSL Link' to parent SSL (domain SSL) for activate subdomain SSL</li>" .
+			"<li>Default SAN is domain + www only; add webmail/mail/cp/stats only when those names resolve here</li>" .
 			"<li>Possible 100 SANs (Subject Alternative Names) for each domain</li>" .
-			"<li>If using 'Remote Mail' for domain, remove 'webmail.domain.com' from 'Subject Alternative Name (SAN)'</li>" .
+			"<li>If using 'Remote Mail' for domain, do not add 'webmail.domain.com' to SAN</li>" .
 			"<li>Don't use 'redirect' for listing in 'Subject Alternative Name (SAN)' because may trouble to verifying token. Or remove it from listing</li>" .
+			"<li>Force HTTPS / www redirects skip <code>/.well-known/acme-challenge/</code>; run Fix Web after updating the panel so Nginx picks that up</li>" .
 		"</ul>";
 
 $__information['sslcert_addform_startapi_pre'] = "<p>You can use <b>StartSSL API</b> free SSL here. </p>" . 

@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111322**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111323**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -538,7 +538,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     obsolete `letsencrypt-auto` path is gone (`file/letsencrypt/tpl` prefers
     certbot; `install.sh` packages `certbot`; missing certbot is
     apt-installed on issue via `KloxoSsl::ensureCertbot` / `kloxocp upcp`,
-    and `kloxocp doctor` warns when neither certbot nor acme.sh is present).
+    and `kloxocp doctor` warns when neither certbot nor acme.sh is present.
+    Default Let's Encrypt SAN is apex + www only (not webmail/mail/cp/stats).
+    Nginx ACME location is `^~ /.well-known/acme-challenge/` with
+    `root /var/run/letsencrypt`; Force-HTTPS / www / remote-webmail
+    redirects skip that path; `issueLetsEncrypt` refreshes the snippet and
+    runs fixweb before certbot).
     On failure the addform stays
     open (`$gbl->__kloxo_redirect_back` / `rememberSslRedirects` /
     `resolveRedirectBackUrl` — no bounce to admin Home); on success the
@@ -1112,7 +1117,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111322**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111323**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

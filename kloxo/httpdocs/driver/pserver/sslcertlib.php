@@ -874,9 +874,9 @@ class SslCert extends Lxdb
 				$vlist['nname'] = $nname;
 				$vlist['ssl_data_b_s_key_bits_r'] = $keybits;
 
-				$san = $d !== ''
-					? "{$d} www.{$d} cp.{$d} stats.{$d} webmail.{$d} mail.{$d}"
-					: '';
+				// Default: apex + www only. Extra names (webmail/mail/cp/stats) often
+				// lack DNS or follow redirects and make Let's Encrypt return 404.
+				$san = $d !== '' ? "{$d} www.{$d}" : '';
 
 				$parked = array();
 				try {
@@ -893,7 +893,7 @@ class SslCert extends Lxdb
 				}
 				foreach ($parked as $k => $v) {
 					if (is_object($v) && isset($v->ttype) && $v->ttype === 'parked') {
-						$san .= " {$k} www.{$k} stats.{$k} cp.{$k} webmail.{$k} mail.{$k}";
+						$san .= " {$k} www.{$k}";
 					}
 				}
 
