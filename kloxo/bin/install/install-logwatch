@@ -1,0 +1,75 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * install-logwatch: first configuration of LogWatch for Kloxo CP.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3 or later. See LICENSE.txt.
+ *
+ * Writes etc/conf/logwatch.json when missing, creates /var/log/logwatch,
+ * applies conf + cron through KloxoLogwatch::apply().
+ *
+ * Usage:
+ *   install-logwatch --root=DIR [--mailto=ADDR] [--dry-run]
+ */
+
+$root = '/opt/kloxo';
+$dry = false;
+$mailto = '';
+foreach (array_slice($argv, 1) as $a) {
+    if ($a === '--help' || $a === '-h') {
+        echo "install-logwatch --root=DIR [--mailto=ADDR] [--dry-run]\n"
+            . "  Configure LogWatch for Kloxo CP. Existing etc/conf/logwatch.json is kept.\n";
+        exit(0);
+    }
+    if ($a === '--dry-run') {
+        $dry = true;
+    } elseif (str_starts_with($a, '--root=')) {
+        $root = rtrim(substr($a, 7), '/');
+    } elseif (str_starts_with($a, '--mailto=')) {
+        $mailto = trim(substr($a, 9));
+    } else {
+        fwrite(STDERR, "error: unknown option $a\n");
+        exit(64);
+    }
+}
+if ($root === '' || $root[0] !== '/' || !is_file($root . '/httpdocs/lib/php/kloxo_logwatch.php')) {
+    fwrite(STDERR, "error: not a Kloxo program root: $root\n");
+    exit(1);
+}
+putenv('KLOXO_ROOT=' . $root);
+require_once $root . '/httpdocs/lib/php/kloxo_logwatch.php';
+if ($dry && is_string(getenv('KLOXO_LW_FSPREFIX')) && getenv('KLOXO_LW_FSPREFIX') !== '') {
+    KloxoLogwatch::$fsPrefix = (string) getenv('KLOXO_LW_FSPREFIX');
+}
+
+@chmod($root . '/bin/logwatch/kloxo-logwatch', 0755);
+
+$cfg = KloxoLogwatch::loadConfig($root);
+if ($mailto !== '') {
+    $cfg['mailto'] = $mailto;
+}
+$cfg = KloxoLogwatch::normalizeConfig($cfg);
+
+if ($dry) {
+    echo "would write conf:\n" . KloxoLogwatch::renderConf($cfg);
+    echo "would write cron:\n" . KloxoLogwatch::renderCron($cfg, $root);
+    exit(0);
+}
+
+if (!is_file(KloxoLogwatch::configPath($root))) {
+    KloxoLogwatch::saveConfig($cfg, $root);
+}
+
+$r = KloxoLogwatch::apply($cfg, $root);
+if (empty($r['ok'])) {
+    fwrite(STDERR, 'error: ' . ($r['error'] ?? 'apply failed') . "\n");
+    exit(1);
+}
+echo "LogWatch configured; reports in " . KloxoLogwatch::REPORT_DIR . "\n";
+if (empty($r['installed'])) {
+    echo "warn: logwatch package not found; apt-install logwatch then re-run\n";
+}
+exit(0);

@@ -21,6 +21,7 @@ class pserver extends pservercore {
 	static $__desc_lxguard_o = array("db", "", "");
 	static $__desc_ufwfirewall_o = array("d", "", "");
 	static $__desc_fail2ban_o = array("d", "", "");
+	static $__desc_logwatch_o = array("d", "", "");
 	static $__desc_phpmodule_l = array("", "", "");
 
 	Function display($var)
@@ -558,6 +559,7 @@ class pserver extends pservercore {
 		$alist[] = "a=show&o=lxguard";
 		$alist[] = "a=show&o=ufwfirewall";
 		$alist[] = "a=show&o=fail2ban";
+		$alist[] = "a=show&o=logwatch";
 		$alist[] = "a=list&c=hostdeny";
 		$alist[] = "a=list&c=sshauthorizedkey";
 

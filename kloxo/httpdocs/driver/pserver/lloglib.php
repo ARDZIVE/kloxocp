@@ -29,7 +29,6 @@ class Llog extends Lxclass {
 
 	function createShowPropertyList(&$alist)
 	{
-		// Log Manager is a picker + viewer; no File Manager root tab.
 		$alist['property'][] = 'a=show';
 	}
 
@@ -40,13 +39,11 @@ class Llog extends Lxclass {
 
 	function getFfileFromVirtualList($name)
 	{
-		global $sgbl;
-
 		if (substr($name, 0, 1) !== '/') {
 			$name = '/var/log/' . $name;
 		}
 
-		$ffile= new Ffile($this->__masterserver, $this->__readserver, "/", $name, $this->getParentO()->username);
+		$ffile = new Ffile($this->__masterserver, $this->__readserver, "/", $name, $this->getParentO()->username);
 
 		$ffile->__parent_o = $this;
 		$ffile->get();
@@ -56,98 +53,281 @@ class Llog extends Lxclass {
 	}
 
 	/**
-	 * Ubuntu log files the panel may show. Relative keys are under /var/log/.
-	 * Dead CentOS / removed-stack paths (httpd, lighttpd, yum, qmail, …) stay out.
+	 * Applications shown in the first Log Manager dropdown.
+	 * Each app lists one or more absolute path patterns (glob) for rotated files.
 	 *
-	 * @return array<string,string> path key => label
+	 * @return array<string,array{label:string,patterns:list<string>,hint?:string}>
+	 */
+	static function logApps()
+	{
+		$apps = array(
+			'syslog' => array(
+				'label' => 'Syslog',
+				'patterns' => array('/var/log/syslog*'),
+			),
+			'auth' => array(
+				'label' => 'Auth (SSH)',
+				'patterns' => array('/var/log/auth.log*'),
+			),
+			'dpkg' => array(
+				'label' => 'Package (dpkg)',
+				'patterns' => array('/var/log/dpkg.log*'),
+			),
+			'exim' => array(
+				'label' => 'Exim',
+				'patterns' => array('/var/log/exim4/mainlog*', '/var/log/exim4/rejectlog*', '/var/log/exim4/paniclog*'),
+			),
+			'mail' => array(
+				'label' => 'Mail (syslog)',
+				'patterns' => array('/var/log/mail.log*', '/var/log/mail.err*'),
+			),
+			'nginx' => array(
+				'label' => 'Nginx',
+				'patterns' => array('/var/log/nginx/access.log*', '/var/log/nginx/error.log*'),
+			),
+			'apache' => array(
+				'label' => 'Apache',
+				'patterns' => array('/var/log/apache2/access.log*', '/var/log/apache2/error.log*', '/var/log/apache2/other_vhosts_access.log*'),
+			),
+			'hiawatha' => array(
+				'label' => 'Panel Hiawatha',
+				'patterns' => array(
+					'/opt/kloxo/log/hiawatha-system.log*',
+					'/opt/kloxo/log/hiawatha-error.log*',
+					'/opt/kloxo/log/hiawatha-access.log*',
+					'/opt/kloxo/log/hiawatha-exploit.log*',
+					'/opt/kloxo/log/hiawatha-garbage.log*',
+				),
+			),
+			'mariadb' => array(
+				'label' => 'MariaDB',
+				'patterns' => array('/var/log/mysql/error.log*', '/var/log/mysql/mysql-slow.log*'),
+			),
+			'pureftpd' => array(
+				'label' => 'Pure-FTPd',
+				'patterns' => array('/var/log/pureftpd.log*'),
+			),
+			'fail2ban' => array(
+				'label' => 'Fail2Ban',
+				'patterns' => array('/var/log/fail2ban.log*'),
+			),
+			'letsencrypt' => array(
+				'label' => "Let's Encrypt",
+				'patterns' => array('/var/log/letsencrypt/letsencrypt.log*'),
+			),
+			'panel' => array(
+				'label' => 'Panel (PHP / Watchdog)',
+				'patterns' => array(
+					'/opt/kloxo/log/php.err*',
+					'/opt/kloxo/log/php-fpm-error.log*',
+					'/opt/kloxo/log/php-fpm-slow.log*',
+					'/opt/kloxo/log/watchdog.log*',
+					'/opt/kloxo/log/auth-failures.log*',
+				),
+			),
+			'webfront' => array(
+				'label' => 'Web Cache / Proxy',
+				'patterns' => array(
+					'/var/log/kloxo/webcache.error.log*',
+					'/var/log/kloxo/webcache.access.log*',
+					'/var/log/kloxo/webproxy.error.log*',
+					'/var/log/kloxo/webproxy.access.log*',
+				),
+			),
+			'phpfpm' => array(
+				'label' => 'PHP-FPM (sites)',
+				'patterns' => array('/var/log/php*-fpm.log*', '/var/log/php/slow.log*'),
+			),
+			'logwatch' => array(
+				'label' => 'LogWatch',
+				'patterns' => array('/var/log/logwatch/logwatch-*'),
+				'hint' => 'Reports written by Security → LogWatch. Configure schedule and retention there; files live in /var/log/logwatch/.',
+			),
+		);
+
+		return $apps;
+	}
+
+	/**
+	 * Flat catalog kept for tests / legacy absolute keys.
+	 *
+	 * @return array<string,string>
 	 */
 	static function logCatalog()
 	{
-		$list = array(
-			'syslog' => 'Syslog',
-			'auth.log' => 'Auth (SSH)',
-			'dpkg.log' => 'Package (dpkg)',
-
-			'exim4/mainlog' => 'Exim Main',
-			'exim4/rejectlog' => 'Exim Reject',
-			'exim4/paniclog' => 'Exim Panic',
-			'mail.log' => 'Mail (syslog)',
-
-			'nginx/access.log' => 'Nginx Access',
-			'nginx/error.log' => 'Nginx Error',
-			'apache2/access.log' => 'Apache Access',
-			'apache2/error.log' => 'Apache Error',
-
-			'/opt/kloxo/log/hiawatha-system.log' => 'Panel Hiawatha System',
-			'/opt/kloxo/log/hiawatha-error.log' => 'Panel Hiawatha Error',
-			'/opt/kloxo/log/hiawatha-access.log' => 'Panel Hiawatha Access',
-			'/opt/kloxo/log/hiawatha-exploit.log' => 'Panel Hiawatha Exploit',
-			'/opt/kloxo/log/hiawatha-garbage.log' => 'Panel Hiawatha Garbage',
-
-			'mysql/error.log' => 'MariaDB Error',
-
-			'pureftpd.log' => 'Pure-FTPd',
-
-			'fail2ban.log' => 'Fail2Ban',
-			'letsencrypt/letsencrypt.log' => "Let's Encrypt (certbot)",
-
-			'/opt/kloxo/log/php.err' => 'Panel PHP',
-			'/opt/kloxo/log/php-fpm-error.log' => 'Panel PHP-FPM',
-			'/opt/kloxo/log/php-fpm-slow.log' => 'Panel PHP-FPM Slow',
-			'/opt/kloxo/log/watchdog.log' => 'Watchdog',
-			'/opt/kloxo/log/auth-failures.log' => 'Panel Auth Failures',
-
-			'/var/log/kloxo/webcache.error.log' => 'Web Cache Error',
-			'/var/log/kloxo/webproxy.error.log' => 'Web Proxy Error',
-
-			'php/slow.log' => 'PHP-FPM Slow (sites)',
-		);
-
-		$phplist = array();
-		if (function_exists('getMultiplePhpList')) {
-			try {
-				$phplist = getMultiplePhpList();
-			} catch (Throwable $e) {
-				$phplist = array();
-			}
-		}
-		if (is_array($phplist)) {
-			foreach ($phplist as $id) {
-				if (!is_string($id)) {
-					continue;
-				}
-				if (preg_match('/^php(\d+\.\d+)$/', $id, $m) !== 1) {
-					continue;
-				}
-				$ver = $m[1];
-				$list["php{$ver}-fpm.log"] = "PHP-FPM {$ver}";
-			}
+		$out = array();
+		foreach (self::logApps() as $app => $meta) {
+			$out[$app] = (string) ($meta['label'] ?? $app);
 		}
 
-		return $list;
+		return $out;
 	}
 
 	/**
-	 * @param mixed $key
+	 * @param mixed $app
 	 */
-	static function isValidLogKey($key)
+	static function isValidLogApp($app)
 	{
-		if (!is_string($key) || $key === '') {
-			return false;
-		}
-		if (strpos($key, "\0") !== false || strpos($key, '..') !== false) {
-			return false;
-		}
-
-		return array_key_exists($key, self::logCatalog());
+		return is_string($app) && $app !== '' && array_key_exists($app, self::logApps());
 	}
 
 	/**
-	 * Absolute filesystem path for a catalog key.
+	 * @param mixed $path
+	 */
+	static function isSafeLogPath($path)
+	{
+		if (!is_string($path) || $path === '' || $path[0] !== '/') {
+			return false;
+		}
+		if (strpos($path, "\0") !== false || strpos($path, '..') !== false) {
+			return false;
+		}
+		foreach (self::logApps() as $meta) {
+			foreach ((array) ($meta['patterns'] ?? array()) as $pat) {
+				if (self::pathMatchesPattern($path, (string) $pat)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * @param string $path
+	 * @param string $pattern glob with optional trailing *
+	 */
+	static function pathMatchesPattern($path, $pattern)
+	{
+		if ($pattern !== '' && substr($pattern, -1) === '*') {
+			$prefix = substr($pattern, 0, -1);
+
+			return strpos($path, $prefix) === 0;
+		}
+
+		return $path === $pattern;
+	}
+
+	/**
+	 * List existing files for an application (root / backend).
 	 *
-	 * @param string $key
+	 * @param string $app
+	 * @return list<array{path:string,label:string,mtime:int,size:int}>
+	 */
+	static function listAppFiles($app)
+	{
+		if (!self::isValidLogApp($app)) {
+			return array();
+		}
+		$apps = self::logApps();
+		$meta = $apps[$app];
+		$files = array();
+		$seen = array();
+		foreach ((array) ($meta['patterns'] ?? array()) as $pat) {
+			$pat = (string) $pat;
+			foreach (glob($pat) ?: array() as $f) {
+				if (!is_string($f) || isset($seen[$f]) || !is_file($f)) {
+					continue;
+				}
+				if (!self::isSafeLogPath($f)) {
+					continue;
+				}
+				$seen[$f] = true;
+				$files[] = array(
+					'path' => $f,
+					'label' => basename($f),
+					'mtime' => (int) (@filemtime($f) ?: 0),
+					'size' => (int) (@filesize($f) ?: 0),
+				);
+			}
+		}
+		usort($files, static function ($a, $b) {
+			return ($b['mtime'] <=> $a['mtime']);
+		});
+
+		return $files;
+	}
+
+	/**
+	 * Currently selected application id.
+	 *
 	 * @return string
 	 */
+	static function selectedLogApp()
+	{
+		global $ghtml;
+
+		$req = '';
+		if (is_object($ghtml)) {
+			$v = null;
+			if (isset($ghtml->__http_vars) && is_array($ghtml->__http_vars)
+				&& isset($ghtml->__http_vars['frm_llog_app'])) {
+				$v = $ghtml->__http_vars['frm_llog_app'];
+			} else {
+				$v = $ghtml->frm_llog_app;
+			}
+			if (is_string($v)) {
+				$req = trim($v);
+			}
+		}
+		if (self::isValidLogApp($req)) {
+			return $req;
+		}
+
+		return '';
+	}
+
+	/**
+	 * Currently selected absolute log path (validated against the app).
+	 *
+	 * @return string
+	 */
+	static function selectedLogKey()
+	{
+		global $ghtml;
+
+		$req = '';
+		if (is_object($ghtml)) {
+			$v = null;
+			if (isset($ghtml->__http_vars) && is_array($ghtml->__http_vars)
+				&& isset($ghtml->__http_vars['frm_llog_file'])) {
+				$v = $ghtml->__http_vars['frm_llog_file'];
+			} else {
+				$v = $ghtml->frm_llog_file;
+			}
+			if (is_string($v)) {
+				$req = trim($v);
+			}
+		}
+		if ($req === '' || !self::isSafeLogPath($req)) {
+			return '';
+		}
+		$app = self::selectedLogApp();
+		if ($app === '') {
+			return self::isSafeLogPath($req) ? $req : '';
+		}
+		foreach (self::listAppFiles($app) as $row) {
+			if (($row['path'] ?? '') === $req) {
+				return $req;
+			}
+		}
+		// File may have been pruned; still allow if pattern matches the app.
+		$apps = self::logApps();
+		foreach ((array) ($apps[$app]['patterns'] ?? array()) as $pat) {
+			if (self::pathMatchesPattern($req, (string) $pat)) {
+				return $req;
+			}
+		}
+
+		return '';
+	}
+
+	/** @deprecated */
+	static function isValidLogKey($key)
+	{
+		return self::isSafeLogPath($key) || self::isValidLogApp($key);
+	}
+
 	static function resolveLogPath($key)
 	{
 		if (!is_string($key) || $key === '') {
@@ -160,93 +340,75 @@ class Llog extends Lxclass {
 		return '/var/log/' . $key;
 	}
 
-	/**
-	 * Currently selected catalog key from the request (validated).
-	 *
-	 * @return string
-	 */
-	static function selectedLogKey()
-	{
-		global $ghtml;
-
-		$req = '';
-		if (is_object($ghtml)) {
-			$v = $ghtml->frm_llog_file;
-			if (is_string($v)) {
-				$req = trim($v);
-			}
-		}
-		if (self::isValidLogKey($req)) {
-			return $req;
-		}
-
-		return '';
-	}
-
-	/**
-	 * Map an absolute or relative path back to a catalog key (legacy ffile URLs).
-	 *
-	 * @param string $path
-	 * @return string
-	 */
 	static function catalogKeyFromPath($path)
 	{
 		$path = (string) $path;
-		$cat = self::logCatalog();
-		if ($path !== '' && isset($cat[$path])) {
+		if (self::isSafeLogPath($path)) {
 			return $path;
-		}
-		if (strpos($path, '/var/log/') === 0) {
-			$rel = substr($path, strlen('/var/log/'));
-			if (isset($cat[$rel])) {
-				return $rel;
-			}
 		}
 
 		return '';
 	}
 
 	/**
-	 * Stub objects for Switch To Another on a legacy ffile log URL.
+	 * List files for an app via kloxo-backend when the panel is not root.
 	 *
-	 * @return array<string,object>
+	 * @param string $app
+	 * @return list<array{path:string,label:string,mtime:int,size:int}>
 	 */
-	static function logSwitchList()
+	function listAppFilesLive($app)
 	{
-		$out = array();
-		foreach (self::logCatalog() as $path => $label) {
-			$out[$path] = new llog_switch_stub($label);
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
+		$panel = function_exists('php_sapi_name') ? php_sapi_name() : 'cli';
+		$useBackend = $euid !== 0 && $panel !== 'cli' && function_exists('rl_exec_get');
+		if (!$useBackend) {
+			return self::listAppFiles($app);
+		}
+		try {
+			$server = 'localhost';
+			$parent = null;
+			try {
+				$parent = $this->getParentO();
+			} catch (Throwable $e) {
+				$parent = null;
+			}
+			if (is_object($parent) && isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+				$server = $parent->nname;
+			}
+			$got = rl_exec_get(null, $server, array('Llog', 'listAppFiles'), array($app), false);
+			if (is_array($got)) {
+				return $got;
+			}
+		} catch (Throwable $e) {
+			log_log('error', 'llog listAppFiles: ' . $e->getMessage());
 		}
 
-		return $out;
+		return array();
 	}
 
 	/**
-	 * Read the tail of a catalog log via kloxo-backend (root).
-	 *
-	 * @param string $key
+	 * @param string $path absolute
 	 * @return array{key:string,label:string,path:string,content:string,truncated:bool,missing:bool,error:string}
 	 */
-	function readLogView($key)
+	function readLogView($path)
 	{
-		$cat = self::logCatalog();
 		$out = array(
-			'key' => (string) $key,
-			'label' => isset($cat[$key]) ? (string) $cat[$key] : (string) $key,
-			'path' => self::resolveLogPath($key),
+			'key' => (string) $path,
+			'label' => basename((string) $path),
+			'path' => (string) $path,
 			'content' => '',
 			'truncated' => false,
 			'missing' => true,
 			'error' => '',
 		);
-		if (!self::isValidLogKey($key)) {
+		if (!self::isSafeLogPath($path)) {
 			$out['error'] = 'Invalid log file.';
 
 			return $out;
 		}
 
 		try {
-			$ff = $this->getFfileFromVirtualList($key);
+			$ff = $this->getFfileFromVirtualList($path);
 			$ff->numlines = self::VIEW_TAIL_KB;
 			$ff->getContent();
 			$out['content'] = isset($ff->content) && is_string($ff->content) ? $ff->content : '';
@@ -269,25 +431,5 @@ class Llog extends Lxclass {
 	{
 		// Triggers the on-page picker in do_select_list (does not navigate away).
 		return array('ffile' => self::logCatalog());
-	}
-}
-
-/**
- * Display stub for Log Manager Switch To Another (label only).
- */
-class llog_switch_stub
-{
-	/** @var string */
-	private $id;
-
-	/** @param string $id */
-	function __construct($id)
-	{
-		$this->id = (string) $id;
-	}
-
-	function getId()
-	{
-		return $this->id;
 	}
 }

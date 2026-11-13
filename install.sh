@@ -45,7 +45,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111307"
+KCP_VERSION="10.1-2026111308"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -634,7 +634,7 @@ apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-sqlite3 php-xml php-mbstring php-curl \
   mariadb-server nginx apache2 bind9 knot knot-dnsutils knot-dnssecutils \
   pure-ftpd redis-server iproute2 ufw imagemagick \
-  fail2ban python3-systemd nftables \
+  fail2ban python3-systemd nftables logwatch \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 
 if [[ "$WITH_MAIL" -eq 1 ]]; then
@@ -985,6 +985,19 @@ prepare_fail2ban() {
     || log "warn: install-fail2ban failed; Security > Fail2Ban can retry (Reload)"
 }
 
+# LogWatch: daily (or weekly/monthly) system log summary. Settings and schedule
+# live in etc/conf/logwatch.json; saved reports under /var/log/logwatch/ are
+# listed in Log Manager → LogWatch. Configure in Security > LogWatch.
+prepare_logwatch() {
+  chmod 0755 "$ROOT/bin/install/install-logwatch" "$ROOT/bin/logwatch/kloxo-logwatch" || true
+  if ! command -v logwatch >/dev/null 2>&1; then
+    log "warn: logwatch is not installed; skipping"
+    return 0
+  fi
+  run_panel_php "$ROOT/bin/install/install-logwatch" --root="$ROOT" \
+    || log "warn: install-logwatch failed; Security > LogWatch can retry (Update)"
+}
+
 # Restarts crashed or unresponsive server applications (nginx, mariadb, bind9,
 # exim4, dovecot, php-fpm, ...). Its own systemd service: it needs neither the
 # panel nor MariaDB. Units stopped from the panel are left alone.
@@ -1019,6 +1032,7 @@ if [[ "$INSTALL_TYPE" == "slave" ]]; then
   install_backend
   install_watchdog
   prepare_fail2ban
+  prepare_logwatch
   host="$(hostname -f 2>/dev/null || hostname)"
   ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
   print_slave_box "$host" "$ip" "$slave_pw" | tee -a "$LOG"
@@ -1213,6 +1227,7 @@ run_panel_php "$ROOT/bin/kloxocp" doctor --root="$ROOT" >/dev/null || true
 install_backend
 install_watchdog
 prepare_fail2ban
+prepare_logwatch
 
 host="$(hostname -f 2>/dev/null || hostname)"
 ip="$(hostname -I 2>/dev/null | awk '{print $1}')"

@@ -180,6 +180,11 @@ if php "$HERE/test_llog.php"; then
 else
   bad "test_llog.php"
 fi
+if php "$HERE/test_logwatch.php"; then
+  ok "test_logwatch.php"
+else
+  bad "test_logwatch.php"
+fi
 if php "$HERE/test_ufw.php"; then
   ok "test_ufw.php"
 else

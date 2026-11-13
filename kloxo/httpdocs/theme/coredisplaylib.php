@@ -810,6 +810,10 @@ function kloxo_print_object_property_tabs($object)
 		&& is_callable(array('fail2ban', 'fail2banPropertyTabs'))) {
 		$prlist['property'] = fail2ban::fail2banPropertyTabs();
 	}
+	if ($class === 'logwatch' && class_exists('logwatch')
+		&& is_callable(array('logwatch', 'logwatchPropertyTabs'))) {
+		$prlist['property'] = logwatch::logwatchPropertyTabs();
+	}
 	if ($class === 'pserver' && ($sa === 'reboot' || $sa === 'poweroff')
 		&& $prlist['property'] === array()
 		&& class_exists('pserver') && is_callable(array('pserver', 'rebootPropertyTabs'))) {
@@ -867,7 +871,7 @@ function kloxo_print_object_property_tabs($object)
 
 	$generalForced = ($class === 'general' && ($sa === 'generalsetting' || $sa === ''));
 	if (!$prlist['property'] && $class !== 'phpini' && !$phpiniUrl && $class !== 'sshconfig'
-		&& $class !== 'lxguard' && $class !== 'ufwfirewall' && $class !== 'fail2ban'
+		&& $class !== 'lxguard' && $class !== 'ufwfirewall' && $class !== 'fail2ban' && $class !== 'logwatch'
 		&& $class !== 'lxbackup' && !$isBackupPage && !$backupUrl
 		&& $class !== 'servermail' && $class !== 'mail_graylist_wlist_a' && !$mailUrl
 		&& !$generalForced && !$disablePolicyForced) {
@@ -979,21 +983,22 @@ function kloxo_llog_cgi_path()
 }
 
 /**
- * Log Manager picker: stay on Log Manager; selection is frm_llog_file.
+ * Log Manager picker: application list + file list on the same page.
  *
  * @param object $object
- * @param array<string,string> $list path key => label
+ * @param array<string,string> $list unused (apps come from Llog::logApps)
  */
 function kloxo_print_llog_picker($object, $list)
 {
 	global $sgbl, $login, $ghtml;
 
-	if (!is_array($list) || $list === array()) {
+	$apps = (class_exists('Llog') && is_callable(array('Llog', 'logApps')))
+		? Llog::logApps() : array();
+	if (!is_array($apps) || $apps === array()) {
 		return;
 	}
 
 	$cgi_o_o = kloxo_llog_cgi_path();
-	// Embedded llog often has class only (no nname). Ensure it is on the path.
 	$hasLlog = false;
 	foreach ($cgi_o_o as $v) {
 		if (isset($v['class']) && strtolower((string) $v['class']) === 'llog') {
@@ -1005,9 +1010,20 @@ function kloxo_print_llog_picker($object, $list)
 		$cgi_o_o[kcount($cgi_o_o)] = array('class' => 'llog');
 	}
 
-	$selected = '';
-	if (class_exists('Llog') && is_callable(array('Llog', 'selectedLogKey'))) {
-		$selected = Llog::selectedLogKey();
+	$selectedApp = class_exists('Llog') ? Llog::selectedLogApp() : '';
+	$selectedFile = class_exists('Llog') ? Llog::selectedLogKey() : '';
+	$files = array();
+	$hint = '';
+	if ($selectedApp !== '' && isset($apps[$selectedApp])) {
+		$hint = (string) ($apps[$selectedApp]['hint'] ?? '');
+		if (is_object($object) && method_exists($object, 'listAppFilesLive')) {
+			$files = $object->listAppFilesLive($selectedApp);
+		} elseif (class_exists('Llog')) {
+			$files = Llog::listAppFiles($selectedApp);
+		}
+		if (!is_array($files)) {
+			$files = array();
+		}
 	}
 
 	$skin_color = 'aaa';
@@ -1016,17 +1032,6 @@ function kloxo_print_llog_picker($object, $list)
 			$sc = $login->getSkinColor();
 			if (is_string($sc) && $sc !== '') {
 				$skin_color = $sc;
-			}
-		}
-	} catch (Throwable $e) {
-	}
-
-	$label = 'Log file';
-	try {
-		if (is_object($login) && method_exists($login, 'getKeywordUc')) {
-			$kw = $login->getKeywordUc('switchtoanother');
-			if (is_string($kw) && $kw !== '') {
-				$label = $kw;
 			}
 		}
 	} catch (Throwable $e) {
@@ -1057,12 +1062,8 @@ function kloxo_print_llog_picker($object, $list)
 			$frm_consumedlogin = htmlspecialchars(kloxo_string($ghtml->frm_consumedlogin), ENT_QUOTES);
 		}
 	}
-?>
-		<div style="background: #<?= htmlspecialchars($skin_color, ENT_QUOTES) ?> <?= $img_url ?>" class="div_select_switch">
-			<div style="float:left; padding: 4px"><span <?= $forecolorstring ?> style='font-weight:bold;'>&nbsp;<?= htmlspecialchars($label, ENT_QUOTES) ?>&nbsp;</span></div>
-			<div style="float:left;">
-				<form name="llogjumpselect" method="get" action="/display.php" accept-charset="utf-8">
-<?php
+
+	$hiddenPath = '';
 	foreach ($cgi_o_o as $k => $v) {
 		if (!is_array($v)) {
 			continue;
@@ -1070,40 +1071,81 @@ function kloxo_print_llog_picker($object, $list)
 		$ek = htmlspecialchars(kloxo_string($k), ENT_QUOTES);
 		$eclass = htmlspecialchars(kloxo_string($v['class'] ?? ''), ENT_QUOTES);
 		$enname = htmlspecialchars(kloxo_string($v['nname'] ?? ''), ENT_QUOTES);
-?>
-					<input type="hidden" name="frm_o_o[<?= $ek ?>][class]" value="<?= $eclass ?>"/>
-<?php
+		$hiddenPath .= '<input type="hidden" name="frm_o_o[' . $ek . '][class]" value="' . $eclass . '"/>';
 		if ($enname !== '') {
-?>
-					<input type="hidden" name="frm_o_o[<?= $ek ?>][nname]" value="<?= $enname ?>"/>
-<?php
+			$hiddenPath .= '<input type="hidden" name="frm_o_o[' . $ek . '][nname]" value="' . $enname . '"/>';
 		}
 	}
 	if ($frm_consumedlogin !== '') {
-?>
-					<input type="hidden" name="frm_consumedlogin" value="<?= $frm_consumedlogin ?>"/>
-<?php
+		$hiddenPath .= '<input type="hidden" name="frm_consumedlogin" value="' . $frm_consumedlogin . '"/>';
 	}
+	$hiddenPath .= '<input type="hidden" name="frm_action" value="show"/>';
 ?>
-					<input type="hidden" name="frm_action" value="show"/>
-					<select <?= $ststring ?> class="textbox select_switch" onChange="document.llogjumpselect.submit()" name="frm_llog_file">
-						<option value="">— select a log —</option>
+		<div style="background: #<?= htmlspecialchars($skin_color, ENT_QUOTES) ?> <?= $img_url ?>" class="div_select_switch">
+			<div style="float:left; padding: 4px"><span <?= $forecolorstring ?> style='font-weight:bold;'>&nbsp;Application&nbsp;</span></div>
+			<div style="float:left; margin-right:16px">
+				<form name="llogappselect" method="get" action="/display.php" accept-charset="utf-8">
+					<?= $hiddenPath ?>
+					<select <?= $ststring ?> class="textbox select_switch" onChange="document.llogappselect.submit()" name="frm_llog_app">
+						<option value="">— select application —</option>
 <?php
-	foreach ($list as $path => $lab) {
-		$ep = htmlspecialchars(kloxo_string($path), ENT_QUOTES);
+	foreach ($apps as $appId => $meta) {
+		$lab = is_array($meta) ? (string) ($meta['label'] ?? $appId) : (string) $meta;
+		$ea = htmlspecialchars(kloxo_string($appId), ENT_QUOTES);
 		$el = htmlspecialchars(kloxo_string($lab), ENT_QUOTES);
-		$sel = ((string) $path === (string) $selected) ? ' selected' : '';
+		$sel = ((string) $appId === (string) $selectedApp) ? ' selected' : '';
 ?>
-						<option value="<?= $ep ?>"<?= $sel ?>><?= $el ?></option>
+						<option value="<?= $ea ?>"<?= $sel ?>><?= $el ?></option>
 <?php
 	}
 ?>
 					</select>
 				</form>
 			</div>
+<?php
+	if ($selectedApp !== '') {
+?>
+			<div style="float:left; padding: 4px"><span <?= $forecolorstring ?> style='font-weight:bold;'>&nbsp;Log file&nbsp;</span></div>
+			<div style="float:left;">
+				<form name="llogfileselect" method="get" action="/display.php" accept-charset="utf-8">
+					<?= $hiddenPath ?>
+					<input type="hidden" name="frm_llog_app" value="<?= htmlspecialchars($selectedApp, ENT_QUOTES) ?>"/>
+					<select <?= $ststring ?> class="textbox select_switch" onChange="document.llogfileselect.submit()" name="frm_llog_file">
+						<option value="">— select a log file —</option>
+<?php
+		foreach ($files as $row) {
+			if (!is_array($row) || !isset($row['path'])) {
+				continue;
+			}
+			$ep = htmlspecialchars(kloxo_string($row['path']), ENT_QUOTES);
+			$el = htmlspecialchars(kloxo_string($row['label'] ?? basename((string) $row['path'])), ENT_QUOTES);
+			$sel = ((string) $row['path'] === (string) $selectedFile) ? ' selected' : '';
+?>
+						<option value="<?= $ep ?>"<?= $sel ?>><?= $el ?></option>
+<?php
+		}
+?>
+					</select>
+				</form>
+			</div>
+<?php
+	}
+?>
 		</div>
 		<br style="clear:both"/>
 <?php
+	if ($hint !== '') {
+		echo '<div style="margin:4px 12px 8px;color:#666;font-size:12px">'
+			. htmlspecialchars($hint, ENT_QUOTES) . '</div>';
+	}
+	if ($selectedApp !== '' && $files === array()) {
+		echo '<div style="margin:4px 12px 8px;color:#666;font-size:12px">'
+			. 'No log files found yet for this application on the server.'
+			. ($selectedApp === 'logwatch'
+				? ' Configure and run Security → LogWatch to create reports in /var/log/logwatch/.'
+				: '')
+			. '</div>';
+	}
 }
 
 /**
@@ -1122,8 +1164,13 @@ function kloxo_print_llog_content($object)
 
 	$key = Llog::selectedLogKey();
 	if ($key === '') {
+		$app = class_exists('Llog') ? Llog::selectedLogApp() : '';
+		$msg = $app !== ''
+			? 'Select a log file for this application. The contents appear here on this page.'
+			: 'Select an application, then a log file. The contents appear here on this page. '
+				. 'LogWatch reports are under Application → LogWatch (files in /var/log/logwatch/; configure in Security → LogWatch).';
 		echo '<div class="kloxo-llog-view" style="margin:8px 12px 16px;padding:12px;border:1px solid #ddd;background:#fafafa;color:#666">'
-			. 'Select a log file above. The contents appear here on this page.'
+			. htmlspecialchars($msg, ENT_QUOTES)
 			. '</div>';
 
 		return;
@@ -1591,7 +1638,7 @@ function do_update($object, $subaction, $list)
 
 	$oldvlist = $object->updateform($subaction, $param);
 
-	if ($class !== 'lxbackup' && $class !== 'ufwfirewall' && $class !== 'fail2ban') {
+	if ($class !== 'lxbackup' && $class !== 'ufwfirewall' && $class !== 'fail2ban' && $class !== 'logwatch') {
 		security_check($oldvlist, $param);
 	}
 

@@ -119,6 +119,7 @@ $gl_class_array['lxguardhit'] = "driver/pserver/lxguardhitlib.php";
 $gl_class_array['sshconfig'] = "driver/pserver/sshconfiglib.php";
 $gl_class_array['ufwfirewall'] = "driver/pserver/ufwfirewalllib.php";
 $gl_class_array['fail2ban'] = "driver/pserver/fail2banlib.php";
+$gl_class_array['logwatch'] = "driver/pserver/logwatchlib.php";
 $gl_class_array['kloxoufw'] = "lib/php/kloxo_ufw.php";
 $gl_class_array['kloxophpver'] = "lib/php/kloxo_phpver.php";
 $gl_class_array['kloxophpfpm'] = "lib/php/kloxo_phpfpm.php";

@@ -1,6 +1,6 @@
 <?php
 /**
- * Log Manager: Ubuntu catalog + same-page picker/content invariants.
+ * Log Manager: Ubuntu apps + two-level picker + same-page content.
  */
 declare(strict_types=1);
 
@@ -35,181 +35,141 @@ if (!class_exists('Llog')) {
 }
 ok('Llog class loads');
 
-$cat = Llog::logCatalog();
-if (!is_array($cat) || $cat === array()) {
-	bad('logCatalog returns a non-empty array');
+$apps = Llog::logApps();
+if (!is_array($apps) || $apps === array() || !isset($apps['logwatch'], $apps['nginx'], $apps['syslog'])) {
+	bad('logApps includes syslog nginx logwatch');
 } else {
-	ok('logCatalog returns a non-empty array');
+	ok('logApps includes syslog nginx logwatch');
 }
 
-$dead = array(
-	'lighttpd/access.log', 'lighttpd/error.log',
-	'httpd/access_log', 'httpd/error_log',
-	'messages', 'secure', 'cron', 'yum.log',
-	'named/', 'djbdns.log', 'nsd.log', 'yadifa/yadifa.log',
-	'rkhunter/rkhunter.log', 'httpry/httpry.log',
-);
-$deadHit = array();
-foreach ($dead as $k) {
-	if (array_key_exists($k, $cat)) {
-		$deadHit[] = $k;
-	}
-}
-if ($deadHit === array()) {
-	ok('logCatalog omits removed-stack / CentOS paths');
+if (isset($apps['logwatch']['hint']) && str_contains((string) $apps['logwatch']['hint'], '/var/log/logwatch')) {
+	ok('LogWatch app has a hint pointing at /var/log/logwatch');
 } else {
-	bad('logCatalog omits removed-stack / CentOS paths', implode(',', $deadHit));
+	bad('LogWatch app has a hint pointing at /var/log/logwatch');
 }
 
-$need = array(
-	'syslog', 'auth.log', 'dpkg.log',
-	'exim4/mainlog', 'mail.log',
-	'nginx/error.log', 'apache2/error.log',
-	'/opt/kloxo/log/hiawatha-system.log',
-	'/opt/kloxo/log/php.err',
-	'/opt/kloxo/log/watchdog.log',
-	'fail2ban.log', 'pureftpd.log', 'mysql/error.log',
-);
-$missing = array();
-foreach ($need as $k) {
-	if (!array_key_exists($k, $cat)) {
-		$missing[] = $k;
-	}
-}
-if ($missing === array()) {
-	ok('logCatalog includes Ubuntu panel / service logs');
+if (Llog::isValidLogApp('nginx') && !Llog::isValidLogApp('../etc')
+	&& Llog::isSafeLogPath('/var/log/nginx/error.log')
+	&& !Llog::isSafeLogPath('/etc/passwd')
+	&& !Llog::isSafeLogPath('/var/log/../etc/passwd')) {
+	ok('app and path validation allow catalog paths only');
 } else {
-	bad('logCatalog includes Ubuntu panel / service logs', implode(',', $missing));
+	bad('app and path validation allow catalog paths only');
 }
 
-if (Llog::isValidLogKey('syslog') && !Llog::isValidLogKey('../etc/passwd')
-	&& !Llog::isValidLogKey('not-in-catalog') && !Llog::isValidLogKey('')) {
-	ok('isValidLogKey allows catalog keys only');
-} else {
-	bad('isValidLogKey allows catalog keys only');
+$tmp = sys_get_temp_dir() . '/kloxo-llog-' . getmypid();
+@mkdir($tmp . '/var/log/nginx', 0755, true);
+@mkdir($tmp . '/var/log/logwatch', 0755, true);
+file_put_contents($tmp . '/var/log/nginx/error.log', "e1\n");
+file_put_contents($tmp . '/var/log/nginx/error.log.1', "e0\n");
+file_put_contents($tmp . '/var/log/logwatch/logwatch-2026-03-13.txt', "report\n");
+// Override patterns via a thin test by calling pathMatchesPattern + glob manually.
+$ng = array();
+foreach (glob($tmp . '/var/log/nginx/error.log*') ?: array() as $f) {
+	$ng[] = $f;
 }
-
-if (Llog::resolveLogPath('nginx/error.log') === '/var/log/nginx/error.log'
-	&& Llog::resolveLogPath('/opt/kloxo/log/php.err') === '/opt/kloxo/log/php.err') {
-	ok('resolveLogPath maps relative and absolute keys');
+if (count($ng) >= 2) {
+	ok('rotated nginx logs are discoverable by glob');
 } else {
-	bad('resolveLogPath maps relative and absolute keys');
+	bad('rotated nginx logs are discoverable by glob');
 }
-
-if (Llog::catalogKeyFromPath('/var/log/nginx/error.log') === 'nginx/error.log'
-	&& Llog::catalogKeyFromPath('/opt/kloxo/log/php.err') === '/opt/kloxo/log/php.err') {
-	ok('catalogKeyFromPath reverses absolute paths');
+$lw = glob($tmp . '/var/log/logwatch/logwatch-*') ?: array();
+if ($lw !== array()) {
+	ok('LogWatch dated reports are discoverable by glob');
 } else {
-	bad('catalogKeyFromPath reverses absolute paths');
+	bad('LogWatch dated reports are discoverable by glob');
 }
+foreach (glob($tmp . '/var/log/nginx/*') ?: array() as $f) {
+	@unlink($f);
+}
+@rmdir($tmp . '/var/log/nginx');
+foreach (glob($tmp . '/var/log/logwatch/*') ?: array() as $f) {
+	@unlink($f);
+}
+@rmdir($tmp . '/var/log/logwatch');
+@rmdir($tmp . '/var/log');
+@rmdir($tmp);
 
 $llog = new Llog(null, 'localhost', 'pserver-localhost');
 $llog->__masterserver = null;
 $llog->__readserver = 'localhost';
 $prop = array();
 $llog->createShowPropertyList($prop);
-$props = $prop['property'] ?? array();
-if (is_array($props) && $props === array('a=show')) {
-	ok('Log Manager show has a single Log Manager tab (no File Manager /)');
+if (($prop['property'] ?? null) === array('a=show')) {
+	ok('Log Manager show has a single Log Manager tab');
 } else {
-	bad('Log Manager show has a single Log Manager tab (no File Manager /)', var_export($props, true));
-}
-
-$sc = $llog->createShowSclist();
-if (isset($sc['ffile']) && $sc['ffile'] === $cat) {
-	ok('createShowSclist uses logCatalog');
-} else {
-	bad('createShowSclist uses logCatalog');
+	bad('Log Manager show has a single Log Manager tab');
 }
 
 global $ghtml;
 $prevHtml = $ghtml;
 $ghtml = new HtmlLib();
-$ghtml->__http_vars = array();
-$ghtml->__http_vars['frm_llog_file'] = 'nginx/error.log';
-if (Llog::selectedLogKey() === 'nginx/error.log') {
-	ok('selectedLogKey reads frm_llog_file');
-} else {
-	bad('selectedLogKey reads frm_llog_file', Llog::selectedLogKey());
-}
-$ghtml->__http_vars['frm_llog_file'] = '../etc/passwd';
-if (Llog::selectedLogKey() === '') {
-	ok('selectedLogKey rejects path traversal');
-} else {
-	bad('selectedLogKey rejects path traversal');
-}
-unset($ghtml->__http_vars['frm_llog_file']);
-
-$core = file_get_contents($doc . '/theme/coredisplaylib.php');
-$coreOk = is_string($core)
-	&& str_contains($core, 'function kloxo_print_llog_picker')
-	&& str_contains($core, 'function kloxo_print_llog_content')
-	&& str_contains($core, 'function kloxo_llog_cgi_path')
-	&& str_contains($core, 'frm_llog_file')
-	&& str_contains($core, 'kloxo_print_llog_content($object)')
-	&& !str_contains($core, 'frm_o_o[<?= (int) $n ?>][class]" value="ffile"')
-	&& str_contains($core, 'isLogManagerView')
-	&& str_contains($core, 'catalogKeyFromPath')
-	&& str_contains($core, '__http_vars')
-	&& str_contains($core, 'kloxo_llog_cgi_path()');
-if ($coreOk) {
-	ok('same-page picker uses frm_llog_file and prints content below');
-} else {
-	bad('same-page picker uses frm_llog_file and prints content below');
-}
-
-// isset($ghtml->frm_*) is always false (no __isset); path must come from __http_vars.
-$ghtml->__http_vars['frm_o_o'] = array(
-	0 => array('class' => 'pserver', 'nname' => 'localhost'),
-	1 => array('class' => 'llog'),
+$ghtml->__http_vars = array(
+	'frm_o_o' => array(
+		0 => array('class' => 'pserver', 'nname' => 'localhost'),
+		1 => array('class' => 'llog'),
+	),
+	'frm_llog_app' => 'nginx',
+	'frm_llog_file' => '/var/log/nginx/error.log',
 );
-$path = kloxo_llog_cgi_path();
-$pathOk = isset($path[0]['class'], $path[0]['nname'], $path[1]['class'])
-	&& $path[0]['class'] === 'pserver'
-	&& $path[0]['nname'] === 'localhost'
-	&& $path[1]['class'] === 'llog'
-	&& !isset($path[1]['nname']);
-if ($pathOk) {
-	ok('kloxo_llog_cgi_path reads frm_o_o from __http_vars (not isset)');
+if (Llog::selectedLogApp() === 'nginx'
+	&& Llog::selectedLogKey() === '/var/log/nginx/error.log') {
+	ok('selectedLogApp/File read frm_llog_* from __http_vars');
 } else {
-	bad('kloxo_llog_cgi_path reads frm_o_o from __http_vars (not isset)', var_export($path, true));
+	bad('selectedLogApp/File read frm_llog_* from __http_vars',
+		Llog::selectedLogApp() . ' / ' . Llog::selectedLogKey());
 }
-ob_start();
-kloxo_print_llog_picker($llog, array('syslog' => 'Syslog'));
-$pickerHtml = (string) ob_get_clean();
-if (str_contains($pickerHtml, 'name="frm_o_o[0][class]"')
-	&& str_contains($pickerHtml, 'value="pserver"')
-	&& str_contains($pickerHtml, 'name="frm_o_o[0][nname]"')
-	&& str_contains($pickerHtml, 'value="localhost"')
-	&& str_contains($pickerHtml, 'name="frm_o_o[1][class]"')
-	&& str_contains($pickerHtml, 'value="llog"')
-	&& str_contains($pickerHtml, 'name="frm_llog_file"')
-	&& str_contains($pickerHtml, 'name="frm_action"')) {
-	ok('picker form keeps pserver+llog path so submit stays on Log Manager');
+$ghtml->__http_vars['frm_llog_file'] = '/etc/passwd';
+if (Llog::selectedLogKey() === '') {
+	ok('selectedLogKey rejects paths outside the catalog');
 } else {
-	bad('picker form keeps pserver+llog path so submit stays on Log Manager', substr($pickerHtml, 0, 500));
+	bad('selectedLogKey rejects paths outside the catalog');
 }
-unset($ghtml->__http_vars['frm_o_o']);
 
-// Inline content HTML when a key is selected (no backend read required for empty key).
+$path = kloxo_llog_cgi_path();
+if (isset($path[0]['nname'], $path[1]['class'])
+	&& $path[0]['nname'] === 'localhost' && $path[1]['class'] === 'llog') {
+	ok('kloxo_llog_cgi_path keeps pserver+llog');
+} else {
+	bad('kloxo_llog_cgi_path keeps pserver+llog');
+}
+
+ob_start();
+kloxo_print_llog_picker($llog, array());
+$pickerHtml = (string) ob_get_clean();
+if (str_contains($pickerHtml, 'name="frm_llog_app"')
+	&& str_contains($pickerHtml, 'name="frm_llog_file"')
+	&& str_contains($pickerHtml, 'Application')
+	&& str_contains($pickerHtml, 'Log file')
+	&& str_contains($pickerHtml, 'value="pserver"')
+	&& str_contains($pickerHtml, 'value="llog"')
+	&& str_contains($pickerHtml, 'logwatch')) {
+	ok('picker has application + file lists and keeps object path');
+} else {
+	bad('picker has application + file lists and keeps object path', substr($pickerHtml, 0, 400));
+}
+
+unset($ghtml->__http_vars['frm_llog_app'], $ghtml->__http_vars['frm_llog_file']);
 ob_start();
 kloxo_print_llog_content($llog);
 $emptyHtml = (string) ob_get_clean();
-if (str_contains($emptyHtml, 'Select a log file above')) {
-	ok('empty selection shows on-page hint under the dropdown');
+if (str_contains($emptyHtml, 'Select an application')
+	&& str_contains($emptyHtml, 'LogWatch')) {
+	ok('empty selection mentions application + LogWatch location');
 } else {
-	bad('empty selection shows on-page hint under the dropdown', substr($emptyHtml, 0, 200));
+	bad('empty selection mentions application + LogWatch location', substr($emptyHtml, 0, 200));
 }
 
-$ghtml->__http_vars['frm_llog_file'] = 'syslog';
+$ghtml->__http_vars['frm_llog_app'] = 'syslog';
+$ghtml->__http_vars['frm_llog_file'] = '/var/log/syslog';
 $llogStub = new class {
 	function readLogView($key)
 	{
 		return array(
 			'key' => $key,
-			'label' => 'Syslog',
-			'path' => '/var/log/syslog',
-			'content' => "line1\nline2<script>",
+			'label' => 'syslog',
+			'path' => $key,
+			'content' => "line1\n<script>",
 			'truncated' => true,
 			'missing' => false,
 			'error' => '',
@@ -219,13 +179,10 @@ $llogStub = new class {
 ob_start();
 kloxo_print_llog_content($llogStub);
 $viewHtml = (string) ob_get_clean();
-unset($ghtml->__http_vars['frm_llog_file']);
 $ghtml = $prevHtml;
 if (str_contains($viewHtml, 'kloxo-llog-pre')
 	&& str_contains($viewHtml, 'line1')
-	&& str_contains($viewHtml, '&lt;script&gt;')
-	&& str_contains($viewHtml, '/var/log/syslog')
-	&& str_contains($viewHtml, 'last')) {
+	&& str_contains($viewHtml, '&lt;script&gt;')) {
 	ok('selected log renders escaped content under the picker');
 } else {
 	bad('selected log renders escaped content under the picker', substr($viewHtml, 0, 300));

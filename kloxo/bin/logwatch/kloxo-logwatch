@@ -1,0 +1,65 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * kloxo-logwatch: apply LogWatch settings, run a report, prune old files.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3 or later. See LICENSE.txt.
+ *
+ * Usage:
+ *   kloxo-logwatch apply --root=DIR
+ *   kloxo-logwatch run --root=DIR
+ *   kloxo-logwatch status --root=DIR
+ *   kloxo-logwatch prune --root=DIR [--days=N]
+ */
+
+$root = getenv('KLOXO_ROOT') ?: '/opt/kloxo';
+$cmd = 'status';
+$days = null;
+foreach (array_slice($argv, 1) as $a) {
+    if ($a === '--help' || $a === '-h') {
+        echo "kloxo-logwatch apply|run|status|prune --root=DIR [--days=N]\n";
+        exit(0);
+    }
+    if (str_starts_with($a, '--root=')) {
+        $root = rtrim(substr($a, 7), '/');
+    } elseif (str_starts_with($a, '--days=')) {
+        $days = (int) substr($a, 7);
+    } elseif (in_array($a, ['apply', 'run', 'status', 'prune'], true)) {
+        $cmd = $a;
+    } else {
+        fwrite(STDERR, "error: unknown option $a\n");
+        exit(64);
+    }
+}
+
+$lib = $root . '/httpdocs/lib/php/kloxo_logwatch.php';
+if ($root === '' || $root[0] !== '/' || !is_file($lib)) {
+    fwrite(STDERR, "error: not a Kloxo program root: $root\n");
+    exit(1);
+}
+putenv('KLOXO_ROOT=' . $root);
+require_once $lib;
+
+switch ($cmd) {
+    case 'apply':
+        $r = KloxoLogwatch::apply(null, $root);
+        echo json_encode($r, JSON_UNESCAPED_SLASHES) . "\n";
+        exit(!empty($r['ok']) ? 0 : 1);
+    case 'run':
+        $r = KloxoLogwatch::run($root);
+        echo json_encode($r, JSON_UNESCAPED_SLASHES) . "\n";
+        exit(!empty($r['ok']) ? 0 : 1);
+    case 'prune':
+        $cfg = KloxoLogwatch::loadConfig($root);
+        $n = KloxoLogwatch::pruneReports($days ?? (int) ($cfg['keep_days'] ?? 14));
+        echo "pruned $n\n";
+        exit(0);
+    case 'status':
+    default:
+        $r = KloxoLogwatch::status($root);
+        echo json_encode($r, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n";
+        exit(0);
+}

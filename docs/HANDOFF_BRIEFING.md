@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111307**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111308**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -473,21 +473,28 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     SSH Terminal, File Manager, HelpDesk ticket show, Notification,
     Message show, Auxiliary Login show, Update, client Manage DNS, and client PHPinfo no longer show
     the left-column Find box (Message and Auxiliary lists keep the search toolbar).
-    Log Manager (`llog`) catalog is Ubuntu-only (`Llog::logCatalog`: syslog,
-    auth, dpkg, Exim, mail.log, Nginx/Apache, panel Hiawatha under
-    `/opt/kloxo/log/`, MariaDB, Pure-FTPd, Fail2Ban, panel PHP/FPM/watchdog,
-    webcache/webproxy, per-installed `phpX.Y-fpm.log`); CentOS/removed-stack
-    paths (httpd, lighttpd, yum, named/, djbdns, nsd, yadifa, rkhunter, …)
-    are gone.     The picker stays on the Log Manager page (`frm_llog_file`);
-    content is printed directly under the dropdown (`kloxo_print_llog_content`,
-    last 50 KB via kloxo-backend). Switching logs reloads the same page.
-    The form path is taken from `__http_vars['frm_o_o']` (`kloxo_llog_cgi_path`)
-    — a property `isset()` on `frm_o_o` is always false (HtmlLib has no
-    `__isset`), which used to drop pserver+llog and land on Home.
-    Legacy ffile-under-llog URLs redirect back with `frm_llog_file`. Property
-    tabs are Log Manager only (no File Manager `/` root).
-    `tests/p2/test_llog.php` (16 checks). Live Log Manager after deploy is
+    Log Manager (`llog`) uses two dropdowns on one page: **Application** then
+    **Log file** (`frm_llog_app` / `frm_llog_file`; `Llog::logApps` with globs
+    so rotated files such as `error.log.1` appear). Content prints under the
+    lists (`kloxo_print_llog_content`, last 50 KB via kloxo-backend). Path
+    comes from `__http_vars['frm_o_o']` (`kloxo_llog_cgi_path`). Apps include
+    Syslog, Auth, dpkg, Exim, Mail, Nginx, Apache, panel Hiawatha, MariaDB,
+    Pure-FTPd, Fail2Ban, Let's Encrypt, Panel PHP/Watchdog, Web Cache/Proxy,
+    PHP-FPM, and **LogWatch** (`/var/log/logwatch/logwatch-*`, with an on-page
+    hint). `tests/p2/test_llog.php`. Live Log Manager after deploy is
     **UNVERIFIED**.
+    **LogWatch** (Security > LogWatch, class `logwatch`): backend
+    `lib/php/kloxo_logwatch.php`, page `driver/pserver/logwatchlib.php`,
+    CLI `bin/logwatch/kloxo-logwatch`, installer `bin/install/install-logwatch`
+    (`install.sh` packages `logwatch` and runs `prepare_logwatch`). Settings in
+    `etc/conf/logwatch.json` (enable, mailto/mailfrom, detail Low/Med/High,
+    range, format text/html, archives, frequency daily/weekly/monthly/none,
+    hour/minute, save reports, mail reports, keep_days). Renders
+    `/etc/logwatch/conf/logwatch.conf` and `/etc/cron.d/kloxo-logwatch`, mutes
+    stock `/etc/cron.daily/00logwatch` while enabled, saves dated reports under
+    `/var/log/logwatch/` and prunes older than keep_days. Page explains where
+    to open reports (Log Manager → LogWatch). `tests/p2/test_logwatch.php`.
+    Live LogWatch after deploy is **UNVERIFIED**.
     SSH Configure has one beige tab labelled **SSH Configure** (not Home).
     Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
     **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,
@@ -1072,7 +1079,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111307**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111308**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
