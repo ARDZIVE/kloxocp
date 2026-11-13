@@ -105,6 +105,18 @@ class Service__Linux extends Lxlclass
 		);
 	}
 
+	/**
+	 * Units that Switch Program alone may start/stop/enable/disable (not Services).
+	 * Rspamd is the mail spam filter; toggling it outside Switch Program would
+	 * bypass the POP3/SMTP security gate.
+	 *
+	 * @return list<string>
+	 */
+	static function switchProgramOnlyUnits()
+	{
+		return array('rspamd');
+	}
+
 	static function isProtectedUnit($name)
 	{
 		$name = strtolower((string) $name);
@@ -119,9 +131,24 @@ class Service__Linux extends Lxlclass
 		return in_array($prefer, self::protectedUnits(), true);
 	}
 
+	static function isSwitchProgramOnlyUnit($name)
+	{
+		$name = strtolower((string) $name);
+		if ($name === '' || !self::isSafeUnit($name)) {
+			return false;
+		}
+		if (in_array($name, self::switchProgramOnlyUnits(), true)) {
+			return true;
+		}
+		$prefer = strtolower(self::preferredServiceName($name));
+
+		return in_array($prefer, self::switchProgramOnlyUnits(), true);
+	}
+
 	/**
 	 * Whether systemctl $act is allowed for $unit.
 	 * start/enable always OK for installed units; stop/disable/restart blocked for protected.
+	 * Switch-Program-only units (Rspamd) refuse every act from Services.
 	 */
 	static function mayControlUnit($unit, $act)
 	{
@@ -129,6 +156,9 @@ class Service__Linux extends Lxlclass
 		$act = (string) $act;
 		if (!self::isSafeUnit($unit)
 			|| !in_array($act, array('start', 'stop', 'restart', 'enable', 'disable'), true)) {
+			return false;
+		}
+		if (self::isSwitchProgramOnlyUnit($unit)) {
 			return false;
 		}
 		if (in_array($act, array('start', 'enable'), true)) {

@@ -70,7 +70,7 @@ class pserver extends pservercore {
 			'web' => array('none', 'nginx', 'apache'),
 			'webcache' => array('none'),
 			'dns' => array('none', 'bind', 'knot'),
-			'spam' => array('none'),
+			'spam' => array('none', 'rspamd'),
 			'pop3' => array('none', 'dovecot'),
 			'smtp' => array('none', 'exim', 'postfix'),
 		);
@@ -83,22 +83,75 @@ class pserver extends pservercore {
 		return $out;
 	}
 
+	/**
+	 * Older installs stored spamassassin / bogofilter; both are gone. Map them to rspamd
+	 * so the form and switch logic see a valid current program.
+	 */
+	static function normalizeSpamProgram($name)
+	{
+		$name = is_string($name) ? $name : '';
+		if ($name === 'spamassassin' || $name === 'bogofilter' || $name === 'spamassassin-toaster') {
+			return 'rspamd';
+		}
+
+		return $name !== '' ? $name : 'none';
+	}
+
 	// Program now in use for a class: the stored value, else the slave db, else none.
 	function switchProgramCurrent($class)
 	{
 		$key = "{$class}_driver";
 
 		if (isset($this->$key) && is_string($this->$key) && $this->$key !== '') {
-			return $this->$key;
+			$val = $this->$key;
+		} else {
+			try {
+				$val = rl_exec_get(null, $this->nname, 'slave_get_driver', array($class));
+			} catch (Throwable $e) {
+				$val = null;
+			}
 		}
 
+		$val = (is_string($val) && $val !== '') ? $val : 'none';
+
+		return ($class === 'spam') ? self::normalizeSpamProgram($val) : $val;
+	}
+
+	/**
+	 * Rewrite a leftover spamassassin/bogofilter slave + object driver to rspamd and
+	 * stop SpamAssassin when the stored value was still the old name.
+	 */
+	function migrateLegacySpamDriver()
+	{
+		$raw = null;
 		try {
-			$val = rl_exec_get(null, $this->nname, 'slave_get_driver', array($class));
+			$raw = rl_exec_get(null, $this->nname, 'slave_get_driver', array('spam'));
 		} catch (Throwable $e) {
-			$val = null;
+			$raw = isset($this->spam_driver) ? $this->spam_driver : null;
 		}
-
-		return (is_string($val) && $val !== '') ? $val : 'none';
+		if (!is_string($raw) || !in_array($raw, array('spamassassin', 'bogofilter', 'spamassassin-toaster'), true)) {
+			return;
+		}
+		$this->spam_driver = 'rspamd';
+		try {
+			rl_exec_get(null, $this->nname, array('spam', 'switchDriver'), array('spam', $raw, 'rspamd'));
+		} catch (Throwable $e) {
+			// install/enable rspamd even if the old uninstall raised
+			try {
+				rl_exec_get(null, $this->nname, array('Spam__rspamd', 'installMe'), array());
+			} catch (Throwable $e2) {
+			}
+		}
+		changeDriver($this->nname, 'spam', 'rspamd');
+		$a = array();
+		foreach (array('web', 'webcache', 'dns', 'spam', 'pop3', 'smtp') as $c) {
+			$a[$c] = $this->switchProgramCurrent($c);
+		}
+		$a['spam'] = 'rspamd';
+		try {
+			rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
+		} catch (Throwable $e) {
+		}
 	}
 
 	function updateSwitchProgram($param)
@@ -113,6 +166,8 @@ class pserver extends pservercore {
 			unset($param['imap4_driver']);
 		}
 	*/
+		$this->migrateLegacySpamDriver();
+
 		// Only these six keys are drivers. Anything else in $param (use_apache24,
 		// __v_updateall_button...) must never reach switchDriver.
 		$driverClasses = array('web', 'webcache', 'dns', 'spam', 'pop3', 'smtp');
@@ -123,12 +178,26 @@ class pserver extends pservercore {
 			$key = "{$c}_driver";
 			$cur = $this->switchProgramCurrent($c);
 			$want = isset($param[$key]) ? (string) $param[$key] : $cur;
+			if ($c === 'spam') {
+				$want = self::normalizeSpamProgram($want);
+			}
 
 			if (!isset($allowed[$c]) || !in_array($want, $allowed[$c], true)) {
 				throw new lxException("Unknown {$c} program '{$want}'", '', $key);
 			}
 
 			$a[$c] = $want;
+		}
+
+		// Rspamd may be switched to none only when POP3/IMAP and SMTP are both none
+		// in the same submit (email security: do not run a mail stack without the filter).
+		$curSpam = $this->switchProgramCurrent('spam');
+		if ($a['spam'] === 'none' && $curSpam !== 'none'
+			&& ($a['pop3'] !== 'none' || $a['smtp'] !== 'none')) {
+			$msg = (is_object($login) && method_exists($login, 'getThrow'))
+				? $login->getThrow('cannot_disable_rspamd_while_mail_enabled')
+				: 'Rspamd cannot be disabled while POP3/IMAP or SMTP is still enabled. This action is not possible: keep Rspamd for email server security, or disable both POP3/IMAP and SMTP together first.';
+			throw new lxException($msg, '', 'spam_driver');
 		}
 
 	//	$nofixconfig = $param['no_fix_config'];

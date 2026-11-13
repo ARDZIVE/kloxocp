@@ -74,11 +74,11 @@ $v = $r['vlist'] ?? array();
 $ok = isset($v['web_driver'][1], $v['dns_driver'][1], $v['spam_driver'][1], $v['pop3_driver'][1], $v['smtp_driver'][1])
 	&& $v['web_driver'][1] === array('none', 'nginx', 'apache')
 	&& $v['dns_driver'][1] === array('none', 'bind', 'knot')
-	&& $v['spam_driver'][1] === array('none', 'spamassassin')
+	&& $v['spam_driver'][1] === array('none', 'rspamd')
 	&& $v['pop3_driver'][1] === array('none', 'dovecot')
 	&& $v['smtp_driver'][1] === array('none', 'exim', 'postfix')
 	&& !isset($v['webcache_driver']) && !isset($v['use_pagespeed']) && isset($v['__v_updateall_button']);
-$ok ? ok('form lists every program (no Cache list, no Use Pagespeed) and renders without an exception') : bad('form lists every program (no Cache list, no Use Pagespeed) and renders without an exception', $r['raw']);
+$ok ? ok('form lists every program (Spam = none/rspamd; no Cache list, no Use Pagespeed) and renders without an exception') : bad('form lists every program (Spam = none/rspamd; no Cache list, no Use Pagespeed) and renders without an exception', $r['raw']);
 
 // 2. every offered program has a driver class
 $r = child($tmp, 'classes');
@@ -123,11 +123,18 @@ $n = array_map(static fn($l) => preg_replace('/\s+/', ' ', trim($l)), preg_split
 	? ok('all programs besides the web server -> none: dovecot (and its socket) and the MTA are stopped and disabled')
 	: bad('all programs besides the web server -> none: dovecot (and its socket) and the MTA are stopped and disabled', json_encode($r));
 
+$r = child($tmp, 'spam_none_blocked');
+(str_contains($r['error'] ?? '', 'cannot be disabled') && ($r['slave']['spam'] ?? '') === 'rspamd'
+	&& ($r['slave']['pop3'] ?? '') === 'dovecot' && ($r['slave']['smtp'] ?? '') === 'exim')
+	? ok('spam rspamd -> none is refused while POP3/IMAP or SMTP is still enabled')
+	: bad('spam rspamd -> none is refused while POP3/IMAP or SMTP is still enabled', json_encode($r));
+
 $r = child($tmp, 'spam_none');
 $n = array_map(static fn($l) => preg_replace('/\s+/', ' ', trim($l)), preg_split('/\R/', trim((string) $r['calls'])) ?: array());
-($r['error'] === '' && in_array('systemctl disable spamd', $n, true) && in_array('systemctl stop spamd', $n, true))
-	? ok('spam spamassassin -> none stops AND disables spamd (it was only stopped)')
-	: bad('spam spamassassin -> none stops AND disables spamd', json_encode($r));
+($r['error'] === '' && ($r['slave']['spam'] ?? '') === 'none'
+	&& in_array('systemctl disable rspamd', $n, true) && in_array('systemctl stop rspamd', $n, true))
+	? ok('spam rspamd -> none allowed only with POP3/IMAP and SMTP both none: stops AND disables rspamd')
+	: bad('spam rspamd -> none allowed only with POP3/IMAP and SMTP both none', json_encode($r));
 
 $r = child($tmp, 'nonroot');
 (str_contains($r['error'] ?? '', 'must run as root') && ($r['slave']['pop3'] ?? '') === 'dovecot')
@@ -146,9 +153,11 @@ $r = child($tmp, 'pop3');
 	: bad('pop3 none -> dovecot installs the packages and stores the choice', json_encode($r));
 
 // 6. spam
-$r = child($tmp, 'spam_spamassassin');
-($r['error'] === '' && ($r['slave']['spam'] ?? '') === 'spamassassin' && str_contains($r['calls'], 'install spamassassin spamc ripmime'))
-	? ok('spam none -> spamassassin') : bad('spam none -> spamassassin', json_encode($r));
+$r = child($tmp, 'spam_rspamd');
+// enable --now goes through lxshell_return (PATH reset); apt + leftover SA stop use the fakes.
+($r['error'] === '' && ($r['slave']['spam'] ?? '') === 'rspamd' && str_contains($r['calls'], 'install rspamd')
+	&& str_contains($r['calls'], 'disable spamd'))
+	? ok('spam none -> rspamd') : bad('spam none -> rspamd', json_encode($r));
 
 // 7. dns bind -> knot
 $r = child($tmp, 'dns');
@@ -157,8 +166,8 @@ $r = child($tmp, 'dns');
 
 // 8. a failing install is reported and the old choice is kept
 touch($fail_flag);
-foreach (array('smtp' => 'postfix', 'spam_spamassassin' => 'spamassassin', 'pop3' => 'dovecot') as $sc => $want) {
-	$cls = $sc === 'spam_spamassassin' ? 'spam' : $sc;
+foreach (array('smtp' => 'postfix', 'spam_rspamd' => 'rspamd', 'pop3' => 'dovecot') as $sc => $want) {
+	$cls = $sc === 'spam_rspamd' ? 'spam' : $sc;
 	$r = child($tmp, $sc);
 	$old = $sc === 'pop3' ? 'none' : ($sc === 'smtp' ? 'exim' : 'none');
 	(str_contains($r['error'] ?? '', 'Install failed') && ($r['slave'][$cls] ?? '') === $old)
@@ -194,11 +203,14 @@ is_file($repo . '/kloxo/pscript/fixmail') && !is_file($repo . '/kloxo/pscript/fi
 	? ok('/script/fixmail exists (the script called after spam/pop3/smtp switches)')
 	: bad('/script/fixmail exists (the script called after spam/pop3/smtp switches)');
 $drv = '';
-foreach (array('smtp__eximlib', 'smtp__postfixlib', 'pop3__dovecotlib', 'spam__spamassassinlib') as $f) {
+foreach (array('smtp__eximlib', 'smtp__postfixlib', 'pop3__dovecotlib', 'spam__rspamdlib') as $f) {
 	$drv .= (string) file_get_contents($repo . '/kloxo/httpdocs/driver/mmail/' . $f . '.php');
 }
-!str_contains($drv, "lxshell_return('apt-get'") ? ok('mail program drivers install only through KloxoApt (non-interactive, errors reported)')
-	: bad('mail program drivers install only through KloxoApt (non-interactive, errors reported)');
+!str_contains($drv, "lxshell_return('apt-get'")
+	&& !is_file($repo . '/kloxo/httpdocs/driver/mmail/spam__spamassassinlib.php')
+	&& str_contains($drv, 'rspamd')
+	? ok('mail program drivers install only through KloxoApt; SpamAssassin driver is gone; Rspamd is the spam program')
+	: bad('mail program drivers install only through KloxoApt; SpamAssassin driver is gone; Rspamd is the spam program');
 
 exec('rm -rf ' . escapeshellarg($tmp));
 printf("%d passed, %d failed\n", $pass, $fail);

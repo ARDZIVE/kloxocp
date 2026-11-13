@@ -159,12 +159,12 @@ Safety properties (all covered by tests):
 ## 6. Integration with the existing Kloxo panel code
 
 The legacy mail layer is a set of swappable drivers (`Mmail__Qmail`, `Mailaccount__Qmail`,
-`Mailforward__Qmail`, `Servermail__Qmail`, `Imap4__dovecot`, `Spam__spamassassin`...). Plan:
+`Mailforward__Qmail`, `Servermail__Qmail`, `Imap4__dovecot`, `Spam__spamassassin`...). SpamAssassin is gone; Switch Program Spam is none/rspamd only. Plan:
 
 1. Add thin `*__exim` drivers whose `dbactionAdd/Update/Delete` methods call `kloxo-mail`
    through the privileged agent (no mail logic in the legacy PHP).
 2. Keep the existing UI screens (accounts, forwards, quotas, spam settings).
-3. Remove the qmail, courier, ezmlm, bogofilter and SpamAssassin drivers once the new ones work.
+3. Remove the qmail, courier, ezmlm, bogofilter and SpamAssassin drivers once the new ones work. (Done for those drivers; Switch Program uses `Spam__rspamd`.)
 
 This step needs the legacy PHP running on PHP 8.3, so it follows the port.
 

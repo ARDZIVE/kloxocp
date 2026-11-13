@@ -246,7 +246,9 @@ $out = null;
 
 $spamapp = slave_get_driver('spam');
 
-if ($spamapp === 'spamassassin') { $spamapp === 'spamassassin-toaster'; }
+if ($spamapp === 'spamassassin' || $spamapp === 'bogofilter' || $spamapp === 'spamassassin-toaster') {
+	$spamapp = 'rspamd';
+}
 
 exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($spamapp) . ' 2>/dev/null', $out);
 

@@ -48,7 +48,8 @@ final class KloxoWatchdog
         'mysql' => ['units' => ['mariadb'], 'ports' => [3306], 'sockets' => ['/run/mysqld/mysqld.sock']],
         'php-fpm' => ['units' => [], 'php_fpm' => true],
         'fail2ban' => ['units' => ['fail2ban'], 'sockets' => ['/run/fail2ban/fail2ban.sock']],
-        'rspamd' => ['units' => ['rspamd']],
+        // Watched only when Switch Program spam = rspamd (not when spam = none).
+        'rspamd' => ['driver' => 'spam', 'units' => ['rspamd' => 'rspamd'], 'ports' => [11333]],
         'redis' => ['units' => ['redis-server']],
         'kloxo-php' => ['units' => ['kloxo-php'], 'ports' => [39000]],
         'kloxo-web' => ['units' => ['kloxo-web'], 'ports' => [7778]],

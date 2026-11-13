@@ -252,7 +252,7 @@ function os_create_default_slave_driver_db()
 	$a['dns'] = "bind";
 	$a['pop3'] = "dovecot";
 	$a['smtp'] = "exim";
-	$a['spam'] = "none";
+	$a['spam'] = "rspamd";
 	slave_save_db("driver", $a);
 }
 

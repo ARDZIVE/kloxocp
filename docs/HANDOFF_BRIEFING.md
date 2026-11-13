@@ -125,7 +125,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey,
     OpenLiteSpeed, and unused DNS (djbdns/nsd/mydns/yadifa/maradns) drivers and `file/` templates
     deleted. Panel Hiawatha stays under `init/hiawatha.conf.base`.
-    qmail/courier/ezmlm code is deleted (user decision: Exim or Postfix only); spamassassin remains until the P4 exim UI drivers exist. Tests: `tests/p1/`.
+    qmail/courier/ezmlm code is deleted (user decision: Exim or Postfix only); SpamAssassin is removed — Switch Program Spam is none/rspamd only (disable Rspamd only when POP3+SMTP are both none). Tests: `tests/p1/`.
     Live knot/apache2 start on Ubuntu is **UNVERIFIED**; the real `kzonecheck`/`knotc` have never seen the generated files (fakes only).
 12. **P2 first slice:** first-party `php -l` is clean (499 files; PEAR/WebDAV, formmail and
     urlrewrite examples still fail). `__autoload` replaced by `spl_autoload_register`
@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111301**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111302**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -827,7 +827,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
 
 ### P1: shrink the tree (phase 1b)
 1. **DONE for web/DNS.** Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`, `apache` (Nginx default; Apache 2.4 + PHP-FPM packaged, disabled). Webcache: `none`. DNS: `none`, `bind`, `knot` (BIND default; Knot DNS packaged, disabled). Panel Hiawatha kept in `init/`. Tests: `tests/p1/`.
-2. **PARTLY DONE.** qmail/courier/ezmlm/bogofilter drivers deleted; spamassassin stays until P4 exim UI drivers exist. Left on purpose: mailing-list UI without a backend, `mailtrafficlib` qmail-format log parser (needs an Exim parser), lxguard vpopmail log regex, legacy CentOS `kloxo/install/**` deleted.
+2. **PARTLY DONE.** qmail/courier/ezmlm/bogofilter/SpamAssassin drivers deleted; Switch Program Spam is none/rspamd only. Left on purpose: mailing-list UI without a backend, `mailtrafficlib` qmail-format log parser (needs an Exim parser), lxguard vpopmail log regex, legacy CentOS `kloxo/install/**` deleted.
 3. **PARTIAL.** No Ubuntu package; `install-hiawatha` builds pinned 12.4
    (sha256 in the script). Config check is `hiawatha -k -c <init>`. **UNVERIFIED**
    on a real 24.04 VM. `lib.php` still contains dead Apache install/chown
@@ -1057,7 +1057,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111301**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111302**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

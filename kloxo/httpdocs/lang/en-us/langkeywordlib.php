@@ -540,6 +540,9 @@ $__throw["can_not_save_content"] = "Can not save content";
 
 $__throw["no_imagemagick"] = "No ImageMagick";
 $__throw["cannot_control_critical_service"] = "Cannot stop critical service";
+$__throw["rspamd_switch_program_only"] = "Rspamd can only be controlled in Switch Program";
+$__throw["cannot_disable_rspamd_while_mail_enabled"] = "Rspamd cannot be disabled while POP3/IMAP or SMTP is still enabled. This action is not possible: keep Rspamd for email server security, or disable both POP3/IMAP and SMTP together first.";
+$__throw["spam_filter_switch_program_only"] = "Spam filtering is controlled only in Switch Program";
 $__throw["please_type_full_url_including_file_name"] = "Please type full url including file name";
 $__throw["file_exists"] = "File exists";
 $__throw["can_not_unzip_in_root"] = "Can not unzip in root";

@@ -27,6 +27,9 @@ $__emessage['lxguard_not_configured'] = "Lxguard for this server is not configur
 $__emessage['root_cannot_extract_to_existing_dir'] = "Directory you provided already exists. Root user cannot extract archive into an existing directory. Please provide the name of a directory that doesn't exist in the system.";
 $__emessage['no_imagemagick'] = "ImageMagick is not installed. On Ubuntu run <b>apt-get install -y imagemagick</b>. On RHEL/AlmaLinux run <b>dnf -y install ImageMagick</b>.";
 $__emessage['cannot_control_critical_service'] = "Service [%s] is required by the panel (Hiawatha, panel PHP/backend, or the panel SQLite file). Stop/disable/restart is refused so the control panel stays up.";
+$__emessage['rspamd_switch_program_only'] = "Rspamd ([%s]) can only be enabled or disabled in Switch Program, not from Services. That keeps the mail spam filter tied to the POP3/IMAP and SMTP choices.";
+$__emessage['cannot_disable_rspamd_while_mail_enabled'] = "Rspamd cannot be disabled while POP3/IMAP or SMTP is still enabled. This action is not possible: keep Rspamd for email server security, or disable both POP3/IMAP and SMTP together first.";
+$__emessage['spam_filter_switch_program_only'] = "Spam filtering is controlled only in Switch Program (Rspamd). Per-mailbox enable/disable was removed.";
 $__emessage['warn_license_limit'] = "You are very close to your license limit for [%s]. If the system goes over limit for [%s] the interface will stop working and you won't be able to manage your system. Please increase your license at client.lxlabs.com and update by click <url:o=license&a=show>[here]</url>.";
 $__emessage['file_already_exists'] = "The file [%s] already exists.";
 $__emessage['contact_set_but_not_correct'] = "Your Contact Information doesn't appear to be a valid email address. Click <url:a=updateform&sa=information>[here]</url> to fix it.";

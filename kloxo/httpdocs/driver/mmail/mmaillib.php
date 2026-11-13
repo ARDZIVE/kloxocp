@@ -560,8 +560,6 @@ class Mmail extends Lxdb
 			$alist['property'][] = "a=updateform&sa=catchall";
 		} elseif ($ghtml->frm_subaction === 'remotelocalmail') {
 			$alist['property'][] = "a=updateform&sa=remotelocalmail";
-		} elseif (isset($ghtml->frm_o_o['2']['class']) && $ghtml->frm_o_o['2']['class'] === 'spam') {
-			$alist['property'][] = "a=updateform&sa=update&o=spam";
 		} elseif ($ghtml->frm_subaction === 'editmx') {
 			$alist['property'][] = "a=updateform&sa=editmx";
 		} elseif ($ghtml->frm_subaction === 'authentication') {
@@ -625,7 +623,7 @@ class Mmail extends Lxdb
 		$alist['__v_dialog_remote'] = "a=updateform&sa=remotelocalmail";
 	//	$alist[] =  "a=show&l[class]=ffile&l[nname]=/";
 		$alist[] = "a=list&c=mailinglist";
-		$alist['__v_dialog_spam'] = "o=spam&a=updateform&sa=update";
+		// Per-mailbox / domain Spam enable-disable removed: Rspamd is Switch Program only.
 
 		if ($login->isAdmin() || $login->priv->isOn('dns_manage_flag')) {
 			$alist['__v_dialog_editmx'] = "a=updateform&sa=editmx";

@@ -12,7 +12,11 @@ if (!preg_match('/    public static function migrateDnsDriver\(.*?\n    }\n/s', 
 	fwrite(STDERR, "FAIL migrateDnsDriver not found\n");
 	exit(1);
 }
-eval('final class MigrateProbe {' . $m[0] . $m2[0] . '}');
+if (!preg_match('/    public static function migrateSpamDriver\(.*?\n    }\n/s', $src, $m3)) {
+	fwrite(STDERR, "FAIL migrateSpamDriver not found\n");
+	exit(1);
+}
+eval('final class MigrateProbe {' . $m[0] . $m2[0] . $m3[0] . '}');
 
 $fail = 0;
 $check = static function (bool $ok, string $what) use (&$fail): void {
@@ -31,7 +35,15 @@ $check($dns === 'a:2:{s:6:"pg_dns";s:4:"bind";s:6:"pg_web";s:5:"nginx";}', 'pg_d
 $check(is_array(unserialize((string) $dns)) && unserialize((string) $dns)['pg_dns'] === 'bind', 'dns-migrated blob still unserializes');
 $check(MigrateProbe::migrateDnsDriver('a:1:{s:6:"pg_dns";s:4:"knot";}') === null, 'knot is left alone');
 $check(MigrateProbe::migrateDnsDriver('a:1:{s:6:"pg_dns";s:4:"bind";}') === null, 'bind is left alone');
+$spam = MigrateProbe::migrateSpamDriver('a:2:{s:7:"pg_spam";s:12:"spamassassin";s:6:"pg_web";s:5:"nginx";}');
+$check($spam === 'a:2:{s:7:"pg_spam";s:6:"rspamd";s:6:"pg_web";s:5:"nginx";}', 'pg_spam spamassassin becomes rspamd');
+$check(MigrateProbe::migrateSpamDriver('a:1:{s:7:"pg_spam";s:10:"bogofilter";}') === 'a:1:{s:7:"pg_spam";s:6:"rspamd";}', 'pg_spam bogofilter becomes rspamd');
+$check(MigrateProbe::migrateSpamDriver('a:1:{s:7:"pg_spam";s:6:"rspamd";}') === null, 'rspamd is left alone');
+$check(MigrateProbe::migrateSpamDriver('a:1:{s:7:"pg_spam";s:4:"none";}') === null, 'spam none is left alone');
 $common = (string) file_get_contents(__DIR__ . '/../../kloxo/file/driver/common.inc');
 $check(str_contains($common, "\$driver['servermail'] = '__v_smtp';"), 'fresh installs seed pg_servermail as __v_smtp');
+$linux = (string) file_get_contents(__DIR__ . '/../../kloxo/file/driver/linux.inc');
+$check(str_contains($linux, "\$driver['spam'] = array(\"none\", \"rspamd\");"), 'Switch Program spam offers none/rspamd');
+$check(!str_contains($linux, 'spamassassin'), 'Switch Program spam no longer offers spamassassin');
 
 exit($fail === 0 ? 0 : 1);

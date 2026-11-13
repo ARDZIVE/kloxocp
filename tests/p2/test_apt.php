@@ -109,72 +109,24 @@ foreach (['--version', 'a b', 'x;y', '', '-oAPT::x=1', 'Bogo'] as $n) {
 		$badNames++;
 	}
 }
-if ($badNames === 6 && KloxoApt::validPackages(['spamassassin', 'libfoo2.0+b']) === ['spamassassin', 'libfoo2.0+b']) {
+if ($badNames === 6 && KloxoApt::validPackages(['rspamd', 'libfoo2.0+b']) === ['rspamd', 'libfoo2.0+b']) {
 	ok('package names are validated');
 } else {
 	bad('package names are validated', (string) $badNames);
 }
 
-// drivers: apt, no yum/rpm
-$sa = (string) file_get_contents($root . '/kloxo/httpdocs/driver/mmail/spam__spamassassinlib.php');
+// Rspamd is the Switch Program spam driver: apt only, no yum/rpm, SpamAssassin gone.
+$rsp = (string) file_get_contents($root . '/kloxo/httpdocs/driver/mmail/spam__rspamdlib.php');
 $inc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/include.php');
-$code = preg_replace('#//[^\n]*#', '', $sa) ?? '';
-if (str_contains($sa, "array('spamassassin', 'spamc', 'ripmime')")
+$code = preg_replace('#//[^\n]*#', '', $rsp) ?? '';
+if (str_contains($rsp, "array('rspamd')")
+	&& str_contains($rsp, "'enable', '--now', 'rspamd'")
 	&& !preg_match('/\b(yum|rpm)\b/', $code)
-	&& !str_contains($code, '-toaster')
+	&& !is_file($root . '/kloxo/httpdocs/driver/mmail/spam__spamassassinlib.php')
 	&& str_contains($inc, 'kloxo_apt.php')) {
-	ok('spamassassin driver installs with apt and no rpm/yum');
+	ok('rspamd driver installs with apt and no rpm/yum; SpamAssassin driver is gone');
 } else {
-	bad('spamassassin driver install with apt and no rpm/yum');
-}
-
-// SpamAssassin per-mailbox prefs: no qmail/vpopmail, validated path, one directive per line.
-class lxDriverClass {}
-$GLOBALS['spamIo'] = array();
-function csa($s, $n) { return str_contains((string) $s, (string) $n); }
-function lxfile_exists($f) { return false; }
-function lxfile_mkdir($d) { $GLOBALS['spamIo'][] = array('mkdir', $d); return true; }
-function lxfile_generic_chown($f, $o) { $GLOBALS['spamIo'][] = array('chown', $f, $o); }
-function lxfile_rm($f) { return false; }
-function lfile_write_content($f, $d, $o) { $GLOBALS['spamIo'][] = array('write', $f, $d, $o); }
-function lxshell_return() { return 0; }
-require $root . '/kloxo/httpdocs/driver/mmail/spam__spamassassinlib.php';
-$pp = Spam__Spamassassin::prefsPath('Example.com', 'Bob');
-$ppOk = $pp === '/home/kloxomail/mail/spamassassin/example.com/bob/.spamassassin/user_prefs'
-	&& Spam__Spamassassin::prefsPath('example.com', '../root') === ''
-	&& Spam__Spamassassin::prefsPath('../etc', 'bob') === ''
-	&& Spam__Spamassassin::prefsPath('a/b.com', 'bob') === ''
-	&& Spam__Spamassassin::prefsPath('example.com', 'a/b') === '';
-$drv = new Spam__Spamassassin();
-$wl = new stdClass();
-$wl->nname = "friend@x.org\nrequired_score 0";
-$drv->main = (object) array(
-	'nname' => 'bob@example.com',
-	'spam_hit' => '6',
-	'subject_tag' => "***SPAM***\nwhitelist_from *",
-	'wlist_a' => array($wl),
-	'blist_a' => array(),
-);
-$drv->syncSpamUserPref();
-$written = '';
-foreach ($GLOBALS['spamIo'] as $io) {
-	if ($io[0] === 'write') {
-		$written = (string) $io[2];
-	}
-}
-$lines = array_filter(explode("\n", $written), static fn($l) => $l !== '');
-$injected = false;
-foreach ($lines as $l) {
-	if (str_starts_with($l, 'whitelist_from   *') || trim($l) === 'required_score 0') {
-		$injected = true;
-	}
-}
-if ($ppOk && $written !== '' && !$injected && str_contains($written, 'required_score  6')
-	&& str_contains($written, 'rewrite_header Subject  ***SPAM*** whitelist_from *')
-	&& !str_contains($written, 'vpopmail')) {
-	ok('SpamAssassin prefs: validated path, no qmail/vpopmail, values cannot inject directives');
-} else {
-	bad('SpamAssassin prefs: validated path, no qmail/vpopmail, values cannot inject directives', $written);
+	bad('rspamd driver installs with apt and no rpm/yum; SpamAssassin driver is gone');
 }
 
 foreach (glob($tmp . '/*') ?: [] as $f) {

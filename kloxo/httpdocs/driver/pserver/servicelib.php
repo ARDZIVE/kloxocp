@@ -258,10 +258,11 @@ class Service extends Lxdb
 
 		$svc = isset($this->servicename) ? (string) $this->servicename : '';
 		// service__linuxlib.php is included above; always evaluate protection.
-		$protected = Service__Linux::isProtectedUnit($svc);
+		$protected = Service__Linux::isProtectedUnit($svc)
+			|| Service__Linux::isSwitchProgramOnlyUnit($svc);
 		// Keep Start/Stop/Restart icons for every installed row (blank cells look broken).
-		// Sb / State stay view-only for panel-critical units; Stop/Restart still refuse
-		// in updateStop/updateRestart via assertMayControl.
+		// Sb / State stay view-only for panel-critical and Switch-Program-only units;
+		// Stop/Restart still refuse in updateStop/updateRestart via assertMayControl.
 		if ($protected && ($var === 'state' || $var === 'boot_state')) {
 			return false;
 		}
@@ -289,6 +290,12 @@ class Service extends Lxdb
 		}
 		if (Service__Linux::mayControlUnit($unit, (string) $act)) {
 			return;
+		}
+		if (Service__Linux::isSwitchProgramOnlyUnit($unit) || Service__Linux::isSwitchProgramOnlyUnit($svc)) {
+			$msg = (is_object($login) && method_exists($login, 'getThrow'))
+				? $login->getThrow('rspamd_switch_program_only')
+				: 'Rspamd can only be enabled or disabled in Switch Program (not from Services)';
+			throw new lxException($msg, '', $svc !== '' ? $svc : $unit);
 		}
 		$msg = (is_object($login) && method_exists($login, 'getThrow'))
 			? $login->getThrow('cannot_control_critical_service')

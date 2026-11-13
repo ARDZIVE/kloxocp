@@ -131,7 +131,7 @@ $f = new Fake();
 foreach (['nginx', 'mariadb', 'bind9', 'exim4', 'dovecot', 'pure-ftpd', 'kloxo-webcache', 'kloxo-webproxy', 'rspamd', 'redis-server'] as $u) {
 	$f->unit($u);
 }
-foreach ([80, 8080, 30080, 53, 25, 143, 21, 3306] as $p) {
+foreach ([80, 8080, 30080, 53, 25, 143, 21, 3306, 11333] as $p) {
 	$f->ports[$p] = true;
 }
 $wd = $f->wd($tmp);

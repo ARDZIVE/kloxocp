@@ -34,7 +34,7 @@ function os_createLowMem()
 		//	createRestartFile('courier-imap');
 		}
 
-		lxfile_cp("../file/lowmem/spamassassin.lowmem", "/etc/sysconfig/spamassassin");
+		// SpamAssassin is gone; Rspamd is the Switch Program spam filter (no lowmem tweak).
 	}
 }
 

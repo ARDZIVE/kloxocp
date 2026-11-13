@@ -1576,7 +1576,7 @@ TXT;
             'pg_dns' => 'bind',
             'pg_pop3' => 'dovecot',
             'pg_smtp' => 'exim',
-            'pg_spam' => 'none',
+            'pg_spam' => 'rspamd',
             'pg_mailinglist' => 'none',
             'pg_ffile' => 'linux',
             'pg_easyinstaller' => 'linux',
@@ -1741,6 +1741,10 @@ TXT;
                 // no service table yet: the schema seed already carries the Knot row
             }
         }
+        $spam = self::migrateSpamDriver($migrated ?? $raw);
+        if ($spam !== null) {
+            $migrated = $spam;
+        }
         if ($migrated !== null) {
             $stmt = $pdo->prepare("UPDATE driver SET ser_driver_b = ? WHERE nname = 'localhost'");
             $stmt->execute([base64_encode($migrated)]);
@@ -1760,6 +1764,29 @@ TXT;
         }
 
         return str_replace($old, 's:6:"pg_dns";s:4:"bind";', $raw);
+    }
+
+    /**
+     * SpamAssassin / bogofilter Switch Program choices are gone; Rspamd is the only filter.
+     * Returns the new serialized blob, or null when nothing has to change.
+     */
+    public static function migrateSpamDriver(string $raw): ?string
+    {
+        $map = [
+            's:7:"pg_spam";s:12:"spamassassin";' => 's:7:"pg_spam";s:6:"rspamd";',
+            's:7:"pg_spam";s:20:"spamassassin-toaster";' => 's:7:"pg_spam";s:6:"rspamd";',
+            's:7:"pg_spam";s:10:"bogofilter";' => 's:7:"pg_spam";s:6:"rspamd";',
+        ];
+        $out = $raw;
+        $changed = false;
+        foreach ($map as $old => $new) {
+            if (str_contains($out, $old)) {
+                $out = str_replace($old, $new, $out);
+                $changed = true;
+            }
+        }
+
+        return $changed ? $out : null;
     }
 
     /**

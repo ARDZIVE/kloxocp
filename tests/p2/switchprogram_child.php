@@ -81,10 +81,16 @@ switch ($scenario) {
 		sp_run('smtp', $base, array('smtp_driver' => 'postfix'));
 		break;
 	case 'allnone':
-		sp_run('allnone', $base, array('dns_driver' => 'none', 'spam_driver' => 'none', 'pop3_driver' => 'none', 'smtp_driver' => 'none'));
+		sp_run('allnone', array_merge($base, array('spam' => 'rspamd')), array(
+			'dns_driver' => 'none', 'spam_driver' => 'none', 'pop3_driver' => 'none', 'smtp_driver' => 'none'));
+		break;
+	case 'spam_none_blocked':
+		// Rspamd stays on while mail is still on: Switch Program must refuse.
+		sp_run('spam_none_blocked', array_merge($base, array('spam' => 'rspamd')), array('spam_driver' => 'none'));
 		break;
 	case 'spam_none':
-		sp_run('spam_none', array_merge($base, array('spam' => 'spamassassin')), array('spam_driver' => 'none'));
+		sp_run('spam_none', array_merge($base, array('spam' => 'rspamd', 'pop3' => 'none', 'smtp' => 'none')),
+			array('spam_driver' => 'none', 'pop3_driver' => 'none', 'smtp_driver' => 'none'));
 		break;
 	case 'nonroot':
 		KloxoMta::$assumeRoot = false;
@@ -100,8 +106,8 @@ switch ($scenario) {
 	case 'pop3':
 		sp_run('pop3', array_merge($base, array('pop3' => 'none')), array('pop3_driver' => 'dovecot'));
 		break;
-	case 'spam_spamassassin':
-		sp_run('spam_spamassassin', $base, array('spam_driver' => 'spamassassin'));
+	case 'spam_rspamd':
+		sp_run('spam_rspamd', $base, array('spam_driver' => 'rspamd'));
 		break;
 	case 'dns':
 		sp_run('dns', $base, array('dns_driver' => 'knot'));

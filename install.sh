@@ -43,7 +43,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111301"
+KCP_VERSION="10.1-2026111302"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -647,7 +647,11 @@ if [[ "$WITH_MAIL" -eq 1 ]]; then
     dovecot-mysql dovecot-sieve dovecot-managesieved \
     rspamd
   # Dovecot is the default POP3/IMAP program (pg_pop3=dovecot).
+  # Rspamd is the default spam filter (pg_spam=rspamd); enable only via Switch Program later.
   systemctl enable dovecot 2>/dev/null || true
+  systemctl enable --now rspamd 2>/dev/null || true
+  systemctl disable --now spamd 2>/dev/null || true
+  systemctl disable --now spamassassin 2>/dev/null || true
   systemctl disable --now postfix 2>/dev/null || true
 fi
 

@@ -1372,6 +1372,13 @@ STRIN;
 					$this->smtp_driver = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'smtp');
 				}
 
+				// SpamAssassin / bogofilter are gone: show and store Rspamd instead.
+				if (is_callable(array('pserver', 'normalizeSpamProgram'))) {
+					$this->spam_driver = pserver::normalizeSpamProgram(
+						isset($this->spam_driver) ? (string) $this->spam_driver : 'none'
+					);
+				}
+
 				$a['web'] = $this->web_driver;
 				$a['webcache'] = $this->webcache_driver;
 				$a['dns'] = $this->dns_driver;
@@ -1415,7 +1422,7 @@ STRIN;
 					$driver['dns'] = array('none', 'bind', 'knot');
 				}
 				if (!isset($driver['spam'])) {
-					$driver['spam'] = array('none');
+					$driver['spam'] = array('none', 'rspamd');
 				}
 				if (!isset($driver['pop3'])) {
 					$driver['pop3'] = array('none', 'dovecot');

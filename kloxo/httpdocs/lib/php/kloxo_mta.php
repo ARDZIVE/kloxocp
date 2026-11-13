@@ -2,11 +2,11 @@
 declare(strict_types=1);
 
 /**
- * Turning a Switch Program mail program off (Exim, Postfix, Dovecot, SpamAssassin).
+ * Turning a Switch Program mail program off (Exim, Postfix, Dovecot, Rspamd).
  *
  * turnOff(): stop, disable (and the unit's .socket companion), then READ the boot
  * state back; if the unit is still enabled, try the SysV links and, for the
- * programs that stay installed (Dovecot, SpamAssassin), raise an error that names
+ * programs that stay installed (Dovecot, Rspamd), raise an error that names
  * what systemd reports instead of leaving a green Sb icon without a word.
  *
  * Retiring the MTA that Switch Program replaces (Exim <-> Postfix).
