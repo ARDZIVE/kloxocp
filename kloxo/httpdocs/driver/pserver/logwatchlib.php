@@ -12,7 +12,7 @@ class logwatch extends lxclass
 	static $__desc_nname = array("", "", "LogWatch");
 	static $__acdesc_show = array("", "", "LogWatch");
 	static $__acdesc_update_update = array("", "", "LogWatch");
-	static $__acdesc_update_runnow = array("", "", "Run Now");
+	static $__acdesc_update_emaillast = array("", "", "Email last report");
 
 	static $__desc_lw_info = array("M", "", "LogWatch");
 	static $__desc_lw_enabled = array("f", "", "enable_logwatch");
@@ -57,7 +57,7 @@ class logwatch extends lxclass
 
 	function createShowUpdateform()
 	{
-		return array('update' => null);
+		return array('update' => null, 'emaillast' => null);
 	}
 
 	function getSelfList()
@@ -103,61 +103,7 @@ class logwatch extends lxclass
 
 	function showRawPrint($subaction = null)
 	{
-		try {
-			$this->assertAdmin();
-		} catch (Throwable $e) {
-			echo '<div class="kloxo-logwatch"><p class="messagetext">Only admin can access LogWatch.</p></div>';
-
-			return;
-		}
-
-		$st = $this->execLw('status', array());
-		$cfg = (isset($st['config']) && is_array($st['config'])) ? $st['config'] : array();
-		$reports = (isset($st['reports']) && is_array($st['reports'])) ? $st['reports'] : array();
-		$host = $this->syncServerName();
-		$h = static function ($v) {
-			return htmlspecialchars((string) $v, ENT_QUOTES);
-		};
-		$dir = KloxoLogwatch::REPORT_DIR;
-
-		echo '<div class="kloxo-logwatch" style="margin:8px 16px">';
-		echo '<p class="messagetext">LogWatch summarises system logs on a schedule and can email the report. '
-			. 'Saved reports are kept under <code>' . $h($dir) . '</code> and appear in '
-			. '<strong>Log Manager → LogWatch</strong> (Server section). '
-			. 'Open that page, choose application <em>LogWatch</em>, then pick a dated report file.</p>';
-
-		if (empty($st['installed'])) {
-			echo '<p class="messagetext" style="color:#a00">The <code>logwatch</code> package is not installed on '
-				. $h($host) . '. Install it with apt, then reopen this page (or re-run the Kloxo installer).</p>';
-		} else {
-			$on = !empty($st['enabled']) ? 'enabled' : 'disabled';
-			$freq = $h($cfg['frequency'] ?? 'daily');
-			$when = sprintf('%02d:%02d', (int) ($cfg['hour'] ?? 6), (int) ($cfg['minute'] ?? 0));
-			echo '<p class="messagetext">Status on ' . $h($host) . ': <strong>' . $on . '</strong>, '
-				. 'frequency <strong>' . $freq . '</strong> at <strong>' . $when . '</strong>, '
-				. 'keep <strong>' . (int) ($cfg['keep_days'] ?? 14) . '</strong> days of saved reports '
-				. '(' . count($reports) . ' on disk).</p>';
-		}
-
-		if ($reports !== array()) {
-			echo '<p class="messagetext" style="margin-top:8px"><strong>Recent reports</strong></p><ul>';
-			$i = 0;
-			foreach ($reports as $r) {
-				if ($i++ >= 8) {
-					break;
-				}
-				if (!is_array($r)) {
-					continue;
-				}
-				echo '<li><code>' . $h($r['name'] ?? '') . '</code> '
-					. '(' . (int) ($r['size'] ?? 0) . ' bytes)</li>';
-			}
-			echo '</ul>';
-		}
-
-		$runUrl = $this->urlFor('a=update&sa=runnow');
-		echo '<p style="margin:12px 0"><a class="button" href="' . $h($runUrl) . '">Run Now</a></p>';
-		echo '</div>';
+		// Settings + Email last report forms only (no status wall of text).
 	}
 
 	function updateform($subaction, $param)
@@ -165,6 +111,16 @@ class logwatch extends lxclass
 		try {
 			$this->assertAdmin();
 		} catch (Throwable $e) {
+		}
+
+		if ($subaction === 'emaillast') {
+			$vlist = array();
+			$vlist['lw_info'] = array('M',
+				'Send the newest saved report from ' . KloxoLogwatch::REPORT_DIR
+				. ' to the To Email address above. Works even when Mail Reports is off.');
+			$vlist['__v_button'] = 'Email last report';
+
+			return $vlist;
 		}
 
 		$st = $this->execLw('status', array());
@@ -197,10 +153,6 @@ class logwatch extends lxclass
 		}
 
 		$vlist = array();
-		$vlist['lw_info'] = array('M',
-			'LogWatch settings for this server. Saved reports go to ' . KloxoLogwatch::REPORT_DIR
-			. ' and are listed in Log Manager under the LogWatch application. '
-			. 'Mail needs a working MTA (Exim or Postfix).');
 		$vlist['lw_enabled'] = null;
 		$vlist['lw_mail_reports'] = null;
 		$vlist['lw_mailto'] = null;
@@ -254,16 +206,16 @@ class logwatch extends lxclass
 		return null;
 	}
 
-	function updateRunnow($param)
+	function updateEmaillast($param)
 	{
 		$this->assertAdmin();
-		$ret = $this->execLw('run', array());
+		$ret = $this->execLw('mailLastReport', array());
 		$this->throwIfFailed($ret);
 		$name = '';
 		if (isset($ret['report']) && is_string($ret['report']) && $ret['report'] !== '') {
 			$name = basename($ret['report']);
 		}
-		$this->redirectToShow('updated_successfully', $name !== '' ? $name : 'LogWatch ran');
+		$this->redirectToShow('updated_successfully', $name !== '' ? $name : 'report emailed');
 
 		return null;
 	}

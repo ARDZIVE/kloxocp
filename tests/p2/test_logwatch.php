@@ -140,7 +140,7 @@ $old = $fs . '/var/log/logwatch/logwatch-2000-01-01.txt';
 file_put_contents($old, 'old');
 touch($old, time() - (40 * 86400));
 $fresh = $fs . '/var/log/logwatch/logwatch-2099-01-01.txt';
-file_put_contents($fresh, 'new');
+file_put_contents($fresh, "LogWatch report body\n");
 $n = KloxoLogwatch::pruneReports(14);
 if ($n >= 1 && !is_file($old) && is_file($fresh)) {
 	ok('pruneReports deletes files older than keep_days');
@@ -148,10 +148,66 @@ if ($n >= 1 && !is_file($old) && is_file($fresh)) {
 	bad('pruneReports deletes files older than keep_days', "n=$n");
 }
 
+// Force-email last report ignores mail_reports=false.
+KloxoLogwatch::saveConfig(array(
+	'enabled' => false,
+	'mailto' => 'admin@example.com',
+	'mailfrom' => 'logwatch@example.com',
+	'mail_reports' => false,
+	'save_reports' => true,
+), $cfgRoot);
+@mkdir($fs . '/usr/sbin', 0755, true);
+$outbox = $fs . '/sendmail.out';
+@unlink($outbox);
+file_put_contents($fs . '/usr/sbin/sendmail', "#!/bin/sh\ncat > \"$outbox\"\nexit 0\n");
+chmod($fs . '/usr/sbin/sendmail', 0755);
+$mail = KloxoLogwatch::mailLastReport($cfgRoot);
+$outboxBody = is_file($outbox) ? (string) file_get_contents($outbox) : '';
+if (!empty($mail['ok'])
+	&& str_contains($outboxBody, 'To: admin@example.com')
+	&& str_contains($outboxBody, 'LogWatch report body')
+	&& str_contains($outboxBody, 'logwatch-2099-01-01.txt')) {
+	ok('mailLastReport emails newest report even when mail_reports is off');
+} else {
+	bad('mailLastReport emails newest report even when mail_reports is off',
+		var_export($mail, true) . "\n" . $outboxBody);
+}
+
+$emptyDir = $fs . '/var/log/logwatch-empty';
+@mkdir($emptyDir, 0755, true);
+foreach (glob($fs . '/var/log/logwatch/logwatch-*') ?: array() as $f) {
+	@unlink($f);
+}
+$noReport = KloxoLogwatch::mailLastReport($cfgRoot);
+if (($noReport['error'] ?? '') === 'logwatch_no_report') {
+	ok('mailLastReport refuses when no saved report exists');
+} else {
+	bad('mailLastReport refuses when no saved report exists', var_export($noReport, true));
+}
+file_put_contents($fresh, "LogWatch report body\n");
+
 if (class_exists('logwatch')) {
 	ok('logwatch panel class loads');
 } else {
 	bad('logwatch panel class loads');
+}
+
+$lwSrc = (string) file_get_contents($doc . '/driver/pserver/logwatchlib.php');
+if (!str_contains($lwSrc, 'runnow')
+	&& !str_contains($lwSrc, 'updateRunnow')
+	&& str_contains($lwSrc, 'updateEmaillast')
+	&& str_contains($lwSrc, 'emaillast')
+	&& str_contains($lwSrc, 'mailLastReport')) {
+	ok('LogWatch page has Email last report and no Run Now');
+} else {
+	bad('LogWatch page has Email last report and no Run Now');
+}
+if (preg_match('/function showRawPrint.*?\{(.*?)\}/s', $lwSrc, $m)
+	&& !str_contains($m[1], 'echo')
+	&& !str_contains($m[1], 'print')) {
+	ok('LogWatch showRawPrint has no status wall of text');
+} else {
+	bad('LogWatch showRawPrint has no status wall of text');
 }
 
 $def = (string) file_get_contents($doc . '/lib/html/definecore.php');

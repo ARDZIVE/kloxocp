@@ -403,6 +403,117 @@ final class KloxoLogwatch
     }
 
     /**
+     * Email the newest saved report under /var/log/logwatch/, ignoring the
+     * mail_reports checkbox (force send). Uses sendmail when available.
+     *
+     * @return array{ok:bool,error?:string,report?:string,mailto?:string}
+     */
+    public static function mailLastReport(?string $root = null): array
+    {
+        $root = $root ?? self::rootDir();
+        $cfg = self::loadConfig($root);
+        $mailto = trim((string) ($cfg['mailto'] ?? ''));
+        $mailfrom = trim((string) ($cfg['mailfrom'] ?? 'logwatch'));
+        if ($mailto === '') {
+            return ['ok' => false, 'error' => 'logwatch_no_mailto'];
+        }
+        $mailto = self::validEmailOrLocal($mailto, '');
+        $mailfrom = self::validEmailOrLocal($mailfrom, 'logwatch');
+        if ($mailto === '') {
+            return ['ok' => false, 'error' => 'logwatch_no_mailto'];
+        }
+
+        $reports = self::listReports();
+        if ($reports === []) {
+            return ['ok' => false, 'error' => 'logwatch_no_report'];
+        }
+        $path = (string) ($reports[0]['path'] ?? '');
+        if ($path === '' || !is_file($path) || !self::isReportPath($path)) {
+            return ['ok' => false, 'error' => 'logwatch_no_report'];
+        }
+        $body = @file_get_contents($path);
+        if (!is_string($body)) {
+            return ['ok' => false, 'error' => 'logwatch_no_report', 'report' => $path];
+        }
+
+        $name = basename($path);
+        $isHtml = str_ends_with(strtolower($name), '.html');
+        $ctype = $isHtml ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
+        $subject = 'LogWatch report ' . $name;
+        $headers = 'To: ' . $mailto . "\n"
+            . 'From: ' . $mailfrom . "\n"
+            . 'Subject: ' . self::headerSafe($subject) . "\n"
+            . 'MIME-Version: 1.0' . "\n"
+            . 'Content-Type: ' . $ctype . "\n"
+            . "\n";
+        $message = $headers . $body;
+
+        $sendmail = self::sendmailBin();
+        if ($sendmail === '') {
+            return ['ok' => false, 'error' => 'logwatch_no_sendmail', 'report' => $path];
+        }
+        // Envelope sender is a single address (first token of MailFrom).
+        $envelope = preg_split('/\s+/', $mailfrom, 2)[0] ?? 'logwatch';
+        $r = self::runCmdWithStdin([$sendmail, '-t', '-oi', '-f', $envelope], $message);
+        if (($r['code'] ?? 1) !== 0) {
+            return ['ok' => false, 'error' => 'logwatch_mail_failed', 'report' => $path];
+        }
+
+        return ['ok' => true, 'report' => $path, 'mailto' => $mailto];
+    }
+
+    public static function isReportPath(string $path): bool
+    {
+        $dir = rtrim(self::reportDir(), '/');
+        if ($path === '' || !str_starts_with($path, $dir . '/')) {
+            return false;
+        }
+        if (str_contains($path, '..') || str_contains($path, "\0")) {
+            return false;
+        }
+
+        return (bool) preg_match('#/logwatch-[A-Za-z0-9._-]+$#', $path);
+    }
+
+    private static function headerSafe(string $s): string
+    {
+        return str_replace(["\r", "\n"], '', $s);
+    }
+
+    private static function sendmailBin(): string
+    {
+        foreach (['/usr/sbin/sendmail', '/usr/lib/sendmail'] as $b) {
+            if (is_executable(self::p($b))) {
+                return self::p($b);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<string> $argv
+     * @return array{code:int,out:string,err:string}
+     */
+    private static function runCmdWithStdin(array $argv, string $stdin): array
+    {
+        $desc = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $proc = @proc_open($argv, $desc, $pipes, null, null, ['bypass_shell' => true]);
+        if (!is_resource($proc)) {
+            return ['code' => 127, 'out' => '', 'err' => 'proc_open failed'];
+        }
+        fwrite($pipes[0], $stdin);
+        fclose($pipes[0]);
+        $out = stream_get_contents($pipes[1]) ?: '';
+        $err = stream_get_contents($pipes[2]) ?: '';
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $code = proc_close($proc);
+
+        return ['code' => (int) $code, 'out' => $out, 'err' => $err];
+    }
+
+    /**
      * @param list<string> $argv
      * @return array{code:int,out:string,err:string}
      */

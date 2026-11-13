@@ -1,7 +1,7 @@
 # Kloxo CP
 
 Hosting control panel for **Ubuntu 24.04** (PHP 8.3) and **Ubuntu 26.x** (PHP 8.5).
-GNU AGPLv3. Version **10.1-2026111309**.
+GNU AGPLv3. Version **10.1-2026111310**.
 
 https://github.com/ARDZIVE/kloxocp.git
 
@@ -20,7 +20,7 @@ hardened it and verified the install on your own host.
 | Mail | Exim + Dovecot + Rspamd | Postfix (replaces Exim); spam is Rspamd only |
 | SQL | MariaDB | phpMyAdmin (SQL Manager) |
 | FTP / cache / firewall | Pure-FTPd, Redis, UFW, Fail2Ban | Nginx web cache in front of the site server |
-| Log summary | LogWatch (installed, **disabled** until enabled) | Security → LogWatch; reports in Log Manager |
+| Log summary | LogWatch (installed, **disabled** until enabled) | Security → LogWatch (Enable starts schedule; Email last report); Log Manager |
 | Panel database | SQLite (`/var/lib/kloxo/panel.sqlite`) | — |
 
 No billing. Mailboxes live under `/var/vmail`. Switch Program chooses web, DNS,
