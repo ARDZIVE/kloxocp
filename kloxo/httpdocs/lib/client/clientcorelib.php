@@ -27,8 +27,10 @@ abstract class ClientCore extends Resourcecore
 	static $__desc_dnssyncserver_list = array("","",  "dns_servers");
 	static $__desc_cron_mailto = array("", "",  "mail_to");
 	static $__desc_disable_system_flag = array("f", "",  "completely_disable_system_access_to_this_user");
+	static $__desc_mail_hostname_f = array("n", "",  "mail_server_hostname");
 
 	static $__acdesc_update_ostemplatelist = array("","",  "ostemplate_list");
+	static $__acdesc_update_mailsetup = array("", "",  "mail_setup");
 
 	//  Objects
 	static $__acdesc_update_pserver = array("","",  "server_pool");
@@ -492,6 +494,32 @@ abstract class ClientCore extends Resourcecore
 
 				return $vlist;
 
+			case "mailsetup":
+				if (!$this->isAdmin() || !$this->isLogin()) {
+					throw new lxException($login->getThrow('not_admin'));
+				}
+				$vlist = array();
+				$gaps = function_exists('kloxo_admin_mail_setup_gaps')
+					? kloxo_admin_mail_setup_gaps($this) : array('contactemail' => true, 'mail_hostname_f' => true);
+				if (isset($gaps['contactemail'])) {
+					$vlist['contactemail'] = null;
+				}
+				if (isset($gaps['mail_hostname_f'])) {
+					$cur = function_exists('kloxo_admin_mail_setup_current_hostname')
+						? kloxo_admin_mail_setup_current_hostname() : '';
+					if ($cur !== '' && $cur !== 'localhost' && !filter_var($cur, FILTER_VALIDATE_IP)) {
+						$this->mail_hostname_f = $cur;
+					}
+					$vlist['mail_hostname_f'] = null;
+				}
+				if ($vlist === array()) {
+					$vlist['contactemail'] = null;
+					$vlist['mail_hostname_f'] = null;
+				}
+				$vlist['__v_button'] = 'Save';
+
+				return $vlist;
+
 			case "information":
 				$vlist['nname'] = array('M', $this->nname);
 
@@ -656,6 +684,69 @@ abstract class ClientCore extends Resourcecore
 			}
 			$gen->setUpdateSubaction();
 			$gen->write();
+		}
+
+		return $param;
+	}
+
+	/**
+	 * First-login mail setup: admin contact email + dotted FQDN for From/mailname.
+	 *
+	 * @param array<string,mixed> $param
+	 * @return array<string,mixed>
+	 */
+	function updateMailsetup($param)
+	{
+		global $gbl, $login;
+
+		if (!$this->isAdmin() || !$this->isLogin()) {
+			throw new lxException($login->getThrow('not_admin'));
+		}
+
+		$gaps = function_exists('kloxo_admin_mail_setup_gaps')
+			? kloxo_admin_mail_setup_gaps($this)
+			: array('contactemail' => true, 'mail_hostname_f' => true);
+
+		if (isset($gaps['contactemail'])) {
+			$mail = trim((string) ($param['contactemail'] ?? ''));
+			if ($mail === '') {
+				throw new lxException($login->getThrow('sending_welcome_needs_contactemail'), 'contactemail');
+			}
+			if (!function_exists('kloxo_mail_setup_contact_ok') || !kloxo_mail_setup_contact_ok($mail)) {
+				if (function_exists('validate_email') && validate_email($mail)) {
+					throw new lxException($login->getThrow('mail_setup_placeholder_email'), 'contactemail', $mail);
+				}
+				throw new lxException($login->getThrow('contactemail_is_not_valid_email_address'), 'contactemail', $mail);
+			}
+			$param['contactemail'] = $mail;
+		} else {
+			unset($param['contactemail']);
+		}
+
+		if (isset($gaps['mail_hostname_f'])) {
+			$fqdn = strtolower(trim((string) ($param['mail_hostname_f'] ?? '')));
+			$fqdn = preg_replace('/\.$/', '', $fqdn) ?? $fqdn;
+			if (!function_exists('kloxo_mail_setup_hostname_ok') || !kloxo_mail_setup_hostname_ok($fqdn)) {
+				throw new lxException($login->getThrow('mail_setup_need_fqdn'), 'mail_hostname_f', $fqdn);
+			}
+			try {
+				$ps = new pserver(null, 'localhost', 'localhost');
+				$ps->get();
+				$ps->realhostname = $fqdn;
+				$ps->setUpdateSubaction('information');
+				$ps->write();
+			} catch (Throwable $e) {
+				log_log('mail_send', 'mailsetup realhostname: ' . $e->getMessage());
+				throw new lxException($login->getThrow('mail_setup_need_fqdn'), 'mail_hostname_f', $fqdn);
+			}
+			if (function_exists('kloxo_admin_mail_setup_apply_mailname')) {
+				kloxo_admin_mail_setup_apply_mailname($fqdn);
+			}
+		}
+		unset($param['mail_hostname_f']);
+
+		if ($this->isLogin()) {
+			$gbl->__this_redirect = '/display.php?frm_action=show';
 		}
 
 		return $param;

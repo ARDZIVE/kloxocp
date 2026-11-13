@@ -80,7 +80,9 @@ div.kloxo-toast.kloxo-inline-alert,
 }
 
 .kloxo-password-force .kloxo-toast,
-.kloxo-password-force div.kloxo-toast.kloxo-inline-alert {
+.kloxo-password-force div.kloxo-toast.kloxo-inline-alert,
+.kloxo-mail-setup-force .kloxo-toast,
+.kloxo-mail-setup-force div.kloxo-toast.kloxo-inline-alert {
 	position: relative;
 	top: auto;
 	left: auto;

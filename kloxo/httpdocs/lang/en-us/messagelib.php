@@ -37,6 +37,11 @@ $__emessage['contact_not_set'] = "Your Contact Information is not set properly. 
 $__emessage['you_have_unread_message'] = "You have [%s] Unread Message(s). click <url:a=list&c=smessage>[here]</url> to read it.";
 $__emessage['you_have_unread_ticket'] = "You have [%s] Unread Ticket(s). click <url:a=list&c=ticket>[here]</url> to read it.";
 $__emessage['security_warning'] = "The default admin/admin password must be changed before you can use the panel. Choose a new password now.";
+$__emessage['mail_setup_required'] = "Set the admin contact email and a dotted server hostname (FQDN) so the panel can send mail to users and receive system alerts. Use a real inbox you can open — not example.com.";
+$__information['client_updateform_mailsetup_title'] = "Mail Setup";
+$__information['client_updateform_mailsetup_pre'] = "<p>These fields are required for panel mail (welcome messages, tickets, watchdog alerts).</p>" .
+	"<ul><li><b>Email Address</b> — your real inbox; used as the From address when notifying customers and as the destination for system alerts.</li>" .
+	"<li><b>Mail Server Hostname</b> — a dotted FQDN such as <code>mail.example.org</code> or <code>server.yourdomain.com</code> (not an IP and not a short name like <code>srv</code>). It is stored as the server FQDN and written to <code>/etc/mailname</code> when possible.</li></ul>";
 $__emessage['ssh_port_not_configured'] = "The ssh port for this server is not set. It is a good idea to change it to something other than the default 22. Please click <url:a=show&o=sshconfig>[here]</url> to change. If you want to keep the ssh port to 22 and still avoid this message, go to the page, and set it forcibly to 22, and the warning will not be displayed again.";
 $__emessage['system_is_updating_itself'] = "The system at this point is upgrading itself, and thus you won't be able to make any changes for a few minutes. All read actions work normally though.";
 $__emessage['system_is_locked'] = "Someone has initiated system-modification-action on this particular object which is still going on. You wont be able to make any changes till it is finished. All read actions work normally though.";

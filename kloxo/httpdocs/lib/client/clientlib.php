@@ -161,6 +161,8 @@ class Client extends ClientBase
 
 		if ($ghtml->frm_subaction === 'password') {
 			$alist['property'][] = "a=updateform&sa=password";
+		} elseif ($ghtml->frm_subaction === 'mailsetup') {
+			$alist['property'][] = "a=updateform&sa=mailsetup";
 		} elseif ($ghtml->frm_subaction === 'information') {
 			$alist['property'][] = "a=updateform&sa=information";
 		} elseif (($ghtml->frm_subaction === 'update') && ($ghtml->frm_o_o['0']['class'] === 'domaindefault')) {

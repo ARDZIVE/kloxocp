@@ -3056,7 +3056,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111310';
+	return '10.1-2026111311';
 }
 
 function getDownloadServer()
@@ -3396,6 +3396,132 @@ function kloxo_mail_default_from(): string
 	}
 
 	return 'admin@localhost';
+}
+
+/**
+ * Reject empty, invalid, and documentation placeholder addresses for panel mail.
+ */
+function kloxo_mail_setup_contact_ok($email): bool
+{
+	$email = trim((string) $email);
+	if ($email === '' || !validate_email($email) || preg_match('/[\r\n,;<>]/', $email) === 1) {
+		return false;
+	}
+	$domain = strtolower((string) substr(strrchr($email, '@') ?: '', 1));
+	if ($domain === '') {
+		return false;
+	}
+	foreach (array('example.com', 'example.net', 'example.org', 'invalid', 'localhost', 'test', 'localdomain') as $bad) {
+		if ($domain === $bad || str_ends_with($domain, '.' . $bad)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Dotted FQDN suitable for panel From / mailname (not localhost, not an IP).
+ */
+function kloxo_mail_setup_hostname_ok($host): bool
+{
+	$host = strtolower(trim((string) $host));
+	if ($host === '' || $host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP)) {
+		return false;
+	}
+	if (class_exists('KloxoBackup') && is_callable(array('KloxoBackup', 'isMailHostname'))) {
+		return KloxoBackup::isMailHostname($host);
+	}
+
+	return (bool) preg_match(
+		'/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/',
+		$host
+	);
+}
+
+/**
+ * Current mail/server hostname candidate from pserver or the OS.
+ */
+function kloxo_admin_mail_setup_current_hostname(): string
+{
+	try {
+		if (function_exists('getFQDNforServer')) {
+			$fq = getFQDNforServer('localhost');
+			if (is_string($fq) && trim($fq) !== '') {
+				return strtolower(trim($fq));
+			}
+		}
+	} catch (Throwable $e) {
+		// fall through
+	}
+	foreach (array('/etc/mailname', '/etc/hostname') as $f) {
+		if (!is_readable($f)) {
+			continue;
+		}
+		$t = strtolower(trim((string) @file_get_contents($f)));
+		$t = preg_replace('/\s.*/', '', $t) ?? $t;
+		if ($t !== '') {
+			return $t;
+		}
+	}
+	if (function_exists('gethostname')) {
+		$g = trim((string) gethostname());
+		if ($g !== '') {
+			return strtolower($g);
+		}
+	}
+
+	return '';
+}
+
+/**
+ * Missing admin fields that block reliable panel → user mail.
+ *
+ * @return array{contactemail?:true, mail_hostname_f?:true}
+ */
+function kloxo_admin_mail_setup_gaps($login): array
+{
+	$gaps = array();
+	if (!is_object($login) || !method_exists($login, 'isAdmin') || !$login->isAdmin()) {
+		return $gaps;
+	}
+	$mail = isset($login->contactemail) ? (string) $login->contactemail : '';
+	if (!kloxo_mail_setup_contact_ok($mail)) {
+		$gaps['contactemail'] = true;
+	}
+	if (!kloxo_mail_setup_hostname_ok(kloxo_admin_mail_setup_current_hostname())) {
+		$gaps['mail_hostname_f'] = true;
+	}
+
+	return $gaps;
+}
+
+function kloxo_admin_mail_setup_needed($login): bool
+{
+	return kloxo_admin_mail_setup_gaps($login) !== array();
+}
+
+/**
+ * Best-effort write of /etc/mailname (dotted FQDN) for panel From + Exim.
+ */
+function kloxo_admin_mail_setup_apply_mailname(string $fqdn): void
+{
+	$fqdn = strtolower(trim($fqdn));
+	if (!kloxo_mail_setup_hostname_ok($fqdn)) {
+		return;
+	}
+	$body = $fqdn . "\n";
+	try {
+		if (function_exists('rl_exec_get')) {
+			rl_exec_get(null, 'localhost', 'lfile_put_contents', array('/etc/mailname', $body), false);
+			return;
+		}
+	} catch (Throwable $e) {
+		log_log('mail_send', 'mailname via backend skipped: ' . $e->getMessage());
+	}
+	if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+		@file_put_contents('/etc/mailname', $body);
+	}
 }
 
 /**

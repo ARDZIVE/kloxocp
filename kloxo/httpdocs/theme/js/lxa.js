@@ -1,6 +1,10 @@
 
+function kloxoIsRequiredModalId(id) {
+	return id === 'kloxo-password-force' || id === 'kloxo-mail-setup-force';
+}
+
 function kloxoHidePopup(id) {
-	if (id === 'kloxo-password-force') {
+	if (kloxoIsRequiredModalId(id)) {
 		return;
 	}
 	var el = document.getElementById(id);
@@ -29,7 +33,7 @@ function kloxoHideAllPopups() {
 	var i;
 	var cn;
 	for (i = 0; i < nodes.length; i++) {
-		if (nodes[i].id === 'kloxo-password-force') {
+		if (kloxoIsRequiredModalId(nodes[i].id)) {
 			continue;
 		}
 		cn = ' ' + (nodes[i].className || '') + ' ';

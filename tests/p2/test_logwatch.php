@@ -211,8 +211,10 @@ if (preg_match('/function showRawPrint.*?\{(.*?)\}/s', $lwSrc, $m)
 }
 
 $def = (string) file_get_contents($doc . '/lib/html/definecore.php');
+$inc = (string) file_get_contents($doc . '/lib/html/include.php');
 $ps = (string) file_get_contents($doc . '/driver/pserver/pserverlib.php');
 $menu = (string) file_get_contents($doc . '/theme/skin/simplicity/default/menu.php');
+$remote = (string) file_get_contents($doc . '/lib/html/remotelib.php');
 if (str_contains($def, "['logwatch']")
 	&& str_contains($ps, 'a=show&o=logwatch')
 	&& str_contains($menu, "class]=logwatch")
@@ -220,6 +222,17 @@ if (str_contains($def, "['logwatch']")
 	ok('LogWatch is registered (definecore, Security tile, menu, icon)');
 } else {
 	bad('LogWatch is registered (definecore, Security tile, menu, icon)');
+}
+// Update / Email last report go through rl_exec_get(array('KloxoLogwatch', …)).
+// The backend must load that class (include.php and/or gl_class_array).
+if (str_contains($inc, 'kloxo_logwatch.php')
+	&& str_contains($def, "['kloxologwatch']")
+	&& str_contains($def, 'kloxo_logwatch.php')
+	&& str_contains($lwSrc, "array('KloxoLogwatch', \$method)")
+	&& str_contains($remote, 'gl_class_array')) {
+	ok('KloxoLogwatch is loadable for kloxo-backend rl_exec (Update / Email last report)');
+} else {
+	bad('KloxoLogwatch is loadable for kloxo-backend rl_exec (Update / Email last report)');
 }
 
 $inst = (string) file_get_contents(dirname($root) . '/install.sh');

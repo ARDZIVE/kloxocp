@@ -2850,6 +2850,42 @@ function license_check()
 	$gbl->__v_first_time = 1;
 }
 
+/**
+ * Run an updateform for the signed-in client inside a required modal,
+ * without inheriting the page object's frm_o_o (same issue as password force).
+ */
+function kloxo_force_modal_updateform($object, string $subaction, string $evList = ''): void
+{
+	global $gbl, $ghtml;
+
+	$savedHttpOo = $ghtml->__http_vars['frm_o_o'] ?? null;
+	$savedHttpCname = $ghtml->__http_vars['frm_o_cname'] ?? null;
+	$savedHttpConsumed = $ghtml->__http_vars['frm_consumedlogin'] ?? null;
+	$savedOo = $ghtml->frm_o_o ?? null;
+	$savedCname = $ghtml->frm_o_cname ?? null;
+	unset($ghtml->__http_vars['frm_o_o'], $ghtml->__http_vars['frm_o_cname'], $ghtml->__http_vars['frm_consumedlogin']);
+	$ghtml->frm_o_o = null;
+	$ghtml->frm_o_cname = null;
+	if ($evList !== '') {
+		$gbl->frm_ev_list = $evList;
+	}
+	try {
+		do_updateform($object, $subaction);
+	} finally {
+		if ($savedHttpOo !== null) {
+			$ghtml->__http_vars['frm_o_o'] = $savedHttpOo;
+		}
+		if ($savedHttpCname !== null) {
+			$ghtml->__http_vars['frm_o_cname'] = $savedHttpCname;
+		}
+		if ($savedHttpConsumed !== null) {
+			$ghtml->__http_vars['frm_consumedlogin'] = $savedHttpConsumed;
+		}
+		$ghtml->frm_o_o = $savedOo;
+		$ghtml->frm_o_cname = $savedCname;
+	}
+}
+
 function password_contact_check()
 {
 	global $gbl, $sgbl, $login, $ghtml;
@@ -2887,33 +2923,7 @@ function password_contact_check()
 			log_log("error", "password force print_message: " . $e->getMessage());
 		}
 		try {
-			$gbl->frm_ev_list = "old_password_f";
-			// The modal sits on whatever page was opened (Services, Home, …).
-			// Inheriting that page's frm_o_o made Update run on pserver/service,
-			// and security_check refused old_password_f as unsettable.
-			$savedHttpOo = $ghtml->__http_vars['frm_o_o'] ?? null;
-			$savedHttpCname = $ghtml->__http_vars['frm_o_cname'] ?? null;
-			$savedHttpConsumed = $ghtml->__http_vars['frm_consumedlogin'] ?? null;
-			$savedOo = $ghtml->frm_o_o ?? null;
-			$savedCname = $ghtml->frm_o_cname ?? null;
-			unset($ghtml->__http_vars['frm_o_o'], $ghtml->__http_vars['frm_o_cname'], $ghtml->__http_vars['frm_consumedlogin']);
-			$ghtml->frm_o_o = null;
-			$ghtml->frm_o_cname = null;
-			try {
-				do_updateform($login, 'password');
-			} finally {
-				if ($savedHttpOo !== null) {
-					$ghtml->__http_vars['frm_o_o'] = $savedHttpOo;
-				}
-				if ($savedHttpCname !== null) {
-					$ghtml->__http_vars['frm_o_cname'] = $savedHttpCname;
-				}
-				if ($savedHttpConsumed !== null) {
-					$ghtml->__http_vars['frm_consumedlogin'] = $savedHttpConsumed;
-				}
-				$ghtml->frm_o_o = $savedOo;
-				$ghtml->frm_o_cname = $savedCname;
-			}
+			kloxo_force_modal_updateform($login, 'password', 'old_password_f');
 		} catch (Throwable $e) {
 			log_log("error", "password force form: " . $e->getMessage());
 			$ghtml->print_inline_alert('The password form could not be opened. Use Logout and sign in again.', 'error');
@@ -2922,7 +2932,54 @@ function password_contact_check()
 			</div>
 		</div>
 <?php
+		return;
 	}
+
+	// After the password change: force admin contact email + mail FQDN so
+	// welcome/notify mail to users and watchdog alerts have a real From/To.
+	if (csb($ghtml->frm_action, 'update') && $ghtml->frm_subaction === 'mailsetup') {
+		return;
+	}
+	if (!function_exists('kloxo_admin_mail_setup_needed') || !kloxo_admin_mail_setup_needed($login)) {
+		return;
+	}
+
+	global $g_language_mes;
+	$warn = 'Set the admin contact email and a dotted server hostname (FQDN) so the panel can send mail to users and receive system alerts. Use a real inbox you can open — not example.com.';
+	if (isset($g_language_mes->__emessage['mail_setup_required'])) {
+		$warn = $g_language_mes->__emessage['mail_setup_required'];
+	}
+	$title = 'Mail Setup';
+	if (isset($g_language_mes->__information['client_updateform_mailsetup_title'])) {
+		$title = $g_language_mes->__information['client_updateform_mailsetup_title'];
+	}
+	$gaps = function_exists('kloxo_admin_mail_setup_gaps') ? kloxo_admin_mail_setup_gaps($login) : array();
+	$ev = isset($gaps['contactemail']) ? 'contactemail' : 'mail_hostname_f';
+?>
+
+		<div id="kloxo-mail-setup-force-backdrop" class="kloxo-modal-backdrop" aria-hidden="true"></div>
+		<div id="kloxo-mail-setup-force" class="kloxo-modal kloxo-password-force kloxo-mail-setup-force kloxo-modal-required" role="dialog" aria-modal="true" aria-labelledby="kloxo-mail-setup-force-title">
+			<div class="kloxo-modal-bar">
+				<div class="kloxo-modal-title" id="kloxo-mail-setup-force-title"><?= htmlspecialchars((string) $title, ENT_QUOTES) ?></div>
+			</div>
+			<div class="kloxo-modal-body">
+<?php
+	$ghtml->print_inline_alert(htmlspecialchars((string) $warn, ENT_QUOTES), 'warning');
+	try {
+		$ghtml->print_message();
+	} catch (Throwable $e) {
+		log_log('error', 'mail setup force print_message: ' . $e->getMessage());
+	}
+	try {
+		kloxo_force_modal_updateform($login, 'mailsetup', $ev);
+	} catch (Throwable $e) {
+		log_log('error', 'mail setup force form: ' . $e->getMessage());
+		$ghtml->print_inline_alert('The mail setup form could not be opened. Use Logout and sign in again.', 'error');
+	}
+?>
+			</div>
+		</div>
+<?php
 }
 
 function do_display_init()

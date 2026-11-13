@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111310**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111311**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -495,8 +495,12 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     range, format, archives, frequency, hour/minute, save/mail reports,
     keep_days. **Email last report** force-mails the newest file under
     `/var/log/logwatch/` even when Mail Reports is off (`mailLastReport`).
-    Reports also appear in Log Manager → LogWatch. `tests/p2/test_logwatch.php`.
-    Live LogWatch after deploy is **UNVERIFIED**.
+    Reports also appear in Log Manager → LogWatch. Update / Email last report
+    call `KloxoLogwatch` via kloxo-backend (`rl_exec_get`); the class is loaded
+    from `include.php` and `$gl_class_array['kloxologwatch']` (without that,
+    the UI showed `class "KloxoLogwatch" not found`). Restart `kloxo-backend`
+    after deploying the fix. `tests/p2/test_logwatch.php`. Live LogWatch after
+    deploy is **UNVERIFIED**.
     SSH Configure has one beige tab labelled **SSH Configure** (not Home).
     Manage DNS tabs are labelled **Manage DNS**, **Rebuild**, **NS**, **A**,
     **AAAA**, **CNAME**, **FCNAME**, **MX**, **TXT**, **CAA**, **SRV**,
@@ -1081,13 +1085,15 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111310**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111311**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
    and `kloxo-backend`. `--slave` writes `etc/conf/slave-db.db` (`init-slave`)
    and skips the panel UI. Default login is admin/admin with a forced password
-   change after first login. One-liner in `README.md` downloads `install.sh`
+   change after first login, then a forced **Mail Setup** modal for any
+   missing admin contact email and dotted mail FQDN (so welcome/notify and
+   watchdog mail work). One-liner in `README.md` downloads `install.sh`
    from GitHub `main` to `/tmp` then runs that file (not `curl | bash`).
    **UNVERIFIED on a
    real Ubuntu VM.** Does not add a signed apt repo. Live two-host add is

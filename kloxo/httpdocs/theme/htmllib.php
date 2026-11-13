@@ -5842,7 +5842,7 @@ class HtmlLib
 					} else {
 						var ids = ['showimage', 'kloxo-error-box', 'esmessage', 'infomsg'];
 						for (var i = 0; i < ids.length; i++) {
-							if (ids[i] === 'kloxo-password-force') {
+							if (ids[i] === 'kloxo-password-force' || ids[i] === 'kloxo-mail-setup-force') {
 								continue;
 							}
 							var b = document.getElementById(ids[i]);

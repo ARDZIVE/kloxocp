@@ -37,7 +37,7 @@
 		if (el.id === 'div_cfstatus' && el.style.display === 'none') {
 			return;
 		}
-		if (el.closest && el.closest('.kloxo-password-force')) {
+		if (el.closest && (el.closest('.kloxo-password-force') || el.closest('.kloxo-mail-setup-force'))) {
 			return;
 		}
 		el.setAttribute('data-kloxo-toast-armed', '1');

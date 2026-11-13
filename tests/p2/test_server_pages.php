@@ -4848,13 +4848,27 @@ if ($navPrevHtml !== null) {
 
 $pwSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 $lxSrc = (string) file_get_contents($doc . '/lib/client/lxclient.php');
-if (str_contains($pwSrc, "unset(\$ghtml->__http_vars['frm_o_o']")
-	&& str_contains($pwSrc, 'do_updateform($login, \'password\')')
+$ccSrc = (string) file_get_contents($doc . '/lib/client/clientcorelib.php');
+$libMailSrc = (string) file_get_contents($doc . '/lib/html/lib.php');
+if (str_contains($pwSrc, 'kloxo_force_modal_updateform')
+	&& str_contains($pwSrc, "kloxo_force_modal_updateform(\$login, 'password'")
 	&& str_contains($lxSrc, 'function isOwnAccount')
 	&& str_contains($lxSrc, 'old_password_f')) {
 	ok('forced Change Password form posts to the login client, not the page object');
 } else {
 	bad('forced Change Password form posts to the login client, not the page object');
+}
+if (str_contains($pwSrc, 'kloxo-mail-setup-force')
+	&& str_contains($pwSrc, "kloxo_force_modal_updateform(\$login, 'mailsetup'")
+	&& str_contains($pwSrc, 'kloxo_admin_mail_setup_needed')
+	&& str_contains($ccSrc, 'case "mailsetup"')
+	&& str_contains($ccSrc, 'function updateMailsetup')
+	&& str_contains($libMailSrc, 'function kloxo_mail_setup_contact_ok')
+	&& str_contains($libMailSrc, 'function kloxo_admin_mail_setup_gaps')
+	&& str_contains((string) file_get_contents($doc . '/theme/js/lxa.js'), 'kloxo-mail-setup-force')) {
+	ok('forced Mail Setup modal follows password change for missing contact/FQDN');
+} else {
+	bad('forced Mail Setup modal follows password change for missing contact/FQDN');
 }
 $pwPrevLogin = isset($login) ? $login : null;
 try {

@@ -104,6 +104,64 @@ check(str_contains($lib, "callInBackground(\"lx_mail\", array(null, \$email")
 	&& str_contains($lib, 'admin contactemail empty'),
 	'send_mail_to_admin uses null From and guards empty contactemail');
 
+check(str_contains($lib, 'function kloxo_mail_setup_contact_ok')
+	&& str_contains($lib, 'function kloxo_mail_setup_hostname_ok')
+	&& str_contains($lib, 'function kloxo_admin_mail_setup_needed')
+	&& str_contains($lib, 'function kloxo_admin_mail_setup_gaps')
+	&& str_contains($lib, 'example.com')
+	&& str_contains($lib, 'kloxo_admin_mail_setup_apply_mailname'),
+	'first-login mail setup helpers reject placeholders and require FQDN');
+
+// Standalone copies of contact/hostname checks (mirrors lib.php).
+function test_kloxo_mail_setup_contact_ok(string $email): bool
+{
+	$email = trim($email);
+	if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n,;<>]/', $email) === 1) {
+		return false;
+	}
+	$domain = strtolower((string) substr(strrchr($email, '@') ?: '', 1));
+	foreach (array('example.com', 'example.net', 'example.org', 'invalid', 'localhost', 'test', 'localdomain') as $bad) {
+		if ($domain === $bad || str_ends_with($domain, '.' . $bad)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function test_kloxo_mail_setup_hostname_ok(string $host): bool
+{
+	$host = strtolower(trim($host));
+	if ($host === '' || $host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP)) {
+		return false;
+	}
+
+	return preg_match(
+		'/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/',
+		$host
+	) === 1;
+}
+
+check(test_kloxo_mail_setup_contact_ok('ops@mydomain.com')
+	&& !test_kloxo_mail_setup_contact_ok('')
+	&& !test_kloxo_mail_setup_contact_ok('you@example.com')
+	&& !test_kloxo_mail_setup_contact_ok('a@localhost'),
+	'mail setup contact accepts real inbox, rejects example.com');
+
+check(test_kloxo_mail_setup_hostname_ok('mail.mydomain.com')
+	&& !test_kloxo_mail_setup_hostname_ok('srv')
+	&& !test_kloxo_mail_setup_hostname_ok('localhost')
+	&& !test_kloxo_mail_setup_hostname_ok('1.2.3.4'),
+	'mail setup hostname requires dotted FQDN, not IP/short name');
+
+$core = (string) file_get_contents($doc . '/lib/client/clientcorelib.php');
+$disp = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+check(str_contains($core, 'function updateMailsetup')
+	&& str_contains($core, 'case "mailsetup"')
+	&& str_contains($disp, 'kloxo-mail-setup-force')
+	&& str_contains($disp, "kloxo_force_modal_updateform(\$login, 'mailsetup'"),
+	'mail setup updateform + required modal after password change');
+
 check(str_contains($bg, 'dirname(__DIR__, 2)')
 	&& str_contains($bg, '/httpdocs')
 	&& str_contains($bg, 'declare(strict_types=1)')
