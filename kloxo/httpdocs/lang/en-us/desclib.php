@@ -1431,8 +1431,8 @@ $__description["path"] = array("Path");
 // MR -- in 'webserver config'
 $__description["apache_optimize"] = array("Apache memory optimize");
 $__description["enable_keepalive"] = array("Enable keep-alive");
-$__description["mysql_convert"] = array("MySQL convert (Select to execute)");
-$__description["mysql_charset"] = array("MySQL charset (Select to execute)");
+$__description["mysql_convert"] = array("MariaDB convert (Select to execute)");
+$__description["mysql_charset"] = array("MariaDB charset (Select to execute)");
 $__description["fix_chownchmod"] = array("Fix 'ownership' and 'permissions' (Select to execute)");
 
 // MR -- in 'switch program'

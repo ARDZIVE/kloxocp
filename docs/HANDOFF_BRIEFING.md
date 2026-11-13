@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111317**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111318**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1097,7 +1097,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111317**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111318**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
@@ -1150,7 +1150,7 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    VERSION_CODENAME, amd64+arm64). The panel FPM stays `kloxo-php`.
    Webserver Configure keeps the Kloxo-MR section layout (PHP Used, PHP
    Branch, Multiple PHP already-installed/enable/install/remove, PHP Type
-   for Apache, Apache optimize, MySQL convert, fix ownership, Pagespeed)
+   for Apache, Apache optimize, MariaDB convert, fix ownership, Pagespeed)
    with Ubuntu `phpX.Y` ids, not `php52m`. Multiple PHP Install submits
    the dual-listbox selection (Available highlights and/or Selected) as
    `phpX.Y` ids and sends `KloxoPhpver::queueInstall` to kloxo-backend

@@ -618,12 +618,12 @@ $__information['webserver_config'] =
 		"<li>For proxy (like nginx-proxy), select 'low' or 'medium' only</li>".
 		"<li>Run 'sh /script/apache-optimize --help' to know how calculation work</li>".
 	"</ul></p>".
-	"<p><b>MySQL Convert</b>".
+	"<p><b>MariaDB Convert</b>".
 	"<ul>".
 		"<li>MyISAM (less memory usage; save about 100-200 MB)<br/>".
 	       	"<b>Note:</b> adding 'skip-innodb' may cause trouble accessing the panel)</li>".
 		"<li>InnoDB (higher performance)</li>".
-		"<li>Aria (Alternative to MyISAM if select MariaDB)</li>".
+		"<li>Aria (MariaDB alternative to MyISAM)</li>".
 	"</ul></p>".
 	"<p><b>Fix 'Ownership' And 'Permissions'</b>".
 	"<ul>".
