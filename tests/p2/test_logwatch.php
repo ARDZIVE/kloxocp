@@ -202,6 +202,24 @@ if (!str_contains($lwSrc, 'runnow')
 } else {
 	bad('LogWatch page has Email last report and no Run Now');
 }
+$msgSrc = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+$emFn = '';
+if (preg_match('/function updateEmaillast\(.*?^\\tfunction /sm', $lwSrc, $emM) === 1) {
+	$emFn = $emM[0];
+}
+if ($emFn !== ''
+	&& str_contains($emFn, "redirectToShow('logwatch_report_emailed'")
+	&& str_contains($emFn, 'rememberShowReferer')
+	&& str_contains($emFn, 'redirectToShow($err')
+	&& str_contains($emFn, 'true')
+	&& !str_contains($emFn, 'throwIfFailed')
+	&& str_contains($msgSrc, 'logwatch_report_emailed')
+	&& str_contains($msgSrc, 'logwatch_no_report')
+	&& str_contains($msgSrc, 'logwatch_no_mailto')) {
+	ok('Email last report redirects to LogWatch show with explicit toast keys');
+} else {
+	bad('Email last report redirects to LogWatch show with explicit toast keys');
+}
 // Format/frequency/hour use non-assoc 's' lists (value === entry) so the form
 // never injects "--Select One--". Range keeps assoc 'A' for the long key label.
 if (preg_match("/lw_format'\\]\\s*=\\s*array\\('s'\\s*,\\s*array\\('text'/", $lwSrc)

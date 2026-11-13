@@ -221,6 +221,7 @@ class logwatch extends lxclass
 	function updateUpdate($param)
 	{
 		$this->assertAdmin();
+		$this->rememberShowReferer();
 		$fields = array(
 			'enabled' => $this->field($param, 'lw_enabled'),
 			'mailto' => $this->field($param, 'lw_mailto'),
@@ -237,8 +238,13 @@ class logwatch extends lxclass
 			'mail_reports' => $this->field($param, 'lw_mail_reports'),
 		);
 		$ret = $this->execLw('setSettings', array($fields));
-		$this->throwIfFailed($ret);
-		$this->redirectToShow('updated_successfully');
+		if (!is_array($ret) || empty($ret['ok'])) {
+			$err = is_array($ret) && isset($ret['error']) ? (string) $ret['error'] : 'logwatch_failed';
+			$this->redirectToShow($err, $err, true);
+
+			return null;
+		}
+		$this->redirectToShow('logwatch_settings_saved');
 
 		return null;
 	}
@@ -246,13 +252,32 @@ class logwatch extends lxclass
 	function updateEmaillast($param)
 	{
 		$this->assertAdmin();
+		$this->rememberShowReferer();
 		$ret = $this->execLw('mailLastReport', array());
-		$this->throwIfFailed($ret);
+		if (!is_array($ret) || empty($ret['ok'])) {
+			$err = is_array($ret) && isset($ret['error']) ? (string) $ret['error'] : 'logwatch_mail_failed';
+			$detail = '';
+			if (isset($ret['report']) && is_string($ret['report']) && $ret['report'] !== '') {
+				$detail = basename($ret['report']);
+			}
+			// Stay on LogWatch show with an error toast (never throw → Home).
+			$this->redirectToShow($err, $detail !== '' ? $detail : $err, true);
+
+			return null;
+		}
 		$name = '';
 		if (isset($ret['report']) && is_string($ret['report']) && $ret['report'] !== '') {
 			$name = basename($ret['report']);
 		}
-		$this->redirectToShow('updated_successfully', $name !== '' ? $name : 'report emailed');
+		$to = '';
+		if (isset($ret['mailto']) && is_string($ret['mailto']) && $ret['mailto'] !== '') {
+			$to = trim($ret['mailto']);
+		}
+		$detail = $name !== '' ? $name : 'report';
+		if ($to !== '') {
+			$detail .= ' → ' . $to;
+		}
+		$this->redirectToShow('logwatch_report_emailed', $detail);
 
 		return null;
 	}

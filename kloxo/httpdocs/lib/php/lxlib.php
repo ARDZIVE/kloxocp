@@ -1627,7 +1627,7 @@ function kloxo_toast_kind($key, $channel = 'info')
 	} elseif ($ch === 's') {
 		$ch = 'info';
 	}
-	if (preg_match('/success|successfully|added_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|deleted|updated|created|completed/', $k) === 1) {
+	if (preg_match('/success|successfully|added_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|deleted|updated|created|completed|logwatch_report_emailed|logwatch_settings_saved/', $k) === 1) {
 		return 'success';
 	}
 	if (preg_match('/warn|not_set|not_correct|expire|license_will_expire|security_warning|limit/', $k) === 1) {
