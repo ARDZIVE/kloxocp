@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111314. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111315. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -45,7 +45,7 @@ top-centre, white, light shadow, typed icon info/success/warning/error;
 content does not print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
 (`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026111314** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111315** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -303,7 +303,7 @@ is missing; the icon stubs immediately before Domain Name (`pvview_f`,
 (type-b empty labels no longer fall back to the class name `domain`).
 Live client Domains after deploy is UNVERIFIED.
 SQL Manager tile is admin-only (pserver Basic; not home Domain or domain show). Clients open a selected database in SQL Manager as that database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager after deploy is UNVERIFIED.
-Client Administration (`__title_administer`) has no Login As tile (`sa=dologin`). Live client home after deploy is UNVERIFIED.
+Client Administration (`__title_administer`) has no Login As tile (`sa=dologin`). Admin Administration has a **Hostname** tile (localhost `pserver` `sa=hostname`; also on the server page and Server menu): dotted FQDN, explanation text, `KloxoHostname` applies via kloxo-backend (`hostnamectl`, `/etc/hostname`, `/etc/mailname`, `/etc/hosts`); `tests/p2/test_hostname.php`; live UNVERIFIED. Live client home after deploy is UNVERIFIED.
 First-party `ereg*`/`split`
 and live theme `escape`/`document.all` are gone. First login after
 install no longer fatals with `Attempt to assign property "__session_id" on null`

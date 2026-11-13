@@ -797,6 +797,10 @@ $__information['service_list__pre'] = "<p>Click 'SB' for start/stop service when
 
 $__information['pserver_updateform_timezone_pre'] = "<p>Choose 'timezone' for your <b>[%_server_%]</b>. Default is 'Europe/London'.</p>";
 
+$__information['pserver_updateform_hostname_pre'] = "<p>Set the <b>FQDN Hostname</b> for this server (for example <code>server.yourdomain.com</code> or <code>mail.example.org</code>).</p>" .
+	"<p>Use a <b>dotted</b> name you control in DNS — not an IP address and not a short name like <code>srv</code>. The panel stores it as the server FQDN, writes <code>/etc/hostname</code> and <code>/etc/mailname</code>, and updates the system hostname so mail (welcome messages, tickets, watchdog alerts), TLS, and logs use a proper name.</p>" .
+	"<p>After you change it, point a DNS <b>A</b> (and optional <b>AAAA</b>) record for that hostname at this server's public IP. You may need to restart mail or re-apply mail settings if Exim/Postfix still advertise the old name.</p>";
+
 $__information['pserver_updateform_commandcenter_pre'] = "<p>You can execute ssh command here. Example: 'sh /script/sysinfo'.</p>";
 
 // SSH Terminal paints its own WebConsole-like box; no extra help paragraph.

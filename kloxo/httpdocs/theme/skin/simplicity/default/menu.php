@@ -748,6 +748,10 @@ if (strpos($loginas, "@") !== false) {
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=timezone&<?=$localhostquery;?>">localhost</a>
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=timezone&<?=$serverquery;?>"><?=$syncserver;?></a><br/>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=updateform&sa=hostname&l[class]=pserver&l[nname]={$syncserver}");?>
+
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=hostname&<?=$localhostquery;?>">localhost</a>
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=hostname&<?=$serverquery;?>"><?=$syncserver;?></a><br/>
 						&#x00bb;&nbsp;<?=kloxo_menu_title("a=updateform&sa=commandcenter");?>
 
 							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=commandcenter&<?=$localhostquery;?>">localhost</a>
@@ -762,6 +766,7 @@ if (strpos($loginas, "@") !== false) {
 ?>
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=switchprogram&<?=$serverquery;?>"><?=kloxo_menu_title("a=updateform&sa=switchprogram&l[class]=pserver&l[nname]={$syncserver}");?></a><br/>
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=timezone&<?=$serverquery;?>"><?=kloxo_menu_title("a=updateform&sa=timezone&l[class]=pserver&l[nname]={$syncserver}");?></a><br/>
+						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=hostname&<?=$serverquery;?>"><?=kloxo_menu_title("a=updateform&sa=hostname&l[class]=pserver&l[nname]={$syncserver}");?></a><br/>
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=updateform&frm_subaction=commandcenter&<?=$serverquery;?>"><?=kloxo_menu_title("a=updateform&sa=commandcenter");?></a><br/>
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=show&<?=$serverquery;?>frm_o_o[1][class]=sshclient"><?=kloxo_menu_title("a=show&o=sshclient");?></a><br/>
 <?php

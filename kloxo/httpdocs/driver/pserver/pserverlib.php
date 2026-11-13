@@ -505,6 +505,8 @@ class pserver extends pservercore {
 				: array('a=show&o=ufwfirewall');
 		} elseif ($sa === 'timezone') {
 			$alist['property'][] = "a=updateform&sa=timezone";
+		} elseif ($sa === 'hostname') {
+			$alist['property'][] = "a=updateform&sa=hostname";
 	//	} elseif ($sa === 'update') {
 	//		$alist['property'][] = "a=updateform&sa=update&n=driver";
 		} elseif ($sa === 'reboot' || $sa === 'poweroff') {
@@ -545,6 +547,7 @@ class pserver extends pservercore {
 		$alist[] = "a=updateform&sa=commandcenter";
 		$alist[] = "a=updateform&sa=switchprogram";
 		$alist[] = "a=updateform&sa=timezone";
+		$alist[] = "a=updateform&sa=hostname";
 		$alist[] = "a=show&o=sshclient";
 		$alist[] = "a=show&o=llog";
 		$alist[] = "a=show&l[class]=ffile&l[nname]=";

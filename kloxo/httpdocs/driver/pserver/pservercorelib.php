@@ -167,6 +167,7 @@ class pservercore extends Lxclient
 	static $__acdesc_update_phpsmtp = array("", "", "kloxo_smtp");
 	static $__acdesc_update_information = array("", "", "information");
 	static $__acdesc_update_timezone = array("", "", "timezone");
+	static $__acdesc_update_hostname = array("", "", "Hostname");
 	static $__acdesc_update_phpmyadmin = array("", "", "phpmyadmin");
 
 	static $__desc_no_fix_config = array("f", "", "no_fix_config");
@@ -959,6 +960,31 @@ class pservercore extends Lxclient
 		return $login->password;
 	}
 
+	function updateHostname($param)
+	{
+		global $login;
+
+		$fqdn = '';
+		if (is_array($param) && isset($param['realhostname'])) {
+			$fqdn = (string) $param['realhostname'];
+		}
+		if (class_exists('KloxoHostname') && is_callable(array('KloxoHostname', 'normalize'))) {
+			$fqdn = KloxoHostname::normalize($fqdn);
+		} else {
+			$fqdn = strtolower(trim($fqdn));
+			$fqdn = rtrim($fqdn, '.');
+		}
+		$ok = class_exists('KloxoHostname') && is_callable(array('KloxoHostname', 'isValidFqdn'))
+			? KloxoHostname::isValidFqdn($fqdn)
+			: (function_exists('kloxo_mail_setup_hostname_ok') && kloxo_mail_setup_hostname_ok($fqdn));
+		if (!$ok) {
+			throw new lxException($login->getThrow('hostname_need_fqdn'), 'realhostname', $fqdn);
+		}
+		$param['realhostname'] = $fqdn;
+
+		return $param;
+	}
+
 	function getOs()
 	{
 		// Sending the password here too. Since this is also called in the initial stage.
@@ -1333,6 +1359,25 @@ STRIN;
 					$this->timezone = in_array($guess, $tzlist, true) ? $guess : 'UTC';
 				}
 				$vlist['timezone'] = array('s', $tzlist);
+
+				return $vlist;
+
+			case "hostname":
+				$cur = isset($this->realhostname) ? trim((string) $this->realhostname) : '';
+				if ($cur === '' || $cur === 'localhost') {
+					$guess = '';
+					if (class_exists('KloxoHostname') && is_callable(array('KloxoHostname', 'current'))) {
+						$guess = KloxoHostname::current();
+					}
+					if ($guess === '') {
+						$hn = @gethostname();
+						$guess = is_string($hn) ? trim($hn) : '';
+					}
+					if ($guess !== '' && $guess !== '(none)') {
+						$this->realhostname = $guess;
+					}
+				}
+				$vlist['realhostname'] = null;
 
 				return $vlist;
 

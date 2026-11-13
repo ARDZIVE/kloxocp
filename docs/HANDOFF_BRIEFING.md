@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111314**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111315**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -652,8 +652,15 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     show). Clients open SQL Manager from a database row as that
     database's own MariaDB user (`only_db`), not `kloxo_pma`. Live SQL Manager
     after deploy is **UNVERIFIED**.
-    Client Administration has no Login As tile (`sa=dologin`). Live client
-    home after deploy is **UNVERIFIED**.
+    Client Administration has no Login As tile (`sa=dologin`). Admin
+    Administration includes **Hostname** (`a=updateform&sa=hostname` on
+    localhost `pserver`; also on the server show page and Server menu next to
+    Timezone). Page text explains dotted FQDN use; Update validates
+    (`KloxoHostname` / `updateHostname`), saves `realhostname`, and as root via
+    kloxo-backend runs `hostnamectl` (or `hostname`), writes `/etc/hostname` and
+    `/etc/mailname`, and updates the `127.0.1.1` line in `/etc/hosts`.
+    `tests/p2/test_hostname.php`. Live Hostname after deploy is **UNVERIFIED**.
+    Live client home after deploy is **UNVERIFIED**.
     Admin Domains (`a=list&c=domain`) shows the Kloxo-MR add form
     (name, owner confirm, `/home/admin/` docroot, SSL/stats/
     Easy Installer/CGI/PHP, Add) even with no DNS template;
@@ -1090,7 +1097,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111314**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111315**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

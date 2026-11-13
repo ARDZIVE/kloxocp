@@ -111,6 +111,15 @@ class pserver__Linux extends lxDriverClass
 		@symlink($real, $t);
 	}
 
+	function setHostname()
+	{
+		$h = isset($this->main->realhostname) ? trim((string) $this->main->realhostname) : '';
+		if ($h === '' || !class_exists('KloxoHostname')) {
+			return;
+		}
+		KloxoHostname::apply($h);
+	}
+
 	static function execCommand($iid, $command)
 	{
 		global $login, $global_shell_error, $global_shell_ret;
@@ -155,6 +164,10 @@ class pserver__Linux extends lxDriverClass
 
 			case "timezone":
 				$this->setTimeZone();
+				break;
+
+			case "hostname":
+				$this->setHostname();
 				break;
 
 			case "importvps":

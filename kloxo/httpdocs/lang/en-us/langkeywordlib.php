@@ -331,6 +331,7 @@ $__throw["sending_welcome_needs_contactemail"] = "Sending welcome needs contacte
 $__throw["contactemail_is_not_valid_email_address"] = "Contactemail is not valid email address";
 $__throw["mail_setup_placeholder_email"] = "Use a real inbox, not a documentation/placeholder address like example.com";
 $__throw["mail_setup_need_fqdn"] = "Mail server hostname must be a dotted FQDN (for example mail.yourdomain.com), not an IP or short name";
+$__throw["hostname_need_fqdn"] = "Hostname must be a dotted FQDN (for example server.yourdomain.com), not an IP or short name";
 $__throw["no_server_pool"] = "No server pool";
 $__throw["csr_sent_to_email"] = "CSR sent to email";
 $__throw["parent_doesnt_have_privileges"] = "Parent doesnt have privileges";

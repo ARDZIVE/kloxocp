@@ -492,6 +492,7 @@ class Client extends ClientBase
 		}
 
 		if ($this->isAdmin()) {
+			$alist[] = 'a=updateform&sa=hostname&l[class]=pserver&l[nname]=localhost';
 			$alist[] = 'o=lxupdate&a=show';
 		}
 
