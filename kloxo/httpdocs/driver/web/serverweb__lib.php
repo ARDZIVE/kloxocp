@@ -76,6 +76,22 @@ class serverweb__ extends lxDriverClass
 		}
 	}
 
+	/** @return string nginx|apache */
+	function selectedWebDriver()
+	{
+		if (is_object($this->main) && method_exists($this->main, 'selectedWebDriver')) {
+			return $this->main->selectedWebDriver();
+		}
+		if (function_exists('slave_get_driver')) {
+			$got = strtolower(trim((string) slave_get_driver('web')));
+			if ($got === 'apache' || $got === 'apache2' || $got === 'httpd') {
+				return 'apache';
+			}
+		}
+
+		return 'nginx';
+	}
+
 	function set_apache_optimize()
 	{
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
@@ -87,14 +103,121 @@ class serverweb__ extends lxDriverClass
 		$ka = ((string)($this->main->enable_keepalive ?? '') === 'on') ? 'on' : 'off';
 
 		if (KloxoIpaddr::isUbuntu()) {
-			$this->writeUbuntuApacheOptimize($sel, $ka);
+			if ($this->selectedWebDriver() === 'nginx') {
+				$this->writeUbuntuNginxOptimize($sel, $ka);
+			} else {
+				$this->writeUbuntuApacheOptimize($sel, $ka);
+			}
 			createRestartFile('restart-web');
+			return;
+		}
+
+		if ($this->selectedWebDriver() === 'nginx') {
 			return;
 		}
 
 		$scripting = '/script/apache-optimize';
 		if (is_file($scripting)) {
 			lxshell_return('sh', $scripting, '--select=' . $sel, '--keepalive=' . $ka, '--nolog');
+		}
+	}
+
+	/** @var null|string Test hook: rewrite this nginx.conf path instead of /etc/nginx. */
+	public static $nginxConfOverride = null;
+
+	/**
+	 * Tune worker_processes / worker_connections / keepalive_timeout in nginx.conf.
+	 *
+	 * @param string $sel default|low|medium|high
+	 * @param string $ka on|off
+	 */
+	function writeUbuntuNginxOptimize($sel, $ka)
+	{
+		$file = '';
+		if (is_string(self::$nginxConfOverride) && self::$nginxConfOverride !== '') {
+			$file = self::$nginxConfOverride;
+		} else {
+			foreach (array('/etc/nginx/nginx.conf', '/etc/nginx/conf/nginx.conf') as $cand) {
+				if (is_file($cand) && is_writable($cand)) {
+					$file = $cand;
+					break;
+				}
+				if ($file === '' && is_file($cand)) {
+					$file = $cand;
+				}
+			}
+		}
+		if ($file === '' || !is_readable($file)) {
+			return;
+		}
+
+		$workers = array(
+			'low' => array('1', '1024'),
+			'medium' => array('auto', '4096'),
+			'high' => array('auto', '20480'),
+			'default' => array('auto', '20480'),
+			'customize' => array('auto', '20480'),
+		);
+		$W = isset($workers[$sel]) ? $workers[$sel] : $workers['default'];
+		$keep = ($ka === 'on') ? '65' : '0';
+
+		$prev = (string) @file_get_contents($file);
+		$body = $prev;
+		if (preg_match('/^\s*worker_processes\s+/m', $body) === 1) {
+			$body = preg_replace(
+				'/^\s*worker_processes\s+[^;]+;/m',
+				'worker_processes ' . $W[0] . ';',
+				$body,
+				1
+			);
+		} else {
+			$body = "worker_processes {$W[0]};\n" . $body;
+		}
+		if (preg_match('/^\s*worker_connections\s+/m', $body) === 1) {
+			$body = preg_replace(
+				'/^\s*worker_connections\s+[^;]+;/m',
+				"\tworker_connections {$W[1]};",
+				$body,
+				1
+			);
+		}
+		if (preg_match('/^\s*keepalive_timeout\s+/m', $body) === 1) {
+			$body = preg_replace(
+				'/^\s*keepalive_timeout\s+[^;]+;/m',
+				"\tkeepalive_timeout {$keep};",
+				$body,
+				1
+			);
+		} elseif (preg_match('/^\s*http\s*\{/m', $body) === 1) {
+			$body = preg_replace(
+				'/^(\s*http\s*\{)/m',
+				"$1\n    keepalive_timeout {$keep};",
+				$body,
+				1
+			);
+		}
+		// Marker for the form's current selection.
+		if (str_contains($body, '# kloxo-optimize:')) {
+			$body = preg_replace('/# kloxo-optimize:\s*\S+/', '# kloxo-optimize: ' . $sel, $body, 1);
+		} else {
+			$body = "# kloxo-optimize: {$sel}\n" . $body;
+		}
+
+		$tmp = $file . '.tmp.' . getmypid();
+		if (@file_put_contents($tmp, $body) === false) {
+			return;
+		}
+		@chmod($tmp, 0644);
+		if (!@rename($tmp, $file)) {
+			@unlink($tmp);
+			return;
+		}
+		if (is_string(self::$nginxConfOverride) && self::$nginxConfOverride !== '') {
+			return;
+		}
+		$check = $this->runArgv(array('nginx', '-t'));
+		if ($check !== 0 && $check !== 127) {
+			@file_put_contents($file, $prev);
 		}
 	}
 
@@ -277,6 +400,14 @@ class serverweb__ extends lxDriverClass
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
 		$t = (string)($this->main->php_type ?? '');
 		if (KloxoIpaddr::isUbuntu()) {
+			if ($this->selectedWebDriver() === 'nginx') {
+				if (!isset($this->main->php_type) || trim((string) $this->main->php_type) === '') {
+					$this->main->php_type = 'php-fpm';
+				}
+				$this->set_secondary_php();
+				createRestartFile('restart-web');
+				return;
+			}
 			$this->set_php_type_ubuntu($t);
 			createRestartFile('restart-web');
 			return;

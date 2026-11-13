@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111318**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111319**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1097,7 +1097,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111318**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111319**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
@@ -1149,25 +1149,26 @@ AlmaLinux/Rocky support via distro map (paths, package and service names); billi
    distro first, then `https://packages.sury.org/php/` (deb822, suite =
    VERSION_CODENAME, amd64+arm64). The panel FPM stays `kloxo-php`.
    Webserver Configure keeps the Kloxo-MR section layout (PHP Used, PHP
-   Branch, Multiple PHP already-installed/enable/install/remove, PHP Type
-   for Apache, Apache optimize, MariaDB convert, fix ownership, Pagespeed)
-   with Ubuntu `phpX.Y` ids, not `php52m`. Multiple PHP Install submits
-   the dual-listbox selection (Available highlights and/or Selected) as
-   `phpX.Y` ids and sends `KloxoPhpver::queueInstall` to kloxo-backend
-   (`rl_exec_get`; panel FPM is lxlabs and used to throw
-   `could_not_execute [install-site-php]`). Root writes a job under
-   `$ROOT/log/` (not `/tmp`: `kloxo-backend` has `PrivateTmp=true`) and
-   `systemd-run`s it, or falls back to background bash as root.
-   Multiple PHP Remove lists installed extra `phpX.Y` (cli or fpm
-   binary; PHP Used is omitted) and sends `KloxoPhpver::queueRemove` the same
-   way (root `apt-get purge --auto-remove` of the `phpX.Y` series via a job
-   under `$ROOT/log/`; `rl_exec_get` does not fall back to the panel user).
-   The same page shows a progress bar per version; after success the
-   id leaves that list and appears on the other. Each section form loads without
-   a DB password. Apache optimize writes
-   `/etc/apache2/conf-available/kloxo-optimize.conf` (validate `apache2ctl
-   -t`, roll back on failure). PHP Type on Ubuntu enables mpm_event or
-   mpm_worker plus proxy_fcgi, never mod_php. Fix ownership maps to
+   Branch, Multiple PHP already-installed/enable/install/remove, PHP Type,
+   memory optimize, MariaDB convert, fix ownership, Pagespeed) with Ubuntu
+   `phpX.Y` ids, not `php52m`. PHP Type and Memory Optimize follow Switch
+   Program Web: **Nginx** labels + PHP-FPM note + secondary PHP, optimize
+   rewrites `nginx.conf` workers/`keepalive_timeout` (`nginx -t` rollback);
+   **Apache** labels + MPM/proxy_fcgi choices, optimize writes
+   `/etc/apache2/conf-available/kloxo-optimize.conf` (`apache2ctl -t`
+   rollback). Multiple PHP Install submits the dual-listbox selection
+   (Available highlights and/or Selected) as `phpX.Y` ids and sends
+   `KloxoPhpver::queueInstall` to kloxo-backend (`rl_exec_get`; panel FPM
+   is lxlabs and used to throw `could_not_execute [install-site-php]`).
+   Root writes a job under `$ROOT/log/` (not `/tmp`: `kloxo-backend` has
+   `PrivateTmp=true`) and `systemd-run`s it, or falls back to background
+   bash as root. Multiple PHP Remove lists installed extra `phpX.Y` (cli
+   or fpm binary; PHP Used is omitted) and sends `KloxoPhpver::queueRemove`
+   the same way (root `apt-get purge --auto-remove` of the `phpX.Y` series
+   via a job under `$ROOT/log/`; `rl_exec_get` does not fall back to the
+   panel user). The same page shows a progress bar per version; after
+   success the id leaves that list and appears on the other. Each section
+   form loads without a DB password. Fix ownership maps to
    `--select=chown`, permissions to `--select=chmod`. **PHP Used**
    switches the default; a domain can still pick another installed
    version. 5.6 / 7.4 are EOL and only for legacy sites. Live Webserver

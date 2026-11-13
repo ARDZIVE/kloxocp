@@ -3152,11 +3152,44 @@ try {
 	} else {
 		bad('Webserver Configure Apache optimize apply does not TypeError', $optErr);
 	}
+
+	$sw->applyDriverFieldLabels();
+	$phpNg = $sw->updateform('php_type', array());
+	$drvName = $sw->selectedWebDriver();
+	$phpNgOk = ($drvName === 'nginx'
+		&& isset($phpNg['php_type'][0]) && $phpNg['php_type'][0] === 'M'
+		&& array_key_exists('secondary_php', $phpNg)
+		&& serverweb::$__desc_apache_optimize[2] === 'nginx_optimize'
+		&& serverweb::$__desc_php_type[2] === 'php_type_nginx');
+	if ($phpNgOk) {
+		ok('Webserver Configure follows Nginx web driver for PHP Type / optimize labels');
+	} else {
+		bad('Webserver Configure follows Nginx web driver for PHP Type / optimize labels',
+			$drvName . ' / ' . var_export($phpNg['php_type'][0] ?? null, true));
+	}
+
+	$tmpNg = sys_get_temp_dir() . '/kloxo-nginx-opt-' . getmypid() . '.conf';
+	file_put_contents($tmpNg, "worker_processes 2;\nevents {\n\tworker_connections 512;\n}\nhttp {\n}\n");
+	serverweb__::$nginxConfOverride = $tmpNg;
+	$drv->writeUbuntuNginxOptimize('low', 'on');
+	$ngBody = (string) file_get_contents($tmpNg);
+	serverweb__::$nginxConfOverride = null;
+	@unlink($tmpNg);
+	if (str_contains($ngBody, 'worker_processes 1;')
+		&& str_contains($ngBody, 'worker_connections 1024;')
+		&& str_contains($ngBody, 'keepalive_timeout 65;')
+		&& str_contains($ngBody, '# kloxo-optimize: low')) {
+		ok('Nginx memory optimize rewrites worker settings');
+	} else {
+		bad('Nginx memory optimize rewrites worker settings', substr($ngBody, 0, 300));
+	}
 } catch (Throwable $e) {
 	bad('Webserver Configure shows the Kloxo-MR sections without php52m', $e->getMessage());
 	bad('Webserver Configure PHP lists are Ubuntu phpX.Y not php52m', $e->getMessage());
 	bad('Webserver Configure every section form loads', $e->getMessage());
 	bad('Webserver Configure Apache optimize apply does not TypeError', $e->getMessage());
+	bad('Webserver Configure follows Nginx web driver for PHP Type / optimize labels', $e->getMessage());
+	bad('Nginx memory optimize rewrites worker settings', $e->getMessage());
 }
 
 $webSrc = (string)file_get_contents($doc . '/driver/web/serverweblib.php');

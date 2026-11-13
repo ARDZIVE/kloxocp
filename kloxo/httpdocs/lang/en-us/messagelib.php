@@ -607,16 +607,16 @@ $__information['webserver_config'] =
 	"</ul></p>".
 	"<p><b>PHP Type</b>".
 	"<ul>".
-		"<li>Process-based: httpd-prefork, http-itk</li>".
-		"<li>thread-based: httpd-worker, httpd-event</li>".
-		"<li>secure environment: suphp, php-fpm, ruid2, itk, fcgid</li>".
+		"<li>Follows Switch Program <b>Web</b>: Apache or Nginx</li>".
+		"<li><b>Apache</b>: choose MPM (event/worker) with PHP-FPM via proxy_fcgi</li>".
+		"<li><b>Nginx</b>: sites always use PHP-FPM; use this section for Multiple PHP as secondary</li>".
 	"</ul></p>".
-	"<p><b>Apache Memory Optimize</b>".
+	"<p><b>Webserver Memory Optimize</b>".
 	"<ul>".
-		"<li>Optimize memory usage</li>".
+		"<li>Applies to the selected web server (Apache or Nginx)</li>".
 		"<li>Most situations enough select 'default' or 'low'. Select 'medium' or 'high' if having many websites and or clients</li>".
-		"<li>For proxy (like nginx-proxy), select 'low' or 'medium' only</li>".
-		"<li>Run 'sh /script/apache-optimize --help' to know how calculation work</li>".
+		"<li><b>Apache</b>: MPM StartServers / MaxRequestWorkers in kloxo-optimize.conf</li>".
+		"<li><b>Nginx</b>: worker_processes and worker_connections in nginx.conf</li>".
 	"</ul></p>".
 	"<p><b>MariaDB Convert</b>".
 	"<ul>".

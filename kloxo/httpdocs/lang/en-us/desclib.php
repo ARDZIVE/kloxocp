@@ -1417,8 +1417,12 @@ $__description["realtime"] = array("Realtime");
 $__description["referer"] = array("Referer");
 $__description["remote_host"] = array("Remote Host");
 $__description["webserver_config"] = array("Webserver Configure");
-$__description["php_type"] = array("PHP Type (for Apache)");
-$__description["secondary_php"] = array("Enable Multiple PHP as secondary PHP (for Apache)");
+$__description["php_type"] = array("PHP Type");
+$__description["php_type_apache"] = array("PHP Type (for Apache)");
+$__description["php_type_nginx"] = array("PHP Type (for Nginx)");
+$__description["secondary_php"] = array("Enable Multiple PHP as secondary PHP");
+$__description["secondary_php_apache"] = array("Enable Multiple PHP as secondary PHP (for Apache)");
+$__description["secondary_php_nginx"] = array("Enable Multiple PHP as secondary PHP (for Nginx)");
 
 $__description["config"] = array("Configure");
 $__description["rails_app"] = array("Rails App");
@@ -1430,6 +1434,7 @@ $__description["path"] = array("Path");
 
 // MR -- in 'webserver config'
 $__description["apache_optimize"] = array("Apache memory optimize");
+$__description["nginx_optimize"] = array("Nginx memory optimize");
 $__description["enable_keepalive"] = array("Enable keep-alive");
 $__description["mysql_convert"] = array("MariaDB convert (Select to execute)");
 $__description["mysql_charset"] = array("MariaDB charset (Select to execute)");

@@ -33,6 +33,53 @@ class serverweb extends lxdb
 
 	static $__desc_enable_php52m_fpm = array("", "", "enable_php52m_fpm");
 
+	/**
+	 * Switch Program web driver for this server (nginx or apache).
+	 *
+	 * @return string nginx|apache
+	 */
+	function selectedWebDriver()
+	{
+		$server = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+			? $this->syncserver : 'localhost';
+		$got = '';
+		global $gbl;
+		try {
+			if (is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
+				$got = (string) $gbl->getSyncClass(null, $server, 'web');
+			}
+		} catch (Throwable $e) {
+			$got = '';
+		}
+		if ($got === '' && function_exists('slave_get_driver')) {
+			try {
+				$got = (string) slave_get_driver('web');
+			} catch (Throwable $e) {
+				$got = '';
+			}
+		}
+		$got = strtolower(trim($got));
+		if ($got === 'apache' || $got === 'apache2' || $got === 'httpd') {
+			return 'apache';
+		}
+
+		return 'nginx';
+	}
+
+	/** Point field labels at Apache or Nginx desclib keys for this request. */
+	function applyDriverFieldLabels()
+	{
+		if ($this->selectedWebDriver() === 'apache') {
+			self::$__desc_php_type = array('', '', 'php_type_apache');
+			self::$__desc_secondary_php = array('', '', 'secondary_php_apache');
+			self::$__desc_apache_optimize = array('', '', 'apache_optimize');
+		} else {
+			self::$__desc_php_type = array('', '', 'php_type_nginx');
+			self::$__desc_secondary_php = array('', '', 'secondary_php_nginx');
+			self::$__desc_apache_optimize = array('', '', 'nginx_optimize');
+		}
+	}
+
 	function createShowUpdateform()
 	{
 		$parent = $this->getParentO();
@@ -41,6 +88,8 @@ class serverweb extends lxdb
 
 			return $uflist;
 		}
+
+		$this->applyDriverFieldLabels();
 
 		$uflist['php_used'] = null;
 		$uflist['php_branch'] = null;
@@ -59,31 +108,43 @@ class serverweb extends lxdb
 	function updateform($subaction, $param)
 	{
 		$vlist = array();
+		$this->applyDriverFieldLabels();
+		$web = $this->selectedWebDriver();
 
 		switch($subaction) {
 			case "apache_optimize":
 				$this->apache_optimize = null;
 				$txt = '';
-				foreach (array(
-					'/etc/apache2/conf-available/kloxo-optimize.conf',
-					'/etc/apache2/conf-available/~kloxo.conf',
-					'/etc/httpd/conf.d/~kloxo.conf',
-				) as $conf) {
-					if (is_file($conf)) {
-						$txt = (string)@file_get_contents($conf);
-						break;
+				if ($web === 'nginx') {
+					foreach (array('/etc/nginx/nginx.conf', '/etc/nginx/conf/nginx.conf') as $conf) {
+						if (is_file($conf)) {
+							$txt = (string) @file_get_contents($conf);
+							break;
+						}
+					}
+				} else {
+					foreach (array(
+						'/etc/apache2/conf-available/kloxo-optimize.conf',
+						'/etc/apache2/conf-available/~kloxo.conf',
+						'/etc/httpd/conf.d/~kloxo.conf',
+					) as $conf) {
+						if (is_file($conf)) {
+							$txt = (string) @file_get_contents($conf);
+							break;
+						}
 					}
 				}
 
 				$a = array('default', 'low', 'medium', 'high');
-				if (stripos($txt, 'customize') !== false) {
+				if ($web !== 'nginx' && stripos($txt, 'customize') !== false) {
 					$a[] = 'customize';
 				}
 				$vlist['apache_optimize'] = array('s', $a);
 
 				$b = 'default';
 				foreach ($a as $v) {
-					if (stripos($txt, 'selected: ' . $v) !== false) {
+					if (stripos($txt, 'selected: ' . $v) !== false
+						|| stripos($txt, 'kloxo-optimize: ' . $v) !== false) {
 						$b = $v;
 						break;
 					}
@@ -92,7 +153,11 @@ class serverweb extends lxdb
 
 				$this->enable_keepalive = null;
 				$vlist['enable_keepalive'] = null;
-				$s = (preg_match('/^keepalive on/mi', $txt) === 1) ? 'on' : 'off';
+				if ($web === 'nginx') {
+					$s = (preg_match('/^\s*keepalive_timeout\s+0\s*;/mi', $txt) === 1) ? 'off' : 'on';
+				} else {
+					$s = (preg_match('/^keepalive on/mi', $txt) === 1) ? 'on' : 'off';
+				}
 				$this->setDefaultValue('enable_keepalive', $s);
 
 				break;
@@ -120,36 +185,45 @@ class serverweb extends lxdb
 				$existing = isset($this->php_type) ? (string)$this->php_type : '';
 				$this->php_type = null;
 				$this->secondary_php = null;
-				$a = array('php-fpm_event', 'php-fpm_worker', 'proxy_fcgi_event', 'proxy_fcgi_worker');
-				$vlist['php_type'] = array('s', $a);
 
-				$d = '';
-				$key = isset($this->nname) && $this->nname !== ''
-					? (string)$this->nname
-					: 'pserver-' . (isset($this->syncserver) && $this->syncserver !== ''
-						? $this->syncserver : 'localhost');
-				$pass = lfile_get_contents("__path_admin_pass");
-				if (is_string($pass) && trim($pass) !== '') {
-					try {
-						$d = (string)db_get_value("serverweb", $key, "php_type");
-					} catch (Throwable $e) {
-						$d = '';
-					}
-				}
-				if ($d === '' && $existing !== '') {
-					$d = $existing;
-				}
-				if ($d === '' || strpos($d, 'mod_php') !== false || strpos($d, 'suphp') !== false
-					|| strpos($d, 'fcgid') !== false) {
-					$d = 'proxy_fcgi_event';
+				if ($web === 'nginx') {
+					$vlist['php_type'] = array('M',
+						'Nginx is the selected web server: sites always use PHP-FPM '
+						. '(per-domain pools). Apache MPM / proxy_fcgi choices apply only when '
+						. 'Switch Program Web is Apache.');
+					$this->php_type = 'php-fpm';
+				} else {
+					$a = array('php-fpm_event', 'php-fpm_worker', 'proxy_fcgi_event', 'proxy_fcgi_worker');
+					$vlist['php_type'] = array('s', $a);
+
+					$d = '';
+					$key = isset($this->nname) && $this->nname !== ''
+						? (string)$this->nname
+						: 'pserver-' . (isset($this->syncserver) && $this->syncserver !== ''
+							? $this->syncserver : 'localhost');
+					$pass = lfile_get_contents("__path_admin_pass");
 					if (is_string($pass) && trim($pass) !== '') {
 						try {
-							db_set_default("serverweb", "php_type", $d, "nname = '" . $key . "'");
+							$d = (string) db_get_value('serverweb', $key, 'php_type');
 						} catch (Throwable $e) {
+							$d = '';
 						}
 					}
+					if ($d === '' && $existing !== '') {
+						$d = $existing;
+					}
+					if ($d === '' || strpos($d, 'mod_php') !== false || strpos($d, 'suphp') !== false
+						|| strpos($d, 'fcgid') !== false) {
+						$d = 'proxy_fcgi_event';
+						if (is_string($pass) && trim($pass) !== '') {
+							try {
+								db_set_default('serverweb', 'php_type', $d, "nname = '" . $key . "'");
+							} catch (Throwable $e) {
+							}
+						}
+					}
+					$this->setDefaultValue('php_type', $d);
 				}
-				$this->setDefaultValue('php_type', $d);
 
 				$vlist['secondary_php'] = array('f', array('on', 'off'));
 				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
