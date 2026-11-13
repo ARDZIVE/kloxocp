@@ -4304,15 +4304,15 @@ $wmAvail = class_exists('Mmail') && is_callable(array('Mmail', 'getAvailableWebm
 	? Mmail::getAvailableWebmailProgList() : array();
 $wmList = class_exists('Mmail') && is_callable(array('Mmail', 'getWebmailProgList'))
 	? Mmail::getWebmailProgList() : array();
-$wmNeed = array('afterlogic', 'rainloop', 'roundcube', 'squirrelmail', 'telaen');
-$wmOk = is_array($wmAvail) && is_array($wmList);
-foreach ($wmNeed as $w) {
-	if (!in_array($w, $wmAvail, true) || !in_array($w, $wmList, true)) {
-		$wmOk = false;
-		break;
-	}
-}
+$wmOk = is_array($wmAvail) && is_array($wmList)
+	&& $wmAvail === array('roundcube')
+	&& $wmList === array('roundcube')
+	&& !in_array('afterlogic', $wmAvail, true)
+	&& !in_array('rainloop', $wmAvail, true)
+	&& !in_array('squirrelmail', $wmAvail, true)
+	&& !in_array('telaen', $wmAvail, true);
 $wmFormList = array();
+$wmDefault = null;
 if (is_object($genObj) && method_exists($genObj, 'updateform') && $genFormOk) {
 	try {
 		if (isset($ghtml) && is_object($ghtml)) {
@@ -4322,20 +4322,26 @@ if (is_object($genObj) && method_exists($genObj, 'updateform') && $genFormOk) {
 		$wmFormList = (isset($wmV['generalmisc_b-webmail_system_default'][1])
 			&& is_array($wmV['generalmisc_b-webmail_system_default'][1]))
 			? $wmV['generalmisc_b-webmail_system_default'][1] : array();
+		if (is_object($genObj->generalmisc_b)
+			&& isset($genObj->generalmisc_b->webmail_system_default)) {
+			$wmDefault = $genObj->generalmisc_b->webmail_system_default;
+		}
 	} catch (Throwable $e) {
 		$wmFormList = array();
 	}
 }
-$wmFormOk = in_array('--chooser--', $wmFormList, true)
-	&& in_array('roundcube', $wmFormList, true)
-	&& in_array('rainloop', $wmFormList, true)
-	&& in_array('afterlogic', $wmFormList, true);
+$wmFormOk = in_array('roundcube', $wmFormList, true)
+	&& !in_array('--chooser--', $wmFormList, true)
+	&& !in_array('rainloop', $wmFormList, true)
+	&& !in_array('afterlogic', $wmFormList, true)
+	&& $wmDefault === 'roundcube';
 if ($wmOk && $wmFormOk) {
-	ok('General Settings Webmail System Default lists installed and available webmails');
+	ok('General Settings Webmail System Default is Roundcube only');
 } else {
-	bad('General Settings Webmail System Default lists installed and available webmails',
+	bad('General Settings Webmail System Default is Roundcube only',
 		'list=' . implode(',', (array) $wmList)
-			. ' form=' . implode(',', (array) $wmFormList));
+			. ' form=' . implode(',', (array) $wmFormList)
+			. ' default=' . (string) $wmDefault);
 }
 
 $smPrevLogin = $login ?? null;

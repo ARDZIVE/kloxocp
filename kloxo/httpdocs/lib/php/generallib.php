@@ -541,8 +541,8 @@ class General extends Lxdb
 					touch("../etc/flag/disableeasyinstaller.flg");
 				//	$vlist['generalmisc_b-disableeasyinstaller'] = 'on';
 
-					$list = lx_merge_good('--chooser--', mmail::getWebmailProgList());
-					$this->generalmisc_b->setDefaultValue('webmail_system_default', '--chooser--');
+					$list = mmail::getWebmailProgList();
+					$this->generalmisc_b->setDefaultValue('webmail_system_default', 'roundcube');
 					$vlist['generalmisc_b-webmail_system_default'] = array('s', $list);
 				}
 

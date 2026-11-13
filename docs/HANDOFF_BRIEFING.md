@@ -254,7 +254,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111303**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111304**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -847,11 +847,11 @@ Work in this order. Keep every change small, tested and committed separately. Do
    default). General Settings content tab is labelled **General Settings**.
    Client Processing Logs (`domaindefault`) beige tab is **Client Processing
    Logs** (not “Client Processed Logs”).
-   Webmail System Default dropdown lists installed
-   `/home/kloxo/httpd/webmail/*` dirs plus available Afterlogic, Rainloop,
-   Roundcube, Roundcube-mobile, Squirrelmail, Telaen
-   (`Mmail::getWebmailProgList`). Live webmail install on Ubuntu is
-   **UNVERIFIED**.
+   Webmail System Default is **Roundcube** only
+   (`Mmail::getWebmailProgList` / `getAvailableWebmailProgList`; Afterlogic,
+   Rainloop, Roundcube-mobile, Squirrelmail, Telaen and `--chooser--` dropped;
+   empty/legacy chooser maps to roundcube). Live Roundcube install on Ubuntu
+   is **UNVERIFIED**.
    Home show no longer fatals on a null `used` object,
    missing driver row, or admin `getParentO()`.    The beige navigation
    crumb skips the signed-in client and its parent in `frm_o_o`, so
@@ -1057,7 +1057,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111303**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111304**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

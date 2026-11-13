@@ -205,8 +205,9 @@ class web__ extends lxDriverClass
 		$webmailapp = (isset($login->getObject('general')->generalmisc_b->webmail_system_default)) ?
 			$login->getObject('general')->generalmisc_b->webmail_system_default : null;
 
+		// Roundcube is the unique default; map empty/legacy chooser to it.
 		if (($webmailapp === '--chooser--') || (!$webmailapp)) {
-			$ret = '';
+			$ret = 'roundcube';
 		} else {
 			$ret = $webmailapp;
 		}
@@ -510,7 +511,7 @@ class web__ extends lxDriverClass
 					$r = self::getWebmailAppDefault();
 				} else {
 					if ($list['webmailprog'] === '--chooser--') {
-						$r = '';
+						$r = 'roundcube';
 					} else {
 						$r = $list['webmailprog'];
 					}

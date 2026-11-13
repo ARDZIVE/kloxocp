@@ -449,7 +449,6 @@ class Mmail extends Lxdb
 			//	$base = "/home/kloxo/httpd/webmail/";
 			//	$list = lscandir_without_dot_or_underscore($base);
 				$nlist[] = '--system-default--';
-				$nlist[] = '--chooser--';
 				$nlist = add_disabled($nlist);
 				$plist = self::getWebmailProgList();
 				$nlist = lx_merge_good($nlist, $plist);
@@ -494,60 +493,26 @@ class Mmail extends Lxdb
 
 
 	/**
-	 * Known webmails that Kloxo CP can ship or install under
-	 * /home/kloxo/httpd/webmail/ (Kloxo-MR set; Horde/T-Dah dropped).
+	 * Webmail applications Kloxo CP ships. Roundcube is the only client.
 	 *
 	 * @return list<string>
 	 */
 	static function getAvailableWebmailProgList()
 	{
 		return array(
-			'afterlogic',
-			'rainloop',
 			'roundcube',
-			'roundcube-mobile',
-			'squirrelmail',
-			'telaen',
 		);
 	}
 
 	/**
-	 * Installed webmail dirs under httpd/webmail plus the available catalog,
-	 * so General Settings / domain Webmail Application always list choices.
+	 * Webmail Application choices for General Settings and domain mail.
+	 * Roundcube is the unique default client (other Kloxo-MR apps dropped).
 	 *
 	 * @return list<string>
 	 */
 	static function getWebmailProgList()
 	{
-		$skip = array('img' => true, 'images' => true, 'disabled' => true);
-		$installed = array();
-		$plist = lscandir_without_dot_or_underscore("__path_kloxo_httpd_root/webmail");
-		if (!is_array($plist)) {
-			$plist = array();
-		}
-
-		foreach ($plist as $v) {
-			if (!is_string($v) || $v === '' || isset($skip[$v])) {
-				continue;
-			}
-			if (!lis_dir("__path_kloxo_httpd_root/webmail/$v")) {
-				continue;
-			}
-			$installed[] = $v;
-		}
-
-		// Ubuntu/debian package layouts (optional; still selectable as roundcube).
-		if (lis_dir('/usr/share/roundcube') || lis_dir('/var/lib/roundcube')) {
-			$installed[] = 'roundcube';
-		}
-
-		$plist = array_values(array_unique(array_merge(
-			self::getAvailableWebmailProgList(),
-			$installed
-		)));
-		sort($plist, SORT_STRING);
-
-		return $plist;
+		return self::getAvailableWebmailProgList();
 	}
 
 	function createShowPropertyList(&$alist)
