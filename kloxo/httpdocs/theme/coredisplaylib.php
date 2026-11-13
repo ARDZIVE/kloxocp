@@ -1630,6 +1630,31 @@ function do_update($object, $subaction, $list)
 	global $gbl, $sgbl, $login, $ghtml;
 
 	$class = lget_class($object);
+	// LogWatch: a prior failed save left "--Select One--" in the POST/session.
+	// Replace those with safe defaults before check_for_select_one aborts.
+	if ($class === 'logwatch' && is_object($ghtml) && isset($ghtml->__http_vars) && is_array($ghtml->__http_vars)) {
+		$lwDefaults = array(
+			'lw_format' => 'text',
+			'lw_detail' => 'Low',
+			'lw_range' => 'Yesterday',
+			'lw_frequency' => 'daily',
+			'lw_hour' => '6',
+			'lw_minute' => '0',
+		);
+		foreach ($lwDefaults as $field => $def) {
+			$k = 'frm_logwatch_c_' . $field;
+			if (!array_key_exists($k, $ghtml->__http_vars)) {
+				continue;
+			}
+			$v = $ghtml->__http_vars[$k];
+			if ($v === '--Select One--' || $v === '' || $v === null) {
+				$ghtml->__http_vars[$k] = $def;
+			}
+		}
+		if (is_object($object) && method_exists($object, 'rememberShowReferer')) {
+			$object->rememberShowReferer();
+		}
+	}
 	$param = $ghtml->createCurrentParam($class);
 
 	if ($list) {

@@ -202,6 +202,27 @@ if (!str_contains($lwSrc, 'runnow')
 } else {
 	bad('LogWatch page has Email last report and no Run Now');
 }
+// Format/frequency/hour use non-assoc 's' lists (value === entry) so the form
+// never injects "--Select One--". Range keeps assoc 'A' for the long key label.
+if (preg_match("/lw_format'\\]\\s*=\\s*array\\('s'\\s*,\\s*array\\('text'/", $lwSrc)
+	&& preg_match("/lw_frequency'\\]\\s*=\\s*array\\('s'/", $lwSrc)
+	&& preg_match("/lw_detail'\\]\\s*=\\s*array\\('s'/", $lwSrc)
+	&& preg_match("/lw_range'\\]\\s*=\\s*array\\('A'/", $lwSrc)
+	&& str_contains($lwSrc, 'rememberShowReferer')
+	&& str_contains($lwSrc, "class]=logwatch")
+	&& str_contains($lwSrc, '--Select One--')) {
+	ok('LogWatch selects and redirect stay on LogWatch (no Select One / no Home)');
+} else {
+	bad('LogWatch selects and redirect stay on LogWatch (no Select One / no Home)');
+}
+$coreUpd = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+if (str_contains($coreUpd, "class === 'logwatch'")
+	&& str_contains($coreUpd, 'frm_logwatch_c_')
+	&& str_contains($coreUpd, 'lw_format')) {
+	ok('do_update sanitizes LogWatch --Select One-- before validation');
+} else {
+	bad('do_update sanitizes LogWatch --Select One-- before validation');
+}
 if (preg_match('/function showRawPrint.*?\{(.*?)\}/s', $lwSrc, $m)
 	&& !str_contains($m[1], 'echo')
 	&& !str_contains($m[1], 'print')) {
