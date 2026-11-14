@@ -489,6 +489,18 @@ final class KloxoSsl
         self::ensureSslDir();
         $webroot = self::resolveWebroot($domain, $docroot);
         self::ensureWebroot($webroot);
+        foreach ($sans as $s) {
+            $host = strtolower($s);
+            if ($host === 'webmail.' . $domain || $host === 'mail.' . $domain) {
+                $wm = self::p('/home/kloxo/httpd/webmail/roundcube');
+                if (!is_dir($wm)) {
+                    $wm = self::p('/home/kloxo/httpd/webmail');
+                }
+                if (is_dir($wm) || @mkdir($wm, 0755, true)) {
+                    self::ensureWebroot($wm);
+                }
+            }
+        }
         self::ensureAcmeNginxSnippet();
         // Refresh vhost so Force-HTTPS / www redirects skip ACME before validation.
         self::fixweb($domain);
@@ -514,25 +526,36 @@ final class KloxoSsl
     }
 
     /**
+     * Build certbot certonly argv. $duplicate adds --duplicate for a new lineage
+     * when an overlapping certificate still blocks --expand.
+     *
      * @param list<string> $sans
-     * @return array{ok:bool, key:string, crt:string, ca:string, tool:string, out:string, webroot:string}
+     * @return list<string>
      */
-    private static function issueWithCertbot(
+    private static function certbotCertonlyArgv(
         string $certbot,
         string $domain,
         string $email,
         array $sans,
         string $keyBits,
-        string $webroot
+        string $webroot,
+        bool $duplicate
     ): array {
+        // --force-renewal: Add Let's Encrypt must re-issue when expanding SANs
+        // even if the lineage is not near expiry (otherwise certbot 4.x exits 0
+        // with "Certificate not yet due for renewal; no action taken").
         $argv = [
             $certbot, 'certonly',
             '--non-interactive',
             '--agree-tos',
-            '--keep-until-expiring',
+            '--cert-name', $domain,
+            '--expand',
+            '--force-renewal',
             '--webroot',
-            '--webroot-path', $webroot,
         ];
+        if ($duplicate) {
+            $argv[] = '--duplicate';
+        }
         if ($email !== '') {
             $argv[] = '--email';
             $argv[] = $email;
@@ -553,19 +576,78 @@ final class KloxoSsl
             $argv[] = '--elliptic-curve';
             $argv[] = 'secp384r1';
         }
+
+        // Pair each name with its HTTP-01 webroot. webmail/mail use the panel
+        // webmail docroot; everything else uses the domain site webroot.
+        $webmailRoot = self::p('/home/kloxo/httpd/webmail/roundcube');
+        if (!is_dir($webmailRoot)) {
+            $webmailRoot = self::p('/home/kloxo/httpd/webmail');
+        }
         foreach ($sans as $s) {
+            $host = strtolower($s);
+            $w = $webroot;
+            if ($host === 'webmail.' . $domain || $host === 'mail.' . $domain) {
+                $w = $webmailRoot;
+            }
+            $argv[] = '--webroot-path';
+            $argv[] = $w;
             $argv[] = '-d';
             $argv[] = $s;
         }
+
+        return $argv;
+    }
+
+    /** Certbot asked for a choice about an overlapping existing certificate. */
+    private static function certbotNeedsExpandOrDuplicate(string $out): bool
+    {
+        return preg_match(
+            '/existing certificate that contains a portion|Missing command line flag or config entry/i',
+            $out
+        ) === 1;
+    }
+
+    /**
+     * @param list<string> $sans
+     * @return array{ok:bool, key:string, crt:string, ca:string, tool:string, out:string, webroot:string}
+     */
+    private static function issueWithCertbot(
+        string $certbot,
+        string $domain,
+        string $email,
+        array $sans,
+        string $keyBits,
+        string $webroot
+    ): array {
+        // --cert-name + --expand: non-interactive answer when an existing
+        // lineage covers a subset/overlap of the requested names (otherwise
+        // certbot asks "Missing command line flag... existing certificate").
+        // Do not use --keep-until-expiring here: Add Let's Encrypt always wants
+        // a usable cert now, including SAN expands before expiry.
+        $argv = self::certbotCertonlyArgv($certbot, $domain, $email, $sans, $keyBits, $webroot, false);
         $r = self::run($argv);
+        if ($r['code'] !== 0 && self::certbotNeedsExpandOrDuplicate($r['out'])) {
+            // Still interactive-overlap after --expand: try a duplicate lineage.
+            $firstOut = $r['out'];
+            $retry = self::certbotCertonlyArgv($certbot, $domain, $email, $sans, $keyBits, $webroot, true);
+            $r2 = self::run($retry);
+            $r = $r2;
+            if ($r['code'] !== 0) {
+                $r['out'] = trim($firstOut . "\n" . $r2['out']);
+            }
+        }
         if ($r['code'] !== 0) {
-            $tail = self::tailOut($r['out'], 12);
+            $tail = self::tailOut($r['out'], 16);
             $hint = '';
             if (preg_match('/unauthorized|404|Invalid response|authenticate/i', $r['out']) === 1) {
                 $hint = '; ACME HTTP-01 failed for webroot ' . $webroot
                     . ' — use only names that resolve here (domain + www),'
                     . ' run /script/fixweb --domain=' . $domain
                     . ', and ensure port 80 serves /.well-known/acme-challenge/ from the site docroot';
+            } elseif (self::certbotNeedsExpandOrDuplicate($r['out'])) {
+                $hint = '; an existing Let\'s Encrypt cert overlaps these names'
+                    . ' — retry after removing the old lineage under /etc/letsencrypt/live/'
+                    . ' or use only the names already on that certificate';
             }
             throw new KloxoSslException(
                 'certbot failed' . ($tail !== '' ? ': ' . $tail : ' (exit ' . $r['code'] . ')') . $hint

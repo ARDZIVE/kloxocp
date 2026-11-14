@@ -172,6 +172,75 @@ check(str_contains($le['key'], 'PRIVATE KEY'), 'LE key returned');
 check(is_file("$fs/home/kloxo/ssl/example.com.key"), 'LE installed under ssl dir');
 check(in_array("$fs/home/httpd/example.com/httpdocs", $lastCertbotArgv, true),
 	'certbot --webroot-path is domain httpdocs');
+check(in_array('--cert-name', $lastCertbotArgv, true)
+	&& in_array('example.com', $lastCertbotArgv, true),
+	'certbot uses --cert-name for the domain');
+check(in_array('--expand', $lastCertbotArgv, true),
+	'certbot uses --expand for SAN overlap');
+check(in_array('--force-renewal', $lastCertbotArgv, true),
+	'certbot uses --force-renewal so SAN expand runs before expiry');
+check(!in_array('--keep-until-expiring', $lastCertbotArgv, true),
+	'certbot does not use --keep-until-expiring on issue');
+check(!in_array('--duplicate', $lastCertbotArgv, true),
+	'certbot omits --duplicate on first attempt');
+
+echo "== certbot overlap retry uses --duplicate\n";
+$calls = 0;
+$overlapOut = "Missing command line flag or config entry for this setting:\n"
+	. "You have an existing certificate that contains a portion of the domains you requested.\n";
+KloxoSsl::$runCmd = static function (array $argv) use ($fs, &$calls, &$lastCertbotArgv, $overlapOut): array {
+	$bin = $argv[0];
+	if (str_ends_with($bin, '/certbot') || basename($bin) === 'certbot') {
+		$calls++;
+		$lastCertbotArgv = $argv;
+		if ($calls === 1) {
+			return ['code' => 1, 'out' => $overlapOut];
+		}
+		$argv[0] = $fs . '/usr/bin/certbot';
+		$cmd = '';
+		foreach ($argv as $a) {
+			$cmd .= escapeshellarg((string) $a) . ' ';
+		}
+		$out = [];
+		$code = 0;
+		exec($cmd . '2>&1', $out, $code);
+
+		return ['code' => $code, 'out' => implode("\n", $out)];
+	}
+	if (str_contains($bin, 'fixweb') || (isset($argv[1]) && str_contains((string) $argv[1], 'fixweb'))) {
+		return ['code' => 0, 'out' => 'fixweb ok'];
+	}
+
+	return ['code' => 0, 'out' => ''];
+};
+$leOverlap = KloxoSsl::issueLetsEncrypt('example.com', 'admin@example.com', ['example.com', 'www.example.com'], '2048');
+check(!empty($leOverlap['ok']) && $calls === 2, 'overlap prompts retry once');
+check(in_array('--duplicate', $lastCertbotArgv, true), 'retry adds --duplicate');
+check(in_array('--expand', $lastCertbotArgv, true) && in_array('--cert-name', $lastCertbotArgv, true),
+	'retry keeps --expand and --cert-name');
+
+// Restore happy-path runner for later checks.
+$lastCertbotArgv = [];
+KloxoSsl::$runCmd = static function (array $argv) use ($fs, &$lastCertbotArgv): array {
+	$bin = $argv[0];
+	if (str_ends_with($bin, '/openssl') || basename($bin) === 'openssl') {
+		$argv[0] = $fs . '/usr/bin/openssl';
+	} elseif (str_ends_with($bin, '/certbot') || basename($bin) === 'certbot') {
+		$lastCertbotArgv = $argv;
+		$argv[0] = $fs . '/usr/bin/certbot';
+	} elseif (str_contains($bin, 'fixweb') || (isset($argv[1]) && str_contains((string) $argv[1], 'fixweb'))) {
+		return ['code' => 0, 'out' => 'fixweb ok'];
+	}
+	$cmd = '';
+	foreach ($argv as $a) {
+		$cmd .= escapeshellarg((string) $a) . ' ';
+	}
+	$out = [];
+	$code = 0;
+	exec($cmd . '2>&1', $out, $code);
+
+	return ['code' => $code, 'out' => implode("\n", $out)];
+};
 check(is_dir("$fs/home/httpd/example.com/httpdocs/.well-known/acme-challenge"),
 	'challenge dir created under httpdocs');
 
