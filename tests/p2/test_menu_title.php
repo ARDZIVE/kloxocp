@@ -93,6 +93,46 @@ try {
 	bad('kloxo_menu_title returns a string for sshclient', $e->getMessage());
 }
 
+// While viewing PHP Configure, left-menu titles must not all become "PHP Configure"
+// (getFullUrl must not rebuild frm_o_o from __c_object after menu_title clears it).
+try {
+	global $ghtml, $gbl;
+	$prevHtml = $ghtml;
+	$prevGbl = $gbl ?? null;
+	$ghtml = new HtmlLib();
+	$ghtml->__http_vars = array(
+		'frm_action' => 'show',
+		'frm_o_o' => array(
+			array('class' => 'pserver', 'nname' => 'localhost'),
+			array('class' => 'phpini'),
+		),
+	);
+	if (!isset($gbl) || !is_object($gbl)) {
+		$gbl = new stdClass();
+	}
+	$gbl->__c_object = new phpini(null, 'localhost', 'pserver-localhost');
+	$sshTitle = kloxo_menu_title('a=show&o=sshclient');
+	$svcTitle = kloxo_menu_title('a=list&c=service');
+	$cliTitle = kloxo_menu_title('a=list&c=all_client');
+	$phpTitle = kloxo_menu_title('a=show&o=phpini');
+	$gbl = $prevGbl;
+	$ghtml = $prevHtml;
+	$okMenu = is_string($sshTitle) && $sshTitle !== '' && stripos($sshTitle, 'PHP Configure') === false
+		&& is_string($svcTitle) && $svcTitle !== '' && stripos($svcTitle, 'PHP Configure') === false
+		&& is_string($cliTitle) && $cliTitle !== '' && stripos($cliTitle, 'PHP Configure') === false
+		&& is_string($phpTitle) && stripos($phpTitle, 'PHP Configure') !== false;
+	if ($okMenu) {
+		ok('menu titles on PHP Configure page stay distinct (not all PHP Configure)');
+	} else {
+		bad('menu titles on PHP Configure page stay distinct (not all PHP Configure)',
+			'ssh=' . (string) $sshTitle . ' svc=' . (string) $svcTitle
+				. ' cli=' . (string) $cliTitle . ' php=' . (string) $phpTitle);
+	}
+} catch (Throwable $e) {
+	bad('menu titles on PHP Configure page stay distinct (not all PHP Configure)',
+		$e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+}
+
 // Menu titles must not assign $ghtml->frm_o_o (real property shadows __http_vars
 // and content tabs then lose the object path → "Home" instead of "PHP Configure").
 try {

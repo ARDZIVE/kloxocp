@@ -3713,7 +3713,15 @@ class HtmlLib
 			}
 			// Last resort: rebuild from the page object (File Manager Permissions
 			// and siblings must keep client+ffile in the tab href).
-			if ((!is_array($p) || $p === array()) && method_exists($this, 'pathArrayFromCurrentObject')) {
+			// Do NOT rebuild when frm_o_o was cleared on purpose (kloxo_menu_title):
+			// that empty array means "no object path", otherwise every left-menu
+			// label on PHP Configure becomes "PHP Configure".
+			$httpPathCleared = isset($this->__http_vars)
+				&& array_key_exists('frm_o_o', $this->__http_vars)
+				&& is_array($this->__http_vars['frm_o_o'])
+				&& $this->__http_vars['frm_o_o'] === array();
+			if (!$httpPathCleared && (!is_array($p) || $p === array())
+				&& method_exists($this, 'pathArrayFromCurrentObject')) {
 				$fromObj = $this->pathArrayFromCurrentObject();
 				if (is_array($fromObj) && $fromObj !== array()) {
 					$p = $fromObj;
