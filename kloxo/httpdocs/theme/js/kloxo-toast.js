@@ -40,6 +40,10 @@
 		if (el.closest && (el.closest('.kloxo-password-force') || el.closest('.kloxo-mail-setup-force'))) {
 			return;
 		}
+		// Content-area notices stay on the page (e.g. Set Auto Responder).
+		if (el.className && /\bkloxo-inline-alert\b/.test(el.className) && el.id !== 'div_cfstatus') {
+			return;
+		}
 		el.setAttribute('data-kloxo-toast-armed', '1');
 		win.setTimeout(function () {
 			hide(el);

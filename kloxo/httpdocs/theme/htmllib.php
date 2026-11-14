@@ -8815,7 +8815,7 @@ function fileSelected(e) {
 	$__upload_redir_q['frm_action'] = 'show';
 	unset($__upload_redir_q['frm_subaction'], $__upload_redir_q['a'], $__upload_redir_q['sa'],
 		$__upload_redir_q['frm_smessage'], $__upload_redir_q['frm_emessage']);
-	$__upload_redir_q['frm_smessage'] = 'file uploaded successfully';
+	$__upload_redir_q['frm_smessage'] = 'file_uploaded';
 	$__upload_redir_qs = http_build_query($__upload_redir_q);
 ?>
 var uploadRedirectUrl = '/display.php?<?php echo $__upload_redir_qs; ?>';
@@ -8826,7 +8826,7 @@ function uploadRedirectFromForm(form) {
 	if (!form || !form.elements) {
 		return uploadRedirectUrl;
 	}
-	var parts = ['frm_action=show', 'frm_smessage=' + encodeURIComponent('file uploaded successfully')];
+	var parts = ['frm_action=show', 'frm_smessage=' + encodeURIComponent('file_uploaded')];
 	var i, el, name;
 	for (i = 0; i < form.elements.length; i++) {
 		el = form.elements[i];
@@ -8845,7 +8845,7 @@ function uploadEnsureToast(url) {
 	if (url.indexOf('frm_smessage=') !== -1 || url.indexOf('frm_emessage=') !== -1) {
 		return url;
 	}
-	return url + (url.indexOf('?') === -1 ? '?' : '&') + 'frm_smessage=' + encodeURIComponent('file uploaded successfully');
+	return url + (url.indexOf('?') === -1 ? '?' : '&') + 'frm_smessage=' + encodeURIComponent('file_uploaded');
 }
 
 function uploadUrlFromResponse(text, xhr) {
@@ -9671,87 +9671,46 @@ function uploadAbort(e) { // upload abort
 
 		if ($cgi_frm_smessage) {
 			$value = $this->frm_m_smessage_data;
-
-			if (isset($g_language_mes->__emessage[$cgi_frm_smessage])) {
-				$mess = $g_language_mes->__emessage[$cgi_frm_smessage];
-			} else {
-				$mess = $cgi_frm_smessage;
-			}
-
-			$imgfile = $img_path . "/button/okpic.gif";
-
-			$color = 'green';
-			$message = "<span style='color:green'><b>Information: </b></span> ";
-			$style = 'border: 1px solid green; background:#fff;';
-			$fontstyle = 'color: #000';
 			$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind((string) $cgi_frm_smessage, 'info') : 'info';
 			$this->__toast_kind = $kind;
-			$mess = $this->format_message($mess, $value, true);
+			$plain = function_exists('kloxo_toast_plain')
+				? kloxo_toast_plain((string) $cgi_frm_smessage, $value, 100)
+				: (string) $cgi_frm_smessage;
 
 			if ($peek) {
-				$plainMess = preg_replace("/<.*?>/", "", $mess);
-
-				return is_string($plainMess) ? trim($plainMess) : '';
+				return $plain;
 			}
 
 			unset($this->__http_vars['frm_smessage']);
 			unset($this->__http_vars['frm_m_smessage_data']);
 
-			if (!$this->isSimplicitySkin()) {
-				$this->print_inline_alert($this->convert_message($mess), $kind);
+			if (!$this->isSimplicitySkin() && $plain !== '') {
+				$this->print_inline_alert(htmlspecialchars($plain, ENT_QUOTES), $kind);
 			}
-			$this->print_on_status_bar("$message $mess");
+			$this->print_on_status_bar($plain);
 
 			return '';
 		}
 
 		if ($cgi_message) {
 			$value = $this->frm_m_emessage_data;
-
-			if (isset($g_language_mes->__emessage[$cgi_message])) {
-				$mess = $g_language_mes->__emessage[$cgi_message];
-			} else {
-				$mess = $cgi_message;
-				if ($value) {
-					$mess .= " [$value]";
-				}
-			}
-
-			$imgfile = $img_path . "/button/warningpic.gif";
-			$color = 'brown';
-			$message = "<span style='color:red'><b>Alert: </b></span> ";
-			$style = 'border: 1px solid red; background:#fee;';
-			$fontstyle = 'color: #000';
 			$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind((string) $cgi_message, 'error') : 'error';
 			$this->__toast_kind = $kind;
-
-			// In the status bar, you should print with mainframe. But in the main page, it should be simple url.
-			$pmess = $this->format_message($mess, $value, false);
+			$plain = function_exists('kloxo_toast_plain')
+				? kloxo_toast_plain((string) $cgi_message, $value, 100)
+				: (string) $cgi_message;
 
 			if ($peek) {
-				$pmess = $this->format_message($mess, $value, true);
-				$pmess = preg_replace("/<.*?>/", "", is_string($pmess) ? $pmess : '');
-				$pmess = is_string($pmess) ? trim($pmess) : '';
-				if ($pmess === '') {
-					return '';
-				}
-				// Only add "..." when the Status toast text was truncated.
-				if (strlen($pmess) > 270) {
-					return substr($pmess, 0, 270) . '...';
-				}
-
-				return $pmess;
+				return $plain;
 			}
 
 			unset($this->__http_vars['frm_emessage']);
 			unset($this->__http_vars['frm_m_emessage_data']);
 
-			if (!$this->isSimplicitySkin()) {
-				$this->print_inline_alert($this->convert_message($pmess), $kind);
+			if (!$this->isSimplicitySkin() && $plain !== '') {
+				$this->print_inline_alert(htmlspecialchars($plain, ENT_QUOTES), $kind);
 			}
-			$pmessBar = $this->format_message($mess, $value, true);
-			$pmessBar = substr($pmessBar, 0, 270);
-			$this->print_on_status_bar("$message $pmessBar...");
+			$this->print_on_status_bar($plain);
 		}
 
 		return '';

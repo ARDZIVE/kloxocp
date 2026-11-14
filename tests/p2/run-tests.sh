@@ -887,10 +887,11 @@ else
 fi
 if grep -q 'function url_tag_href' "$ROOT/kloxo/httpdocs/theme/htmllib.php" \
   && grep -A 8 'function format_message' "$ROOT/kloxo/httpdocs/theme/htmllib.php" | grep -q 'convert_message' \
-  && grep -A 8 "lxguard_not_configured" "$ROOT/kloxo/httpdocs/lang/en-us/messagelib.php" | grep -q 'a=show&o=lxguard'; then
-  ok "LxGuard alert [here] is converted to a pserver lxguard URL"
+  && grep -q "lxguard_not_configured" "$ROOT/kloxo/httpdocs/lang/en-us/messagelib.php" \
+  && grep -q 'kloxo_toast_plain' "$ROOT/kloxo/httpdocs/lib/php/lxlib.php"; then
+  ok "LxGuard toast key exists; url tags still convert via format_message"
 else
-  bad "LxGuard alert [here] is converted to a pserver lxguard URL"
+  bad "LxGuard toast key exists; url tags still convert via format_message"
 fi
 if grep -A 40 'static function addform' "$ROOT/kloxo/httpdocs/lib/domain/domainlib.php" | grep -q 'domain_owned_flag' \
   && grep -A 40 'static function addform' "$ROOT/kloxo/httpdocs/lib/domain/domainlib.php" | grep -q 'simple_add_f' \

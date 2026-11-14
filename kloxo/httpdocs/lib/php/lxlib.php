@@ -1627,10 +1627,10 @@ function kloxo_toast_kind($key, $channel = 'info')
 	} elseif ($ch === 's') {
 		$ch = 'info';
 	}
-	if (preg_match('/success|successfully|added_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|deleted|updated|created|completed|logwatch_report_emailed|logwatch_settings_saved/', $k) === 1) {
+	if (preg_match('/success|successfully|added_successfully|deleted_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|deleted|updated|created|completed|logwatch_report_emailed|logwatch_settings_saved|password_sent|mis_changed|switch_done/', $k) === 1) {
 		return 'success';
 	}
-	if (preg_match('/warn|not_set|not_correct|expire|license_will_expire|security_warning|limit/', $k) === 1) {
+	if (preg_match('/warn|not_set|not_correct|expire|license_will_expire|security_warning|limit|mail_setup_required/', $k) === 1) {
 		return 'warning';
 	}
 	if (in_array($ch, array('success', 'warning', 'error', 'info'), true) && $k === '') {
@@ -1644,6 +1644,102 @@ function kloxo_toast_kind($key, $channel = 'info')
 	}
 
 	return 'info';
+}
+
+/**
+ * Turn a language key or free-form redirect text into a short toast label.
+ */
+function kloxo_toast_humanize_key(string $key): string
+{
+	$k = trim($key);
+	if ($k === '') {
+		return 'Done.';
+	}
+	$lower = strtolower($k);
+	if (preg_match('/successfully\s+updated/i', $lower) === 1) {
+		return 'Saved.';
+	}
+	if (preg_match('/successfully\s+deleted/i', $lower) === 1) {
+		return 'Deleted.';
+	}
+	if (preg_match('/successfully\s+added/i', $lower) === 1) {
+		return 'Added.';
+	}
+	if (preg_match('/file\s+uploaded\s+successfully/i', $lower) === 1) {
+		return 'File uploaded.';
+	}
+	if (preg_match('/^[a-z][a-z0-9_]*$/i', $k) === 1 && str_contains($k, '_')) {
+		$words = str_replace('_', ' ', strtolower($k));
+
+		return ucfirst($words) . '.';
+	}
+
+	return $k;
+}
+
+/**
+ * Short plain text for Status / inline toasts. Resolves messagelib keys,
+ * strips HTML and "click here" links, caps length. Always returns a non-empty
+ * string when $message is non-empty.
+ */
+function kloxo_toast_plain($message, $value = '', int $max = 100): string
+{
+	global $g_language_mes;
+
+	$key = trim(kloxo_string($message));
+	if ($key === '') {
+		return '';
+	}
+	if ($max < 24) {
+		$max = 24;
+	}
+
+	$text = $key;
+	if (isset($g_language_mes) && is_object($g_language_mes)
+		&& isset($g_language_mes->__emessage) && is_array($g_language_mes->__emessage)
+		&& isset($g_language_mes->__emessage[$key])) {
+		$text = (string) $g_language_mes->__emessage[$key];
+	} else {
+		$text = kloxo_toast_humanize_key($key);
+	}
+
+	$text = preg_replace('/<url:[^>]*>.*?<\/url>/is', '', $text) ?? $text;
+	$text = preg_replace('/<a\s[^>]*>.*?<\/a>/is', '', $text) ?? $text;
+	$text = preg_replace('/<[^>]+>/', '', $text) ?? $text;
+	$text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	$text = preg_replace('/\s+/', ' ', $text) ?? $text;
+	$text = trim($text);
+
+	$val = '';
+	if (is_string($value) || is_numeric($value)) {
+		$val = trim((string) $value);
+	}
+	if ($val !== '') {
+		$val = preg_replace('/\s+/', ' ', $val) ?? $val;
+		$val = preg_replace('/<[^>]+>/', '', $val) ?? $val;
+		$val = trim($val);
+		if (strlen($val) > 40) {
+			$val = rtrim(substr($val, 0, 39)) . '…';
+		}
+		if (str_contains($text, '[%s]') || str_contains($text, '[%cs]')) {
+			$text = str_replace(array('[%s]', '[%cs]'), $val, $text);
+		} elseif ($val !== '' && !str_contains($text, $val)) {
+			$text = rtrim($text, " \t.:") . ': ' . $val;
+		}
+	} else {
+		$text = str_replace(array('[%s]', '[%cs]'), '', $text);
+	}
+
+	$text = preg_replace('/\s+/', ' ', $text) ?? $text;
+	$text = trim($text, " \t:-");
+	if ($text === '') {
+		$text = kloxo_toast_humanize_key($key);
+	}
+	if (strlen($text) > $max) {
+		$text = rtrim(substr($text, 0, $max - 1)) . '…';
+	}
+
+	return $text;
 }
 
 function kloxo_string($value)

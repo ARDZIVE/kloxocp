@@ -126,20 +126,73 @@ if (str_contains($bak, "throw new lxException('restore_failed'")
 	bad('restore failure uses messagelib key restore_failed for the toast');
 }
 
-if (str_contains($htmlLib, 'Only add "..." when the Status toast text was truncated')
-	|| (str_contains($htmlLib, 'strlen($pmess) > 270') && str_contains($htmlLib, "substr(\$pmess, 0, 270) . '...'"))) {
-	ok('Status peek truncates with ... only when needed');
+if (str_contains($htmlLib, 'kloxo_toast_plain')) {
+	ok('Status peek uses kloxo_toast_plain for short text');
 } else {
-	bad('Status peek truncates with ... only when needed');
+	bad('Status peek uses kloxo_toast_plain for short text');
 }
 
 $core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
-if (substr_count($core, "print_inline_alert('The requested form could not be loaded.', 'error')") >= 2
-	&& str_contains($core, "print_inline_alert(htmlspecialchars(\$msg")
+if (substr_count($core, "print_inline_alert('Form could not be loaded.', 'error')") >= 2
 	&& str_contains($core, "'warning'")) {
 	ok('form-load failures and the password-force warning use the same toast');
 } else {
 	bad('form-load failures and the password-force warning use the same toast');
+}
+
+
+if (function_exists('kloxo_toast_plain')) {
+	global $g_language_mes, $__emessage;
+	if ((!isset($g_language_mes) || !is_object($g_language_mes) || empty($g_language_mes->__emessage))
+		&& is_file($doc . '/lang/en-us/messagelib.php')) {
+		include $doc . '/lang/en-us/messagelib.php';
+		if (!isset($g_language_mes) || !is_object($g_language_mes)) {
+			if (!class_exists('Language_Mes', false)) {
+				eval('class Language_Mes {}');
+			}
+			$g_language_mes = new Language_Mes();
+		}
+		if (isset($__emessage) && is_array($__emessage)) {
+			$g_language_mes->__emessage = $__emessage;
+		}
+	}
+	$plainAdd = kloxo_toast_plain('added_successfully', 'Client');
+	$plainLong = kloxo_toast_plain('smtp_server_not_running');
+	$plainKey = kloxo_toast_plain('create_certificate_failed', 'certbot failed: ' . str_repeat('x', 80));
+	$plainFree = kloxo_toast_plain('Domain successfully deleted.');
+	$plainUpload = kloxo_toast_plain('file_uploaded');
+	$okPlain = str_contains(strtolower($plainAdd), 'added')
+		&& strlen($plainLong) <= 100
+		&& strlen($plainKey) <= 100
+		&& str_contains(strtolower($plainFree), 'deleted')
+		&& ($plainUpload === 'File uploaded.');
+	if ($okPlain) {
+		ok('kloxo_toast_plain is short, resolves keys, and humanizes free text');
+	} else {
+		bad('kloxo_toast_plain is short, resolves keys, and humanizes free text',
+			"add=$plainAdd long=$plainLong key=$plainKey free=$plainFree up=$plainUpload");
+	}
+} else {
+	bad('kloxo_toast_plain is short, resolves keys, and humanizes free text', 'missing function');
+}
+
+$core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+if (str_contains($core, "frm_smessage=updated_successfully")
+	&& str_contains($core, "frm_smessage=deleted_successfully")
+	&& str_contains($core, 'frm_emessage=update_failed')) {
+	ok('update/delete redirects use short toast language keys');
+} else {
+	bad('update/delete redirects use short toast language keys');
+}
+
+$msgLib = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+if (str_contains($msgLib, "deleted_successfully")
+	&& str_contains($msgLib, "update_failed")
+	&& str_contains($msgLib, "file_uploaded")
+	&& !preg_match('/\\$__emessage\\[\'smtp_server_not_running\'\\]\\s*=\\s*\'[^\']{101,}\'/', $msgLib)) {
+	ok('messagelib toast strings stay short and include delete/update keys');
+} else {
+	bad('messagelib toast strings stay short and include delete/update keys');
 }
 
 echo "$pass passed, $fail failed\n";

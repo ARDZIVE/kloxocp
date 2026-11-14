@@ -1,6 +1,5 @@
-/* Panel toasts: one look for Status, print_inline_alert, and login.
-   Beat .kloxo-inline-alert / .kloxo-inline-info in common.css. */
-div.kloxo-toast.kloxo-inline-alert,
+/* Panel toasts: Status (#div_cfstatus) is fixed top-centre; content notices
+   (.kloxo-inline-alert) sit in-flow at the top of the white content panel. */
 .kloxo-toast {
 	position: fixed;
 	z-index: 10065;
@@ -25,6 +24,22 @@ div.kloxo-toast.kloxo-inline-alert,
 	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
 	font-size: 9pt;
 	line-height: 1.35;
+}
+
+/* Content-area alerts (e.g. "First add some autoresponders"): in the page,
+   not floating over the red header. */
+div.kloxo-toast.kloxo-inline-alert {
+	position: relative;
+	z-index: 1;
+	top: auto;
+	left: auto;
+	right: auto;
+	transform: none;
+	display: flex;
+	width: 100%;
+	min-width: 0;
+	max-width: none;
+	margin: 0 0 12px 0;
 }
 
 .kloxo-toast-icon {

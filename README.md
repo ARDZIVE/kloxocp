@@ -1,7 +1,7 @@
 # Kloxo CP
 
 Hosting control panel for **Ubuntu 24.04** (PHP 8.3) and **Ubuntu 26.x** (PHP 8.5).
-GNU AGPLv3. Version **10.1-2026111407**.
+GNU AGPLv3. Version **10.1-2026111408**.
 
 https://github.com/ARDZIVE/kloxocp.git
 
@@ -18,9 +18,12 @@ hardened it and verified the install on your own host.
 | Panel PHP | Distro PHP with `pdo_sqlite` (pinned in `etc/path/php`) | — |
 | DNS | BIND 9 | Knot DNS |
 | Mail | Exim + Dovecot + Rspamd | Postfix (replaces Exim); spam is Rspamd only |
+| Webmail | Roundcube | — |
+| SSL | certbot (Let's Encrypt); default SAN apex + www + webmail | Self-signed / pasted cert |
 | SQL | MariaDB | phpMyAdmin (SQL Manager) |
 | FTP / cache / firewall | Pure-FTPd, Redis, UFW, Fail2Ban | Nginx web cache in front of the site server |
 | Log summary | LogWatch (installed, **disabled** until enabled) | Security → LogWatch (Enable starts schedule; Email last report); Log Manager |
+| Visitor stats | `kloxo-stats.timer` (every 5 min) | Domain Home → Visitor Stats |
 | Panel database | SQLite (`/var/lib/kloxo/panel.sqlite`) | — |
 
 No billing. Mailboxes live under `/var/vmail`. Switch Program chooses web, DNS,
@@ -39,10 +42,11 @@ curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bas
 
 That is the whole install. No questions, no hostname quiz, no service picker.
 Full stack by default (Nginx, MariaDB, Exim, Dovecot, **Rspamd**, BIND, Pure-FTPd,
-UFW, Fail2Ban, **LogWatch**). LogWatch is packaged and prepared but **not
-enabled** — turn it on under Security → LogWatch when you want scheduled
-reports (also listed in Log Manager → LogWatch). SpamAssassin is not installed.
-Progress prints as `[1/8] … [8/8]`. Log: `/var/log/kloxo-install.log`.
+UFW, Fail2Ban, **certbot**, **LogWatch**, Visitor Stats timer). LogWatch is
+packaged and prepared but **not enabled** — turn it on under Security → LogWatch
+when you want scheduled reports (also listed in Log Manager → LogWatch).
+SpamAssassin is not installed. Progress prints as `[1/8] … [8/8]`.
+Log: `/var/log/kloxo-install.log`.
 
 | Flag | Use |
 |---|---|
@@ -79,7 +83,11 @@ and run `sudo bash get` (or `sudo bash install.sh`) from that directory.
 
 Open `https://<ip>:7777/` (self-signed certificate). Username **admin**,
 password **admin** (also in `/root/kloxo-admin-password` on a first install).
-The UI requires a password change before anything else.
+
+1. **Change Password** — required before anything else (Esc/Close cannot skip).
+2. **Mail Setup** — required admin email (real inbox, used as From for
+   welcome/notify and watchdog alerts) and a dotted mail-server hostname FQDN
+   (saved as localhost `realhostname` / `/etc/mailname`).
 
 If the login page shows logos but no form, or a red “Panel database is not ready”
 hint, the panel PHP lacks `pdo_sqlite` (common after **PHP Used** pointed
@@ -121,10 +129,13 @@ You can still re-run the install one-liner (keeps the admin password unless
 
 - **Webserver Configure** — default PHP, extra `phpX.Y` install/remove
 - **Switch Program** — Nginx/Apache, BIND/Knot, Exim/Postfix, Dovecot, Rspamd (spam; enable/disable only here)
+- **SSL Certificates** — Let's Encrypt (default names: domain, www, webmail), self-signed, paste
 - **Security** — UFW Firewall, Fail2Ban, LogWatch (enable when wanted), SSH, LxGuard
 - **Log Manager** — application + log file pickers (includes LogWatch reports under `/var/log/logwatch/`)
+- **Visitor Stats** — Domain list icon / Domain Home (aggregator every 5 minutes)
 - **SQL Manager** — phpMyAdmin in a new tab
 - **SSH Terminal** — admin, in-browser, as root
+- **Webmail** — Roundcube (`install-roundcube` if the package was not wired yet)
 
 ## Operator CLI
 

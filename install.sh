@@ -11,6 +11,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
 #
 # Panel: https://<ip>:7777/  admin / admin
+# First login: Change Password, then Mail Setup (admin email + mail FQDN).
 # Panel CLI (pdo_sqlite): /opt/kloxo/init/php-cli.sh /opt/kloxo/bin/kloxocp …
 #
 # Pipe-safe: this script does `exec </dev/null` before apt so package tools never
@@ -28,15 +29,17 @@
 # imagemagick for File Manager Thumbnail, Exim + Dovecot + Rspamd on --profile=full
 # (SpamAssassin is not installed; Switch Program spam is none/rspamd only;
 # Postfix is not co-installed — Switch Program installs Postfix),
+# certbot packaged (Let's Encrypt from SSL Certificates; default SAN apex+www+webmail),
 # ufw packaged and enabled by default (panel ports allowed first),
 # fail2ban packaged and configured by install-fail2ban (nftables bans; jails for SSH,
 # panel, mail, FTP, web auth; the installer's SSH client is whitelisted),
 # logwatch packaged and prepared by install-logwatch (disabled until Security >
 # LogWatch; stock cron.daily muted; reports under /var/log/logwatch/),
-# webcache (8080) and webproxy (30080) as nginx frontends (install-webfront),
-# kloxo-backend (lxserver). --slave writes slave-db.db, installs site PHP,
-# and skips the panel UI.
-# Does not: Let's Encrypt, signed kloxocp apt repo, kloxo-mail apply, verified two-host add.
+# kloxo-stats.timer for Visitor Stats, webcache (8080) and webproxy (30080) as
+# nginx frontends (install-webfront), kloxo-backend (lxserver). --slave writes
+# slave-db.db, installs site PHP, and skips the panel UI.
+# Does not: auto-issue LE certs at install, signed kloxocp apt repo,
+# kloxo-mail apply, verified two-host add.
 set -euo pipefail
 LOG="/dev/null"
 KLOXO_INSTALL_T0="$(date +%s)"
@@ -47,7 +50,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111407"
+KCP_VERSION="10.1-2026111408"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -70,7 +73,9 @@ Kloxo CP ${KCP_VERSION} — Ubuntu 24.04 or 26.x
 
 No questions. Full stack by default (Exim + Dovecot + Rspamd; no SpamAssassin).
 LogWatch is installed but disabled until enabled under Security > LogWatch.
+certbot is packaged (Let's Encrypt from the panel). Visitor Stats timer is on.
 Panel: https://<server-ip>:7777/  (admin/admin)
+First login: Change Password, then Mail Setup (admin email + mail FQDN).
 
   sudo bash install.sh [--profile=full|core] [--yes] [--force]
   sudo bash install.sh --slave --slave-password=SECRET
@@ -225,7 +230,8 @@ print_access_box() {
   box "  Password : ${pass}"
   box ""
   box "Accept the self-signed certificate warning."
-  box "Change the password on the first login; the panel requires it."
+  box "First login requires Change Password, then Mail Setup"
+  box "(admin email + dotted mail-server hostname)."
   box ""
   box "If the page does not load, allow TCP 7777 (and 7778) in the firewall."
   box "Password file: /root/kloxo-admin-password (0600)."

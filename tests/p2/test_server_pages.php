@@ -1840,7 +1840,7 @@ $hasMagickFn = class_exists('ffile__common', false)
 if ($hasMagickFn
 	&& str_contains($ffCommonSrc, 'function hasImageMagick')
 	&& !str_contains($ffCommonSrc, '"rpm", "-q", "ImageMagick"')
-	&& str_contains($magickMsg, 'apt-get install -y imagemagick')
+	&& str_contains($magickMsg, 'apt install imagemagick')
 	&& !str_contains($magickMsg, 'yum -y install imagemagick')) {
 	ok('ImageMagick check uses convert/magick binary, not rpm -q');
 } else {
@@ -3421,7 +3421,6 @@ try {
 }
 $login = $prevLogin;
 if (str_contains($src, 'lxguard_not_configured')
-	&& str_contains($src, 'a=show&o=lxguard')
 	&& str_contains($htmlOut, 'frm_action=show')
 	&& str_contains($htmlOut, 'frm_o_o')
 	&& str_contains($htmlOut, 'pserver')

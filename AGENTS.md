@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111407. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111408. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -41,11 +41,14 @@ backend can; not an IP or short name like `srv`). Esc/Close cannot skip it
 mail setup on Ubuntu is UNVERIFIED. Simplicity Status toast auto-opens for
 alerts/info (`#div_cfstatus` and `print_inline_alert` share `.kloxo-toast`:
 top-centre, white, light shadow, typed icon info/success/warning/error;
-`kloxo-toast.js` hides after 15s). Status peek does not consume the message;
-content does not print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
+`kloxo-toast.js` hides after 15s). Toast text comes from `kloxo_toast_plain`
+(messagelib keys or humanized free text, HTML/links stripped, capped ~100 chars).
+Update/delete redirects use `updated_successfully` / `deleted_successfully` /
+`update_failed`. Status peek does not consume the message; content does not
+print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
 (`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026111407** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111408** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from

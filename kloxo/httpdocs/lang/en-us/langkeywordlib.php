@@ -198,7 +198,7 @@ $__keyword['upload_overwrite_warning'] = "WARNING: Existing file will be overwri
 
 $__keyword['panel_update_warning'] = "Update process including rpm (package) update and then run cleanup. This takes quite a long time";
 
-$__throw["domain_is_already_owned"] = "Domain is already owned. Please enable: [b]I Confirm That I Am The Owner Of Domain[/b]";
+$__throw["domain_is_already_owned"] = "Domain already owned. Confirm ownership to continue.";
 $__throw["invalid_domain_name"] = "Invalid domain name";
 $__throw["not_permit_as_subdomain"] = "Not permit webmail/mail/lists/cp/www/default as subdomain";
 $__throw["add_without_www"] = "Add without www";
@@ -270,10 +270,10 @@ $__throw["could_not_unsuspend_ufw_rule"] = "Could not unsuspend UFW rule";
 $__throw["invalid_ufw_action"] = "Invalid UFW action";
 $__throw["invalid_ufw_proto"] = "Invalid UFW protocol";
 $__throw["invalid_ufw_port"] = "Invalid UFW port";
-$__throw["invalid_fail2ban_time"] = "Invalid time: use seconds or a number with s, m, h, d or w (for example 10m or 1d); -1 only for Ban Time";
+$__throw["invalid_fail2ban_time"] = "Invalid time (use 10m, 1h, 1d, or -1).";
 $__throw["invalid_fail2ban_maxretry"] = "Max Retry must be a whole number from 1 to 9999";
 $__throw["invalid_fail2ban_ip"] = "Not a valid IPv4 or IPv6 address";
-$__throw["invalid_fail2ban_ignoreip"] = "Whitelist entries must be IPv4/IPv6 addresses or networks such as 192.0.2.0/24 (a /0 network is refused)";
+$__throw["invalid_fail2ban_ignoreip"] = "Whitelist must be IPv4/IPv6 or CIDR.";
 $__throw["invalid_fail2ban_jail"] = "Unknown Fail2Ban jail";
 $__throw["fail2ban_not_installed"] = "Fail2Ban is not installed on this server";
 $__throw["fail2ban_backend_failed"] = "Could not reach the Kloxo backend to run Fail2Ban";
@@ -291,7 +291,7 @@ $__throw["logwatch_no_sendmail"] = "sendmail is not available to email the LogWa
 $__throw["logwatch_mail_failed"] = "Could not email the last LogWatch report";
 $__throw["fail2ban_config_rejected"] = "Fail2Ban refused the new settings; the old ones are back in use";
 $__throw["fail2ban_reload_failed"] = "Fail2Ban could not reload; the old settings are back in use";
-$__throw["fail2ban_refuse_ban_protected"] = "That address is whitelisted, loopback or the one you are using, so it will not be banned";
+$__throw["fail2ban_refuse_ban_protected"] = "That address is protected and will not be banned.";
 $__throw["fail2ban_jail_not_running"] = "That jail is not running";
 $__throw["fail2ban_jail_unavailable"] = "That jail cannot run on this server";
 $__throw["fail2ban_ban_failed"] = "Fail2Ban could not ban the address";
@@ -330,8 +330,8 @@ $__throw["dir_exists_under_home_dir"] = "Dir exists under home dir";
 $__throw["sending_welcome_needs_contactemail"] = "Sending welcome needs contactemail";
 $__throw["contactemail_is_not_valid_email_address"] = "Contactemail is not valid email address";
 $__throw["mail_setup_placeholder_email"] = "Use a real inbox, not a documentation/placeholder address like example.com";
-$__throw["mail_setup_need_fqdn"] = "Mail server hostname must be a dotted FQDN (for example mail.yourdomain.com), not an IP or short name";
-$__throw["hostname_need_fqdn"] = "Hostname must be a dotted FQDN (for example server.yourdomain.com), not an IP or short name";
+$__throw["mail_setup_need_fqdn"] = "Mail hostname must be a dotted FQDN.";
+$__throw["hostname_need_fqdn"] = "Hostname must be a dotted FQDN.";
 $__throw["no_server_pool"] = "No server pool";
 $__throw["csr_sent_to_email"] = "CSR sent to email";
 $__throw["parent_doesnt_have_privileges"] = "Parent doesnt have privileges";
@@ -347,7 +347,7 @@ $__throw["no_template"] = "No template";
 $__throw["only_reseller_and_admin"] = "Only reseller and admin";
 $__throw["template_not_owner"] = "Template not owner";
 $__throw["could_not_change_admin_pass"] = "Could not change admin pass";
-$__throw["could_not_read_admin_db_pass"] = "Could not read the panel DB password (kloxo.pass missing or not readable by the PHP-FPM user)";
+$__throw["could_not_read_admin_db_pass"] = "Could not read the panel DB password.";
 
 $__throw["backup_server_is_not_configured"] = "Backup server is not configured";
 $__throw["backup_server_is_not_there"] = "Backup server is not there";
@@ -488,7 +488,7 @@ $__throw["other_install_process_still_running"] = "Other install process still r
 $__throw["install_process_running_in_background"] = "Install process running in background";
 $__throw["remove_process_running_in_background"] = "Remove process running in background";
 $__throw["php_already_in_used"] = "Already use by *PHP Used*";
-$__throw["php_switch_not_supported_on_ubuntu"] = "Multiple PHP install from this page is not supported on Ubuntu; run install-site-php or use Webserver Configure";
+$__throw["php_switch_not_supported_on_ubuntu"] = "Install extra PHP with Multiple PHP Install.";
 
 $__throw["no_options_selected"] = "No options selected";
 
@@ -557,7 +557,7 @@ $__throw["can_not_save_content"] = "Can not save content";
 $__throw["no_imagemagick"] = "No ImageMagick";
 $__throw["cannot_control_critical_service"] = "Cannot stop critical service";
 $__throw["rspamd_switch_program_only"] = "Rspamd can only be controlled in Switch Program";
-$__throw["cannot_disable_rspamd_while_mail_enabled"] = "Rspamd cannot be disabled while POP3/IMAP or SMTP is still enabled. This action is not possible: keep Rspamd for email server security, or disable both POP3/IMAP and SMTP together first.";
+$__throw["cannot_disable_rspamd_while_mail_enabled"] = "Turn off POP3/IMAP and SMTP before disabling Rspamd.";
 $__throw["spam_filter_switch_program_only"] = "Spam filtering is controlled only in Switch Program";
 $__throw["please_type_full_url_including_file_name"] = "Please type full url including file name";
 $__throw["file_exists"] = "File exists";
@@ -609,4 +609,4 @@ $__throw["program_is_already_updating"] = "Program is already updating";
 
 $__throw["need_a_or_aaa_record"] = "Need A or AAA record declared";
 
-$__throw["create_certificate_failed"] = "Create Certificate failed";
+$__throw["create_certificate_failed"] = "Create Certificate failed.";

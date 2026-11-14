@@ -155,12 +155,12 @@ else
 fi
 if grep -q 'function hasImageMagick' "$ROOT/kloxo/httpdocs/driver/pserver/ffile__commonlib.php" \
   && ! grep -q 'rpm.*-q.*ImageMagick\|"rpm", "-q", "ImageMagick"' "$ROOT/kloxo/httpdocs/driver/pserver/ffile__commonlib.php" \
-  && grep -q 'apt-get install -y imagemagick' "$ROOT/kloxo/httpdocs/lang/en-us/messagelib.php"; then
+  && grep -q 'apt install imagemagick' "$ROOT/kloxo/httpdocs/lang/en-us/messagelib.php"; then
   ok "File Manager ImageMagick check is Ubuntu-safe (not rpm -q)"
 else
   bad "File Manager ImageMagick check is Ubuntu-safe (not rpm -q)"
 fi
-if grep -q 'print_access_box' "$ROOT/install.sh" && grep -q 'Username' "$ROOT/install.sh" && grep -q 'first login' "$ROOT/install.sh"; then
+if grep -q 'print_access_box' "$ROOT/install.sh" && grep -q 'Username' "$ROOT/install.sh"   && grep -qi 'first login' "$ROOT/install.sh" && grep -q 'Mail Setup' "$ROOT/install.sh"; then
   ok "installer prints a login access box"
 else
   bad "installer prints a login access box"

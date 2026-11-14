@@ -97,11 +97,26 @@ if (str_contains($box, 'kloxo-inline-info') && str_contains($box, 'First add &lt
 }
 
 $src = (string)file_get_contents($doc . '/theme/coredisplaylib.php');
-if (preg_match('/catch \(lxInfoException \$e\) \{[^}]*print_inline_alert\([^;]*\'info\'\)/s', $src)
-	&& preg_match('/catch \(lxException \$e\) \{[^}]*do_updateform[^}]*\$e->getMessage\(\)/s', $src)) {
+if (str_contains($src, 'catch (lxInfoException $e)')
+	&& str_contains($src, 'contentNotice')
+	&& str_contains($src, "print_inline_alert(htmlspecialchars(\$contentNotice")
+	&& str_contains($src, "print_inline_alert(htmlspecialchars(\$contentError")) {
 	ok('show page prints notices as info messages and other lxException text as plain text');
 } else {
 	bad('show page prints notices as info messages and other lxException text as plain text');
+}
+
+
+$css = (string) file_get_contents($doc . '/theme/css/kloxo-toast.css');
+$js = (string) file_get_contents($doc . '/theme/js/kloxo-toast.js');
+if (str_contains($css, 'div.kloxo-toast.kloxo-inline-alert')
+	&& str_contains($css, 'position: relative')
+	&& str_contains($js, 'kloxo-inline-alert')
+	&& str_contains($src, 'contentNotice')
+	&& str_contains($src, 'printShowSelectBox')) {
+	ok('autoresponder notice is in-flow at top of content (not fixed Status toast)');
+} else {
+	bad('autoresponder notice is in-flow at top of content (not fixed Status toast)');
 }
 
 echo "$pass passed, $fail failed\n";

@@ -567,7 +567,7 @@ function __ac_desc_show($object)
 		} catch (Throwable $e) {
 			log_log("error", "do_updateform $k: " . $e->getMessage());
 			if (is_object($object) && method_exists($object, 'getClass') && $object->getClass() === 'phpini') {
-				$ghtml->print_inline_alert('The requested form could not be loaded.', 'error');
+				$ghtml->print_inline_alert('Form could not be loaded.', 'error');
 			}
 		}
 	}
@@ -1350,7 +1350,8 @@ function __ac_desc_delete($object)
 		}
 		$msg = is_array($desc) && isset($desc[2]) ? (string) $desc[2] : $cname;
 		$sep = str_contains($ret, '?') ? '&' : '?';
-		$gbl->__this_redirect = $ret . $sep . 'frm_smessage=' . rawurlencode($msg . ' successfully deleted.');
+		$gbl->__this_redirect = $ret . $sep . 'frm_smessage=deleted_successfully'
+			. '&frm_m_smessage_data=' . rawurlencode($msg);
 
 		if ($cname === 'domain' || $cname === 'client' || $cname === 'vps') {
 			$gbl->setSessionV('__refresh_lpanel', 'true');
@@ -1669,10 +1670,12 @@ function __ac_desc_Update($object)
 
 	if (!isset($gbl->__this_redirect)) {
 		if ($ret) {
-			$gbl->__this_redirect = get_return_url("update") . 
-				"&frm_smessage={$subaction}+successfully+updated+for+{$object->nname}";
+			$name = is_object($object) && isset($object->nname) ? (string) $object->nname : '';
+			$gbl->__this_redirect = get_return_url("update")
+				. '&frm_smessage=updated_successfully'
+				. ($name !== '' ? '&frm_m_smessage_data=' . rawurlencode($name) : '');
 		} else {
-			$gbl->__this_redirect = get_return_url("update");
+			$gbl->__this_redirect = get_return_url("update") . '&frm_emessage=update_failed';
 		}
 	}
 
@@ -1777,7 +1780,7 @@ function __ac_desc_UpdateForm($object)
 
 	if (!$object) {
 		$ghtml->print_content_begin();
-		$ghtml->print_inline_alert('The requested form could not be loaded.', 'error');
+		$ghtml->print_inline_alert('Form could not be loaded.', 'error');
 		$ghtml->print_content_end();
 
 		return;
@@ -1807,43 +1810,57 @@ function __ac_desc_UpdateForm($object)
 
 	$ghtml->print_message();
 
-	if ($selflist) {
-		$ghtml->printShowSelectBox($selflist);
-	}
-
 	$sublist = $object->getMultiUpload($subaction);
+	$formHtml = '';
+	$contentNotice = '';
+	$contentNoticeKind = 'info';
+	$contentError = '';
 
+	ob_start();
 	try {
 		if (is_array($sublist)) {
 			foreach ($sublist as $subaction) {
 				do_updateform($object, $subaction);
-?>
-
-			<br/> <br/> <br/>
-<?php
+				echo "\n<br/> <br/> <br/>\n";
 			}
 		} else {
 			do_updateform($object, $sublist);
 		}
+		$formHtml = (string) ob_get_clean();
 	} catch (lxInfoException $e) {
-		// A plain notice, not an error: show the text as an info message.
-		$msg = trim((string)$e->getMessage());
-		if ($msg !== '') {
-			$ghtml->print_inline_alert(htmlspecialchars($msg, ENT_QUOTES), 'info');
-		}
+		ob_end_clean();
+		// Plain notice (e.g. "First add some autoresponders"): show at the
+		// top of the content, above Switch To Another.
+		$contentNotice = trim((string) $e->getMessage());
+		$contentNoticeKind = 'info';
 	} catch (lxException $e) {
-		// A deliberate, user-readable refusal (for example "First add some
-		// autoresponders"): show it instead of the generic failure text.
+		ob_end_clean();
 		log_log("error", "do_updateform: " . $e->getMessage());
-		$msg = trim((string)$e->getMessage());
+		$msg = trim((string) $e->getMessage());
 		$val = (isset($e->value) && is_string($e->value)) ? trim($e->value) : '';
 		if ($msg === '') {
-			$msg = 'The requested form could not be loaded.';
+			$msg = 'Form could not be loaded.';
 		}
-		$ghtml->print_inline_alert(htmlspecialchars($msg . ($val !== '' ? ' ' . $val : ''), ENT_QUOTES), 'error');
+		$contentError = $msg . ($val !== '' ? ' ' . $val : '');
 	} catch (Throwable $e) {
+		ob_end_clean();
 		log_log("error", "do_updateform: " . $e->getMessage());
-		$ghtml->print_inline_alert('The requested form could not be loaded.', 'error');
+		$contentError = 'Form could not be loaded.';
+	}
+
+	if ($contentNotice !== '') {
+		$ghtml->print_inline_alert(htmlspecialchars($contentNotice, ENT_QUOTES), $contentNoticeKind);
+	}
+	if ($contentError !== '') {
+		$ghtml->print_inline_alert(htmlspecialchars($contentError, ENT_QUOTES), 'error');
+	}
+
+	if ($selflist) {
+		$ghtml->printShowSelectBox($selflist);
+	}
+
+	if ($formHtml !== '') {
+		echo $formHtml;
 	}
 
 	$ghtml->print_content_end();
@@ -3040,7 +3057,7 @@ function password_contact_check()
 			kloxo_force_modal_updateform($login, 'password', 'old_password_f');
 		} catch (Throwable $e) {
 			log_log("error", "password force form: " . $e->getMessage());
-			$ghtml->print_inline_alert('The password form could not be opened. Use Logout and sign in again.', 'error');
+			$ghtml->print_inline_alert('Password form unavailable. Sign out and try again.', 'error');
 		}
 ?>
 			</div>
@@ -3088,7 +3105,7 @@ function password_contact_check()
 		kloxo_force_modal_updateform($login, 'mailsetup', $ev);
 	} catch (Throwable $e) {
 		log_log('error', 'mail setup force form: ' . $e->getMessage());
-		$ghtml->print_inline_alert('The mail setup form could not be opened. Use Logout and sign in again.', 'error');
+		$ghtml->print_inline_alert('Mail setup form unavailable. Sign out and try again.', 'error');
 	}
 ?>
 			</div>
