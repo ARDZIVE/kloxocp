@@ -874,9 +874,9 @@ class SslCert extends Lxdb
 				$vlist['nname'] = $nname;
 				$vlist['ssl_data_b_s_key_bits_r'] = $keybits;
 
-				// Default: apex + www only. Extra names (webmail/mail/cp/stats) often
-				// lack DNS or follow redirects and make Let's Encrypt return 404.
-				$san = $d !== '' ? "{$d} www.{$d}" : '';
+				// Default: apex + www + webmail (mail/cp/stats stay off the list;
+				// they often lack DNS or share another vhost and fail HTTP-01).
+				$san = $d !== '' ? "{$d} www.{$d} webmail.{$d}" : '';
 
 				$parked = array();
 				try {

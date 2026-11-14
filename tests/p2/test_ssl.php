@@ -387,10 +387,11 @@ check(str_contains($domTpl, 'well-known/acme-challenge'), 'domains tpl mentions 
 check(str_contains($domTpl, 'request_uri !~* "^/\\.well-known/acme-challenge/"'),
 	'https redirect skips ACME');
 $sslSrc = (string) file_get_contents($repo . '/kloxo/httpdocs/driver/pserver/sslcertlib.php');
-check(str_contains($sslSrc, '"{$d} www.{$d}"') || str_contains($sslSrc, "{\$d} www.{\$d}"),
-	'default LE SAN is domain + www only');
+check(str_contains($sslSrc, '{$d} www.{$d} webmail.{$d}')
+	|| str_contains($sslSrc, "{\$d} www.{\$d} webmail.{\$d}"),
+	'default LE SAN is domain + www + webmail');
 check(!str_contains($sslSrc, 'webmail.{$d} mail.{$d}'),
-	'default LE SAN no longer forces webmail/mail');
+	'default LE SAN does not force mail with webmail');
 check(str_contains($sslSrc, 'getFullDocRoot'), 'createLetsencrypt passes docroot');
 $sslPhp = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/kloxo_ssl.php');
 check(str_contains($sslPhp, 'ensureAcmeNginxSnippet'), 'issueLetsEncrypt refreshes ACME snippet');
