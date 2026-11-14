@@ -742,32 +742,44 @@ try {
 $now = date('Y-m-d H:i:s');
 $eximAuth = $now . ' 1abc-0001-Xx <= user@mesrob.com H=1.2.3.4 [1.2.3.4] P=esmtpsa A=dovecot_plain:user@mesrob.com S=100';
 $eximLocal = $now . ' 1abc-0002-Xy <= form@mesrob.com U=www-data P=local S=80';
+$eximPanel = $now . ' 1abc-0002b-Xy <= hampig@mesrob.com U=lxlabs P=local S=80';
 $eximIn = $now . ' 1abc-0003-Xz <= spam@evil.test H=evil.test [9.9.9.9] P=esmtp S=200';
 $eximBounce = $now . ' 1abc-0004-Xa <= <> H=x [1.1.1.1] P=esmtp S=10';
+$eximBounceLocal = $now . ' 1abc-0004b-Xa <= <> R=1abc U=Debian-exim P=local S=10';
 $eximOut = $now . ' 1abc-0001-Xx => dest@example.com R=dnslookup T=remote_smtp';
 $eximSys = $now . ' 1abc-0005-Xb <= lxlabs@srv U=lxlabs P=local S=20';
 $eximRoot = $now . ' 1abc-0006-Xc <= root@srv U=root P=local S=20';
+$eximWatch = $now . ' 1abc-0007-Xd <= admin@mail.mesrob.com U=root P=local S=496';
+$eximLogw = $now . ' 1abc-0008-Xe <= logwatch@mail.mesrob.com U=root P=local S=100';
 $pf = date('M j H:i:s') . ' host postfix/qmgr[1]: 1: from=<alice@mesrob.com>, size=10, nrcpt=1 (queue active)';
 $old = '2001-01-01 00:00:00 1old <= old@mesrob.com U=www-data P=local S=10';
 if (clientmail::lineSender($eximAuth) === 'user@mesrob.com'
 	&& clientmail::lineSender($eximLocal) === 'form@mesrob.com'
+	&& clientmail::lineSender($eximPanel) === 'hampig@mesrob.com'
 	&& clientmail::lineSender($eximIn) === ''
 	&& clientmail::lineSender($eximBounce) === ''
+	&& clientmail::lineSender($eximBounceLocal) === ''
 	&& clientmail::lineSender($eximOut) === ''
 	&& clientmail::lineSender($eximSys) === ''
 	&& clientmail::lineSender($eximRoot) === ''
+	&& clientmail::lineSender($eximWatch) === ''
+	&& clientmail::lineSender($eximLogw) === ''
 	&& clientmail::lineSender($pf) === 'alice@mesrob.com'
 	&& clientmail::isClientAddress('lxlabs@srv') === false
 	&& clientmail::isClientAddress('root@srv') === false
-	&& clientmail::isClientAddress('user@mesrob.com') === true) {
+	&& clientmail::isClientAddress('logwatch@mail.mesrob.com') === false
+	&& clientmail::isClientAddress('user@mesrob.com') === true
+	&& clientmail::isLocalClientSubmit($eximLocal) === true
+	&& clientmail::isLocalClientSubmit($eximWatch) === false) {
 	ok('Mails Per Client counts real mailboxes, not Unix-user@hostname');
 } else {
 	bad('Mails Per Client counts real mailboxes, not Unix-user@hostname',
-		clientmail::lineSender($eximAuth) . '|' . clientmail::lineSender($eximSys) . '|' . clientmail::lineSender($eximRoot));
+		clientmail::lineSender($eximAuth) . '|' . clientmail::lineSender($eximWatch) . '|' . clientmail::lineSender($eximLogw));
 }
 
 $tmpLog = $root . '/../tests/p2/clientmail-test.log';
-file_put_contents($tmpLog, $eximAuth . "\n" . $eximLocal . "\n" . $eximAuth . "\n" . $eximIn . "\n" . $eximSys . "\n" . $eximRoot . "\n" . $old . "\n");
+file_put_contents($tmpLog, $eximAuth . "\n" . $eximLocal . "\n" . $eximAuth . "\n" . $eximIn . "\n"
+	. $eximSys . "\n" . $eximRoot . "\n" . $eximWatch . "\n" . $eximLogw . "\n" . $eximPanel . "\n" . $old . "\n");
 $prevLog = clientmail::$logFile;
 clientmail::$logFile = $tmpLog;
 $rows = clientmail::readtotallog();
@@ -776,10 +788,13 @@ clientmail::$logFile = $prevLog;
 if (is_array($rows)
 	&& isset($rows['user@mesrob.com']['mailnum']) && (int) $rows['user@mesrob.com']['mailnum'] === 2
 	&& isset($rows['form@mesrob.com']['mailnum']) && (int) $rows['form@mesrob.com']['mailnum'] === 1
+	&& isset($rows['hampig@mesrob.com']['mailnum']) && (int) $rows['hampig@mesrob.com']['mailnum'] === 1
 	&& !isset($rows['spam@evil.test'])
 	&& !isset($rows['old@mesrob.com'])
 	&& !isset($rows['lxlabs@srv'])
-	&& !isset($rows['root@srv'])) {
+	&& !isset($rows['root@srv'])
+	&& !isset($rows['admin@mail.mesrob.com'])
+	&& !isset($rows['logwatch@mail.mesrob.com'])) {
 	ok('Mails Per Client aggregates the last two days from Exim mainlog');
 } else {
 	bad('Mails Per Client aggregates the last two days from Exim mainlog', var_export($rows, true));

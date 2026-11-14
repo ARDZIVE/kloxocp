@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111408**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111409**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -694,10 +694,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Mails Per Client (`clientmail` under pserver) shows Switch To
     Another for sibling servers; the list reads that server's logs
     (`/var/log/exim4/mainlog`, then `mail.log` / `maillog`). Counts Exim
-    SMTP-auth (`A=dovecot_plain:user@domain`) and local (`P=local`)
-    submissions plus Postfix `from=<>` in the last two days, not inbound
-    or bounces. Only real `user@domain.tld` rows (not `lxlabs@srv` /
-    `root@srv`). Live Mails Per Client after deploy is **UNVERIFIED**.
+    SMTP-auth (`A=dovecot_plain:user@domain`) and local form/panel injects
+    (`P=local` with `U=www-data` or `U=lxlabs`) plus Postfix `from=<>` in
+    the last two days, not inbound, bounces, or system cron/`U=root`
+    (LogWatch, watchdog). Only real `user@domain.tld` rows (not
+    `lxlabs@srv` / `root@srv` / `logwatch@…`). Live check on mesrob.com
+    dropped admin@/logwatch@ system rows; remaining mailbox counts are
+    **UNVERIFIED** against a full send audit.
     Auxiliary Login (`auxiliary`, always `name.aux`; a customer's staff
     is `client_staff.aux`) signs in as the parent client with
     `$login->__auxiliary_object` set. Action log and the session store
@@ -1123,7 +1126,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111408**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111409**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

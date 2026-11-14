@@ -185,11 +185,15 @@ class clientmail extends lxclass {
 		if (!is_string($s) || $s === '') {
 			return '';
 		}
+		// SMTP AUTH (Exim): A=dovecot_plain:user@domain — prefer the auth id.
 		if (preg_match('/\sA=[A-Za-z0-9_]+:(\S+)/', $s, $m) === 1) {
 			return self::cleanId($m[1]);
 		}
-		if (preg_match('/\s<=\s+(\S+)/', $s, $m) === 1
-			&& (strpos($s, ' P=local') !== false || preg_match('/\sU=[A-Za-z0-9._-]+/', $s) === 1)) {
+		// Local inject (Exim): web forms / panel PHP (U=www-data|lxlabs).
+		// Skip root/Debian-exim/cron (LogWatch, watchdog, bounce wrappers).
+		if (strpos($s, ' P=local') !== false
+			&& preg_match('/\s<=\s+(\S+)/', $s, $m) === 1
+			&& self::isLocalClientSubmit($s)) {
 			return self::cleanId($m[1]);
 		}
 		if (preg_match('/postfix\/(?:qmgr|cleanup).*from=<([^>]+)>/', $s) === 1) {
@@ -212,6 +216,30 @@ class clientmail extends lxclass {
 		}
 
 		return '';
+	}
+
+	/**
+	 * True when a P=local line is a customer/form submission, not system mail.
+	 * U=www-data (PHP mail()), U=lxlabs (panel tools) count; root/Debian-exim do not.
+	 */
+	static function isLocalClientSubmit($s)
+	{
+		if (!is_string($s) || $s === '' || strpos($s, ' P=local') === false) {
+			return false;
+		}
+		if (preg_match('/\sU=([A-Za-z0-9._-]+)/', $s, $m) !== 1) {
+			return false;
+		}
+		$u = strtolower($m[1]);
+		static $systemUnix = array(
+			'root', 'debian-exim', 'postfix', 'mail', 'daemon', 'nobody', 'bin', 'sys',
+			'messagebus', 'systemd-network', 'ubuntu', 'exim',
+		);
+		if (in_array($u, $systemUnix, true)) {
+			return false;
+		}
+
+		return true;
 	}
 
 	static function cleanId($id)
@@ -244,6 +272,7 @@ class clientmail extends lxclass {
 		static $system = array(
 			'root', 'lxlabs', 'www-data', 'debian-exim', 'mail', 'postfix', 'nobody',
 			'daemon', 'bin', 'sys', 'ubuntu', 'messagebus', 'systemd-network', 'exim',
+			'logwatch', 'mailer-daemon', 'mailnull',
 		);
 		if (in_array($local, $system, true)) {
 			return false;
