@@ -264,6 +264,12 @@ if [ -f "$ROOT/kloxo/file/apache/tpl/domains.conf.tpl" ] && [ -f "$ROOT/kloxo/fi
 else
   bad "apache site templates present"
 fi
+# Apache 2.4: bare ServerAlias * steals Host matching from named domain vhosts (403 on empty default).
+if ! grep -nE '^\s*ServerAlias\s+\*' "$ROOT/kloxo/file/apache/tpl/defaults.conf.tpl" >/dev/null 2>&1; then
+  ok "apache defaults catch-all has no ServerAlias *"
+else
+  bad "apache defaults catch-all has no ServerAlias *"
+fi
 
 echo
 echo "$PASS passed, $FAIL failed"

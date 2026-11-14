@@ -240,6 +240,11 @@ if php "$HERE/test_nginx_ubuntu_prepare.php"; then
 else
   bad "test_nginx_ubuntu_prepare.php"
 fi
+if php "$HERE/test_apache_defaults.php"; then
+  ok "test_apache_defaults.php"
+else
+  bad "test_apache_defaults.php"
+fi
 if php "$HERE/test_phpfpm.php"; then
   ok "test_phpfpm.php"
 else

@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111326. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111401. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -45,14 +45,21 @@ top-centre, white, light shadow, typed icon info/success/warning/error;
 content does not print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
 (`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026111326** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111401** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
 starting it; a re-run of `install.sh` leaves an enabled Knot/Apache alone). Details in the Knot DNS note below.
 Web default is Nginx (`pg_web=nginx`); Apache is packaged and prepared
 (`install-apache`, PHP-FPM via proxy_fcgi, no mod_php) but `apache2` stays
-disabled until selected. Admin SQL Manager opens phpMyAdmin in a new tab
+disabled until selected. Apache catch-all (`file/apache/tpl/defaults.conf.tpl`)
+must not use `ServerAlias *`: on Apache 2.4 that wildcard steals every Host
+from named domain vhosts so sites hit the empty `/home/kloxo/httpd/default`
+and return 403 (`Options -Indexes`); unknown Hosts still use the first-listed
+vhost. Live mesrob.com after Switch Program → Apache was fixed by removing that
+alias and seeding a default `index.html` (`tests/p2/test_apache_defaults.php`,
+`tests/p1` invariant); a re-run of fixweb before `upcp` can rewrite `init.conf`
+from an old template copy under `/opt/configs/apache/tpl`. Admin SQL Manager opens phpMyAdmin in a new tab
 (`/thirdparty/phpMyAdmin/kloxo-signon.php`, `target="_blank"`): a live
 panel-admin session is signed in as MariaDB `kloxo_pma`@`127.0.0.1` (not `root`: root@localhost is unix_socket, error 1698 over TCP) and
 redirected; otherwise the MySQL logon form is shown (panel admin may

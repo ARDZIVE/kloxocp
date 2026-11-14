@@ -1,9 +1,16 @@
 <?php
 /**
  * Catch-all Apache vhost. Does not overwrite /etc/apache2/apache2.conf.
+ *
+ * Do not use ServerAlias *: on Apache 2.4 a bare "*" matches every Host and
+ * steals traffic from named domain vhosts (sites then hit this empty
+ * DocumentRoot and return 403 with Options -Indexes). Unknown Hosts still
+ * fall through to this first-listed VirtualHost.
  */
 
-$defaultdocroot = '/home/kloxo/httpd/default';
+if (!isset($defaultdocroot) || $defaultdocroot === '') {
+	$defaultdocroot = '/home/kloxo/httpd/default';
+}
 $indexorder = isset($indexorder) && $indexorder ? (is_array($indexorder) ? implode(' ', $indexorder) : $indexorder) : 'index.php index.html';
 $httpPort = 80;
 $httpsPort = 443;
@@ -19,6 +26,10 @@ if (!is_dir($defaultdocroot)) {
 	@mkdir($defaultdocroot, 0755, true);
 }
 @mkdir($defaultdocroot . '/.well-known/acme-challenge', 0755, true);
+$defaultIndex = $defaultdocroot . '/index.html';
+if (!is_file($defaultIndex)) {
+	@file_put_contents($defaultIndex, "<!doctype html><html><body><h1>Kloxo CP</h1><p>Default site.</p></body></html>\n");
+}
 
 $certbase = '/home/kloxo/ssl/default';
 if (!empty($certnamelist) && is_array($certnamelist)) {
@@ -33,7 +44,6 @@ if (!empty($certnamelist) && is_array($certnamelist)) {
 
 <VirtualHost <?=$bind;?>:<?=$httpPort;?>>
 	ServerName _
-	ServerAlias *
 	DocumentRoot "<?=$defaultdocroot;?>"
 	<Directory "<?=$defaultdocroot;?>">
 		Options -Indexes +FollowSymLinks
@@ -48,7 +58,6 @@ if (!empty($certnamelist) && is_array($certnamelist)) {
 ?>
 <VirtualHost <?=$bind;?>:<?=$httpsPort;?>>
 	ServerName _
-	ServerAlias *
 	SSLEngine on
 	SSLCertificateFile <?=$certfile;?>
 
