@@ -228,7 +228,11 @@ password/quota changes, and test cross-talk through shared DB accounts.
   must be tested on a real VM.**
 * Not tested: outbound delivery to external servers, greylisting, ClamAV, fail2ban rules in action,
   load and performance, backups and restores.
-* Not implemented: per-domain TLS certificates (SNI), Roundcube webmail, autoresponders (Sieve
+* Roundcube webmail: `install-roundcube` / `KloxoRoundcube` (Ubuntu apt, docroot
+  `/home/kloxo/httpd/webmail/roundcube`, IMAP/SMTP to local Dovecot/Exim). Prefer
+  PHP 8.3 FPM for the shared sock (Roundcube 1.6 polyfills clash with PHP 8.5+
+  `array_first`). Live login against a real mailbox still needs a per-site check.
+* Not implemented: per-domain TLS certificates (SNI), autoresponders (Sieve
   vacation via ManageSieve is available but not wired to the UI), mailing lists, mail traffic
   statistics, qmail data import, DNS auto-publishing, MTA-STS / TLS-RPT / DANE, AlmaLinux support.
 * The legacy panel drivers are not connected yet (section 6). Mail Queue can list/delete via
