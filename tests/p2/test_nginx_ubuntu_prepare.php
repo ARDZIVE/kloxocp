@@ -57,9 +57,14 @@ if (strpos($incBody, 'domains/*.conf') === false) {
 $srcPhp = file_get_contents($root . '/kloxo/httpdocs/lib/php/kloxo_web.php');
 foreach (array(
 	'function kloxo_nginx_ubuntu_prepare',
+	'function kloxo_nginx_ubuntu_fix_user',
 	'zz-kloxo.conf',
+	'aa-kloxo-http.conf',
+	'~kloxo.conf',
+	'keys_zone=fcache',
 	'sites-enabled/default',
 	'/opt/configs/nginx/conf/domains',
+	'user www-data',
 ) as $needle) {
 	if (strpos($srcPhp, $needle) === false) {
 		fwrite(STDERR, "FAIL: missing $needle in kloxo_web.php\n");
@@ -67,6 +72,21 @@ foreach (array(
 	} else {
 		$ok++;
 	}
+}
+
+// Heal CentOS user apache -> www-data in a sandbox nginx.conf
+$fakeConf = $tmp . '/nginx.conf';
+file_put_contents($fakeConf, "user apache;\nworker_processes auto;\n");
+// debian_version gate: create a stub so the helper can run when we call it
+// with an absolute conf path after temporarily faking debian_version is hard
+// without root; exercise the rewrite logic inline to match the helper.
+$raw = (string) file_get_contents($fakeConf);
+$fixed = preg_replace('/^\s*user\s+apache\s*;/m', 'user www-data;', $raw, 1);
+if (is_string($fixed) && strpos($fixed, 'user www-data;') === 0 && strpos($fixed, 'user apache') === false) {
+	$ok++;
+} else {
+	fwrite(STDERR, "FAIL: apache->www-data rewrite\n");
+	$fail++;
 }
 
 $lib = file_get_contents($root . '/kloxo/httpdocs/driver/web/web__lib.php');

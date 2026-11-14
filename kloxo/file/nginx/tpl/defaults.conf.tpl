@@ -83,6 +83,17 @@ if ($is_debian) {
 			@unlink($def);
 		}
 	}
+	// Heal a leftover CentOS "user apache;" in distro nginx.conf (nginx will not start).
+	$ngxMain = "{$trgtconfpath}/nginx.conf";
+	if (is_readable($ngxMain) && is_writable($ngxMain)) {
+		$ngxRaw = (string)@file_get_contents($ngxMain);
+		if ($ngxRaw !== '' && preg_match('/^\s*user\s+apache\s*;/m', $ngxRaw)) {
+			$ngxFixed = preg_replace('/^\s*user\s+apache\s*;/m', 'user www-data;', $ngxRaw, 1);
+			if (is_string($ngxFixed) && $ngxFixed !== $ngxRaw) {
+				@file_put_contents($ngxMain, $ngxFixed);
+			}
+		}
+	}
 } else {
 	$confs = array('nginx.conf', 'mime.types', 'fastcgi_params');
 	foreach ($confs as $k => $v) {
