@@ -118,8 +118,10 @@ if [ -n "$mbox_line" ] && [ -n "$catch_line" ] && [ "$mbox_line" -lt "$catch_lin
 else
   bad "catch-all router after mailbox"
 fi
-check "Dovecot LMTP owned by Exim" grep -q 'unix_listener /run/dovecot/lmtp' "$T/out/etc/dovecot/dovecot.conf"
-check "Dovecot SASL owned by Exim" grep -q 'unix_listener /run/dovecot/auth-client' "$T/out/etc/dovecot/dovecot.conf"
+# 2.3 uses absolute /run/dovecot/...; 2.4 uses base_dir-relative names (absolute
+# paths duplicate the default listeners and make doveconf fatal on Ubuntu 26).
+check "Dovecot LMTP owned by Exim" grep -qE 'unix_listener (/run/dovecot/)?lmtp' "$T/out/etc/dovecot/dovecot.conf"
+check "Dovecot SASL owned by Exim" grep -qE 'unix_listener (/run/dovecot/)?auth-client' "$T/out/etc/dovecot/dovecot.conf"
 
 echo "== Exim: SQL lookups (same queries as the routers/ACLs)"
 eq "domain exists"                 "$(qdom example.com)" "1"

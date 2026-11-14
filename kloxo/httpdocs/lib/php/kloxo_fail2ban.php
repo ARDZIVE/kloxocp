@@ -102,7 +102,10 @@ final class KloxoFail2ban
                 'group' => 'Server access', 'title' => 'SSH logins',
                 'desc' => 'Wrong passwords and unknown users on SSH (brute force).',
                 'stock' => true, 'filter' => 'sshd', 'ports' => 'ssh',
-                'journal' => '_COMM=sshd', 'needs' => ['ssh', 'sshd'], 'default' => true,
+                // Ubuntu 24.04+/OpenSSH 9.8+: per-connection helper is sshd-session
+                // (journal _COMM); keep _COMM=sshd for older hosts. Same-field
+                // matches are OR'd by journalctl.
+                'journal' => '_COMM=sshd _COMM=sshd-session', 'needs' => ['ssh', 'sshd'], 'default' => true,
             ],
             'recidive' => [
                 'group' => 'Server access', 'title' => 'Repeat offenders',

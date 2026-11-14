@@ -101,7 +101,7 @@ if (count($a) === 2 && $a[0] === 'status') {
 	$j = $a[1];
 	if (!in_array($j, $st['jails'], true)) { fwrite(STDERR, "Sorry but the jail '$j' does not exist"); exit(255); }
 	$b = $st['banned'][$j] ?? [];
-	echo "Status for the jail: $j\n|- Filter\n|  |- Currently failed:\t2\n|  |- Total failed:\t11\n|  `- Journal matches:\t_COMM=sshd\n"
+	echo "Status for the jail: $j\n|- Filter\n|  |- Currently failed:\t2\n|  |- Total failed:\t11\n|  `- Journal matches:\t_COMM=sshd _COMM=sshd-session\n"
 		. "`- Actions\n   |- Currently banned:\t" . count($b) . "\n   |- Total banned:\t" . (count($b) + 3) . "\n   `- Banned IP list:\t" . implode(' ', $b) . "\n";
 	exit(0);
 }
@@ -231,7 +231,7 @@ $running = [];
 $text = KloxoFail2ban::render($cfg, $skipped, $running);
 check(str_contains($text, "[DEFAULT]\nignoreip = 127.0.0.1/8 ::1 198.51.100.7\nbantime = 1h\nfindtime = 10m\nmaxretry = 5\nbanaction = nftables\nbanaction_allports = nftables[type=allports]"),
 	'render: defaults, whitelist and nftables ban action');
-check(str_contains($text, "[sshd]\nenabled = true\nfilter = sshd\nport = 22\nbackend = systemd\njournalmatch = _COMM=sshd\n")
+check(str_contains($text, "[sshd]\nenabled = true\nfilter = sshd\nport = 22\nbackend = systemd\njournalmatch = _COMM=sshd _COMM=sshd-session\n")
 	&& str_contains($text, "[recidive]\nenabled = true\nfilter = recidive\nbanaction = %(banaction_allports)s\nlogpath = /var/log/fail2ban.log\nbackend = auto\nmaxretry = 3\nfindtime = 1d\nbantime = 1w")
 	&& str_contains($text, 'logpath = /var/log/exim4/mainlog')
 	&& str_contains($text, "logpath = /var/log/nginx/error.log\n          /home/httpd/*/stats/*-error_log")
@@ -450,7 +450,7 @@ check(str_contains($rp, "KloxoAuthLog::failed('kloxo-recovery'"), 'recovery logi
 $ins = (string) file_get_contents($repo . '/install.sh');
 check(str_contains($ins, 'fail2ban python3-systemd nftables') && str_contains($ins, 'prepare_fail2ban()')
 	&& substr_count($ins, "\nprepare_fail2ban\n") === 1 && str_contains($ins, "installer_client_ip"), 'install.sh installs and configures Fail2Ban (master and slave)');
-check(str_contains($ins, '  prepare_fail2ban' . "\n" . '  host=') , 'install.sh: slave path configures Fail2Ban too');
+check(str_contains($ins, "  prepare_fail2ban\n  prepare_logwatch\n  host=") , 'install.sh: slave path configures Fail2Ban too');
 $wd = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/kloxo_watchdog.php');
 check(str_contains($wd, "'fail2ban' => ['units' => ['fail2ban']"), 'watchdog keeps Fail2Ban running');
 symlink($repo . '/kloxo/httpdocs', $root . '/httpdocs');

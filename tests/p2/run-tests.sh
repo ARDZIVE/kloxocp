@@ -978,7 +978,9 @@ if test -f "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
   && ! grep -q 'inet_listener {' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
   && grep -q 'quota_storage_grace = 10M' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
   && ! grep -q 'quota_storage_grace = 10%' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
-  && grep -q 'passdb sql' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf"; then
+  && grep -q 'passdb sql' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
+  && grep -q 'unix_listener auth-client' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf" \
+  && ! grep -q 'unix_listener /run/dovecot/auth-client' "$ROOT/kloxo/file/mail/dovecot/dovecot24.conf"; then
   ok "Dovecot 2.4 template and series picker exist for Ubuntu 26.x"
 else
   bad "Dovecot 2.4 template and series picker exist for Ubuntu 26.x"
