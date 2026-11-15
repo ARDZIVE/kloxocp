@@ -21,8 +21,19 @@ final class KloxoSitepreview
 	/** @var callable|null fn(string $url, array $headers): array{code:int,body:string,ctype:string,headers:array<string,string>} */
 	public static $httpGet = null;
 
-	/** Ports to try on loopback (site :80, webcache back :8081, cache :8080). */
-	public static array $loopbackPorts = array(80, 8081, 8080);
+	/**
+	 * Ports to try on loopback. Null = derive from Switch Program web/webcache
+	 * (site :80, webcache back :8081, cache :8080).
+	 *
+	 * @var list<int>|null
+	 */
+	public static ?array $loopbackPorts = null;
+
+	/** Override Switch Program web driver for tests: nginx|apache|null=auto. */
+	public static ?string $webDriver = null;
+
+	/** Override Switch Program webcache driver for tests: none|nginx|null=auto. */
+	public static ?string $webcacheDriver = null;
 
 	public static function isDomainName(string $domain): bool
 	{
@@ -236,6 +247,123 @@ final class KloxoSitepreview
 		return $html;
 	}
 
+	/** Switch Program web driver (nginx|apache). */
+	public static function activeWebDriver(): string
+	{
+		if (self::$webDriver === 'nginx' || self::$webDriver === 'apache') {
+			return self::$webDriver;
+		}
+		$d = self::switchDrivers();
+		$w = strtolower((string) ($d['web'] ?? 'nginx'));
+
+		return $w === 'apache' ? 'apache' : 'nginx';
+	}
+
+	/** Switch Program webcache driver (none|nginx). */
+	public static function activeWebcacheDriver(): string
+	{
+		if (self::$webcacheDriver === 'nginx' || self::$webcacheDriver === 'none') {
+			return self::$webcacheDriver;
+		}
+		$d = self::switchDrivers();
+		$w = strtolower((string) ($d['webcache'] ?? 'none'));
+
+		return $w === 'nginx' ? 'nginx' : 'none';
+	}
+
+	/**
+	 * @return array<string,string>
+	 */
+	public static function switchDrivers(): array
+	{
+		$root = '';
+		if (function_exists('kloxo_program_root')) {
+			$r = kloxo_program_root();
+			$root = is_string($r) ? $r : '';
+		}
+		if ($root === '') {
+			$root = dirname(__DIR__, 3);
+		}
+		if (class_exists('KloxoWatchdog', false)) {
+			return KloxoWatchdog::drivers($root);
+		}
+		$file = rtrim($root, '/') . '/etc/slavedb/driver';
+		if (!is_file($file)) {
+			return array();
+		}
+		$raw = @file_get_contents($file);
+		$o = is_string($raw) && $raw !== ''
+			? @unserialize($raw, array('allowed_classes' => false)) : false;
+		$a = is_object($o) ? (array) $o : (is_array($o) ? $o : array());
+		$data = $a['data'] ?? array();
+		$out = array();
+		if (is_array($data)) {
+			foreach ($data as $k => $v) {
+				if (is_string($k) && is_string($v) && preg_match('/^[a-z0-9-]+$/', $v) === 1) {
+					$out[$k] = $v;
+				}
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Port order for the active web stack. Prefer the site back-end (8081)
+	 * when a front webcache owns :80, so preview does not hit a leftover
+	 * Apache default page still bound to 80.
+	 *
+	 * @return list<int>
+	 */
+	public static function previewPorts(): array
+	{
+		if (self::$loopbackPorts !== null) {
+			return self::$loopbackPorts;
+		}
+		$web = self::activeWebDriver();
+		$cache = self::activeWebcacheDriver();
+		if ($cache === 'nginx') {
+			// Cache/front on 80/443; real site server on 8081.
+			return array(8081, 80, 8080);
+		}
+		// Prefer :80 for the selected stack; keep fallbacks if a leftover
+		// unit still answers first with the wrong Server header.
+		if ($web === 'apache') {
+			return array(80, 8081, 8080);
+		}
+
+		return array(80, 8081, 8080);
+	}
+
+	/**
+	 * True when the response is clearly from the other web stack (e.g. Apache
+	 * Ubuntu default page while Switch Program web is nginx).
+	 *
+	 * @param array{code?:int,body?:string,ctype?:string,headers?:array<string,string>} $got
+	 */
+	public static function isWrongStackResponse(string $webDriver, array $got): bool
+	{
+		$server = strtolower((string) (($got['headers']['server'] ?? '')));
+		$body = (string) ($got['body'] ?? '');
+		if ($webDriver === 'nginx') {
+			if ($server !== '' && str_contains($server, 'apache')) {
+				return true;
+			}
+			if (stripos($body, 'Apache2 Ubuntu Default Page') !== false
+				|| stripos($body, 'Apache2 Debian Default Page') !== false
+				|| stripos($body, 'Apache HTTP Server Test Page') !== false) {
+				return true;
+			}
+		}
+		if ($webDriver === 'apache') {
+			if ($server !== '' && str_contains($server, 'nginx') && !str_contains($server, 'apache')) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	/**
 	 * @return array{code:int,body:string,ctype:string}
 	 */
@@ -263,8 +391,10 @@ final class KloxoSitepreview
 			'User-Agent: KloxoCP-Sitepreview/1',
 			'Connection: close',
 		);
+		$web = self::activeWebDriver();
 		$last = array('code' => 502, 'body' => '', 'ctype' => 'text/plain; charset=UTF-8');
-		foreach (self::$loopbackPorts as $port) {
+		$wrong = null;
+		foreach (self::previewPorts() as $port) {
 			$port = (int) $port;
 			if ($port < 1 || $port > 65535) {
 				continue;
@@ -289,6 +419,11 @@ final class KloxoSitepreview
 					$got2 = self::httpGet($url2, $headers);
 					$code2 = (int) ($got2['code'] ?? 0);
 					if ($code2 > 0 && $code2 < 500) {
+						if (self::isWrongStackResponse($web, $got2)) {
+							$wrong = $got2;
+							continue;
+						}
+
 						return array(
 							'code' => $code2,
 							'body' => (string) ($got2['body'] ?? ''),
@@ -298,10 +433,31 @@ final class KloxoSitepreview
 				}
 			}
 
+			if (self::isWrongStackResponse($web, $got)) {
+				$wrong = $got;
+				continue;
+			}
+
 			return array(
 				'code' => $code,
 				'body' => (string) ($got['body'] ?? ''),
 				'ctype' => (string) ($got['ctype'] ?? self::contentTypeForPath($path)),
+			);
+		}
+
+		// Only the wrong stack answered (e.g. Apache default on :80 while
+		// Switch Program is nginx and nothing else listened). Surface that
+		// clearly instead of the foreign default page.
+		if (is_array($wrong) && $web === 'nginx') {
+			return array(
+				'code' => 502,
+				'body' => '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview</title></head><body>'
+					. '<p>DNSless Preview reached an <b>Apache</b> default page on loopback, '
+					. 'but Switch Program Web is <b>Nginx</b>.</p>'
+					. '<p>Stop leftover Apache (<code>systemctl disable --now apache2</code>) '
+					. 'or ensure Nginx is listening on port 80 / 8081 for this domain.</p>'
+					. '</body></html>',
+				'ctype' => 'text/html; charset=UTF-8',
 			);
 		}
 

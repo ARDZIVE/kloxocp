@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111520**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111521**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -676,10 +676,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     **DNSless Preview** (`dnvview_f` → `/sitepreview/<domain>/`, Hiawatha
     404 → `theme/lbin/sitepreview.php`) was rewritten as `KloxoSitepreview`:
     requires panel login + owning client (or admin), fetches `127.0.0.1`
-    with `Host: domain` on ports 80/8081/8080 (no `/etc/hosts`), rewrites
-    HTML links under `/sitepreview/`, no `hn_urlrewrite` / SQL string concat
-    of unvalidated names. `tests/p2/test_sitepreview.php` (12 checks, fake
-    HTTP). Live preview on Ubuntu after deploy is **UNVERIFIED**.
+    with `Host: domain` (no `/etc/hosts`), prefers Switch Program web/webcache
+    ports (skips leftover Apache default page when web is nginx; webcache front
+    tries 8081 first), rewrites HTML under `/sitepreview/`. No `hn_urlrewrite`.
+    `tests/p2/test_sitepreview.php` (fake HTTP). Live preview on Ubuntu after
+    deploy is **UNVERIFIED**.
     Live client Domains after deploy is **UNVERIFIED**.
     SQL Manager tile is admin-only (pserver Basic; not home Domain or domain
     show). Clients open SQL Manager from a database row as that
@@ -1188,7 +1189,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111520**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111521**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

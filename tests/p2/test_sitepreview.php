@@ -91,6 +91,8 @@ check(str_contains($out, 'href="/sitepreview/example.com/about"')
 	'rewriteHtml maps domain and root-relative URLs under /sitepreview/');
 
 echo "== fetch via Host header (fake HTTP)\n";
+KloxoSitepreview::$webDriver = 'nginx';
+KloxoSitepreview::$webcacheDriver = 'none';
 KloxoSitepreview::$loopbackPorts = array(80);
 $seen = array();
 KloxoSitepreview::$httpGet = static function (string $url, array $headers) use (&$seen): array {
@@ -106,7 +108,7 @@ KloxoSitepreview::$httpGet = static function (string $url, array $headers) use (
 			'code' => 200,
 			'body' => '<a href="/hi">x</a>',
 			'ctype' => 'text/html',
-			'headers' => array('content-type' => 'text/html'),
+			'headers' => array('content-type' => 'text/html', 'server' => 'nginx'),
 		);
 	}
 	if (str_contains($url, ':8081/')) {
@@ -139,7 +141,7 @@ KloxoSitepreview::$httpGet = static function (string $url, array $headers): arra
 			'code' => 200,
 			'body' => 'ok-here',
 			'ctype' => 'text/plain',
-			'headers' => array('content-type' => 'text/plain'),
+			'headers' => array('content-type' => 'text/plain', 'server' => 'nginx'),
 		);
 	}
 
@@ -149,6 +151,50 @@ KloxoSitepreview::$loopbackPorts = array(80, 8081);
 $got2 = KloxoSitepreview::fetch('example.com', '/gone');
 check(($got2['code'] ?? 0) === 200 && ($got2['body'] ?? '') === 'ok-here',
 	'fetch falls back to :8081 and follows same-domain redirect');
+
+KloxoSitepreview::$webDriver = 'nginx';
+KloxoSitepreview::$loopbackPorts = array(80, 8081);
+KloxoSitepreview::$httpGet = static function (string $url, array $headers): array {
+	if (str_contains($url, ':80/')) {
+		return array(
+			'code' => 200,
+			'body' => '<html><title>Apache2 Ubuntu Default Page</title><body>It works!</body></html>',
+			'ctype' => 'text/html',
+			'headers' => array('content-type' => 'text/html', 'server' => 'Apache/2.4.58 (Ubuntu)'),
+		);
+	}
+	if (str_contains($url, ':8081/')) {
+		return array(
+			'code' => 200,
+			'body' => '<html><a href="/site">nginx site</a></html>',
+			'ctype' => 'text/html',
+			'headers' => array('content-type' => 'text/html', 'server' => 'nginx'),
+		);
+	}
+
+	return array('code' => 0, 'body' => '', 'ctype' => '', 'headers' => array());
+};
+$got3 = KloxoSitepreview::fetch('example.com', '/');
+check(($got3['code'] ?? 0) === 200
+	&& str_contains((string) ($got3['body'] ?? ''), 'nginx site')
+	&& !str_contains((string) ($got3['body'] ?? ''), 'Apache2 Ubuntu Default Page'),
+	'fetch skips Apache default page when web driver is nginx');
+
+check(KloxoSitepreview::isWrongStackResponse('nginx', array(
+		'body' => 'Apache2 Ubuntu Default Page',
+		'headers' => array('server' => 'Apache/2.4'),
+	))
+	&& !KloxoSitepreview::isWrongStackResponse('nginx', array(
+		'body' => 'hello',
+		'headers' => array('server' => 'nginx'),
+	)),
+	'isWrongStackResponse detects Apache while expecting nginx');
+
+KloxoSitepreview::$loopbackPorts = null;
+KloxoSitepreview::$webcacheDriver = 'nginx';
+KloxoSitepreview::$webDriver = 'nginx';
+check(KloxoSitepreview::previewPorts() === array(8081, 80, 8080),
+	'webcache front prefers site back-end port 8081');
 
 check(KloxoSitepreview::redirectTarget('example.com', '/x') === '/x'
 	&& KloxoSitepreview::redirectTarget('example.com', 'http://example.com/y') === '/y'
@@ -176,7 +222,9 @@ check(str_contains($lib, '/sitepreview/[%s]')
 
 KloxoSitepreview::$httpGet = null;
 KloxoSitepreview::$resolveDomain = null;
-KloxoSitepreview::$loopbackPorts = array(80, 8081, 8080);
+KloxoSitepreview::$loopbackPorts = null;
+KloxoSitepreview::$webDriver = null;
+KloxoSitepreview::$webcacheDriver = null;
 
 echo "\n{$ok} ok, {$fail} fail\n";
 exit($fail > 0 ? 1 : 0);
