@@ -276,10 +276,16 @@ class Client extends ClientBase
 				$ilist[$login->getKeywordUc('info_defaultdomain')] = "_lxinurl:{$url}:{$defdom}:";
 			}
 
+			// Last Login IP / Current Login IP / Last Login Time — always show
+			// (even when utmp is empty or this is the first session).
 			try {
 				$this->getLastLogin($ilist);
 			} catch (Throwable $e) {
 				log_log("error", "getLastLogin: " . $e->getMessage());
+				$ilist['Last Login IP'] = '—';
+				$ilist['Current Login IP'] = function_exists('getRemoteIp')
+					? (string) getRemoteIp() : (string) ($_SERVER['REMOTE_ADDR'] ?? '—');
+				$ilist['Last Login Time'] = '—';
 			}
 
 			$skin = $this->getSpecialObject('sp_specialplay')->skin_name;

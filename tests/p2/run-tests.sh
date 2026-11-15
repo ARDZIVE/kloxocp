@@ -135,6 +135,11 @@ if php "$HERE/test_login_session.php"; then
 else
   bad "test_login_session.php"
 fi
+if php "$HERE/test_login_info.php"; then
+  ok "test_login_info.php"
+else
+  bad "test_login_info.php"
+fi
 if php "$HERE/test_empty_list.php"; then
   ok "test_empty_list.php"
 else

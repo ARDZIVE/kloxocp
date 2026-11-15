@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111523**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111524**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -447,8 +447,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     beige `{Admin Home}` header; `#mmm` is transparent, `.div_content`
     fills to the bottom of the viewport (`min-height: calc(100vh - 80px)`), and the
     Kloxo logo sits on the right of the screen (`position: fixed; right: 10px`).
-    getLastLogin writes Last Login IP (if a previous session exists),
-    then Current Login IP, then Last Login Time. The Kloxo logo is
+    getLastLogin always writes Last Login IP, Current Login IP, and
+    Last Login Time (`buildLoginInfoRows`; previous utmp row when
+    present, otherwise `—`; `tests/p2/test_login_info.php`). Live
+    Information box after deploy is UNVERIFIED. The Kloxo logo is
     inside `#mmm` (not `z-index:-9999`). The first-login password
     gate is a required `#kloxo-password-force` modal that contains
     the warning and the change-password form. Esc and Close do not
@@ -1189,7 +1191,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111523**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111524**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

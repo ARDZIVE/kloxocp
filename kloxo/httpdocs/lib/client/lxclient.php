@@ -995,25 +995,114 @@ abstract class Lxclient extends Lxdb
 
 	function getLastLogin(&$ilist)
 	{
-		$url = "a=list&c=utmp";
-		$res = null;
+		// Always include Last Login IP / Current Login IP / Last Login Time
+		// (placeholders when this is the first session — no previous utmp row).
+		$currentIp = function_exists('getRemoteIp')
+			? (string) getRemoteIp()
+			: (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+		$labels = array(
+			'last_ip' => (string) $this->getKeywordUc('info_lastloginip'),
+			'cur_ip' => (string) $this->getKeywordUc('info_currentloginip'),
+			'last_time' => (string) $this->getKeywordUc('info_lastlogintime'),
+		);
+		$built = self::buildLoginInfoRows($currentIp, array($this, 'fetchUtmpLoginRows'), $labels);
+		foreach ($built as $k => $v) {
+			$ilist[$k] = $v;
+		}
+	}
+
+	/**
+	 * Load the two newest utmp rows for this account (current + previous).
+	 *
+	 * @return list<array<string,mixed>>
+	 */
+	function fetchUtmpLoginRows()
+	{
+		$cl = (string) $this->getClName();
+		$cl = str_replace(array("'", '\\', "\0"), '', $cl);
+		if ($cl === '' || !class_exists('Sqlite', false)) {
+			return array();
+		}
 		try {
 			$sq = new Sqlite(null, 'utmp');
-			$res = $sq->rawQuery("select * from utmp where parent_clname = '{$this->getClName()}' order by (logintime + 0) DESC limit 2");
+			$res = $sq->rawQuery(
+				"select ip_address, logintime from utmp where parent_clname = '{$cl}' "
+				. "order by cast(logintime as integer) DESC limit 2"
+			);
+			if (!is_array($res)) {
+				$res = $sq->rawQuery(
+					"select ip_address, logintime from utmp where parent_clname = '{$cl}' "
+					. "order by (logintime + 0) DESC limit 2"
+				);
+			}
+			if (!is_array($res)) {
+				return array();
+			}
+
+			return array_values($res);
 		} catch (Throwable $e) {
-			log_log("error", "getLastLogin: " . $e->getMessage());
+			log_log('error', 'getLastLogin: ' . $e->getMessage());
+
+			return array();
+		}
+	}
+
+	/**
+	 * Always emit Last Login IP / Current Login IP / Last Login Time for the
+	 * Information box (even on the first login, when there is no previous utmp).
+	 *
+	 * @param callable|null $fetchRows fn(): list<array{ip_address?:string,logintime?:string|int}>
+	 * @param array{last_ip?:string,cur_ip?:string,last_time?:string}|null $labels
+	 * @return array<string,string>
+	 */
+	static function buildLoginInfoRows(string $currentIp, $fetchRows = null, $labels = null)
+	{
+		$url = 'a=list&c=utmp';
+		$labelLastIp = (is_array($labels) && !empty($labels['last_ip']))
+			? (string) $labels['last_ip'] : 'Last Login IP';
+		$labelCurIp = (is_array($labels) && !empty($labels['cur_ip']))
+			? (string) $labels['cur_ip'] : 'Current Login IP';
+		$labelLastTime = (is_array($labels) && !empty($labels['last_time']))
+			? (string) $labels['last_time'] : 'Last Login Time';
+
+		$lastIp = '—';
+		$lastTime = '—';
+		$res = array();
+		if (is_callable($fetchRows)) {
+			try {
+				$got = $fetchRows();
+				if (is_array($got)) {
+					$res = array_values($got);
+				}
+			} catch (Throwable $e) {
+				$res = array();
+			}
 		}
 
-		if (is_array($res) && isset($res[1]['ip_address'])) {
-			$ilist[$this->getKeywordUc('info_lastloginip')] = "_lxinurl:$url:{$res[1]['ip_address']}:";
+		// res[0] = current session, res[1] = previous login (if any).
+		if (isset($res[1]) && is_array($res[1])) {
+			$prevIp = isset($res[1]['ip_address']) ? trim((string) $res[1]['ip_address']) : '';
+			if ($prevIp !== '') {
+				// Strip characters that would break _lxinurl:url:value: parsing.
+				$safeIp = str_replace(array(':', ' '), '', $prevIp);
+				$lastIp = "_lxinurl:{$url}:{$safeIp}:";
+			}
+			$ts = isset($res[1]['logintime']) ? $res[1]['logintime'] : '';
+			if (is_numeric($ts) && (int) $ts > 0) {
+				$date = date('Y-m-d H.i.s', (int) $ts);
+				$lastTime = "_lxinurl:{$url}:{$date}:";
+			}
 		}
 
-		$ilist[$this->getKeywordUc('info_currentloginip')] = getRemoteIp();
-
-		if (is_array($res) && isset($res[1]['logintime'])) {
-			$date = @ date('Y-m-d H.i.s', $res[1]['logintime']);
-			$ilist[$this->getKeywordUc('info_lastlogintime')] = "_lxinurl:$url:$date:";
+		if ($currentIp === '') {
+			$currentIp = '—';
 		}
+
+		return array(
+			$labelLastIp => $lastIp,
+			$labelCurIp => $currentIp,
+			$labelLastTime => $lastTime,
+		);
 	}
 
 	function updatechange_plan($param)
