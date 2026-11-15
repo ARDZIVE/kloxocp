@@ -1,7 +1,7 @@
 # Kloxo CP
 
 Hosting control panel for **Ubuntu 24.04** (PHP 8.3) and **Ubuntu 26.x** (PHP 8.5).
-GNU AGPLv3. Version **10.1-2026111514**.
+GNU AGPLv3. Version **10.1-2026111515**.
 
 https://github.com/ARDZIVE/kloxocp.git
 
@@ -14,7 +14,7 @@ hardened it and verified the install on your own host.
 |---|---|---|
 | Sites | Nginx + PHP-FPM | Apache 2.4 + PHP-FPM (`proxy_fcgi`) |
 | Site PHP | Newest installed `phpX.Y-fpm` | Extra versions from [Sury](https://packages.sury.org/php/) |
-| Panel UI | Hiawatha 12.4 (ports 7777 / 7778) | — |
+| Panel UI | Hiawatha 12.4 (ports 7777 / 7778) | Large panel uploads (up to **5 GB**) via build patch |
 | Panel PHP | Distro PHP with `pdo_sqlite` (pinned in `etc/path/php`) | — |
 | DNS | BIND 9 | Knot DNS |
 | Mail | Exim + Dovecot + Rspamd | Postfix (replaces Exim); spam is Rspamd only |
@@ -40,12 +40,13 @@ Do not install on a machine that already runs another control panel.
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 ```
 
-That is the whole install. No questions, no hostname quiz, no service picker.
-Full stack by default (Nginx, MariaDB, Exim, Dovecot, **Rspamd**, BIND, Pure-FTPd,
-UFW, Fail2Ban, **certbot**, **LogWatch**, Visitor Stats timer). LogWatch is
-packaged and prepared but **not enabled** — turn it on under Security → LogWatch
-when you want scheduled reports (also listed in Log Manager → LogWatch).
-SpamAssassin is not installed. Progress prints as `[1/8] … [8/8]`.
+That is the whole install. `get` downloads `install.sh` from the same branch and
+runs it (pipe-safe: apt never reads the curl pipe). No questions, no hostname
+quiz, no service picker. Full stack by default (Nginx, MariaDB, Exim, Dovecot,
+**Rspamd**, BIND, Pure-FTPd, UFW, Fail2Ban, **certbot**, **LogWatch**, Visitor
+Stats timer). LogWatch is packaged and prepared but **not enabled** — turn it on
+under Security → LogWatch when you want scheduled reports. SpamAssassin is not
+installed. Progress prints as `[1/8] … [8/8]`.
 Log: `/var/log/kloxo-install.log`.
 
 | Flag | Use |
@@ -59,10 +60,10 @@ Log: `/var/log/kloxo-install.log`.
 Pass flags after `bash -s --`:
 
 ```bash
-# Full stack: Exim + Dovecot + Rspamd; LogWatch installed but disabled (same as no flags)
+# Full stack (same as no flags)
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
 
-# Same, explicit profile
+# Explicit full profile
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=full
 
 # Panel + sites only (no Exim / Dovecot / Rspamd packages)
@@ -70,6 +71,9 @@ curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bas
 
 # Wipe previous panel install, then reinstall (keeps sites, mail, UFW, apt packages)
 curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
+
+# Slave backend (no panel UI)
+curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --slave --slave-password='SECRET'
 ```
 
 `--fresh` removes the program, panel SQLite, panel MariaDB accounts and saved
@@ -78,6 +82,10 @@ UFW rules and apt packages are kept.
 
 To install this working tree instead of GitHub `main`, copy it to the server
 and run `sudo bash get` (or `sudo bash install.sh`) from that directory.
+
+Optional environment overrides: `KLOXO_GIT_URL`, `KLOXO_GIT_BRANCH`,
+`KLOXO_ADMIN_PASSWORD`, `KLOXO_GIT_TOKEN` (private fork), `KLOXO_GET_URL`
+(alternate `install.sh` URL for `get`).
 
 ### First login
 
@@ -110,17 +118,18 @@ password printed at install and saved in `/root/kloxo-recovery-password`.
 cPanel-style update with automatic rollback (preferred):
 
 ```bash
-kloxocp upcp
+sudo kloxocp upcp
 # same as:
-kloxocp update
+sudo kloxocp update
 # or:
-sh /script/upcp
+sudo sh /script/upcp
 ```
 
 Flow: pre-flight → snapshot → sync from the git clone (`/usr/local/src/kloxo-cp`)
-→ health check. If the health check fails, the snapshot is restored automatically.
-Log: `/var/log/kloxo-update.log`. Useful flags: `--check` (plan only), `--no-fetch`,
-`--no-rollback`, `--src=DIR`.
+→ health check → ensure certbot / Hiawatha large-upload patch when needed →
+restart panel units. If the health check fails, the snapshot is restored
+automatically. Log: `/var/log/kloxo-update.log`. Useful flags: `--check`
+(plan only), `--no-fetch`, `--no-rollback`, `--src=DIR`.
 
 You can still re-run the install one-liner (keeps the admin password unless
 `KLOXO_ADMIN_PASSWORD` is set). Signed apt packages are not published yet.
@@ -130,7 +139,10 @@ You can still re-run the install one-liner (keeps the admin password unless
 - **Webserver Configure** — default PHP, extra `phpX.Y` install/remove
 - **Switch Program** — Nginx/Apache, BIND/Knot, Exim/Postfix, Dovecot, Rspamd (spam; enable/disable only here)
 - **SSL Certificates** — Let's Encrypt (default names: domain, www, webmail), self-signed, paste
-- **Security** — UFW Firewall, Fail2Ban, LogWatch (enable when wanted), SSH, LxGuard
+- **Security** — UFW Firewall, Fail2Ban (jails, ban list, **Whitelist IPs**), LogWatch, SSH, LxGuard
+- **Backup / Restore** — Backup Now, Restore From File, File Manager, Upload (browser up to **5 GB**).
+  Archives live under `/home/kloxo/client/<name>/__backup/` (admin:
+  `/home/kloxo/client/admin/__backup/`). Each client has its own folder.
 - **Log Manager** — application + log file pickers (includes LogWatch reports under `/var/log/logwatch/`)
 - **Visitor Stats** — Domain list icon / Domain Home (aggregator every 5 minutes)
 - **SQL Manager** — phpMyAdmin in a new tab
