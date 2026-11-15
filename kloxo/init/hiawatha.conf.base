@@ -87,8 +87,9 @@ Binding {
 	MaxKeepAlive = 3600
 	# 4h: 5GB backup uploads on a slow link; stock was 3600.
 	TimeForRequest = 14400
-	# Panel builds apply 12.4-large-upload: POST spill-to-disk + 64-bit
+	# Panel builds apply 12.4-large-upload-v2: POST spill-to-disk + 64-bit
 	# Content-Length. MaxUploadSize is MB (patched ceiling 10240).
+	# v1 wrongly returned HTTP 400 on every POST (endptr after restoring CR).
 	MaxRequestSize = 5242880
 	MaxUploadSize = 5120
 }

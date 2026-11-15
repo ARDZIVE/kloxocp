@@ -25,18 +25,22 @@
  
  					if (store_on_disk) {
  	 					if ((session->uploaded_file = (char*)malloc(session->config->upload_directory_len + 15)) != NULL) {
-@@ -234,13 +238,19 @@
+@@ -234,13 +238,22 @@
  						 */
  						strstart += 16;
  						if ((strend = strstr(strstart, "\r\n")) != NULL) {
 +							char *endptr = NULL;
++							int cl_bad;
  							*strend = '\0';
 -							content_length = str_to_int(strstart);
-+							/* Kloxo CP: 64-bit Content-Length (stock used str_to_int / INT_MAX ~2GB). */
++							/* Kloxo CP: 64-bit Content-Length (stock used str_to_int / INT_MAX ~2GB).
++							 * Validate endptr while the value is still NUL-terminated; restoring
++							 * '\r' first made *endptr == '\r' and every POST returned 400. */
 +							content_length = strtoll(strstart, &endptr, 10);
++							cl_bad = (endptr == strstart) || (*endptr != '\0') || (content_length < 0);
  							*strend = '\r';
 -							if ((content_length < 0) || (INT_MAX - content_length - 2 <= header_length)) {
-+							if ((endptr == strstart) || ((endptr != NULL) && (*endptr != '\0')) || (content_length < 0)) {
++							if (cl_bad) {
  								result = 400;
  								break;
  							}

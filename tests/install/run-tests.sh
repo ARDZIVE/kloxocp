@@ -407,10 +407,11 @@ if grep -q '^BanOnMaxReqSize = 0' "$ROOT/kloxo/init/hiawatha.conf.base" \
 else
   bad "Hiawatha/PHP panel upload limit is 5120M (5GB)"
 fi
-if grep -q 'HIAWATHA_PATCH_ID="12.4-large-upload-v1"' "$HIA" \
+if grep -q 'HIAWATHA_PATCH_ID="12.4-large-upload-v2"' "$HIA" \
   && [[ -f "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch" ]] \
   && grep -q 'strtoll' "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch" \
   && grep -q 'request_method == POST' "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch" \
+  && grep -q 'cl_bad' "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch" \
   && grep -q 'MAX_UPLOAD_SIZE       10240' "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch"; then
   ok "install-hiawatha applies 12.4-large-upload patch for 5GB POSTs"
 else

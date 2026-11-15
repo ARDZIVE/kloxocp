@@ -15,7 +15,7 @@ HIAWATHA_SHA256="c80f87b5f9f04520b57af96ac52905198f96de38c3b7d988abc0f758cdd46d2
 HIAWATHA_URL="https://hiawatha.leisink.net/files/download/${HIAWATHA_TARBALL}"
 HIAWATHA_URL_FALLBACK="https://gitlab.com/hsleisink/hiawatha/-/archive/v${HIAWATHA_VERSION}/hiawatha-v${HIAWATHA_VERSION}.tar.gz"
 # Source patch: 64-bit Content-Length, POST spill to disk, MaxUploadSize up to 10GB.
-HIAWATHA_PATCH_ID="12.4-large-upload-v1"
+HIAWATHA_PATCH_ID="12.4-large-upload-v2"
 HIAWATHA_PATCH_NAME="12.4-large-upload.patch"
 
 ROOT="${KLOXO_ROOT:-/opt/kloxo}"

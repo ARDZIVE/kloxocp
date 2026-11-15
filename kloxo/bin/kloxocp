@@ -73,7 +73,7 @@ declare(strict_types=1);
 	}
 })();
 
-const KCP_VERSION = '10.1-2026111510';
+const KCP_VERSION = '10.1-2026111511';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -1416,7 +1416,7 @@ TXT;
     {
         $script = $this->root . '/bin/install/install-hiawatha';
         $stamp = $this->root . '/init/.kloxo-hiawatha-patch';
-        $patchId = '12.4-large-upload-v1';
+        $patchId = '12.4-large-upload-v2';
         if (!is_file($script)) {
             return ['ok' => false, 'detail' => 'install-hiawatha missing'];
         }
