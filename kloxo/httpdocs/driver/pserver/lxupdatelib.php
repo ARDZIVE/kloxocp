@@ -114,7 +114,7 @@ class Lxupdate extends lxClass
 			$upversion = getInstalledVersion();
 		}
 
-		return ($upversion !== '') ? $upversion : '10.1-2026111521';
+		return ($upversion !== '') ? $upversion : '10.1-2026111522';
 	}
 
 	static function initThisObject($parent, $class, $name = null)

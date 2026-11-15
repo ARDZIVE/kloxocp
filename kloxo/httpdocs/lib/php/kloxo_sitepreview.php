@@ -22,12 +22,20 @@ final class KloxoSitepreview
 	public static $httpGet = null;
 
 	/**
-	 * Ports to try on loopback. Null = derive from Switch Program web/webcache
+	 * Ports to try. Null = derive from Switch Program web/webcache
 	 * (site :80, webcache back :8081, cache :8080).
 	 *
 	 * @var list<int>|null
 	 */
 	public static ?array $loopbackPorts = null;
+
+	/**
+	 * IPs to try. Null = 127.0.0.1 then global IPv4s (Apache often binds only
+	 * 127.0.0.1:80 while Nginx listens on the public address).
+	 *
+	 * @var list<string>|null
+	 */
+	public static ?array $previewIps = null;
 
 	/** Override Switch Program web driver for tests: nginx|apache|null=auto. */
 	public static ?string $webDriver = null;
@@ -336,6 +344,68 @@ final class KloxoSitepreview
 	}
 
 	/**
+	 * Addresses to fetch. Loopback first, then global IPv4s — a leftover
+	 * Apache `Listen 127.0.0.1:80` otherwise shadows Nginx on the public IP.
+	 *
+	 * @return list<string>
+	 */
+	public static function previewAddresses(): array
+	{
+		if (self::$previewIps !== null) {
+			return self::$previewIps;
+		}
+		$out = array('127.0.0.1');
+		foreach (self::globalIpv4Addresses() as $ip) {
+			if ($ip !== '' && $ip !== '127.0.0.1' && !in_array($ip, $out, true)) {
+				$out[] = $ip;
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	public static function globalIpv4Addresses(): array
+	{
+		$out = array();
+		$bin = is_executable('/usr/bin/ip') ? '/usr/bin/ip'
+			: (is_executable('/sbin/ip') ? '/sbin/ip' : '');
+		if ($bin === '') {
+			return $out;
+		}
+		$argv = array($bin, '-4', '-o', 'addr', 'show', 'scope', 'global');
+		$spec = array(
+			0 => array('file', '/dev/null', 'r'),
+			1 => array('pipe', 'w'),
+			2 => array('pipe', 'w'),
+		);
+		$p = @proc_open($argv, $spec, $pipes);
+		if (!is_resource($p)) {
+			return $out;
+		}
+		$raw = (string) stream_get_contents($pipes[1]);
+		stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		proc_close($p);
+		foreach (preg_split("/\r\n|\n|\r/", $raw) ?: array() as $line) {
+			if (preg_match('/\binet\s+(\d{1,3}(?:\.\d{1,3}){3})\b/', $line, $m) !== 1) {
+				continue;
+			}
+			$ip = $m[1];
+			if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
+				&& !str_starts_with($ip, '127.')
+				&& !str_starts_with($ip, '169.254.')) {
+				$out[] = $ip;
+			}
+		}
+
+		return array_values(array_unique($out));
+	}
+
+	/**
 	 * True when the response is clearly from the other web stack (e.g. Apache
 	 * Ubuntu default page while Switch Program web is nginx).
 	 *
@@ -394,68 +464,87 @@ final class KloxoSitepreview
 		$web = self::activeWebDriver();
 		$last = array('code' => 502, 'body' => '', 'ctype' => 'text/plain; charset=UTF-8');
 		$wrong = null;
-		foreach (self::previewPorts() as $port) {
-			$port = (int) $port;
-			if ($port < 1 || $port > 65535) {
+		$tried = array();
+		foreach (self::previewAddresses() as $ip) {
+			if (!is_string($ip) || $ip === '' || str_contains($ip, ':')) {
+				// IPv4 only for simple http://IP:port URLs.
 				continue;
 			}
-			$url = 'http://127.0.0.1:' . $port . $suffix;
-			$got = self::httpGet($url, $headers);
-			$code = (int) ($got['code'] ?? 0);
-			if ($code === 0 || $code === 502 || $code === 503 || $code === 504) {
-				$last = array(
-					'code' => $code > 0 ? $code : 502,
-					'body' => (string) ($got['body'] ?? ''),
-					'ctype' => (string) ($got['ctype'] ?? 'text/plain; charset=UTF-8'),
-				);
+			if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
 				continue;
 			}
-			// Follow one local redirect that stays on this domain / loopback.
-			if (in_array($code, array(301, 302, 303, 307, 308), true)) {
-				$loc = (string) ($got['headers']['location'] ?? '');
-				$next = self::redirectTarget($domain, $loc);
-				if ($next !== null) {
-					$url2 = 'http://127.0.0.1:' . $port . $next;
-					$got2 = self::httpGet($url2, $headers);
-					$code2 = (int) ($got2['code'] ?? 0);
-					if ($code2 > 0 && $code2 < 500) {
-						if (self::isWrongStackResponse($web, $got2)) {
-							$wrong = $got2;
-							continue;
-						}
+			foreach (self::previewPorts() as $port) {
+				$port = (int) $port;
+				if ($port < 1 || $port > 65535) {
+					continue;
+				}
+				$tried[] = "{$ip}:{$port}";
+				$url = 'http://' . $ip . ':' . $port . $suffix;
+				$got = self::httpGet($url, $headers);
+				$code = (int) ($got['code'] ?? 0);
+				if ($code === 0 || $code === 502 || $code === 503 || $code === 504) {
+					$last = array(
+						'code' => $code > 0 ? $code : 502,
+						'body' => (string) ($got['body'] ?? ''),
+						'ctype' => (string) ($got['ctype'] ?? 'text/plain; charset=UTF-8'),
+					);
+					continue;
+				}
+				// Follow one local redirect that stays on this domain.
+				if (in_array($code, array(301, 302, 303, 307, 308), true)) {
+					$loc = (string) ($got['headers']['location'] ?? '');
+					$next = self::redirectTarget($domain, $loc);
+					if ($next !== null) {
+						$url2 = 'http://' . $ip . ':' . $port . $next;
+						$got2 = self::httpGet($url2, $headers);
+						$code2 = (int) ($got2['code'] ?? 0);
+						if ($code2 > 0 && $code2 < 500) {
+							if (self::isWrongStackResponse($web, $got2)) {
+								$wrong = $got2;
+								continue;
+							}
 
-						return array(
-							'code' => $code2,
-							'body' => (string) ($got2['body'] ?? ''),
-							'ctype' => (string) ($got2['ctype'] ?? self::contentTypeForPath($next)),
-						);
+							return array(
+								'code' => $code2,
+								'body' => (string) ($got2['body'] ?? ''),
+								'ctype' => (string) ($got2['ctype'] ?? self::contentTypeForPath($next)),
+							);
+						}
 					}
 				}
-			}
 
-			if (self::isWrongStackResponse($web, $got)) {
-				$wrong = $got;
-				continue;
-			}
+				if (self::isWrongStackResponse($web, $got)) {
+					$wrong = $got;
+					continue;
+				}
 
-			return array(
-				'code' => $code,
-				'body' => (string) ($got['body'] ?? ''),
-				'ctype' => (string) ($got['ctype'] ?? self::contentTypeForPath($path)),
-			);
+				return array(
+					'code' => $code,
+					'body' => (string) ($got['body'] ?? ''),
+					'ctype' => (string) ($got['ctype'] ?? self::contentTypeForPath($path)),
+				);
+			}
 		}
 
-		// Only the wrong stack answered (e.g. Apache default on :80 while
-		// Switch Program is nginx and nothing else listened). Surface that
-		// clearly instead of the foreign default page.
+		// Only the wrong stack answered (e.g. Apache on 127.0.0.1:80 while
+		// Nginx listens on the public IP — or Apache still owns *:80).
 		if (is_array($wrong) && $web === 'nginx') {
+			$triedTxt = htmlspecialchars(implode(', ', array_slice($tried, 0, 12)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
 			return array(
 				'code' => 502,
-				'body' => '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview</title></head><body>'
-					. '<p>DNSless Preview reached an <b>Apache</b> default page on loopback, '
+				'body' => '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview</title></head><body style="font:14px/1.4 system-ui,sans-serif;max-width:40rem;margin:2rem">'
+					. '<p>DNSless Preview only reached an <b>Apache</b> default page, '
 					. 'but Switch Program Web is <b>Nginx</b>.</p>'
-					. '<p>Stop leftover Apache (<code>systemctl disable --now apache2</code>) '
-					. 'or ensure Nginx is listening on port 80 / 8081 for this domain.</p>'
+					. '<p>Usual cause: leftover <code>apache2</code> still bound to port 80 '
+					. '(sometimes only on <code>127.0.0.1</code>), so preview never hits Nginx.</p>'
+					. '<p>On the server run:</p>'
+					. '<pre style="background:#f4f4f4;padding:0.75rem;overflow:auto">'
+					. "sudo systemctl disable --now apache2\n"
+					. "sudo systemctl enable --now nginx\n"
+					. "sudo ss -lptn 'sport = :80'</pre>"
+					. '<p>Confirm <code>ss</code> shows <b>nginx</b> on :80 (not apache2), then retry Preview.</p>'
+					. '<p style="color:#666;font-size:12px">Tried: ' . $triedTxt . '</p>'
 					. '</body></html>',
 				'ctype' => 'text/html; charset=UTF-8',
 			);

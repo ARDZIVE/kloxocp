@@ -93,6 +93,7 @@ check(str_contains($out, 'href="/sitepreview/example.com/about"')
 echo "== fetch via Host header (fake HTTP)\n";
 KloxoSitepreview::$webDriver = 'nginx';
 KloxoSitepreview::$webcacheDriver = 'none';
+KloxoSitepreview::$previewIps = array('127.0.0.1');
 KloxoSitepreview::$loopbackPorts = array(80);
 $seen = array();
 KloxoSitepreview::$httpGet = static function (string $url, array $headers) use (&$seen): array {
@@ -153,9 +154,10 @@ check(($got2['code'] ?? 0) === 200 && ($got2['body'] ?? '') === 'ok-here',
 	'fetch falls back to :8081 and follows same-domain redirect');
 
 KloxoSitepreview::$webDriver = 'nginx';
+KloxoSitepreview::$previewIps = array('127.0.0.1');
 KloxoSitepreview::$loopbackPorts = array(80, 8081);
 KloxoSitepreview::$httpGet = static function (string $url, array $headers): array {
-	if (str_contains($url, ':80/')) {
+	if (str_contains($url, '127.0.0.1:80/')) {
 		return array(
 			'code' => 200,
 			'body' => '<html><title>Apache2 Ubuntu Default Page</title><body>It works!</body></html>',
@@ -163,7 +165,7 @@ KloxoSitepreview::$httpGet = static function (string $url, array $headers): arra
 			'headers' => array('content-type' => 'text/html', 'server' => 'Apache/2.4.58 (Ubuntu)'),
 		);
 	}
-	if (str_contains($url, ':8081/')) {
+	if (str_contains($url, '127.0.0.1:8081/')) {
 		return array(
 			'code' => 200,
 			'body' => '<html><a href="/site">nginx site</a></html>',
@@ -179,6 +181,34 @@ check(($got3['code'] ?? 0) === 200
 	&& str_contains((string) ($got3['body'] ?? ''), 'nginx site')
 	&& !str_contains((string) ($got3['body'] ?? ''), 'Apache2 Ubuntu Default Page'),
 	'fetch skips Apache default page when web driver is nginx');
+
+// Apache only on loopback; Nginx on the public address (common Listen split).
+KloxoSitepreview::$previewIps = array('127.0.0.1', '203.0.113.10');
+KloxoSitepreview::$loopbackPorts = array(80);
+KloxoSitepreview::$httpGet = static function (string $url, array $headers): array {
+	if (str_contains($url, '127.0.0.1:80/')) {
+		return array(
+			'code' => 200,
+			'body' => 'Apache2 Ubuntu Default Page',
+			'ctype' => 'text/html',
+			'headers' => array('server' => 'Apache/2.4'),
+		);
+	}
+	if (str_contains($url, '203.0.113.10:80/')) {
+		return array(
+			'code' => 200,
+			'body' => '<html>real nginx vhost</html>',
+			'ctype' => 'text/html',
+			'headers' => array('server' => 'nginx'),
+		);
+	}
+
+	return array('code' => 0, 'body' => '', 'ctype' => '', 'headers' => array());
+};
+$got4 = KloxoSitepreview::fetch('example.com', '/');
+check(($got4['code'] ?? 0) === 200
+	&& str_contains((string) ($got4['body'] ?? ''), 'real nginx vhost'),
+	'fetch uses public IPv4 when loopback only serves leftover Apache');
 
 check(KloxoSitepreview::isWrongStackResponse('nginx', array(
 		'body' => 'Apache2 Ubuntu Default Page',
@@ -223,6 +253,7 @@ check(str_contains($lib, '/sitepreview/[%s]')
 KloxoSitepreview::$httpGet = null;
 KloxoSitepreview::$resolveDomain = null;
 KloxoSitepreview::$loopbackPorts = null;
+KloxoSitepreview::$previewIps = null;
 KloxoSitepreview::$webDriver = null;
 KloxoSitepreview::$webcacheDriver = null;
 
