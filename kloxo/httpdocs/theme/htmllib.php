@@ -8876,10 +8876,44 @@ function fileSelected(e) {
 		$__upload_redir_q['frm_smessage'], $__upload_redir_q['frm_emessage']);
 	$__upload_redir_q['frm_smessage'] = 'file_uploaded';
 	$__upload_redir_qs = http_build_query($__upload_redir_q);
+	$__upload_is_backup = false;
+	$__upload_backup_account = '';
+	if (!empty($_REQUEST['frm_o_o']) && is_array($_REQUEST['frm_o_o'])) {
+		foreach ($_REQUEST['frm_o_o'] as $__seg) {
+			if (!is_array($__seg)) {
+				continue;
+			}
+			$__cls = isset($__seg['class']) ? strtolower((string) $__seg['class']) : '';
+			$__nn = isset($__seg['nname']) ? (string) $__seg['nname'] : '';
+			if ($__cls === 'client' && $__nn !== '') {
+				$__upload_backup_account = $__nn;
+			}
+			if ($__cls === 'lxbackup') {
+				$__upload_is_backup = true;
+			}
+		}
+	}
+	if (!$__upload_is_backup && !empty($_SERVER['QUERY_STRING'])
+		&& str_contains((string) $_SERVER['QUERY_STRING'], 'lxbackup')) {
+		$__upload_is_backup = true;
+	}
+	if ($__upload_is_backup && $__upload_backup_account === '') {
+		global $login;
+		if (is_object($login) && isset($login->nname)) {
+			$__upload_backup_account = (string) $login->nname;
+		}
+	}
+	$__upload_csrf = function_exists('getCSRFToken') ? (string) getCSRFToken() : '';
 ?>
 var uploadRedirectUrl = '/display.php?<?php echo $__upload_redir_qs; ?>';
 var uploadRedirectTimer = 0;
 var uploadDidRedirect = false;
+var uploadPollTimer = 0;
+var uploadIsBackup = <?= $__upload_is_backup ? 'true' : 'false' ?>;
+var uploadBackupAccount = <?= json_encode($__upload_backup_account, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+var uploadCsrfToken = <?= json_encode($__upload_csrf, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+var uploadExpectName = '';
+var uploadExpectBytes = 0;
 
 function uploadRedirectFromForm(form) {
 	if (!form || !form.elements) {
@@ -8958,7 +8992,7 @@ function uploadUrlFromResponse(text, xhr) {
 
 function uploadSavingRemind() {
 	// Do NOT navigate: changing location aborts the XHR and kills the PHP
-	// worker mid-copy (PrivateTmp → __backup). Keep this tab open.
+	// worker mid-copy. Keep this tab open; poll will redirect when the file is ready.
 	var info = document.getElementById('progress_info');
 	if (info) {
 		info.style.backgroundColor = '#fff8e1';
@@ -8966,6 +9000,53 @@ function uploadSavingRemind() {
 		info.innerHTML = 'Server is saving into __backup — keep this tab open. File Manager opens when done.';
 	}
 	uploadShowToast(uploadToastSavingRefresh, 'warning');
+	uploadStartPoll();
+}
+
+function uploadStopPoll() {
+	if (uploadPollTimer) {
+		clearInterval(uploadPollTimer);
+		uploadPollTimer = 0;
+	}
+}
+
+function uploadStartPoll() {
+	if (!uploadIsBackup || !uploadBackupAccount || !uploadExpectName || uploadPollTimer) {
+		return;
+	}
+	uploadPollTimer = setInterval(function () {
+		if (uploadDidRedirect) {
+			uploadStopPoll();
+			return;
+		}
+		var q = '/theme/lbin/backup-upload.php?check=1'
+			+ '&account=' + encodeURIComponent(uploadBackupAccount)
+			+ '&file=' + encodeURIComponent(uploadExpectName)
+			+ '&bytes=' + encodeURIComponent(String(uploadExpectBytes));
+		var x = new XMLHttpRequest();
+		x.open('GET', q, true);
+		x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+		x.onload = function () {
+			if (uploadDidRedirect || x.status < 200 || x.status >= 400) {
+				return;
+			}
+			try {
+				var j = JSON.parse(x.responseText || '{}');
+				if (j && j.ready) {
+					uploadGoNext(uploadRedirectUrl);
+				} else if (j && j.partial) {
+					var info = document.getElementById('progress_info');
+					if (info) {
+						info.innerHTML = 'Writing into __backup… ' + bytesToSize(j.size || 0)
+							+ (uploadExpectBytes ? (' / ' + bytesToSize(uploadExpectBytes)) : '');
+					}
+				}
+			} catch (ePoll) {
+				// ignore
+			}
+		};
+		x.send(null);
+	}, 3000);
 }
 
 function uploadGoNext(nextUrl) {
@@ -8973,6 +9054,7 @@ function uploadGoNext(nextUrl) {
 		return;
 	}
 	uploadDidRedirect = true;
+	uploadStopPoll();
 	if (uploadRedirectTimer) {
 		clearTimeout(uploadRedirectTimer);
 		uploadRedirectTimer = 0;
@@ -8981,10 +9063,36 @@ function uploadGoNext(nextUrl) {
 	window.location.href = uploadEnsureToast(nextUrl || uploadRedirectUrl);
 }
 
+function uploadFinishBackupRaw(xhr) {
+	document.getElementById('progress_percent').innerHTML = '100%';
+	document.getElementById('progress').style.width = '400px';
+	document.getElementById('progress_remaining').innerHTML = '00:00:00';
+	var next = uploadRedirectUrl;
+	try {
+		var j = JSON.parse((xhr && xhr.responseText) ? xhr.responseText : '{}');
+		if (j && j.ok && j.redirect) {
+			next = j.redirect;
+		} else if (j && j.ready) {
+			next = uploadRedirectUrl;
+		} else if (j && j.error) {
+			uploadError(null);
+			uploadShowToast((j.error || 'upload failed') + '', 'error');
+			return;
+		}
+	} catch (eRaw) {
+		next = uploadUrlFromResponse(
+			(xhr && typeof xhr.responseText === 'string') ? xhr.responseText : '',
+			xhr
+		) || uploadRedirectUrl;
+	}
+	uploadGoNext(next);
+}
+
 function startUploading(e) {
 	// cleanup all temp states
 	iPreviousBytesLoaded = 0;
 	uploadDidRedirect = false;
+	uploadStopPoll();
 	if (uploadRedirectTimer) {
 		clearTimeout(uploadRedirectTimer);
 		uploadRedirectTimer = 0;
@@ -9009,11 +9117,13 @@ function startUploading(e) {
 			oProgress.style.display = 'none';
 			return false;
 		}
-		var vFD = new FormData(uploadForm);
 		var formRedirectUrl = uploadRedirectFromForm(uploadForm);
 		if (formRedirectUrl) {
 			uploadRedirectUrl = formRedirectUrl;
 		}
+		var oFile = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
+		uploadExpectName = oFile ? String(oFile.name).replace(/[\/\\'\0]/g, '') : '';
+		uploadExpectBytes = oFile ? oFile.size : 0;
 
 		// create XMLHttpRequest object, adding few event listeners, and POSTing our data
 		var oXHR = new XMLHttpRequest();
@@ -9029,9 +9139,12 @@ function startUploading(e) {
 		oXHR.upload.addEventListener('progress', uploadProgress, false);
 		oXHR.addEventListener('load', function (ev) {
 			if (oXHR.status >= 200 && oXHR.status < 400) {
-				uploadFinish(ev, oXHR);
+				if (uploadIsBackup && uploadBackupAccount) {
+					uploadFinishBackupRaw(oXHR);
+				} else {
+					uploadFinish(ev, oXHR);
+				}
 			} else if (oXHR.status >= 300 && oXHR.status < 400) {
-				// manual redirect mode: treat Location as success target
 				var loc = '';
 				try {
 					loc = oXHR.getResponseHeader('Location') || oXHR.getResponseHeader('X-Kloxo-Redirect') || '';
@@ -9046,15 +9159,29 @@ function startUploading(e) {
 		oXHR.addEventListener('error', uploadError, false);
 		oXHR.addEventListener('abort', uploadAbort, false);
 		oXHR.addEventListener('timeout', function (ev) {
-			// Should not fire (timeout=0). Never navigate away — that aborts save.
 			uploadSavingRemind();
 		}, false);
-		// No XHR timeout: 5GB uploads can take hours. After 100% we only remind
-		// the user to keep the tab open; File Manager opens on a real response.
 		oXHR.timeout = 0;
-		oXHR.open('POST', '/display.php');
-		oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-		oXHR.send(vFD);
+
+		// Backup: stream the File raw into __backup (one write). Multipart
+		// through display.php double-copies via $_FILES and never redirects.
+		if (uploadIsBackup && uploadBackupAccount && oFile && uploadExpectName) {
+			var rawUrl = '/theme/lbin/backup-upload.php'
+				+ '?account=' + encodeURIComponent(uploadBackupAccount)
+				+ '&file=' + encodeURIComponent(uploadExpectName)
+				+ '&bytes=' + encodeURIComponent(String(uploadExpectBytes))
+				+ '&token=' + encodeURIComponent(uploadCsrfToken || '')
+				+ '&next=' + encodeURIComponent(uploadRedirectUrl);
+			oXHR.open('POST', rawUrl);
+			oXHR.setRequestHeader('Content-Type', 'application/octet-stream');
+			oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+			oXHR.send(oFile);
+		} else {
+			var vFD = new FormData(uploadForm);
+			oXHR.open('POST', '/display.php');
+			oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+			oXHR.send(vFD);
+		}
 
 		// set inner timer
 		oTimer = setInterval(doInnerUpdates, 300);
@@ -9103,8 +9230,9 @@ function uploadProgress(e) { // upload process in progress
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
 			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
-			// Bytes are on the server. Saving into __backup can take minutes —
-			// remind once, but never navigate (that aborts the PHP copy).
+			// Bytes reached the panel. Stream-to-disk may still run; poll __backup
+			// and remind — never navigate early (that aborts the write).
+			uploadStartPoll();
 			if (!uploadRedirectTimer) {
 				uploadRedirectTimer = setTimeout(function () {
 					if (!uploadDidRedirect) {
@@ -9138,6 +9266,7 @@ function uploadFinish(e, xhr) { // upload finished (or timed out waiting for the
 function uploadError(e) { // upload error
 	document.getElementById('progress_error2').style.display = 'block';
 	clearInterval(oTimer);
+	uploadStopPoll();
 	if (uploadRedirectTimer) {
 		clearTimeout(uploadRedirectTimer);
 		uploadRedirectTimer = 0;
@@ -9150,6 +9279,7 @@ function uploadError(e) { // upload error
 function uploadAbort(e) { // upload abort
 	document.getElementById('progress_abort').style.display = 'block';
 	clearInterval(oTimer);
+	uploadStopPoll();
 	if (uploadRedirectTimer) {
 		clearTimeout(uploadRedirectTimer);
 		uploadRedirectTimer = 0;

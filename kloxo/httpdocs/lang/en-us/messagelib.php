@@ -746,7 +746,7 @@ $__information['auxiliary_addform__pre'] = "<p>You can add/delete 'auxiliary log
 $__information['all_auxiliary_list__pre'] = "<p>List all auxiliary login which you and your customer owned.</p>";
 
 $__information['ffile_updateform_upload_s_pre'] = "<p>You can upload a backup file from your local PC.</p>".
-	"<p>Browser upload maximum is <b>5120&nbsp;MB (5&nbsp;GB)</b>. After 100%, <b>keep this tab open</b> until File Manager opens — closing it aborts the save into <code>__backup</code>. Larger archives — use <b>Upload (ftp)</b>, or copy with scp/SFTP into this account's <code>__backup</code> folder (admin: <code>/home/kloxo/client/admin/__backup/</code>), then <b>Restore From File</b>.</p>";
+	"<p>Browser upload maximum is <b>5120&nbsp;MB (5&nbsp;GB)</b>. The file streams into <code>__backup</code>; <b>keep this tab open</b> until File Manager opens (after 100% the server may still be writing). Larger archives — use <b>Upload (ftp)</b>, or scp/SFTP into this account's <code>__backup</code> (admin: <code>/home/kloxo/client/admin/__backup/</code>), then <b>Restore From File</b>.</p>";
 
 $__information['ffile_updateform_download_from_http_pre'] = "<p>You can upload backup file via FTP from other remote server.</p>";
 

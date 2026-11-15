@@ -731,6 +731,10 @@ check(str_contains($htmlUpload, 'function uploadGoNext')
 	&& str_contains($htmlUpload, 'uploadRedirectTimer')
 	&& str_contains($htmlUpload, 'function uploadEnsureToast')
 	&& str_contains($htmlUpload, 'function uploadSavingRemind')
+	&& str_contains($htmlUpload, 'function uploadStartPoll')
+	&& str_contains($htmlUpload, 'function uploadFinishBackupRaw')
+	&& str_contains($htmlUpload, 'backup-upload.php')
+	&& str_contains($htmlUpload, 'application/octet-stream')
 	&& str_contains($htmlUpload, 'keep this tab open')
 	&& str_contains($htmlUpload, 'upload_saving_refresh')
 	&& !str_contains($htmlUpload, 'softSave')
@@ -744,7 +748,16 @@ check(str_contains($htmlUpload, 'function uploadGoNext')
 	&& str_contains($htmlUpload, "addEventListener('error'")
 	&& str_contains($htmlUpload, "addEventListener('abort'")
 	&& !str_contains($htmlUpload, "addEventListener('progress_abort'"),
-	'Upload XHR waits for server save; remind keeps tab open (no soft navigate)');
+	'Backup Upload streams raw to backup-upload.php and polls until ready');
+$buSrc = (string) file_get_contents($doc . '/theme/lbin/backup-upload.php');
+check(str_contains($buSrc, 'php://input')
+	&& str_contains($buSrc, 'stream_copy_to_stream')
+	&& str_contains($buSrc, '/home/kloxo/client/')
+	&& str_contains($buSrc, '__backup')
+	&& str_contains($buSrc, 'check=1')
+	&& str_contains($buSrc, 'token_not_match')
+	&& str_contains($buSrc, '5368709120'),
+	'backup-upload.php streams into client __backup with size/auth checks');
 check(str_contains($htmlUpload, 'onchange="fileSelected(this);"')
 	&& !str_contains($htmlUpload, 'onclick="fileSelected(this);')
 	&& str_contains($htmlUpload, 'function uploadFileTooLarge')
