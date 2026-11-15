@@ -50,7 +50,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111506"
+KCP_VERSION="10.1-2026111507"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -712,7 +712,7 @@ fi
 [[ -f "$SRC/kloxo/bin/kloxocp" ]] || die "clone is missing kloxo/bin/kloxocp"
 
 step "Program layout, TLS keys and system accounts"
-mkdir -p /home/kloxo/httpd/cp /home/kloxo/client /home/kloxo/ssl /home/kloxomail/mail
+mkdir -p /home/kloxo/httpd/cp /home/kloxo/client/admin/__backup /home/kloxo/ssl /home/kloxomail/mail
 if [[ -L "$ROOT" || ! -e "$ROOT" ]]; then
   ln -sfn "$SRC/kloxo" "$ROOT"
 elif [[ -d "$ROOT/httpdocs" && -d "$ROOT/bin" ]]; then

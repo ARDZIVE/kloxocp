@@ -751,9 +751,14 @@ check(str_contains($htmlUpload, 'onchange="fileSelected(this);"')
 $msgUpload = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
 check(str_contains($msgUpload, 'ffile_updateform_upload_s_pre')
 	&& str_contains($msgUpload, '2000')
-	&& str_contains($msgUpload, '/home/kloxo/admin/__backup/')
+	&& str_contains($msgUpload, '/home/kloxo/client/admin/__backup/')
 	&& str_contains($msgUpload, 'Restore From File'),
 	'Upload help text documents the 2000 MB limit and scp/FTP path');
+check(str_contains($kb, 'ensureDirViaBackend')
+	&& str_contains($kb, "array('lxbackup', 'MakeSureDirectoryExists')")
+	&& str_contains($kb, 'dirWritableByPanel')
+	&& str_contains($bak, 'Also fix the parent client/domain folder'),
+	'ensureDir falls back to root MakeSureDirectoryExists when lxlabs cannot mkdir');
 $lxlibSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 check(str_contains($lxlibSrc, 'function kloxo_is_xhr_request')
 	&& str_contains($lxlibSrc, 'function kloxo_xhr_redirect_response')

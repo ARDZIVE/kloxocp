@@ -112,6 +112,15 @@ class lxbackup extends Lxdb
 		if ($dir === '') {
 			return;
 		}
+		// Also fix the parent client/domain folder when root-owned so lxlabs
+		// can mkdir __backup and list archives from panel FPM.
+		$parent = dirname($dir);
+		if ($parent !== '' && $parent !== '/' && !lxfile_exists($parent)) {
+			lxfile_mkdir($parent);
+		}
+		if ($parent !== '' && $parent !== '/' && function_exists('lxfile_generic_chown')) {
+			lxfile_generic_chown($parent, 'lxlabs');
+		}
 		if (!lxfile_exists($dir)) {
 			lxfile_mkdir($dir);
 		}
@@ -120,8 +129,14 @@ class lxbackup extends Lxdb
 		}
 		if (function_exists('lxfile_unix_chmod')) {
 			@lxfile_unix_chmod($dir, '0755');
+			if ($parent !== '' && $parent !== '/') {
+				@lxfile_unix_chmod($parent, '0755');
+			}
 		} else {
 			@chmod($dir, 0755);
+			if ($parent !== '' && $parent !== '/' && is_dir($parent)) {
+				@chmod($parent, 0755);
+			}
 		}
 	}
 

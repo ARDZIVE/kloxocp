@@ -122,6 +122,11 @@ else
 fi
 check "get bash -n" bash -n "$ROOT/get"
 check "install.sh bash -n" bash -n "$ROOT/install.sh"
+if grep -q 'mkdir -p /home/kloxo/httpd/cp /home/kloxo/client/admin/__backup' "$ROOT/install.sh"; then
+  ok "install.sh seeds admin Backup File Manager __backup"
+else
+  bad "install.sh seeds admin Backup File Manager __backup"
+fi
 if grep -q 'bin/mail/kloxo-mail' "$ROOT/install.sh" \
   && grep -q '/usr/local/sbin/kloxo-mail' "$ROOT/install.sh" \
   && grep -q 'bin/mail/kloxo-mail' "$ROOT/kloxo/bin/kloxocp"; then

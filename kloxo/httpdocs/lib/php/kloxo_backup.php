@@ -107,16 +107,97 @@ final class KloxoBackup
 	/**
 	 * Directory listed by Backup / Restore → File Manager. Creates it and
 	 * gives it to lxlabs so the panel can list and download archives.
+	 * Panel FPM runs as lxlabs; if a parent is root-owned, mkdir fails and we
+	 * ask kloxo-backend (root) via lxbackup::MakeSureDirectoryExists.
 	 */
 	public static function ensureDir(string $table, string $name): string
 	{
 		$dir = self::p(self::backupDir($table, $name));
-		if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
-			throw new KloxoBackupException('could not create File Manager backup directory');
+		if (!is_dir($dir)) {
+			@mkdir($dir, 0755, true);
+		}
+		if (!is_dir($dir) || !self::dirWritableByPanel($dir)) {
+			self::ensureDirViaBackend($dir);
+		}
+		if (!is_dir($dir)) {
+			throw new KloxoBackupException(
+				'could not create File Manager backup directory: ' . $dir
+				. ' (as root: mkdir -p ' . $dir . ' && chown -R lxlabs:lxlabs '
+				. dirname($dir) . ')'
+			);
 		}
 		self::chownLxlabs($dir, 0755);
+		if (!self::dirWritableByPanel($dir)) {
+			self::ensureDirViaBackend($dir);
+		}
+		if (!self::dirWritableByPanel($dir) && !self::runningAsRoot()) {
+			throw new KloxoBackupException(
+				'File Manager backup directory is not writable by the panel: ' . $dir
+				. ' (as root: chown -R lxlabs:lxlabs ' . dirname($dir) . ')'
+			);
+		}
 
 		return $dir;
+	}
+
+	/** True when lxlabs (or root) can create files in $dir. */
+	private static function dirWritableByPanel(string $dir): bool
+	{
+		if ($dir === '' || !is_dir($dir)) {
+			return false;
+		}
+		if (is_writable($dir)) {
+			return true;
+		}
+		// is_writable can lie under some open_basedir setups; probe.
+		$probe = rtrim($dir, '/') . '/.kloxo-write.' . getmypid();
+		$ok = @file_put_contents($probe, '1') !== false;
+		if ($ok) {
+			@unlink($probe);
+		}
+
+		return $ok;
+	}
+
+	private static function runningAsRoot(): bool
+	{
+		return function_exists('posix_geteuid') && @posix_geteuid() === 0;
+	}
+
+	/**
+	 * Create/chown __backup as root. No-op under $fsPrefix (unit tests).
+	 */
+	private static function ensureDirViaBackend(string $dir): void
+	{
+		$dir = rtrim($dir, '/');
+		if ($dir === '' || self::$fsPrefix !== '') {
+			return;
+		}
+		if (self::runningAsRoot()) {
+			if (!is_dir($dir)) {
+				@mkdir($dir, 0755, true);
+			}
+			self::chownLxlabs($dir, 0755);
+			$parent = dirname($dir);
+			if (is_dir($parent)) {
+				self::chownLxlabs($parent, 0755);
+			}
+
+			return;
+		}
+		if (!function_exists('rl_exec_get')) {
+			return;
+		}
+		if (!class_exists('lxbackup', false) && is_file(dirname(__DIR__) . '/html/lxbackuplib.php')) {
+			include_once dirname(__DIR__) . '/html/lxbackuplib.php';
+		}
+		try {
+			rl_exec_get(null, 'localhost', array('lxbackup', 'MakeSureDirectoryExists'), array($dir . '/'));
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'ensureDirViaBackend: ' . $e->getMessage());
+			}
+		}
 	}
 
 	/**
