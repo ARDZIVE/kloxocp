@@ -436,6 +436,59 @@ check($bn !== '*' && !str_contains($bn, '*'), 'basename has no asterisk');
 $bnDef = basename(KloxoSsl::siteCertBase('brandnew.example', '*'));
 check($bnDef === 'default', 'basename after siteCertBase for unknown domain is default', $bnDef);
 
+echo "== sanitizeRenderedStarSslPaths (leftover *.pem confs, nginx + apache)\n";
+$confDir = "$fs/opt/configs/nginx/conf/domains";
+@mkdir($confDir, 0755, true);
+$bad = "$confDir/blogtest15.mesrob.com.conf";
+file_put_contents($bad, "ssl_certificate /home/kloxo/ssl/*.pem;\nssl_certificate_key /home/kloxo/ssl/*.key;\n");
+$n = KloxoSsl::sanitizeRenderedStarSslPaths('nginx');
+check($n === 1, 'sanitizer rewrites one nginx star-ssl conf', (string) $n);
+$fixedBody = (string) file_get_contents($bad);
+check(str_contains($fixedBody, '/home/kloxo/ssl/mesrob.com.pem'),
+	'sanitizer uses parent cert basename', $fixedBody);
+check(!str_contains($fixedBody, '/home/kloxo/ssl/*.'),
+	'sanitizer leaves no literal star ssl path');
+$apDir = "$fs/opt/configs/apache/conf/domains";
+@mkdir($apDir, 0755, true);
+$apBad = "$apDir/blog.mesrob.com.conf";
+file_put_contents($apBad,
+	"SSLCertificateFile /home/kloxo/ssl/*.pem\nSSLCertificateKeyFile /home/kloxo/ssl/*.key\n");
+$nAp = KloxoSsl::sanitizeRenderedStarSslPaths('apache');
+check($nAp === 1, 'sanitizer rewrites one apache star-ssl conf', (string) $nAp);
+$apBody = (string) file_get_contents($apBad);
+check(str_contains($apBody, 'SSLCertificateFile /home/kloxo/ssl/mesrob.com.pem'),
+	'apache sanitizer uses parent cert', $apBody);
+check(!str_contains($apBody, '/home/kloxo/ssl/*.'),
+	'apache sanitizer leaves no literal star ssl path');
+$apDefDir = "$fs/opt/configs/apache/conf/defaults";
+@mkdir($apDefDir, 0755, true);
+$apInit = "$apDefDir/init.conf";
+file_put_contents($apInit, "SSLCertificateFile /home/kloxo/ssl/*.crt\n");
+$nInit = KloxoSsl::sanitizeRenderedStarSslPaths('apache');
+check($nInit === 1, 'sanitizer rewrites apache defaults/init.conf', (string) $nInit);
+check(str_contains((string) file_get_contents($apInit), '/home/kloxo/ssl/default.crt'),
+	'defaults/init.conf star falls back to default cert');
+check(str_contains($sslPhp, 'function sanitizeRenderedStarSslPaths'),
+	'sanitizeRenderedStarSslPaths exists');
+$phpfpmSrc = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/kloxo_phpfpm.php');
+check(str_contains($phpfpmSrc, "sanitizeRenderedStarSslPaths('nginx')")
+	&& str_contains($phpfpmSrc, "sanitizeRenderedStarSslPaths('apache')"),
+	'validateWeb sanitizes both nginx and apache before configtest');
+check(str_contains($webLib, 'function rollbackDomainWebConf'),
+	'web__lib rolls back domain conf when nginx -t fails');
+$apDomTpl = (string) file_get_contents($repo . '/kloxo/file/apache/tpl/domains.conf.tpl');
+$apDefTpl = (string) file_get_contents($repo . '/kloxo/file/apache/tpl/defaults.conf.tpl');
+check(str_contains($apDomTpl, 'KloxoSsl::siteCertBase'),
+	'apache domains tpl uses siteCertBase');
+check(str_contains($apDefTpl, 'KloxoSsl::siteCertBase'),
+	'apache defaults tpl uses siteCertBase');
+check(str_contains($apDomTpl, "strpos((string) \$certbase, '*')")
+	|| str_contains($apDomTpl, "strpos((string) \$certbase, \"*\")"),
+	'apache domains tpl rejects star certbase');
+check(str_contains($apDefTpl, "strpos((string) \$certbase, '*')")
+	|| str_contains($apDefTpl, "strpos((string) \$certbase, \"*\")"),
+	'apache defaults tpl rejects star certbase');
+
 // cleanup
 KloxoSsl::$fsPrefix = '';
 KloxoSsl::$runCmd = null;

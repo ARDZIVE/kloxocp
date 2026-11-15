@@ -900,6 +900,67 @@ final class KloxoSsl
     }
 
     /**
+     * Rewrite leftover Nginx/Apache vhost confs that still have literal
+     * /home/kloxo/ssl/*.{pem,key,crt,ca} (from Add Domain / Add Subdomain before
+     * siteCertBase). Those files poison every later nginx -t / apache2ctl
+     * configtest even when new confs are correct. Scans domains/ and defaults/.
+     *
+     * @return int number of files rewritten
+     */
+    public static function sanitizeRenderedStarSslPaths(string $driver = 'nginx'): int
+    {
+        $driver = strtolower(preg_replace('/[^a-z0-9_-]/i', '', $driver) ?? '');
+        if ($driver === '' || $driver === 'none') {
+            return 0;
+        }
+        if ($driver === 'apache2' || $driver === 'httpd') {
+            $driver = 'apache';
+        }
+        $fixed = 0;
+        foreach (['domains', 'defaults'] as $subdir) {
+            $dir = self::p('/opt/configs/' . $driver . '/conf/' . $subdir);
+            if (!is_dir($dir)) {
+                continue;
+            }
+            $files = glob($dir . '/*.conf');
+            if (!is_array($files)) {
+                continue;
+            }
+            foreach ($files as $path) {
+                if (!is_file($path) || !is_readable($path)) {
+                    continue;
+                }
+                $body = (string) file_get_contents($path);
+                if ($body === '' || !str_contains($body, '/home/kloxo/ssl/*.')) {
+                    continue;
+                }
+                $dom = basename($path, '.conf');
+                // defaults/init.conf is not a domain name — use default cert.
+                if ($subdir === 'defaults' || $dom === 'init' || $dom === 'default') {
+                    $dom = 'default';
+                }
+                $base = basename(self::siteCertBase($dom, null));
+                if ($base === '' || str_contains($base, '*')) {
+                    $base = 'default';
+                }
+                $next = preg_replace(
+                    '#/home/kloxo/ssl/\*\.(pem|key|ca|crt)#',
+                    '/home/kloxo/ssl/' . $base . '.$1',
+                    $body
+                );
+                if (!is_string($next) || $next === $body) {
+                    continue;
+                }
+                if (@file_put_contents($path, $next) !== false) {
+                    $fixed++;
+                }
+            }
+        }
+
+        return $fixed;
+    }
+
+    /**
      * Seed /home/kloxo/ssl/default.{key,crt,pem} from program file/ssl when missing.
      * Safe no-op when sources are absent (tests without a tree).
      */

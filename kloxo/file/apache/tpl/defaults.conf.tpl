@@ -31,12 +31,26 @@ if (!is_file($defaultIndex)) {
 	@file_put_contents($defaultIndex, "<!doctype html><html><body><h1>Kloxo CP</h1><p>Default site.</p></body></html>\n");
 }
 
+// Prefer real cert basename → default. Never use literal '*' (empty IP/SSL
+// list used to set certname='*' and Apache SSLCertificate* pointed at
+// /home/kloxo/ssl/*.{pem,key}, which breaks apache2ctl configtest the same
+// way nginx -t fails on *.pem).
 $certbase = '/home/kloxo/ssl/default';
-if (!empty($certnamelist) && is_array($certnamelist)) {
+if (class_exists('KloxoSsl')) {
+	$pref = null;
+	if (!empty($certnamelist) && is_array($certnamelist)) {
+		$first = reset($certnamelist);
+		$pref = is_string($first) ? $first : null;
+	}
+	$certbase = KloxoSsl::siteCertBase('default', $pref);
+} elseif (!empty($certnamelist) && is_array($certnamelist)) {
 	$first = reset($certnamelist);
-	if (is_string($first) && $first !== '') {
+	if (is_string($first) && $first !== '' && strpos($first, '*') === false) {
 		$certbase = (strpos($first, '/') === 0) ? $first : '/home/kloxo/ssl/' . $first;
 	}
+}
+if (strpos((string) $certbase, '*') !== false) {
+	$certbase = '/home/kloxo/ssl/default';
 }
 
 ?>

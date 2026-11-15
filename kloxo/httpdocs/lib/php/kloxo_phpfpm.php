@@ -434,6 +434,16 @@ final class KloxoPhpfpm
         if ($d === 'none' || $d === '') {
             return;
         }
+        if (!class_exists('KloxoSsl', false)) {
+            include_once __DIR__ . '/kloxo_ssl.php';
+        }
+        // Both drivers get domain confs written; leftover /home/kloxo/ssl/*.pem
+        // poisons nginx -t and apache2ctl configtest the same way. Sanitize both
+        // so Switch Program Web nginx↔apache does not rediscover a star path.
+        if (class_exists('KloxoSsl')) {
+            KloxoSsl::sanitizeRenderedStarSslPaths('nginx');
+            KloxoSsl::sanitizeRenderedStarSslPaths('apache');
+        }
         if ($d === 'apache' || $d === 'apache2' || $d === 'httpd') {
             $apache = self::firstExec(['/usr/sbin/apache2ctl', '/usr/sbin/apachectl']);
             if ($apache === '') {

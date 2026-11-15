@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111502**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111503**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1122,8 +1122,23 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `web__lib::resolveCertNameListBasenames` rewrites the list to a real
    basename before render (works with an old tpl), and
    `syncWebTplFromProgram` refreshes `/opt/configs/.../tpl` from the
-   program tree when newer or missing `siteCertBase`. Live Add Subdomain
-   after this deploy is **UNVERIFIED**.
+   program tree when newer or missing `siteCertBase`. Live still failed
+   after that because earlier bad confs (`blogtest15` / `test` /
+   `test2.mesrob.com`) kept `/home/kloxo/ssl/*.pem` and poisoned every
+   later `nginx -t` even when a new subdomain conf used `mesrob.com.pem`.
+   Now `KloxoSsl::sanitizeRenderedStarSslPaths` rewrites those leftovers
+   before `nginx -t`, and `rollbackDomainWebConf` drops the domain conf
+   just written when the check still fails. Live leftovers were sed-fixed
+   on 2026-11-15 (`nginx -t` ok); live Add Subdomain `blogtest17.mesrob.com`
+   then succeeded (`added_successfully`). Also: under a domain page,
+   `subdomain::addform` used `$parent->getList('domain')` (empty on a
+   domain) so the parent select had no options and posts became `name.`
+   → Invalid domain name; under domain it now uses static `.parent.nname`.
+   Same path for Apache: domain + defaults tpls use `siteCertBase` and
+   reject a star `certbase`; sanitizer covers apache domains/defaults and
+   `validateWeb` cleans both drivers before either checker. Tests:
+   `test_ssl.php` (sanitizer nginx+apache), `test_apache_defaults.php`,
+   `test_subdomain_addform.php`. Live Apache Add Subdomain **UNVERIFIED**.
    Verify: hotfix `$domain` in live exim4.conf, `exim4 -qff`, then Add
    Customer / `test-mail --to=real@…`. Tests: `tests/p2/test_panel_mail.php`,
    `run-tests.sh` domainlist check. Live welcome delivery after apply
@@ -1142,7 +1157,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111502**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111503**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

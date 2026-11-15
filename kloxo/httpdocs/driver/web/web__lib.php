@@ -411,41 +411,68 @@ class web__ extends lxDriverClass
 				$driver = $got;
 			}
 		}
+		$domain = (string) $this->getDomainname();
 		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
 		// Panel PHP-FPM is lxlabs. nginx -t as non-root warns on "user" then
 		// emergs on /var/log/nginx — same root hand-off as applyDomain.
-		if ($euid !== 0 && function_exists('rl_exec_get')) {
-			try {
-				$got = rl_exec_get(null, $server, array('KloxoPhpfpm', 'checkWeb'), array($driver), false);
-			} catch (lxException $e) {
-				throw $e;
-			} catch (Throwable $e) {
-				throw new lxException('web config check failed: ' . $e->getMessage(), '', $this->getDomainname());
-			}
-			if (!is_array($got) || empty($got['ok'])) {
-				$why = 'kloxo-backend (127.0.0.1:7776) did not handle the request';
-				if (is_array($got) && isset($got['error']) && (string) $got['error'] !== '' && (string) $got['error'] !== 'not root') {
-					$why = (string) $got['error'];
-				}
-				throw new lxException($why, '', $this->getDomainname());
-			}
-
-			return;
-		}
 		try {
+			if ($euid !== 0 && function_exists('rl_exec_get')) {
+				try {
+					$got = rl_exec_get(null, $server, array('KloxoPhpfpm', 'checkWeb'), array($driver), false);
+				} catch (lxException $e) {
+					throw $e;
+				} catch (Throwable $e) {
+					throw new lxException('web config check failed: ' . $e->getMessage(), '', $domain);
+				}
+				if (!is_array($got) || empty($got['ok'])) {
+					$why = 'kloxo-backend (127.0.0.1:7776) did not handle the request';
+					if (is_array($got) && isset($got['error']) && (string) $got['error'] !== '' && (string) $got['error'] !== 'not root') {
+						$why = (string) $got['error'];
+					}
+					throw new lxException($why, '', $domain);
+				}
+
+				return;
+			}
 			$got = KloxoPhpfpm::checkWeb($driver);
 			if (!is_array($got) || empty($got['ok'])) {
 				$why = (is_array($got) && isset($got['error'])) ? (string) $got['error'] : 'web config check failed';
-				throw new lxException($why, '', $this->getDomainname());
+				throw new lxException($why, '', $domain);
 			}
 		} catch (lxException $e) {
+			self::rollbackDomainWebConf($domain);
 			throw $e;
 		} catch (Throwable $e) {
+			self::rollbackDomainWebConf($domain);
 			$msg = trim($e->getMessage());
 			if ($msg === '') {
 				$msg = 'web config check failed';
 			}
-			throw new lxException($msg, '', $this->getDomainname());
+			throw new lxException($msg, '', $domain);
+		}
+	}
+
+	/**
+	 * Drop the domain vhost just written when nginx/apache -t fails so a bad
+	 * conf (or a star-ssl leftover) does not poison every later add.
+	 */
+	static function rollbackDomainWebConf($domainname)
+	{
+		$dom = is_string($domainname) ? trim($domainname) : '';
+		if ($dom === '' || str_contains($dom, '/') || str_contains($dom, '..')
+			|| !preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $dom)) {
+			return;
+		}
+		$list = function_exists('getAllRealWebDriverList') ? getAllRealWebDriverList() : array('nginx', 'apache');
+		foreach ((array) $list as $l) {
+			$l = preg_replace('/[^a-z0-9_-]/i', '', (string) $l);
+			if ($l === '') {
+				continue;
+			}
+			$path = "/opt/configs/{$l}/conf/domains/{$dom}.conf";
+			if (is_file($path)) {
+				@unlink($path);
+			}
 		}
 	}
 

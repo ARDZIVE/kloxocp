@@ -1793,14 +1793,24 @@ class subdomain extends Domaind
 		$user = (is_object($parent) && method_exists($parent, 'getPathFromName'))
 			? $parent->getPathFromName() : 'admin';
 		$dir = expand_real_root("__path_customer_root/{$user}");
-		$domains = array();
-		try {
-			$domains = is_object($parent) ? $parent->getList('domain') : array();
-		} catch (Throwable $e) {
+		// Under a domain page the parent is the domain itself: do not call
+		// getList('domain') on it (empty) or the parent select has no options
+		// and Add Subdomain posts "name." → Invalid domain name.
+		$parentIsDomain = is_object($parent)
+			&& method_exists($parent, 'getClass')
+			&& strtolower((string) $parent->getClass()) === 'domain';
+		if ($parentIsDomain && isset($parent->nname) && is_string($parent->nname) && $parent->nname !== '') {
+			$vlist['nname'] = array('m', array('posttext' => '.' . $parent->nname));
+		} else {
 			$domains = array();
+			try {
+				$domains = is_object($parent) ? $parent->getList('domain') : array();
+			} catch (Throwable $e) {
+				$domains = array();
+			}
+			$vv = array('var' => "subdomain_parent", 'val' => array('s', get_namelist_from_objectlist($domains)));
+			$vlist['nname'] = array('m', array('posttext' => ".", 'postvar' => $vv));
 		}
-		$vv = array('var' => "subdomain_parent", 'val' => array('s', get_namelist_from_objectlist($domains)));
-		$vlist['nname'] = array('m', array('posttext' => ".", 'postvar' => $vv));
 
 		$canDocroot = !is_object($parent) || !isset($parent->priv) || !is_object($parent->priv)
 			|| $parent->priv->isOn('document_root_flag');

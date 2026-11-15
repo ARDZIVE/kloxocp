@@ -78,6 +78,8 @@ $sock = function_exists('kloxo_apache_sock')
 	? kloxo_apache_sock((string)$phpselected, $user, (string)$domain)
 	: '/run/php/' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$domain) . '-' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$phpselected) . '.sock';
 
+// Prefer domain → parent (subdomain) → default. Never emit literal
+// /home/kloxo/ssl/*.{pem,key} (same Add Domain / Add Subdomain failure as Nginx).
 $certbase = '/home/kloxo/ssl/default';
 if (class_exists('KloxoSsl')) {
 	$pref = null;
@@ -93,12 +95,16 @@ if (class_exists('KloxoSsl')) {
 			$certbase = (strpos($first, '/') === 0) ? $first : '/home/kloxo/ssl/' . $first;
 		}
 	}
-	if (is_file($certbase . '.key') === false && is_file('/home/kloxo/ssl/' . $domain . '.key')) {
+	if (is_file($certbase . '.key') === false && is_string($domain) && $domain !== ''
+		&& strpos($domain, '*') === false && is_file('/home/kloxo/ssl/' . $domain . '.key')) {
 		$certbase = '/home/kloxo/ssl/' . $domain;
 	}
 	if (is_file($certbase . '.key') === false && is_file('/home/kloxo/ssl/default.key')) {
 		$certbase = '/home/kloxo/ssl/default';
 	}
+}
+if (strpos((string) $certbase, '*') !== false) {
+	$certbase = '/home/kloxo/ssl/default';
 }
 
 $block = '';

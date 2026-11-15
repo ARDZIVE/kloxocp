@@ -87,10 +87,59 @@ if (str_contains($outCache, '<VirtualHost 127.0.0.1:8081>') && !preg_match('/^\s
 	$bad('webcache catch-all keeps loopback listen and no ServerAlias *', $outCache);
 }
 
-@unlink($defaultdocroot . '/index.html');
-@rmdir($defaultdocroot . '/.well-known/acme-challenge');
-@rmdir($defaultdocroot . '/.well-known');
-@rmdir($defaultdocroot);
+if (str_contains($src, 'KloxoSsl::siteCertBase')) {
+	$ok('defaults tpl uses siteCertBase');
+} else {
+	$bad('defaults tpl uses siteCertBase');
+}
+if (str_contains($src, "strpos((string) \$certbase, '*')")
+	|| str_contains($src, 'Never use literal')) {
+	$ok('defaults tpl refuses literal star cert basename');
+} else {
+	$bad('defaults tpl refuses literal star cert basename');
+}
+
+// Star preferred must not become /home/kloxo/ssl/* in the rendered SSL block.
+$sslSrc = $root . '/kloxo/httpdocs/lib/php/kloxo_ssl.php';
+if (is_readable($sslSrc)) {
+	require_once $sslSrc;
+	$fs = $tmpdir . '/fs';
+	@mkdir($fs . '/home/kloxo/ssl', 0755, true);
+	@mkdir($fs . '/opt/kloxo/file/ssl', 0755, true);
+	file_put_contents($fs . '/opt/kloxo/file/ssl/default.key', "KEY\n");
+	file_put_contents($fs . '/opt/kloxo/file/ssl/default.crt', "CRT\n");
+	file_put_contents($fs . '/opt/kloxo/file/ssl/default.pem', "KEY\nCRT\n");
+	file_put_contents($fs . '/home/kloxo/ssl/default.key', "KEY\n");
+	file_put_contents($fs . '/home/kloxo/ssl/default.pem', "KEY\nCRT\n");
+	KloxoSsl::$fsPrefix = $fs;
+	$certnamelist = array('*' => '*');
+	$bind = '*';
+	$httpPort = 80;
+	$httpsPort = 443;
+	$webcache = 'none';
+	$defaultdocroot = $tmpdir . '/default2';
+	ob_start();
+	include $tpl;
+	$starOut = (string) ob_get_clean();
+	KloxoSsl::$fsPrefix = '';
+	if (!str_contains($starOut, '/home/kloxo/ssl/*.')
+		&& (str_contains($starOut, '/home/kloxo/ssl/default.pem')
+			|| str_contains($starOut, '/home/kloxo/ssl/default.crt')
+			|| !str_contains($starOut, 'SSLCertificateFile'))) {
+		$ok('star certnamelist does not render SSLCertificate* with *.pem');
+	} else {
+		$bad('star certnamelist does not render SSLCertificate* with *.pem', $starOut);
+	}
+	@unlink($defaultdocroot . '/index.html');
+	@rmdir($defaultdocroot . '/.well-known/acme-challenge');
+	@rmdir($defaultdocroot . '/.well-known');
+	@rmdir($defaultdocroot);
+}
+
+@unlink($tmpdir . '/default/index.html');
+@rmdir($tmpdir . '/default/.well-known/acme-challenge');
+@rmdir($tmpdir . '/default/.well-known');
+@rmdir($tmpdir . '/default');
 @rmdir($tmpdir);
 
 fwrite(STDOUT, "$pass passed, $fail failed\n");
