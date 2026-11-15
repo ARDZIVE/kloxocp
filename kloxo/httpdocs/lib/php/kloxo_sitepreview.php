@@ -406,29 +406,24 @@ final class KloxoSitepreview
 	}
 
 	/**
-	 * True when the response is clearly from the other web stack (e.g. Apache
-	 * Ubuntu default page while Switch Program web is nginx).
+	 * True when the response is clearly from the other web stack.
+	 * Use the Server header only — Nginx often still serves the leftover
+	 * /var/www/html "Apache2 Ubuntu Default Page" HTML after apache2 was
+	 * removed; matching that text falsely blocked every preview.
 	 *
 	 * @param array{code?:int,body?:string,ctype?:string,headers?:array<string,string>} $got
 	 */
 	public static function isWrongStackResponse(string $webDriver, array $got): bool
 	{
 		$server = strtolower((string) (($got['headers']['server'] ?? '')));
-		$body = (string) ($got['body'] ?? '');
+		if ($server === '') {
+			return false;
+		}
 		if ($webDriver === 'nginx') {
-			if ($server !== '' && str_contains($server, 'apache')) {
-				return true;
-			}
-			if (stripos($body, 'Apache2 Ubuntu Default Page') !== false
-				|| stripos($body, 'Apache2 Debian Default Page') !== false
-				|| stripos($body, 'Apache HTTP Server Test Page') !== false) {
-				return true;
-			}
+			return str_contains($server, 'apache');
 		}
 		if ($webDriver === 'apache') {
-			if ($server !== '' && str_contains($server, 'nginx') && !str_contains($server, 'apache')) {
-				return true;
-			}
+			return str_contains($server, 'nginx') && !str_contains($server, 'apache');
 		}
 
 		return false;

@@ -215,10 +215,14 @@ check(KloxoSitepreview::isWrongStackResponse('nginx', array(
 		'headers' => array('server' => 'Apache/2.4'),
 	))
 	&& !KloxoSitepreview::isWrongStackResponse('nginx', array(
+		'body' => 'Apache2 Ubuntu Default Page',
+		'headers' => array('server' => 'nginx'),
+	))
+	&& !KloxoSitepreview::isWrongStackResponse('nginx', array(
 		'body' => 'hello',
 		'headers' => array('server' => 'nginx'),
 	)),
-	'isWrongStackResponse detects Apache while expecting nginx');
+	'isWrongStackResponse uses Server header only (not leftover /var/www/html text)');
 
 KloxoSitepreview::$loopbackPorts = null;
 KloxoSitepreview::$webcacheDriver = 'nginx';
