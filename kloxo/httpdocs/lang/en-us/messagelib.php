@@ -83,6 +83,7 @@ $__emessage['ufw_enabled'] = 'UFW firewall enabled.';
 $__emessage['ufw_disabled'] = 'UFW firewall disabled.';
 $__emessage['ufw_defaults_set'] = 'UFW defaults set: [%s]';
 $__emessage['f2b_banned'] = 'Banned: [%s]';
+$__emessage['f2b_whitelisted'] = 'Whitelisted: [%s]';
 $__emessage['f2b_unbanned'] = 'Unbanned: [%s]';
 $__emessage['f2b_unbanned_all'] = 'All Fail2Ban bans cleared.';
 $__emessage['f2b_jail_enabled'] = 'Jail enabled: [%s]';
@@ -228,7 +229,8 @@ $__information['ufwfirewall_updateform_editrule_pre'] = "<p>Edit a numbered UFW 
 $__information['ufwfirewall_updateform_deleterule_pre'] = "<p>Delete a numbered UFW rule. The last allow for panel ports 7777/7778 cannot be deleted.</p>";
 $__information['fail2ban_show__pre'] = "<p>Fail2Ban watches log files and the system journal and bans an address (with nftables, not in the UFW rule list) when it fails too often. <b>Jails</b> are the situations it can watch: turn one on or off with the play/pause icon, or change its limits with the pen. A jail can only run when its program is installed and its log exists. <b>Banned IPs</b> can be unbanned one by one, and <b>Recent Activity</b> shows the last bans. Changes are checked with <code>fail2ban-client -t</code> before they are used and are rolled back if Fail2Ban refuses them.</p>";
 $__information['fail2ban_updateform_ban_pre'] = "<p>Ban an address by hand in one of the running jails.</p>";
-$__information['fail2ban_updateform_settings_pre'] = "<p>Defaults for all jails: how many failures within the find time cause a ban, and how long the ban lasts. The whitelist is never banned.</p>";
+$__information['fail2ban_updateform_whitelist_pre'] = "<p>Add one IPv4/IPv6 address or CIDR to the Fail2Ban whitelist. Whitelisted addresses are never banned. Your current address is prefilled when the panel can see it. To edit or remove entries, use <b>Settings</b>.</p>";
+$__information['fail2ban_updateform_settings_pre'] = "<p>Defaults for all jails: how many failures within the find time cause a ban, and how long the ban lasts. Whitelist IPs (one per line) are never banned — or add a single address on the <b>Whitelist IP</b> tab.</p>";
 $__information['fail2ban_updateform_editjail_pre'] = "<p>Turn a jail on or off and give it its own limits. Empty values use the defaults from Settings.</p>";
 
 $__information['lxguard_updateform_update_pre'] = "<p>Lxguard protects you against brute force attacks by monitoring the ssh and ftp log messages, ".

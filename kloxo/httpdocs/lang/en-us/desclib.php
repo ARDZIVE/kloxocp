@@ -927,6 +927,7 @@ $__description["keep_report_days"] = array("Keep Reports (Days)");
 $__description["save_reports_on_disk"] = array("Save Reports On Disk");
 $__description["mail_reports"] = array("Mail Reports");
 $__description["Ban IP"] = array("Ban IP");
+$__description["Whitelist IP"] = array("Whitelist IP");
 $__description["Unban IP"] = array("Unban IP");
 $__description["Unban All"] = array("Unban All");
 $__description["Edit Jail"] = array("Edit Jail");

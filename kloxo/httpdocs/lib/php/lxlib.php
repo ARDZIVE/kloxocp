@@ -1627,7 +1627,7 @@ function kloxo_toast_kind($key, $channel = 'info')
 	} elseif ($ch === 's') {
 		$ch = 'info';
 	}
-	if (preg_match('/success|successfully|added_successfully|deleted_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|deleted|updated|created|completed|logwatch_report_emailed|logwatch_settings_saved|password_sent|mis_changed|switch_done/', $k) === 1) {
+	if (preg_match('/success|successfully|added_successfully|deleted_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|f2b_whitelisted|deleted|updated|created|completed|logwatch_report_emailed|logwatch_settings_saved|password_sent|mis_changed|switch_done/', $k) === 1) {
 		return 'success';
 	}
 	if (preg_match('/warn|not_set|not_correct|expire|license_will_expire|security_warning|limit|mail_setup_required|upload_file_too_large/', $k) === 1) {
@@ -4410,6 +4410,7 @@ function kloxo_fail2ban_action_label($sa)
 {
 	static $map = array(
 		'ban' => 'Ban IP',
+		'whitelist' => 'Whitelist IP',
 		'settings' => 'Settings',
 		'editjail' => 'Edit Jail',
 	);

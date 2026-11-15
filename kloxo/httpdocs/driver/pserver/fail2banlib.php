@@ -13,6 +13,7 @@ class fail2ban extends lxclass
 	static $__desc_nname = array("", "", "Fail2Ban");
 	static $__acdesc_show = array("", "", "Fail2Ban");
 	static $__acdesc_update_ban = array("", "", "Ban IP");
+	static $__acdesc_update_whitelist = array("", "", "Whitelist IP");
 	static $__acdesc_update_unban = array("", "", "Unban IP");
 	static $__acdesc_update_unbanall = array("", "", "Unban All");
 	static $__acdesc_update_settings = array("", "", "Settings");
@@ -51,7 +52,7 @@ class fail2ban extends lxclass
 	/** Beige tabs: the list, then the forms. Edit Jail only while editing one. */
 	static function fail2banPropertyTabs()
 	{
-		$tabs = array('a=show', 'a=updateform&sa=ban', 'a=updateform&sa=settings');
+		$tabs = array('a=show', 'a=updateform&sa=ban', 'a=updateform&sa=whitelist', 'a=updateform&sa=settings');
 		$sa = '';
 		if (isset($_REQUEST['frm_subaction']) && is_scalar($_REQUEST['frm_subaction'])) {
 			$sa = strtolower(trim((string) $_REQUEST['frm_subaction']));
@@ -161,7 +162,7 @@ class fail2ban extends lxclass
 			$sa = $_REQUEST['frm_subaction'];
 		}
 
-		return in_array(strtolower($sa), array('ban', 'settings', 'editjail'), true);
+		return in_array(strtolower($sa), array('ban', 'whitelist', 'settings', 'editjail'), true);
 	}
 
 	// ------------------------------------------------------------------ show
@@ -234,6 +235,8 @@ class fail2ban extends lxclass
 			. self::faIcon('arrows-rotate', '#333', 'Refresh') . '<br><span class="small">Refresh</span></a>';
 		echo '<a href="' . $h($this->urlFor('a=updateform&sa=ban')) . '" title="Ban IP" style="' . $tb . '">'
 			. self::faIcon('plus', '#333', 'Ban IP') . '<br><span class="small">Ban IP</span></a>';
+		echo '<a href="' . $h($this->urlFor('a=updateform&sa=whitelist')) . '" title="Whitelist IP" style="' . $tb . '">'
+			. self::faIcon('shield-halved', '#333', 'Whitelist IP') . '<br><span class="small">Whitelist IP</span></a>';
 		$this->printInlineAction('reload', array(), self::faIcon('play', '#333', 'Reload'), 'Reload',
 			'Apply the saved settings and reload Fail2Ban?', 'Reload', $tb);
 		$this->printInlineAction('unbanall', array(), self::faIcon('trash', '#333', 'Unban All'), 'Unban All',
@@ -482,6 +485,21 @@ class fail2ban extends lxclass
 				$vlist['__v_button'] = 'Ban IP';
 
 				return $vlist;
+			case 'whitelist':
+				$cfg = $this->execF2b('config', array());
+				$d = (isset($cfg['defaults']) && is_array($cfg['defaults'])) ? $cfg['defaults'] : array();
+				$have = (array) ($d['ignoreip'] ?? array());
+				$mine = isset($_SERVER['REMOTE_ADDR']) && is_string($_SERVER['REMOTE_ADDR'])
+					? trim($_SERVER['REMOTE_ADDR']) : '';
+				$this->f2b_ip = $mine;
+				$vlist['f2b_ip'] = null;
+				$vlist['f2b_info'] = array('M', 'Add one IPv4/IPv6 address or CIDR (for example 203.0.113.10 or 203.0.113.0/24). '
+					. 'Whitelisted addresses are never banned. Already listed: '
+					. ($have !== array() ? implode(', ', $have) : '(loopback only after first save)')
+					. '. To edit the full list, use Settings. Your current address is prefilled when known.');
+				$vlist['__v_button'] = 'Add to Whitelist';
+
+				return $vlist;
 			case 'settings':
 				$cfg = $this->execF2b('config', array());
 				$d = (isset($cfg['defaults']) && is_array($cfg['defaults'])) ? $cfg['defaults'] : array();
@@ -491,7 +509,8 @@ class fail2ban extends lxclass
 				$this->f2b_ignoreip = implode("\n", (array) ($d['ignoreip'] ?? array()));
 				$vlist['f2b_info'] = array('M', 'Defaults for every jail that has no value of its own. Times are seconds or a number with '
 					. 's, m, h, d or w (10m, 1h, 1d, 1w); -1 as Ban Time bans for ever. '
-					. 'Whitelisted addresses and networks (one per line) are never banned.');
+					. 'Whitelist IPs: one address or CIDR per line (or use the Whitelist IP tab to add one). '
+					. 'Keep 127.0.0.1/8 and ::1.');
 				$vlist['f2b_bantime'] = null;
 				$vlist['f2b_findtime'] = null;
 				$vlist['f2b_maxretry'] = null;
@@ -591,6 +610,17 @@ class fail2ban extends lxclass
 		$ret = $this->execF2b('ban', array($jail, $ip, $mine));
 		$this->throwIfFailed($ret);
 		$this->redirectToShow('f2b_banned', $ip . ' in ' . $jail);
+
+		return null;
+	}
+
+	function updateWhitelist($param)
+	{
+		$this->assertAdmin();
+		$ip = $this->field($param, 'f2b_ip');
+		$ret = $this->execF2b('whitelistAdd', array($ip));
+		$this->throwIfFailed($ret);
+		$this->redirectToShow('f2b_whitelisted', $ip);
 
 		return null;
 	}

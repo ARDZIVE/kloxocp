@@ -4710,6 +4710,7 @@ $f2bErr = '';
 $f2bForms = array();
 try {
 	$f2bForms['ban'] = $f2b->updateform('ban', array());
+	$f2bForms['whitelist'] = $f2b->updateform('whitelist', array());
 	$f2bForms['settings'] = $f2b->updateform('settings', array());
 	$f2bForms['editjail'] = $f2b->updateform('editjail', array('f2b_jail' => 'sshd'));
 } catch (Throwable $e) {
@@ -4718,6 +4719,7 @@ try {
 $f2bUrl = 'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=fail2ban';
 $f2bTabShow = kloxo_content_tab_label('Home', $f2bUrl);
 $f2bTabBan = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=ban&frm_o_o[1][class]=fail2ban');
+$f2bTabWhite = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=whitelist&frm_o_o[1][class]=fail2ban');
 $f2bTabSet = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=settings&frm_o_o[1][class]=fail2ban');
 $f2bTabEdit = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=editjail&frm_o_o[1][class]=fail2ban');
 ob_start();
@@ -4773,7 +4775,7 @@ foreach (array('invalid_fail2ban_time', 'invalid_fail2ban_maxretry', 'invalid_fa
 		$f2bLibKeys[] = $k;
 	}
 }
-foreach (array('f2b_banned', 'f2b_unbanned', 'f2b_unbanned_all', 'f2b_jail_enabled', 'f2b_jail_disabled', 'f2b_jail_updated',
+foreach (array('f2b_banned', 'f2b_whitelisted', 'f2b_unbanned', 'f2b_unbanned_all', 'f2b_jail_enabled', 'f2b_jail_disabled', 'f2b_jail_updated',
 	'f2b_settings_saved', 'f2b_reloaded') as $k) {
 	if (!str_contains($f2bMsg, "\$__emessage['" . $k . "']") || !str_contains($f2bSrc, "'" . $k . "'")) {
 		$f2bLibKeys[] = $k;
@@ -4790,14 +4792,18 @@ $f2bOk = array(
 	'keyword + description' => str_contains($f2bKw, '$__keyword["fail2ban"] = "Fail2Ban"') && str_contains($f2bDesc, '$__description["fail2ban"]'),
 	'no Find box' => str_contains((string) file_get_contents($doc . '/lib/php/lxlib.php'), "'ufwfirewall', 'fail2ban'"),
 	'one beige tab list' => $f2bTabs['property'] === fail2ban::fail2banPropertyTabs() && ($f2bTabs['property'][0] ?? '') === 'a=show'
-		&& in_array('a=updateform&sa=ban', $f2bTabs['property'], true) && in_array('a=updateform&sa=settings', $f2bTabs['property'], true),
-	'tab labels' => $f2bTabShow === 'Fail2Ban' && $f2bTabBan === 'Ban IP' && $f2bTabSet === 'Settings' && $f2bTabEdit === 'Edit Jail',
+		&& in_array('a=updateform&sa=ban', $f2bTabs['property'], true)
+		&& in_array('a=updateform&sa=whitelist', $f2bTabs['property'], true)
+		&& in_array('a=updateform&sa=settings', $f2bTabs['property'], true),
+	'tab labels' => $f2bTabShow === 'Fail2Ban' && $f2bTabBan === 'Ban IP' && $f2bTabWhite === 'Whitelist IP'
+		&& $f2bTabSet === 'Settings' && $f2bTabEdit === 'Edit Jail',
 	'forms build' => $f2bErr === '' && array_key_exists('f2b_ip', $f2bForms['ban']) && array_key_exists('f2b_jail', $f2bForms['ban'])
 		&& str_contains($f2bOutNone, 'Install the')
+		&& array_key_exists('f2b_ip', $f2bForms['whitelist'] ?? array())
 		&& array_key_exists('f2b_maxretry', $f2bForms['settings']) && array_key_exists('f2b_ignoreip', $f2bForms['settings'])
 		&& array_key_exists('f2b_enabled', $f2bForms['editjail']),
 	'list page' => str_contains($f2bOut, 'Jails') && str_contains($f2bOut, 'Banned IPs') && str_contains($f2bOut, 'Recent Activity')
-		&& str_contains($f2bOut, 'Refresh') && str_contains($f2bOut, 'Ban IP'),
+		&& str_contains($f2bOut, 'Refresh') && str_contains($f2bOut, 'Ban IP') && str_contains($f2bOut, 'Whitelist IP'),
 	'running jail, ban and counters shown' => str_contains($f2bOut, '203.0.113.9') && str_contains($f2bOut, '1 jails running')
 		&& str_contains($f2bOut, 'Unban') && str_contains($f2bOut, 'f2b-test-token')
 		&& str_contains($f2bOut, 'frm_o_o[1][class]=fail2ban') && !str_contains($f2bOut, 'servermail'),
