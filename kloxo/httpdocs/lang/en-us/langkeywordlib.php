@@ -292,6 +292,7 @@ $__throw["logwatch_mail_failed"] = "Could not email the last LogWatch report";
 $__throw["fail2ban_config_rejected"] = "Fail2Ban refused the new settings; the old ones are back in use";
 $__throw["fail2ban_reload_failed"] = "Fail2Ban could not reload; the old settings are back in use";
 $__throw["fail2ban_refuse_ban_protected"] = "That address is protected and will not be banned.";
+$__throw["fail2ban_whitelist_loopback"] = "Loopback cannot be removed from the Fail2Ban whitelist.";
 $__throw["fail2ban_jail_not_running"] = "That jail is not running";
 $__throw["fail2ban_jail_unavailable"] = "That jail cannot run on this server";
 $__throw["fail2ban_ban_failed"] = "Fail2Ban could not ban the address";

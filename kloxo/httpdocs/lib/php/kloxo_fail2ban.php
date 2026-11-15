@@ -834,18 +834,32 @@ final class KloxoFail2ban
     /**
      * Everything the Fail2Ban page shows, from a single read of Fail2Ban.
      *
-     * @return array{status:array<string,mixed>,rows:list<array<string,mixed>>,banned:list<array{jail:string,ip:string}>,log:list<array<string,string>>}
+     * @return array{status:array<string,mixed>,rows:list<array<string,mixed>>,banned:list<array{jail:string,ip:string}>,whitelist:list<string>,log:list<array<string,string>>}
      */
     public static function overview(): array
     {
         $st = self::status();
+        $cfg = self::loadConfig();
 
         return [
             'status' => $st,
             'rows' => self::jailRows($st),
             'banned' => self::banned($st),
+            'whitelist' => array_values($cfg['defaults']['ignoreip']),
             'log' => self::recentLog(60),
         ];
+    }
+
+    /** True when this ignoreip entry is loopback (must stay on the whitelist). */
+    public static function isLoopbackIgnore(string $entry): bool
+    {
+        try {
+            $entry = self::validIgnoreEntry($entry);
+        } catch (InvalidArgumentException $e) {
+            return false;
+        }
+
+        return self::ipInList('127.0.0.1', [$entry]) || self::ipInList('::1', [$entry]);
     }
 
     /**
@@ -1089,6 +1103,26 @@ final class KloxoFail2ban
         if (!in_array($entry, $list, true)) {
             $list[] = $entry;
         }
+
+        return self::setDefaults(['ignoreip' => $list]);
+    }
+
+    /** Remove one whitelist entry. Loopback entries are refused. */
+    public static function whitelistRemove(string $entry): array
+    {
+        try {
+            $entry = self::validIgnoreEntry($entry);
+        } catch (InvalidArgumentException $e) {
+            return ['ok' => false, 'error' => $e->getMessage(), 'running' => [], 'skipped' => []];
+        }
+        if (self::isLoopbackIgnore($entry)) {
+            return ['ok' => false, 'error' => 'fail2ban_whitelist_loopback', 'running' => [], 'skipped' => []];
+        }
+        $cfg = self::loadConfig();
+        $list = array_values(array_filter(
+            $cfg['defaults']['ignoreip'],
+            static fn(string $x): bool => $x !== $entry
+        ));
 
         return self::setDefaults(['ignoreip' => $list]);
     }

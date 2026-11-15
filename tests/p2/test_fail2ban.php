@@ -374,6 +374,15 @@ $r = KloxoFail2ban::whitelistAdd('203.0.113.200');
 check($r['ok'] && in_array('203.0.113.200', KloxoFail2ban::loadConfig()['defaults']['ignoreip'], true)
 	&& str_contains((string) file_get_contents($jailFile), '203.0.113.200'), 'whitelistAdd: used by the installer for the SSH client');
 check(KloxoFail2ban::whitelistAdd('junk')['ok'] === false, 'whitelistAdd: junk refused');
+check(KloxoFail2ban::isLoopbackIgnore('127.0.0.1/8') && KloxoFail2ban::isLoopbackIgnore('::1')
+	&& !KloxoFail2ban::isLoopbackIgnore('203.0.113.200'), 'isLoopbackIgnore: loopback vs normal');
+check(KloxoFail2ban::whitelistRemove('127.0.0.1/8')['error'] === 'fail2ban_whitelist_loopback'
+	&& KloxoFail2ban::whitelistRemove('::1')['error'] === 'fail2ban_whitelist_loopback',
+	'whitelistRemove: loopback refused');
+$r = KloxoFail2ban::whitelistRemove('203.0.113.200');
+check($r['ok'] && !in_array('203.0.113.200', KloxoFail2ban::loadConfig()['defaults']['ignoreip'], true)
+	&& !str_contains((string) file_get_contents($jailFile), '203.0.113.200'), 'whitelistRemove: entry gone from config and jail file');
+KloxoFail2ban::whitelistAdd('203.0.113.200');
 
 // ---- activity log
 $log = KloxoFail2ban::recentLog(10);
@@ -386,7 +395,9 @@ $cl = KloxoFail2ban::clean("<script>alert('x')</script>\n  & \"q\"\x01" . str_re
 check(!str_contains($cl, '<') && !str_contains($cl, '"') && !str_contains($cl, "'") && !str_contains($cl, '&') && strlen($cl) <= 200 && !str_contains($cl, "\n"),
 	'clean(): markup characters, control characters and length are stripped');
 $ov = KloxoFail2ban::overview();
-check(isset($ov['status'], $ov['rows'], $ov['banned'], $ov['log']) && count($ov['rows']) === count($cat), 'overview(): one call for the whole page');
+check(isset($ov['status'], $ov['rows'], $ov['banned'], $ov['whitelist'], $ov['log']) && count($ov['rows']) === count($cat)
+	&& in_array('127.0.0.1/8', $ov['whitelist'], true) && in_array('203.0.113.200', $ov['whitelist'], true),
+	'overview(): one call for the whole page including whitelist');
 
 // ---- auth log and filters
 $t = 1794031272;

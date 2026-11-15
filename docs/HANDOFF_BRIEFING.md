@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111512**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111513**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -813,11 +813,14 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   the `fail2ban` unit running. Tests: `tests/p2/test_fail2ban.php` (72 checks: fake `fail2ban-client` and
   systemctl in a temp tree via `KloxoFail2ban::$fsPrefix`, validation, render, apply/rollback, ban rules,
   log parsing, auth-log format, filter regexes translated to PHP, installer `--dry-run`),
-  `test_server_pages.php` (page, tabs, forms, wiring, a fake-machine render). Whitelist IP tab
-  (`sa=whitelist` → `updateWhitelist` → `KloxoFail2ban::whitelistAdd`). **HTTP 400 on every panel
+  `test_server_pages.php` (page, tabs, forms, wiring, a fake-machine render).   Whitelist IP tab
+  (`sa=whitelist` → `updateWhitelist` → `KloxoFail2ban::whitelistAdd`). The Fail2Ban list page has a
+  **Whitelist IPs** table (`overview()['whitelist']`; trash → `updateUnwhitelist` /
+  `whitelistRemove`; loopback rows are required and cannot be removed). **HTTP 400 on every panel
   form POST** (including Whitelist IP) was caused by Hiawatha patch `12.4-large-upload-v1`: after
   `strtoll` it restored `\r` then treated `*endptr != '\0'` as invalid. Fixed in **v2** (validate
-  while NUL-terminated); `upcp` / `install-hiawatha` rebuilds when the stamp is not v2.
+  while NUL-terminated; hunk line count must be `+238,23` or `patch` aborts); `upcp` /
+  `install-hiawatha` rebuilds when the stamp is not v2.
   **UNVERIFIED:** a real Fail2Ban (`-t`, reload, `datepattern`, the nftables action, journal matches),
   live bans, `python3-systemd` availability on 24.04/26.04, the installer on a real server, the page
   in a browser, live Whitelist IP after the Hiawatha rebuild.
@@ -1168,7 +1171,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111512**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111513**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

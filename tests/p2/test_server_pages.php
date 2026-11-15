@@ -4775,11 +4775,14 @@ foreach (array('invalid_fail2ban_time', 'invalid_fail2ban_maxretry', 'invalid_fa
 		$f2bLibKeys[] = $k;
 	}
 }
-foreach (array('f2b_banned', 'f2b_whitelisted', 'f2b_unbanned', 'f2b_unbanned_all', 'f2b_jail_enabled', 'f2b_jail_disabled', 'f2b_jail_updated',
+foreach (array('f2b_banned', 'f2b_whitelisted', 'f2b_unwhitelisted', 'f2b_unbanned', 'f2b_unbanned_all', 'f2b_jail_enabled', 'f2b_jail_disabled', 'f2b_jail_updated',
 	'f2b_settings_saved', 'f2b_reloaded') as $k) {
 	if (!str_contains($f2bMsg, "\$__emessage['" . $k . "']") || !str_contains($f2bSrc, "'" . $k . "'")) {
 		$f2bLibKeys[] = $k;
 	}
+}
+if (!str_contains($f2bKw, '$__throw["fail2ban_whitelist_loopback"]')) {
+	$f2bLibKeys[] = 'fail2ban_whitelist_loopback';
 }
 $f2bOk = array(
 	'class registered' => str_contains($f2bDef, "\$gl_class_array['fail2ban'] = \"driver/pserver/fail2banlib.php\""),
@@ -4802,8 +4805,10 @@ $f2bOk = array(
 		&& array_key_exists('f2b_ip', $f2bForms['whitelist'] ?? array())
 		&& array_key_exists('f2b_maxretry', $f2bForms['settings']) && array_key_exists('f2b_ignoreip', $f2bForms['settings'])
 		&& array_key_exists('f2b_enabled', $f2bForms['editjail']),
-	'list page' => str_contains($f2bOut, 'Jails') && str_contains($f2bOut, 'Banned IPs') && str_contains($f2bOut, 'Recent Activity')
-		&& str_contains($f2bOut, 'Refresh') && str_contains($f2bOut, 'Ban IP') && str_contains($f2bOut, 'Whitelist IP'),
+	'list page' => str_contains($f2bOut, 'Jails') && str_contains($f2bOut, 'Banned IPs') && str_contains($f2bOut, 'Whitelist IPs')
+		&& str_contains($f2bOut, 'Recent Activity')
+		&& str_contains($f2bOut, 'Refresh') && str_contains($f2bOut, 'Ban IP') && str_contains($f2bOut, 'Whitelist IP')
+		&& str_contains($f2bOut, 'f2b_whitelist_table') && str_contains($f2bSrc, 'whitelistRemove'),
 	'running jail, ban and counters shown' => str_contains($f2bOut, '203.0.113.9') && str_contains($f2bOut, '1 jails running')
 		&& str_contains($f2bOut, 'Unban') && str_contains($f2bOut, 'f2b-test-token')
 		&& str_contains($f2bOut, 'frm_o_o[1][class]=fail2ban') && !str_contains($f2bOut, 'servermail'),

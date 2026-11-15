@@ -14,6 +14,7 @@ class fail2ban extends lxclass
 	static $__acdesc_show = array("", "", "Fail2Ban");
 	static $__acdesc_update_ban = array("", "", "Ban IP");
 	static $__acdesc_update_whitelist = array("", "", "Whitelist IP");
+	static $__acdesc_update_unwhitelist = array("", "", "Remove Whitelist");
 	static $__acdesc_update_unban = array("", "", "Unban IP");
 	static $__acdesc_update_unbanall = array("", "", "Unban All");
 	static $__acdesc_update_settings = array("", "", "Settings");
@@ -185,6 +186,7 @@ class fail2ban extends lxclass
 		$st = (isset($ov['status']) && is_array($ov['status'])) ? $ov['status'] : array();
 		$rows = (isset($ov['rows']) && is_array($ov['rows'])) ? $ov['rows'] : array();
 		$banned = (isset($ov['banned']) && is_array($ov['banned'])) ? $ov['banned'] : array();
+		$whitelist = (isset($ov['whitelist']) && is_array($ov['whitelist'])) ? $ov['whitelist'] : array();
 		$log = (isset($ov['log']) && is_array($ov['log'])) ? $ov['log'] : array();
 		$err = isset($st['error']) ? (string) $st['error'] : '';
 		$host = $this->syncServerName();
@@ -325,6 +327,43 @@ class fail2ban extends lxclass
 				. '<td class="col">' . $h($b['jail']) . '</td><td class="col" align="center">';
 			$this->printInlineAction('unban', array('f2b_jail' => (string) $b['jail'], 'f2b_ip' => (string) $b['ip']),
 				self::faIcon('trash', '#333', 'Unban'), 'Unban', 'Unban ' . $b['ip'] . ' in ' . $b['jail'] . '?');
+			echo '</td></tr>';
+		}
+		echo '</table>';
+
+		// Whitelist (ignoreip)
+		echo '<div class="div_showhide" style="margin-top:10px"><fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">'
+			. '<legend><span style="font-weight:bold">Whitelist IPs under ' . $h($host) . ' (' . count($whitelist)
+			. ')</span></legend></fieldset></div>';
+		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0" id="f2b_whitelist_table">';
+		echo '<tr height="25" valign="middle">';
+		foreach (array('IP Address / CIDR', 'Note') as $c) {
+			echo '<td class="collist" nowrap style="background:#' . $h($skin) . '"><b>' . $h($c) . '</b></td>';
+		}
+		echo '<td class="collist" nowrap align="center" style="background:#' . $h($skin) . ';width:72px">&nbsp;</td></tr>';
+		if ($whitelist === array()) {
+			echo '<tr class="tablerow0"><td class="col" colspan="3" style="text-align:center;padding:12px"><b>No whitelist entries under '
+				. $h($host) . '</b></td></tr>';
+		}
+		$i = 0;
+		foreach ($whitelist as $entry) {
+			$entry = is_scalar($entry) ? trim((string) $entry) : '';
+			if ($entry === '') {
+				continue;
+			}
+			$i++;
+			$loop = class_exists('KloxoFail2ban') && KloxoFail2ban::isLoopbackIgnore($entry);
+			$note = $loop ? 'Loopback (required)' : 'Never banned';
+			echo '<tr height="22" class="tablerow' . ($i % 2) . '"><td class="col">' . $h($entry) . '</td>'
+				. '<td class="col">' . $h($note) . '</td><td class="col" align="center">';
+			if ($loop) {
+				echo '<span title="Loopback cannot be removed" style="margin:0 2px;vertical-align:middle">'
+					. self::faIcon('trash', '#ccc', 'Loopback required') . '</span>';
+			} else {
+				$this->printInlineAction('unwhitelist', array('f2b_ip' => $entry),
+					self::faIcon('trash', '#333', 'Remove'), 'Remove',
+					'Remove ' . $entry . ' from the Fail2Ban whitelist?');
+			}
 			echo '</td></tr>';
 		}
 		echo '</table>';
@@ -494,9 +533,9 @@ class fail2ban extends lxclass
 				$this->f2b_ip = $mine;
 				$vlist['f2b_ip'] = null;
 				$vlist['f2b_info'] = array('M', 'Add one IPv4/IPv6 address or CIDR (for example 203.0.113.10 or 203.0.113.0/24). '
-					. 'Whitelisted addresses are never banned. Already listed: '
-					. ($have !== array() ? implode(', ', $have) : '(loopback only after first save)')
-					. '. To edit the full list, use Settings. Your current address is prefilled when known.');
+					. 'Whitelisted addresses are never banned. The Fail2Ban list page shows every entry '
+					. '(' . count($have) . ' now); use the trash icon there to remove one. '
+					. 'Your current address is prefilled when known.');
 				$vlist['__v_button'] = 'Add to Whitelist';
 
 				return $vlist;
@@ -621,6 +660,17 @@ class fail2ban extends lxclass
 		$ret = $this->execF2b('whitelistAdd', array($ip));
 		$this->throwIfFailed($ret);
 		$this->redirectToShow('f2b_whitelisted', $ip);
+
+		return null;
+	}
+
+	function updateUnwhitelist($param)
+	{
+		$this->assertAdmin();
+		$ip = $this->field($param, 'f2b_ip');
+		$ret = $this->execF2b('whitelistRemove', array($ip));
+		$this->throwIfFailed($ret);
+		$this->redirectToShow('f2b_unwhitelisted', $ip);
 
 		return null;
 	}
@@ -759,7 +809,8 @@ class fail2ban extends lxclass
 		$args = is_array($args) ? $args : array();
 		$fail = array('ok' => false, 'error' => 'fail2ban_backend_failed',
 			'status' => array('installed' => true, 'active' => false, 'error' => 'fail2ban_backend_failed', 'jails' => array()),
-			'rows' => array(), 'banned' => array(), 'log' => array(), 'running' => array(), 'skipped' => array());
+			'rows' => array(), 'banned' => array(), 'whitelist' => array(), 'log' => array(),
+			'running' => array(), 'skipped' => array());
 		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
 		$panel = function_exists('php_sapi_name') ? php_sapi_name() : 'cli';
 		$useBackend = $euid !== 0 && $panel !== 'cli' && function_exists('rl_exec_get');

@@ -84,6 +84,7 @@ $__emessage['ufw_disabled'] = 'UFW firewall disabled.';
 $__emessage['ufw_defaults_set'] = 'UFW defaults set: [%s]';
 $__emessage['f2b_banned'] = 'Banned: [%s]';
 $__emessage['f2b_whitelisted'] = 'Whitelisted: [%s]';
+$__emessage['f2b_unwhitelisted'] = 'Removed from whitelist: [%s]';
 $__emessage['f2b_unbanned'] = 'Unbanned: [%s]';
 $__emessage['f2b_unbanned_all'] = 'All Fail2Ban bans cleared.';
 $__emessage['f2b_jail_enabled'] = 'Jail enabled: [%s]';
