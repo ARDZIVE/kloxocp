@@ -393,6 +393,13 @@ if grep -q 'listen = 127.0.0.1:39000' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
 else
   bad "Hiawatha FastCGI uses 127.0.0.1:39000 and restarts after FPM"
 fi
+if grep -q '^BanOnMaxReqSize = 0' "$ROOT/kloxo/init/hiawatha.conf.base" \
+  && grep -q 'MaxUploadSize = 2047' "$ROOT/kloxo/init/hiawatha.conf.base" \
+  && grep -q 'MaxRequestSize = 2096128' "$ROOT/kloxo/init/hiawatha.conf.base"; then
+  ok "Hiawatha upload ~2GB max and no BanOnMaxReqSize kick"
+else
+  bad "Hiawatha upload ~2GB max and no BanOnMaxReqSize kick"
+fi
 if grep -q '/usr/bin/php8.5' "$ROOT/kloxo/init/php-cli.sh" && grep -q '/usr/bin/php8.3' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
   ok "php-cli and sgbl look for php8.5 and php8.3"
 else

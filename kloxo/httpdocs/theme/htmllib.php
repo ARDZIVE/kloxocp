@@ -8749,9 +8749,11 @@ class HtmlLib
 var iBytesUploaded = 0;
 var iBytesTotal = 0;
 var iPreviousBytesLoaded = 0;
-var iMaxFilesize = 2146435072; // 2047MB
-var oTimer = 0;
-var sResultFileSize = '';
+// Hiawatha Content-Length is a signed 32-bit int (~2GB). Do not raise this
+	// past that without patching Hiawatha; larger files must use scp/SFTP/FTP.
+	var iMaxFilesize = 2097152000; // 2000 MiB (matches panel PHP upload_max_filesize)
+	var oTimer = 0;
+	var sResultFileSize = '';
 
 function secondsToTime(secs) { // we will use this function to convert seconds in normal time format
 	var hr = Math.floor(secs / 3600);
@@ -8772,12 +8774,31 @@ function bytesToSize(bytes) {
 	return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + sizes[i];
 }
 
+function uploadFileTooLarge(inputEl) {
+	var el = inputEl;
+	if (!el || !el.files || !el.files[0]) {
+		var byId = document.querySelector('input.filebox[type=file]');
+		el = byId || el;
+	}
+	if (!el || !el.files || !el.files[0]) {
+		return false;
+	}
+	return el.files[0].size > iMaxFilesize;
+}
+
+function uploadShowSizeWarning(show) {
+	var w = document.getElementById('progress_warnsize');
+	if (w) {
+		w.style.display = show ? 'block' : 'none';
+	}
+}
+
 function fileSelected(e) {
 
 	// hide different warnings
 	document.getElementById('progress_error2').style.display = 'none';
 	document.getElementById('progress_abort').style.display = 'none';
-	document.getElementById('progress_warnsize').style.display = 'none';
+	uploadShowSizeWarning(false);
 
 	document.getElementById('progress').style.width = '0';
 	document.getElementById('progress').innerHTML = '';
@@ -8788,10 +8809,13 @@ function fileSelected(e) {
 
 	// get selected file element
 	var oFile = document.getElementById(e.id).files[0];
+	if (!oFile) {
+		return;
+	}
 
 	// little test for filesize
 	if (oFile.size > iMaxFilesize) {
-		document.getElementById('progress_warnsize').style.display = 'block';
+		uploadShowSizeWarning(true);
 		return;
 	}
 
@@ -8920,7 +8944,7 @@ function startUploading(e) {
 	}
 	document.getElementById('progress_error2').style.display = 'none';
 	document.getElementById('progress_abort').style.display = 'none';
-	document.getElementById('progress_warnsize').style.display = 'none';
+	uploadShowSizeWarning(false);
 	document.getElementById('progress_percent').innerHTML = '0%';
 	var oProgress = document.getElementById('progress');
 	oProgress.style.display = 'block';
@@ -8929,6 +8953,14 @@ function startUploading(e) {
 	if (typeof FormData !== "undefined") {
 		// get form data for POSTing
 		var uploadForm = document.getElementById(e.form.id);
+		var fileInput = uploadForm
+			? uploadForm.querySelector('input.filebox[type=file]')
+			: null;
+		if (uploadFileTooLarge(fileInput)) {
+			uploadShowSizeWarning(true);
+			oProgress.style.display = 'none';
+			return false;
+		}
 		var vFD = new FormData(uploadForm);
 		var formRedirectUrl = uploadRedirectFromForm(uploadForm);
 		if (formRedirectUrl) {
@@ -9081,11 +9113,11 @@ function uploadAbort(e) { // upload abort
 </script>
 
 					<?= $variable_description ?> <?= $myneedstring ?> <br/>
-					<input class="filebox" type="file" name="<?= $variable->name ?>" id="<?= $variable->name ?>" size="30"  onclick="fileSelected(this);">
+					<input class="filebox" type="file" name="<?= $variable->name ?>" id="<?= $variable->name ?>" size="30" onchange="fileSelected(this);">
 					<div>&nbsp;</div>
 					<div id="progress_error2">An error occurred while uploading the file</div>
 					<div id="progress_abort">The upload has been canceled by the user or the browser dropped the connection</div>
-					<div id="progress_warnsize">Your file is very big. We can't accept it. Please select more small file</div>
+					<div id="progress_warnsize">This file is larger than the 2000&nbsp;MB browser upload limit. Use Backup → Upload (ftp), or copy it with scp/SFTP into the account <code>__backup</code> folder, then use Restore From File.</div>
 
 					<div id="progress_info">
 						<div id="progress_base"><div id="progress">0%</div></div>

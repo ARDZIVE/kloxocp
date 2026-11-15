@@ -740,6 +740,20 @@ check(str_contains($htmlUpload, 'function uploadGoNext')
 	&& str_contains($htmlUpload, "addEventListener('abort'")
 	&& !str_contains($htmlUpload, "addEventListener('progress_abort'"),
 	'Upload XHR redirects on load/timeout with File Manager toast URL');
+check(str_contains($htmlUpload, 'onchange="fileSelected(this);"')
+	&& !str_contains($htmlUpload, 'onclick="fileSelected(this);')
+	&& str_contains($htmlUpload, 'function uploadFileTooLarge')
+	&& str_contains($htmlUpload, 'uploadFileTooLarge(fileInput)')
+	&& str_contains($htmlUpload, '2000 MiB')
+	&& str_contains($htmlUpload, '__backup')
+	&& str_contains($htmlUpload, 'Upload (ftp)'),
+	'Browser upload blocks files over 2000 MiB before XHR (Hiawatha ~2GB hard limit)');
+$msgUpload = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+check(str_contains($msgUpload, 'ffile_updateform_upload_s_pre')
+	&& str_contains($msgUpload, '2000')
+	&& str_contains($msgUpload, '/home/kloxo/admin/__backup/')
+	&& str_contains($msgUpload, 'Restore From File'),
+	'Upload help text documents the 2000 MB limit and scp/FTP path');
 $lxlibSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 check(str_contains($lxlibSrc, 'function kloxo_is_xhr_request')
 	&& str_contains($lxlibSrc, 'function kloxo_xhr_redirect_response')
