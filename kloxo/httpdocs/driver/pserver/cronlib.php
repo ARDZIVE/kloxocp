@@ -171,6 +171,7 @@ class Cron extends Lxdb
 
 		$this->__var_cron_list = array();
 		$this->__var_user_list = array();
+		$this->__var_web_php = array();
 
 		if ($username === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $username)) {
 			return;
@@ -185,6 +186,45 @@ class Cron extends Lxdb
 			$userlist = $mydb->getRowsWhere("nname = '{$username}'");
 			$this->__var_user_list = (is_array($userlist) && isset($userlist[0]) && is_array($userlist[0]))
 				? $userlist[0] : array();
+
+			// Map each site (domain/subdomain web nname) → Web Features php_selected
+			// so crontab sync pins bare `php` to that site's CLI, not the first
+			// pool for the Unix user.
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
+			$wdb = new Sqlite($this->__masterserver, 'web');
+			$uEsc = str_replace("'", "''", $username);
+			$webs = $wdb->getRowsWhere("username = '{$uEsc}'");
+			if (is_array($webs)) {
+				foreach ($webs as $w) {
+					if (!is_array($w) || !isset($w['nname']) || !is_string($w['nname']) || $w['nname'] === '') {
+						continue;
+					}
+					$sel = isset($w['php_selected']) && is_string($w['php_selected'])
+						? $w['php_selected'] : '';
+					$this->__var_web_php[$w['nname']] = $sel;
+				}
+			}
+			foreach ($this->__var_cron_list as &$crow) {
+				if (!is_array($crow)) {
+					continue;
+				}
+				$pcl = isset($crow['parent_clname']) && is_string($crow['parent_clname'])
+					? $crow['parent_clname'] : '';
+				$dom = KloxoPhpfpm::domainFromCronParent($pcl);
+				$crow['__kloxo_cron_domain'] = $dom;
+				$crow['__kloxo_php_selected'] = ($dom !== '' && isset($this->__var_web_php[$dom]))
+					? $this->__var_web_php[$dom] : '';
+			}
+			unset($crow);
+			// Current object being synced (may be newer than DB row).
+			if (isset($this->parent_clname) && is_string($this->parent_clname)) {
+				$dom = KloxoPhpfpm::domainFromCronParent($this->parent_clname);
+				if ($dom !== '') {
+					$this->__kloxo_cron_domain = $dom;
+					$this->__kloxo_php_selected = isset($this->__var_web_php[$dom])
+						? $this->__var_web_php[$dom] : '';
+				}
+			}
 		} catch (Throwable $e) {
 			log_log("error", "cron createExtraVariables: " . $e->getMessage());
 		}

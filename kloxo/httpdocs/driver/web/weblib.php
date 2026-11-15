@@ -1830,6 +1830,16 @@ class Web extends Lxdb
 		// runs createConfFile for this domain.
 		$this->write();
 		createRestartFile('restart-web');
+		// Refresh this client's crontab so subdomain/domain jobs pin bare
+		// `php` to the Web Features PHP Selected just saved.
+		if (class_exists('Cron', false) || is_file(dirname(__DIR__) . '/pserver/cronlib.php')) {
+			if (!class_exists('Cron', false)) {
+				include_once dirname(__DIR__) . '/pserver/cronlib.php';
+			}
+			if (class_exists('Cron', false)) {
+				Cron::rewriteCrontabForParent($this);
+			}
+		}
 	}
 
 	function updateform($subaction, $param)

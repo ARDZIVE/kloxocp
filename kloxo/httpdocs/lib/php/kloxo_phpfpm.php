@@ -549,6 +549,121 @@ final class KloxoPhpfpm
         return $file;
     }
 
+    /**
+     * Domain/FQDN from a cron parent_clname (web-blog.example.com,
+     * domain-example.com, subdomain-blog.example.com). Empty when parent is
+     * client/pserver so username-wide pinning applies.
+     */
+    public static function domainFromCronParent(string $parentClname): string
+    {
+        $pcl = trim($parentClname);
+        if ($pcl === '' || !str_contains($pcl, '-')) {
+            return '';
+        }
+        $pos = strpos($pcl, '-');
+        $class = strtolower(substr($pcl, 0, $pos));
+        $name = substr($pcl, $pos + 1);
+        if ($name === '' || !in_array($class, ['web', 'domain', 'subdomain'], true)) {
+            return '';
+        }
+        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $name)) {
+            return '';
+        }
+
+        return $name;
+    }
+
+    /**
+     * Normalize Web Features php_selected to a phpX.Y id (or activeId for
+     * empty / --default-- / --PHP Used--).
+     */
+    public static function normalizePhpSelected(?string $phpSelected): string
+    {
+        include_once __DIR__ . '/kloxo_phpver.php';
+        $raw = is_string($phpSelected) ? trim($phpSelected) : '';
+        if ($raw === '' || strtolower($raw) === '--default--'
+            || str_contains(strtolower($raw), 'php used')) {
+            return KloxoPhpver::activeId();
+        }
+        if (KloxoPhpver::isDistroId($raw)) {
+            return $raw;
+        }
+        if (preg_match('/^php\s*(\d+\.\d+)$/i', $raw, $m) === 1) {
+            $id = 'php' . $m[1];
+            if (KloxoPhpver::isDistroId($id)) {
+                return $id;
+            }
+        }
+
+        return KloxoPhpver::activeId();
+    }
+
+    /**
+     * PHP id for a domain/subdomain cron: Web Features php_selected, else the
+     * exact FPM pool for that FQDN, else server PHP Used. Never "first pool
+     * for the Unix user" when a domain is known (that mixed sibling sites).
+     */
+    public static function phpIdForDomainCron(string $domain, ?string $phpSelected = null): string
+    {
+        include_once __DIR__ . '/kloxo_phpver.php';
+        $dom = self::token($domain, true);
+        $raw = is_string($phpSelected) ? trim($phpSelected) : '';
+        if ($raw !== '' && strtolower($raw) !== '--default--'
+            && !str_contains(strtolower($raw), 'php used')) {
+            $id = self::normalizePhpSelected($raw);
+            if ($id !== '' && KloxoPhpver::isDistroId($id)) {
+                return $id;
+            }
+        }
+        if ($dom !== '') {
+            $pool = self::p('/etc/php/*/fpm/pool.d/kloxo-' . $dom . '.conf');
+            foreach (glob($pool) ?: [] as $f) {
+                if (!is_string($f) || !is_file($f)) {
+                    continue;
+                }
+                $series = basename(dirname($f, 3));
+                if (preg_match('/^\d+\.\d+$/', $series) === 1) {
+                    return 'php' . $series;
+                }
+            }
+        }
+
+        return KloxoPhpver::activeId();
+    }
+
+    /**
+     * CLI path for a domain/subdomain cron command (Web Features PHP Selected).
+     * When $domain is empty, falls back to server PHP Used then first pool for $username.
+     */
+    public static function cliForDomainCron(string $domain, ?string $phpSelected = null, string $username = ''): string
+    {
+        include_once __DIR__ . '/kloxo_phpver.php';
+        $dom = self::token($domain, true);
+        if ($dom !== '') {
+            return KloxoPhpver::cliBin(self::phpIdForDomainCron($dom, $phpSelected));
+        }
+        $cli = KloxoPhpver::cliBin(KloxoPhpver::activeId());
+        $user = self::token($username, false);
+        if ($user === '') {
+            return $cli;
+        }
+        foreach (glob(self::p('/etc/php/*/fpm/pool.d/kloxo-*.conf')) ?: [] as $f) {
+            if (!is_string($f) || !is_file($f)) {
+                continue;
+            }
+            $txt = (string) @file_get_contents($f);
+            if (!preg_match('/^user\s*=\s*' . preg_quote($user, '/') . '\s*$/m', $txt)) {
+                continue;
+            }
+            $series = basename(dirname($f, 3));
+            if (preg_match('/^\d+\.\d+$/', $series) === 1) {
+                return KloxoPhpver::cliBin('php' . $series);
+            }
+        }
+
+        return $cli;
+    }
+
     // ------------------------------------------------------------------ internals
 
     private static function p(string $abs): string

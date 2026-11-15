@@ -81,6 +81,11 @@ class cron__Linux extends lxDriverClass
 			$result = array();
 		}
 
+		$webPhp = array();
+		if (isset($this->main->__var_web_php) && is_array($this->main->__var_web_php)) {
+			$webPhp = $this->main->__var_web_php;
+		}
+
 		foreach ($result as $v) {
 			if (!is_array($v)) {
 				continue;
@@ -90,7 +95,19 @@ class cron__Linux extends lxDriverClass
 			if ($command === '') {
 				continue;
 			}
-			$command = $this->pinCronPhp($command, $username);
+			$domain = '';
+			if (isset($v['__kloxo_cron_domain']) && is_string($v['__kloxo_cron_domain'])) {
+				$domain = $v['__kloxo_cron_domain'];
+			} elseif (isset($v['parent_clname']) && is_string($v['parent_clname'])) {
+				$domain = $this->domainFromParentClname($v['parent_clname']);
+			}
+			$phpSelected = null;
+			if (isset($v['__kloxo_php_selected']) && is_string($v['__kloxo_php_selected'])) {
+				$phpSelected = $v['__kloxo_php_selected'];
+			} elseif ($domain !== '' && isset($webPhp[$domain]) && is_string($webPhp[$domain])) {
+				$phpSelected = $webPhp[$domain];
+			}
+			$command = $this->pinCronPhp($command, $username, $domain, $phpSelected);
 
 			$ttype = isset($v['ttype']) ? $v['ttype'] : '';
 			if ($ttype === 'simple') {
@@ -150,7 +167,21 @@ class cron__Linux extends lxDriverClass
 		lunlink($tfile);
 	}
 
-	function pinCronPhp($command, $username)
+	/**
+	 * Domain FQDN from cron parent_clname (web-/domain-/subdomain-).
+	 */
+	function domainFromParentClname($parentClname)
+	{
+		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
+
+		return KloxoPhpfpm::domainFromCronParent(is_string($parentClname) ? $parentClname : '');
+	}
+
+	/**
+	 * Pin bare php to the CLI for this job: subdomain/domain Web Features
+	 * PHP Selected when parent is that site; else server PHP Used / user pool.
+	 */
+	function pinCronPhp($command, $username, $domain = '', $phpSelected = null)
 	{
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_ipaddr.php';
 		include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
@@ -158,21 +189,11 @@ class cron__Linux extends lxDriverClass
 		if (!KloxoIpaddr::isUbuntu()) {
 			return $command;
 		}
-		$cli = KloxoPhpver::cliBin(KloxoPhpver::activeId());
-		foreach (glob('/etc/php/*/fpm/pool.d/kloxo-*.conf') ?: [] as $f) {
-			if (!is_string($f) || !is_file($f)) {
-				continue;
-			}
-			$txt = (string) @file_get_contents($f);
-			if (!preg_match('/^user\\s*=\\s*' . preg_quote($username, '/') . '\\s*$/m', $txt)) {
-				continue;
-			}
-			$series = basename(dirname($f, 3));
-			if (preg_match('/^\\d+\\.\\d+$/', $series) === 1) {
-				$cli = KloxoPhpver::cliBin('php' . $series);
-				break;
-			}
-		}
+		$cli = KloxoPhpfpm::cliForDomainCron(
+			is_string($domain) ? $domain : '',
+			is_string($phpSelected) ? $phpSelected : null,
+			is_string($username) ? $username : ''
+		);
 
 		return KloxoPhpfpm::rewriteCronPhp((string) $command, $cli);
 	}

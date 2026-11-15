@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111503**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111505**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1139,6 +1139,12 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `validateWeb` cleans both drivers before either checker. Tests:
    `test_ssl.php` (sanitizer nginx+apache), `test_apache_defaults.php`,
    `test_subdomain_addform.php`. Live Apache Add Subdomain **UNVERIFIED**.
+   **Subdomain/domain cron PHP:** crontab sync pins bare `php` /
+   `/usr/bin/php` to the site’s Web Features `php_selected` when the cron
+   parent is `web-`/`domain-`/`subdomain-` (exact FPM pool as fallback);
+   client-level crons still use server PHP Used / first user pool. Changing
+   PHP Selected refreshes the client crontab. Tests: `test_cron_php.php`.
+   Live Ubuntu crontab **UNVERIFIED**.
    Verify: hotfix `$domain` in live exim4.conf, `exim4 -qff`, then Add
    Customer / `test-mail --to=real@…`. Tests: `tests/p2/test_panel_mail.php`,
    `run-tests.sh` domainlist check. Live welcome delivery after apply
@@ -1157,7 +1163,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111503**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111505**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

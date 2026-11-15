@@ -250,6 +250,16 @@ if php "$HERE/test_phpfpm.php"; then
 else
   bad "test_phpfpm.php"
 fi
+if php "$HERE/test_cron_php.php"; then
+  ok "test_cron_php.php"
+else
+  bad "test_cron_php.php"
+fi
+if php "$HERE/test_subdomain_addform.php"; then
+  ok "test_subdomain_addform.php"
+else
+  bad "test_subdomain_addform.php"
+fi
 if php "$HERE/test_client_unix.php"; then
   ok "test_client_unix.php"
 else
