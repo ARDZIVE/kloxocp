@@ -681,9 +681,19 @@ class lxbackup extends Lxdb
 		} else {
 			$fromFile = isset($param['backup_from_file_f']) ? (string) $param['backup_from_file_f'] : '';
 			$fromFtp = isset($param['backup_ftp_file_f']) ? (string) $param['backup_ftp_file_f'] : '';
-			$fname = ($fromFile !== '') ? $fromFile : '_RESTORE_' . basename($fromFtp);
-			$fname = str_replace(array("/", ";", " "), "", $fname);
+			try {
+				if ($fromFile !== '') {
+					$fname = KloxoBackup::normalizeBackupPick($fromFile);
+				} else {
+					$fname = '_RESTORE_' . KloxoBackup::normalizeBackupPick(basename($fromFtp));
+				}
+			} catch (Throwable $e) {
+				throw new lxException($login->getThrow('could_not_find_file'), '', $fromFile !== '' ? $fromFile : $fromFtp);
+			}
 			$file = "{$bpath}/{$fname}";
+			if (!is_file($file)) {
+				throw new lxException($login->getThrow('could_not_find_file'), '', $file);
+			}
 
 			@set_time_limit(0);
 			@ignore_user_abort(true);
@@ -1336,11 +1346,17 @@ class lxbackup extends Lxdb
 			$file = "{$bpath}/{$file}";
 			$this->download_from_server($param['backup_ftp_file_f'], $file);
 		} else {
-			$file = isset($param['backup_from_file_f']) ? (string) $param['backup_from_file_f'] : '';
-			$file = str_replace(";", "", $file);
-			$file = str_replace("/", "", $file);
-			$file = str_replace(" ", "", $file);
-			$file = "{$bpath}/{$file}";
+			global $login;
+			$raw = isset($param['backup_from_file_f']) ? (string) $param['backup_from_file_f'] : '';
+			if (!class_exists('KloxoBackup', false)) {
+				include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+			}
+			try {
+				$base = KloxoBackup::normalizeBackupPick($raw);
+			} catch (Throwable $e) {
+				throw new lxException($login->getThrow('could_not_find_file'), '', $raw);
+			}
+			$file = "{$bpath}/{$base}";
 		}
 
 		return $file;

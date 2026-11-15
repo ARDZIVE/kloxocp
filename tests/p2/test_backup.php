@@ -271,6 +271,76 @@ PY;
 } else {
 	check(true, 'extractArchive tar-slip skipped (no python3 or tar)');
 }
+
+// Full extract must not put every member on argv (ARG_MAX on multi-GB MR7 packs).
+$manySrc = $base . '/manysrc';
+$manyOut = $base . '/manyout';
+@mkdir($manySrc, 0700, true);
+@mkdir($manyOut, 0700, true);
+$manyNames = array();
+for ($i = 0; $i < 80; $i++) {
+	$fn = sprintf('f%03d.txt', $i);
+	file_put_contents($manySrc . '/' . $fn, (string) $i);
+	$manyNames[] = $fn;
+}
+$manyTgz = $base . '/many.tgz';
+$manyOk = false;
+$maxArgvMembers = 0;
+if ($tarBin !== '') {
+	$p = @proc_open(array_merge(array($tarBin, '-czf', $manyTgz, '-C', $manySrc), $manyNames),
+		array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
+	if (is_resource($p)) {
+		stream_get_contents($pipes[1]);
+		stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		proc_close($p);
+	}
+	if (is_file($manyTgz)) {
+		KloxoBackup::$runCmd = function (array $argv) use (&$maxArgvMembers, $tarBin) {
+			$after = false;
+			$n = 0;
+			foreach ($argv as $a) {
+				if ($a === '--') {
+					$after = true;
+					continue;
+				}
+				if ($after) {
+					$n++;
+				}
+			}
+			if ($n > $maxArgvMembers) {
+				$maxArgvMembers = $n;
+			}
+			// Still run real tar for the extract under test.
+			$p = @proc_open($argv, array(
+				0 => array('file', '/dev/null', 'r'),
+				1 => array('pipe', 'w'),
+				2 => array('pipe', 'w'),
+			), $pipes);
+			$out = '';
+			if (is_resource($p)) {
+				$out = (string) stream_get_contents($pipes[1]) . (string) stream_get_contents($pipes[2]);
+				fclose($pipes[1]);
+				fclose($pipes[2]);
+				$code = proc_close($p);
+
+				return array('code' => $code, 'out' => $out);
+			}
+
+			return array('code' => 127, 'out' => 'no proc');
+		};
+		try {
+			KloxoBackup::extractArchive($manyTgz, $manyOut);
+			$manyOk = is_file($manyOut . '/f000.txt') && is_file($manyOut . '/f079.txt')
+				&& $maxArgvMembers === 0;
+		} catch (Throwable $e) {
+			$manyOk = false;
+		}
+		KloxoBackup::$runCmd = null;
+	}
+}
+check($manyOk, 'full extractArchive does not pass every member on argv (ARG_MAX-safe)');
 if (class_exists('ZipArchive')) {
 	$zfile = $base . '/slip.zip';
 	$z = new ZipArchive();
@@ -525,8 +595,36 @@ check(str_contains($kb, 'function ensureDir')
 check(str_contains($kb, 'function archiveMemberIsSafe')
 	&& str_contains($kb, 'function unserializeMetadata')
 	&& str_contains($kb, 'allowed_classes')
+	&& str_contains($kb, 'function normalizeBackupPick')
+	&& str_contains($kb, 'extractTarAllSafe')
+	&& str_contains($kb, '-T')
 	&& !str_contains($kb, '--wildcards'),
-	'extract lists members, refuses traversal, no tar wildcards');
+	'extract avoids ARG_MAX (full tar -x / -T), refuses traversal, no wildcards');
+$pickOk = false;
+$pickBad = false;
+try {
+	$pickOk = KloxoBackup::normalizeBackupPick('/kloxomr70-scheduled-aklorcom-1.tgz')
+		=== 'kloxomr70-scheduled-aklorcom-1.tgz'
+		&& KloxoBackup::normalizeBackupPick('  my backup.tgz  ') === 'my backup.tgz'
+		&& KloxoBackup::normalizeBackupPick('/dir/my.tgz') === 'dir/my.tgz';
+} catch (Throwable $e) {
+	$pickOk = false;
+}
+try {
+	KloxoBackup::normalizeBackupPick('../etc/passwd');
+} catch (KloxoBackupException $e) {
+	$pickBad = true;
+}
+try {
+	KloxoBackup::normalizeBackupPick('/ok/../../etc/passwd');
+	$pickBad = false;
+} catch (KloxoBackupException $e) {
+	// still bad
+}
+check($pickOk && $pickBad, 'normalizeBackupPick keeps relative path/spaces and rejects traversal');
+check(str_contains($bak, 'normalizeBackupPick')
+	&& str_contains($bak, 'could_not_find_file'),
+	'Restore From File resolves picker paths via normalizeBackupPick');
 check(str_contains($bak, 'KloxoBackup::unserializeMetadata')
 	&& str_contains((string) file_get_contents($doc . '/lib/html/lib.php'), 'KloxoBackup::unserializeMetadata'),
 	'restore metadata does not raw-unserialize kloxo.file');

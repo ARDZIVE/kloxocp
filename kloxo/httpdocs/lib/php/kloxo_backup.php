@@ -1326,10 +1326,40 @@ final class KloxoBackup
 	}
 
 	/**
-	 * Extract a .tgz/.tar/.zip archive into $dest. Only members whose paths
-	 * stay under $dest are extracted; glob members and symlink members are
-	 * refused. $members limits the extract to those names (must themselves
-	 * be safe).
+	 * Relative path of a Restore From File picker value under __backup
+	 * (fileselect returns `/file.tgz` or `/dir/file.tgz`). Rejects traversal;
+	 * keeps spaces that the old slash/space strip removed.
+	 */
+	public static function normalizeBackupPick(string $pick): string
+	{
+		$pick = str_replace(array("\0", ";"), '', $pick);
+		$pick = str_replace('\\', '/', $pick);
+		$pick = trim($pick);
+		$pick = preg_replace('#/+#', '/', $pick) ?? $pick;
+		$pick = trim($pick, '/');
+		if ($pick === '') {
+			throw new KloxoBackupException('invalid backup file name');
+		}
+		foreach (explode('/', $pick) as $part) {
+			if ($part === '' || $part === '.' || $part === '..'
+				|| str_contains($part, "\0") || ($part[0] ?? '') === '-') {
+				throw new KloxoBackupException('invalid backup file name');
+			}
+		}
+
+		return $pick;
+	}
+
+	/**
+	 * Extract a .tgz/.tar/.zip archive into $dest.
+	 *
+	 * Full extract (empty $members): one tar/unzip pass — never loads every
+	 * member name into PHP or argv (multi-GB Kloxo-MR restores hit ARG_MAX
+	 * and hung on `tar -tv` of the whole archive). Symlinks and unsafe paths
+	 * are scrubbed after extract; traversal members make GNU tar fail.
+	 *
+	 * Named extract: tries the given names first, then streams a member list
+	 * and extracts basename matches via `tar -T` (still no huge argv).
 	 *
 	 * @param list<string> $members
 	 */
@@ -1351,15 +1381,171 @@ final class KloxoBackup
 		if (!is_dir($dest)) {
 			throw new KloxoBackupException('invalid archive or destination');
 		}
-		$listed = self::listArchiveMembers($archive);
-		$safe = array();
+		$type = self::archiveType($archive);
+		if ($members === array()) {
+			if ($type === 'zip') {
+				self::extractZipAllSafe($archive, $dest);
+			} else {
+				self::extractTarAllSafe($archive, $dest, $type === 'tgz');
+			}
+
+			return;
+		}
+		$want = array();
+		foreach ($members as $m) {
+			$m = str_replace(array(';', "\n", "\r", "\0"), '', (string) $m);
+			$m = ltrim(preg_replace('#^(?:\./)+#', '', $m) ?? $m, '/');
+			if ($m === '' || str_contains($m, '*') || !self::archiveMemberIsSafe($m)) {
+				throw new KloxoBackupException('archive contains an unsafe path');
+			}
+			$want[] = $m;
+		}
+		if ($type === 'zip') {
+			self::extractZipNamed($archive, $dest, $want);
+
+			return;
+		}
+		self::extractTarNamed($archive, $dest, $want, $type === 'tgz');
+	}
+
+	/**
+	 * @param list<string> $want
+	 */
+	private static function extractTarNamed(string $archive, string $dest, array $want, bool $gzip): void
+	{
+		$tar = self::firstExec(array('/usr/bin/tar', '/bin/tar', 'tar'));
+		$bin = $tar !== '' ? $tar : 'tar';
+		$argv = array($bin, '-x', '-C', $dest, '-f', $archive);
+		if ($gzip) {
+			array_splice($argv, 1, 0, '-z');
+		}
+		$argv[] = '--';
+		foreach ($want as $m) {
+			$argv[] = $m;
+		}
+		$r = self::run($argv);
+		$found = self::wantedMembersPresent($dest, $want);
+		if ($found) {
+			self::scrubExtractTree($dest);
+
+			return;
+		}
+		// Nested metadata (tmp/.../kloxo.file): stream-match basenames to a
+		// -T list so argv stays small even when the archive is multi-GB.
+		$listFile = tempnam(sys_get_temp_dir(), 'kloxo-tar-');
+		if ($listFile === false) {
+			throw new KloxoBackupException(
+				'archive missing ' . implode(',', $want)
+			);
+		}
+		try {
+			$matched = self::writeTarMemberList($archive, $gzip, $want, $listFile);
+			if ($matched === 0) {
+				throw new KloxoBackupException(
+					'archive missing ' . implode(',', $want)
+				);
+			}
+			$argv2 = array($bin, '-x', '-C', $dest, '-f', $archive, '-T', $listFile);
+			if ($gzip) {
+				array_splice($argv2, 1, 0, '-z');
+			}
+			$r2 = self::run($argv2);
+			if (($r2['code'] ?? 1) !== 0 && !self::wantedMembersPresent($dest, $want)) {
+				$detail = self::shortCmdError($r2['out'] ?? '');
+				throw new KloxoBackupException(
+					'could not untar ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
+				);
+			}
+			if (!self::wantedMembersPresent($dest, $want)) {
+				throw new KloxoBackupException(
+					'archive missing ' . implode(',', $want)
+				);
+			}
+			self::scrubExtractTree($dest);
+		} finally {
+			@unlink($listFile);
+		}
+		unset($r);
+	}
+
+	private static function extractTarAllSafe(string $archive, string $dest, bool $gzip): void
+	{
+		$tar = self::firstExec(array('/usr/bin/tar', '/bin/tar', 'tar'));
+		$bin = $tar !== '' ? $tar : 'tar';
+		// One extract of the whole archive — never pass every file on argv
+		// (ARG_MAX) and never `tar -tv` the whole multi-GB stream first.
+		// GNU/bsdtar refuse `..` / absolute members; scrub drops symlinks.
+		$argv = array($bin, '-x', '-C', $dest, '-f', $archive);
+		if ($gzip) {
+			array_splice($argv, 1, 0, '-z');
+		}
+		$r = self::run($argv);
+		self::scrubExtractTree($dest);
+		$code = (int) ($r['code'] ?? 1);
+		if ($code !== 0 && !self::dirHasExtractedFiles($dest)) {
+			$detail = self::shortCmdError($r['out'] ?? '');
+			// Traversal-only packs (tar slip tests) land here.
+			if ($detail !== '' && (str_contains($detail, '..') || str_contains($detail, 'Absolute')
+				|| str_contains(strtolower($detail), 'outside')
+				|| str_contains(strtolower($detail), 'reject'))) {
+				throw new KloxoBackupException('archive contains an unsafe path');
+			}
+			throw new KloxoBackupException(
+				'could not untar ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
+			);
+		}
+	}
+
+	private static function dirHasExtractedFiles(string $dest): bool
+	{
+		if (!is_dir($dest)) {
+			return false;
+		}
+		$it = @scandir($dest);
+		if (!is_array($it)) {
+			return false;
+		}
+		foreach ($it as $e) {
+			if ($e !== '.' && $e !== '..') {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * @param list<string> $want
+	 */
+	private static function extractZipNamed(string $archive, string $dest, array $want): void
+	{
+		$listed = self::listZipMembers($archive);
+		$extract = array();
+		foreach ($listed as $entry) {
+			$name = (string) ($entry['name'] ?? '');
+			$norm = ltrim(preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $name)) ?? $name, '/');
+			if ($norm === '' || !self::archiveMemberIsSafe($norm) || !empty($entry['link'])) {
+				continue;
+			}
+			if (in_array($norm, $want, true) || in_array(basename($norm), $want, true)) {
+				$extract[] = $name;
+			}
+		}
+		if ($extract === array()) {
+			throw new KloxoBackupException('archive missing ' . implode(',', $want));
+		}
+		self::runUnzip($archive, $dest, $extract);
+		self::scrubExtractTree($dest);
+	}
+
+	private static function extractZipAllSafe(string $archive, string $dest): void
+	{
+		$listed = self::listZipMembers($archive);
+		$extract = array();
 		$skipped = 0;
 		foreach ($listed as $entry) {
 			$name = (string) ($entry['name'] ?? '');
-			// Normalise leading ./ and a single leading / (old simple-backup
-			// packs used absolute paths; GNU tar stores them without /).
-			$norm = preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $name)) ?? $name;
-			$norm = ltrim($norm, '/');
+			$norm = ltrim(preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $name)) ?? $name, '/');
 			if ($norm === '' || !self::archiveMemberIsSafe($norm)) {
 				$skipped++;
 				continue;
@@ -1367,66 +1553,75 @@ final class KloxoBackup
 			if (!empty($entry['link'])) {
 				continue;
 			}
-			// Keep the name tar expects (may still have ./ prefix).
-			$safe[] = $name;
+			$extract[] = $name;
 		}
-		if ($safe === array() && $listed !== array()) {
+		if ($extract === array()) {
 			throw new KloxoBackupException(
 				'archive has no safe members to extract'
 				. ($skipped > 0 ? " ({$skipped} skipped)" : '')
 			);
 		}
-		$extract = $safe;
-		if ($members !== array()) {
-			$want = array();
-			foreach ($members as $m) {
-				$m = str_replace(array(';', "\n", "\r", "\0"), '', (string) $m);
-				$m = ltrim(preg_replace('#^(?:\./)+#', '', $m) ?? $m, '/');
-				if ($m === '' || str_contains($m, '*') || !self::archiveMemberIsSafe($m)) {
-					throw new KloxoBackupException('archive contains an unsafe path');
+		// Zip: extract entry-by-entry when the list is huge to avoid ARG_MAX.
+		if (count($extract) > 500 && class_exists('ZipArchive')) {
+			$z = new ZipArchive();
+			if ($z->open($archive) === true) {
+				foreach ($extract as $name) {
+					$norm = ltrim(preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $name)) ?? $name, '/');
+					if (!self::archiveMemberIsSafe($norm)) {
+						continue;
+					}
+					$z->extractTo($dest, array($name));
 				}
-				$want[] = $m;
-			}
-			$extract = array();
-			foreach ($safe as $n) {
-				$nn = ltrim(preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $n)) ?? $n, '/');
-				if (in_array($nn, $want, true) || in_array(basename($nn), $want, true)) {
-					$extract[] = $n;
-				}
-			}
-			if ($extract === array()) {
-				throw new KloxoBackupException(
-					'archive missing ' . implode(',', $want) . ' (listed '
-					. (string) count($listed) . ' members)'
-				);
+				$z->close();
+				self::scrubExtractTree($dest);
+
+				return;
 			}
 		}
+		self::runUnzip($archive, $dest, $extract);
+		self::scrubExtractTree($dest);
+	}
+
+	/**
+	 * @param list<string> $extract
+	 */
+	private static function runUnzip(string $archive, string $dest, array $extract): void
+	{
 		if ($extract === array()) {
 			return;
 		}
-		$type = self::archiveType($archive);
-		if ($type === 'zip') {
-			$unzip = self::firstExec(array('/usr/bin/unzip', '/bin/unzip', 'unzip'));
-			$argv = array($unzip !== '' ? $unzip : 'unzip', '-oq', $archive, '-d', $dest);
-			foreach ($extract as $m) {
-				$argv[] = $m;
+		if (count($extract) > 500) {
+			$listFile = tempnam(sys_get_temp_dir(), 'kloxo-zip-');
+			if ($listFile === false) {
+				throw new KloxoBackupException('could not unzip ' . basename($archive));
 			}
-			$r = self::run($argv);
-			if (($r['code'] ?? 1) !== 0) {
-				$detail = self::shortCmdError($r['out'] ?? '');
-				throw new KloxoBackupException(
-					'could not unzip ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
-				);
+			try {
+				$fh = fopen($listFile, 'wb');
+				if ($fh === false) {
+					throw new KloxoBackupException('could not unzip ' . basename($archive));
+				}
+				foreach ($extract as $m) {
+					fwrite($fh, $m . "\n");
+				}
+				fclose($fh);
+				$unzip = self::firstExec(array('/usr/bin/unzip', '/bin/unzip', 'unzip'));
+				$r = self::run(array(
+					$unzip !== '' ? $unzip : 'unzip', '-oq', $archive, '-d', $dest, '-@',
+				), null, $listFile);
+				if (($r['code'] ?? 1) !== 0) {
+					$detail = self::shortCmdError($r['out'] ?? '');
+					throw new KloxoBackupException(
+						'could not unzip ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
+					);
+				}
+			} finally {
+				@unlink($listFile);
 			}
 
 			return;
 		}
-		$tar = self::firstExec(array('/usr/bin/tar', '/bin/tar', 'tar'));
-		$argv = array($tar !== '' ? $tar : 'tar', '-x', '-C', $dest, '-f', $archive);
-		if ($type === 'tgz') {
-			array_splice($argv, 1, 0, '-z');
-		}
-		$argv[] = '--';
+		$unzip = self::firstExec(array('/usr/bin/unzip', '/bin/unzip', 'unzip'));
+		$argv = array($unzip !== '' ? $unzip : 'unzip', '-oq', $archive, '-d', $dest);
 		foreach ($extract as $m) {
 			$argv[] = $m;
 		}
@@ -1434,8 +1629,170 @@ final class KloxoBackup
 		if (($r['code'] ?? 1) !== 0) {
 			$detail = self::shortCmdError($r['out'] ?? '');
 			throw new KloxoBackupException(
-				'could not untar ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
+				'could not unzip ' . basename($archive) . ($detail !== '' ? ': ' . $detail : '')
 			);
+		}
+	}
+
+	/**
+	 * @param list<string> $want
+	 */
+	private static function wantedMembersPresent(string $dest, array $want): bool
+	{
+		foreach ($want as $m) {
+			$base = basename($m);
+			if (is_file($dest . '/' . $m) || is_file($dest . '/' . $base)) {
+				return true;
+			}
+			if (self::findExtractedBasename($dest, $base) !== null) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static function findExtractedBasename(string $dest, string $base): ?string
+	{
+		if ($base === '' || $base === '.' || $base === '..') {
+			return null;
+		}
+		if (function_exists('recursively_get_file')) {
+			$found = recursively_get_file($dest, $base);
+			if (is_string($found) && $found !== '' && is_file($found)) {
+				return $found;
+			}
+		}
+		if (!is_dir($dest)) {
+			return null;
+		}
+		try {
+			$iterator = new RecursiveIteratorIterator(
+				new RecursiveDirectoryIterator($dest, FilesystemIterator::SKIP_DOTS)
+			);
+			foreach ($iterator as $info) {
+				if ($info->isFile() && $info->getFilename() === $base) {
+					return $info->getPathname();
+				}
+			}
+		} catch (Throwable $e) {
+			return null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Stream `tar -t` and write members whose normalised path or basename is
+	 * in $want. Returns how many lines were written.
+	 *
+	 * @param list<string> $want
+	 */
+	private static function writeTarMemberList(string $archive, bool $gzip, array $want, string $listFile): int
+	{
+		$wantExact = array_fill_keys($want, true);
+		$wantBase = array();
+		foreach ($want as $m) {
+			$wantBase[basename($m)] = true;
+		}
+		$tar = self::firstExec(array('/usr/bin/tar', '/bin/tar', 'tar'));
+		$bin = $tar !== '' ? $tar : 'tar';
+		$argv = array($bin, '-t', '-f', $archive);
+		if ($gzip) {
+			array_splice($argv, 1, 0, '-z');
+		}
+		if (self::$runCmd !== null) {
+			$r = (self::$runCmd)($argv);
+			$lines = preg_split("/\r\n|\n|\r/", (string) ($r['out'] ?? '')) ?: array();
+			$fh = fopen($listFile, 'wb');
+			if ($fh === false) {
+				return 0;
+			}
+			$n = 0;
+			foreach ($lines as $line) {
+				$name = trim((string) $line);
+				if ($name === '' || str_starts_with($name, 'tar:')) {
+					continue;
+				}
+				$norm = ltrim(preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $name)) ?? $name, '/');
+				if ($norm === '' || !self::archiveMemberIsSafe($norm)) {
+					continue;
+				}
+				if (isset($wantExact[$norm]) || isset($wantBase[basename($norm)])) {
+					fwrite($fh, $name . "\n");
+					$n++;
+				}
+			}
+			fclose($fh);
+
+			return $n;
+		}
+		$spec = array(
+			0 => array('file', '/dev/null', 'r'),
+			1 => array('pipe', 'w'),
+			2 => array('pipe', 'w'),
+		);
+		$p = @proc_open($argv, $spec, $pipes);
+		if (!is_resource($p)) {
+			return 0;
+		}
+		$fh = fopen($listFile, 'wb');
+		if ($fh === false) {
+			fclose($pipes[1]);
+			fclose($pipes[2]);
+			proc_close($p);
+
+			return 0;
+		}
+		$n = 0;
+		while (($line = fgets($pipes[1])) !== false) {
+			$name = trim($line);
+			if ($name === '' || str_starts_with($name, 'tar:')
+				|| str_starts_with($name, 'gzip:') || str_contains($name, ': ')) {
+				continue;
+			}
+			$norm = ltrim(preg_replace('#^(?:\./)+#', '', str_replace('\\', '/', $name)) ?? $name, '/');
+			if ($norm === '' || !self::archiveMemberIsSafe($norm)) {
+				continue;
+			}
+			if (isset($wantExact[$norm]) || isset($wantBase[basename($norm)])) {
+				fwrite($fh, $name . "\n");
+				$n++;
+			}
+		}
+		stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		fclose($fh);
+		proc_close($p);
+
+		return $n;
+	}
+
+	/** Remove symlinks and any path that fails archiveMemberIsSafe under $dest. */
+	private static function scrubExtractTree(string $dest): void
+	{
+		$destReal = realpath($dest);
+		if ($destReal === false || !is_dir($destReal)) {
+			return;
+		}
+		$iterator = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator($destReal, FilesystemIterator::SKIP_DOTS),
+			RecursiveIteratorIterator::CHILD_FIRST
+		);
+		foreach ($iterator as $info) {
+			$path = $info->getPathname();
+			$rel = ltrim(str_replace('\\', '/', substr($path, strlen($destReal))), '/');
+			if ($rel === '') {
+				continue;
+			}
+			if ($info->isLink() || !self::archiveMemberIsSafe($rel)) {
+				if ($info->isDir() && !$info->isLink()) {
+					@rmdir($path);
+				} else {
+					@unlink($path);
+				}
+			}
 		}
 	}
 
