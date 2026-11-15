@@ -8758,6 +8758,7 @@ var iPreviousBytesLoaded = 0;
 	global $g_language_mes;
 	$__upload_toast_too_large = 'File over 5 GB. Use scp/SFTP into __backup or Upload (ftp), then Restore From File.';
 	$__upload_toast_failed = 'Upload failed. For large or Kloxo-MR backups: scp into __backup, then Restore From File.';
+	$__upload_toast_saving = 'Transfer finished; still saving into __backup. Refresh File Manager if the file is not listed yet.';
 	if (isset($g_language_mes) && is_object($g_language_mes)
 		&& isset($g_language_mes->__emessage) && is_array($g_language_mes->__emessage)) {
 		if (!empty($g_language_mes->__emessage['upload_file_too_large'])) {
@@ -8766,12 +8767,17 @@ var iPreviousBytesLoaded = 0;
 		if (!empty($g_language_mes->__emessage['upload_failed_use_scp'])) {
 			$__upload_toast_failed = (string) $g_language_mes->__emessage['upload_failed_use_scp'];
 		}
+		if (!empty($g_language_mes->__emessage['upload_saving_refresh'])) {
+			$__upload_toast_saving = (string) $g_language_mes->__emessage['upload_saving_refresh'];
+		}
 	}
 	$__upload_toast_too_large = preg_replace('/\s+/', ' ', strip_tags($__upload_toast_too_large)) ?? $__upload_toast_too_large;
 	$__upload_toast_failed = preg_replace('/\s+/', ' ', strip_tags($__upload_toast_failed)) ?? $__upload_toast_failed;
+	$__upload_toast_saving = preg_replace('/\s+/', ' ', strip_tags($__upload_toast_saving)) ?? $__upload_toast_saving;
 ?>
 	var uploadToastTooLarge = <?= json_encode($__upload_toast_too_large, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 	var uploadToastFailedScp = <?= json_encode($__upload_toast_failed, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+	var uploadToastSavingRefresh = <?= json_encode($__upload_toast_saving, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 
 function uploadShowToast(msg, kind) {
 	if (typeof msg !== 'string' || msg === '') {
@@ -8950,7 +8956,32 @@ function uploadUrlFromResponse(text, xhr) {
 	return u;
 }
 
-function uploadGoNext(nextUrl) {
+function uploadGraceMs() {
+	// Large archives need minutes to leave PHP/Hiawatha temp into __backup.
+	// Scale the "open File Manager anyway" wait with size (12s .. 30min).
+	var bytes = iBytesTotal > 0 ? iBytesTotal : 0;
+	var ms = 12000 + Math.floor(bytes / (32 * 1024 * 1024)) * 1000;
+	if (ms < 12000) {
+		ms = 12000;
+	}
+	if (ms > 1800000) {
+		ms = 1800000;
+	}
+	return ms;
+}
+
+function uploadUrlWithoutSuccessToast(url) {
+	var u = (typeof url === 'string' && url !== '') ? url : uploadRedirectUrl;
+	if (typeof u !== 'string' || u === '') {
+		return '/display.php?frm_action=show';
+	}
+	u = u.replace(/([?&])frm_smessage=[^&]*/g, '$1').replace(/[?&]$/, '');
+	u = u.replace(/&&+/g, '&').replace(/\?&/, '?');
+	return u + (u.indexOf('?') === -1 ? '?' : '&')
+		+ 'frm_smessage=' + encodeURIComponent('upload_saving_refresh');
+}
+
+function uploadGoNext(nextUrl, opts) {
 	if (uploadDidRedirect) {
 		return;
 	}
@@ -8960,7 +8991,14 @@ function uploadGoNext(nextUrl) {
 		uploadRedirectTimer = 0;
 	}
 	clearInterval(oTimer);
-	window.location.href = uploadEnsureToast(nextUrl || uploadRedirectUrl);
+	var soft = opts && opts.softSave;
+	var dest = soft
+		? uploadUrlWithoutSuccessToast(nextUrl || uploadRedirectUrl)
+		: uploadEnsureToast(nextUrl || uploadRedirectUrl);
+	if (soft) {
+		uploadShowToast(uploadToastSavingRefresh, 'warning');
+	}
+	window.location.href = dest;
 }
 
 function startUploading(e) {
@@ -9028,16 +9066,16 @@ function startUploading(e) {
 		oXHR.addEventListener('error', uploadError, false);
 		oXHR.addEventListener('abort', uploadAbort, false);
 		oXHR.addEventListener('timeout', function (ev) {
-			// Bytes were already accepted; open File Manager with toast rather
-			// than leaving the page on "Wait for redirecting...".
+			// Bytes were already accepted; open File Manager (not a success
+			// toast — the archive may still be copying into __backup).
 			var info = document.getElementById('progress_info');
 			if (info) {
 				info.innerHTML = 'Opening File Manager…';
 			}
-			uploadGoNext(uploadRedirectUrl);
+			uploadGoNext(uploadRedirectUrl, { softSave: true });
 		}, false);
-		// No XHR timeout: 5GB uploads can take hours. After 100% the 12s
-		// grace timer still opens File Manager if the tiny redirect body hangs.
+		// No XHR timeout: 5GB uploads can take hours. After 100% a size-scaled
+		// grace timer opens File Manager if the tiny redirect body hangs.
 		oXHR.timeout = 0;
 		oXHR.open('POST', '/display.php');
 		oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -9090,16 +9128,16 @@ function uploadProgress(e) { // upload process in progress
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
 			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
-			// Bytes are on the server. If the tiny XHR redirect body never
-			// arrives (hung was()/backend), open File Manager anyway.
+			// Bytes are on the server. Saving into __backup can take minutes for
+			// multi-GB archives; only then open File Manager (soft toast).
 			if (!uploadRedirectTimer) {
 				uploadRedirectTimer = setTimeout(function () {
 					var info = document.getElementById('progress_info');
 					if (info) {
 						info.innerHTML = 'Opening File Manager…';
 					}
-					uploadGoNext(uploadRedirectUrl);
-				}, 12000);
+					uploadGoNext(uploadRedirectUrl, { softSave: true });
+				}, uploadGraceMs());
 			}
 		}
 	} else {

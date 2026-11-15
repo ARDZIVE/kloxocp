@@ -68,6 +68,7 @@ $__emessage['update_failed'] = 'Update failed.';
 $__emessage['file_uploaded'] = 'File uploaded.';
 $__emessage['upload_file_too_large'] = 'File over 5 GB. Use scp/SFTP into __backup or Upload (ftp), then Restore From File.';
 $__emessage['upload_failed_use_scp'] = 'Upload failed. For large or Kloxo-MR backups: scp into __backup, then Restore From File.';
+$__emessage['upload_saving_refresh'] = 'Transfer finished; still saving into __backup. Refresh File Manager if the file is not listed yet.';
 $__emessage['first_add_some_autoresponders'] = 'First add some autoresponders.';
 $__emessage['restore_started'] = 'Restore started in the background.';
 $__emessage['restore_completed'] = 'Restore completed.';

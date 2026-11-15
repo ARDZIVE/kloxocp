@@ -402,6 +402,13 @@ class Ffile extends Lxclass
 				throw new lxException($login->getThrow('no_file_in_upload'), '',
 					'could not save upload to ' . $this->upload_file_name);
 			}
+			// Multi-GB archives must not fall through to kloxo-backend fileserv
+			// (PrivateTmp + hung was() left a success toast with an empty list).
+			$hintDir = $destDir !== '' ? $destDir : '(unknown __backup path)';
+			$chownHint = $destDir !== '' ? dirname($destDir) : '/home/kloxo/client/<name>';
+			throw new lxException($login->getThrow('no_file_in_upload'), '',
+				'backup folder not writable: ' . $hintDir
+				. ' — as root: chown -R lxlabs:lxlabs ' . $chownHint);
 		}
 
 		$this->up_temp_file_name = $tmp;
@@ -928,6 +935,20 @@ class Ffile extends Lxclass
 <?php
 				}
 			}
+		}
+		$diskPath = '';
+		try {
+			if ($this->isBackupStorePath()) {
+				$diskPath = rtrim((string) $this->getFullPath(), '/');
+			}
+		} catch (Throwable $e) {
+			$diskPath = '';
+		}
+		if ($diskPath !== '') {
+?>
+		<br/><span class="small" style="color:#666">On disk: <code><?= htmlspecialchars($diskPath, ENT_QUOTES) ?></code>
+		(each client has its own folder — admin archives are under <code>/home/kloxo/client/admin/__backup</code>)</span>
+<?php
 		}
 ?>
 		</td>
@@ -1865,6 +1886,7 @@ class Ffile extends Lxclass
 		if (!is_dir($path) && $this->nname === '/') {
 			@mkdir($path, 0755, true);
 		}
+		self::promoteBackupUploadingSidecars($path);
 		$stat = null;
 		if (class_exists('coreFfile', false) && is_callable(array('coreFfile', 'getLxStat'))) {
 			$stat = coreFfile::getLxStat($this->__username_o, $this->root, $path, null, false);
@@ -1882,6 +1904,59 @@ class Ffile extends Lxclass
 		if ($this->nname === '/') {
 			$this->ttype = 'directory';
 		}
+	}
+
+	/**
+	 * Finish interrupted Upload writes: rename name.ext.uploading.PID → name.ext
+	 * when the sidecar has content and the final name is missing or empty.
+	 */
+	static function promoteBackupUploadingSidecars($dir)
+	{
+		$dir = rtrim((string) $dir, '/');
+		if ($dir === '' || !is_dir($dir)) {
+			return 0;
+		}
+		$n = 0;
+		$entries = @scandir($dir);
+		if (!is_array($entries)) {
+			return 0;
+		}
+		foreach ($entries as $name) {
+			if ($name === '.' || $name === '..' || !str_contains($name, '.uploading.')) {
+				continue;
+			}
+			$part = $dir . '/' . $name;
+			if (!is_file($part)) {
+				continue;
+			}
+			$psz = @filesize($part);
+			if ($psz === false || (int) $psz < 1) {
+				@unlink($part);
+				continue;
+			}
+			$destName = preg_replace('/\.uploading\.\d+$/', '', $name);
+			if (!is_string($destName) || $destName === '' || $destName === $name) {
+				continue;
+			}
+			$dest = $dir . '/' . $destName;
+			$dsz = is_file($dest) ? (int) @filesize($dest) : 0;
+			if ($dsz > 0 && $dsz >= (int) $psz) {
+				@unlink($part);
+				continue;
+			}
+			if (is_file($dest) && $dsz < 1) {
+				@unlink($dest);
+			}
+			if (@rename($part, $dest) || (@copy($part, $dest) && @unlink($part))) {
+				@chmod($dest, 0640);
+				if (function_exists('lxfile_generic_chown')) {
+					lxfile_generic_chown($dest, 'lxlabs');
+				}
+				$n++;
+			}
+		}
+
+		return $n;
 	}
 
 	static function initThisList($parent, $class)
@@ -1917,6 +1992,7 @@ class Ffile extends Lxclass
 		$list = null;
 		if ($preferLocal) {
 			try {
+				self::promoteBackupUploadingSidecars($fpathp);
 				$list = coreFfile::get_full_stat($parent->__username_o, $parent->root, $fpathp, $duflag);
 			} catch (Throwable $e) {
 				$list = null;

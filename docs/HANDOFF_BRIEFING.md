@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111513**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111514**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1028,8 +1028,13 @@ Work in this order. Keep every change small, tested and committed separately. Do
     `kloxo.file`→`lxadmin.file` fallback and skips mail when
     `contactemail` is empty. Tested: `tests/p2/test_backup.php` (81
     checks, fakes + local tar + File Manager store + slip + gadget
-    unserialize + client restore invariants). Live Backup Now / Restore
-    From File / File Manager listing after deploy is **UNVERIFIED**.
+    unserialize + client restore invariants). Multi-GB Upload that opened File
+    Manager after the old 12s grace could toast **File uploaded** while the
+    archive was still/never in `__backup`; grace is size-scaled and uses
+    `upload_saving_refresh`; Backup FM shows the on-disk path; `*.uploading.*`
+    sidecars are promoted on list. Each client has its own
+    `/home/kloxo/client/<name>/__backup`. Live Backup Now / Restore From File /
+    File Manager listing after deploy is **UNVERIFIED**.
    Mail Server Settings has exactly three content tabs **Mail Server Settings**
    (selected on `sa=update`), **SMTP Protection** (was Spamdyke), **Whitelist IPs**
    (`ServerMail::servermailPropertyTabs` forced); Switch To Another via
@@ -1171,7 +1176,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111513**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111514**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
