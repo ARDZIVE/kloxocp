@@ -109,14 +109,20 @@ class web__ extends lxDriverClass
 		// Empty IP/SSL table → nginx/apache domain templates print begin/end
 		// only (no server{}). Fallback so HTTP still works (mesrob.com case).
 		// Never use cert basename '*': nginx -t then loads /home/kloxo/ssl/*.pem
-		// and Add Domain / Add Subdomain fails. Keep a basename here (webcache
-		// expects one); templates call KloxoSsl::siteCertBase for the real path.
+		// and Add Domain / Add Subdomain fails. Resolve to a real basename here
+		// so even a stale /opt/configs/.../domains.conf.tpl that does
+		// "/home/kloxo/ssl/{$certname}" cannot emit *.pem. Webcache expects a
+		// basename (not an absolute path).
 		if (!is_array($input['certnamelist']) || count($input['certnamelist']) === 0) {
 			$fallback = (isset($input['domainname']) && is_string($input['domainname'])
 				&& $input['domainname'] !== '')
 				? $input['domainname'] : 'default';
 			$input['certnamelist'] = array('*' => $fallback);
 		}
+		$input['certnamelist'] = self::resolveCertNameListBasenames(
+			(string) ($input['domainname'] ?? ''),
+			$input['certnamelist']
+		);
 
 		$input['stats'] = $this->getStats();
 		$input['wwwredirect'] = $this->getWwwRedirect();
@@ -200,6 +206,10 @@ class web__ extends lxDriverClass
 		$input['setdefaults'] = 'init';
 		$input['indexorder'] = self::getIndexFileOrderDefault();
 		$input['certnamelist'] = $this->getSslCertNameList('*');
+		if (!is_array($input['certnamelist']) || count($input['certnamelist']) === 0) {
+			$input['certnamelist'] = array('*' => 'default');
+		}
+		$input['certnamelist'] = self::resolveCertNameListBasenames('default', $input['certnamelist']);
 		$input['certnamelistfree'] = $this->getSslCertNameList('free');
 		$input['userlist'] = $this->getUserList();
 
@@ -213,6 +223,88 @@ class web__ extends lxDriverClass
 		$input['driver'] = getWebDriverList();
 
 		self::setCreateConfFile($input);
+	}
+
+	/**
+	 * Map certnamelist values to existing basenames under /home/kloxo/ssl.
+	 * Never leaves '*' (stale Nginx templates turn that into *.pem and nginx -t fails).
+	 *
+	 * @param array<string|int, mixed> $list
+	 * @return array<string|int, string>
+	 */
+	static function resolveCertNameListBasenames($domainname, $list)
+	{
+		$out = array();
+		$dom = is_string($domainname) ? $domainname : '';
+		foreach ((array) $list as $ip => $certname) {
+			$pref = is_string($certname) ? $certname : null;
+			if (class_exists('KloxoSsl')) {
+				$base = KloxoSsl::siteCertBase($dom, $pref);
+				$bn = basename($base);
+			} else {
+				$bn = is_string($pref) ? basename($pref) : 'default';
+			}
+			if ($bn === '' || str_contains($bn, '*') || str_contains($bn, '/')
+				|| str_contains($bn, '..') || !preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $bn)) {
+				$bn = 'default';
+			}
+			$out[$ip] = $bn;
+		}
+		if ($out === array()) {
+			$out['*'] = 'default';
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Refresh /opt/configs/<driver>/tpl/<name> from the program tree when the
+	 * install copy is missing or older. Skips custom.<name>. Used so upcp of
+	 * file/nginx/tpl is not ignored by a stale /opt/configs copy.
+	 */
+	static function syncWebTplFromProgram($driver, $tplName)
+	{
+		global $sgbl;
+
+		$driver = preg_replace('/[^a-z0-9_-]/i', '', (string) $driver);
+		$tplName = preg_replace('/[^A-Za-z0-9._-]/', '', (string) $tplName);
+		if ($driver === '' || $tplName === '') {
+			return;
+		}
+		$root = '';
+		if (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root)) {
+			$root = rtrim((string) $sgbl->__path_program_root, '/');
+		}
+		if ($root === '') {
+			$env = getenv('KLOXO_ROOT');
+			$root = is_string($env) && $env !== '' ? rtrim($env, '/') : '/opt/kloxo';
+		}
+		$src = "{$root}/file/{$driver}/tpl/{$tplName}";
+		$dstDir = "/opt/configs/{$driver}/tpl";
+		$dst = "{$dstDir}/{$tplName}";
+		$custom = "{$dstDir}/custom.{$tplName}";
+		if (!is_file($src) || is_file($custom)) {
+			return;
+		}
+		if (!is_dir($dstDir) && !@mkdir($dstDir, 0755, true) && !is_dir($dstDir)) {
+			return;
+		}
+		$need = !is_file($dst);
+		if (!$need) {
+			$sm = @filemtime($src);
+			$dm = @filemtime($dst);
+			$need = ($sm !== false && $dm !== false && $sm > $dm);
+		}
+		if (!$need && is_file($dst)) {
+			$dstBody = (string) @file_get_contents($dst);
+			$srcBody = (string) @file_get_contents($src);
+			if (str_contains($srcBody, 'siteCertBase') && !str_contains($dstBody, 'siteCertBase')) {
+				$need = true;
+			}
+		}
+		if ($need) {
+			@copy($src, $dst);
+		}
 	}
 
 	static function getWebmailAppDefault()
@@ -566,6 +658,9 @@ class web__ extends lxDriverClass
 		$input['webdriverlist'] = $list;
 
 		foreach ($list as &$l) {
+			if (is_string($conftpl) && $conftpl !== '') {
+				self::syncWebTplFromProgram($l, "{$conftpl}.conf.tpl");
+			}
 			$tplsource = getLinkCustomfile("/opt/configs/{$l}/tpl", "{$conftpl}.conf.tpl");
 
 			if (($l === 'hiawatha') && ($conftype === 'domains')) {

@@ -399,8 +399,13 @@ check(str_contains($sslPhp, 'preflightAcmeHttp'), 'issueLetsEncrypt preflights H
 check(str_contains($sslPhp, 'resolveWebroot'), 'issueLetsEncrypt resolves docroot webroot');
 check(str_contains($sslPhp, 'function siteCertBase'), 'siteCertBase exists for nginx/apache');
 check(str_contains($domTpl, 'KloxoSsl::siteCertBase'), 'nginx domains tpl uses siteCertBase');
-check(!str_contains((string) file_get_contents($repo . '/kloxo/httpdocs/driver/web/web__lib.php'), "array('*' => '*')"),
+$webLib = (string) file_get_contents($repo . '/kloxo/httpdocs/driver/web/web__lib.php');
+check(!str_contains($webLib, "array('*' => '*')"),
 	'web__lib empty certnamelist does not use literal * basename');
+check(str_contains($webLib, 'function resolveCertNameListBasenames'),
+	'web__lib resolves certnamelist basenames before render');
+check(str_contains($webLib, 'function syncWebTplFromProgram'),
+	'web__lib syncs program tpl into /opt/configs before render');
 
 echo "== siteCertBase never yields *.pem (subdomain / empty IPSSL)\n";
 KloxoSsl::$fsPrefix = $fs;
@@ -421,6 +426,15 @@ check($gotStar === "$sslHome/default" || str_ends_with($gotStar, '/default'),
 check(!str_contains($gotStar, '*'), 'default fallback has no asterisk');
 $gotAbs = KloxoSsl::siteCertBase('x.com', "$sslHome/mesrob.com");
 check($gotAbs === "$sslHome/mesrob.com", 'absolute preferred cert is kept when files exist');
+
+echo "== resolveCertNameListBasenames (stale tpl safety)\n";
+// Same basename step web__lib applies before render (stale tpl does
+// /home/kloxo/ssl/{$certname}; basename must never be '*').
+$bn = basename(KloxoSsl::siteCertBase('blog.mesrob.com', '*'));
+check($bn === 'mesrob.com', 'basename after siteCertBase for subdomain is parent', $bn);
+check($bn !== '*' && !str_contains($bn, '*'), 'basename has no asterisk');
+$bnDef = basename(KloxoSsl::siteCertBase('brandnew.example', '*'));
+check($bnDef === 'default', 'basename after siteCertBase for unknown domain is default', $bnDef);
 
 // cleanup
 KloxoSsl::$fsPrefix = '';

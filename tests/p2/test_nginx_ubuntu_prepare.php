@@ -99,6 +99,8 @@ if (strpos($lib, "drivertype === 'nginx'") === false
 }
 if (strpos($lib, 'Never use cert basename') === false
 	|| strpos($lib, "array('*' => '*')") !== false
+	|| strpos($lib, 'resolveCertNameListBasenames') === false
+	|| strpos($lib, 'syncWebTplFromProgram') === false
 	|| !preg_match("/certnamelist'\\] = array\\('\\*' => \\\$fallback\\)/", $lib)) {
 	fwrite(STDERR, "FAIL: empty certnamelist must not use literal '*' basename\n");
 	$fail++;
