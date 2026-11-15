@@ -25,7 +25,7 @@
  
  					if (store_on_disk) {
  	 					if ((session->uploaded_file = (char*)malloc(session->config->upload_directory_len + 15)) != NULL) {
-@@ -234,13 +238,22 @@
+@@ -234,13 +238,23 @@
  						 */
  						strstart += 16;
  						if ((strend = strstr(strstart, "\r\n")) != NULL) {
