@@ -194,8 +194,10 @@ else
 fi
 grep -q 'restartPanelServices' "$ROOT/kloxo/bin/kloxocp" \
   && grep -q 'try-restart' "$ROOT/kloxo/bin/kloxocp" \
-  && ok "upcp restarts kloxo-backend after apply" \
-  || bad "upcp restarts kloxo-backend after apply"
+  && grep -q 'kloxo-web' "$ROOT/kloxo/bin/kloxocp" \
+  && grep -q 'ensureHiawathaUploadLimits' "$ROOT/kloxo/bin/kloxocp" \
+  && ok "upcp restarts panel services and ensures Hiawatha 5GB upload" \
+  || bad "upcp restarts panel services and ensures Hiawatha 5GB upload"
 grep -q "'pscript'" "$ROOT/kloxo/bin/kloxocp" && grep -q 'refreshHostLinks' "$ROOT/kloxo/bin/kloxocp" \
   && ok "upcp syncs pscript and refreshes /script links" \
   || bad "upcp syncs pscript and refreshes /script links"

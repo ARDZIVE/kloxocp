@@ -14,6 +14,9 @@ HIAWATHA_TARBALL="hiawatha-${HIAWATHA_VERSION}.tar.gz"
 HIAWATHA_SHA256="c80f87b5f9f04520b57af96ac52905198f96de38c3b7d988abc0f758cdd46d2e"
 HIAWATHA_URL="https://hiawatha.leisink.net/files/download/${HIAWATHA_TARBALL}"
 HIAWATHA_URL_FALLBACK="https://gitlab.com/hsleisink/hiawatha/-/archive/v${HIAWATHA_VERSION}/hiawatha-v${HIAWATHA_VERSION}.tar.gz"
+# Source patch: 64-bit Content-Length, POST spill to disk, MaxUploadSize up to 10GB.
+HIAWATHA_PATCH_ID="12.4-large-upload-v1"
+HIAWATHA_PATCH_NAME="12.4-large-upload.patch"
 
 ROOT="${KLOXO_ROOT:-/opt/kloxo}"
 SRC_DIR="/usr/local/src"
@@ -38,6 +41,7 @@ install-hiawatha: build Hiawatha ${HIAWATHA_VERSION} for Kloxo CP
 
 Pinned source: ${HIAWATHA_URL}
 sha256: ${HIAWATHA_SHA256}
+patch: ${HIAWATHA_PATCH_ID} (5GB+ panel uploads)
 EOF
 }
 
@@ -69,6 +73,9 @@ if [[ "$ROOT" == *..* || "$ROOT" == *$'\n'* ]]; then
   die "invalid --root"
 fi
 
+PATCH_FILE="$ROOT/file/hiawatha/patches/$HIAWATHA_PATCH_NAME"
+PATCH_STAMP="$ROOT/init/.kloxo-hiawatha-patch"
+
 if [[ "$DRY" -eq 1 ]]; then
   cat <<EOF
 plan: install Hiawatha ${HIAWATHA_VERSION}
@@ -78,6 +85,7 @@ plan: install Hiawatha ${HIAWATHA_VERSION}
   ports    ${SSL} (TLS), ${NONSSL} (plain)
   source   $HIAWATHA_URL
   sha256   $HIAWATHA_SHA256
+  patch    $HIAWATHA_PATCH_ID ($PATCH_FILE)
   force    $FORCE
 EOF
   exit 0
@@ -85,72 +93,83 @@ fi
 
 [[ "$(id -u)" -eq 0 ]] || die "run as root (sudo bash install-hiawatha)"
 [[ -d "$ROOT/init" && -f "$ROOT/init/hiawatha.conf.base" ]] || die "$ROOT is not a Kloxo program root"
+[[ -f "$PATCH_FILE" ]] || die "missing Hiawatha patch: $PATCH_FILE"
 
-if [[ -x "$ROOT/init/kloxo-hiawatha" && "$FORCE" -eq 0 ]]; then
-  log "kloxo-hiawatha already present; skip build (pass --force to rebuild)"
+need_build=0
+if [[ "$FORCE" -eq 1 ]]; then
+  need_build=1
+elif [[ ! -x "$ROOT/init/kloxo-hiawatha" ]]; then
+  need_build=1
+elif [[ ! -f "$PATCH_STAMP" ]] || [[ "$(cat "$PATCH_STAMP" 2>/dev/null || true)" != "$HIAWATHA_PATCH_ID" ]]; then
+  log "kloxo-hiawatha missing large-upload patch stamp; rebuilding"
+  need_build=1
+fi
+
+if [[ "$need_build" -eq 0 ]]; then
+  log "kloxo-hiawatha already present with $HIAWATHA_PATCH_ID; skip build (pass --force to rebuild)"
 else
-  apt-get install -y build-essential cmake libssl-dev zlib1g-dev ca-certificates curl
+  apt-get install -y build-essential cmake libssl-dev zlib1g-dev ca-certificates curl patch
 
-  existing=""
-  if [[ -x /usr/sbin/hiawatha ]]; then
-    existing=/usr/sbin/hiawatha
-  elif command -v hiawatha >/dev/null 2>&1; then
-    existing="$(command -v hiawatha)"
-  fi
-  if [[ -n "$existing" && "$FORCE" -eq 0 ]]; then
-    log "using existing hiawatha at $existing"
-    install -m 0755 "$existing" "$ROOT/init/kloxo-hiawatha"
-  else
-    mkdir -p "$SRC_DIR"
-    tarball="$SRC_DIR/$HIAWATHA_TARBALL"
-    if [[ ! -f "$tarball" ]]; then
-      log "downloading $HIAWATHA_URL"
-      if ! curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL"; then
-        log "primary URL failed; trying GitLab archive"
-        curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL_FALLBACK" || die "download failed"
-      fi
+  # Always build from the pinned tarball + Kloxo patch. A distro/system
+  # hiawatha binary cannot accept 5GB panel uploads (INT_MAX Content-Length).
+  mkdir -p "$SRC_DIR"
+  tarball="$SRC_DIR/$HIAWATHA_TARBALL"
+  if [[ ! -f "$tarball" ]]; then
+    log "downloading $HIAWATHA_URL"
+    if ! curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL"; then
+      log "primary URL failed; trying GitLab archive"
+      curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL_FALLBACK" || die "download failed"
     fi
+  fi
+  got="$(digest "$tarball")"
+  if [[ "$got" != "$HIAWATHA_SHA256" ]]; then
+    # GitLab archives have a different hash; only accept the official tarball hash.
+    # If this is the official file it must match. Re-download once on mismatch.
+    log "sha256 mismatch ($got); re-downloading official tarball"
+    rm -f "$tarball"
+    curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL" || die "download failed"
     got="$(digest "$tarball")"
-    if [[ "$got" != "$HIAWATHA_SHA256" ]]; then
-      # GitLab archives have a different hash; only accept the official tarball hash.
-      # If this is the official file it must match. Re-download once on mismatch.
-      log "sha256 mismatch ($got); re-downloading official tarball"
-      rm -f "$tarball"
-      curl -fsSL --retry 3 -o "$tarball" "$HIAWATHA_URL" || die "download failed"
-      got="$(digest "$tarball")"
-      [[ "$got" == "$HIAWATHA_SHA256" ]] || die "sha256 mismatch: expected $HIAWATHA_SHA256 got $got"
-    fi
-
-    BUILD_DIR="$SRC_DIR/hiawatha-${HIAWATHA_VERSION}"
-    rm -rf "$BUILD_DIR"
-    tar -xzf "$tarball" -C "$SRC_DIR"
-    if [[ ! -d "$BUILD_DIR" ]]; then
-      # GitLab archive unpacks as hiawatha-v12.4
-      alt="$SRC_DIR/hiawatha-v${HIAWATHA_VERSION}"
-      [[ -d "$alt" ]] || die "tarball did not unpack to $BUILD_DIR"
-      BUILD_DIR="$alt"
-    fi
-    mkdir -p "$BUILD_DIR/build"
-    (
-      cd "$BUILD_DIR/build"
-      cmake .. \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DENABLE_TLS=on \
-        -DENABLE_XSLT=off \
-        -DENABLE_TOMAHAWK=off \
-        -DUSE_STATIC_MBEDTLS_LIBRARY=on \
-        -DUSE_SHARED_MBEDTLS_LIBRARY=off \
-        -DWORK_DIR="$ROOT/var/hiawatha" \
-        -DLOG_DIR="$ROOT/log" \
-        -DPID_DIR="$ROOT/init"
-      if ! make -j"$(nproc)"; then
-        log "parallel make failed; retrying single-threaded"
-        make
-      fi
-    )
-    [[ -x "$BUILD_DIR/build/hiawatha" ]] || die "build produced no hiawatha binary"
-    install -m 0755 "$BUILD_DIR/build/hiawatha" "$ROOT/init/kloxo-hiawatha"
+    [[ "$got" == "$HIAWATHA_SHA256" ]] || die "sha256 mismatch: expected $HIAWATHA_SHA256 got $got"
   fi
+
+  BUILD_DIR="$SRC_DIR/hiawatha-${HIAWATHA_VERSION}"
+  rm -rf "$BUILD_DIR"
+  tar -xzf "$tarball" -C "$SRC_DIR"
+  if [[ ! -d "$BUILD_DIR" ]]; then
+    # GitLab archive unpacks as hiawatha-v12.4
+    alt="$SRC_DIR/hiawatha-v${HIAWATHA_VERSION}"
+    [[ -d "$alt" ]] || die "tarball did not unpack to $BUILD_DIR"
+    BUILD_DIR="$alt"
+  fi
+
+  log "applying $HIAWATHA_PATCH_ID"
+  (
+    cd "$BUILD_DIR"
+    patch -p1 --forward --batch < "$PATCH_FILE" || die "failed to apply $PATCH_FILE"
+  )
+
+  mkdir -p "$BUILD_DIR/build"
+  (
+    cd "$BUILD_DIR/build"
+    cmake .. \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DENABLE_TLS=on \
+      -DENABLE_XSLT=off \
+      -DENABLE_TOMAHAWK=off \
+      -DUSE_STATIC_MBEDTLS_LIBRARY=on \
+      -DUSE_SHARED_MBEDTLS_LIBRARY=off \
+      -DWORK_DIR="$ROOT/var/hiawatha" \
+      -DLOG_DIR="$ROOT/log" \
+      -DPID_DIR="$ROOT/init"
+    if ! make -j"$(nproc)"; then
+      log "parallel make failed; retrying single-threaded"
+      make
+    fi
+  )
+  [[ -x "$BUILD_DIR/build/hiawatha" ]] || die "build produced no hiawatha binary"
+  install -m 0755 "$BUILD_DIR/build/hiawatha" "$ROOT/init/kloxo-hiawatha"
+  printf '%s\n' "$HIAWATHA_PATCH_ID" > "$PATCH_STAMP"
+  chmod 0644 "$PATCH_STAMP"
 fi
 
 [[ -x "$ROOT/init/kloxo-hiawatha" ]] || die "kloxo-hiawatha missing after install"

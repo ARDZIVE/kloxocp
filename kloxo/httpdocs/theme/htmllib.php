@@ -8749,9 +8749,9 @@ class HtmlLib
 var iBytesUploaded = 0;
 var iBytesTotal = 0;
 var iPreviousBytesLoaded = 0;
-// Hiawatha Content-Length is a signed 32-bit int (~2GB). Do not raise this
-	// past that without patching Hiawatha; larger files must use scp/SFTP/FTP.
-	var iMaxFilesize = 2097152000; // 2000 MiB (matches panel PHP upload_max_filesize)
+// 5120 MiB: matches panel PHP upload_max_filesize and Hiawatha MaxUploadSize
+	// (requires install-hiawatha 12.4-large-upload patch).
+	var iMaxFilesize = 5368709120;
 	var oTimer = 0;
 	var sResultFileSize = '';
 
@@ -9006,8 +9006,9 @@ function startUploading(e) {
 			}
 			uploadGoNext(uploadRedirectUrl);
 		}, false);
-		// Local __backup save returns a tiny 200 quickly; keep a safety net.
-		oXHR.timeout = 45000;
+		// No XHR timeout: 5GB uploads can take hours. After 100% the 12s
+		// grace timer still opens File Manager if the tiny redirect body hangs.
+		oXHR.timeout = 0;
 		oXHR.open('POST', '/display.php');
 		oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 		oXHR.send(vFD);
@@ -9117,7 +9118,7 @@ function uploadAbort(e) { // upload abort
 					<div>&nbsp;</div>
 					<div id="progress_error2">An error occurred while uploading the file</div>
 					<div id="progress_abort">The upload has been canceled by the user or the browser dropped the connection</div>
-					<div id="progress_warnsize">This file is larger than the 2000&nbsp;MB browser upload limit. Use Backup → Upload (ftp), or copy it with scp/SFTP into the account <code>__backup</code> folder, then use Restore From File.</div>
+					<div id="progress_warnsize">This file is larger than the 5120&nbsp;MB (5&nbsp;GB) browser upload limit. Use Backup → Upload (ftp), or copy it with scp/SFTP into the account <code>__backup</code> folder, then use Restore From File.</div>
 
 					<div id="progress_info">
 						<div id="progress_base"><div id="progress">0%</div></div>

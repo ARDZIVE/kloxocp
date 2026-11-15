@@ -73,7 +73,7 @@ declare(strict_types=1);
 	}
 })();
 
-const KCP_VERSION = '10.1-2026111507';
+const KCP_VERSION = '10.1-2026111508';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -1112,6 +1112,11 @@ TXT;
             $this->ulog($logFile, 'ensure certbot');
             $plan['certbot'] = $this->ensureCertbotPackage();
 
+            // Rebuild/reconfigure panel Hiawatha when the large-upload patch stamp
+            // is missing (5GB MaxUploadSize); no-op when already applied.
+            $this->ulog($logFile, 'ensure hiawatha upload limits');
+            $plan['hiawatha'] = $this->ensureHiawathaUploadLimits();
+
             // Reload panel PHP + backend so the in-memory version stamp matches
             // bin/kloxoversion (otherwise Fail2Ban/UFW hit slave_upgrading).
             $this->ulog($logFile, 'restart panel services');
@@ -1393,12 +1398,46 @@ TXT;
         if ($uid !== 0 || !Proc::exists('systemctl')) {
             return ['(skipped)'];
         }
-        foreach (['kloxo-backend', 'kloxo-php'] as $unit) {
+        foreach (['kloxo-backend', 'kloxo-php', 'kloxo-web'] as $unit) {
             [$rc] = Proc::run(['systemctl', 'try-restart', $unit]);
             $done[] = $unit . ($rc === 0 ? ': restarted' : ': try-restart rc=' . $rc);
         }
 
         return $done;
+    }
+
+    /**
+     * Apply Hiawatha large-upload patch / MaxUploadSize=5120 when needed.
+     * Best-effort; never fails upcp (live rebuild needs network + cmake).
+     *
+     * @return array{ok:bool,detail:string}
+     */
+    private function ensureHiawathaUploadLimits(): array
+    {
+        $script = $this->root . '/bin/install/install-hiawatha';
+        $stamp = $this->root . '/init/.kloxo-hiawatha-patch';
+        $patchId = '12.4-large-upload-v1';
+        if (!is_file($script)) {
+            return ['ok' => false, 'detail' => 'install-hiawatha missing'];
+        }
+        $uid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+        if ($uid !== 0) {
+            return ['ok' => false, 'detail' => 'not root; skip'];
+        }
+        $have = is_file($stamp) ? trim((string) @file_get_contents($stamp)) : '';
+        if ($have === $patchId && is_executable($this->root . '/init/kloxo-hiawatha')) {
+            // Still re-render conf (MaxUploadSize) without a full rebuild.
+            [$rc, $out] = Proc::run(['bash', $script, '--root=' . $this->root, '--no-start']);
+            return [
+                'ok' => $rc === 0,
+                'detail' => $rc === 0 ? 'conf refreshed (patch already applied)' : trim($out),
+            ];
+        }
+        [$rc, $out] = Proc::run(['bash', $script, '--root=' . $this->root]);
+        return [
+            'ok' => $rc === 0,
+            'detail' => $rc === 0 ? 'built/applied ' . $patchId : trim($out),
+        ];
     }
 
     /**

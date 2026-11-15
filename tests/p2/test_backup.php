@@ -744,16 +744,17 @@ check(str_contains($htmlUpload, 'onchange="fileSelected(this);"')
 	&& !str_contains($htmlUpload, 'onclick="fileSelected(this);')
 	&& str_contains($htmlUpload, 'function uploadFileTooLarge')
 	&& str_contains($htmlUpload, 'uploadFileTooLarge(fileInput)')
-	&& str_contains($htmlUpload, '2000 MiB')
+	&& str_contains($htmlUpload, '5368709120')
+	&& str_contains($htmlUpload, 'oXHR.timeout = 0')
 	&& str_contains($htmlUpload, '__backup')
 	&& str_contains($htmlUpload, 'Upload (ftp)'),
-	'Browser upload blocks files over 2000 MiB before XHR (Hiawatha ~2GB hard limit)');
+	'Browser upload allows up to 5GB and does not XHR-timeout mid-upload');
 $msgUpload = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
 check(str_contains($msgUpload, 'ffile_updateform_upload_s_pre')
-	&& str_contains($msgUpload, '2000')
+	&& str_contains($msgUpload, '5120')
 	&& str_contains($msgUpload, '/home/kloxo/client/admin/__backup/')
 	&& str_contains($msgUpload, 'Restore From File'),
-	'Upload help text documents the 2000 MB limit and scp/FTP path');
+	'Upload help text documents the 5120 MB (5GB) limit and scp/FTP path');
 check(str_contains($kb, 'ensureDirViaBackend')
 	&& str_contains($kb, "array('lxbackup', 'MakeSureDirectoryExists')")
 	&& str_contains($kb, 'dirWritableByPanel')

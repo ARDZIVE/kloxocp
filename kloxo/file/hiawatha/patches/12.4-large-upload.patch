@@ -1,0 +1,49 @@
+--- a/src/serverconfig.c
++++ b/src/serverconfig.c
+@@ -30,7 +30,8 @@
+ #define ID_NOBODY             65534
+ #define MAX_LENGTH_CONFIGLINE  1024
+ #define MAX_CACHE_SIZE         1024
+-#define MAX_UPLOAD_SIZE        2047
++/* Kloxo CP: allow multi-GB panel backup uploads (stock max was 2047 MB). */
++#define MAX_UPLOAD_SIZE       10240
+ #define MAX_THROTTLE_SPEED (INT_MAX >> 10)
+ 
+ #ifdef ENABLE_MONITOR
+--- a/src/http.c
++++ b/src/http.c
+@@ -185,7 +185,11 @@
+ 					session->header_length = header_length;
+ 
+ 					determine_request_method(session);
+-					store_on_disk = (session->request_method == PUT) && session->binding->enable_alter;
++					/* Kloxo CP: spill POST bodies to disk (same FastCGI path as
++					 * PUT uploads) so multi-GB multipart backups are not capped
++					 * by MaxRequestSize / INT_MAX and are not buffered in RAM. */
++					store_on_disk = ((session->request_method == PUT) && session->binding->enable_alter)
++						|| (session->request_method == POST);
+ 
+ 					if (store_on_disk) {
+ 	 					if ((session->uploaded_file = (char*)malloc(session->config->upload_directory_len + 15)) != NULL) {
+@@ -234,13 +238,19 @@
+ 						 */
+ 						strstart += 16;
+ 						if ((strend = strstr(strstart, "\r\n")) != NULL) {
++							char *endptr = NULL;
+ 							*strend = '\0';
+-							content_length = str_to_int(strstart);
++							/* Kloxo CP: 64-bit Content-Length (stock used str_to_int / INT_MAX ~2GB). */
++							content_length = strtoll(strstart, &endptr, 10);
+ 							*strend = '\r';
+-							if ((content_length < 0) || (INT_MAX - content_length - 2 <= header_length)) {
++							if ((endptr == strstart) || ((endptr != NULL) && (*endptr != '\0')) || (content_length < 0)) {
+ 								result = 400;
+ 								break;
+ 							}
++							if ((!store_on_disk) && (content_length > (LONG_MAX - header_length - 2))) {
++								result = 400;
++								break;
++							}
+ 
+ 							session->content_length = content_length;
+ 

@@ -399,11 +399,22 @@ else
   bad "Hiawatha FastCGI uses 127.0.0.1:39000 and restarts after FPM"
 fi
 if grep -q '^BanOnMaxReqSize = 0' "$ROOT/kloxo/init/hiawatha.conf.base" \
-  && grep -q 'MaxUploadSize = 2047' "$ROOT/kloxo/init/hiawatha.conf.base" \
-  && grep -q 'MaxRequestSize = 2096128' "$ROOT/kloxo/init/hiawatha.conf.base"; then
-  ok "Hiawatha upload ~2GB max and no BanOnMaxReqSize kick"
+  && grep -q 'MaxUploadSize = 5120' "$ROOT/kloxo/init/hiawatha.conf.base" \
+  && grep -q 'TimeForRequest = 14400' "$ROOT/kloxo/init/hiawatha.conf.base" \
+  && grep -q 'upload_max_filesize] = 5120M' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && grep -q 'post_max_size] = 5120M' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
+  ok "Hiawatha/PHP panel upload limit is 5120M (5GB)"
 else
-  bad "Hiawatha upload ~2GB max and no BanOnMaxReqSize kick"
+  bad "Hiawatha/PHP panel upload limit is 5120M (5GB)"
+fi
+if grep -q 'HIAWATHA_PATCH_ID="12.4-large-upload-v1"' "$HIA" \
+  && [[ -f "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch" ]] \
+  && grep -q 'strtoll' "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch" \
+  && grep -q 'request_method == POST' "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch" \
+  && grep -q 'MAX_UPLOAD_SIZE       10240' "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch"; then
+  ok "install-hiawatha applies 12.4-large-upload patch for 5GB POSTs"
+else
+  bad "install-hiawatha applies 12.4-large-upload patch for 5GB POSTs"
 fi
 if grep -q '/usr/bin/php8.5' "$ROOT/kloxo/init/php-cli.sh" && grep -q '/usr/bin/php8.3' "$ROOT/kloxo/httpdocs/lib/sgbl.php"; then
   ok "php-cli and sgbl look for php8.5 and php8.3"

@@ -85,12 +85,12 @@ Binding {
 	Port = __nonssl_port__
 	#Interface = 0.0.0.0
 	MaxKeepAlive = 3600
-	TimeForRequest = 3600
-	# ~2GB: Hiawatha parses Content-Length as a signed 32-bit int; MaxUploadSize
-	# hard-caps at 2047 MB. Browser backup uploads cannot exceed this — use
-	# scp/SFTP/FTP into __backup/ for larger archives.
-	MaxRequestSize = 2096128
-	MaxUploadSize = 2047
+	# 4h: 5GB backup uploads on a slow link; stock was 3600.
+	TimeForRequest = 14400
+	# Panel builds apply 12.4-large-upload: POST spill-to-disk + 64-bit
+	# Content-Length. MaxUploadSize is MB (patched ceiling 10240).
+	MaxRequestSize = 5242880
+	MaxUploadSize = 5120
 }
 
 Binding {
@@ -98,9 +98,9 @@ Binding {
 	Port = __ssl_port__
 	#Interface = 0.0.0.0
 	MaxKeepAlive = 3600
-	TimeForRequest = 3600
-	MaxRequestSize = 2096128
-	MaxUploadSize = 2047
+	TimeForRequest = 14400
+	MaxRequestSize = 5242880
+	MaxUploadSize = 5120
 	#RequiredCA = /opt/kloxo/etc/program.ca
 	TLScertFile = /opt/kloxo/etc/program.pem
 }
@@ -114,7 +114,7 @@ SecureURL = no
 __fpmdisabled__UseFastCGI = PHP
 UseToolkit = block_shellshock, block_httpoxy, findindexfile
 UseDirectory = static_file
-TimeForCGI = 3600
+TimeForCGI = 14400
 UseLocalConfig = no
 
 #ErrorHandler = 400:/error/400.html
