@@ -122,7 +122,7 @@ else
 fi
 check "get bash -n" bash -n "$ROOT/get"
 check "install.sh bash -n" bash -n "$ROOT/install.sh"
-if grep -q 'mkdir -p /home/kloxo/httpd/cp /home/kloxo/client/admin/__backup' "$ROOT/install.sh"; then
+if grep -q 'mkdir -p /home/kloxo/httpd/cp /home/kloxo/client/admin/__backup /home/kloxo/php-upload' "$ROOT/install.sh"; then
   ok "install.sh seeds admin Backup File Manager __backup"
 else
   bad "install.sh seeds admin Backup File Manager __backup"

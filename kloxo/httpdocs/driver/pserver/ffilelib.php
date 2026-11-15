@@ -298,6 +298,10 @@ class Ffile extends Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		// Multi-GB: client may close/navigate; finish writing into __backup anyway.
+		@ignore_user_abort(true);
+		@set_time_limit(0);
+
 		$tmp = isset($_FILES['upload_file_f']['tmp_name'])
 			? (string) $_FILES['upload_file_f']['tmp_name'] : '';
 		$this->upload_file_name = isset($_FILES['upload_file_f']['name'])
@@ -368,10 +372,12 @@ class Ffile extends Lxclass
 				@unlink($part);
 				$ok = @move_uploaded_file($tmp, $part);
 				if (!$ok) {
-					$ok = @copy($tmp, $part);
+					$ok = self::streamCopyUpload($tmp, $part);
 				}
 				$written = $ok ? @filesize($part) : false;
-				if ($ok && is_numeric($written) && (int) $written > 0) {
+				$expect = max((int) $uploadSize, (int) $tmpSize);
+				if ($ok && is_numeric($written) && (int) $written > 0
+					&& ($expect < 1 || (int) $written === $expect || (int) $written === (int) $tmpSize)) {
 					@chmod($part, 0640);
 					if (function_exists('lxfile_generic_chown')) {
 						lxfile_generic_chown($part, 'lxlabs');
@@ -379,9 +385,10 @@ class Ffile extends Lxclass
 					// Atomic replace: never leave a 0-byte dest if the write fails.
 					if (!@rename($part, $dest)) {
 						@unlink($dest);
-						$ok = @rename($part, $dest) || (@copy($part, $dest) && @unlink($part));
+						$ok = @rename($part, $dest) || (self::streamCopyUpload($part, $dest) && @unlink($part));
 					}
-					if ($ok && is_file($dest) && (int) @filesize($dest) > 0) {
+					$final = $ok ? @filesize($dest) : false;
+					if ($ok && is_file($dest) && is_numeric($final) && (int) $final > 0) {
 						$this->dbaction = 'clean';
 						$this->subaction = null;
 						// File is already on disk: skip login->was() so the XHR
@@ -400,7 +407,8 @@ class Ffile extends Lxclass
 				}
 				@unlink($part);
 				throw new lxException($login->getThrow('no_file_in_upload'), '',
-					'could not save upload to ' . $this->upload_file_name);
+					'could not save upload to ' . $this->upload_file_name
+					. (is_numeric($written) ? (' (wrote ' . (int) $written . ' of ' . $expect . ' bytes)') : ''));
 			}
 			// Multi-GB archives must not fall through to kloxo-backend fileserv
 			// (PrivateTmp + hung was() left a success toast with an empty list).
@@ -1904,6 +1912,38 @@ class Ffile extends Lxclass
 		if ($this->nname === '/') {
 			$this->ttype = 'directory';
 		}
+	}
+
+	/** Stream copy for multi-GB uploads when rename/move_uploaded_file cannot. */
+	static function streamCopyUpload($from, $to)
+	{
+		$from = (string) $from;
+		$to = (string) $to;
+		if ($from === '' || $to === '' || !is_file($from)) {
+			return false;
+		}
+		$in = @fopen($from, 'rb');
+		if ($in === false) {
+			return false;
+		}
+		$out = @fopen($to, 'wb');
+		if ($out === false) {
+			fclose($in);
+
+			return false;
+		}
+		$copied = @stream_copy_to_stream($in, $out);
+		fclose($in);
+		fclose($out);
+		if ($copied === false) {
+			@unlink($to);
+
+			return false;
+		}
+		$src = @filesize($from);
+		$dst = @filesize($to);
+
+		return is_numeric($src) && is_numeric($dst) && (int) $src === (int) $dst && (int) $dst > 0;
 	}
 
 	/**

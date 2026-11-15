@@ -8758,7 +8758,7 @@ var iPreviousBytesLoaded = 0;
 	global $g_language_mes;
 	$__upload_toast_too_large = 'File over 5 GB. Use scp/SFTP into __backup or Upload (ftp), then Restore From File.';
 	$__upload_toast_failed = 'Upload failed. For large or Kloxo-MR backups: scp into __backup, then Restore From File.';
-	$__upload_toast_saving = 'Transfer finished; still saving into __backup. Refresh File Manager if the file is not listed yet.';
+	$__upload_toast_saving = 'Transfer finished; server is still saving into __backup. Keep this tab open — do not refresh until File Manager opens.';
 	if (isset($g_language_mes) && is_object($g_language_mes)
 		&& isset($g_language_mes->__emessage) && is_array($g_language_mes->__emessage)) {
 		if (!empty($g_language_mes->__emessage['upload_file_too_large'])) {
@@ -8956,32 +8956,19 @@ function uploadUrlFromResponse(text, xhr) {
 	return u;
 }
 
-function uploadGraceMs() {
-	// Large archives need minutes to leave PHP/Hiawatha temp into __backup.
-	// Scale the "open File Manager anyway" wait with size (12s .. 30min).
-	var bytes = iBytesTotal > 0 ? iBytesTotal : 0;
-	var ms = 12000 + Math.floor(bytes / (32 * 1024 * 1024)) * 1000;
-	if (ms < 12000) {
-		ms = 12000;
+function uploadSavingRemind() {
+	// Do NOT navigate: changing location aborts the XHR and kills the PHP
+	// worker mid-copy (PrivateTmp → __backup). Keep this tab open.
+	var info = document.getElementById('progress_info');
+	if (info) {
+		info.style.backgroundColor = '#fff8e1';
+		info.style.textAlign = 'center';
+		info.innerHTML = 'Server is saving into __backup — keep this tab open. File Manager opens when done.';
 	}
-	if (ms > 1800000) {
-		ms = 1800000;
-	}
-	return ms;
+	uploadShowToast(uploadToastSavingRefresh, 'warning');
 }
 
-function uploadUrlWithoutSuccessToast(url) {
-	var u = (typeof url === 'string' && url !== '') ? url : uploadRedirectUrl;
-	if (typeof u !== 'string' || u === '') {
-		return '/display.php?frm_action=show';
-	}
-	u = u.replace(/([?&])frm_smessage=[^&]*/g, '$1').replace(/[?&]$/, '');
-	u = u.replace(/&&+/g, '&').replace(/\?&/, '?');
-	return u + (u.indexOf('?') === -1 ? '?' : '&')
-		+ 'frm_smessage=' + encodeURIComponent('upload_saving_refresh');
-}
-
-function uploadGoNext(nextUrl, opts) {
+function uploadGoNext(nextUrl) {
 	if (uploadDidRedirect) {
 		return;
 	}
@@ -8991,14 +8978,7 @@ function uploadGoNext(nextUrl, opts) {
 		uploadRedirectTimer = 0;
 	}
 	clearInterval(oTimer);
-	var soft = opts && opts.softSave;
-	var dest = soft
-		? uploadUrlWithoutSuccessToast(nextUrl || uploadRedirectUrl)
-		: uploadEnsureToast(nextUrl || uploadRedirectUrl);
-	if (soft) {
-		uploadShowToast(uploadToastSavingRefresh, 'warning');
-	}
-	window.location.href = dest;
+	window.location.href = uploadEnsureToast(nextUrl || uploadRedirectUrl);
 }
 
 function startUploading(e) {
@@ -9066,16 +9046,11 @@ function startUploading(e) {
 		oXHR.addEventListener('error', uploadError, false);
 		oXHR.addEventListener('abort', uploadAbort, false);
 		oXHR.addEventListener('timeout', function (ev) {
-			// Bytes were already accepted; open File Manager (not a success
-			// toast — the archive may still be copying into __backup).
-			var info = document.getElementById('progress_info');
-			if (info) {
-				info.innerHTML = 'Opening File Manager…';
-			}
-			uploadGoNext(uploadRedirectUrl, { softSave: true });
+			// Should not fire (timeout=0). Never navigate away — that aborts save.
+			uploadSavingRemind();
 		}, false);
-		// No XHR timeout: 5GB uploads can take hours. After 100% a size-scaled
-		// grace timer opens File Manager if the tiny redirect body hangs.
+		// No XHR timeout: 5GB uploads can take hours. After 100% we only remind
+		// the user to keep the tab open; File Manager opens on a real response.
 		oXHR.timeout = 0;
 		oXHR.open('POST', '/display.php');
 		oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -9128,16 +9103,14 @@ function uploadProgress(e) { // upload process in progress
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
 			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
-			// Bytes are on the server. Saving into __backup can take minutes for
-			// multi-GB archives; only then open File Manager (soft toast).
+			// Bytes are on the server. Saving into __backup can take minutes —
+			// remind once, but never navigate (that aborts the PHP copy).
 			if (!uploadRedirectTimer) {
 				uploadRedirectTimer = setTimeout(function () {
-					var info = document.getElementById('progress_info');
-					if (info) {
-						info.innerHTML = 'Opening File Manager…';
+					if (!uploadDidRedirect) {
+						uploadSavingRemind();
 					}
-					uploadGoNext(uploadRedirectUrl, { softSave: true });
-				}, uploadGraceMs());
+				}, 15000);
 			}
 		}
 	} else {

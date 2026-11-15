@@ -730,10 +730,11 @@ $libSrc = (string) file_get_contents($doc . '/lib/html/lib.php');
 check(str_contains($htmlUpload, 'function uploadGoNext')
 	&& str_contains($htmlUpload, 'uploadRedirectTimer')
 	&& str_contains($htmlUpload, 'function uploadEnsureToast')
-	&& str_contains($htmlUpload, 'function uploadGraceMs')
-	&& str_contains($htmlUpload, 'function uploadUrlWithoutSuccessToast')
-	&& str_contains($htmlUpload, 'softSave')
+	&& str_contains($htmlUpload, 'function uploadSavingRemind')
+	&& str_contains($htmlUpload, 'keep this tab open')
 	&& str_contains($htmlUpload, 'upload_saving_refresh')
+	&& !str_contains($htmlUpload, 'softSave')
+	&& !str_contains($htmlUpload, 'function uploadGraceMs')
 	&& str_contains($htmlUpload, 'function uploadUrlFromResponse')
 	&& str_contains($htmlUpload, 'function uploadRedirectFromForm')
 	&& str_contains($htmlUpload, 'data-kloxo-redirect')
@@ -743,7 +744,7 @@ check(str_contains($htmlUpload, 'function uploadGoNext')
 	&& str_contains($htmlUpload, "addEventListener('error'")
 	&& str_contains($htmlUpload, "addEventListener('abort'")
 	&& !str_contains($htmlUpload, "addEventListener('progress_abort'"),
-	'Upload XHR redirects on load/timeout; soft save toast when grace fires');
+	'Upload XHR waits for server save; remind keeps tab open (no soft navigate)');
 check(str_contains($htmlUpload, 'onchange="fileSelected(this);"')
 	&& !str_contains($htmlUpload, 'onclick="fileSelected(this);')
 	&& str_contains($htmlUpload, 'function uploadFileTooLarge')
@@ -795,6 +796,8 @@ check(str_contains($ffileSrc, 'function uploadSuccessRedirectUrl')
 	&& str_contains($ffileSrc, 'function backupFileManagerPathArray')
 	&& str_contains($ffileSrc, 'function getLocalBackupStat')
 	&& str_contains($ffileSrc, 'function promoteBackupUploadingSidecars')
+	&& str_contains($ffileSrc, 'function streamCopyUpload')
+	&& str_contains($ffileSrc, 'ignore_user_abort')
 	&& str_contains($ffileSrc, 'function finishUploadRedirectNow')
 	&& str_contains($ffileSrc, 'function isBackupStorePath')
 	&& str_contains($ffileSrc, 'kloxo_xhr_redirect_response')
@@ -808,6 +811,10 @@ check(str_contains($ffileSrc, 'function uploadSuccessRedirectUrl')
 	&& str_contains($bakSrcUpload, 'lxfile_generic_chown($dir, \'lxlabs\')')
 	&& str_contains($bakSrcUpload, 'getLocalBackupStat'),
 	'Backup File Manager lists locally and Upload redirects with toast');
+$fpmConf = (string) file_get_contents(dirname($doc) . '/init/kloxo-php-fpm.conf');
+check(str_contains($fpmConf, 'upload_tmp_dir] = /home/kloxo/php-upload')
+	&& str_contains((string) file_get_contents(dirname($doc) . '/bin/kloxocp'), 'ensurePhpUploadTmpDir'),
+	'Panel FPM upload_tmp_dir is on /home/kloxo (same FS as __backup)');
 check(preg_match(
 	'/function cp_fileserv\(\$file\).*?serverfile\/tmp.*?copy\(/s',
 	$libSrc

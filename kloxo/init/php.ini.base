@@ -30,7 +30,8 @@ include_path = ".:/usr/share/pear/"
 doc_root =
 user_dir =
 extension_dir = __extension_dir__
-upload_tmp_dir = /tmp/
+; Same disk as client __backup (not systemd PrivateTmp /tmp) for large uploads.
+upload_tmp_dir = /home/kloxo/php-upload
 default_socket_timeout = 60
 date.timezone = "Europe/London"
 default_charset = "utf-8"
