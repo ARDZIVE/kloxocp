@@ -746,15 +746,20 @@ check(str_contains($htmlUpload, 'onchange="fileSelected(this);"')
 	&& str_contains($htmlUpload, 'uploadFileTooLarge(fileInput)')
 	&& str_contains($htmlUpload, '5368709120')
 	&& str_contains($htmlUpload, 'oXHR.timeout = 0')
+	&& str_contains($htmlUpload, "'GB'")
+	&& str_contains($htmlUpload, 'uploadShowToast')
+	&& str_contains($htmlUpload, 'uploadToastFailedScp')
 	&& str_contains($htmlUpload, '__backup')
 	&& str_contains($htmlUpload, 'Upload (ftp)'),
-	'Browser upload allows up to 5GB and does not XHR-timeout mid-upload');
+	'Browser upload allows up to 5GB and toasts scp guidance on failure');
 $msgUpload = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
 check(str_contains($msgUpload, 'ffile_updateform_upload_s_pre')
 	&& str_contains($msgUpload, '5120')
 	&& str_contains($msgUpload, '/home/kloxo/client/admin/__backup/')
+	&& str_contains($msgUpload, 'upload_failed_use_scp')
+	&& str_contains($msgUpload, 'Kloxo-MR')
 	&& str_contains($msgUpload, 'Restore From File'),
-	'Upload help text documents the 5120 MB (5GB) limit and scp/FTP path');
+	'Upload help/toast text covers 5GB limit and Kloxo-MR scp path');
 check(str_contains($kb, 'ensureDirViaBackend')
 	&& str_contains($kb, "array('lxbackup', 'MakeSureDirectoryExists')")
 	&& str_contains($kb, 'dirWritableByPanel')

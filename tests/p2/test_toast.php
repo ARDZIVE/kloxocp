@@ -86,12 +86,26 @@ if (str_contains($htmlLib, 'kloxo-toast.js')
 	&& str_contains($loginIdx, '/theme/css/kloxo-toast.css')
 	&& str_contains($js, 'DELAY = 15000')
 	&& str_contains($js, '.kloxo-toast')
+	&& str_contains($js, 'function show(')
+	&& str_contains($js, 'LIVE_ID')
 	&& str_contains($topbar, "print_toast")
 	&& str_contains($topbar, "'div_cfstatus'")
 	&& !str_contains($topbar, 'cf_fade')) {
 	ok('every panel page and login load the same toast JS/CSS; Status uses print_toast');
 } else {
 	bad('every panel page and login load the same toast JS/CSS; Status uses print_toast');
+}
+$msgLib = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+if (str_contains($msgLib, "upload_file_too_large")
+	&& str_contains($msgLib, "upload_failed_use_scp")
+	&& str_contains($msgLib, '__backup')
+	&& str_contains($msgLib, 'Kloxo-MR')
+	&& str_contains($htmlLib, 'uploadShowToast')
+	&& str_contains($htmlLib, 'uploadToastFailedScp')
+	&& str_contains($htmlLib, 'uploadToastTooLarge')) {
+	ok('upload page shows toasts for oversize and failed large/Kloxo-MR backups');
+} else {
+	bad('upload page shows toasts for oversize and failed large/Kloxo-MR backups');
 }
 
 // Status toast must be printed before .div_fixed_right so a restore message

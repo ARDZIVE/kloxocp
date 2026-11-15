@@ -8749,11 +8749,38 @@ class HtmlLib
 var iBytesUploaded = 0;
 var iBytesTotal = 0;
 var iPreviousBytesLoaded = 0;
-// 5120 MiB: matches panel PHP upload_max_filesize and Hiawatha MaxUploadSize
+	// 5120 MiB: matches panel PHP upload_max_filesize and Hiawatha MaxUploadSize
 	// (requires install-hiawatha 12.4-large-upload patch).
 	var iMaxFilesize = 5368709120;
 	var oTimer = 0;
 	var sResultFileSize = '';
+<?php
+	global $g_language_mes;
+	$__upload_toast_too_large = 'File over 5 GB. Use scp/SFTP into __backup or Upload (ftp), then Restore From File.';
+	$__upload_toast_failed = 'Upload failed. For large or Kloxo-MR backups: scp into __backup, then Restore From File.';
+	if (isset($g_language_mes) && is_object($g_language_mes)
+		&& isset($g_language_mes->__emessage) && is_array($g_language_mes->__emessage)) {
+		if (!empty($g_language_mes->__emessage['upload_file_too_large'])) {
+			$__upload_toast_too_large = (string) $g_language_mes->__emessage['upload_file_too_large'];
+		}
+		if (!empty($g_language_mes->__emessage['upload_failed_use_scp'])) {
+			$__upload_toast_failed = (string) $g_language_mes->__emessage['upload_failed_use_scp'];
+		}
+	}
+	$__upload_toast_too_large = preg_replace('/\s+/', ' ', strip_tags($__upload_toast_too_large)) ?? $__upload_toast_too_large;
+	$__upload_toast_failed = preg_replace('/\s+/', ' ', strip_tags($__upload_toast_failed)) ?? $__upload_toast_failed;
+?>
+	var uploadToastTooLarge = <?= json_encode($__upload_toast_too_large, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+	var uploadToastFailedScp = <?= json_encode($__upload_toast_failed, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+
+function uploadShowToast(msg, kind) {
+	if (typeof msg !== 'string' || msg === '') {
+		return;
+	}
+	if (window.KloxoToast && typeof window.KloxoToast.show === 'function') {
+		window.KloxoToast.show(msg, kind || 'warning', 20000);
+	}
+}
 
 function secondsToTime(secs) { // we will use this function to convert seconds in normal time format
 	var hr = Math.floor(secs / 3600);
@@ -8768,9 +8795,10 @@ function secondsToTime(secs) { // we will use this function to convert seconds i
 }
 
 function bytesToSize(bytes) {
-	var sizes = ['Bytes', 'KB', 'MB'];
-	if (bytes == 0) return 'n/a';
-	var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+	var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+	if (!bytes || bytes <= 0) return 'n/a';
+	var i = Math.min(sizes.length - 1, parseInt(Math.floor(Math.log(bytes) / Math.log(1024)), 10));
+	if (isNaN(i) || i < 0) i = 0;
 	return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + sizes[i];
 }
 
@@ -8816,6 +8844,7 @@ function fileSelected(e) {
 	// little test for filesize
 	if (oFile.size > iMaxFilesize) {
 		uploadShowSizeWarning(true);
+		uploadShowToast(uploadToastTooLarge, 'warning');
 		return;
 	}
 
@@ -8958,6 +8987,7 @@ function startUploading(e) {
 			: null;
 		if (uploadFileTooLarge(fileInput)) {
 			uploadShowSizeWarning(true);
+			uploadShowToast(uploadToastTooLarge, 'warning');
 			oProgress.style.display = 'none';
 			return false;
 		}
@@ -9101,7 +9131,10 @@ function uploadError(e) { // upload error
 		clearTimeout(uploadRedirectTimer);
 		uploadRedirectTimer = 0;
 	}
-}  
+	// Large / Kloxo-MR archives often hit the browser or connection limit —
+	// tell the user to scp into __backup instead of a bare "error occurred".
+	uploadShowToast(uploadToastFailedScp, 'error');
+}
 
 function uploadAbort(e) { // upload abort
 	document.getElementById('progress_abort').style.display = 'block';
@@ -9110,15 +9143,16 @@ function uploadAbort(e) { // upload abort
 		clearTimeout(uploadRedirectTimer);
 		uploadRedirectTimer = 0;
 	}
+	uploadShowToast(uploadToastFailedScp, 'warning');
 }
 </script>
 
 					<?= $variable_description ?> <?= $myneedstring ?> <br/>
 					<input class="filebox" type="file" name="<?= $variable->name ?>" id="<?= $variable->name ?>" size="30" onchange="fileSelected(this);">
 					<div>&nbsp;</div>
-					<div id="progress_error2">An error occurred while uploading the file</div>
+					<div id="progress_error2">Upload failed. For large or Kloxo-MR backups: scp into __backup, then Restore From File.</div>
 					<div id="progress_abort">The upload has been canceled by the user or the browser dropped the connection</div>
-					<div id="progress_warnsize">This file is larger than the 5120&nbsp;MB (5&nbsp;GB) browser upload limit. Use Backup → Upload (ftp), or copy it with scp/SFTP into the account <code>__backup</code> folder, then use Restore From File.</div>
+					<div id="progress_warnsize">File over 5&nbsp;GB. Use scp/SFTP into <code>__backup</code> or Upload (ftp), then Restore From File.</div>
 
 					<div id="progress_info">
 						<div id="progress_base"><div id="progress">0%</div></div>

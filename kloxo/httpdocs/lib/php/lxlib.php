@@ -1630,8 +1630,11 @@ function kloxo_toast_kind($key, $channel = 'info')
 	if (preg_match('/success|successfully|added_successfully|deleted_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|deleted|updated|created|completed|logwatch_report_emailed|logwatch_settings_saved|password_sent|mis_changed|switch_done/', $k) === 1) {
 		return 'success';
 	}
-	if (preg_match('/warn|not_set|not_correct|expire|license_will_expire|security_warning|limit|mail_setup_required/', $k) === 1) {
+	if (preg_match('/warn|not_set|not_correct|expire|license_will_expire|security_warning|limit|mail_setup_required|upload_file_too_large/', $k) === 1) {
 		return 'warning';
+	}
+	if (preg_match('/upload_failed|upload_failed_use_scp/', $k) === 1) {
+		return 'error';
 	}
 	if (in_array($ch, array('success', 'warning', 'error', 'info'), true) && $k === '') {
 		return $ch;
