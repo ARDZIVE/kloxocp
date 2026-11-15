@@ -108,8 +108,14 @@ class web__ extends lxDriverClass
 			$this->getSslCertNameList() : $this->getSslCertNameList('*');
 		// Empty IP/SSL table → nginx/apache domain templates print begin/end
 		// only (no server{}). Fallback so HTTP still works (mesrob.com case).
+		// Never use cert basename '*': nginx -t then loads /home/kloxo/ssl/*.pem
+		// and Add Domain / Add Subdomain fails. Keep a basename here (webcache
+		// expects one); templates call KloxoSsl::siteCertBase for the real path.
 		if (!is_array($input['certnamelist']) || count($input['certnamelist']) === 0) {
-			$input['certnamelist'] = array('*' => '*');
+			$fallback = (isset($input['domainname']) && is_string($input['domainname'])
+				&& $input['domainname'] !== '')
+				? $input['domainname'] : 'default';
+			$input['certnamelist'] = array('*' => $fallback);
 		}
 
 		$input['stats'] = $this->getStats();

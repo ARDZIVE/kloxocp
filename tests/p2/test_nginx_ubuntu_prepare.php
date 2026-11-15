@@ -97,9 +97,18 @@ if (strpos($lib, "drivertype === 'nginx'") === false
 } else {
 	$ok++;
 }
-if (strpos($lib, "certnamelist'] = array('*' => '*')") === false
-	&& strpos($lib, 'array(\'*\' => \'*\')') === false) {
-	fwrite(STDERR, "FAIL: empty certnamelist fallback missing\n");
+if (strpos($lib, 'Never use cert basename') === false
+	|| strpos($lib, "array('*' => '*')") !== false
+	|| !preg_match("/certnamelist'\\] = array\\('\\*' => \\\$fallback\\)/", $lib)) {
+	fwrite(STDERR, "FAIL: empty certnamelist must not use literal '*' basename\n");
+	$fail++;
+} else {
+	$ok++;
+}
+$domTpl = (string) file_get_contents($root . '/kloxo/file/nginx/tpl/domains.conf.tpl');
+if (strpos($domTpl, 'KloxoSsl::siteCertBase') === false
+	|| strpos($domTpl, 'Never emit literal *.pem') === false) {
+	fwrite(STDERR, "FAIL: nginx domains.conf.tpl must resolve SSL without *.pem\n");
 	$fail++;
 } else {
 	$ok++;

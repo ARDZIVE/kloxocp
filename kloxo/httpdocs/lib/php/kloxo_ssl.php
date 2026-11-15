@@ -824,6 +824,129 @@ final class KloxoSsl
         return str_replace(['\\', '/'], ['\\\\', '\\/'], $v);
     }
 
+    /**
+     * Absolute cert base (no .pem/.key) for Nginx/Apache site SSL.
+     *
+     * Order: preferred (if real) → domain → parent domains (subdomain) → default.
+     * Never returns a path containing '*' (that made nginx -t load literal *.pem
+     * and abort Add Domain / Add Subdomain).
+     */
+    public static function siteCertBase(string $domainname, ?string $preferred = null): string
+    {
+        self::ensureDefaultSiteCert();
+        $ssl = self::sslDir();
+        $candidates = [];
+
+        $push = static function (string $name) use (&$candidates): void {
+            $name = trim($name);
+            if ($name === '' || str_contains($name, '*') || str_contains($name, '/')
+                || str_contains($name, "\0") || str_contains($name, '..')) {
+                return;
+            }
+            // Strip accidental suffix from callers.
+            $name = (string) preg_replace('/\.(pem|key|crt|ca)$/i', '', $name);
+            if ($name === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $name)) {
+                return;
+            }
+            if (!in_array($name, $candidates, true)) {
+                $candidates[] = $name;
+            }
+        };
+
+        if (is_string($preferred) && $preferred !== '') {
+            if (str_starts_with($preferred, '/')) {
+                $base = (string) preg_replace('/\.(pem|key|crt|ca)$/i', '', $preferred);
+                if (is_file($base . '.key')
+                    && (is_file($base . '.pem') || is_file($base . '.crt'))
+                    && !str_contains($base, '*')) {
+                    return $base;
+                }
+                $push(basename($base));
+            } else {
+                $push($preferred);
+            }
+        }
+
+        $dom = strtolower(trim($domainname));
+        if ($dom !== '' && !str_contains($dom, '*')) {
+            $push($dom);
+            // blog.example.com → example.com → com (stop before a single label)
+            while (substr_count($dom, '.') >= 2) {
+                $dom = (string) preg_replace('/^[^.]+\\./', '', $dom);
+                $push($dom);
+            }
+        }
+
+        $push('default');
+
+        foreach ($candidates as $c) {
+            $base = $ssl . '/' . $c;
+            if (is_file($base . '.key') && (is_file($base . '.pem') || is_file($base . '.crt'))) {
+                if (!is_file($base . '.pem') && is_file($base . '.crt')) {
+                    // Nginx wants .pem; build from key+crt when we can write.
+                    $pem = @file_get_contents($base . '.key') . @file_get_contents($base . '.crt');
+                    if (is_string($pem) && $pem !== '' && (is_writable($ssl) || is_writable(dirname($base)))) {
+                        @file_put_contents($base . '.pem', $pem);
+                        @chmod($base . '.pem', 0600);
+                    }
+                }
+                if (is_file($base . '.pem')) {
+                    return $base;
+                }
+            }
+        }
+
+        return $ssl . '/default';
+    }
+
+    /**
+     * Seed /home/kloxo/ssl/default.{key,crt,pem} from program file/ssl when missing.
+     * Safe no-op when sources are absent (tests without a tree).
+     */
+    public static function ensureDefaultSiteCert(): void
+    {
+        $ssl = self::sslDir();
+        if (is_file($ssl . '/default.key') && is_file($ssl . '/default.pem')) {
+            return;
+        }
+        if (!is_dir($ssl)) {
+            @mkdir($ssl, 0755, true);
+        }
+        $srcDirs = [];
+        if (self::$fsPrefix !== '') {
+            $srcDirs[] = self::p('/opt/kloxo/file/ssl');
+        }
+        $envRoot = getenv('KLOXO_ROOT');
+        if (is_string($envRoot) && $envRoot !== '') {
+            $srcDirs[] = rtrim($envRoot, '/') . '/file/ssl';
+        }
+        $srcDirs[] = '/opt/kloxo/file/ssl';
+        foreach ($srcDirs as $src) {
+            if (!is_file($src . '/default.key') || !is_file($src . '/default.crt')) {
+                continue;
+            }
+            if (!is_file($ssl . '/default.key')) {
+                @copy($src . '/default.key', $ssl . '/default.key');
+                @chmod($ssl . '/default.key', 0600);
+            }
+            if (!is_file($ssl . '/default.crt')) {
+                @copy($src . '/default.crt', $ssl . '/default.crt');
+                @chmod($ssl . '/default.crt', 0644);
+            }
+            if (!is_file($ssl . '/default.pem')) {
+                if (is_file($src . '/default.pem')) {
+                    @copy($src . '/default.pem', $ssl . '/default.pem');
+                } else {
+                    $pem = (string) @file_get_contents($ssl . '/default.key')
+                        . (string) @file_get_contents($ssl . '/default.crt');
+                    @file_put_contents($ssl . '/default.pem', $pem);
+                }
+                @chmod($ssl . '/default.pem', 0600);
+            }
+            return;
+        }
+    }
+
     private static function readFile(string $path): string
     {
         if (!is_file($path) || !is_readable($path)) {

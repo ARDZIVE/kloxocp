@@ -109,7 +109,18 @@ if ($is_debian) {
 }
 
 foreach ($certnamelist as $ip => $certname) {
-	$certnamelist[$ip] = "/home/kloxo/ssl/{$certname}";
+	// Never use basename '*" (nginx -t: cannot load /home/kloxo/ssl/*.pem).
+	if (class_exists('KloxoSsl')) {
+		$certnamelist[$ip] = KloxoSsl::siteCertBase(
+			'default',
+			is_string($certname) ? $certname : 'default'
+		);
+	} else {
+		$c = (is_string($certname) && $certname !== '' && strpos($certname, '*') === false)
+			? ((strpos($certname, '/') === 0) ? $certname : "/home/kloxo/ssl/{$certname}")
+			: '/home/kloxo/ssl/default';
+		$certnamelist[$ip] = $c;
+	}
 }
 
 $iplist = array('*');

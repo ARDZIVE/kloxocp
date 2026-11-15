@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111409. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111501. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -48,7 +48,7 @@ Update/delete redirects use `updated_successfully` / `deleted_successfully` /
 print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
 (`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026111409** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111501** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -305,7 +305,10 @@ kloxo-backend before the redirect stub so the Unix account exists before
 Add Domain / PHP-FPM (`php-fpm -t` no longer hits `cannot get uid for user`);
 `KloxoPhpfpm::applyDomain` ensures the pool user again; full sync stays on
 `client-sync.request` (`tests/p2/test_client_unix.php`; live Add Client →
-Add Domain confirmed). Adding a Resource Plan
+Add Domain confirmed). Add Domain / Add Subdomain no longer fail
+`nginx -t` on literal `/home/kloxo/ssl/*.pem` (empty IP/SSL list used to
+set cert basename `*`); `KloxoSsl::siteCertBase` picks domain → parent →
+`default` (`tests/p2/test_ssl.php`; live after deploy UNVERIFIED). Adding a Resource Plan
 does not need a DNS template, does not TypeError on a missing listpriv, and
 accepts a display name with spaces (sanitized to a plan id). Fresh install
 seeds Resource Plan `default_plan` (`default_plan___client-admin`, Unlimited

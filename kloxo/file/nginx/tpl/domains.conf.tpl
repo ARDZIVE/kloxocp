@@ -89,13 +89,42 @@ $listens = array('listen_nonssl', 'listen_ssl');
 $switches = array('', '_ssl');
 
 foreach ($certnamelist as $ip => $certname) {
-	$sslpath = "/home/kloxo/ssl";
-
-	if (file_exists("{$sslpath}/{$domainname}.key")) {
-		$certnamelist[$ip] = "{$sslpath}/{$domainname}";
-	} else {
-		$certnamelist[$ip] = "{$sslpath}/{$certname}";
+	// Prefer domain → parent (subdomain) → default. Never emit literal *.pem
+	// (empty IP/SSL list used to set certname='*' and nginx -t aborted adds).
+	if (class_exists('KloxoSsl')) {
+		$certnamelist[$ip] = KloxoSsl::siteCertBase(
+			(string) $domainname,
+			is_string($certname) ? $certname : null
+		);
+		continue;
 	}
+	$sslpath = "/home/kloxo/ssl";
+	$pick = null;
+	$try = array();
+	if (is_string($domainname) && $domainname !== '') {
+		$try[] = $domainname;
+		$d = $domainname;
+		while (substr_count($d, '.') >= 2) {
+			$d = preg_replace('/^[^.]+\\./', '', $d);
+			$try[] = $d;
+		}
+	}
+	if (is_string($certname) && $certname !== '' && strpos($certname, '*') === false) {
+		$try[] = (strpos($certname, '/') === 0) ? basename($certname) : $certname;
+	}
+	$try[] = 'default';
+	foreach ($try as $c) {
+		$c = preg_replace('/\\.(pem|key|crt|ca)$/i', '', (string) $c);
+		if ($c === '' || strpos($c, '*') !== false || strpos($c, '/') !== false) {
+			continue;
+		}
+		if (file_exists("{$sslpath}/{$c}.key")
+			&& (file_exists("{$sslpath}/{$c}.pem") || file_exists("{$sslpath}/{$c}.crt"))) {
+			$pick = "{$sslpath}/{$c}";
+			break;
+		}
+	}
+	$certnamelist[$ip] = $pick ? $pick : "{$sslpath}/default";
 }
 
 $serveralias = "{$domainname} www.{$domainname}";

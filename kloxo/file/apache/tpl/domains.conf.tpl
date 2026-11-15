@@ -78,15 +78,27 @@ $sock = function_exists('kloxo_apache_sock')
 	? kloxo_apache_sock((string)$phpselected, $user, (string)$domain)
 	: '/run/php/' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$domain) . '-' . preg_replace('/[^A-Za-z0-9._-]+/', '', (string)$phpselected) . '.sock';
 
-$certbase = '/home/kloxo/ssl/' . $domain;
-if (!empty($certnamelist) && is_array($certnamelist)) {
-	$first = reset($certnamelist);
-	if (is_string($first) && $first !== '') {
-		$certbase = (strpos($first, '/') === 0) ? $first : '/home/kloxo/ssl/' . $first;
+$certbase = '/home/kloxo/ssl/default';
+if (class_exists('KloxoSsl')) {
+	$pref = null;
+	if (!empty($certnamelist) && is_array($certnamelist)) {
+		$first = reset($certnamelist);
+		$pref = is_string($first) ? $first : null;
 	}
-}
-if (is_file($certbase . '.key') === false && is_file('/home/kloxo/ssl/' . $domain . '.key')) {
-	$certbase = '/home/kloxo/ssl/' . $domain;
+	$certbase = KloxoSsl::siteCertBase((string) $domain, $pref);
+} else {
+	if (!empty($certnamelist) && is_array($certnamelist)) {
+		$first = reset($certnamelist);
+		if (is_string($first) && $first !== '' && strpos($first, '*') === false) {
+			$certbase = (strpos($first, '/') === 0) ? $first : '/home/kloxo/ssl/' . $first;
+		}
+	}
+	if (is_file($certbase . '.key') === false && is_file('/home/kloxo/ssl/' . $domain . '.key')) {
+		$certbase = '/home/kloxo/ssl/' . $domain;
+	}
+	if (is_file($certbase . '.key') === false && is_file('/home/kloxo/ssl/default.key')) {
+		$certbase = '/home/kloxo/ssl/default';
+	}
 }
 
 $block = '';

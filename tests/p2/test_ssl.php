@@ -397,6 +397,30 @@ $sslPhp = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/kloxo_ssl.
 check(str_contains($sslPhp, 'ensureAcmeNginxSnippet'), 'issueLetsEncrypt refreshes ACME snippet');
 check(str_contains($sslPhp, 'preflightAcmeHttp'), 'issueLetsEncrypt preflights HTTP-01');
 check(str_contains($sslPhp, 'resolveWebroot'), 'issueLetsEncrypt resolves docroot webroot');
+check(str_contains($sslPhp, 'function siteCertBase'), 'siteCertBase exists for nginx/apache');
+check(str_contains($domTpl, 'KloxoSsl::siteCertBase'), 'nginx domains tpl uses siteCertBase');
+check(!str_contains((string) file_get_contents($repo . '/kloxo/httpdocs/driver/web/web__lib.php'), "array('*' => '*')"),
+	'web__lib empty certnamelist does not use literal * basename');
+
+echo "== siteCertBase never yields *.pem (subdomain / empty IPSSL)\n";
+KloxoSsl::$fsPrefix = $fs;
+$sslHome = "$fs/home/kloxo/ssl";
+@mkdir("$fs/opt/kloxo/file/ssl", 0755, true);
+file_put_contents("$fs/opt/kloxo/file/ssl/default.key", "KEY\n");
+file_put_contents("$fs/opt/kloxo/file/ssl/default.crt", "CRT\n");
+file_put_contents("$fs/opt/kloxo/file/ssl/default.pem", "KEY\nCRT\n");
+// Parent domain cert only (typical after LE on apex).
+file_put_contents("$sslHome/mesrob.com.key", "PKEY\n");
+file_put_contents("$sslHome/mesrob.com.pem", "PKEY\nPCRT\n");
+$gotSub = KloxoSsl::siteCertBase('blogtest15.mesrob.com', '*');
+check($gotSub === "$sslHome/mesrob.com", 'subdomain prefers parent cert, not *', $gotSub);
+check(!str_contains($gotSub, '*'), 'subdomain cert path has no asterisk');
+$gotStar = KloxoSsl::siteCertBase('newdomain.example', '*');
+check($gotStar === "$sslHome/default" || str_ends_with($gotStar, '/default'),
+	'star preferred falls back to default', $gotStar);
+check(!str_contains($gotStar, '*'), 'default fallback has no asterisk');
+$gotAbs = KloxoSsl::siteCertBase('x.com', "$sslHome/mesrob.com");
+check($gotAbs === "$sslHome/mesrob.com", 'absolute preferred cert is kept when files exist');
 
 // cleanup
 KloxoSsl::$fsPrefix = '';
