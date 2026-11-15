@@ -285,6 +285,11 @@ if php "$HERE/test_backup.php"; then
 else
   bad "test_backup.php"
 fi
+if php "$HERE/test_sitepreview.php"; then
+  ok "test_sitepreview.php"
+else
+  bad "test_sitepreview.php"
+fi
 if php "$HERE/test_knot_driver.php"; then
   ok "test_knot_driver.php"
 else

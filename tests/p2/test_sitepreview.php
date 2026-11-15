@@ -1,0 +1,182 @@
+<?php
+/**
+ * DNSless preview (KloxoSitepreview): parse, ACL, HTML rewrite, Host fetch.
+ * php-cli only; HTTP is faked via $httpGet.
+ */
+declare(strict_types=1);
+
+$repo = dirname(__DIR__, 2);
+$doc = $repo . '/kloxo/httpdocs';
+require_once $doc . '/lib/php/kloxo_sitepreview.php';
+
+$fail = 0;
+$ok = 0;
+
+function check(bool $cond, string $msg, string $detail = ''): void
+{
+	global $fail, $ok;
+	if ($cond) {
+		echo "  ok   {$msg}\n";
+		$ok++;
+	} else {
+		echo "  FAIL {$msg}" . ($detail !== '' ? " ({$detail})" : '') . "\n";
+		$fail++;
+	}
+}
+
+echo "== parse / validate\n";
+check(KloxoSitepreview::isDomainName('example.com')
+	&& KloxoSitepreview::isDomainName('a.b.co.uk')
+	&& !KloxoSitepreview::isDomainName('127.0.0.1')
+	&& !KloxoSitepreview::isDomainName('../evil')
+	&& !KloxoSitepreview::isDomainName('a b.com')
+	&& !KloxoSitepreview::isDomainName(''),
+	'isDomainName accepts FQDNs and rejects IP/traversal');
+
+$p = KloxoSitepreview::parseRequestUri('/sitepreview/example.com/');
+check(is_array($p) && ($p['domain'] ?? '') === 'example.com' && ($p['path'] ?? '') === '/',
+	'parseRequestUri /sitepreview/example.com/');
+
+$p2 = KloxoSitepreview::parseRequestUri('/sitepreview/blog.example.com/wp-admin/?x=1');
+check(is_array($p2) && ($p2['domain'] ?? '') === 'blog.example.com'
+	&& ($p2['path'] ?? '') === '/wp-admin/' && ($p2['query'] ?? '') === 'x=1',
+	'parseRequestUri keeps path and query');
+
+check(KloxoSitepreview::parseRequestUri('/display.php') === null
+	&& KloxoSitepreview::parseRequestUri('/sitepreview/../etc/passwd') === null
+	&& KloxoSitepreview::parseRequestUri('/sitepreview/example.com/a/../../etc') === null,
+	'parseRequestUri rejects non-preview and traversal');
+
+echo "== ACL\n";
+$admin = new class {
+	public function isAdmin(): bool
+	{
+		return true;
+	}
+	public function getClName(): string
+	{
+		return 'client-admin';
+	}
+};
+$alice = new class {
+	public function isAdmin(): bool
+	{
+		return false;
+	}
+	public function getClName(): string
+	{
+		return 'client-alice';
+	}
+};
+check(KloxoSitepreview::loginMayPreview($admin, 'client-bob')
+	&& KloxoSitepreview::loginMayPreview($alice, 'client-alice')
+	&& !KloxoSitepreview::loginMayPreview($alice, 'client-bob')
+	&& !KloxoSitepreview::loginMayPreview(null, 'client-alice'),
+	'loginMayPreview allows admin and owning client only');
+
+echo "== rewrite HTML\n";
+$html = '<html><a href="http://example.com/about">A</a>'
+	. '<img src="/logo.png">'
+	. '<link href="https://www.example.com/x.css">'
+	. '<a href="/sitepreview/example.com/keep">K</a>'
+	. '<img srcset="/a.png 1x, /b.png 2x">'
+	. '</html>';
+$out = KloxoSitepreview::rewriteHtml('example.com', $html);
+check(str_contains($out, 'href="/sitepreview/example.com/about"')
+	&& str_contains($out, 'src="/sitepreview/example.com/logo.png"')
+	&& str_contains($out, 'href="/sitepreview/example.com/x.css"')
+	&& str_contains($out, 'href="/sitepreview/example.com/keep"')
+	&& str_contains($out, 'srcset="/sitepreview/example.com/a.png 1x, /sitepreview/example.com/b.png 2x"')
+	&& !str_contains($out, 'http://example.com'),
+	'rewriteHtml maps domain and root-relative URLs under /sitepreview/');
+
+echo "== fetch via Host header (fake HTTP)\n";
+KloxoSitepreview::$loopbackPorts = array(80);
+$seen = array();
+KloxoSitepreview::$httpGet = static function (string $url, array $headers) use (&$seen): array {
+	$seen[] = array('url' => $url, 'headers' => $headers);
+	$host = '';
+	foreach ($headers as $h) {
+		if (stripos($h, 'Host:') === 0) {
+			$host = trim(substr($h, 5));
+		}
+	}
+	if ($url === 'http://127.0.0.1:80/' && $host === 'example.com') {
+		return array(
+			'code' => 200,
+			'body' => '<a href="/hi">x</a>',
+			'ctype' => 'text/html',
+			'headers' => array('content-type' => 'text/html'),
+		);
+	}
+	if (str_contains($url, ':8081/')) {
+		return array('code' => 0, 'body' => '', 'ctype' => '', 'headers' => array());
+	}
+
+	return array('code' => 404, 'body' => 'no', 'ctype' => 'text/plain', 'headers' => array());
+};
+$got = KloxoSitepreview::fetch('example.com', '/');
+check(($got['code'] ?? 0) === 200
+	&& str_contains((string) ($got['body'] ?? ''), '<a href="/hi">')
+	&& isset($seen[0]['url']) && $seen[0]['url'] === 'http://127.0.0.1:80/'
+	&& in_array('Host: example.com', $seen[0]['headers'], true),
+	'fetch uses 127.0.0.1 with Host: domain (no /etc/hosts)');
+
+KloxoSitepreview::$httpGet = static function (string $url, array $headers): array {
+	if (str_contains($url, ':80/')) {
+		return array('code' => 0, 'body' => '', 'ctype' => '', 'headers' => array());
+	}
+	if (str_contains($url, ':8081/gone')) {
+		return array(
+			'code' => 301,
+			'body' => '',
+			'ctype' => '',
+			'headers' => array('location' => 'http://example.com/here'),
+		);
+	}
+	if (str_contains($url, ':8081/here')) {
+		return array(
+			'code' => 200,
+			'body' => 'ok-here',
+			'ctype' => 'text/plain',
+			'headers' => array('content-type' => 'text/plain'),
+		);
+	}
+
+	return array('code' => 0, 'body' => '', 'ctype' => '', 'headers' => array());
+};
+KloxoSitepreview::$loopbackPorts = array(80, 8081);
+$got2 = KloxoSitepreview::fetch('example.com', '/gone');
+check(($got2['code'] ?? 0) === 200 && ($got2['body'] ?? '') === 'ok-here',
+	'fetch falls back to :8081 and follows same-domain redirect');
+
+check(KloxoSitepreview::redirectTarget('example.com', '/x') === '/x'
+	&& KloxoSitepreview::redirectTarget('example.com', 'http://example.com/y') === '/y'
+	&& KloxoSitepreview::redirectTarget('example.com', 'https://evil.test/') === null
+	&& KloxoSitepreview::redirectTarget('example.com', '//evil.test/') === null,
+	'redirectTarget stays on domain / root-relative only');
+
+echo "== sitepreview.php entry\n";
+$sp = (string) file_get_contents($doc . '/theme/lbin/sitepreview.php');
+$hia = (string) file_get_contents($repo . '/kloxo/init/hiawatha.conf.base');
+check(str_contains($sp, 'KloxoSitepreview::fetch')
+	&& str_contains($sp, 'initProgram')
+	&& str_contains($sp, 'loginMayPreview')
+	&& !str_contains($sp, 'addtoEtcHost')
+	&& !str_contains($sp, 'hn_urlrewrite')
+	&& !str_contains($sp, 'curl_general_get'),
+	'sitepreview.php uses KloxoSitepreview, login, no /etc/hosts or hn_urlrewrite');
+check(str_contains($hia, 'ErrorHandler = 404:/theme/lbin/sitepreview.php'),
+	'Hiawatha still routes 404 to sitepreview.php');
+
+$lib = (string) file_get_contents($doc . '/lib/domain/domainlib.php');
+check(str_contains($lib, '/sitepreview/[%s]')
+	&& str_contains($lib, '__stub_domain_preview_url'),
+	'Domains list DNSless Preview icon still points at /sitepreview/');
+
+KloxoSitepreview::$httpGet = null;
+KloxoSitepreview::$resolveDomain = null;
+KloxoSitepreview::$loopbackPorts = array(80, 8081, 8080);
+
+echo "\n{$ok} ok, {$fail} fail\n";
+exit($fail > 0 ? 1 : 0);

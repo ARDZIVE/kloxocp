@@ -1,105 +1,99 @@
-<?php 
+<?php
+declare(strict_types=1);
 
-$path = __FILE__;
-$dir = dirname(dirname(dirname($path)));
-include_once "$dir/lib/html/include.php";
+/**
+ * DNSless Preview: /sitepreview/<domain>/… (Hiawatha 404 ErrorHandler).
+ * Requires a panel login; fetches the site on loopback with Host: domain
+ * (no /etc/hosts). Rewrites HTML so links stay under /sitepreview/.
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3 or later. See LICENSE.txt.
+ */
 
-// print($dir . "<br>");
+chdir('../../');
+include_once 'lib/html/displayinclude.php';
+include_once 'lib/php/kloxo_sitepreview.php';
 
-function parse_etc_mime()
-{
-	$list = lfile_trim("/etc/mime.types");
+$request = (string) ($_SERVER['REQUEST_URI'] ?? '');
 
-	foreach($list as $s) {
-		if (!$s) {
-			continue;
-		}
-
-		if ($s[0] === '#') {
-			continue;
-		}
-
-		$s = trimSpaces($s);
-		$s = explode(" ", $s);
-		$type = array_shift($s);
-
-		foreach($s as $ss) {
-			$res[$ss] = $type;
-		}
-	}
-
-	return $res;
-}
-
-$res = parse_etc_mime();
-
-$request = $_SERVER['REQUEST_URI'];
-
-if (!csa($request, "sitepreview/")) {
-	header("HTTP/1.0 404 Not Found");
-
-	print("404--- <br> ");
-
+// Hiawatha routes every 404 here; only handle /sitepreview/.
+$parsed = KloxoSitepreview::parseRequestUri($request);
+if ($parsed === null) {
+	http_response_code(404);
+	header('Content-Type: text/plain; charset=UTF-8');
+	echo "404 Not Found\n";
 	exit;
 }
 
-$request = strfrom($request, "sitepreview/");
-
-$domain = strtilfirst($request, "/");
-
-// print("request: " . $request . "<br>");
-// print("domain: " . $domain . "<br>");
-
-$sq = new Sqlite(null, 'web');
-$res = $sq->getRowsWhere("nname = '$domain'");
-
-if (!$res) {
-	print("Domain Doesn't exist\n");
-
+try {
+	initProgram();
+} catch (Throwable $e) {
+	http_response_code(403);
+	header('Content-Type: text/html; charset=UTF-8');
+	$loginUrl = '/login/?frm_emessage=session_timeout';
+	echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Login required</title></head><body>';
+	echo '<p>DNSless Preview needs a panel login. <a href="'
+		. htmlspecialchars($loginUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+		. '">Sign in</a>.</p></body></html>';
 	exit;
 }
 
-$server = $res[0]['syncserver'];
-$ip = getOneIPForServer($server);
-
-rl_exec_get(null, 'localhost', 'addtoEtcHost', array($domain, $ip));
-
-// MR -- hiawatha need remove /
-if (substr($request, -5, 5) === ".php/") {
-	$requestclean = rtrim($request, "/");
-} else {
-	$requestclean = $request;
-}
-
-$file = curl_general_get("http://$requestclean");
-
-// print($file);
-
-$pinfo = pathinfo($request);
-// MR -- mod to prevent error message
-// $ext = $pinfo['extension'];
-$ext = isset($pinfo['extension']) ? $pinfo['extension'] : '';
-
-// print_r($pinfo);
-// print("<br>");
-
-if (isset($res[$ext]) && $res[$ext] !== 'text/html' && $res[$ext] !== 'text/css') {
-	header("Content-Type  $res[$ext]");
-
-	print($file);
-
+global $login;
+if (!is_object($login)) {
+	http_response_code(403);
+	header('Content-Type: text/plain; charset=UTF-8');
+	echo "Forbidden\n";
 	exit;
-} else {
-
-	rl_exec_get(null, 'localhost', 'removeFromEtcHost', array($domain));
-
-	include "lib/urlrewrite/hn_urlrewrite.class.php";
-
-	$rewrite = new hn_urlrewrite();
-
-	$page = $rewrite->_rewrite_page($domain, $file);
-
-	print($page);
 }
 
+$domain = $parsed['domain'];
+$path = $parsed['path'];
+$query = $parsed['query'];
 
+try {
+	$meta = KloxoSitepreview::lookupDomain($domain);
+} catch (KloxoSitepreviewException $e) {
+	http_response_code(404);
+	header('Content-Type: text/plain; charset=UTF-8');
+	echo "Domain not found\n";
+	exit;
+}
+
+if (!KloxoSitepreview::loginMayPreview($login, $meta['parent_clname'])) {
+	http_response_code(403);
+	header('Content-Type: text/plain; charset=UTF-8');
+	echo "Forbidden\n";
+	exit;
+}
+
+try {
+	$got = KloxoSitepreview::fetch($domain, $path, $query);
+} catch (KloxoSitepreviewException $e) {
+	http_response_code(400);
+	header('Content-Type: text/plain; charset=UTF-8');
+	echo "Bad preview request\n";
+	exit;
+}
+
+$code = (int) ($got['code'] ?? 502);
+$body = (string) ($got['body'] ?? '');
+$ctype = (string) ($got['ctype'] ?? '');
+if ($ctype === '' || $ctype === 'application/octet-stream') {
+	$ctype = KloxoSitepreview::contentTypeForPath($path);
+}
+
+if ($code < 100 || $code > 599) {
+	$code = 502;
+}
+http_response_code($code);
+header('X-Content-Type-Options: nosniff');
+header('Cache-Control: no-store');
+
+if (KloxoSitepreview::isRewritableHtml($ctype, $path)) {
+	header('Content-Type: text/html; charset=UTF-8');
+	echo KloxoSitepreview::rewriteHtml($domain, $body);
+	exit;
+}
+
+header('Content-Type: ' . $ctype);
+echo $body;
