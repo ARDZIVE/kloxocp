@@ -132,7 +132,11 @@ final class KloxoRecovery
 
     public static function hashPassword(string $plain): string
     {
-        $algo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT;
+        // Argon2id only (security LL6).
+        $algo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : null;
+        if ($algo === null) {
+            return '';
+        }
         $h = password_hash($plain, $algo);
         if (!is_string($h) || $h === '') {
             throw new RuntimeException('cannot_hash_password');

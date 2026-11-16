@@ -366,11 +366,20 @@ class pservercore extends Lxclient
 		$sq = new Sqlite(null, "pserver");
 
 		foreach ($list as $l) {
-			$rl[] = "nname = '$l'";
+			$l = is_string($l) ? trim($l) : '';
+			// Hostname/nname allow-list before rawQuery (security LL3).
+			if ($l === '' || preg_match('/^[A-Za-z0-9._-]{1,253}$/', $l) !== 1) {
+				continue;
+			}
+			$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($l) : str_replace("'", "''", $l);
+			$rl[] = "nname = '{$esc}'";
+		}
+		if (empty($rl)) {
+			return null;
 		}
 
 		$string = implode(" OR ", $rl);
-		$res = $sq->rawQuery("select nname, description, realhostname, osversion from pserver where $string");
+		$res = $sq->rawQuery("select nname, description, realhostname, osversion from pserver where {$string}");
 
 		if (!$res) {
 			return $res;
@@ -1697,7 +1706,13 @@ STRIN;
 	function deleteSpecific()
 	{
 		$sq = new Sqlite(null, 'ipaddress');
-		$sq->rawQuery("delete from ipaddress where syncserver = '$this->nname'");
+		$n = is_string($this->nname) ? trim($this->nname) : '';
+		// Validate syncserver before delete (security LL3).
+		if ($n === '' || preg_match('/^[A-Za-z0-9._-]{1,253}$/', $n) !== 1) {
+			return;
+		}
+		$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($n) : str_replace("'", "''", $n);
+		$sq->rawQuery("delete from ipaddress where syncserver = '{$esc}'");
 
 	//	$this->fixDatabaseServers();
 	}
@@ -1722,6 +1737,12 @@ STRIN;
 			if ($ver === '') {
 				$ver = 'linux';
 			}
+			// Quoted literals (security LL3).
+			$q = static function ($v): string {
+				return function_exists('kloxo_sql_quote') ? kloxo_sql_quote($v) : str_replace("'", "''", (string) $v);
+			};
+			$escOstype = $q($ostype);
+			$escVer = $q($ver);
 
 			$sq = new Sqlite(null, 'pserver');
 			$sq->rawQuery("DELETE FROM pserver WHERE nname = '' OR nname IS NULL");
@@ -1729,9 +1750,10 @@ STRIN;
 
 			if (!$res) {
 				$now = (string)time();
+				$escNow = $q($now);
 				$sq->rawQuery(
 					"INSERT INTO pserver (nname, parent_clname, parent_cmlist, syncserver, ostype, osversion, username, hostname, description, realhostname, coma_psrole_a, ddate, cpstatus) " .
-					"VALUES ('localhost', 'client-admin', '', 'localhost', '$ostype', '$ver', 'root', 'localhost', 'localhost', 'localhost', ',web,mmail,dns,mysqldb,', '$now', 'on')"
+					"VALUES ('localhost', 'client-admin', '', 'localhost', '{$escOstype}', '{$escVer}', 'root', 'localhost', 'localhost', 'localhost', ',web,mmail,dns,mysqldb,', '{$escNow}', 'on')"
 				);
 				return;
 			}
@@ -1742,10 +1764,10 @@ STRIN;
 				$set[] = "syncserver = 'localhost'";
 			}
 			if (($row['ostype'] ?? '') === '') {
-				$set[] = "ostype = '$ostype'";
+				$set[] = "ostype = '{$escOstype}'";
 			}
 			if (($row['osversion'] ?? '') === '') {
-				$set[] = "osversion = '$ver'";
+				$set[] = "osversion = '{$escVer}'";
 			}
 			if (($row['description'] ?? '') === '') {
 				$set[] = "description = 'localhost'";

@@ -279,16 +279,19 @@ class ippool extends Lxdb
 		$list = $this->getIndividualIpList();
 		$sq = new Sqlite(null, 'tmpipassign');
 
-		$ctime = time();
-		$ctime -= 100;
-		$sq->rawQuery("delete from tmpipassign where (ddate + 0) < $ctime");
+		$ctime = (int) time() - 100;
+		// Integer cutoff only (security LL3).
+		$sq->rawQuery("delete from tmpipassign where (ddate + 0) < {$ctime}");
 
 		$pingip = null;
 		
 		foreach($list as $l) {
 			$l = trim($l);
-
-			$p = $sq->getRowsWhere("nname = '$l'");
+			if ($l === '' || filter_var($l, FILTER_VALIDATE_IP) === false) {
+				continue;
+			}
+			$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($l) : str_replace("'", "''", $l);
+			$p = $sq->getRowsWhere("nname = '{$esc}'");
 
 			if ($p) { continue; }
 
@@ -341,9 +344,16 @@ class ippool extends Lxdb
 
 	static function addToTmpIpAssign($l)
 	{
+		$l = is_string($l) ? trim($l) : '';
+		// Validate IP before insert (security LL3).
+		if ($l === '' || filter_var($l, FILTER_VALIDATE_IP) === false) {
+			return;
+		}
 		$sq = new Sqlite(null, 'tmpipassign');
-		$date = time();
-		$sq->rawQuery("insert into tmpipassign (nname, ddate) values ('$l', '$date');");
+		$date = (string) time();
+		$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($l) : str_replace("'", "''", $l);
+		$escDate = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($date) : str_replace("'", "''", $date);
+		$sq->rawQuery("insert into tmpipassign (nname, ddate) values ('{$esc}', '{$escDate}');");
 	}
 
 	function getIndividualIpList()

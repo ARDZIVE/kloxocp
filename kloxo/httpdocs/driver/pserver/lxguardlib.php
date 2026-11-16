@@ -90,7 +90,9 @@ class lxguard extends lxdb
 		// $ddate -= 60 * 60 * 24 * 30 * 3;
 		// MR -- change to 1 month
 		$ddate -= 60 * 60 * 24 * 30 * 1;
-		$sq->rawQuery("delete from lxguardhit where (ddate + 0) < $ddate");
+		$ddate = (int) $ddate;
+		// Integer cutoff only (security LL3).
+		$sq->rawQuery("delete from lxguardhit where (ddate + 0) < {$ddate}");
 		$list = get_all_pserver();
 
 		foreach($list as $l) {

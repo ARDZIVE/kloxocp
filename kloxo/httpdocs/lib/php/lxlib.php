@@ -2820,7 +2820,7 @@ function kloxo_password_hash($plain)
 	if (!is_string($plain) || $plain === '') {
 		return '';
 	}
-	// Argon2id only — no PASSWORD_DEFAULT / crypt fallback (security LL6 / Y7).
+	// Argon2id only — no PASSWORD_DEFAULT / crypt fallback (security LL6; security Y7).
 	if (!defined('PASSWORD_ARGON2ID')) {
 		return '';
 	}
@@ -2828,6 +2828,7 @@ function kloxo_password_hash($plain)
 	if (is_string($h) && $h !== '') {
 		return $h;
 	}
+	// Fail closed — never mint MD5-crypt (security Y7).
 
 	return '';
 }
@@ -2855,17 +2856,13 @@ function kloxo_password_needs_rehash($enc)
 	if (!is_string($enc) || $enc === '') {
 		return true;
 	}
-	if (defined('PASSWORD_ARGON2ID')) {
-		$info = function_exists('password_get_info') ? password_get_info($enc) : null;
-		if (is_array($info) && isset($info['algo']) && $info['algo'] !== 0 && $info['algo'] !== null) {
-			return password_needs_rehash($enc, PASSWORD_ARGON2ID);
-		}
-
+	// Argon2id only (security LL6) — legacy hashes always need rehash.
+	if (!defined('PASSWORD_ARGON2ID')) {
 		return true;
 	}
 	$info = function_exists('password_get_info') ? password_get_info($enc) : null;
 	if (is_array($info) && isset($info['algo']) && $info['algo'] !== 0 && $info['algo'] !== null) {
-		return password_needs_rehash($enc, PASSWORD_DEFAULT);
+		return password_needs_rehash($enc, PASSWORD_ARGON2ID);
 	}
 
 	return true;

@@ -1742,6 +1742,73 @@ $findings[] = finding('KK6', 'low', 'residual crypt mint / unmarked non-auth md5
 	'check_password / checkpassword / EasyInstaller md5 token', $kk6Closed,
 	$kk6Closed ? 'crypt verify-only marked; non-auth md5 marked' : 'still unmarked');
 
+// --- Wave 23 (LL1–LL6) ---
+$eiLl = file_text($root, 'kloxo/httpdocs/driver/web/easyinstaller__linuxlib.php');
+$eilibLl = file_text($root, 'kloxo/httpdocs/driver/web/easyinstallerlib.php');
+$libLl = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$eiUpLl = file_text($root, 'kloxo/bin/easyinstaller-update.php');
+$ll1Closed = contains($eiLl, 'security LL1')
+	&& contains($eiLl, 'easyinstaller_removed')
+	&& not_contains($eiLl, 'download_file')
+	&& contains($eilibLl, 'security LL1')
+	&& not_contains($eilibLl, 'md5(time())')
+	&& contains($libLl, 'security LL1')
+	&& contains($libLl, 'appvault_dbfilter refused')
+	&& not_contains($libLl, "md5(\$cont['adminpass'])")
+	&& contains($eiUpLl, 'security LL1');
+$findings[] = finding('LL1', 'medium', 'EasyInstaller md5/drivers still live',
+	'easyinstaller* / appvault_dbfilter', $ll1Closed,
+	$ll1Closed ? 'driver throws; template refused; no md5(time)' : 'EasyInstaller still active');
+
+$fmLl = file_text($root, 'kloxo/file/formmail/formmail.php');
+$ll2Closed = contains($fmLl, 'security LL2')
+	&& contains($fmLl, 'security HH6')
+	&& contains($fmLl, 'security JJ5')
+	&& not_contains($fmLl, 'popen($cmd')
+	&& strlen($fmLl) < 800;
+$findings[] = finding('LL2', 'medium', 'formmail.php third-party still shipped',
+	'file/formmail/formmail.php', $ll2Closed,
+	$ll2Closed ? 'stub only' : 'full FormMail still present');
+
+$lxlibLl = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$psLl = file_text($root, 'kloxo/httpdocs/driver/pserver/pservercorelib.php');
+$ipLl = file_text($root, 'kloxo/httpdocs/lib/html/ippoollib.php');
+$ll3Closed = contains($lxlibLl, 'function kloxo_sql_quote')
+	&& contains($lxlibLl, 'security LL3')
+	&& contains($psLl, 'security LL3')
+	&& contains($ipLl, 'security LL3')
+	&& contains($libLl, 'security LL3')
+	&& not_contains($psLl, "delete from ipaddress where syncserver = '\$this->nname'")
+	&& not_contains($ipLl, "values ('\$l', '\$date')");
+$findings[] = finding('LL3', 'medium', 'rawQuery string interpolation leftovers',
+	'pservercore / ippool / lib.php helpers', $ll3Closed,
+	$ll3Closed ? 'kloxo_sql_quote + ident allow-list' : 'still raw interpolation');
+
+$fpmLl = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_phpfpm.php');
+$ll4Closed = contains($fpmLl, 'security LL4')
+	&& contains($fpmLl, 'bashQuote')
+	&& contains($fpmLl, '/usr/bin/php\\d+');
+$findings[] = finding('LL4', 'low', 'kloxo_phpfpm cronWrapper raw escapeshellarg',
+	'lib/php/kloxo_phpfpm.php cronWrapper', $ll4Closed,
+	$ll4Closed ? 'phpX.Y allow-list + bashQuote' : 'still raw escapeshellarg');
+
+$ex0Ll = file_text($root, 'kloxo/httpdocs/lib/urlrewrite/example0.php');
+$ex3Ll = file_text($root, 'kloxo/httpdocs/lib/urlrewrite/example3.php');
+$ll5Closed = contains($ex0Ll, 'security LL5')
+	&& contains($ex3Ll, 'security LL5')
+	&& not_contains($ex0Ll, 'require_once($root')
+	&& not_contains($ex3Ll, 'DOCUMENT_ROOT');
+$findings[] = finding('LL5', 'low', 'urlrewrite example* variable require_once',
+	'lib/urlrewrite/example*.php', $ll5Closed,
+	$ll5Closed ? 'examples stubbed' : 'still require DOCUMENT_ROOT');
+
+$ll6Closed = contains($lxlibLl, 'security LL6')
+	&& not_contains($lxlibLl, 'password_hash($plain, PASSWORD_DEFAULT)')
+	&& contains($lxlibLl, 'PASSWORD_ARGON2ID');
+$findings[] = finding('LL6', 'low', 'PASSWORD_DEFAULT fallback when Argon2id missing',
+	'lxlib.php kloxo_password_hash', $ll6Closed,
+	$ll6Closed ? 'Argon2id only; fail closed' : 'still PASSWORD_DEFAULT fallback');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
