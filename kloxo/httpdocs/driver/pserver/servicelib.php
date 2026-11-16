@@ -647,6 +647,38 @@ class Service extends Lxdb
 			$driverapp = null;
 		}
 
+		$probed = self::probeServiceDetailsList($nlist, $server, $master, $read, $driverapp);
+
+		return self::onlyInstalledRows(array_values(is_array($probed) ? $probed : array()));
+	}
+
+	/**
+	 * Resolve install/active/boot state for the Services list.
+	 *
+	 * Localhost always probes via Service__Linux in-process: systemctl show is
+	 * readable without root, and relying on kloxo-backend left every row as
+	 * "not installed" whenever the RPC returned empty (driver missing, backend
+	 * down, or auth failure) because the catalog seed is a non-empty array and
+	 * skipped the local fallback.
+	 *
+	 * @param array<string,array> $nlist
+	 * @return array<string,array>
+	 */
+	static function probeServiceDetailsList($nlist, $server, $master, $read, $driverapp)
+	{
+		if (!is_array($nlist) || $nlist === array()) {
+			return array();
+		}
+
+		$localOk = function_exists('isLocalhost') ? isLocalhost($server) : ((string) $server === '' || (string) $server === 'localhost');
+		if ($localOk) {
+			try {
+				return Service__Linux::getServiceDetails($nlist);
+			} catch (Throwable $e) {
+				return $nlist;
+			}
+		}
+
 		$probed = $nlist;
 		if ($driverapp) {
 			try {
@@ -658,15 +690,8 @@ class Service extends Lxdb
 				$probed = $nlist;
 			}
 		}
-		if (!is_array($probed) || $probed === array()) {
-			try {
-				$probed = Service__Linux::getServiceDetails($nlist);
-			} catch (Throwable $e) {
-				$probed = $nlist;
-			}
-		}
-
-		return self::onlyInstalledRows(array_values(is_array($probed) ? $probed : array()));
+		// Remote RPC empty / failed: keep the seed (cannot see the slave's units).
+		return is_array($probed) ? $probed : $nlist;
 	}
 }
 

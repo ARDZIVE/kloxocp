@@ -146,5 +146,56 @@ if (str_contains($src, "self::journalTail(\$unit, 30)") && str_contains($src, "'
 	bad('systemctlRunDetail checks the unit is active after start/restart');
 }
 
+// Localhost Services list must probe systemd in-process even when the
+// backend RPC would return empty (previously every row stayed "not installed").
+Service__Linux::clearShowCache();
+$prevShow = Service__Linux::$showProbe;
+Service__Linux::$showProbe = static function (string $u, string $p): string {
+	if ($u !== 'nginx') {
+		return '';
+	}
+	if ($p === 'LoadState') {
+		return 'loaded';
+	}
+	if ($p === 'ActiveState') {
+		return 'active';
+	}
+	if ($p === 'SubState') {
+		return 'running';
+	}
+	if ($p === 'UnitFileState') {
+		return 'enabled';
+	}
+
+	return '';
+};
+$seed = array(
+	'nginx' => array(
+		'servicename' => 'nginx',
+		'nname' => 'nginx___localhost',
+		'install_state' => 'dull',
+		'state' => 'off',
+		'boot_state' => 'off',
+		'status_f' => 'not installed',
+	),
+);
+$probedLocal = Service::probeServiceDetailsList($seed, 'localhost', null, 'localhost', 'linux');
+Service__Linux::$showProbe = $prevShow;
+if (($probedLocal['nginx']['install_state'] ?? '') === 'on'
+	&& ($probedLocal['nginx']['status_f'] ?? '') === 'active'
+	&& ($probedLocal['nginx']['state'] ?? '') === 'on') {
+	ok('localhost Services probe uses systemctl even when a driver is configured');
+} else {
+	bad('localhost Services probe uses systemctl even when a driver is configured',
+		json_encode($probedLocal));
+}
+$srcList = (string) file_get_contents($doc . '/driver/pserver/servicelib.php');
+if (str_contains($srcList, 'function probeServiceDetailsList')
+	&& str_contains($srcList, 'Localhost always probes')) {
+	ok('Services initThisList routes through probeServiceDetailsList');
+} else {
+	bad('Services initThisList routes through probeServiceDetailsList');
+}
+
 printf("\n%d passed, %d failed\n", $pass, $fail);
 exit($fail === 0 ? 0 : 1);
