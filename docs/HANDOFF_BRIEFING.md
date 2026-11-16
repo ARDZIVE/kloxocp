@@ -23,7 +23,7 @@ Owner's requirements (non-negotiable unless the owner changes them):
 | The panel's own web server | **Hiawatha is kept** (as in Kloxo-MR), used only for the panel UI |
 | Billing | **None for now.** Owner will add it later; leave a clean extension point, do not integrate |
 | UI | **Keep the existing UI** |
-| Install | One command (`curl …/get | sudo bash`), under ~10 minutes, no questions |
+| Install | One command (cache-busted `curl …/get?$(date +%s) | sudo bash`), under ~10 minutes, no questions |
 | Updates | One command or button for the panel and every managed component (SQL, FTP, BIND, PHP versions, web, mail), with snapshot, validation, health check and **automatic rollback** |
 | Quality bar | "Most stable and viable": earned through tests, small scope, CI and release discipline (see `INSTALL_AND_UPDATE_DESIGN.md`) |
 | Mail | Exim + Dovecot + Rspamd + MariaDB (implemented, see section 5; re-run mail tests on Ubuntu) |
@@ -68,7 +68,7 @@ kloxo-cp/
   tests/p1/                      P1 stack-shrink source invariants (php-cli only)
   tests/p2/                      P2 first-party PHP 8 parse + autoload characterization (php-cli only)
   tests/p3/                      P3 kloxocp CLI + snapshot/rollback (php-cli only)
-  get, install.sh                Ubuntu 24.04 / 26.x one-liner bootstrap (curl …/get | sudo bash)
+  get, install.sh                Ubuntu 24.04 / 26.x one-liner bootstrap (cache-busted curl …/get)
   tests/install/                 init-panel-db + install-hiawatha + install-knot + install-apache source invariants (php-cli)
   tools/rebrand_to_kloxocp.py    script of the second rebrand step
 ```
@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111667**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111669**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1221,7 +1221,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111667**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111669**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

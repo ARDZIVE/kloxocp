@@ -99,12 +99,17 @@ if grep -q 'init-panel-db' "$ROOT/install.sh"; then
 else
   bad "install.sh calls init-panel-db"
 fi
-ONELINER='curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash'
-if grep -Fq "$ONELINER" "$ROOT/README.md" && grep -Fq "$ONELINER" "$ROOT/install.sh" \
-  && grep -Fq "$ONELINER" "$ROOT/get"; then
-  ok "README, install.sh and get share the same one-liner"
+# Cache-busted one-liner (GitHub raw CDN); must match across README / get / install.sh.
+ONELINER_MARK='Cache-Control: no-cache'
+ONELINER_URL='raw.githubusercontent.com/ARDZIVE/kloxocp/main/get'
+if grep -Fq "$ONELINER_MARK" "$ROOT/README.md" && grep -Fq "$ONELINER_URL" "$ROOT/README.md" \
+  && grep -Fq 'date +%s' "$ROOT/README.md" \
+  && grep -Fq "$ONELINER_MARK" "$ROOT/install.sh" && grep -Fq "$ONELINER_URL" "$ROOT/install.sh" \
+  && grep -Fq "$ONELINER_MARK" "$ROOT/get" && grep -Fq "$ONELINER_URL" "$ROOT/get" \
+  && grep -q 'nocache=' "$ROOT/get"; then
+  ok "README, install.sh and get share the cache-busted one-liner"
 else
-  bad "README, install.sh and get share the same one-liner"
+  bad "README, install.sh and get share the cache-busted one-liner"
 fi
 if [[ -f "$ROOT/get" ]] \
   && grep -q 'KLOXO_GET_URL' "$ROOT/get" \

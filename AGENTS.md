@@ -10,17 +10,18 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111667. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111669. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
 P3 CLI skeleton is in (`kloxo/bin/kloxocp`: status, doctor, snapshot, rollback).
-`get` / `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git (one-liner: `curl …/get | sudo bash`)
+`get` / `install.sh` bootstraps Ubuntu 24.04 or 26.x from https://github.com/ARDZIVE/kloxocp.git (one-liner: `curl -fsSL -H 'Cache-Control: no-cache' "…/get?$(date +%s)" | sudo bash`)
 (Hiawatha 12.4 source build + `init-panel-db`; MariaDB 11.8 row-size rewrite;
 `ufw`, `pure-ftpd`, `redis-server`, and `imagemagick` are packaged (`ufw`
 **enabled by default**; Redis and Pure-FTPd enabled; ImageMagick for File Manager Thumbnail);
 install defaults to `--profile=full`. File Manager Thumbnail no longer probes
-(ImageMagick via `/usr/bin/convert` / `magick`; CentOS rpm/yum paths removed). The README one-liner is `curl -fsSL …/get | sudo bash` (`get` fetches `install.sh`;
+(ImageMagick via `/usr/bin/convert` / `magick`; CentOS rpm/yum paths removed). The README one-liner is `curl -fsSL -H 'Cache-Control: no-cache' "…/get?$(date +%s)" | sudo bash`
+(cache-bust raw GitHub; `get` fetches `install.sh` the same way;
 install is pipe-safe via `exec </dev/null`, prints `[1/8]…[8/8]` steps, auto-sets a
 localhost hostname from the primary IP; Exim, Dovecot, Rspamd;
 Postfix not co-installed with Exim (Switch Program apt-swaps);
@@ -54,7 +55,7 @@ print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have
 text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
 htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
 The Update
-screen shows **10.1-2026111667** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111669** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from

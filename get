@@ -3,14 +3,21 @@
 #
 # Fresh Ubuntu 24.04 or 26.x as root (full stack = Exim + Dovecot + Rspamd):
 #
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
+#   curl -fsSL -H 'Cache-Control: no-cache' \
+#     "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+#     | sudo bash
 #
 # With flags (note bash -s --):
 #
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=full
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --slave --slave-password=SECRET
+#   curl -fsSL -H 'Cache-Control: no-cache' \
+#     "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+#     | sudo bash -s -- --profile=full
+#   … | sudo bash -s -- --profile=core
+#   … | sudo bash -s -- --fresh --yes
+#   … | sudo bash -s -- --slave --slave-password=SECRET
+#
+# Cache-bust the raw URL so GitHub CDN does not serve a stale get. This file
+# also appends ?nocache=… when it downloads install.sh.
 #
 # Panel: https://<ip>:7777/  admin / admin
 # First login: Change Password, then Mail Setup (admin email + mail FQDN).

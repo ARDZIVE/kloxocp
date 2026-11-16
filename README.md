@@ -1,7 +1,7 @@
 # Kloxo CP
 
 Hosting control panel for **Ubuntu 24.04** (PHP 8.3) and **Ubuntu 26.x** (PHP 8.5).
-GNU AGPLv3. Version **10.1-2026111667**.
+GNU AGPLv3. Version **10.1-2026111669**.
 
 https://github.com/ARDZIVE/kloxocp.git
 
@@ -37,16 +37,19 @@ Fresh **Ubuntu 24.04 or 26.x**, as root, at least ~2 GB RAM and 10 GB disk.
 Do not install on a machine that already runs another control panel.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
+curl -fsSL -H 'Cache-Control: no-cache' \
+  "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+  | sudo bash
 ```
 
-That is the whole install. `get` downloads `install.sh` from the same branch and
-runs it (pipe-safe: apt never reads the curl pipe). No questions, no hostname
-quiz, no service picker. Full stack by default (Nginx, MariaDB, Exim, Dovecot,
-**Rspamd**, BIND, Pure-FTPd, UFW, Fail2Ban, **certbot**, **LogWatch**, Visitor
-Stats timer). LogWatch is packaged and prepared but **not enabled** — turn it on
-under Security → LogWatch when you want scheduled reports. SpamAssassin is not
-installed. Progress prints as `[1/8] … [8/8]`.
+That is the whole install. The `?$(date +%s)` query and `Cache-Control` header
+avoid a stale GitHub raw copy of `get`. `get` then downloads `install.sh` (also
+cache-busted) and runs it (pipe-safe: apt never reads the curl pipe). No
+questions, no hostname quiz, no service picker. Full stack by default (Nginx,
+MariaDB, Exim, Dovecot, **Rspamd**, BIND, Pure-FTPd, UFW, Fail2Ban, **certbot**,
+**LogWatch**, Visitor Stats timer). LogWatch is packaged and prepared but **not
+enabled** — turn it on under Security → LogWatch when you want scheduled reports.
+SpamAssassin is not installed. Progress prints as `[1/8] … [8/8]`.
 Log: `/var/log/kloxo-install.log`.
 
 | Flag | Use |
@@ -61,24 +64,40 @@ Pass flags after `bash -s --`:
 
 ```bash
 # Full stack (same as no flags)
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
+curl -fsSL -H 'Cache-Control: no-cache' \
+  "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+  | sudo bash
 
 # Explicit full profile
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=full
+curl -fsSL -H 'Cache-Control: no-cache' \
+  "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+  | sudo bash -s -- --profile=full
 
 # Panel + sites only (no Exim / Dovecot / Rspamd packages)
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
+curl -fsSL -H 'Cache-Control: no-cache' \
+  "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+  | sudo bash -s -- --profile=core
 
 # Wipe previous panel install, then reinstall (keeps sites, mail, UFW, apt packages)
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
+curl -fsSL -H 'Cache-Control: no-cache' \
+  "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+  | sudo bash -s -- --fresh --yes
 
 # Slave backend (no panel UI)
-curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --slave --slave-password='SECRET'
+curl -fsSL -H 'Cache-Control: no-cache' \
+  "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+  | sudo bash -s -- --slave --slave-password='SECRET'
 ```
 
 `--fresh` removes the program, panel SQLite, panel MariaDB accounts and saved
 passwords, then reinstalls. Customer sites, `/var/vmail`, customer databases,
 UFW rules and apt packages are kept.
+
+**Already installed?** Do not re-run the one-liner for routine updates — use:
+
+```bash
+sudo kloxocp upcp
+```
 
 To install this working tree instead of GitHub `main`, copy it to the server
 and run `sudo bash get` (or `sudo bash install.sh`) from that directory.

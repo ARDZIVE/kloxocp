@@ -2,13 +2,17 @@
 # Kloxo CP bootstrap for Ubuntu 24.04 LTS and Ubuntu 26.x.
 #
 # Easiest install (no questions, full stack = Exim + Dovecot + Rspamd):
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
+#   curl -fsSL -H 'Cache-Control: no-cache' \
+#     "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \
+#     | sudo bash
 #
 # With flags (bash -s --):
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=full
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --profile=core
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --fresh --yes
-#   curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash -s -- --slave --slave-password=SECRET
+#   … | sudo bash -s -- --profile=full
+#   … | sudo bash -s -- --profile=core
+#   … | sudo bash -s -- --fresh --yes
+#   … | sudo bash -s -- --slave --slave-password=SECRET
+#
+# Prefer a cache-busted get URL (see README). Already installed: sudo kloxocp upcp
 #
 # Panel: https://<ip>:7777/  admin / admin
 # First login: Change Password, then Mail Setup (admin email + mail FQDN).
@@ -52,7 +56,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111667"
+KCP_VERSION="10.1-2026111669"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -71,7 +75,7 @@ usage() {
   cat <<EOF
 Kloxo CP ${KCP_VERSION} — Ubuntu 24.04 or 26.x
 
-  curl -fsSL https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get | sudo bash
+  curl -fsSL -H 'Cache-Control: no-cache' "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?\$(date +%s)" | sudo bash
 
 No questions. Full stack by default (Exim + Dovecot + Rspamd; no SpamAssassin).
 LogWatch is installed but disabled until enabled under Security > LogWatch.
@@ -79,7 +83,7 @@ certbot is packaged (Let's Encrypt from the panel). Visitor Stats timer is on.
 Fail2Ban is configured (Whitelist IPs in Security > Fail2Ban).
 Panel: https://<server-ip>:7777/  (admin/admin)
 First login: Change Password, then Mail Setup (admin email + mail FQDN).
-Update later: sudo kloxocp upcp
+Already installed — update with: sudo kloxocp upcp
 Backups: /home/kloxo/client/<name>/__backup/ (browser Upload up to 5 GB).
 
   sudo bash install.sh [--profile=full|core] [--yes] [--force]
