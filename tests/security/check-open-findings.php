@@ -1865,6 +1865,67 @@ $findings[] = finding('MM6', 'low', 'intentional residual crypt/getShellCommand/
 	'lxlib.php', $mm6Closed,
 	$mm6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- NN wave ---
+$progNn = file_text($root, 'kloxo/httpdocs/lib/programlib.php');
+$libNn = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$nn1Closed = contains($progNn, 'security NN1')
+	&& not_contains($progNn, 'all_easyinstaller__linux::')
+	&& not_contains($progNn, 'all_easyinstaller::')
+	&& contains($libNn, 'security NN1')
+	&& contains($libNn, 'security NN5')
+	&& !preg_match('/function installEasyinstaller[\s\S]*easyinstaller-update\.php/', $libNn);
+$findings[] = finding('NN1', 'medium', 'programlib still calls all_easyinstaller*; dead installEasyinstaller body',
+	'programlib.php / lib.php installEasyinstaller', $nn1Closed,
+	$nn1Closed ? 'programlib stubbed; dead download block removed' : 'still calls EasyInstaller classes');
+
+$genNn = file_text($root, 'kloxo/httpdocs/lib/php/generallib.php');
+$nn2Closed = contains($genNn, 'security NN2')
+	&& not_contains($genNn, 'static $__desc_disableeasyinstaller')
+	&& not_contains($genNn, 'remoteinstall_flag')
+	&& not_contains($genNn, 'easyinstaller_url')
+	&& not_contains($genNn, "disableeasyinstaller = 'off'");
+$findings[] = finding('NN2', 'medium', 'generallib EasyInstaller settings still in General Settings UI',
+	'generallib.php', $nn2Closed,
+	$nn2Closed ? 'UI fields removed; flag always forced on' : 'EasyInstaller UI still present');
+
+$htmlNn = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$extSecNn = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$nn3Closed = contains($htmlNn, 'security NN3')
+	&& contains($htmlNn, 'refused_unsafe_form_html')
+	&& contains($htmlNn, 'JSON.parse')
+	&& contains($extSecNn, 'security NN3');
+$findings[] = finding('NN3', 'low', 'ExtJS DomHelper.Template / ajax dialog surface unmarked',
+	'htmllib.php / theme/extjs', $nn3Closed,
+	$nn3Closed ? 'JSON.parse + unsafe form HTML refused' : 'Template ajax unmarked');
+
+$eiLibNn = file_text($root, 'kloxo/httpdocs/driver/web/easyinstallerlib.php');
+$allEiNn = file_text($root, 'kloxo/httpdocs/driver/web/all_easyinstallerlib.php');
+$snapNn = file_text($root, 'kloxo/httpdocs/driver/web/easyinstallersnapshot__synclib.php');
+$nn4Closed = contains($eiLibNn, 'security NN4')
+	&& contains($eiLibNn, 'security LL1')
+	&& strlen($eiLibNn) < 1500
+	&& contains($allEiNn, 'security NN4')
+	&& strlen($allEiNn) < 800
+	&& contains($snapNn, 'security NN4')
+	&& not_contains($snapNn, 'lfile_get_unserialize');
+$findings[] = finding('NN4', 'low', 'dead EasyInstaller driver files still live on disk',
+	'driver/web/easyinstaller*', $nn4Closed,
+	$nn4Closed ? 'drivers stubbed/refused; no snapshot unserialize' : 'full EasyInstaller drivers remain');
+
+$nn5Closed = contains($libNn, 'security NN5')
+	&& !preg_match('/function installEasyinstaller[\s\S]{0,80}return;[\s\S]*lxshell_php\("\.\.\/bin\/easyinstaller-update/', $libNn)
+	&& not_contains($libNn, 'kloxo-install-disableeasyinstaller.flg');
+$findings[] = finding('NN5', 'low', 'installEasyinstaller unreachable download/cleanup after return',
+	'lib.php installEasyinstaller', $nn5Closed,
+	$nn5Closed ? 'dead block deleted' : 'dead download code still present');
+
+$nn6Closed = contains($lxlibMm, 'security NN6')
+	&& contains($extSecNn, 'security NN6')
+	&& contains($lxlibMm, 'gated unserialize');
+$findings[] = finding('NN6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo', $nn6Closed,
+	$nn6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

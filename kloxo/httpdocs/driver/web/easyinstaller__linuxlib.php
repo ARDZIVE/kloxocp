@@ -1,7 +1,7 @@
 <?php
 
 /**
- * EasyInstaller driver — removed (security LL1 / C5).
+ * EasyInstaller driver — removed (security LL1; security NN4; C5).
  * Does not download or unpack third-party archives.
  */
 class easyinstaller__linux extends LxDriverclass

@@ -2387,9 +2387,10 @@ function kloxo_sql_ident($name): bool
 }
 
 /**
- * Intentional residual surfaces (security MM6): crypt() verify-only in
- * check_password; getShellCommand stub; SMTP/FormMail stubs. Do not mint
- * new crypt/md5 password hashes.
+ * Intentional residual surfaces (security MM6; security NN6): crypt() verify-only
+ * in check_password; getShellCommand stub; SMTP/FormMail stubs; ExtJS retained
+ * for UI; gated unserialize / allow-listed eeval. Do not mint new crypt/md5
+ * password hashes.
  */
 
 function randomString($length)

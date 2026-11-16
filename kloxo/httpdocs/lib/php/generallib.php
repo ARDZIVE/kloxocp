@@ -56,14 +56,12 @@ class portconfig_b extends lxaclass
 
 class kloxoconfig_b extends lxaclass
 {
-	static $__desc_remoteinstall_flag = array("f", "", "host_easyinstaller_remotely");
-	static $__desc_easyinstaller_url = array("", "", "Url_for_remote_easyinstaller");
+	// EasyInstaller remote host fields removed (security NN2).
 }
 
 class lxadminconfig_b extends lxaclass
 {
-	static $__desc_remoteinstall_flag = array("f", "", "host_easyinstaller_remotely");
-	static $__desc_easyinstaller_url = array("", "", "Url_for_remote_easyinstaller");
+	// EasyInstaller remote host fields removed (security NN2).
 }
 
 class customaction_b extends lxaclass
@@ -114,7 +112,8 @@ class generalmisc_b extends Lxaclass
 	static $__desc_maintenance_flag = array("f", "", "system_under_maintenance");
 	static $__desc_xenimportdriver = array("", "", "xen_import_driver");
 	static $__desc_webmail_system_default = array("", "", "webmail_system_default");
-	static $__desc_disableeasyinstaller = array("f", "", "disable_easyinstaller");
+	// EasyInstaller toggle removed from UI (security NN2); always forced off.
+
 	static $__desc_htmltitle = array("", "", "html_title");
 	static $__desc_xeninitrd_flag = array("f", "", "xen_initrd_flag");
 	static $__desc_dont_get_live_status = array("f", "", "dont_get_vps_live_status");
@@ -354,8 +353,8 @@ class General extends Lxdb
 				kloxo_exec_argv(array('sh', '/script/fixweb', '--server=all'));
 			}
 
+			// EasyInstaller always forced off (security NN2).
 			$this->generalmisc_b->disableeasyinstaller = 'on';
-
 			touch("../etc/flag/disableeasyinstaller.flg");
 		} elseif ($this->subaction === 'portconfig') {
 			$wrap = isset($this->portconfig_b->kloxowrapper)
@@ -467,8 +466,8 @@ class General extends Lxdb
 				break;
 
 			case "kloxo_config":
-				$vlist['kloxoconfig_b-remoteinstall_flag'] = null;
-				$vlist['kloxoconfig_b-easyinstaller_url'] = null;
+				// EasyInstaller remote config removed (security NN2).
+				$vlist['__v_button'] = array();
 
 				break;
 
@@ -548,9 +547,9 @@ class General extends Lxdb
 					$this->generalmisc_b->setDefaultValue('webstatisticsprogram', 'awstats');
 					$vlist['generalmisc_b-webstatisticsprogram'] = array('s', $list);
 
+					// EasyInstaller UI removed; flag always on (security NN2).
 					$this->generalmisc_b->disableeasyinstaller = 'on';
 					touch("../etc/flag/disableeasyinstaller.flg");
-				//	$vlist['generalmisc_b-disableeasyinstaller'] = 'on';
 
 					$list = mmail::getWebmailProgList();
 					$this->generalmisc_b->setDefaultValue('webmail_system_default', 'roundcube');
@@ -650,11 +649,10 @@ class General extends Lxdb
 
 	function createShowAlist(&$alist, $subaction = null)
 	{
-		// MR --- process sync before enter to page -- related to easyinstaller issue
-		if (lxfile_exists("../etc/flag/disableeasyinstaller.flg")) {
-			$this->generalmisc_b->disableeasyinstaller = 'on';
-		} else {
-			$this->generalmisc_b->disableeasyinstaller = 'off';
+		// EasyInstaller always off (security NN2); never clear the disable flag.
+		$this->generalmisc_b->disableeasyinstaller = 'on';
+		if (!lxfile_exists("../etc/flag/disableeasyinstaller.flg")) {
+			@file_put_contents("../etc/flag/disableeasyinstaller.flg", "1\n");
 		}
 	}
 

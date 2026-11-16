@@ -3202,7 +3202,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111629';
+	return '10.1-2026111630';
 }
 
 function getDownloadServer()
@@ -6493,70 +6493,10 @@ function fixupDnsRec($l)
 
 function installEasyinstaller($nolog = null)
 {
-	global $sgbl;
-
+	// EasyInstaller removed — flag only; dead download block deleted (security NN1; security NN5; security GG6).
 	log_cleanup("Initialize 'Easy Installer'", $nolog);
 	log_cleanup("- Easy Installer is removed (will not download software)", $nolog);
-	@file_put_contents('../etc/flag/disableeasyinstaller.flg', "1\n"); // security GG6
-	return;
-
-	// Install/Update easyinstaller if needed or remove easyinstaller when easyinstaller is disabled.
-	// Added in Kloxo 6.1.4
-
-	//--- trick for no install on kloxo install process
-	if (lxfile_exists("/var/cache/kloxo/kloxo-install-disableeasyinstaller.flg")) {
-		log_cleanup("- 'Easy Installer' is disabled by Flag", $nolog);
-		@file_put_contents('../etc/flag/disableeasyinstaller.flg', "1\n"); // security GG6
-
-		return;
-	}
-
-	if ($sgbl->is_this_master()) {
-	//	$gen = $login->getObject('general')->generalmisc_b;
-	//	$diflag = $gen->isOn('disableeasyinstaller');
-		log_cleanup("- 'Easy Installer' is disabled by Flag", $nolog);
-		@file_put_contents('../etc/flag/disableeasyinstaller.flg', "1\n"); // security GG6
-	} else {
-	//	$diflag = false;
-		log_cleanup("- 'Easy Installer' is not disabled by Flag", $nolog);
-		lxfile_rm("../etc/flag/disableeasyinstaller.flg");
-	}
-
-	if (lxfile_exists("../etc/flag/disableeasyinstaller.flg")) {
-		log_cleanup("- 'Easy Installer' is disabled, removing 'Easy Installer'", $nolog);
-		lxfile_rm_rec("/home/kloxo/httpd/easyinstaller/");
-		lxfile_rm_rec("/home/kloxo/httpd/easyinstallerdata/");
-		foreach (glob('/var/cache/kloxo/easyinstaller*.tar.gz') ?: array() as $_ez) { @unlink($_ez); } // security GG6
-
-		return;
-	} else {
-		if (!lxfile_exists("__path_kloxo_httpd_root/easyinstallerdata")) {
-			log_cleanup("- Update 'Easy Installer' data", $nolog);
-			easyinstaller_data_update();
-		}
-
-		if (lfile_exists("../etc/remote_easyinstaller")) {
-			log_cleanup("- Remote 'Easy Installer' detected, removing 'Easy Installer'", $nolog);
-			lxfile_rm_rec("/home/kloxo/httpd/easyinstaller/");
-			foreach (glob('/var/cache/kloxo/easyinstaller*.tar.gz') ?: array() as $_ez) { @unlink($_ez); } // security GG6
-
-			return;
-		}
-
-		// Line below Removed in Kloxo 6.1.4
-		return;
-	/*
-		log_cleanup("- Create easyinstaller dir", $nolog);
-		lxfile_mkdir("__path_kloxo_httpd_root/easyinstaller");
-
-		if (!lxfile_exists("__path_kloxo_httpd_root/easyinstaller/wordpress")) {
-			log_cleanup("- Install/Update easyinstaller", $nolog);
-			lxshell_php("../bin/easyinstaller-update.php");
-		}
-
-		return;
-	*/
-	}
+	@file_put_contents('../etc/flag/disableeasyinstaller.flg', "1\n");
 }
 
 function setDefaultPages($nolog = null)

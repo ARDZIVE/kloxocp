@@ -1,20 +1,15 @@
-<?php 
+<?php
+
+/**
+ * EasyInstaller helpers — removed (security NN1 / MM4 / LL1 / C5).
+ * No longer calls all_easyinstaller* (class map commented out).
+ */
 
 function get_local_application_version_list()
 {
-	$list = all_easyinstaller__linux::getListofApps();
-	$list = get_namelist_from_arraylist($list); 
+	$loc = new Remote();
+	$loc->applist = array();
 
-	foreach($list as $k => $v) {
-		if (csb($v, "__title")) {
-			continue;
-		}
-		$info = all_easyinstaller::getAllInformation($v);
-		$ret[$v] = $info['pversion'];
-	}
-
-	$loc= new Remote();
-	$loc->applist = $ret;
 	return $loc;
 }
 

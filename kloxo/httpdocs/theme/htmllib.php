@@ -1266,9 +1266,9 @@ class HtmlLib
 				};
 			}();
 
-			// This class handles rendering JSON into comments
+			// JSON.parse only (N19); form HTML is from CSRF-gated ajax.php for the
+			// logged-in session — refuse script/iframe payloads (security NN3).
 			var CommentRenderer = function (list) {
-				// create a template for each JSON object
 				var tpl = new Ext.DomHelper.Template('{lx__form}');
 
 				this.parse = function (json) {
@@ -1279,14 +1279,20 @@ class HtmlLib
 					return null;
 				};
 
-				// public render function for use with UpdateManager
 				this.render = function (el, response) {
 					var data = this.parse(response.responseText);
 					if (!data || !data.lx__form || data.lx__form.length < 1) {
 						el.update('the_server_didnt_return_a_form: error:' + response.responseText);
 						return;
 					}
-					// clear loading
+					var formHtml = String(data.lx__form);
+					if (/<\s*(script|iframe|object|embed|link)\b/i.test(formHtml)
+						|| /\bon[a-z]+\s*=/i.test(formHtml)
+						|| /javascript\s*:/i.test(formHtml)) {
+						el.update('refused_unsafe_form_html');
+						return;
+					}
+					data.lx__form = formHtml;
 					el.update('');
 
 					if (data.allbutton) {
@@ -1318,7 +1324,6 @@ class HtmlLib
 					this.append(data);
 				};
 
-				// appends a comment
 				this.append = function (data) {
 					tpl.append(list.dom, data);
 				};
@@ -2031,12 +2036,7 @@ class HtmlLib
 
 		$realv = $variable;
 
-		//hack hack...
-		if ($class === 'easyinstaller') {
-			if (strstr($variable, "addform")) {
-				$variable = strfrom($variable, "_");
-			}
-		}
+		// EasyInstaller icon path hack removed (security NN2 / NN4).
 
 		if (csa($variable, "_nn_")) {
 			$variable = substr($variable, 0, strpos($variable, '_nn_'));
