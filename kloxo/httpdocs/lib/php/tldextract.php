@@ -129,9 +129,10 @@ class TLDExtract {
 		// Arrays only — no object gadgets (security U4).
 		$serializedTlds = @file_get_contents($this->cacheFile);
 		if ( !empty($serializedTlds) ) {
+			// Fail closed without gadget helper (security Z1).
 			$decoded = function_exists('kloxo_unserialize_deny_gadgets')
 				? kloxo_unserialize_deny_gadgets($serializedTlds, array('allowed_classes' => false))
-				: @unserialize($serializedTlds, array('allowed_classes' => false));
+				: false;
 			if (is_array($decoded)) {
 				$this->extractor = new PublicSuffixListTLDExtractor($decoded);
 				return $this->extractor;
@@ -151,7 +152,7 @@ class TLDExtract {
 			if ( !empty($serializedTlds) ) {
 				$decoded = function_exists('kloxo_unserialize_deny_gadgets')
 					? kloxo_unserialize_deny_gadgets($serializedTlds, array('allowed_classes' => false))
-					: @unserialize($serializedTlds, array('allowed_classes' => false));
+					: false;
 				if (is_array($decoded)) {
 					$this->extractor = new PublicSuffixListTLDExtractor($decoded);
 					return $this->extractor;

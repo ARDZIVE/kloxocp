@@ -680,11 +680,11 @@ final class KloxoBackup
 		if (!is_string($raw) || $raw === '') {
 			return array();
 		}
-		// Gadget string scan + allow-list (security U6).
+		// Fail closed without gadget helper (security U6, Z1).
 		if (function_exists('kloxo_unserialize_deny_gadgets')) {
 			$rmt = kloxo_unserialize_deny_gadgets($raw, array('allowed_classes' => array('Remote', 'stdClass')));
 		} else {
-			$rmt = @unserialize($raw, array('allowed_classes' => array('Remote', 'stdClass')));
+			$rmt = false;
 		}
 		$data = (is_object($rmt) && isset($rmt->data) && is_array($rmt->data)) ? $rmt->data : array();
 		$want = array('web', 'dns', 'smtp', 'pop3', 'spam', 'webcache');

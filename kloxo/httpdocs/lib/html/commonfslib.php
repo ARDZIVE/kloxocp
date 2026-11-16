@@ -488,9 +488,18 @@ function lxfile_cp($src, $dst)
 	}
 
 	log_filesys("Copying $src $dst");
-	system("'cp' '-rf' '$src' '$dst'", $ret);
+	// Argument-array cp — never shell-interpolate paths (security Z4).
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open(array('cp', '-rf', '--', $src, $dst), $desc, $pipes);
+	if (!is_resource($p)) {
+		return false;
+	}
 
-	return $ret == 0;
+	return proc_close($p) === 0;
 }
 
 function lxfile_stat($file, $duflag)

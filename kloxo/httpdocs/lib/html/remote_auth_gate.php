@@ -326,8 +326,9 @@ function kloxo_backend_callable_allowed($func)
  * @return mixed|false
  */
 /**
- * Panel-safe class name for unserialize allow-list (security X2).
- * Flat lowercase panel classes, *_a/*_b/*_o blobs, Remote / lxException / stdClass.
+ * Panel-safe class name for unserialize allow-list (security X2 / Z6).
+ * Allow: Remote/stdClass/lxException, *_a/*_b/*_o blobs, $gl_class_array keys,
+ * and a small set of known privilege/object names. No catch-all lowercase.
  */
 function kloxo_unserialize_panel_class_ok($c)
 {
@@ -347,7 +348,11 @@ function kloxo_unserialize_panel_class_ok($c)
 	if (isset($bad[$c])) {
 		return false;
 	}
-	if ($c === 'Remote' || $c === 'stdClass' || $c === 'lxException' || $c === 'lxexception') {
+	static $known = array(
+		'Remote' => true, 'stdClass' => true, 'lxException' => true, 'lxexception' => true,
+		'priv' => true, 'used' => true, 'listpriv' => true,
+	);
+	if (isset($known[$c])) {
 		return true;
 	}
 	if (preg_match('/_[abo]$/', $c)) {
@@ -358,8 +363,8 @@ function kloxo_unserialize_panel_class_ok($c)
 		&& (isset($gl_class_array[$c]) || isset($gl_class_array[strtolower($c)]))) {
 		return true;
 	}
-	// Legacy first-party object names are flat lowercase (client, priv, used, …).
-	return (bool) preg_match('/^[a-z][a-z0-9_]{0,63}$/', $c);
+
+	return false;
 }
 
 function kloxo_unserialize_deny_gadgets($raw, $options = true)

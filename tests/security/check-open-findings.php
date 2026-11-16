@@ -978,6 +978,69 @@ $findings[] = finding('Y9', 'low', 'licenseEncrypt hardcoded helloworld passphra
 	'lxlib.php licenseEncrypt', $y9Closed,
 	$y9Closed ? 'env/file passphrase required' : 'still helloworld');
 
+// --- Wave 11 (Z1–Z6) ---
+$z1Files = array(
+	file_text($root, 'kloxo/httpdocs/lib/html/lib.php'),
+	file_text($root, 'kloxo/httpdocs/lib/php/kloxo_backup.php'),
+	file_text($root, 'kloxo/bin/common/securityblanket.php'),
+	file_text($root, 'kloxo/bin/common/background.php'),
+	file_text($root, 'kloxo/bin/common/child.php'),
+	file_text($root, 'kloxo/bin/common/iptraffic.php'),
+	file_text($root, 'kloxo/httpdocs/driver/web/serverweblib.php'),
+	file_text($root, 'kloxo/httpdocs/lib/php/tldextract.php'),
+);
+$z1Closed = true;
+foreach ($z1Files as $zf) {
+	if (contains($zf, '@unserialize(') && !contains($zf, 'security Z1') && contains($zf, 'function_exists')) {
+		// allow intentional allow-list unserialize in backup metadata parser
+	}
+}
+$z1Closed = contains($lib, 'security Z1')
+	&& contains(file_text($root, 'kloxo/bin/common/child.php'), 'security Z1')
+	&& contains(file_text($root, 'kloxo/bin/common/background.php'), 'security Z1')
+	&& contains(file_text($root, 'kloxo/bin/common/securityblanket.php'), 'security Z1')
+	&& not_contains(function_body($lib, 'get_kloxo_port'), '@unserialize(');
+$findings[] = finding('Z1', 'medium', 'residual bare unserialize when helper missing',
+	'lib.php / backup / child / background / blanket / tldextract', $z1Closed,
+	$z1Closed ? 'fail closed' : 'bare @unserialize fallback remains');
+
+$setPw = function_body(file_text($root, 'kloxo/httpdocs/lib/php/sqlitelib.php'), 'setPassword');
+$z2Closed = contains($setPw, 'security Z2')
+	&& not_contains($setPw, "Password('{\$newp}')")
+	&& (contains($setPw, 'prepare(') || contains($setPw, 'ALTER USER'));
+$findings[] = finding('Z2', 'medium', 'sqlitelib setPassword interpolates password',
+	'sqlitelib.php setPassword', $z2Closed,
+	$z2Closed ? 'prepared ALTER USER / no raw concat' : 'still SET PASSWORD with concat');
+
+$parseInline = function_body($lib, 'getParseInlinePhp');
+$z3Closed = contains($parseInline, 'security Z3')
+	&& contains($parseInline, 'token_get_all');
+$findings[] = finding('Z3', 'medium', 'getParseInlinePhp eval without token allow-list',
+	'lib.php getParseInlinePhp', $z3Closed,
+	$z3Closed ? 'token allow-list before eval' : 'eval without token gate');
+
+$lxCp = function_body(file_text($root, 'kloxo/httpdocs/lib/html/commonfslib.php'), 'lxfile_cp');
+$z4Closed = contains($lxCp, 'security Z4')
+	&& contains($lxCp, 'proc_open')
+	&& not_contains($lxCp, "system(\"'cp'");
+$findings[] = finding('Z4', 'low', 'lxfile_cp shells paths into system(cp)',
+	'commonfslib.php lxfile_cp', $z4Closed,
+	$z4Closed ? 'proc_open argv cp' : 'still system shell string');
+
+$z5Closed = contains($lib, 'security Z5')
+	&& contains($lxlibR, 'security Z5')
+	&& not_contains($lib, 'mt_rand(1000, 9999)')
+	&& not_contains($lxlibR, 'mt_rand(1000, 9999)');
+$findings[] = finding('Z5', 'low', 'temp job names use mt_rand',
+	'lib.php / lxlib.php background/lxchild', $z5Closed,
+	$z5Closed ? 'bin2hex(random_bytes(4))' : 'still mt_rand');
+
+$z6Closed = contains($gate, 'security X2 / Z6')
+	|| (contains($gate, 'No catch-all lowercase') && contains($gate, "'priv' => true"));
+$findings[] = finding('Z6', 'low', 'unserialize allow-list accepts any lowercase class',
+	'remote_auth_gate.php kloxo_unserialize_panel_class_ok', $z6Closed,
+	$z6Closed ? 'known set + gl_class_array + *_a/b/o only' : 'catch-all lowercase remains');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

@@ -76,6 +76,7 @@ expect(kloxo_unserialize_panel_class_ok('priv'), 'X2 allows priv');
 expect(kloxo_unserialize_panel_class_ok('Remote'), 'X2 allows Remote');
 expect(!kloxo_unserialize_panel_class_ok('Phar'), 'X2 rejects Phar');
 expect(!kloxo_unserialize_panel_class_ok('Evil\\Gadget'), 'X2 rejects namespaced');
+expect(!kloxo_unserialize_panel_class_ok('evilgadget'), 'Z6 rejects unknown lowercase');
 $u = kloxo_unserialize_deny_gadgets(serialize((object) ['a' => 1]));
 expect(is_object($u), 'X2 unserializes stdClass');
 expect(kloxo_unserialize_deny_gadgets('O:4:"Phar":0:{}') === false, 'X2 rejects Phar blob');

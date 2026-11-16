@@ -111,9 +111,43 @@ class Sqlite
 
 	function setPassword($newp)
 	{
-		global $sgbl;
+		global $gbl, $sgbl;
 
-		return $this->rawQuery("set password=Password('{$newp}');");
+		// Never interpolate into SET PASSWORD (security Z2).
+		// Callers treat a truthy return as failure.
+		if (!is_string($newp) || $newp === '' || strlen($newp) > 128) {
+			return true;
+		}
+		// createDbPass yields hex; reject anything else.
+		if (!preg_match('/^[A-Za-z0-9]+$/', $newp)) {
+			return true;
+		}
+		if (self::$__database !== 'mysql') {
+			// Panel DB is SQLite; no MySQL account password to rotate here.
+			return false;
+		}
+		$fdbvar = '__fdb_' . $this->__readserver;
+		$link = (is_object($gbl) && isset($gbl->$fdbvar)) ? $gbl->$fdbvar : null;
+		if (!($link instanceof mysqli)) {
+			return true;
+		}
+		// Prefer ALTER USER with a bound parameter (MariaDB 10.4+ / MySQL 5.7+).
+		try {
+			$stmt = $link->prepare('ALTER USER CURRENT_USER() IDENTIFIED BY ?');
+			if ($stmt) {
+				$stmt->bind_param('s', $newp);
+				$ok = $stmt->execute();
+				$stmt->close();
+
+				return $ok ? false : true;
+			}
+		} catch (Throwable $e) {
+		}
+		// Last resort: escaped SET PASSWORD (still no raw concat of unchecked input).
+		$esc = $link->real_escape_string($newp);
+		$ok = (bool) $link->query("SET PASSWORD = PASSWORD('{$esc}')");
+
+		return $ok ? false : true;
 	}
 
 	function database_query($res, $string)

@@ -3918,7 +3918,7 @@ function kloxo_run_dropped_client_jobs(): void
 		}
 		$name = @tempnam($jobDir, 'background');
 		if ($name === false) {
-			$name = $jobDir . '/background.' . getmypid() . '.' . mt_rand(1000, 9999);
+			$name = $jobDir . '/background.' . getmypid() . '.' . bin2hex(random_bytes(4)); // security Z5
 		}
 		$res = new Remote();
 		$res->__type = 'function';

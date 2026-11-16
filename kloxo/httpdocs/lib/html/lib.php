@@ -2042,10 +2042,11 @@ function get_kloxo_port($type)
 
 	$port = db_get_value("general", "admin", "ser_portconfig_b");
 	// Filtered unserialize (security T3) — blob is panel-owned but still deny gadgets.
+	// Fail closed without gadget helper (security Z1).
 	if (function_exists('kloxo_b64_unserialize')) {
 		$port = kloxo_b64_unserialize((string) $port, array('allowed_classes' => array('portconfig_b', 'stdClass')));
 	} else {
-		$port = @unserialize(base64_decode((string) $port), array('allowed_classes' => array('portconfig_b', 'stdClass')));
+		$port = false;
 	}
 	if (!is_object($port)) {
 		$port = null;
@@ -3039,7 +3040,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111611';
+	return '10.1-2026111612';
 }
 
 function getDownloadServer()
@@ -3867,7 +3868,7 @@ function callInChild($func, $arglist)
 	}
 	$name = @tempnam($jobDir, 'lxchild');
 	if ($name === false) {
-		$name = $jobDir . '/lxchild.' . getmypid() . '.' . mt_rand(1000, 9999);
+		$name = $jobDir . '/lxchild.' . getmypid() . '.' . bin2hex(random_bytes(4)); // security Z5
 	}
 	lxfile_generic_chmod($name, "700");
 	lfile_put_contents($name, serialize($res));
@@ -3876,9 +3877,10 @@ function callInChild($func, $arglist)
 		: (function_exists('kloxo_php_binary') ? (string) kloxo_php_binary() : '/usr/bin/php');
 	$child = $root . '/bin/common/child.php';
 	$var = lxshell_output($php, $child, $name);
+	// Fail closed without gadget helper (security Z1).
 	$rmt = function_exists('kloxo_unserialize_deny_gadgets')
 		? kloxo_unserialize_deny_gadgets(base64_decode((string) $var))
-		: @unserialize(base64_decode((string) $var), ['allowed_classes' => false]);
+		: false;
 
 	return $rmt;
 }
@@ -3957,7 +3959,7 @@ function callInBackground($func, $arglist)
 	}
 	$name = @tempnam($jobDir, 'background');
 	if ($name === false) {
-		$name = $jobDir . '/background.' . getmypid() . '.' . mt_rand(1000, 9999);
+		$name = $jobDir . '/background.' . getmypid() . '.' . bin2hex(random_bytes(4)); // security Z5
 	}
 	$res = new Remote();
 	$res->__type = 'function';
@@ -3995,7 +3997,7 @@ function callObjectInBackground($object, $func)
 	}
 	$name = @tempnam($jobDir, 'background');
 	if ($name === false) {
-		$name = $jobDir . '/background.' . getmypid() . '.' . mt_rand(1000, 9999);
+		$name = $jobDir . '/background.' . getmypid() . '.' . bin2hex(random_bytes(4)); // security Z5
 	}
 	$res = new Remote();
 	$res->__type = 'object';
@@ -5286,7 +5288,8 @@ function file_server($fd, $string)
 		if (function_exists('kloxo_b64_unserialize')) {
 			$rem = kloxo_b64_unserialize((string) $env['payload_b64'], ['allowed_classes' => ['Remote']]);
 		} else {
-			$rem = @unserialize(base64_decode((string) $env['payload_b64']), ['allowed_classes' => ['Remote']]);
+			// Fail closed without gadget helper (security Z1).
+			$rem = false;
 		}
 	} else {
 		// Fail closed if the auth gate is missing.
@@ -8203,7 +8206,7 @@ function getLinkCustomfile($path, $file)
 function getParseInlinePhp($template, $input)
 {
 	// Templates are first-party config/mail snippets. Refuse obvious RCE
-	// payloads and only extract scalar input keys (security N11).
+	// payloads and only extract scalar input keys (security N11 / Z3).
 	$template = (string) $template;
 	if ($template === '') {
 		return '';
@@ -8216,6 +8219,77 @@ function getParseInlinePhp($template, $input)
 		log_log('security', 'getParseInlinePhp refused dangerous template construct');
 
 		return '';
+	}
+
+	// Token allow-list before eval (security Z3): only HTML, echo/print of
+	// variables, foreach/if/else/endif/endforeach, and scalar literals.
+	$tokens = @token_get_all('<?php ?>' . $template);
+	if (!is_array($tokens)) {
+		return '';
+	}
+	static $okTok = null;
+	if ($okTok === null) {
+		$okTok = array(
+			T_INLINE_HTML => true, T_OPEN_TAG => true, T_OPEN_TAG_WITH_ECHO => true,
+			T_CLOSE_TAG => true, T_WHITESPACE => true, T_COMMENT => true, T_DOC_COMMENT => true,
+			T_ECHO => true, T_PRINT => true, T_VARIABLE => true, T_STRING => true,
+			T_CONSTANT_ENCAPSED_STRING => true, T_ENCAPSED_AND_WHITESPACE => true,
+			T_LNUMBER => true, T_DNUMBER => true, T_IF => true, T_ELSE => true,
+			T_ELSEIF => true, T_ENDIF => true, T_FOREACH => true, T_AS => true,
+			T_ENDFOREACH => true, T_FOR => true, T_ENDFOR => true, T_WHILE => true,
+			T_ENDWHILE => true, T_SWITCH => true, T_CASE => true, T_BREAK => true,
+			T_DEFAULT => true, T_ENDSWITCH => true, T_CONTINUE => true,
+			T_BOOLEAN_AND => true, T_BOOLEAN_OR => true, T_LOGICAL_AND => true,
+			T_LOGICAL_OR => true, T_IS_EQUAL => true, T_IS_IDENTICAL => true,
+			T_IS_NOT_EQUAL => true, T_IS_NOT_IDENTICAL => true, T_IS_GREATER_OR_EQUAL => true,
+			T_IS_SMALLER_OR_EQUAL => true, T_CONCAT_EQUAL => true, T_PLUS_EQUAL => true,
+			T_INC => true, T_DEC => true, T_DOUBLE_ARROW => true, T_OBJECT_OPERATOR => true,
+			T_CONSTANT_ENCAPSED_STRING => true, T_ARRAY => true, T_EMPTY => true,
+			T_ISSET => true, T_UNSET => true, T_DOUBLE_COLON => true,
+			T_NS_SEPARATOR => true, T_COALESCE => true, T_SPACESHIP => true,
+			T_ELLIPSIS => true, T_STRING_CAST => true, T_INT_CAST => true,
+			T_BOOL_CAST => true, T_ARRAY_CAST => true, T_DOUBLE_CAST => true,
+			T_OBJECT_CAST => true, T_UNSET_CAST => true,
+		);
+		if (defined('T_NULLSAFE_OBJECT_OPERATOR')) {
+			$okTok[T_NULLSAFE_OBJECT_OPERATOR] = true;
+		}
+	}
+	static $okChar = array(
+		';' => true, '}' => true, '(' => true, ')' => true, '[' => true, ']' => true,
+		';' => true, ',' => true, '.' => true, '=' => true, '+' => true, '-' => true,
+		'*' => true, '/' => true, '%' => true, '!' => true, '?' => true, ':' => true,
+		'<' => true, '>' => true, '&' => true, '|' => true, '^' => true, '~' => true,
+		'@' => true, '"' => true, "'" => true, '$' => true, "\n" => true, "\r" => true,
+		"\t" => true, ' ' => true,
+	);
+	foreach ($tokens as $tok) {
+		if (is_array($tok)) {
+			$id = $tok[0];
+			if ($id === T_STRING) {
+				$w = strtolower($tok[1]);
+				if (preg_match('/^(system|exec|passthru|shell_exec|proc_open|popen|pcntl_exec|assert|eval|include|require|include_once|require_once|call_user_func|create_function|extract|parse_str|preg_replace|assert)$/', $w)) {
+					log_log('security', 'getParseInlinePhp refused token T_STRING ' . $w);
+
+					return '';
+				}
+			}
+			if (!isset($okTok[$id])) {
+				log_log('security', 'getParseInlinePhp refused token id ' . (string) $id);
+
+				return '';
+			}
+		} else {
+			$ch = (string) $tok;
+			if ($ch === '' || (!isset($okChar[$ch]) && !preg_match('/^[\x20-\x7e]$/', $ch))) {
+				log_log('security', 'getParseInlinePhp refused char token');
+
+				return '';
+			}
+			if ($ch === '`') {
+				return '';
+			}
+		}
 	}
 
 	$safe = [];

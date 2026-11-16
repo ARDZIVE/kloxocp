@@ -140,10 +140,10 @@ class serverweb extends lxdb
 			if (!is_string($raw) || $raw === '') {
 				continue;
 			}
-			// Prefer gadget deny-list; fall back to allowed_classes=false (no bare unserialize).
+			// Fail closed without gadget helper (security Z1).
 			$rmt = function_exists('kloxo_unserialize_deny_gadgets')
 				? kloxo_unserialize_deny_gadgets($raw, array('allowed_classes' => false))
-				: @unserialize($raw, array('allowed_classes' => false));
+				: false;
 			$data = null;
 			if (is_object($rmt)) {
 				$arr = (array) $rmt;

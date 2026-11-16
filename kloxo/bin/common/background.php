@@ -74,11 +74,11 @@ function background_main(): void
 		exit(1);
 	}
 
-	// Do not instantiate arbitrary classes from the job blob.
+	// Fail closed without gadget helper (security Z1).
 	if (function_exists('kloxo_unserialize_deny_gadgets')) {
 		$rem = kloxo_unserialize_deny_gadgets($raw, ['allowed_classes' => ['Remote', 'stdClass']]);
 	} else {
-		$rem = @unserialize($raw, ['allowed_classes' => ['Remote', 'stdClass']]);
+		$rem = false;
 	}
 	if (!is_object($rem)) {
 		exit(1);

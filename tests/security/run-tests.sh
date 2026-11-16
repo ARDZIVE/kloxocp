@@ -119,6 +119,13 @@ else
   bad "test_y_wave.php" "$(tail -n 5 /tmp/kloxo-ywave.out 2>/dev/null)"
 fi
 
+echo "== Z-wave unit checks"
+if php "$HERE/test_z_wave.php" >/tmp/kloxo-zwave.out 2>&1; then
+  ok "test_z_wave.php"
+else
+  bad "test_z_wave.php" "$(tail -n 5 /tmp/kloxo-zwave.out 2>/dev/null)"
+fi
+
 echo "== open findings checklist (informational; does not fail this suite)"
 if php "$HERE/check-open-findings.php" >/tmp/kloxo-open-findings.out 2>&1; then
   ok "all tracked open findings CLOSED"
