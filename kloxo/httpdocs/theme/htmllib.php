@@ -1612,6 +1612,17 @@ class HtmlLib
 		$str = randomString(8);
 		$form_name = $this->createEncForm_name("{$file}_{$name}_$str");
 		$form_name = fix_nname_to_be_variable($form_name);
+		// Allow-listed form id + safe target/path (security GGG2).
+		$form_name = preg_replace('/[^A-Za-z0-9_]/', '', (string) $form_name) ?: 'kloxoform';
+		$targetAttr = '';
+		$t = is_string($target) ? trim($target) : '';
+		if ($t === 'target=_blank' || $t === 'target="_blank"' || strcasecmp($t, '_blank') === 0) {
+			$targetAttr = 'target="_blank"';
+		} elseif ($t === 'target=mainframe' || $t === 'target="mainframe"' || strcasecmp($t, 'mainframe') === 0) {
+			$targetAttr = 'target="mainframe"';
+		} elseif (preg_match('/^target=["\']?(mainframe|_blank|_self|_top|_parent)["\']?$/i', $t)) {
+			$targetAttr = 'target="' . preg_replace('/^target=["\']?|["\']$/i', '', $t) . '"';
+		}
 	/*
 		if (csb($url, "http:/")) {
 			$formmethod = "get";
@@ -1626,6 +1637,7 @@ class HtmlLib
 
 		$dividentity = str_replace(" ", "_", $dividentity);
 		$dividentity = strtolower($dividentity);
+		$dividentity = preg_replace('/[^A-Za-z0-9_]/', '', (string) $dividentity) ?: 'searchdiv';
 
 		for ($i = 0; $i < 10; $i++) {
 			if (!isset($actionlist[$dividentity])) {
@@ -1641,6 +1653,7 @@ class HtmlLib
 		} else {
 			$bgcolor = "";
 		}
+		$bgcolor = preg_replace('/[^a-zA-Z0-9#%:;,.() _\\/-]/', '', (string) $bgcolor) ?? '';
 
 ?>
 
@@ -1656,19 +1669,24 @@ class HtmlLib
 			</a>
 <?php
 		} elseif (is_string($path) && strpos($path, '/display.php') !== false) {
+			$pathEsc = htmlspecialchars((string) $path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$qsEsc = htmlspecialchars((string) $this->get_get_from_post(null, $post), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
-			<a <?= $target ?> href="<?= $path ?>?<?= $this->get_get_from_post(null, $post) ?>">
+			<a <?= $targetAttr ?> href="<?= $pathEsc ?>?<?= $qsEsc ?>">
 				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
 			</a>
 <?php
 		} else {
 			if ($post) {
+				$pathEsc = htmlspecialchars((string) $path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
-			<form onClick="document.form_<?= $form_name ?>.submit();" name="form_<?= $form_name ?>" <?= $target ?> method="post" action="<?= $path ?>">
+			<form onClick="document.form_<?= $form_name ?>.submit();" name="form_<?= $form_name ?>" <?= $targetAttr ?> method="post" action="<?= $pathEsc ?>">
 <?php
 				foreach ($post as $k => $v) {
+					$kEsc = htmlspecialchars((string) $k, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$vEsc = htmlspecialchars(is_scalar($v) ? (string) $v : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
-				<input type="hidden" name="<?= $k ?>" value="<?= $v ?>">
+				<input type="hidden" name="<?= $kEsc ?>" value="<?= $vEsc ?>">
 <?php
 				}
 ?>
@@ -1679,7 +1697,7 @@ class HtmlLib
 				$fallback = (is_string($path) && $path !== '') ? $path : $resolvedHref;
 				$escHref = htmlspecialchars((string) $fallback, ENT_QUOTES);
 ?>
-			<a <?= $target ?> href="<?= $escHref ?>">
+			<a <?= $targetAttr ?> href="<?= $escHref ?>">
 				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
 			</a>
 <?php
@@ -9459,8 +9477,12 @@ function uploadAbort(e) { // upload abort
 }
 </script>
 
+<?php
+					// Escaped file input name/id (security GGG4).
+					$fileNameEsc = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 					<?= $variable_description ?> <?= $myneedstring ?> <br/>
-					<input class="filebox" type="file" name="<?= $variable->name ?>" id="<?= $variable->name ?>" size="30" onchange="fileSelected(this);">
+					<input class="filebox" type="file" name="<?= $fileNameEsc ?>" id="<?= $fileNameEsc ?>" size="30" onchange="fileSelected(this);">
 					<div>&nbsp;</div>
 					<div id="progress_error2">Upload failed. For large or Kloxo-MR backups: scp into __backup, then Restore From File.</div>
 					<div id="progress_abort">The upload has been canceled by the user or the browser dropped the connection</div>
@@ -9479,10 +9501,11 @@ function uploadAbort(e) { // upload abort
 					</div>
 <?php
 				} else {
+					$fileNameEsc = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 					<?= $variable_description ?> <?= $myneedstring ?> <br/>
-					<input class="filebox" type="file" name="<?= $variable->name ?>" size="30">
+					<input class="filebox" type="file" name="<?= $fileNameEsc ?>" size="30">
 <?php
 				}
 				break;
@@ -9538,14 +9561,12 @@ function uploadAbort(e) { // upload abort
 </style>
 <?php
 				} else {
-
-					include("editor/fckeditor/fckeditor.php");
-
-
-					$oFCKeditor = new FCKeditor($variable->name);
-					$oFCKeditor->BasePath = '/editor/fckeditor/';
-					$oFCKeditor->Value = $value;
-					$oFCKeditor->Create();
+					// Plain textarea fallback instead of raw FCKeditor Create (security GGG3).
+					$fckName = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$fckValue = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<textarea class="frmtextarea" name="<?= $fckName ?>" rows="8" style="width:100%; border:1px solid #aaa; padding:2px;"><?= $fckValue ?></textarea>
+<?php
 				}
 
 				break;
@@ -9593,9 +9614,16 @@ function uploadAbort(e) { // upload abort
 						$value = $prevvar[$variable->name];
 					}
 				}
+				// Escaped textarea attrs/body (security GGG3).
+				$taName = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$taValue = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$taRows = preg_match('/^[0-9]{1,3}$/', (string) $rows) ? $rows : '5';
+				$taCols = preg_match('/^[0-9]{1,4}%?$/', (string) $cols) ? $cols : '85%';
+				$taHeight = preg_match('/^[0-9]{1,4}px$/', (string) $height) ? $height : '120px';
+				$taClass = ($rclass === 'frmtextareadisable') ? 'frmtextareadisable' : 'frmtextarea';
 ?>
 
-					<textarea nowrap id="textarea_<?= $variable->name ?>" class="<?= $rclass ?>" rows="<?= $rows ?>" style="margin:2px 0 2px 0;width:<?= $cols ?>;height:<?= $height ?>; border: 1px solid #aaa; padding: 2px;" name="<?= $variable->name ?>" <?= $readonly ?> size="30"><?= $value ?></textarea>
+					<textarea nowrap id="textarea_<?= $taName ?>" class="<?= $taClass ?>" rows="<?= $taRows ?>" style="margin:2px 0 2px 0;width:<?= $taCols ?>;height:<?= $taHeight ?>; border: 1px solid #aaa; padding: 2px;" name="<?= $taName ?>" <?= $readonly ?> size="30"><?= $taValue ?></textarea>
 
 					<script type="text/javascript">
 						// createTextAreaWithLines('textarea_<?=$variable->name?>');

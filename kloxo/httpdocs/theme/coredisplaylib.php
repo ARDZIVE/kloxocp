@@ -2767,9 +2767,14 @@ function print_navigation($navig)
 			}
 
 			$menustring = null;
+			// Escaped breadcrumb href/label (security GGG1).
+			$urlEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$descEsc = htmlspecialchars((string) ($desc['desc'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$brEsc = htmlspecialchars((string) $bracketedname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$paddEsc = htmlspecialchars((string) $padd, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-			<div style="float:left; padding-top: <?= $padd ?>;">&nbsp;<a href='<?=$url?>'><b><?=$desc['desc']?><?=$bracketedname?></b></a>&nbsp;&#x0097;</div>
+			<div style="float:left; padding-top: <?= $paddEsc ?>;">&nbsp;<a href="<?= $urlEsc ?>"><b><?= $descEsc ?><?= $brEsc ?></b></a>&nbsp;&#x0097;</div>
 <?php
 		}
 
@@ -3250,13 +3255,15 @@ function kloxo_print_display_chrome(): void
 	}
 
 	if ($sgbl->isKloxo() && $gbl->c_session->ssl_param) {
-		$url = $gbl->c_session->ssl_param['backurl'];
-		$parent = $gbl->c_session->ssl_param['parent_clname'];
+		// Escaped HyperVM back link (security GGG1).
+		$url = htmlspecialchars((string) ($gbl->c_session->ssl_param['backurl'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$parent = htmlspecialchars((string) ($gbl->c_session->ssl_param['parent_clname'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$skinBg = htmlspecialchars(rtrim((string) $skindir, '/') . '/expand.gif', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-		<table cellpadding='0' height='26' cellspacing='0' background="<?=$skindir?>/expand.gif">
+		<table cellpadding='0' height='26' cellspacing='0' background="<?= $skinBg ?>">
 			<tr>
-				<td nowrap><a href="<?=$url?>"> Back to HyperVM ($parent) </a></td>
+				<td nowrap><a href="<?= $url ?>"> Back to HyperVM (<?= $parent ?>) </a></td>
 				<td width='10'>&nbsp;|&nbsp;</td>
 				<td> Kloxo CP</td>
 				<td width='10'>&nbsp;|&nbsp;</td>

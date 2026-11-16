@@ -2961,6 +2961,60 @@ $findings[] = finding('FFF6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $fff6Closed,
 	$fff6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- GGG wave ---
+$coreGgg = file_text($root, 'kloxo/httpdocs/theme/coredisplaylib.php');
+$ggg1Closed = contains($coreGgg, 'security GGG1')
+	&& substr_count($coreGgg, 'security GGG1') >= 2
+	&& contains($coreGgg, '$urlEsc')
+	&& not_contains($coreGgg, "href='<?=\$url?>'")
+	&& not_contains($coreGgg, 'href="<?=$url?>"');
+$findings[] = finding('GGG1', 'medium', 'breadcrumb / HyperVM back raw url/desc/parent',
+	'coredisplaylib.php breadcrumb / chrome', $ggg1Closed,
+	$ggg1Closed ? 'escaped href/label/parent' : 'still raw');
+
+$htmlGgg = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$ggg2Closed = contains($htmlGgg, 'security GGG2')
+	&& contains($htmlGgg, '$targetAttr')
+	&& contains($htmlGgg, '$pathEsc')
+	&& not_contains($htmlGgg, 'name="form_<?= $form_name ?>" <?= $target ?> method="post" action="<?= $path ?>"');
+$findings[] = finding('GGG2', 'medium', 'icon form wrapper raw form_name/path/target',
+	'htmllib.php divbutton form', $ggg2Closed,
+	$ggg2Closed ? 'allow-listed form + safe target/path' : 'still raw');
+
+$ggg3Closed = contains($htmlGgg, 'security GGG3')
+	&& not_contains($htmlGgg, 'new FCKeditor($variable->name)')
+	&& contains($htmlGgg, '$taName')
+	&& contains($htmlGgg, '$taValue');
+$findings[] = finding('GGG3', 'low', 'FCKeditor Create / textarea raw name/value',
+	'htmllib.php htmltextarea/textarea', $ggg3Closed,
+	$ggg3Closed ? 'FCKeditor dropped; escaped textarea' : 'still raw');
+
+$ggg4Closed = contains($htmlGgg, 'security GGG4')
+	&& contains($htmlGgg, '$fileNameEsc')
+	&& not_contains($htmlGgg, 'name="<?= $variable->name ?>" id="<?= $variable->name ?>"');
+$findings[] = finding('GGG4', 'low', 'file upload input raw name/id',
+	'htmllib.php file input', $ggg4Closed,
+	$ggg4Closed ? 'escaped file name/id' : 'still raw');
+
+$libGgg = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibGgg = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$ggg5Closed = contains($libGgg, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5 / GGG5')
+	&& contains($libGgg, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5 / GGG5')
+	&& contains($lxlibGgg, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5 / GGG5');
+$findings[] = finding('GGG5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $ggg5Closed,
+	$ggg5Closed ? 'ident-gated sites marked GGG5' : 'unmarked');
+
+$extSecGgg = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastGgg = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$ggg6Closed = contains($lxlibGgg, 'security GGG6')
+	&& contains($extSecGgg, 'security GGG6')
+	&& contains($toastGgg, 'security GGG6')
+	&& contains($lxlibGgg, 'gated unserialize');
+$findings[] = finding('GGG6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $ggg6Closed,
+	$ggg6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
