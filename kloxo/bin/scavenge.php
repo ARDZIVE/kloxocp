@@ -77,8 +77,7 @@ function scavenge_main() {
 	log_shell("Scavenge: Fix log dir");
 	$runPhp('../bin/common/fixlogdir.php');
 
-	log_shell("Scavenge: 'Easy Installer' update");
-//	$runPhp('../bin/easyinstaller-update.php');
+	// EasyInstaller scavenge step removed (security PP5).
 
 	log_shell("Scavenge: Watchdog checks");
 	$rs = get_all_pserver();

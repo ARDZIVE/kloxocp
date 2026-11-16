@@ -2850,9 +2850,8 @@ function lightyApacheLimit($server, $var)
 	}
 
 	if ($var === 'dotnet_flag') {
-		$v = db_get_value("pserver", $server, "ostype");
-
-		return ($v !== 'rhel');
+		// ASP.NET not offered on Ubuntu (security PP4).
+		return false;
 	}
 
 	return true;
@@ -3202,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111631';
+	return '10.1-2026111632';
 }
 
 function getDownloadServer()

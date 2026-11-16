@@ -1,13 +1,17 @@
 function changeContent(id,message) {
+  // textContent only (security PP1).
   if (document.getElementById) {
   if (!top.leftframe) {
 	  return;
   }
   var el = top.leftframe.document.getElementById(id)
-  if (el && typeof el.innerHTML != "undefined") {
-	  if(help_data[message]) el.innerHTML =help_data[message];
-	  if(!help_data[message]) el.innerHTML =message;
- 
+  if (el) {
+	  var text = help_data[message] ? help_data[message] : message;
+	  if (typeof el.textContent !== "undefined") {
+		  el.textContent = text == null ? "" : String(text);
+	  } else {
+		  el.innerText = text == null ? "" : String(text);
+	  }
  }
  }
 }

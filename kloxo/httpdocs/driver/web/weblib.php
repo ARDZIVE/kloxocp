@@ -317,7 +317,8 @@ class Web extends Lxdb
 
 	static $__desc_ssl_flag = array("q", "", "enable_ssl");
 	static $__desc_awstats_flag = array("q", "", "enable_awstats");
-	static $__desc_dotnet_flag = array("q", "", "enable_asp.net");
+	// ASP.NET / dotnet_flag removed on Ubuntu (security PP4).
+	// static $__desc_dotnet_flag = array("q", "", "enable_asp.net");
 	static $__desc_cron_manage_flag = array("q", "", "allow_scheduler_management");
 	// EasyInstaller privilege/list removed (security OO1).
 	// static $__desc_easyinstaller_flag = array("q", "", "enable_easyinstaller");
@@ -388,8 +389,8 @@ class Web extends Lxdb
 	static $__acdesc_update_ssl_upload = array("", "", "upload_certificate");
 	static $__acdesc_update_ipaddress = array("", "", "ipaddress");
 	static $__acdesc_update_enable_ssl_flag = array("", "", "enable_ssl");
-	static $__acdesc_update_aspnet_parameters = array("", "", "configure_asp.net");
-	static $__acdesc_update_enable_dotnet_flag = array("", "", "enable/disable_asp.net");
+	// static $__acdesc_update_aspnet_parameters = array("", "", "configure_asp.net");
+	// static $__acdesc_update_enable_dotnet_flag = array("", "", "enable/disable_asp.net");
 	static $__acdesc_update_redirect_domain = array("", "", "redirect_url");
 	static $__acdesc_update_statsconfig = array("", "", "stats_configuration");
 	static $__acdesc_update_access_log = array("", "", "access_log");

@@ -384,11 +384,13 @@ class Sqlite
 
 	function escapeBack($key, $string)
 	{
-		if (!csb($key, "text_")) {
-			return $string;
+		// Always quote-escape SQL string literals (security PP2).
+		// Column names come from getColumnTypes(); values must not break out of quotes.
+		if (function_exists('kloxo_sql_quote')) {
+			return kloxo_sql_quote($string);
 		}
 
-		return $string;
+		return str_replace("'", "''", (string) $string);
 	}
 
 	function createQueryStringAdd($array)
@@ -397,6 +399,9 @@ class Sqlite
 		$result = $this->getColumnTypes();
 
 		foreach ($result as $key => $val) {
+			if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($key)) {
+				continue;
+			}
 			$string .= " $key,";
 		}
 
@@ -404,12 +409,15 @@ class Sqlite
 		$string .= " ) values(";
 
 		foreach ($result as $key => $val) {
+			if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($key)) {
+				continue;
+			}
 			if ($key === 'realpass') {
 				$rp = $array[$key] ?? '';
 				$rp = function_exists('kloxo_realpass_seal')
 					? kloxo_realpass_seal((string) $rp)
 					: ('__lxen:' . base64_encode((string) $rp));
-				$rp = str_replace("'", "''", $rp);
+				$rp = $this->escapeBack($key, $rp);
 				$string .= " '{$rp}',";
 
 				continue;
@@ -434,6 +442,9 @@ class Sqlite
 		$result = $this->getColumnTypes();
 
 		foreach ($result as $key => $val) {
+			if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($key)) {
+				continue;
+			}
 			if (isset($sgbl->__var_collectquota_run) && $sgbl->__var_collectquota_run) {
 				if (!csb($key, "priv_") && !csb($key, 'used_') && !csb($key, "nname") && !csb($key, "status") && !csb($key, "state") && !csb($key, "cpstatus")) {
 					continue;
@@ -448,13 +459,13 @@ class Sqlite
 						? kloxo_realpass_seal($rp)
 						: ('__lxen:' . base64_encode($rp));
 				}
-				$rp = str_replace("'", "''", $rp);
+				$rp = $this->escapeBack($key, $rp);
 				$strarray[] = "{$key} = '{$rp}'";
 
 				continue;
 			}
 
-			$strarray[] = "$key = '".$this->escapeBack($key, $array[$key])."'";
+			$strarray[] = "$key = '".$this->escapeBack($key, $array[$key] ?? '')."'";
 		}
 
 		$string = implode(",", $strarray);
@@ -568,11 +579,19 @@ class Sqlite
 			exit;
 		}
 
+		// Ident + where-value quote (security PP2).
+		if (!function_exists('kloxo_sql_ident')
+			|| !kloxo_sql_ident((string) $nname)
+			|| !kloxo_sql_ident((string) $this->__sqtable)) {
+			log_database('DbError: setRow refused unsafe table/column ident');
+			return;
+		}
+
 		$string = $this->createQueryStringUpdate($array);
+		$escValue = $this->escapeBack($nname, $value);
+		$update = "update {$this->__sqtable} set {$string} where {$nname}='{$escValue}'";
 
-		$update = "update {$this->__sqtable} set {$string} where {$nname}='{$value}'";
-
-		if ($array['nname'] === 'boxtrapper.com') {
+		if (isset($array['nname']) && $array['nname'] === 'boxtrapper.com') {
 			//
 		}
 
@@ -580,7 +599,8 @@ class Sqlite
 			log_database("DbError: Update Failed for {$update}");
 		} else {
 			if ($this->__sqtable !== 'utmp') {
-				dprint("Success: updated {$this->__sqtable} for {$array['nname']}\n", 1);
+				$nn = isset($array['nname']) ? $array['nname'] : '';
+				dprint("Success: updated {$this->__sqtable} for {$nn}\n", 1);
 			}
 		}
 	}

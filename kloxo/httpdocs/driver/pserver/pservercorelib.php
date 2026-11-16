@@ -132,7 +132,8 @@ class pservercore extends Lxclient
 	static $__desc_sslcert_l = array("d", "", "virtual");
 	static $__desc_uuser_l = array("v", "", "virtual");
 	static $__desc_dbadmin_l = array('d', '', '', '');
-	static $__desc_aspnet_l = array('d', '', '', '');
+	// ASP.NET list removed on Ubuntu (security PP4).
+	// static $__desc_aspnet_l = array('d', '', '', '');
 	static $__desc_odbc_l = array('d', '', '', '');
 	static $__desc_firewall_l = array("", "", "virtual");
 	static $__desc_watchdog_l = array("", "", "");

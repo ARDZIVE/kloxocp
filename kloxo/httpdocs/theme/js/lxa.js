@@ -133,7 +133,16 @@ function searchpage(C)
 }
 function updateStatusBar(str)
 {
-	document.getElementById('statusbar').innerHTML =  str;
+	// textContent only (security PP1).
+	var el = document.getElementById('statusbar');
+	if (!el) {
+		return;
+	}
+	if (typeof el.textContent !== 'undefined') {
+		el.textContent = str == null ? '' : String(str);
+	} else {
+		el.innerText = str == null ? '' : String(str);
+	}
 }
 
 function updateallWarning()

@@ -2000,6 +2000,64 @@ $findings[] = finding('OO6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo', $oo6Closed,
 	$oo6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- PP wave ---
+$helpPp = file_text($root, 'kloxo/httpdocs/theme/js/helptext.js');
+$lxaPp = file_text($root, 'kloxo/httpdocs/theme/js/lxa.js');
+$pp1Closed = contains($helpPp, 'security PP1')
+	&& contains($helpPp, 'textContent')
+	&& not_contains($helpPp, 'el.innerHTML')
+	&& contains($lxaPp, 'security PP1')
+	&& contains($lxaPp, 'function updateStatusBar')
+	&& !preg_match('/function updateStatusBar[\s\S]{0,400}\.innerHTML\s*=/', $lxaPp);
+$findings[] = finding('PP1', 'medium', 'helptext/lxa.js assign into innerHTML',
+	'theme/js/helptext.js / lxa.js', $pp1Closed,
+	$pp1Closed ? 'textContent only' : 'still innerHTML');
+
+$sqlPp = file_text($root, 'kloxo/httpdocs/lib/php/sqlitelib.php');
+$pp2Closed = contains($sqlPp, 'security PP2')
+	&& contains($sqlPp, 'kloxo_sql_quote')
+	&& contains($sqlPp, 'setRow refused unsafe')
+	&& contains($sqlPp, 'escapeBack($nname, $value)');
+$findings[] = finding('PP2', 'medium', 'sqlitelib setRow/createQueryStringUpdate unquoted values',
+	'lib/php/sqlitelib.php', $pp2Closed,
+	$pp2Closed ? 'kloxo_sql_quote + ident checks' : 'still unquoted');
+
+$sgblPp = file_text($root, 'kloxo/httpdocs/lib/sgbl.php');
+$pp3Closed = contains($sgblPp, 'security PP3')
+	&& not_contains($sgblPp, '__path_easyinstaller_servervar');
+$findings[] = finding('PP3', 'low', 'sgbl still defines __path_easyinstaller_servervar',
+	'lib/sgbl.php', $pp3Closed,
+	$pp3Closed ? 'path removed' : 'path still defined');
+
+$webPp = file_text($root, 'kloxo/httpdocs/driver/web/weblib.php');
+$dcorePp = file_text($root, 'kloxo/httpdocs/lib/domain/domaincorelib.php');
+$libPp = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$pp4Closed = contains($webPp, 'security PP4')
+	&& !preg_match('/^\s*static \$__desc_dotnet_flag/m', $webPp)
+	&& !preg_match('/^\s*static \$__desc_dotnet_flag/m', $dcorePp)
+	&& contains($libPp, 'security PP4')
+	&& preg_match('/if \(\$var === \'dotnet_flag\'\)[\s\S]{0,120}return false;/', $libPp);
+$findings[] = finding('PP4', 'low', 'dotnet_flag / ASP.NET privilege still offered on Ubuntu',
+	'weblib / domaincorelib / lib.php', $pp4Closed,
+	$pp4Closed ? 'descs removed; privilege check false' : 'ASP.NET UI remains');
+
+$scavPp = file_text($root, 'kloxo/bin/scavenge.php');
+$pp5Closed = contains($scavPp, 'security PP5')
+	&& not_contains($scavPp, "Scavenge: 'Easy Installer'")
+	&& not_contains($scavPp, 'easyinstaller-update.php');
+$findings[] = finding('PP5', 'low', 'scavenge still logs EasyInstaller update step',
+	'bin/scavenge.php', $pp5Closed,
+	$pp5Closed ? 'EasyInstaller step removed' : 'still present');
+
+$lxlibPp = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$extSecPp = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$pp6Closed = contains($lxlibPp, 'security PP6')
+	&& contains($extSecPp, 'security PP6')
+	&& contains($lxlibPp, 'gated unserialize');
+$findings[] = finding('PP6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo', $pp6Closed,
+	$pp6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

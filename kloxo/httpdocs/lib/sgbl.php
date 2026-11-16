@@ -217,7 +217,7 @@ class Sgbl
 		$verfile = $root . '/bin/kloxoversion';
 		$t = is_file($verfile) ? trim((string) file_get_contents($verfile)) : '';
 		if ($t === '') {
-			$t = '10.1-2026111631';
+			$t = '10.1-2026111632';
 		}
 
 		$this->__ver_name = 'Kloxo CP';
@@ -305,7 +305,7 @@ class Sgbl
 
 		$this->__path_program_start_vps_flag = $this->__path_program_root . "/etc/flag/start_vps.flg";
 
-		$this->__path_easyinstaller_servervar = $this->__path_kloxo_httpd_root . "/easyinstallerdata/lx_template.servervars.phps";
+		// EasyInstaller servervar path removed (security PP3).
 
 		// Default Values that will be overrriden in the kloxoconf file.
 	//	$this->__path_named_chroot = "/var/named/chroot/";
