@@ -2371,6 +2371,21 @@ function get_image_path($path = null)
 	return "/theme/icon/{$icon}/{$path}";
 }
 
+/**
+ * Quote a value for legacy Sqlite rawQuery strings (security LL3).
+ * Prefer getRowsWhere/setRow; use this only when raw SQL is unavoidable.
+ */
+function kloxo_sql_quote($value): string
+{
+	return str_replace("'", "''", (string) $value);
+}
+
+/** True when $name is a safe SQL identifier (table/column). */
+function kloxo_sql_ident($name): bool
+{
+	return is_string($name) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) === 1;
+}
+
 function randomString($length)
 {
 	// CSPRNG (security Y1) — used by getCSRFToken and password salts.

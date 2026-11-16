@@ -46,9 +46,13 @@ function auto_update()
 
 function getIncrementedValueFromTable($table, $column)
 {
+	// Identifier allow-list (security LL3).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($column)) {
+		return 1;
+	}
 	$sq = new Sqlite(null, $table);
-	$res = $sq->rawQuery("select $column from $table order by ($column + 0) DESC limit 1");
-	$value = $res[0][$column] + 1;
+	$res = $sq->rawQuery("select {$column} from {$table} order by ({$column} + 0) DESC limit 1");
+	$value = (isset($res[0][$column]) ? (int) $res[0][$column] : 0) + 1;
 
 	return $value;
 }
@@ -165,6 +169,10 @@ function lxfile_cp_if_not_exists($src, $dst)
 
 function db_set_value($table, $set, $where, $extra = null)
 {
+	// Table name allow-list (security LL3); $set/$where remain caller-owned.
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table)) {
+		return;
+	}
 	$sq = new Sqlite(null, $table);
 
 	if ($extra) {
@@ -176,23 +184,27 @@ function db_set_value($table, $set, $where, $extra = null)
 	if ($count < 1) {
 		$data = str_replace("AND", ",", $set . " " . $extra);
 
-		$sq->rawQuery("INSERT INTO $table SET $data");
+		$sq->rawQuery("INSERT INTO {$table} SET {$data}");
 	} else {
-		$sq->rawQuery("UPDATE $table SET $set WHERE $where $extra");
+		$sq->rawQuery("UPDATE {$table} SET {$set} WHERE {$where} {$extra}");
 	}
 }
 
 function db_get_value($table, $nname, $var)
 {
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table)) {
+		return is_array($var) ? array() : '';
+	}
 	$sql = new Sqlite(null, $table);
+	$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($nname) : str_replace("'", "''", (string) $nname);
 
 	if (is_array($var)) {
-		$row = $sql->getRowsWhere("nname = '$nname'", $var);
+		$row = $sql->getRowsWhere("nname = '{$esc}'", $var);
 
 		return (isset($row[0]) && is_array($row[0])) ? $row[0] : array();
 	}
 
-	$row = $sql->getRowsWhere("nname = '$nname'", array($var));
+	$row = $sql->getRowsWhere("nname = '{$esc}'", array($var));
 	if (!isset($row[0]) || !is_array($row[0]) || !array_key_exists($var, $row[0])) {
 		return '';
 	}
@@ -1195,8 +1207,12 @@ function remove_old_serve_file()
 
 function fix_flag_variable($table, $flagvariable)
 {
+	// Identifier allow-list (security LL3).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($flagvariable)) {
+		return;
+	}
 	$sq = new Sqlite(null, $table);
-	$sq->rawQuery("update $table set $flagvariable = 'done' where $flagvariable = 'doing'");
+	$sq->rawQuery("update {$table} set {$flagvariable} = 'done' where {$flagvariable} = 'doing'");
 }
 
 function upload_file_to_db($dbtype, $dbhost, $dbuser, $dbpassword, $dbname, $file)
@@ -3151,7 +3167,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111625';
+	return '10.1-2026111627';
 }
 
 function getDownloadServer()
@@ -3286,8 +3302,12 @@ function download_file($url, $localfile = null)
 
 function incrementVar($table, $var, $min, $increment)
 {
+	// Identifier allow-list (security LL3).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($var)) {
+		return $min;
+	}
 	$sq = new Sqlite(null, $table);
-	$res = $sq->rawQuery("select $var from $table order by ($var + 0) DESC limit 1");
+	$res = $sq->rawQuery("select {$var} from {$table} order by ({$var} + 0) DESC limit 1");
 
 	if (!$res) {
 		$ret = $min;
@@ -4970,47 +4990,72 @@ function is_default_quota_flag_on($v)
 
 function db_set_default($table, $variable, $default, $extra = null)
 {
+	// Identifier allow-list + quoted default (security LL3).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($variable)) {
+		return;
+	}
 	$sq = new Sqlite(null, $table);
+	$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($default) : str_replace("'", "''", (string) $default);
 
 	if ($extra) {
 		$extra = "AND $extra";
 	}
 
-	$sq->rawQuery("update $table set $variable = '$default' where $variable = '' $extra");
-	$sq->rawQuery("update $table set $variable = '$default' where $variable is null $extra");
+	$sq->rawQuery("update {$table} set {$variable} = '{$esc}' where {$variable} = '' {$extra}");
+	$sq->rawQuery("update {$table} set {$variable} = '{$esc}' where {$variable} is null {$extra}");
 }
 
 function db_set_default_variable_diskusage($table, $variable, $default, $extra = null)
 {
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($variable)) {
+		return;
+	}
+	// Numeric default only (security LL3).
+	if (!is_numeric($default)) {
+		return;
+	}
 	$sq = new Sqlite(null, $table);
+	$num = 0 + $default;
 
 	if ($extra) {
 		$extra = "AND $extra";
 	}
 
-	$sq->rawQuery("update $table set $variable = $default where $variable = '' $extra");
-	$sq->rawQuery("update $table set $variable = $default where $variable is null $extra");
-	$sq->rawQuery("update $table set $variable = $default where $variable = '-' $extra");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = '' {$extra}");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} is null {$extra}");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = '-' {$extra}");
 }
 
 function db_set_default_variable($table, $variable, $default, $extra = null)
 {
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($variable)) {
+		return;
+	}
+	if (!is_numeric($default)) {
+		return;
+	}
 	$sq = new Sqlite(null, $table);
+	$num = 0 + $default;
 
 	if ($extra) {
 		$extra = "AND $extra";
 	}
 
-	$sq->rawQuery("update $table set $variable = $default where $variable = '' $extra");
-	$sq->rawQuery("update $table set $variable = $default where $variable is null $extra");
-//	$sq->rawQuery("update $table set $variable = $default where $variable = '-' $extra");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = '' {$extra}");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} is null {$extra}");
 }
 
 function updateTableProperly($__db, $table, $rr, $content)
 {
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table)) {
+		return false;
+	}
 	foreach ($content as $column) {
 		if (isset($rr[$column])) {
 			//dprint("Column $column Already exists in table $table\n");
+			continue;
+		}
+		if (!kloxo_sql_ident($column)) {
 			continue;
 		}
 
@@ -5022,7 +5067,7 @@ function updateTableProperly($__db, $table, $rr, $content)
 
 		dprint("Adding column $column to $table ...\n");
 
-		$__db->rawQuery("alter table $table add column $column $type");
+		$__db->rawQuery("alter table {$table} add column {$column} {$type}");
 	}
 
 	return true;
