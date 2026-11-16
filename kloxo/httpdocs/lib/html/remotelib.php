@@ -667,6 +667,10 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 //	dprint($totalout);
 
 	$totalout = trim($totalout);
+	// Drop the protocol end marker so callers decode pure base64.
+	if (is_string($exitchar) && $exitchar !== '' && csa($totalout, $exitchar)) {
+		$totalout = trim(str_replace($exitchar, '', $totalout));
+	}
 	$size = round(strlen($totalout) / 1024, 4);
 
 //	dprint($totalout);

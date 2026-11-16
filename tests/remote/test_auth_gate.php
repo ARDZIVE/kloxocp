@@ -172,6 +172,29 @@ try {
     bad("verify with null \$login returns false (no crash)", $e->getMessage());
 }
 
+echo "== kloxo_b64_unserialize tolerates backend exit trailer\n";
+
+$obj = (object) array('ddata' => array('ok' => true, 'jails' => array()), 'exception' => null);
+$b64 = base64_encode(serialize($obj));
+$trailer = $b64 . "\n___...___\n";
+$got = kloxo_b64_unserialize($trailer);
+if (is_object($got) && isset($got->ddata['ok']) && $got->ddata['ok'] === true) {
+	ok('kloxo_b64_unserialize decodes base64 + ___...___ trailer');
+} else {
+	bad('kloxo_b64_unserialize decodes base64 + ___...___ trailer', var_export($got, true));
+}
+$got2 = kloxo_b64_unserialize($b64);
+if (is_object($got2) && isset($got2->ddata['ok'])) {
+	ok('kloxo_b64_unserialize still decodes clean base64');
+} else {
+	bad('kloxo_b64_unserialize still decodes clean base64');
+}
+if (kloxo_b64_unserialize('') === false && kloxo_b64_unserialize('!!!') === false) {
+	ok('kloxo_b64_unserialize rejects empty / junk');
+} else {
+	bad('kloxo_b64_unserialize rejects empty / junk');
+}
+
 echo "== process_server_input source invariant\n";
 
 $src = file_get_contents($root . '/kloxo/httpdocs/lib/html/remotelib.php');
@@ -241,6 +264,16 @@ if ($src === false) {
             ok("reload_slave_password refuses a null \$login");
         } else {
             bad("reload_slave_password refuses a null \$login");
+        }
+    }
+
+    if (!preg_match('/function send_to_some_stream_server\s*\(.*?\nfunction /s', $src, $sm)) {
+        bad('found send_to_some_stream_server');
+    } else {
+        if (str_contains($sm[0], 'str_replace($exitchar') || str_contains($sm[0], 'str_replace($exitchar,')) {
+            ok('send_to_some_stream_server strips ___...___ before return');
+        } else {
+            bad('send_to_some_stream_server strips ___...___ before return');
         }
     }
 }

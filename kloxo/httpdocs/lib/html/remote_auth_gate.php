@@ -296,8 +296,15 @@ function kloxo_b64_unserialize($b64, $options = true)
 	if (!is_string($b64) || $b64 === '') {
 		return false;
 	}
+	// Backend replies are base64 then "\n___...___\n". Strict base64_decode fails
+	// on that trailer and made every rl_exec_get look like "could not connect"
+	// (Fail2Ban / UFW / Services). Keep only base64 alphabet, then strict decode.
+	$b64 = preg_replace('/[^A-Za-z0-9+\/=]/', '', $b64);
+	if (!is_string($b64) || $b64 === '') {
+		return false;
+	}
 	$raw = base64_decode($b64, true);
-	if (!is_string($raw)) {
+	if (!is_string($raw) || $raw === '') {
 		return false;
 	}
 	return kloxo_unserialize_deny_gadgets($raw, $options);

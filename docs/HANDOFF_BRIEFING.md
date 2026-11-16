@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111604**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111605**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -831,6 +831,11 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   `strtoll` it restored `\r` then treated `*endptr != '\0'` as invalid. Fixed in **v2** (validate
   while NUL-terminated; hunk line count must be `+238,23` or `patch` aborts); `upcp` /
   `install-hiawatha` rebuilds when the stamp is not v2.
+  **Regression (fixed):** security `kloxo_b64_unserialize` used strict `base64_decode` on backend
+  replies that still carried the `___...___` exit marker, so every `rl_exec_get` (Fail2Ban, UFW,
+  Services) became "Could not connect to server". Fix: strip non-base64 from the blob and strip
+  the exit char in `send_to_some_stream_server` (`tests/remote/test_auth_gate.php`). Live Fail2Ban
+  after deploy still **UNVERIFIED**.
   **UNVERIFIED:** a real Fail2Ban (`-t`, reload, `datepattern`, the nftables action, journal matches),
   live bans, `python3-systemd` availability on 24.04/26.04, the installer on a real server, the page
   in a browser, live Whitelist IP after the Hiawatha rebuild.
@@ -1191,7 +1196,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111604**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111605**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
