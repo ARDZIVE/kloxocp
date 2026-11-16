@@ -645,8 +645,13 @@ function check_if_port_on($port)
 			if (!preg_match('/^pgrep(\s+-f)?\s+\^?[A-Za-z0-9._-]+$/', $v)) {
 				continue;
 			}
+			// Split validated pgrep into argv — never exec($v) shell string (security II2).
+			$parts = preg_split('/\s+/', trim($v));
 			$out = array();
-			exec($v, $out);
+			if ($parts && function_exists('lxshell_output')) {
+				$raw = (string) call_user_func_array('lxshell_output', $parts);
+				$out = array_values(array_filter(preg_split('/\r\n|\n|\r/', $raw) ?: array()));
+			}
 
 			if (count($out) > 0) {
 				return true;
@@ -675,34 +680,8 @@ function check_if_port_on($port)
 
 function EasyinstallerPHP($var, $cmd)
 {
-	// TODO LxCenter: The created dir and file should be owned by the user
-	global $sgbl;
-
-	$domain = $var['domain'];
-	$appname = $var['appname'];
-
-	lxfile_mkdir("/home/httpd/$domain/httpdocs/__easyinstallerlog");
-
-	$i = 0;
-
-	$file = "/home/httpd/$domain/httpdocs/__easyinstallerlog/$appname$i.html";
-
-	while (1) {
-		if (!lxfile_exists($file)) {
-			break;
-		}
-		$i++;
-	}
-
-	if ($sgbl->dbg > 0) {
-		//	$cmd = "$cmd | elinks -no-home 1 -dump ";
-		$cmd = "php $cmd | lynx -stdin -dump ";
-	} else {
-		$cmd = "php $cmd > $file";
-	}
-	exec($cmd);
-	dprint("\n*************************************************************************\n");
-
+	// EasyInstaller removed — refuse shell runner (security II2).
+	dprint("EasyinstallerPHP refused\n");
 }
 
 function validate_ipaddress($name, $ret = null)
@@ -899,31 +878,8 @@ function validate_plan_name($name)
 
 function execEasyinstallerPhp($domain, $appname, $cmd)
 {
-	// TODO LxCenter: The created dir and file should be owned by the user
-	global $sgbl;
-
-	lxfile_mkdir("/home/httpd/$domain/httpdocs/__easyinstallerlog");
-	$i = 0;
-
-	$file = "/home/httpd/$domain/httpdocs/__easyinstallerlog/$appname$i.html";
-
-	while (1) {
-		if (!lxfile_exists($file)) {
-			break;
-		}
-
-		$i++;
-	}
-
-	if ($sgbl->dbg > 0) {
-		$cmd = "$cmd | lynx -stdin -dump ";
-	} else {
-		$cmd = "$cmd > $file";
-	}
-
-	exec($cmd);
-
-	dprint("\n*************************************************************************\n");
+	// EasyInstaller removed — refuse shell runner (security II2).
+	dprint("execEasyinstallerPhp refused\n");
 }
 
 function update_self()
@@ -3115,7 +3071,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111621';
+	return '10.1-2026111622';
 }
 
 function getDownloadServer()
@@ -6109,7 +6065,9 @@ function fixdomainipissue()
 
 function fixrootquota()
 {
-	exec("setquota -u root 0 0 0 0 -a");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('setquota', '-u', 'root', '0', '0', '0', '0', '-a')); // security II1
+	}
 }
 
 function fixtotaldiskusageplan()
@@ -6198,7 +6156,11 @@ function createOSUserAdmin($nolog = null)
 		log_cleanup("- User admin exists", $nolog);
 	}
 
-	exec("chmod 751 /home/admin");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('chmod', '751', '/home/admin')); // security II1
+	} else {
+		@chmod('/home/admin', 0751);
+	}
 }
 
 function setWatchdogDefaults($nolog = null)
@@ -6266,12 +6228,16 @@ function changetoclient()
 	global $sgbl;
 
 //	exec("service xinetd stop");
-	exec("service pure-ftpd stop");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('systemctl', 'stop', 'pure-ftpd')); // security II1
+	}
 	lxshell_return($sgbl->__path_php_path, "../bin/changetoclientlogin.php");
 //	lxshell_return($sgbl->__path_php_path, "../bin/misc/fixftpuserclient.php");
 	lxshell_return($sgbl->__path_php_path, "../bin/fix/fixftpuser.php");
 //	restart_service("xinetd");
-	exec("service pure-ftpd start");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('systemctl', 'start', 'pure-ftpd')); // security II1
+	}
 //	$driverapp = $gbl->getSyncClass(null, 'localhost', 'web');
 
 //	createRestartFile($driverapp);
@@ -6556,14 +6522,8 @@ function setDomainPages($nolog = null)
 
 function getPhpVersion()
 {
-	exec("php -v|grep 'PHP'|grep '(built:'|awk '{print $2}'", $out, $ret);
-
-	// MR -- 'php -v' may not work when php 5.4/5.5 using php.ini from 5.2/5.3
-	if ($ret === 0) {
-		return $out[0];
-	} else {
-		return '5.4.0';
-	}
+	// Use runtime constant — never php -v|grep|awk shell (security II2).
+	return PHP_VERSION;
 }
 
 function getRpmBranchInstalled($rpm)
@@ -6679,13 +6639,26 @@ function getDebVersion($pkg)
 	if ($pkg === '') {
 		return '0.0.0';
 	}
-	$out = array();
-	$ret = 1;
-	exec('dpkg-query -W -f=\'${Version}\' ' . escapeshellarg($pkg) . ' 2>/dev/null', $out, $ret);
-	if ($ret !== 0 || !isset($out[0]) || trim((string) $out[0]) === '') {
+	// argv dpkg-query — never shell string (security II2).
+	$ver = '';
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$proc = @proc_open(
+		array('dpkg-query', '-W', '-f=${Version}', $pkg),
+		$desc,
+		$pipes
+	);
+	if (is_resource($proc)) {
+		$ver = trim((string) stream_get_contents($pipes[1]));
+		fclose($pipes[1]);
+		proc_close($proc);
+	}
+	if ($ver === '') {
 		return '0.0.0';
 	}
-	$ver = trim((string) $out[0]);
 	// Strip Debian epoch/revision noise for version_compare callers.
 	if (strpos($ver, ':') !== false) {
 		$ver = substr($ver, strpos($ver, ':') + 1);
@@ -6767,14 +6740,25 @@ function isDebInstalled($pkg)
 	if ($pkg === '') {
 		return false;
 	}
-	$out = array();
-	$ret = 1;
-	exec('dpkg-query -W -f=\'${Status}\' ' . escapeshellarg($pkg) . ' 2>/dev/null', $out, $ret);
-	if ($ret !== 0 || !isset($out[0])) {
-		return false;
+	// argv dpkg-query — never shell string (security II2).
+	$status = '';
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$proc = @proc_open(
+		array('dpkg-query', '-W', '-f=${Status}', $pkg),
+		$desc,
+		$pipes
+	);
+	if (is_resource($proc)) {
+		$status = trim((string) stream_get_contents($pipes[1]));
+		fclose($pipes[1]);
+		proc_close($proc);
 	}
 
-	return strpos((string) $out[0], 'install ok installed') !== false;
+	return strpos($status, 'install ok installed') !== false;
 }
 
 /** @deprecated name kept for callers; uses dpkg on Ubuntu */
@@ -7546,7 +7530,9 @@ function setInitialPureftpConfig($nolog = null)
 	if (lxfile_exists("/etc/xinetd.d/pureftp")) {
 		log_cleanup("- Remove /etc/xinetd.d/pureftp service file", $nolog);
 		lxfile_rm("/etc/xinetd.d/pureftp");
-		exec("service xinetd restart");
+		if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('systemctl', 'restart', 'xinetd')); // security II1
+	}
 	}
 
 	if (!lxfile_real("/etc/pki/pure-ftpd/pure-ftpd.pem")) {
@@ -7645,7 +7631,9 @@ function setInitialBinary($nolog = null)
 	log_cleanup("Initialize Some Binary files", $nolog);
 
 	// MR -- because no need lxrestart (also lxsuexec) so remove if exist
-	exec("'rm' -rf /usr/sbin/lxrestart");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('rm', '-rf', '--', '/usr/sbin/lxrestart')); // security II1
+	}
 
 	if (!lxfile_exists("/usr/local/bin/php")) {
 		log_cleanup("- Create Symlink /usr/bin/php to /usr/local/bin/php", $nolog);
@@ -7705,7 +7693,18 @@ function setInitialServer($nolog = null)
 		//
 	} else {
 		// MR -- problem with for openvz
-		exec("grep envID /proc/self/status", $out, $ret);
+		// PHP read — never grep shell (security II2).
+		$out = array();
+		$ret = 1;
+		if (is_file('/proc/self/status')) {
+			foreach (preg_split('/\r\n|\n|\r/', (string) file_get_contents('/proc/self/status')) ?: array() as $_ln) {
+				if (str_starts_with($_ln, 'envID')) {
+					$out[] = $_ln;
+					$ret = 0;
+					break;
+				}
+			}
+		}
 
 		if ($ret === 0) {
 			// no action
@@ -7757,10 +7756,14 @@ function setSomePermissions($nolog = null)
 
 	log_cleanup("- Set permissions for /var/lib/php/session/ dir", $nolog);
 	@lxfile_unix_chmod("/var/lib/php/session/", "777");
-	exec("chmod o+t /var/lib/php/session/");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('chmod', 'o+t', '/var/lib/php/session/')); // security II1
+	}
 
 	log_cleanup("- Kill sisinfoc system process", $nolog);
-	exec("pkill -f sisinfoc");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('pkill', '-f', 'sisinfoc')); // security II1
+	}
 }
 
 function setJailshellSystem($nolog = null)
@@ -7799,7 +7802,12 @@ function setInitialLogrotate($nolog = null)
 	log_cleanup("Initialize logrotates", $nolog);
 	log_cleanup("- Initialize process", $nolog);
 
-	exec("cp -f ../file/logrotate/etc/logrotate.d/* /etc/logrotate.d");
+	// PHP glob copy — never shell glob (security II3).
+	foreach (glob('../file/logrotate/etc/logrotate.d/*') ?: array() as $_lr) {
+		if (is_file($_lr) && function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('cp', '-f', '--', $_lr, '/etc/logrotate.d/'));
+		}
+	}
 
 	// MR -- sometimes this file corrupt and make high cpu usage
 	lxfile_rm("/var/lib/logrotate.status");
@@ -7909,7 +7917,17 @@ function fix_secure_log($nolog = null)
 	} else {
 		createRestartFile('rsyslog');
 	}
-	exec("sed -i 's:-/var/log/:/var/log/:g' /etc/*syslog.conf");
+	// PHP edit — never sed shell glob (security II3).
+	foreach (glob('/etc/*syslog.conf') ?: array() as $_sf) {
+		if (!is_file($_sf) || !is_writable($_sf)) {
+			continue;
+		}
+		$_body = (string) file_get_contents($_sf);
+		$_new = str_replace('-/var/log/', '/var/log/', $_body);
+		if ($_new !== $_body) {
+			@file_put_contents($_sf, $_new);
+		}
+	}
 }
 
 function fix_cname($nolog = null)
@@ -7964,7 +7982,9 @@ function enable_xinetd($nolog = null)
 	log_cleanup("Enable xinetd", $nolog);
 	log_cleanup("- enable process", $nolog);
 
-	exec("service pure-ftpd stop");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('systemctl', 'stop', 'pure-ftpd')); // security II1
+	}
 	createRestartFile("xinetd");
 }
 
@@ -8260,9 +8280,8 @@ function updatecleanup($nolog = null)
 		lxfile_rm("phpinfo.php");
 	}
 /*
-	log_cleanup("Kill gettraffic system process", $nolog);
-	log_cleanup("- Kill process", $nolog);
-	exec("pkill -f gettraffic");
+	// Dead gettraffic pkill (security II6).
+	// exec("pkill -f gettraffic");
 */
 	setSyncDrivers($nolog);
 
@@ -8388,7 +8407,7 @@ function setRemoveAlias($nolog = null)
 
 	// MR -- importance for Centos 6
 	log_cleanup("- Unalias process", $nolog);
-	exec("unalias cp > /dev/null 2>&1; unalias mv > /dev/null 2>&1; unalias rm > /dev/null 2>&1");
+	// No-op on non-interactive shells; never chained unalias (security II1).
 }
 
 function setPrepareKloxo($nolog = null)
@@ -9145,11 +9164,8 @@ function setHostsFile($nolog = null)
 	$begincomment[] = "### begin - add by Kloxo CP";
 	$endcomment[] = "### end - add by Kloxo CP";
 
-	exec("hostname -s", $hnshort);
-	exec("hostname", $hnfull);
-
-	#exec("ifconfig |grep -i 'inet addr:'|grep -v '127.0.0.1'|awk '{print $2}'|sed 's/addr\://'", $hnip);
-	exec("hostname -i | awk '{print $1}'", $hnip);
+	// Dead hostname/awk block (security II6); live path uses /script/set-hosts.
+	// exec("hostname -s" / hostname -i | awk ...);
 
 	$content = "{$hnip[0]} {$hnfull[0]} {$hnshort[0]}\n";
 
@@ -9313,13 +9329,31 @@ function random_string_lcase($length)
 
 function exec_out($input)
 {
-	exec($input, $out, $ret);
+	// Argv array only — never exec($input) shell string (security II2).
+	if (!is_array($input) || $input === array() || !is_string($input[0]) || $input[0] === '') {
+		return;
+	}
+	foreach ($input as $a) {
+		if (!is_string($a) || str_contains($a, chr(0))) {
+			return;
+		}
+	}
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$proc = @proc_open($input, $desc, $pipes);
+	if (!is_resource($proc)) {
+		return;
+	}
+	$out = preg_split('/\r\n|\n|\r/', trim((string) stream_get_contents($pipes[1]))) ?: array();
+	fclose($pipes[1]);
+	$ret = proc_close($proc);
 
 	if ($ret === 0) {
 		print(implode("\n", $out) . "\n");
 	}
-
-	$out = null;
 }
 
 // taken from http://www.binarytides.com/php-check-running-cli/
@@ -9629,11 +9663,20 @@ function setEnableQuota($nolog = null)
 		setRpmInstalled('quota');
 	}
 
-	exec("quotaon -pa|grep 'off'", $out);
+	// argv + PHP parse — never quotaon|grep / broken comma shell (security II2).
+	$out = array();
+	$raw = function_exists('lxshell_output') ? (string) lxshell_output('quotaon', '-pa') : '';
+	foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $_ln) {
+		if (str_contains($_ln, 'off')) {
+			$out[] = $_ln;
+		}
+	}
 
-	if ($out[0] !== '') {
+	if (isset($out[0]) && $out[0] !== '') {
 		log_cleanup("- set to enable\n", $nolog);
-		exec("quotaon -vaug, $nolog");
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('quotaon', '-vaug'));
+		}
 	} else {
 		log_cleanup("- Already enabled\n", $nolog);
 	}
@@ -9979,7 +10022,9 @@ function setAllDnsServerInstall($nolog = null)
 			log_cleanup("- Install '{$v}'", $nolog);
 
 			if ($v === 'djbdns') {
-				exec("sh /script/setup-djbdns");
+				if (function_exists('kloxo_exec_argv')) {
+					kloxo_exec_argv(array('sh', '/script/setup-djbdns')); // security II1
+				}
 			} elseif ($v === 'knot') {
 				PrepareKnotConf($nolog);
 			} elseif ($v === 'yadifa') {
@@ -10085,8 +10130,11 @@ function isServiceEnabled($target)
 	if (!is_executable('/bin/systemctl') && !is_executable('/usr/bin/systemctl')) {
 		return false;
 	}
-	$val2 = array();
-	exec('systemctl is-enabled --quiet ' . escapeshellarg($target) . ' 2>/dev/null', $val2, $ret);
+	// argv only (security II2).
+	$ret = 1;
+	if (function_exists('kloxo_exec_argv')) {
+		$ret = kloxo_exec_argv(array('systemctl', 'is-enabled', '--quiet', $target));
+	}
 
 	return $ret === 0;
 }
@@ -10101,12 +10149,31 @@ function getServiceType($target = null)
 		if (!is_executable('/bin/systemctl') && !is_executable('/usr/bin/systemctl')) {
 			return '';
 		}
-		$val2 = array();
-		exec('systemctl list-unit-files --type=service 2>/dev/null | grep ^' . escapeshellarg($target), $val2);
-		return count($val2) > 0 ? 'systemd' : '';
+		// argv + PHP prefix match — never shell|grep (security II2).
+		$raw = function_exists('lxshell_output')
+			? (string) lxshell_output('systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager')
+			: '';
+		foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $_ln) {
+			$_ln = trim($_ln);
+			if ($_ln === '') {
+				continue;
+			}
+			$parts = preg_split('/\s+/', $_ln);
+			$name = isset($parts[0]) ? (string) $parts[0] : '';
+			if ($name === $target || $name === $target . '.service'
+				|| str_starts_with($name, $target)) {
+				return 'systemd';
+			}
+		}
+		return '';
 	}
 	$test = array();
-	exec('ps --no-headers -o comm 1', $test);
+	if (function_exists('lxshell_output')) {
+		$line = trim((string) lxshell_output('ps', '--no-headers', '-o', 'comm', '1'));
+		if ($line !== '') {
+			$test[] = $line;
+		}
+	}
 	return isset($test[0]) ? $test[0] : 'systemd';
 }
 

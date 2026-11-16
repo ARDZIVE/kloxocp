@@ -859,7 +859,7 @@ function lxshell_background($cmd)
 		$arglist[] = func_get_arg($i);
 	}
 
-	// Build argv then escapeshellarg + background only (security HH1).
+	// Argv + fork/exec when possible — never shell-string background runner (security II5 / HH1).
 	// Do not wrap with ionice — a missing/privileged ionice left FPM waiting
 	// on the worker (Add Client busy spinner) while useradd/mail ran.
 	$bin = expand_real_root((string) $cmd);
@@ -880,27 +880,58 @@ function lxshell_background($cmd)
 		}
 	}
 	foreach ($argv as $a) {
-		if (!is_string($a) || str_contains($a, "\0")) {
+		if (!is_string($a) || str_contains($a, chr(0))) {
 			return false;
 		}
 	}
-	$esc = array_map('escapeshellarg', $argv);
-	$full = implode(' ', $esc);
-	if (is_executable('/usr/bin/setsid')) {
-		$full = escapeshellarg('/usr/bin/setsid') . ' ' . $full;
-	}
-	$full .= ' </dev/null >/dev/null 2>&1 &';
-	$pwd = '';
 
+	$logLine = 'Background: ' . implode(' ', array_map('escapeshellarg', $argv));
 	if (!$global_dontlogshell) {
-		log_shell("Background: ($pwd) $full");
+		log_shell($logLine);
 	} else {
-		log_log("other_cmd", "Background: ($pwd) $full");
+		log_log("other_cmd", $logLine);
 	}
 
-	exec($full);
+	if (function_exists('pcntl_fork') && function_exists('pcntl_exec')) {
+		$pid = @pcntl_fork();
+		if ($pid === -1) {
+			return false;
+		}
+		if ($pid === 0) {
+			if (function_exists('posix_setsid')) {
+				@posix_setsid();
+			}
+			@fclose(STDIN);
+			@fclose(STDOUT);
+			@fclose(STDERR);
+			$bin0 = $argv[0];
+			$args = array_slice($argv, 1);
+			pcntl_exec($bin0, $args);
+			exit(127);
+		}
 
-	return true;
+		return true;
+	}
+
+	// Fallback without shell metacharacters: proc_open argv and detach best-effort.
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$run = $argv;
+	if (is_executable('/usr/bin/setsid')) {
+		array_unshift($run, '/usr/bin/setsid');
+	}
+	$p = @proc_open($run, $desc, $pipes, null, null, array('bypass_shell' => true));
+	if (is_resource($p)) {
+		// Do not wait; mark running so PHP does not reap immediately as a zombie on some SAPIs.
+		@proc_get_status($p);
+
+		return true;
+	}
+
+	return false;
 }
 
 function do_exec_system($username, $dir, $cmd, &$out, &$err, &$ret, $input)

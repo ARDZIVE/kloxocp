@@ -358,7 +358,14 @@ class pserver__Linux extends lxDriverClass
 		//	if (lxfile_exists("/proc/user_beancounters")) {
 		//	if ((!lxfile_exists("/boot/grub/grub.conf")) && (!lxfile_exists("/boot/grub2/grub.conf"))) {
 		//	exec("grep envID /proc/self/status", $out);
-			exec("sh /script/virtual-info -t", $out);
+			// argv + capture (security II4).
+			$out = array();
+			if (function_exists('lxshell_output')) {
+				$line = trim((string) lxshell_output('sh', '/script/virtual-info', '-t'));
+				if ($line !== '') {
+					$out[] = $line;
+				}
+			}
 
 			if (isset($out[0]) && $out[0] == 'container') {
 				$ret['used_s_memory'] -= 20;

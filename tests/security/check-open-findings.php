@@ -1534,6 +1534,65 @@ $findings[] = finding('HH6', 'low', 'formmail/lxinstall/lxetc/linuxlib/service/c
 	'formmail / lxinstall / lxetc / linuxlib / service__linuxlib / changeport', $hh6Closed,
 	$hh6Closed ? 'proc_open / argv / PHP parse / mkdir' : 'still popen/system/pipeline');
 
+// --- Wave 20 (II1–II6) ---
+$libIi = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$ii1Closed = contains($libIi, 'security II1')
+	&& not_contains($libIi, 'exec("setquota -u root')
+	&& not_contains($libIi, 'exec("service pure-ftpd stop")')
+	&& not_contains($libIi, 'exec("pkill -f sisinfoc")')
+	&& not_contains($libIi, 'exec("unalias cp');
+$findings[] = finding('II1', 'medium', 'lib.php fixed-string service/pkill/chmod/setquota shells',
+	'lib.php', $ii1Closed,
+	$ii1Closed ? 'kloxo_exec_argv / systemctl' : 'still service/pkill/chmod exec');
+
+$ii2Closed = contains($libIi, 'security II2')
+	&& not_contains($libIi, "exec(\"php -v|grep")
+	&& not_contains($libIi, 'exec(\'dpkg-query -W')
+	&& not_contains($libIi, 'exec("quotaon -pa|grep')
+	&& not_contains($libIi, "exec('systemctl list-unit-files --type=service 2>/dev/null | grep")
+	&& contains($libIi, 'EasyinstallerPHP refused');
+$findings[] = finding('II2', 'medium', 'lib.php pipes/vars dpkg/hostname/quotaon/easyinstaller',
+	'lib.php', $ii2Closed,
+	$ii2Closed ? 'proc_open / PHP_VERSION / refuse easyinstaller' : 'still pipe/exec leftovers');
+
+$ii3Closed = contains($libIi, 'security II3')
+	&& not_contains($libIi, 'exec("cp -f ../file/logrotate/etc/logrotate.d/*')
+	&& not_contains($libIi, "exec(\"sed -i 's:-/var/log/:/var/log/:g' /etc/*syslog.conf\")");
+$findings[] = finding('II3', 'medium', 'lib.php logrotate/syslog glob shells',
+	'lib.php', $ii3Closed,
+	$ii3Closed ? 'PHP glob + file_put' : 'still cp/sed globs');
+
+$psIi = file_text($root, 'kloxo/httpdocs/driver/pserver/pserver__linuxlib.php');
+$relIi = file_text($root, 'kloxo/httpdocs/driver/pserver/releasenotelib.php');
+$ii4Closed = contains($psIi, 'security II4')
+	&& not_contains($psIi, 'exec("sh /script/virtual-info -t"')
+	&& contains($relIi, 'security II4')
+	&& not_contains($relIi, 'exec("sh /script/version --vertype=full"');
+$findings[] = finding('II4', 'low', 'pserver virtual-info + releasenote version exec',
+	'pserver__linuxlib / releasenotelib', $ii4Closed,
+	$ii4Closed ? 'lxshell_output argv' : 'still exec(sh /script/...)');
+
+$lfsIi = file_text($root, 'kloxo/httpdocs/lib/html/linuxfslib.php');
+$ii5Closed = contains($lfsIi, 'security II5')
+	&& contains($lfsIi, 'pcntl_fork')
+	&& not_contains($lfsIi, 'exec($full)');
+$findings[] = finding('II5', 'low', 'linuxfslib background still exec($full)',
+	'linuxfslib.php lxshell_background', $ii5Closed,
+	$ii5Closed ? 'pcntl_fork/exec or proc_open argv' : 'still exec($full)');
+
+$fixSslIi = file_text($root, 'kloxo/bin/fix/fixssl.php');
+$phpiniIi = file_text($root, 'kloxo/httpdocs/driver/pserver/phpini__synclib.php');
+$dnsIi = file_text($root, 'kloxo/httpdocs/lib/php/dnsslavelib.php');
+$ii6Closed = contains($fixSslIi, 'security II6')
+	&& not_contains($fixSslIi, 'exec("openssl rsa')
+	&& contains($phpiniIi, 'security II6')
+	&& not_contains($phpiniIi, "exec(\"'cp' -f {\$path}/php-fpm.conf")
+	&& contains($dnsIi, 'security II6')
+	&& contains($libIi, 'security II6');
+$findings[] = finding('II6', 'low', 'dead commented openssl/cp/echo leftovers',
+	'fixssl / phpini__synclib / dnsslavelib / lib.php', $ii6Closed,
+	$ii6Closed ? 'dead code cleared / marked' : 'still active or unmarked dead shells');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

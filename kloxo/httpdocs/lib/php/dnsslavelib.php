@@ -56,7 +56,8 @@ class DnsSlave extends Lxdb
 			lxshell_return("mkdir", "-p", $path);
 		}
 
-		exec("echo '{$ip}' > {$path}/{$domain}");
+		// Dead: echo IP to tmp file never used (security II6 / GG6).
+		// exec("echo '{$ip}' > {$path}/{$domain}");
 	*/
 		// echo-to-file path removed (security GG6); tmp dir deleted below.
 		// MR -- deleted

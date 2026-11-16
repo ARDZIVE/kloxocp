@@ -166,12 +166,8 @@ foreach($slist as $b) {
 			file_put_contents("{$sslpath}/{$dom}.pem", $pemc);
 		}
 	/*
-		// MR -- disabled till full implementing in web
-		if (!file_exists("{$sslpath}/{$dom}.hpkp")) {
-			exec("openssl rsa -in /home/kloxo/ssl/{$dom}.pem -outform der -pubout | " .
-				"openssl dgst -sha256 -binary | " .
-				"openssl enc -base64 >/home/kloxo/ssl/{$dom}.hpkp");
-		}
+		// Dead: openssl pipe never enabled (security II6).
+		// if (!file_exists("{$sslpath}/{$dom}.hpkp")) { ... openssl rsa | dgst | enc ... }
 	*/
 	}
 

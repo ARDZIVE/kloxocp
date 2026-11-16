@@ -178,10 +178,8 @@ class phpini__sync extends Lxdriverclass
 					$phpfpm_parse_default = getParseInlinePhp($phpfpm_default, $input);
 					file_put_contents($phpfpm_target_default, $phpfpm_parse_default);
 				/*
-					// MR -- don't need it because Kloxo CP using special path for php-branch
-					if ($v === 'php') {
-						exec("'cp' -f {$path}/php-fpm.conf /etc/php-fpm.conf");
-					}
+					// Dead: special-path php branch never copies to /etc (security II6).
+					// if ($v === 'php') { cp php-fpm.conf ... }
 				*/
 				}
 			}

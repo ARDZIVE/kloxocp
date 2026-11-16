@@ -51,9 +51,16 @@ class ReleaseNote extends Lxlclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		exec("sh /script/version --vertype=full", $out1);
+		// argv + capture (security II4).
+		$out1 = array();
+		if (function_exists('lxshell_output')) {
+			$line = trim((string) lxshell_output('sh', '/script/version', '--vertype=full'));
+			if ($line !== '') {
+				$out1[] = $line;
+			}
+		}
 
-		$ver = $out1[0];
+		$ver = isset($out1[0]) ? $out1[0] : '';
 
 		$out2 = array("Kloxo CP release notes are in the git repository (CHANGELOG / commits); RPM changelogs are not used on Ubuntu.");
 
