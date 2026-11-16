@@ -286,21 +286,11 @@ class ufwfirewall extends lxclass
 			return;
 		}
 
-		$statusBadge = $active
-			? '<span class="kloxo-ufw-badge kloxo-ufw-badge-on">Active</span>'
-			: '<span class="kloxo-ufw-badge kloxo-ufw-badge-off">Inactive</span>';
-		echo '<div class="kloxo-ufw-status">';
-		echo '<div class="kloxo-ufw-status-main">';
-		echo '<span class="kloxo-ufw-status-title">UFW Firewall</span>';
-		echo $statusBadge;
-		echo '<span class="kloxo-ufw-status-meta">' . $h($host)
-			. ' · ' . (int) $nTotal . ' rule' . ($nTotal === 1 ? '' : 's');
-		if ($filterActive) {
-			echo ' · showing ' . (int) $nShown;
-		}
-		echo '</span></div>';
 		if (!$active) {
 			$enableIcon = self::faIcon('shield-halved', '#a00', 'Enable UFW');
+			echo '<div class="kloxo-ufw-alert"><p>UFW is inactive on this host '
+				. '(install normally enables it). Enable to apply the default panel ports '
+				. '(SSH, HTTP/S, FTP, DNS, mail, 7777/7778) and turn the firewall on.</p>';
 			echo '<form method="post" action="/display.php" accept-charset="utf-8"'
 				. ' style="margin:0" onsubmit="return confirm('
 				. $h(json_encode(
@@ -313,14 +303,7 @@ class ufwfirewall extends lxclass
 			echo '<button type="submit" class="submitbutton" title="Enable UFW">'
 				. ($enableIcon !== '' ? $enableIcon . ' ' : '')
 				. 'Enable UFW</button>';
-			echo '</form>';
-		}
-		echo '</div>';
-
-		if (!$active) {
-			echo '<div class="kloxo-ufw-alert"><p>UFW is inactive on this host '
-				. '(install normally enables it). Enable to apply the default panel ports '
-				. '(SSH, HTTP/S, FTP, DNS, mail, 7777/7778) and turn the firewall on.</p></div>';
+			echo '</form></div>';
 		}
 		if ($conflictNote !== '') {
 			echo '<div class="kloxo-ufw-alert">' . $h($conflictNote) . '</div>';
