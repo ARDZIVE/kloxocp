@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111663**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111664**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -960,8 +960,15 @@ Work in this order. Keep every change small, tested and committed separately. Do
    (`kloxo_restore_cookie_login`) only assigns `__session_id` when
    `$login` is an object; a missing class, leftover auxiliary cookie,
    or a failed `get_login` clears through to `/login/` instead of
-   crashing (`tests/p2/test_login_session.php`). Live first login after
-   this fix is **UNVERIFIED**. Browser login against
+   crashing (`tests/p2/test_login_session.php`). **Blank page after first
+   login (fixed):** Argon2id rehash called `Sqlite::setRow` with only
+   `nname`+`password`; `createQueryStringUpdate` wrote every column and
+   filled missing keys with `''`, wiping `cttype`/`cpstatus` so admin
+   looked disabled and simplicity only painted the status-bar script.
+   Fix: SET only provided columns; seed Argon2id in `init-panel-db`;
+   exempt `nname=admin`; visible disabled body; `tests/p2/test_login_rehash.php`.
+   Already-wiped hosts: `init-panel-db --keep-admin-password` then restart
+   kloxo-php. Live first login after this fix is **UNVERIFIED**. Browser login against
    MariaDB on a real Ubuntu VM is **UNVERIFIED**. Admin SQL Manager
    opens phpMyAdmin in a new tab: live panel-admin SSO as MariaDB
    `kloxo_pma`@`127.0.0.1` (not root: unix_socket) via `kloxo-signon.php` (`auth_type=signon`,
@@ -1202,7 +1209,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111663**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111664**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

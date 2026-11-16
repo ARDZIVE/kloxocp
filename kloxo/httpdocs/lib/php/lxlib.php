@@ -3034,12 +3034,18 @@ function check_if_disabled_and_exit()
 
 	$contact = "administrator";
 
+	// Admin (by cttype or nname) is never blocked by cpstatus. A wiped cttype
+	// after a bad partial UPDATE used to treat admin as a normal client.
+	$isAdminLogin = is_object($login)
+		&& ((method_exists($login, 'isAdmin') && $login->isAdmin())
+			|| (isset($login->nname) && $login->nname === 'admin'));
+
 	$disabled = false;
 	if (is_object($login) && method_exists($login, 'isAuxiliary') && $login->isAuxiliary()
 		&& isset($login->__auxiliary_object) && is_object($login->__auxiliary_object)
 		&& !$login->__auxiliary_object->isOn('cpstatus')) {
 		$disabled = true;
-	} elseif (!is_object($login) || !$login->isAdmin()) {
+	} elseif (!$isAdminLogin) {
 		$disabled = is_object($login) && !$login->isOn('cpstatus');
 	}
 
@@ -3050,13 +3056,19 @@ function check_if_disabled_and_exit()
 	Utmp::updateUtmp($gbl->c_session->nname, $login, 'disabled');
 	$ghtml->print_css_source("/theme/css/common.css");
 
+	$msg = "This login has been Disabled. Please contact the $contact";
 	if ($sgbl->isLxlabsClient()) {
-		$ghtml->__http_vars['frm_emessage'] = "This login has been Disabled due to non-payment. Please pay the invoice below, and your account will automatically get enabled.";
+		$msg = "This login has been Disabled due to non-payment. Please pay the invoice below, and your account will automatically get enabled.";
+		$ghtml->__http_vars['frm_emessage'] = $msg;
 		$ghtml->print_message();
 		$login->print_invoice();
 	} else {
-		$ghtml->__http_vars['frm_emessage'] = "This login has been Disabled. Please contact the $contact";
+		$ghtml->__http_vars['frm_emessage'] = $msg;
 		$ghtml->print_message();
+		// Simplicity only updates the status bar — print a visible page body too.
+		$esc = htmlspecialchars($msg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		echo '<div class="div_display_die" style="margin:2em;font:14px sans-serif">'
+			. $esc . ' <a href="/lib/php/logout.php">Sign out</a></div>';
 	}
 
 	$gbl->c_session->delete();

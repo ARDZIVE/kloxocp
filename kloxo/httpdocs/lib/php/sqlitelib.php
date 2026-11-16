@@ -504,9 +504,17 @@ class Sqlite
 		$string = "";
 		$strarray = array();
 		$result = $this->getColumnTypes();
+		if (!is_array($array)) {
+			$array = array();
+		}
 
 		foreach ($result as $key => $val) {
 			if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($key)) {
+				continue;
+			}
+			// Only SET columns the caller provided. Filling missing keys with ''
+			// wiped cttype/cpstatus on first-login Argon2id rehash (blank page).
+			if (!array_key_exists($key, $array)) {
 				continue;
 			}
 			if (isset($sgbl->__var_collectquota_run) && $sgbl->__var_collectquota_run) {
@@ -516,7 +524,7 @@ class Sqlite
 			}
 
 			if ($key === 'realpass') {
-				$rp = (string) ($array[$key] ?? '');
+				$rp = (string) $array[$key];
 				// Re-seal plaintext; leave already-sealed values alone.
 				if (!str_starts_with($rp, '__lxen2:') && !str_starts_with($rp, '__lxen:')) {
 					$rp = function_exists('kloxo_realpass_seal')
@@ -529,7 +537,7 @@ class Sqlite
 				continue;
 			}
 
-			$strarray[] = "$key = '".$this->escapeBack($key, $array[$key] ?? '')."'";
+			$strarray[] = "$key = '".$this->escapeBack($key, $array[$key])."'";
 		}
 
 		$string = implode(",", $strarray);

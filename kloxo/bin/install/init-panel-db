@@ -1849,6 +1849,14 @@ TXT;
 
     private function md5Crypt(string $pass): string
     {
+        // Prefer Argon2id so first login does not rehash (a partial setRow once
+        // wiped cttype/cpstatus and blanked the panel). Fall back to MD5-crypt.
+        if (defined('PASSWORD_ARGON2ID')) {
+            $hash = password_hash($pass, PASSWORD_ARGON2ID);
+            if (is_string($hash) && $hash !== '' && password_verify($pass, $hash)) {
+                return $hash;
+            }
+        }
         $salt = '$1$' . substr(bin2hex(random_bytes(6)), 0, 8) . '$';
         $hash = crypt($pass, $salt);
         if (!is_string($hash) || $hash === '' || $hash === '*0' || $hash === '*1') {

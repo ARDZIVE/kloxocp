@@ -8556,11 +8556,13 @@ class HtmlLib
 		}
 		$csrfEsc = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
+		// Single-quoted onsubmit so json_encode() double quotes in wait_text
+		// do not end the attribute (security QQ3 follow-up / first-login forms).
 		if ($gbl->__inside_ajax) {
-			$onsubmit = "onsubmit='{$wait_text}return false;'";
+			$js = $wait_text . 'return false;';
 			$gbl->__ajax_form_name = $formName;
 		} else {
-			$onsubmit = "onsubmit=\"{$wait_text}return check_for_needed_variables('{$formName}');\"";
+			$js = $wait_text . "return check_for_needed_variables('{$formName}');";
 ?>
 
 			<script>
@@ -8570,6 +8572,7 @@ class HtmlLib
 			</script>
 <?php
 		}
+		$onsubmit = "onsubmit='" . htmlspecialchars($js, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "'";
 
 		// MR -- impossible enctype="" with 'get'; so force to 'post' to make sure
 	//	if (strpos($block->formtype, "multipart/form-data") !== false) {

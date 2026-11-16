@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111663. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111664. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -48,7 +48,7 @@ Update/delete redirects use `updated_successfully` / `deleted_successfully` /
 print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
 (`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026111663** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111664** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -345,8 +345,14 @@ and live theme `escape`/`document.all` are gone. First login after
 install no longer fatals with `Attempt to assign property "__session_id" on null`
 (`kloxo_restore_cookie_login` only assigns when `$login` is an object;
 unknown/auxiliary cookies clear through to `/login/`; `tests/p2/test_login_session.php`).
-Live first login after this fix is UNVERIFIED. Browser login as
-admin/admin against the live panel succeeded; every page still died
+First login no longer blanks the page: `Sqlite::createQueryStringUpdate` only
+SETs columns present in the update array (a password rehash to Argon2id used to
+write every column as `''`, wiping `cttype`/`cpstatus` so admin looked disabled
+and simplicity only painted the status-bar script); `init-panel-db` seeds
+Argon2id; `nname=admin` stays exempt from the disabled gate; `tests/p2/test_login_rehash.php`.
+Live first login after this fix is UNVERIFIED. A host already wiped needs
+`init-panel-db --keep-admin-password` (or `--fresh`) then restart kloxo-php.
+Browser login as admin/admin against the live panel succeeded; every page still died
 in the Server menu at the SSH Client title until `kloxo_menu_title`
 and `install.sh` git-pull/rsync. Re-run install after pulling this
 tree, then re-check Home.

@@ -50,8 +50,10 @@ $html = (string) file_get_contents($root . '/kloxo/httpdocs/theme/htmllib.php');
 expect(
 	str_contains($html, 'security QQ3')
 	&& str_contains($html, '__kloxoWait.textContent')
-	&& !str_contains($html, "innerHTML='&nbsp;{\$wait}&nbsp;'"),
-	'QQ3 wait textContent'
+	&& !str_contains($html, "innerHTML='&nbsp;{\$wait}&nbsp;'")
+	&& str_contains($html, "onsubmit='\" . htmlspecialchars(\$js")
+	&& !preg_match('/onsubmit="\{\$wait_text\}/', $html),
+	'QQ3 wait textContent (single-quoted onsubmit)'
 );
 
 $frame = (string) file_get_contents($root . '/kloxo/httpdocs/theme/frame_left.php');
