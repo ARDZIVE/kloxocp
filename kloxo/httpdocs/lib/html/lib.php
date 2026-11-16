@@ -3201,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111637';
+	return '10.1-2026111638';
 }
 
 function getDownloadServer()
@@ -7471,9 +7471,11 @@ function getAllClientList($servername = null)
 	}
 
 	$clientdb = new Sqlite(null, 'client');
-	$sync = "syncserver = '{$servername}'";
-
-	$cdb = $clientdb->getRowsWhere($sync, array('nname', 'cttype'));
+	// Quoted syncserver (security UU1).
+	$cdb = $clientdb->getRows('syncserver', $servername, array('nname', 'cttype'));
+	if (!is_array($cdb)) {
+		$cdb = array();
+	}
 
 	$users = array();
 
@@ -7494,9 +7496,11 @@ function getIpfromARecord($servername, $nobase = null)
 		$servername = "localhost";
 	}
 
-	$sync = "syncserver = '{$servername}'";
-
-	$d = $dnsdb->getRowsWhere($sync, array('nname', 'zone_type', 'ser_dns_record_a'));
+	// Quoted syncserver (security UU1).
+	$d = $dnsdb->getRows('syncserver', $servername, array('nname', 'zone_type', 'ser_dns_record_a'));
+	if (!is_array($d)) {
+		$d = array();
+	}
 
 	$z = array();
 
@@ -7548,9 +7552,8 @@ function getDnsMasters($servername)
 	}
 
 	$dnsdb = new Sqlite(null, 'dns');
-	$sync = "syncserver = '{$servername}'";
-
-	$d = $dnsdb->getRowsWhere($sync, array('nname'));
+	// Quoted syncserver / parent_clname (security UU1).
+	$d = $dnsdb->getRows('syncserver', $servername, array('nname'));
 
 	if (!$d) {
 		return;
@@ -7564,9 +7567,7 @@ function getDnsMasters($servername)
 		foreach ($v as $k2 => $v2) {
 			$e[] = $v2;
 
-			$p = "parent_clname = 'domain-{$v2}'";
-
-			$a = $addondb->getRowsWhere($p, array('nname'));
+			$a = $addondb->getRows('parent_clname', 'domain-' . $v2, array('nname'));
 
 			if (!$a) {
 				continue;
@@ -7590,9 +7591,8 @@ function getDnsSlaves($servername)
 	}
 
 	$dnsdb = new Sqlite(null, 'dnsslave');
-	$sync = "syncserver = '{$servername}'";
-
-	$d = $dnsdb->getRowsWhere($sync, array('nname', 'master_ip'));
+	// Quoted syncserver (security UU1).
+	$d = $dnsdb->getRows('syncserver', $servername, array('nname', 'master_ip'));
 
 	if (!$d) {
 		return;
@@ -7622,9 +7622,8 @@ function getDnsReverses($servername)
 	}
 
 	$dnsdb = new Sqlite(null, 'reverse');
-	$sync = "syncserver = '{$servername}'";
-
-	$d = $dnsdb->getRowsWhere($sync, array('reversename', 'nname'));
+	// Quoted syncserver (security UU1).
+	$d = $dnsdb->getRows('syncserver', $servername, array('reversename', 'nname'));
 
 	if (!$d) {
 		return;

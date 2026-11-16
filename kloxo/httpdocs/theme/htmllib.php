@@ -8862,11 +8862,12 @@ function fileSelected(e) {
 	uploadShowSizeWarning(false);
 
 	document.getElementById('progress').style.width = '0';
-	document.getElementById('progress').innerHTML = '';
-	document.getElementById('progress_percent').innerHTML = '0%';
-	document.getElementById('progress_speed').innerHTML = '0 KB/s';
-	document.getElementById('progress_remaining').innerHTML = '00:00:00';
-	document.getElementById('transfered').innerHTML = '0 KB / 0 KB';
+	// textContent for progress labels (security UU3).
+	document.getElementById('progress').textContent = '';
+	document.getElementById('progress_percent').textContent = '0%';
+	document.getElementById('progress_speed').textContent = '0 KB/s';
+	document.getElementById('progress_remaining').textContent = '00:00:00';
+	document.getElementById('transfered').textContent = '0 KB / 0 KB';
 
 	// get selected file element
 	var oFile = document.getElementById(e.id).files[0];
@@ -8883,7 +8884,7 @@ function fileSelected(e) {
 
 	if (typeof FileReader === "undefined") {
 		document.getElementById('progress_error2').style.display = 'block';
-		document.getElementById('progress_error2').innerHTML = 'Upload progress bar not work';
+		document.getElementById('progress_error2').textContent = 'Upload progress bar not work';
 	} else {
 		// prepare HTML5 FileReader
 		var oReader = new FileReader();
@@ -9024,7 +9025,7 @@ function uploadSavingRemind() {
 	if (info) {
 		info.style.backgroundColor = '#fff8e1';
 		info.style.textAlign = 'center';
-		info.innerHTML = 'Server is saving into __backup — keep this tab open. File Manager opens when done.';
+		info.textContent = 'Server is saving into __backup — keep this tab open. File Manager opens when done.';
 	}
 	uploadShowToast(uploadToastSavingRefresh, 'warning');
 	uploadStartPoll();
@@ -9064,7 +9065,7 @@ function uploadStartPoll() {
 				} else if (j && j.partial) {
 					var info = document.getElementById('progress_info');
 					if (info) {
-						info.innerHTML = 'Writing into __backup… ' + bytesToSize(j.size || 0)
+						info.textContent = 'Writing into __backup… ' + bytesToSize(j.size || 0)
 							+ (uploadExpectBytes ? (' / ' + bytesToSize(uploadExpectBytes)) : '');
 					}
 				}
@@ -9091,9 +9092,9 @@ function uploadGoNext(nextUrl) {
 }
 
 function uploadFinishBackupRaw(xhr) {
-	document.getElementById('progress_percent').innerHTML = '100%';
+	document.getElementById('progress_percent').textContent = '100%';
 	document.getElementById('progress').style.width = '400px';
-	document.getElementById('progress_remaining').innerHTML = '00:00:00';
+	document.getElementById('progress_remaining').textContent = '00:00:00';
 	var next = uploadRedirectUrl;
 	try {
 		var j = JSON.parse((xhr && xhr.responseText) ? xhr.responseText : '{}');
@@ -9127,7 +9128,7 @@ function startUploading(e) {
 	document.getElementById('progress_error2').style.display = 'none';
 	document.getElementById('progress_abort').style.display = 'none';
 	uploadShowSizeWarning(false);
-	document.getElementById('progress_percent').innerHTML = '0%';
+	document.getElementById('progress_percent').textContent = '0%';
 	var oProgress = document.getElementById('progress');
 	oProgress.style.display = 'block';
 	oProgress.style.width = '0px';
@@ -9275,12 +9276,12 @@ function uploadProgress(e) { // upload process in progress
 }
 
 function uploadFinish(e, xhr) { // upload finished (or timed out waiting for the server)
-	document.getElementById('progress_percent').innerHTML = '100%';
+	document.getElementById('progress_percent').textContent = '100%';
 	document.getElementById('progress').style.width = '400px';
 	if (document.getElementById('filesize')) {
 		document.getElementById('filesize').textContent = sResultFileSize;
 	}
-	document.getElementById('progress_remaining').innerHTML = '00:00:00';
+	document.getElementById('progress_remaining').textContent = '00:00:00';
 	var next = '';
 	if (xhr) {
 		next = uploadUrlFromResponse(

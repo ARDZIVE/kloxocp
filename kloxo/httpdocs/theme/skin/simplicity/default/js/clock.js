@@ -7,7 +7,11 @@
 		h=checkTime(h);
 		m=checkTime(m);
 		s=checkTime(s);
-		document.getElementById(id).innerHTML="&nbsp;"+h+":"+m+":"+s+"&nbsp;";
+		// textContent (security UU3).
+		var el = document.getElementById(id);
+		if (el) {
+			el.textContent = "\u00a0" + h + ":" + m + ":" + s + "\u00a0";
+		}
 		t=setTimeout(function(){startTime(id)},1000);
 	}
 

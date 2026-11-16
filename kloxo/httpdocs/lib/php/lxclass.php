@@ -428,11 +428,18 @@ abstract class Lxclass
 
 			$sq = new Sqlite(null, 'customaction');
 
+			// Quoted equality via kloxo_sql_and_eq (security UU2).
 			if ($this->dbaction === 'add') {
-				$query = "action = '$this->dbaction' AND class = '{$this->getClass()}'";
+				$query = kloxo_sql_and_eq(array(
+					'action' => $this->dbaction,
+					'class' => $this->getClass(),
+				));
 			} else {
-				$query = "action = '$this->dbaction' AND subaction = '$this->subaction' AND ".
-					"class = '{$this->getClass()}'";
+				$query = kloxo_sql_and_eq(array(
+					'action' => $this->dbaction,
+					'subaction' => $this->subaction,
+					'class' => $this->getClass(),
+				));
 			}
 
 			$this->__var_custom_exec = null;

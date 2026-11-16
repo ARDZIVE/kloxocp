@@ -87,6 +87,13 @@ if (!$cgi_forgotpwd) {
 
 		$m = $g_language_mes->__emessage['blocked'];
 		$r = $g_language_mes->__emessage['blocked_remaining'];
+		$blockedLabelJs = json_encode(
+			trim((string) $m . ' ' . (string) $r),
+			JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+		);
+		if (!is_string($blockedLabelJs) || $blockedLabelJs === '') {
+			$blockedLabelJs = '""';
+		}
 
 		if ($n == 5) {
 			if (intval($t - $s) < intval(10*60)) {
@@ -95,6 +102,7 @@ if (!$cgi_forgotpwd) {
 <div id="countdown" align="center"></div>
 <script>
 	var countdown = document.getElementById("countdown");
+	var blockedLabel = ' . $blockedLabelJs . ';
 	//var totalTime = 600;
 	var totalTime = ' . intval(600 - $d) . ';
 	function pad(n) {
@@ -117,10 +125,8 @@ if (!$cgi_forgotpwd) {
 	function displayTime() {
 		var minutes = Math.floor(totalTime / 60);
 		var seconds = totalTime % 60;
-		minutes = "<span>" + padMinute(minutes).split("").join("</span><span>") + "</span>";
-		seconds = "<span>" + pad(seconds).split("").join("</span><span>") + "</span>";
-	//	countdown.innerHTML = "Blocked remaining: " + minutes + ":" + seconds;
-		countdown.innerHTML = "' . $m . ' ' . $r . ': " + minutes + ":" + seconds;
+		// textContent + json label (security UU4).
+		countdown.textContent = blockedLabel + ": " + padMinute(minutes) + ":" + pad(seconds);
 	}
 	function updateTime() {
 		displayTime();

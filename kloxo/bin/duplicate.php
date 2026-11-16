@@ -1,21 +1,38 @@
-<?php 
+<?php
+declare(strict_types=1);
 
 include "lib/html/include.php";
 
-$db = new Sqlite(null, $argv[1]);
+$class = isset($argv[1]) ? (string) $argv[1] : '';
+// Table/class allow-list (security UU5).
+if ($class === '' || !function_exists('kloxo_sql_ident') || !kloxo_sql_ident($class)) {
+	fwrite(STDERR, "duplicate.php: invalid table/class name\n");
+	exit(1);
+}
+if (!class_exists($class, false) && !class_exists($class, true)) {
+	fwrite(STDERR, "duplicate.php: class not found\n");
+	exit(1);
+}
 
+$db = new Sqlite(null, $class);
 $res = $db->getTable();
-$class = $argv[1];
+if (!is_array($res)) {
+	exit(0);
+}
 
-foreach($res as $r) {
-	if (isset($stored[$r['nname']])) {
-		print("duplicate found {$r['nname']}\n");
-		$db->rawQuery("delete from $class where nname = '{$r['nname']}'");
-		$ob = new $class(null, null, $r['nname']);
+$stored = array();
+foreach ($res as $r) {
+	if (!is_array($r) || !isset($r['nname'])) {
+		continue;
+	}
+	$nname = (string) $r['nname'];
+	if (isset($stored[$nname])) {
+		print("duplicate found {$nname}\n");
+		$db->delRow('nname', $nname);
+		$ob = new $class(null, null, $nname);
 		$ob->create($r);
 		$ob->write();
 		continue;
 	}
-	$stored[$r['nname']] = $r;
+	$stored[$nname] = $r;
 }
-

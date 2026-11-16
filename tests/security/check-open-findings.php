@@ -2305,6 +2305,69 @@ $findings[] = finding('TT6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo / toast', $tt6Closed,
 	$tt6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- UU wave ---
+$libUu = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$uu1Closed = contains($libUu, 'Quoted syncserver (security UU1)')
+	&& contains($libUu, "getRows('syncserver', \$servername")
+	&& contains($libUu, "getRows('parent_clname', 'domain-'")
+	&& not_contains($libUu, "syncserver = '{\$servername}'")
+	&& not_contains($libUu, "parent_clname = 'domain-{\$v2}'");
+$findings[] = finding('UU1', 'medium', 'lib.php DNS/client helpers concat syncserver/parent',
+	'lib.php getAllClientList / getDns*', $uu1Closed,
+	$uu1Closed ? 'getRows quoted' : 'still raw concat');
+
+$lxclassUu = file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php');
+$uu2Closed = contains($lxclassUu, 'security UU2')
+	&& contains($lxclassUu, 'kloxo_sql_and_eq')
+	&& not_contains($lxclassUu, "action = '\$this->dbaction'");
+$findings[] = finding('UU2', 'medium', 'lxclass customaction WHERE interpolates action/class',
+	'lxclass.php customaction query', $uu2Closed,
+	$uu2Closed ? 'kloxo_sql_and_eq' : 'still raw concat');
+
+$htmlUu = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$clockUu = file_text($root, 'kloxo/httpdocs/theme/skin/simplicity/default/js/clock.js');
+$uu3Closed = contains($htmlUu, 'security UU3')
+	&& contains($htmlUu, "progress_percent').textContent = '0%'")
+	&& not_contains($htmlUu, "progress_percent').innerHTML")
+	&& contains($clockUu, 'security UU3')
+	&& contains($clockUu, 'textContent')
+	&& not_contains($clockUu, 'innerHTML');
+$findings[] = finding('UU3', 'low', 'upload progress / clock still assign innerHTML',
+	'htmllib progress / clock.js', $uu3Closed,
+	$uu3Closed ? 'textContent' : 'still innerHTML');
+
+$loginUu = file_text($root, 'kloxo/httpdocs/login/inc.php');
+$loginFileUu = file_text($root, 'kloxo/file/pages/login_inc.php');
+$uu4Closed = contains($loginUu, 'security UU4')
+	&& contains($loginUu, 'countdown.textContent')
+	&& not_contains($loginUu, 'countdown.innerHTML')
+	&& contains($loginFileUu, 'security UU4')
+	&& contains($loginFileUu, 'countdown.textContent')
+	&& not_contains($loginFileUu, 'countdown.innerHTML');
+$findings[] = finding('UU4', 'low', 'login countdown embeds language strings into innerHTML',
+	'login/inc.php / file/pages/login_inc.php', $uu4Closed,
+	$uu4Closed ? 'json label + textContent' : 'still innerHTML interpolate');
+
+$dupUu = file_text($root, 'kloxo/bin/duplicate.php');
+$uu5Closed = contains($dupUu, 'security UU5')
+	&& contains($dupUu, 'kloxo_sql_ident')
+	&& contains($dupUu, "delRow('nname'")
+	&& not_contains($dupUu, 'delete from $class');
+$findings[] = finding('UU5', 'low', 'duplicate.php rawQuery with argv class/nname',
+	'bin/duplicate.php', $uu5Closed,
+	$uu5Closed ? 'ident + delRow' : 'still rawQuery argv');
+
+$lxlibUu = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$extSecUu = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastUu = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$uu6Closed = contains($lxlibUu, 'security UU6')
+	&& contains($extSecUu, 'security UU6')
+	&& contains($toastUu, 'security UU6')
+	&& contains($lxlibUu, 'gated unserialize');
+$findings[] = finding('UU6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $uu6Closed,
+	$uu6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
