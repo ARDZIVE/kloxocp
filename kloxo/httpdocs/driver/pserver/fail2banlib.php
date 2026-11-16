@@ -3,9 +3,9 @@
 include_once dirname(__DIR__, 2) . '/lib/php/kloxo_fail2ban.php';
 
 /**
- * Security > Fail2Ban. One list page (jails, banned addresses, recent activity)
- * plus Ban IP / Settings / Edit Jail forms on separate updateform pages.
- * Everything privileged runs as root through kloxo-backend (KloxoFail2ban).
+ * Security > Fail2Ban. One beige tab per section (Jails, Banned IPs, Whitelist,
+ * Recent Activity) plus Ban IP / Settings / Edit Jail / Add Whitelist forms.
+ * Privileged work runs as root through kloxo-backend (KloxoFail2ban).
  */
 class fail2ban extends lxclass
 {
@@ -13,7 +13,7 @@ class fail2ban extends lxclass
 	static $__desc_nname = array("", "", "Fail2Ban");
 	static $__acdesc_show = array("", "", "Fail2Ban");
 	static $__acdesc_update_ban = array("", "", "Ban IP");
-	static $__acdesc_update_whitelist = array("", "", "Whitelist IP");
+	static $__acdesc_update_whitelist = array("", "", "Add Whitelist");
 	static $__acdesc_update_unwhitelist = array("", "", "Remove Whitelist");
 	static $__acdesc_update_unban = array("", "", "Unban IP");
 	static $__acdesc_update_unbanall = array("", "", "Unban All");
@@ -50,15 +50,29 @@ class fail2ban extends lxclass
 		return array("height" => 5, "width" => "60%");
 	}
 
-	/** Beige tabs: the list, then the forms. Edit Jail only while editing one. */
+	/**
+	 * Beige tabs: one list section each, then Ban IP / Settings forms.
+	 * Add Whitelist / Edit Jail only while on those forms.
+	 */
 	static function fail2banPropertyTabs()
 	{
-		$tabs = array('a=show', 'a=updateform&sa=ban', 'a=updateform&sa=whitelist', 'a=updateform&sa=settings');
+		$tabs = array(
+			'a=show',
+			'a=show&sa=banned',
+			'a=show&sa=whitelists',
+			'a=show&sa=activity',
+			'a=updateform&sa=ban',
+			'a=updateform&sa=settings',
+		);
 		$sa = '';
 		if (isset($_REQUEST['frm_subaction']) && is_scalar($_REQUEST['frm_subaction'])) {
 			$sa = strtolower(trim((string) $_REQUEST['frm_subaction']));
+		} elseif (isset($_GET['frm_subaction']) && is_scalar($_GET['frm_subaction'])) {
+			$sa = strtolower(trim((string) $_GET['frm_subaction']));
 		}
-		if ($sa === 'editjail') {
+		if ($sa === 'whitelist') {
+			$tabs[] = 'a=updateform&sa=whitelist';
+		} elseif ($sa === 'editjail') {
 			$tabs[] = 'a=updateform&sa=editjail';
 		}
 
@@ -149,7 +163,7 @@ class fail2ban extends lxclass
 			. '<path d="' . htmlspecialchars($d, ENT_QUOTES) . '"/></svg>';
 	}
 
-	/** True on the Ban IP / Settings / Edit Jail pages, which must not render the list. */
+	/** True on Ban IP / Settings / Edit Jail / Add Whitelist forms (no list chrome). */
 	static function isFormPage()
 	{
 		global $ghtml;
@@ -164,6 +178,20 @@ class fail2ban extends lxclass
 		}
 
 		return in_array(strtolower($sa), array('ban', 'whitelist', 'settings', 'editjail'), true);
+	}
+
+	/** Active list section for show pages: jails | banned | whitelists | activity. */
+	static function listSection($subaction = null)
+	{
+		$sa = is_string($subaction) ? strtolower(trim($subaction)) : '';
+		if ($sa === '' && isset($_REQUEST['frm_subaction']) && is_string($_REQUEST['frm_subaction'])) {
+			$sa = strtolower(trim($_REQUEST['frm_subaction']));
+		}
+		if (in_array($sa, array('banned', 'whitelists', 'activity'), true)) {
+			return $sa;
+		}
+
+		return 'jails';
 	}
 
 	// ------------------------------------------------------------------ show
@@ -182,6 +210,7 @@ class fail2ban extends lxclass
 			return;
 		}
 
+		$section = self::listSection($subaction);
 		$ov = $this->execF2b('overview', array());
 		$st = (isset($ov['status']) && is_array($ov['status'])) ? $ov['status'] : array();
 		$rows = (isset($ov['rows']) && is_array($ov['rows'])) ? $ov['rows'] : array();
@@ -194,28 +223,9 @@ class fail2ban extends lxclass
 		$h = static function ($v) {
 			return htmlspecialchars((string) $v, ENT_QUOTES);
 		};
-
-		echo '<div class="kloxo-fail2ban">';
-
-		if (empty($st['installed'])) {
-			echo '<p class="messagetext" style="text-align:center;margin:12px 25px">'
-				. 'Install the <code>fail2ban</code> package on this Ubuntu host '
-				. '(the installer does this), then reopen this page.</p></div>';
-
-			return;
-		}
-		if ($err !== '') {
-			echo '<p class="messagetext formtablerow2">Error: ' . $h($this->errorText($err)) . '</p>';
-			if (str_contains($err, 'fail2ban_backend_failed') || str_contains($err, 'must be root')) {
-				echo '<p class="messagetext" style="color:#a00;margin:8px 25px">'
-					. 'Fail2Ban control needs root via <code>kloxo-backend</code> '
-					. '(Services → start <code>kloxo-backend</code>), then Refresh.</p>';
-			}
-		}
-		if (empty($st['active'])) {
-			echo '<p class="messagetext" style="color:#a00;margin:8px 25px">'
-				. 'Fail2Ban is not running on this host. Use Reload to apply the settings and start it, '
-				. 'or start <code>fail2ban</code> from Services.</p>';
+		$skinCss = '#' . preg_replace('/[^0-9a-fA-F]/', '', (string) $skin);
+		if (strlen($skinCss) < 4) {
+			$skinCss = '#edc';
 		}
 
 		$nRunning = 0;
@@ -224,38 +234,122 @@ class fail2ban extends lxclass
 				$nRunning++;
 			}
 		}
-		$version = isset($st['version']) && $st['version'] !== '' ? ' ' . $st['version'] : '';
 
-		// Toolbar
-		echo '<div class="div_showhide"><fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">'
-			. '<legend><span style="font-weight:bold">Fail2Ban' . $h($version) . ' under ' . $h($host)
-			. ' (' . ($nRunning) . ' jails running, ' . count($banned) . ' addresses banned)</span></legend></fieldset></div>';
-		echo '<div class="div_showhide"><table width="100%" cellpadding="0" cellspacing="0" border="0"'
-			. ' style="background:#fee;border:1px solid #' . $h($skin) . ';padding:10px"><tr><td valign="middle">';
-		$tb = 'text-decoration:none;margin-right:14px;display:inline-block;text-align:center';
-		echo '<a href="' . $h($this->urlFor('a=show')) . '" title="Refresh" style="' . $tb . '">'
-			. self::faIcon('arrows-rotate', '#333', 'Refresh') . '<br><span class="small">Refresh</span></a>';
-		echo '<a href="' . $h($this->urlFor('a=updateform&sa=ban')) . '" title="Ban IP" style="' . $tb . '">'
-			. self::faIcon('plus', '#333', 'Ban IP') . '<br><span class="small">Ban IP</span></a>';
-		echo '<a href="' . $h($this->urlFor('a=updateform&sa=whitelist')) . '" title="Whitelist IP" style="' . $tb . '">'
-			. self::faIcon('shield-halved', '#333', 'Whitelist IP') . '<br><span class="small">Whitelist IP</span></a>';
-		$this->printInlineAction('reload', array(), self::faIcon('play', '#333', 'Reload'), 'Reload',
-			'Apply the saved settings and reload Fail2Ban?', 'Reload', $tb);
-		$this->printInlineAction('unbanall', array(), self::faIcon('trash', '#333', 'Unban All'), 'Unban All',
-			'Remove every ban in every jail?', 'Unban All', $tb);
-		echo '</td></tr></table></div>';
+		$titleMap = array(
+			'jails' => 'Jails for ' . $host,
+			'banned' => 'Banned IPs for ' . $host,
+			'whitelists' => 'Whitelist for ' . $host,
+			'activity' => 'Recent Activity for ' . $host,
+		);
+		$pageTitle = isset($titleMap[$section]) ? $titleMap[$section] : ('Fail2Ban for ' . $host);
 
-		// Jails
-		echo '<div class="div_showhide" style="margin-top:6px"><fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">'
-			. '<legend><span style="font-weight:bold">Jails (what Fail2Ban watches) under ' . $h($host)
-			. ' (' . count($rows) . ')</span></legend></fieldset></div>';
-		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0" id="f2b_jails_table">';
-		echo '<tr height="25" valign="middle">';
-		foreach (array('Jail', 'Group', 'Protects', 'State', 'Max Retry', 'Find Time', 'Ban Time', 'Failed', 'Banned') as $c) {
-			echo '<td class="collist" nowrap style="background:#' . $h($skin) . '"><b>' . $h($c) . '</b></td>';
+		echo '<div class="kloxo-fail2ban" style="--kloxo-f2b-skin:' . $h($skinCss) . '">';
+		echo '<div class="kloxo-f2b-page-title"><span>' . $h($pageTitle) . '</span></div>';
+
+		if (empty($st['installed'])) {
+			echo '<div class="kloxo-f2b-hint">Install the <code>fail2ban</code> package on this Ubuntu host '
+				. '(the installer does this), then reopen this page.</div></div>';
+
+			return;
 		}
-		echo '<td class="collist" nowrap align="center" style="background:#' . $h($skin)
-			. ';width:72px;max-width:72px">&nbsp;</td></tr>';
+		if ($err !== '') {
+			echo '<div class="kloxo-f2b-alert">Error: ' . $h($this->errorText($err)) . '</div>';
+			if (str_contains($err, 'fail2ban_backend_failed') || str_contains($err, 'must be root')) {
+				echo '<div class="kloxo-f2b-alert">Fail2Ban control needs root via <code>kloxo-backend</code> '
+					. '(Services → start <code>kloxo-backend</code>), then Refresh.</div>';
+			}
+		}
+		if (empty($st['active'])) {
+			echo '<div class="kloxo-f2b-alert">Fail2Ban is not running on this host. Use Reload to apply '
+				. 'the settings and start it, or start <code>fail2ban</code> from Services.</div>';
+		}
+
+		$this->printSectionToolbar($section, $host, $nRunning, count($banned), count($whitelist), count($log), $h);
+
+		if ($section === 'banned') {
+			$this->printBannedSection($banned, $host, $h);
+		} elseif ($section === 'whitelists') {
+			$this->printWhitelistSection($whitelist, $host, $h);
+		} elseif ($section === 'activity') {
+			$this->printActivitySection($log, $host, $h);
+		} else {
+			$this->printJailsSection($rows, $host, $h);
+		}
+
+		echo '</div>';
+	}
+
+	/**
+	 * @param callable $h
+	 */
+	function printSectionToolbar($section, $host, $nRunning, $nBanned, $nWhite, $nLog, $h)
+	{
+		$refreshAct = 'a=show';
+		if ($section === 'banned') {
+			$refreshAct = 'a=show&sa=banned';
+		} elseif ($section === 'whitelists') {
+			$refreshAct = 'a=show&sa=whitelists';
+		} elseif ($section === 'activity') {
+			$refreshAct = 'a=show&sa=activity';
+		}
+
+		$meta = '';
+		if ($section === 'jails') {
+			$meta = (int) $nRunning . ' running';
+		} elseif ($section === 'banned') {
+			$meta = (int) $nBanned . ' banned';
+		} elseif ($section === 'whitelists') {
+			$meta = (int) $nWhite . ' entries';
+		} elseif ($section === 'activity') {
+			$meta = (int) $nLog . ' events';
+		}
+
+		echo '<div class="kloxo-f2b-toolbar">';
+		echo '<div class="kloxo-f2b-toolbar-actions">';
+		echo '<a class="kloxo-f2b-tool" href="' . $h($this->urlFor($refreshAct)) . '" title="Refresh">'
+			. self::faIcon('arrows-rotate', '#333', 'Refresh') . '<span class="small">Refresh</span></a>';
+
+		if ($section === 'jails') {
+			$this->printInlineAction('reload', array(), self::faIcon('play', '#333', 'Reload'), 'Reload',
+				'Apply the saved settings and reload Fail2Ban?', 'Reload', 'kloxo-f2b-tool');
+			echo '<a class="kloxo-f2b-tool" href="' . $h($this->urlFor('a=updateform&sa=ban')) . '" title="Ban IP">'
+				. self::faIcon('plus', '#333', 'Ban IP') . '<span class="small">Ban IP</span></a>';
+		} elseif ($section === 'banned') {
+			echo '<a class="kloxo-f2b-tool" href="' . $h($this->urlFor('a=updateform&sa=ban')) . '" title="Ban IP">'
+				. self::faIcon('plus', '#333', 'Ban IP') . '<span class="small">Ban IP</span></a>';
+			$this->printInlineAction('unbanall', array(), self::faIcon('trash', '#333', 'Unban All'), 'Unban All',
+				'Remove every ban in every jail?', 'Unban All', 'kloxo-f2b-tool');
+		} elseif ($section === 'whitelists') {
+			echo '<a class="kloxo-f2b-tool" href="' . $h($this->urlFor('a=updateform&sa=whitelist'))
+				. '" title="Add Whitelist">'
+				. self::faIcon('plus', '#333', 'Add Whitelist') . '<span class="small">Add</span></a>';
+			echo '<a class="kloxo-f2b-tool" href="' . $h($this->urlFor('a=updateform&sa=settings'))
+				. '" title="Settings">'
+				. self::faIcon('gear', '#333', 'Settings') . '<span class="small">Settings</span></a>';
+		} else {
+			$this->printInlineAction('reload', array(), self::faIcon('play', '#333', 'Reload'), 'Reload',
+				'Apply the saved settings and reload Fail2Ban?', 'Reload', 'kloxo-f2b-tool');
+		}
+		echo '</div>';
+		if ($meta !== '') {
+			echo '<div class="kloxo-f2b-toolbar-meta">' . $h($meta) . '</div>';
+		}
+		echo '</div>';
+	}
+
+	/**
+	 * @param callable $h
+	 */
+	function printJailsSection($rows, $host, $h)
+	{
+		echo '<fieldset class="kloxo-f2b-section"><legend>Jails under ' . $h($host)
+			. ' (' . count($rows) . ')</legend></fieldset>';
+		echo '<div class="kloxo-f2b-table-wrap"><table class="kloxo-f2b-table" cellspacing="1" cellpadding="3" border="0" id="f2b_jails_table"><tr>';
+		foreach (array('Jail', 'Group', 'Protects', 'State', 'Max Retry', 'Find Time', 'Ban Time', 'Failed', 'Banned') as $c) {
+			echo '<td class="collist">' . $h($c) . '</td>';
+		}
+		echo '<td class="collist kloxo-f2b-row-actions">&nbsp;</td></tr>';
+
 		$i = 0;
 		foreach ($rows as $r) {
 			if (!is_array($r) || !isset($r['name'])) {
@@ -267,27 +361,28 @@ class fail2ban extends lxclass
 			$enabled = !empty($r['enabled']);
 			$running = !empty($r['running']);
 			if (!$available) {
-				$state = '<span style="color:#888">Not available</span><br><span class="small" style="color:#888">'
-					. $h($r['reason'] ?? '') . '</span>';
+				$state = '<span class="kloxo-f2b-badge kloxo-f2b-badge-muted">Not available</span>'
+					. '<div class="kloxo-f2b-sub">' . $h($r['reason'] ?? '') . '</div>';
 			} elseif ($running) {
-				$state = '<span style="color:#2a2;font-weight:bold">Running</span>';
+				$state = '<span class="kloxo-f2b-badge kloxo-f2b-badge-on">Running</span>';
 			} elseif ($enabled) {
-				$state = '<span style="color:#c60">On, not running</span>';
+				$state = '<span class="kloxo-f2b-badge kloxo-f2b-badge-warn">On, not running</span>';
 			} else {
-				$state = '<span style="color:#888">Off</span>';
+				$state = '<span class="kloxo-f2b-badge kloxo-f2b-badge-muted">Off</span>';
 			}
-			echo '<tr height="22" class="tablerow' . ($i % 2) . '">';
+			echo '<tr class="tablerow' . ($i % 2) . '">';
 			echo '<td class="col" nowrap><b>' . $h($name) . '</b></td>';
 			echo '<td class="col" nowrap>' . $h($r['group'] ?? '') . '</td>';
-			echo '<td class="col"><b>' . $h($r['title'] ?? '') . '</b><br><span class="small">' . $h($r['desc'] ?? '') . '</span></td>';
+			echo '<td class="col"><b>' . $h($r['title'] ?? '') . '</b>'
+				. '<div class="kloxo-f2b-sub">' . $h($r['desc'] ?? '') . '</div></td>';
 			echo '<td class="col">' . $state . '</td>';
 			echo '<td class="col">' . $h($r['maxretry'] ?? '') . '</td>';
 			echo '<td class="col" nowrap>' . $h($r['findtime'] ?? '') . '</td>';
 			echo '<td class="col" nowrap>' . $h($r['bantime'] ?? '') . '</td>';
 			echo '<td class="col" nowrap>' . $h(($r['failed_now'] ?? 0) . ' / ' . ($r['failed_total'] ?? 0)) . '</td>';
 			echo '<td class="col" nowrap>' . $h(($r['banned_now'] ?? 0) . ' / ' . ($r['banned_total'] ?? 0)) . '</td>';
-			echo '<td class="col" align="center" style="white-space:nowrap;width:72px;max-width:72px;padding:2px 4px">';
-			echo '<a href="' . $h($this->editJailUrl($name)) . '" title="Edit" style="text-decoration:none;margin:0 2px;vertical-align:middle">'
+			echo '<td class="col kloxo-f2b-row-actions">';
+			echo '<a href="' . $h($this->editJailUrl($name)) . '" title="Edit">'
 				. self::faIcon('pen-to-square', '#333', 'Edit') . '</a>';
 			if ($enabled) {
 				$this->printInlineAction('disablejail', array('f2b_jail' => $name), self::faIcon('pause', '#c60', 'Turn off'),
@@ -296,25 +391,31 @@ class fail2ban extends lxclass
 				$this->printInlineAction('enablejail', array('f2b_jail' => $name), self::faIcon('play', '#2a2', 'Turn on'),
 					'Turn on', 'Turn on the ' . $name . ' jail?');
 			} else {
-				echo '<span style="margin:0 2px;vertical-align:middle" title="' . $h($r['reason'] ?? '') . '">'
+				echo '<span title="' . $h($r['reason'] ?? '') . '">'
 					. self::faIcon('play', '#ccc', 'Not available') . '</span>';
 			}
 			echo '</td></tr>';
 		}
-		echo '</table>';
-
-		// Banned addresses
-		echo '<div class="div_showhide" style="margin-top:10px"><fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">'
-			. '<legend><span style="font-weight:bold">Banned IPs under ' . $h($host) . ' (' . count($banned)
-			. ')</span></legend></fieldset></div>';
-		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0" id="f2b_banned_table">';
-		echo '<tr height="25" valign="middle">';
-		foreach (array('IP Address', 'Jail') as $c) {
-			echo '<td class="collist" nowrap style="background:#' . $h($skin) . '"><b>' . $h($c) . '</b></td>';
+		if ($i === 0) {
+			echo '<tr class="tablerow0"><td class="col kloxo-f2b-empty" colspan="10"><b>No jails configured</b></td></tr>';
 		}
-		echo '<td class="collist" nowrap align="center" style="background:#' . $h($skin) . ';width:72px">&nbsp;</td></tr>';
+		echo '</table></div>';
+	}
+
+	/**
+	 * @param callable $h
+	 */
+	function printBannedSection($banned, $host, $h)
+	{
+		echo '<fieldset class="kloxo-f2b-section"><legend>Banned IPs under ' . $h($host)
+			. ' (' . count($banned) . ')</legend></fieldset>';
+		echo '<div class="kloxo-f2b-table-wrap"><table class="kloxo-f2b-table" cellspacing="1" cellpadding="3" border="0" id="f2b_banned_table"><tr>';
+		foreach (array('IP Address', 'Jail') as $c) {
+			echo '<td class="collist">' . $h($c) . '</td>';
+		}
+		echo '<td class="collist kloxo-f2b-row-actions">&nbsp;</td></tr>';
 		if ($banned === array()) {
-			echo '<tr class="tablerow0"><td class="col" colspan="3" style="text-align:center;padding:12px"><b>No banned IPs under '
+			echo '<tr class="tablerow0"><td class="col kloxo-f2b-empty" colspan="3"><b>No banned IPs under '
 				. $h($host) . '</b></td></tr>';
 		}
 		$i = 0;
@@ -323,26 +424,30 @@ class fail2ban extends lxclass
 				continue;
 			}
 			$i++;
-			echo '<tr height="22" class="tablerow' . ($i % 2) . '"><td class="col">' . $h($b['ip']) . '</td>'
-				. '<td class="col">' . $h($b['jail']) . '</td><td class="col" align="center">';
+			echo '<tr class="tablerow' . ($i % 2) . '"><td class="col"><span class="kloxo-f2b-mono">'
+				. $h($b['ip']) . '</span></td><td class="col">' . $h($b['jail'])
+				. '</td><td class="col kloxo-f2b-row-actions">';
 			$this->printInlineAction('unban', array('f2b_jail' => (string) $b['jail'], 'f2b_ip' => (string) $b['ip']),
 				self::faIcon('trash', '#333', 'Unban'), 'Unban', 'Unban ' . $b['ip'] . ' in ' . $b['jail'] . '?');
 			echo '</td></tr>';
 		}
-		echo '</table>';
+		echo '</table></div>';
+	}
 
-		// Whitelist (ignoreip)
-		echo '<div class="div_showhide" style="margin-top:10px"><fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">'
-			. '<legend><span style="font-weight:bold">Whitelist IPs under ' . $h($host) . ' (' . count($whitelist)
-			. ')</span></legend></fieldset></div>';
-		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0" id="f2b_whitelist_table">';
-		echo '<tr height="25" valign="middle">';
+	/**
+	 * @param callable $h
+	 */
+	function printWhitelistSection($whitelist, $host, $h)
+	{
+		echo '<fieldset class="kloxo-f2b-section"><legend>Whitelist under ' . $h($host)
+			. ' (' . count($whitelist) . ')</legend></fieldset>';
+		echo '<div class="kloxo-f2b-table-wrap"><table class="kloxo-f2b-table" cellspacing="1" cellpadding="3" border="0" id="f2b_whitelist_table"><tr>';
 		foreach (array('IP Address / CIDR', 'Note') as $c) {
-			echo '<td class="collist" nowrap style="background:#' . $h($skin) . '"><b>' . $h($c) . '</b></td>';
+			echo '<td class="collist">' . $h($c) . '</td>';
 		}
-		echo '<td class="collist" nowrap align="center" style="background:#' . $h($skin) . ';width:72px">&nbsp;</td></tr>';
+		echo '<td class="collist kloxo-f2b-row-actions">&nbsp;</td></tr>';
 		if ($whitelist === array()) {
-			echo '<tr class="tablerow0"><td class="col" colspan="3" style="text-align:center;padding:12px"><b>No whitelist entries under '
+			echo '<tr class="tablerow0"><td class="col kloxo-f2b-empty" colspan="3"><b>No whitelist entries under '
 				. $h($host) . '</b></td></tr>';
 		}
 		$i = 0;
@@ -354,10 +459,11 @@ class fail2ban extends lxclass
 			$i++;
 			$loop = class_exists('KloxoFail2ban') && KloxoFail2ban::isLoopbackIgnore($entry);
 			$note = $loop ? 'Loopback (required)' : 'Never banned';
-			echo '<tr height="22" class="tablerow' . ($i % 2) . '"><td class="col">' . $h($entry) . '</td>'
-				. '<td class="col">' . $h($note) . '</td><td class="col" align="center">';
+			echo '<tr class="tablerow' . ($i % 2) . '"><td class="col"><span class="kloxo-f2b-mono">'
+				. $h($entry) . '</span></td><td class="col">' . $h($note)
+				. '</td><td class="col kloxo-f2b-row-actions">';
 			if ($loop) {
-				echo '<span title="Loopback cannot be removed" style="margin:0 2px;vertical-align:middle">'
+				echo '<span title="Loopback cannot be removed">'
 					. self::faIcon('trash', '#ccc', 'Loopback required') . '</span>';
 			} else {
 				$this->printInlineAction('unwhitelist', array('f2b_ip' => $entry),
@@ -366,20 +472,23 @@ class fail2ban extends lxclass
 			}
 			echo '</td></tr>';
 		}
-		echo '</table>';
+		echo '</table></div>';
+	}
 
-		// Recent activity
-		echo '<div class="div_showhide" style="margin-top:10px"><fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">'
-			. '<legend><span style="font-weight:bold">Recent Activity under ' . $h($host) . ' (' . count($log)
-			. ')</span></legend></fieldset></div>';
-		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0" id="f2b_log_table">';
-		echo '<tr height="25" valign="middle">';
+	/**
+	 * @param callable $h
+	 */
+	function printActivitySection($log, $host, $h)
+	{
+		echo '<fieldset class="kloxo-f2b-section"><legend>Recent Activity under ' . $h($host)
+			. ' (' . count($log) . ')</legend></fieldset>';
+		echo '<div class="kloxo-f2b-table-wrap"><table class="kloxo-f2b-table" cellspacing="1" cellpadding="3" border="0" id="f2b_log_table"><tr>';
 		foreach (array('Time', 'Event', 'Jail', 'IP Address / Message') as $c) {
-			echo '<td class="collist" nowrap style="background:#' . $h($skin) . '"><b>' . $h($c) . '</b></td>';
+			echo '<td class="collist">' . $h($c) . '</td>';
 		}
 		echo '</tr>';
 		if ($log === array()) {
-			echo '<tr class="tablerow0"><td class="col" colspan="4" style="text-align:center;padding:12px"><b>No activity recorded yet</b></td></tr>';
+			echo '<tr class="tablerow0"><td class="col kloxo-f2b-empty" colspan="4"><b>No activity recorded yet</b></td></tr>';
 		}
 		$i = 0;
 		foreach ($log as $e) {
@@ -388,15 +497,22 @@ class fail2ban extends lxclass
 			}
 			$i++;
 			$ev = (string) ($e['event'] ?? '');
-			$color = ($ev === 'Ban' || $ev === 'Restore Ban') ? '#c00' : (($ev === 'Unban') ? '#2a2' : '#c60');
-			echo '<tr height="22" class="tablerow' . ($i % 2) . '"><td class="col" nowrap>' . $h($e['time'] ?? '') . '</td>'
-				. '<td class="col" nowrap><span style="color:' . $color . ';font-weight:bold">' . $h($ev) . '</span></td>'
+			$badge = 'kloxo-f2b-badge-muted';
+			if ($ev === 'Ban' || $ev === 'Restore Ban') {
+				$badge = 'kloxo-f2b-badge-deny';
+			} elseif ($ev === 'Unban') {
+				$badge = 'kloxo-f2b-badge-on';
+			} elseif ($ev !== '') {
+				$badge = 'kloxo-f2b-badge-warn';
+			}
+			echo '<tr class="tablerow' . ($i % 2) . '"><td class="col" nowrap>' . $h($e['time'] ?? '') . '</td>'
+				. '<td class="col" nowrap><span class="kloxo-f2b-badge ' . $badge . '">' . $h($ev) . '</span></td>'
 				. '<td class="col">' . $h($e['jail'] ?? '') . '</td>'
-				. '<td class="col">' . $h(($e['ip'] ?? '') !== '' ? $e['ip'] : ($e['message'] ?? '')) . '</td></tr>';
+				. '<td class="col"><span class="kloxo-f2b-mono">'
+				. $h(($e['ip'] ?? '') !== '' ? $e['ip'] : ($e['message'] ?? ''))
+				. '</span></td></tr>';
 		}
-		echo '</table>';
-
-		echo '</div>';
+		echo '</table></div>';
 	}
 
 	/**
@@ -407,6 +523,7 @@ class fail2ban extends lxclass
 	function printInlineAction($subaction, $fields, $iconHtml, $title, $confirm, $label = '', $style = '')
 	{
 		$token = function_exists('getCSRFToken') ? getCSRFToken() : '';
+		$toolClass = ($style === 'kloxo-f2b-tool') ? 'kloxo-f2b-tool' : '';
 		echo '<form method="post" action="/display.php" accept-charset="utf-8"'
 			. ' style="display:inline;margin:0;padding:0">';
 		echo '<input type="hidden" name="frm_token" value="' . htmlspecialchars((string) $token, ENT_QUOTES) . '">';
@@ -417,13 +534,18 @@ class fail2ban extends lxclass
 			echo '<input type="hidden" name="frm_fail2ban_c_' . htmlspecialchars((string) $k, ENT_QUOTES) . '" value="'
 				. htmlspecialchars((string) $v, ENT_QUOTES) . '">';
 		}
-		$btnStyle = $label !== ''
-			? 'border:0;background:transparent;cursor:pointer;padding:0;margin:0 14px 0 0;text-align:center;line-height:1.2'
-			: 'border:0;background:transparent;cursor:pointer;padding:0;margin:0 2px;vertical-align:middle;line-height:1';
+		if ($toolClass !== '') {
+			$btnAttr = ' class="' . $toolClass . '"';
+		} else {
+			$btnStyle = $label !== ''
+				? 'border:0;background:transparent;cursor:pointer;padding:0;margin:0 14px 0 0;text-align:center;line-height:1.2'
+				: 'border:0;background:transparent;cursor:pointer;padding:0;margin:0 2px;vertical-align:middle;line-height:1';
+			$btnAttr = ' style="' . $btnStyle . '"';
+		}
 		echo '<button type="submit" title="' . htmlspecialchars((string) $title, ENT_QUOTES) . '"'
-			. ' style="' . $btnStyle . '"'
+			. $btnAttr
 			. ' onclick="return confirm(' . htmlspecialchars(json_encode((string) $confirm), ENT_QUOTES) . ')">'
-			. $iconHtml . ($label !== '' ? '<br><span class="small">' . htmlspecialchars((string) $label, ENT_QUOTES) . '</span>' : '')
+			. $iconHtml . ($label !== '' ? '<span class="small">' . htmlspecialchars((string) $label, ENT_QUOTES) . '</span>' : '')
 			. '</button>';
 		echo '</form>';
 	}
@@ -475,12 +597,26 @@ class fail2ban extends lxclass
 			} catch (Throwable $e) {
 			}
 		}
+		$actStr = (string) $act;
 		$sa = '';
-		if (preg_match('/sa=([a-z]+)/', (string) $act, $m) === 1) {
+		if (preg_match('/(?:^|&)sa=([a-z]+)/', $actStr, $m) === 1) {
 			$sa = $m[1];
 		}
+		$isShow = (strpos($actStr, 'a=show') !== false) || ($sa === '' && strpos($actStr, 'updateform') === false);
+		$isUpdateform = (strpos($actStr, 'updateform') !== false);
+		if ($isShow && !$isUpdateform) {
+			$url = '/display.php?frm_action=show';
+			if ($sa !== '') {
+				$url .= '&frm_subaction=' . rawurlencode($sa);
+			}
+		} else {
+			$url = '/display.php?frm_action=updateform';
+			if ($sa !== '') {
+				$url .= '&frm_subaction=' . rawurlencode($sa);
+			}
+		}
 
-		return '/display.php?frm_action=' . ($sa !== '' ? 'updateform&frm_subaction=' . $sa : 'show')
+		return $url
 			. '&frm_o_o[0][class]=pserver'
 			. '&frm_o_o[0][nname]=' . rawurlencode($this->syncServerName())
 			. '&frm_o_o[1][class]=fail2ban';
@@ -533,7 +669,7 @@ class fail2ban extends lxclass
 				$this->f2b_ip = $mine;
 				$vlist['f2b_ip'] = null;
 				$vlist['f2b_info'] = array('M', 'Add one IPv4/IPv6 address or CIDR (for example 203.0.113.10 or 203.0.113.0/24). '
-					. 'Whitelisted addresses are never banned. The Fail2Ban list page shows every entry '
+					. 'Whitelisted addresses are never banned. The Whitelist tab lists every entry '
 					. '(' . count($have) . ' now); use the trash icon there to remove one. '
 					. 'Your current address is prefilled when known.');
 				$vlist['__v_button'] = 'Add to Whitelist';

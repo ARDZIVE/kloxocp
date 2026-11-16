@@ -4733,8 +4733,11 @@ function kloxo_url_has_fail2ban($url)
 function kloxo_fail2ban_action_label($sa)
 {
 	static $map = array(
+		'banned' => 'Banned IPs',
+		'whitelists' => 'Whitelist',
+		'activity' => 'Recent Activity',
 		'ban' => 'Ban IP',
-		'whitelist' => 'Whitelist IP',
+		'whitelist' => 'Add Whitelist',
 		'settings' => 'Settings',
 		'editjail' => 'Edit Jail',
 	);

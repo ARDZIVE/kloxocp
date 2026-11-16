@@ -448,12 +448,27 @@ foreach (['kloxo-panel', 'kloxo-recovery'] as $fl) {
 
 // ---- wiring
 $f2bUi = (string) file_get_contents($repo . '/kloxo/httpdocs/driver/pserver/fail2banlib.php');
+$f2bCss = (string) file_get_contents($repo . '/kloxo/httpdocs/theme/css/common.css');
+$f2bLx = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/lxlib.php');
 check(str_contains($f2bUi, 'rl_exec_get(null, $this->syncServerName(), array(\'KloxoFail2ban\', $method), $args, false)')
 	|| (str_contains($f2bUi, 'rl_exec_get(') && str_contains($f2bUi, ', false)')
 		&& str_contains($f2bUi, 'no in-process fallback')),
 	'Fail2Ban panel path uses kloxo-backend with no local fallback');
 check(str_contains($f2bUi, 'kloxo-backend') && str_contains($f2bUi, 'must be root'),
 	'Fail2Ban page hints to start kloxo-backend when the socket needs root');
+check(str_contains($f2bUi, "'a=show&sa=banned'")
+	&& str_contains($f2bUi, "'a=show&sa=whitelists'")
+	&& str_contains($f2bUi, "'a=show&sa=activity'")
+	&& str_contains($f2bUi, 'printBannedSection')
+	&& str_contains($f2bUi, 'printWhitelistSection')
+	&& str_contains($f2bUi, 'printActivitySection')
+	&& str_contains($f2bUi, 'printJailsSection')
+	&& str_contains($f2bUi, 'kloxo-f2b-page-title')
+	&& str_contains($f2bCss, '.kloxo-f2b-toolbar')
+	&& str_contains($f2bLx, "'banned' => 'Banned IPs'")
+	&& str_contains($f2bLx, "'whitelists' => 'Whitelist'")
+	&& str_contains($f2bLx, "'activity' => 'Recent Activity'"),
+	'Fail2Ban UI: one beige tab per section + professional chrome');
 $src = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/index.php');
 check(str_contains($src, "KloxoAuthLog::failed('kloxo-panel', (string) \$cgi_clientname"), 'panel login failure writes the auth log');
 $rp = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/kloxo_recovery_page.php');

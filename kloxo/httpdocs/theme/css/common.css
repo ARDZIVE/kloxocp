@@ -1526,6 +1526,225 @@ html>body #quotausagebar span.last {
 		font-size: 12px;
 	}
 
+	/* Fail2Ban page (tabbed sections) */
+	.kloxo-fail2ban {
+		--kloxo-f2b-skin: #edc;
+		padding: 10px 16px 28px;
+		text-align: left;
+		color: #222;
+	}
+
+	.kloxo-f2b-page-title {
+		width: 400px;
+		max-width: 100%;
+		margin: 0 auto 14px;
+		padding: 5px 0;
+		text-align: center;
+		background-color: #fff;
+		border: 0;
+		border-top: 1px solid #ddd;
+		border-bottom: 1px solid #ddd;
+	}
+
+	.kloxo-f2b-page-title span {
+		color: #333;
+		font-weight: bold;
+	}
+
+	.kloxo-f2b-alert {
+		margin: 0 0 12px;
+		padding: 10px 12px;
+		border: 1px solid #e0a0a0;
+		background: #fff7f7;
+		color: #7a1f1f;
+	}
+
+	.kloxo-f2b-hint {
+		margin: 0 0 12px;
+		padding: 8px 12px;
+		border: 1px solid #ddd;
+		background: #f7f7f7;
+		color: #555;
+		font-size: 12px;
+	}
+
+	.kloxo-f2b-section {
+		margin: 14px 0 8px;
+		padding: 0;
+		border: 0;
+		border-top: 1px solid #ddd;
+		text-align: center;
+	}
+
+	.kloxo-f2b-section legend {
+		padding: 0 10px;
+		font-weight: bold;
+		color: #333;
+	}
+
+	.kloxo-f2b-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px 16px;
+		margin: 8px 0 0;
+		padding: 10px 12px;
+		background: #fee;
+		border: 1px solid var(--kloxo-f2b-skin, #edc);
+	}
+
+	.kloxo-f2b-toolbar-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 4px 12px;
+	}
+
+	.kloxo-f2b-toolbar-meta {
+		color: #666;
+		font-size: 12px;
+		white-space: nowrap;
+	}
+
+	.kloxo-f2b-tool {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		min-width: 52px;
+		padding: 2px 4px;
+		text-decoration: none;
+		color: #333;
+		border: 0;
+		background: transparent;
+		cursor: pointer;
+		font: inherit;
+		line-height: 1.2;
+	}
+
+	.kloxo-f2b-tool:hover {
+		color: #000;
+		opacity: 0.85;
+	}
+
+	.kloxo-f2b-tool .small {
+		margin-top: 2px;
+		font-size: 10px;
+		white-space: nowrap;
+	}
+
+	.kloxo-f2b-table-wrap {
+		margin-top: 10px;
+		overflow-x: auto;
+		border: 1px solid #e5e5e5;
+		background: #fff;
+	}
+
+	.kloxo-f2b-table {
+		width: 100%;
+		border-collapse: separate;
+		border-spacing: 1px;
+		margin: 0;
+	}
+
+	.kloxo-f2b-table .collist {
+		background: var(--kloxo-f2b-skin, #edc);
+		padding: 7px 8px;
+		font-weight: bold;
+		white-space: nowrap;
+		color: #222;
+	}
+
+	.kloxo-f2b-table .col {
+		padding: 7px 8px;
+		vertical-align: middle;
+	}
+
+	.kloxo-f2b-table tr.tablerow0:hover td,
+	.kloxo-f2b-table tr.tablerow1:hover td {
+		background: #f5f8ff;
+	}
+
+	.kloxo-f2b-empty {
+		text-align: center;
+		padding: 22px 12px !important;
+		color: #666;
+	}
+
+	.kloxo-f2b-row-actions {
+		white-space: nowrap;
+		width: 72px;
+		max-width: 72px;
+		text-align: center;
+		padding: 2px 4px !important;
+	}
+
+	.kloxo-f2b-row-actions a,
+	.kloxo-f2b-row-actions button,
+	.kloxo-f2b-row-actions span {
+		margin: 0 2px;
+		vertical-align: middle;
+		text-decoration: none;
+	}
+
+	.kloxo-f2b-row-actions button {
+		border: 0;
+		background: transparent;
+		cursor: pointer;
+		padding: 0;
+		line-height: 1;
+	}
+
+	.kloxo-f2b-sub {
+		margin-top: 2px;
+		font-size: 11px;
+		color: #666;
+		font-weight: normal;
+	}
+
+	.kloxo-f2b-mono {
+		font-family: Consolas, "Liberation Mono", Menlo, monospace;
+		font-size: 12px;
+		color: #222;
+	}
+
+	.kloxo-f2b-badge {
+		display: inline-block;
+		padding: 2px 8px;
+		border-radius: 999px;
+		font-size: 11px;
+		font-weight: bold;
+		letter-spacing: 0.03em;
+		line-height: 1.5;
+		border: 1px solid transparent;
+		white-space: nowrap;
+	}
+
+	.kloxo-f2b-badge-on {
+		color: #1a5c2a;
+		background: #e8f6ec;
+		border-color: #9dcfab;
+	}
+
+	.kloxo-f2b-badge-deny {
+		color: #8a1f1f;
+		background: #fceaea;
+		border-color: #e0a0a0;
+	}
+
+	.kloxo-f2b-badge-warn {
+		color: #8a4b00;
+		background: #fff4e5;
+		border-color: #e0b87a;
+	}
+
+	.kloxo-f2b-badge-muted {
+		color: #555;
+		background: #f0f0f0;
+		border-color: #ccc;
+	}
+
 	.kloxo-llog-toolbar {
 		height: auto !important;
 		min-height: 24px;

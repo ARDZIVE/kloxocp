@@ -4718,6 +4718,9 @@ try {
 }
 $f2bUrl = 'display.php?frm_action=show&frm_o_o[0][class]=pserver&frm_o_o[0][nname]=localhost&frm_o_o[1][class]=fail2ban';
 $f2bTabShow = kloxo_content_tab_label('Home', $f2bUrl);
+$f2bTabBanned = kloxo_content_tab_label('', $f2bUrl . '&frm_subaction=banned');
+$f2bTabWhitelists = kloxo_content_tab_label('', $f2bUrl . '&frm_subaction=whitelists');
+$f2bTabActivity = kloxo_content_tab_label('', $f2bUrl . '&frm_subaction=activity');
 $f2bTabBan = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=ban&frm_o_o[1][class]=fail2ban');
 $f2bTabWhite = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=whitelist&frm_o_o[1][class]=fail2ban');
 $f2bTabSet = kloxo_content_tab_label('', 'display.php?frm_action=updateform&frm_subaction=settings&frm_o_o[1][class]=fail2ban');
@@ -4746,6 +4749,15 @@ $f2bForms['ban'] = $f2b->updateform('ban', array());
 ob_start();
 $f2b->showRawPrint();
 $f2bOut = (string) ob_get_clean();
+ob_start();
+$f2b->showRawPrint('banned');
+$f2bOutBanned = (string) ob_get_clean();
+ob_start();
+$f2b->showRawPrint('whitelists');
+$f2bOutWhite = (string) ob_get_clean();
+ob_start();
+$f2b->showRawPrint('activity');
+$f2bOutActivity = (string) ob_get_clean();
 KloxoFail2ban::$fsPrefix = '';
 exec('rm -rf ' . escapeshellarg($f2bFs));
 $_REQUEST['frm_subaction'] = 'ban';
@@ -4795,26 +4807,36 @@ $f2bOk = array(
 	'keyword + description' => str_contains($f2bKw, '$__keyword["fail2ban"] = "Fail2Ban"') && str_contains($f2bDesc, '$__description["fail2ban"]'),
 	'no Find box' => str_contains((string) file_get_contents($doc . '/lib/php/lxlib.php'), "'ufwfirewall', 'fail2ban'"),
 	'one beige tab list' => $f2bTabs['property'] === fail2ban::fail2banPropertyTabs() && ($f2bTabs['property'][0] ?? '') === 'a=show'
+		&& in_array('a=show&sa=banned', $f2bTabs['property'], true)
+		&& in_array('a=show&sa=whitelists', $f2bTabs['property'], true)
+		&& in_array('a=show&sa=activity', $f2bTabs['property'], true)
 		&& in_array('a=updateform&sa=ban', $f2bTabs['property'], true)
-		&& in_array('a=updateform&sa=whitelist', $f2bTabs['property'], true)
-		&& in_array('a=updateform&sa=settings', $f2bTabs['property'], true),
-	'tab labels' => $f2bTabShow === 'Fail2Ban' && $f2bTabBan === 'Ban IP' && $f2bTabWhite === 'Whitelist IP'
+		&& in_array('a=updateform&sa=settings', $f2bTabs['property'], true)
+		&& !in_array('a=updateform&sa=whitelist', $f2bTabs['property'], true),
+	'tab labels' => $f2bTabShow === 'Fail2Ban' && $f2bTabBanned === 'Banned IPs'
+		&& $f2bTabWhitelists === 'Whitelist' && $f2bTabActivity === 'Recent Activity'
+		&& $f2bTabBan === 'Ban IP' && $f2bTabWhite === 'Add Whitelist'
 		&& $f2bTabSet === 'Settings' && $f2bTabEdit === 'Edit Jail',
 	'forms build' => $f2bErr === '' && array_key_exists('f2b_ip', $f2bForms['ban']) && array_key_exists('f2b_jail', $f2bForms['ban'])
 		&& str_contains($f2bOutNone, 'Install the')
 		&& array_key_exists('f2b_ip', $f2bForms['whitelist'] ?? array())
 		&& array_key_exists('f2b_maxretry', $f2bForms['settings']) && array_key_exists('f2b_ignoreip', $f2bForms['settings'])
 		&& array_key_exists('f2b_enabled', $f2bForms['editjail']),
-	'list page' => str_contains($f2bOut, 'Jails') && str_contains($f2bOut, 'Banned IPs') && str_contains($f2bOut, 'Whitelist IPs')
-		&& str_contains($f2bOut, 'Recent Activity')
-		&& str_contains($f2bOut, 'Refresh') && str_contains($f2bOut, 'Ban IP') && str_contains($f2bOut, 'Whitelist IP')
-		&& str_contains($f2bOut, 'f2b_whitelist_table') && str_contains($f2bSrc, 'whitelistRemove'),
-	'running jail, ban and counters shown' => str_contains($f2bOut, '203.0.113.9') && str_contains($f2bOut, '1 jails running')
-		&& str_contains($f2bOut, 'Unban') && str_contains($f2bOut, 'f2b-test-token')
+	'list page' => str_contains($f2bOut, 'kloxo-f2b-page-title') && str_contains($f2bOut, 'Jails for')
+		&& str_contains($f2bOut, 'f2b_jails_table') && str_contains($f2bOut, 'Refresh')
+		&& str_contains($f2bOut, 'Ban IP') && !str_contains($f2bOut, 'f2b_banned_table')
+		&& !str_contains($f2bOut, 'f2b_whitelist_table') && !str_contains($f2bOut, 'f2b_log_table')
+		&& str_contains($f2bOutBanned, 'Banned IPs for') && str_contains($f2bOutBanned, 'f2b_banned_table')
+		&& str_contains($f2bOutWhite, 'Whitelist for') && str_contains($f2bOutWhite, 'f2b_whitelist_table')
+		&& str_contains($f2bOutActivity, 'Recent Activity for') && str_contains($f2bOutActivity, 'f2b_log_table')
+		&& str_contains($f2bSrc, 'whitelistRemove'),
+	'running jail, ban and counters shown' => str_contains($f2bOutBanned, '203.0.113.9')
+		&& str_contains($f2bOut, '1 running') && str_contains($f2bOutBanned, 'Unban')
+		&& str_contains($f2bOut, 'f2b-test-token')
 		&& str_contains($f2bOut, 'frm_o_o[1][class]=fail2ban') && !str_contains($f2bOut, 'servermail'),
 	'every situation listed' => substr_count($f2bOut, 'kloxo-panel') >= 1 && str_contains($f2bOut, 'sshd') && str_contains($f2bOut, 'recidive')
 		&& str_contains($f2bOut, 'nginx-http-auth') && str_contains($f2bOut, 'pure-ftpd'),
-	'list hidden on forms' => !str_contains($f2bFormOut, 'Recent Activity'),
+	'list hidden on forms' => !str_contains($f2bFormOut, 'Recent Activity') && !str_contains($f2bFormOut, 'f2b_jails_table'),
 	'no raw errors on page' => !str_contains($f2bOut, 'Fatal') && !str_contains($f2bOut, 'Warning:') && !str_contains($f2bOut, 'Stack trace'),
 	'messages and throws exist' => $f2bLibKeys === array(),
 	'admin only' => str_contains($f2bSrc, 'only_admin_can_access'),
