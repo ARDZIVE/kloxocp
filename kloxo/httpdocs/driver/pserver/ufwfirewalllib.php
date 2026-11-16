@@ -275,6 +275,10 @@ class ufwfirewall extends lxclass
 
 		echo '<div class="kloxo-ufw" style="--kloxo-ufw-skin:' . $h($skinCss) . '">';
 
+		// Band title — same style as form pages ("Information for admin").
+		echo '<div class="kloxo-ufw-page-title"><span>Port Rules for '
+			. $h($host) . '</span></div>';
+
 		if ($err !== '' && $err !== 'ufw_not_installed') {
 			echo '<div class="kloxo-ufw-alert">Error: ' . $h($err) . '</div>';
 		}

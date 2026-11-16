@@ -1164,6 +1164,24 @@ html>body #quotausagebar span.last {
 		color: #222;
 	}
 
+	/* Same band title as form pages ("Information for admin"). */
+	.kloxo-ufw-page-title {
+		width: 400px;
+		max-width: 100%;
+		margin: 0 auto 14px;
+		padding: 5px 0;
+		text-align: center;
+		background-color: #fff;
+		border: 0;
+		border-top: 1px solid #ddd;
+		border-bottom: 1px solid #ddd;
+	}
+
+	.kloxo-ufw-page-title span {
+		color: #333;
+		font-weight: bold;
+	}
+
 	.kloxo-ufw .textbox,
 	.kloxo-ufw .searchbox {
 		font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
