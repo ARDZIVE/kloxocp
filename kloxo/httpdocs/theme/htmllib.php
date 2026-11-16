@@ -4300,10 +4300,22 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login;
 
+		// Allow-listed pager names + quoted attrs (security ZZ2).
+		$allowed = array('first' => true, 'rewind' => true, 'prev' => true, 'next' => true, 'forward' => true, 'last' => true);
+		$name = (string) $name;
+		if (!isset($allowed[$name])) {
+			return '';
+		}
+		$place = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $place);
+		$formId = 'form' . $name . '_page_' . $place;
+		$iconEsc = htmlspecialchars((string) $iconpath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$nameEsc = htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$formEsc = htmlspecialchars($formId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
 		$filtername = $object->getFilterVariableForThis($class);
 ?>
 
-		<form name="form<?= $name ?>_page_<?= $place ?>" method="get" action="<?= $_SERVER["PHP_SELF"] ?>" accept-charset="utf-8">
+		<form name="<?= $formEsc ?>" method="get" action="<?= htmlspecialchars((string) ($_SERVER['PHP_SELF'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" accept-charset="utf-8">
 <?php
 			$this->print_current_input_var_unset_filter($filtername, array('pagenum'));
 			$this->print_current_input_vars(array('frm_hpfilter'));
@@ -4314,16 +4326,18 @@ class HtmlLib
 <?php
 		$help = "<span class=bold> Action: </span> <br /> <br /> ";
 
-		if ($name === "forward" || $name === "rewind") {
-			$help .= ucfirst($name) . "  a few Pages.";
+		if ($name === 'forward' || $name === 'rewind') {
+			$help .= ucfirst($name) . '  a few Pages.';
 		} else {
-			$help .= "Go To " . ucfirst($name) . " Page.";
+			$help .= 'Go To ' . ucfirst($name) . ' Page.';
 		}
 
 		$helpJs = self::jsString((string) $help);
-		$link = "<a onmouseover=\"changeContent('help',{$helpJs})\" " .
-			"onmouseout=\"changeContent('help','helparea')\" href=javascript:document.form{$name}_page_$place.submit()>" .
-			"<img src=$iconpath/{$name}_page.gif align=absbottom></a> ";
+		// formId is allow-listed name + sanitized place (safe in JS identifier path).
+		$link = '<a onmouseover="changeContent(\'help\',' . $helpJs . ')" '
+			. 'onmouseout="changeContent(\'help\',\'helparea\')" '
+			. 'href="javascript:document.' . $formId . '.submit()">'
+			. '<img src="' . $iconEsc . '/' . $nameEsc . '_page.gif" align="absbottom" alt=""></a> ';
 
 		return $link;
 	}

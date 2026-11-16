@@ -2589,6 +2589,59 @@ $findings[] = finding('YY6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo / toast', $yy6Closed,
 	$yy6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- ZZ wave ---
+$frameZz = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
+$zz1Closed = contains($frameZz, 'security ZZ1')
+	&& contains($frameZz, "createSubMenu(xxpDescr, <?= \$labelJs ?>")
+	&& not_contains($frameZz, 'state_v_')
+	&& not_contains($frameZz, 'rdesc .= "<tr');
+$findings[] = finding('ZZ1', 'medium', 'frame_left Usage injects HTML table blob as one submenu label',
+	'frame_left.php Usage menu', $zz1Closed,
+	$zz1Closed ? 'per-item plain-text createSubMenu' : 'still HTML blob');
+
+$htmlZz = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$zz2Closed = contains($htmlZz, 'security ZZ2')
+	&& contains($htmlZz, "href=\"javascript:document.' . \$formId . '.submit()\"")
+	&& contains($htmlZz, "src=\"' . \$iconEsc . '/' . \$nameEsc . '_page.gif\"")
+	&& not_contains($htmlZz, '<img src=$iconpath/{$name}_page.gif');
+$findings[] = finding('ZZ2', 'medium', 'htmllib pagination builds unquoted href/src',
+	'htmllib.php print_next_previous_link', $zz2Closed,
+	$zz2Closed ? 'allow-listed name + quoted attrs' : 'still unquoted');
+
+$libZz = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$zz3Closed = contains($libZz, 'security ZZ3')
+	&& contains($libZz, "array('/usr/sbin/vzmigrate')")
+	&& not_contains($libZz, '"vzmigrate $ssh_string -r yes $newserver $vpsid"');
+$findings[] = finding('ZZ3', 'medium', 'exec_vzmigrate interpolates into shell string',
+	'lib.php exec_vzmigrate', $zz3Closed,
+	$zz3Closed ? 'argv + host/id/port allow-list' : 'still shell string');
+
+$coreZz = file_text($root, 'kloxo/httpdocs/theme/coredisplaylib.php');
+$zz4Closed = contains($coreZz, 'security ZZ4')
+	&& substr_count($coreZz, 'security ZZ4') >= 2
+	&& not_contains($coreZz, '<span title=\'$k is {$ob->$k}\'><img src=\'$img\'');
+$findings[] = finding('ZZ4', 'low', 'coredisplaylib status icons unescaped title/src',
+	'coredisplaylib.php createShowMainImageList / createShowImageList', $zz4Closed,
+	$zz4Closed ? 'htmlspecialchars on title/src' : 'still raw');
+
+$lxlibZz = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$zz5Closed = contains($libZz, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5')
+	&& contains($libZz, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5')
+	&& contains($lxlibZz, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5');
+$findings[] = finding('ZZ5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $zz5Closed,
+	$zz5Closed ? 'ident-gated sites marked ZZ5' : 'unmarked');
+
+$extSecZz = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastZz = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$zz6Closed = contains($lxlibZz, 'security ZZ6')
+	&& contains($extSecZz, 'security ZZ6')
+	&& contains($toastZz, 'security ZZ6')
+	&& contains($lxlibZz, 'gated unserialize');
+$findings[] = finding('ZZ6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $zz6Closed,
+	$zz6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

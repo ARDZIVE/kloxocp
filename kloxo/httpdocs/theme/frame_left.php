@@ -299,43 +299,34 @@ function xp_panel($object)
 
 			xxpDescr = createMenu('Usage', '', true);
 <?php
-						$rdesc = null;
-
-						foreach ((array)$qlist as $or) {
-							if (!cse($or->vv, "usage") && !cse($or->vv, "_num")) {
-								continue;
-							}
-
-							if (cse($or->vv, "last_usage")) {
-								continue;
-							}
-
-							if (is_unlimited($or->resourcepriv)) {
-								$limit = "&#8734;";
-							} else {
-								$limit = htmlspecialchars((string) $or->display('resourcepriv'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-							}
-
-							$array = array("traffic_usage", "totaldisk_usage", "client_num", "maindomain_num", "vps_num");
-
-							if (!array_search_bool($or->vv, $array)) {
-								continue;
-							}
-
-							$skinEsc = htmlspecialchars((string) $skinget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-							$iconEsc = htmlspecialchars((string) $icondir, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-							$stateEsc = htmlspecialchars((string) $or->display('state'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-							$descEsc = htmlspecialchars((string) $or->shortdescr, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-							$usedEsc = htmlspecialchars((string) $or->display('resourceused'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-							$rdesc .= "<tr align=left style=\"border-width:1 ;background:#efe8e0 url({$skinEsc}/images/a.gif)\"> <td> " .
-								"<img width=15 height=15 src=\"{$iconEsc}/state_v_{$stateEsc}.gif\"> {$descEsc} </td> " .
-								"<td nowrap> {$usedEsc} </td> <td align=left> {$limit}&nbsp;</td> </tr>";
-						}
-
+		// Per-item plain-text labels (security ZZ1; no HTML usage blob).
+		$array = array('traffic_usage', 'totaldisk_usage', 'client_num', 'maindomain_num', 'vps_num');
+		foreach ((array) $qlist as $or) {
+			if (!is_object($or)) {
+				continue;
+			}
+			if (!cse($or->vv, 'usage') && !cse($or->vv, '_num')) {
+				continue;
+			}
+			if (cse($or->vv, 'last_usage')) {
+				continue;
+			}
+			if (!array_search_bool($or->vv, $array)) {
+				continue;
+			}
+			$limit = is_unlimited($or->resourcepriv)
+				? '∞'
+				: (string) $or->display('resourcepriv');
+			$label = (string) $or->shortdescr . ': '
+				. (string) $or->display('resourceused') . ' / ' . $limit;
+			$labelJs = json_encode($label, $jsonFlags);
+			if (!is_string($labelJs) || $labelJs === '') {
+				$labelJs = '""';
+			}
 ?>
-
-			createSubMenu(xxpDescr, <?= json_encode((string) $rdesc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>, '', '', '', '', '');
+			createSubMenu(xxpDescr, <?= $labelJs ?>, '', '', '', '', '');
 <?php
+		}
 	}
 
 	$forumurl = "https://kloxocp.invalid";

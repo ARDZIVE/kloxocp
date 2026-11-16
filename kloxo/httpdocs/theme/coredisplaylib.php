@@ -2662,16 +2662,22 @@ function print_navigation($navig)
 	if ($ghtml->frm_action === 'show') {
 		$list = $ob->createShowMainImageList();
 
+		// Escaped title/src (security ZZ4).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
 		foreach ((array)$list as $k => $v) {
 			if ($v) {
 				if (isset($ob->$k)) {
 					$img = $ghtml->get_image($buttonpath, $ob->getClass(), "{$k}_v_" . $ob->$k, ".gif");
-					$imgstr[] = "<span title='$k is {$ob->$k}'><img src='$img' width='20' height='20'></span>";
+					$imgstr[] = '<span title="' . $esc($k . ' is ' . $ob->$k) . '"><img src="'
+						. $esc($img) . '" width="20" height="20" alt=""></span>';
 				}
 			} else {
-				$v = $ob->display($k);
-				$img = $ghtml->get_image($buttonpath, $ob->getClass(), "{$k}_v_" . $ob->display($k), ".gif");
-				$imgstr[] = "<span title='$k is " . $ob->display($k) . "'><img src='$img' width='20' height='20'></span>";
+				$disp = $ob->display($k);
+				$img = $ghtml->get_image($buttonpath, $ob->getClass(), "{$k}_v_" . $disp, ".gif");
+				$imgstr[] = '<span title="' . $esc($k . ' is ' . $disp) . '"><img src="'
+					. $esc($img) . '" width="20" height="20" alt=""></span>';
 			}
 		}
 	}
@@ -2682,7 +2688,8 @@ function print_navigation($navig)
 
 	if ($ob->isLxclient() && $ob->getSpecialObject('sp_specialplay') && $ob->getSpecialObject('sp_specialplay')->isOn('demo_status')) {
 		$_timg = $ghtml->get_image($buttonpath, $ob->getClass(), "updateform_demo_status", ".gif");
-		$demoimg = "<span title='Account is Demo'><img src='$_timg'></span>";
+		$demoimg = '<span title="Account is Demo"><img src="'
+			. htmlspecialchars((string) $_timg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt=""></span>';
 	}
 
 	if ($sgbl->isBlackBackground()) {
@@ -2764,16 +2771,22 @@ function print_navigation($navig)
 
 			$list = $ob->createShowImageList();
 
+			// Escaped title/src (security ZZ4).
+			$esc = static function ($s): string {
+				return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			};
 			foreach ((array)$list as $k => $v) {
 				if ($v) {
 					if (isset($ob->$k)) {
 						$img = $ghtml->get_image($buttonpath, $ob->getClass(), "{$k}_v_" . $ob->$k, ".gif");
-						$imgstr[] = "<span title='$k is {$ob->$k}'><img src='$img' width='9' height='9'></span>";
+						$imgstr[] = '<span title="' . $esc($k . ' is ' . $ob->$k) . '"><img src="'
+							. $esc($img) . '" width="9" height="9" alt=""></span>';
 					}
 				} else {
-					$v = $ob->display($k);
-					$img = $ghtml->get_image($buttonpath, $ob->getClass(), "{$k}_v_{$ob->display($k)}", ".gif");
-					$imgstr[] = "<span title='$k is " . $ob->display($k) . "'><img src='$img' width='9' height='9'></span>";
+					$disp = $ob->display($k);
+					$img = $ghtml->get_image($buttonpath, $ob->getClass(), "{$k}_v_{$disp}", ".gif");
+					$imgstr[] = '<span title="' . $esc($k . ' is ' . $disp) . '"><img src="'
+						. $esc($img) . '" width="9" height="9" alt=""></span>';
 				}
 			}
 		}

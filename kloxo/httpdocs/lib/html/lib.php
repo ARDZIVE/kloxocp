@@ -46,7 +46,7 @@ function auto_update()
 
 function getIncrementedValueFromTable($table, $column)
 {
-	// Identifier allow-list (security LL3 / VV5 / WW5 / XX5 / YY5).
+	// Identifier allow-list (security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($column)) {
 		return 1;
 	}
@@ -1242,7 +1242,7 @@ function remove_old_serve_file()
 
 function fix_flag_variable($table, $flagvariable)
 {
-	// Identifier allow-list (security LL3 / VV5 / WW5 / XX5 / YY5).
+	// Identifier allow-list (security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($flagvariable)) {
 		return;
 	}
@@ -3201,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111642';
+	return '10.1-2026111643';
 }
 
 function getDownloadServer()
@@ -5928,14 +5928,30 @@ function exec_vzmigrate($vpsid, $newserver, $ssh_port)
 
 	$username = '__system__';
 
-	$ssh_port = trim($ssh_port);
-	$ssh_string = null;
-
-	if ($ssh_port !== "22") {
-		$ssh_string = "--ssh=\"-p $ssh_port\"";
+	// Argv only (security ZZ3); refuse unsafe host/id/port.
+	$vpsid = is_scalar($vpsid) ? trim((string) $vpsid) : '';
+	$newserver = is_scalar($newserver) ? trim((string) $newserver) : '';
+	$ssh_port = is_scalar($ssh_port) ? trim((string) $ssh_port) : '22';
+	if ($vpsid === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $vpsid) !== 1) {
+		return array(127, 'refused unsafe vpsid');
+	}
+	if ($newserver === '' || preg_match('/^[A-Za-z0-9._:-]{1,253}$/', $newserver) !== 1) {
+		return array(127, 'refused unsafe newserver');
+	}
+	if ($ssh_port === '' || preg_match('/^[0-9]{1,5}$/', $ssh_port) !== 1 || (int) $ssh_port < 1 || (int) $ssh_port > 65535) {
+		return array(127, 'refused unsafe ssh_port');
 	}
 
-	do_exec_system($username, null, "vzmigrate $ssh_string -r yes $newserver $vpsid", $out, $err, $ret, null);
+	$argv = array('/usr/sbin/vzmigrate');
+	if ($ssh_port !== '22') {
+		$argv[] = '--ssh=-p ' . $ssh_port;
+	}
+	$argv[] = '-r';
+	$argv[] = 'yes';
+	$argv[] = $newserver;
+	$argv[] = $vpsid;
+
+	do_exec_system($username, null, $argv, $out, $err, $ret, null);
 
 	return array($ret, $global_shell_error);
 }
@@ -8244,7 +8260,7 @@ function changeColumn($tbl_name, $changelist)
 
 function changeValues($res, $tbl_name, $db, $newfields)
 {
-	// Identified table + quoted cell values only (security MM1 / VV5 / WW5 / XX5 / YY5).
+	// Identified table + quoted cell values only (security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($tbl_name)) {
 		return;
 	}
