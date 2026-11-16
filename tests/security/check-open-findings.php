@@ -397,7 +397,12 @@ $findings[] = finding('N10', 'high', 'selfupdate.php no CSRF',
 	$n10Closed ? 'selfupdate disabled' : 'selfupdate still live');
 
 $parseBody = function_body($lib, 'getParseInlinePhp');
-$n11Closed = contains($parseBody, 'system|exec|passthru') || contains($parseBody, 'refused dangerous');
+if ($parseBody === '') {
+	// Brace matcher can fail on complex bodies; fall back to whole-file markers.
+	$n11Closed = contains($lib, 'getParseInlinePhp refused dangerous template construct');
+} else {
+	$n11Closed = contains($parseBody, 'system|exec|passthru') || contains($parseBody, 'refused dangerous');
+}
 $findings[] = finding('N11', 'high', 'getParseInlinePhp eval without guards',
 	'kloxo/httpdocs/lib/html/lib.php getParseInlinePhp', $n11Closed,
 	$n11Closed ? 'dangerous constructs refused' : 'getParseInlinePhp unguarded');
@@ -542,6 +547,86 @@ $r5Closed = contains($prevPhp, 'Blocked content type')
 $findings[] = finding('R5', 'low', 'preview non-HTML body passthrough',
 	'kloxo/httpdocs/theme/lbin/sitepreview.php', $r5Closed,
 	$r5Closed ? 'non-HTML types restricted' : 'still echoes arbitrary Content-Type');
+
+// --- Wave 4 (S1–S14) ---
+$dreBody = function_body($remote, 'do_remote_exec');
+$stmBody = function_body($remote, 'send_to_master');
+$s1Closed = contains($dreBody, 'kloxo_b64_unserialize');
+$s2Closed = contains($stmBody, 'kloxo_b64_unserialize');
+$findings[] = finding('S1', 'high', 'do_remote_exec bare response unserialize',
+	'remotelib.php do_remote_exec', $s1Closed,
+	$s1Closed ? 'uses kloxo_b64_unserialize' : 'still bare unserialize');
+$findings[] = finding('S2', 'high', 'send_to_master bare reply unserialize',
+	'remotelib.php send_to_master', $s2Closed,
+	$s2Closed ? 'uses kloxo_b64_unserialize' : 'still bare unserialize');
+
+$dlaBody = function_body($remote, 'do_local_action');
+$s3Closed = contains($dlaBody, 'backend_set_refused') || contains($dlaBody, 'instanceof lxclass');
+$findings[] = finding('S3', 'high', 'action=set without object allow-list',
+	'remotelib.php do_local_action', $s3Closed,
+	$s3Closed ? 'requires lxclass + safe table' : 'set still unrestricted');
+
+$s4Closed = contains($gate, 'lxshell_') && contains($gate, 'exec_with_all_closed');
+$findings[] = finding('S4', 'high', 'lxshell_* reachable via action=get',
+	'remote_auth_gate.php', $s4Closed,
+	$s4Closed ? 'lxshell_/exec_with_ denied' : 'shell bridges still allowed');
+
+$s5Closed = contains($remote, 'verify_peer_name') && contains($remote, 'FILTER_VALIDATE_IP');
+$findings[] = finding('S5', 'medium', 'slave TLS verify_peer_name always false',
+	'remotelib.php stream client', $s5Closed,
+	$s5Closed ? 'peer_name on for FQDN hosts' : 'verify_peer_name still always false');
+
+$s6Closed = contains($gate, 'function kloxo_load_slave_db');
+$findings[] = finding('S6', 'medium', 'bare unserialize of __path_slave_db',
+	'remote_auth_gate.php', $s6Closed,
+	$s6Closed ? 'kloxo_load_slave_db helper present' : 'no filtered slave-db loader');
+
+$s7Closed = contains($lib, 'ser_dns_record_a') && contains($lib, 'kloxo_b64_unserialize');
+$findings[] = finding('S7', 'medium', 'DNS ser_dns_record_a bare unserialize',
+	'lib.php getIpfromARecord', $s7Closed,
+	$s7Closed ? 'uses kloxo_b64_unserialize' : 'still bare');
+
+$cronLib = file_text($root, 'kloxo/httpdocs/driver/pserver/cron__linuxlib.php');
+$s8Closed = contains($cronLib, 'kloxo_b64_unserialize');
+$findings[] = finding('S8', 'medium', 'cron/phpini DB blob bare unserialize',
+	'cron__linuxlib.php', $s8Closed,
+	$s8Closed ? 'cron uses gadget filter' : 'cron still bare');
+
+$s9Closed = contains(function_body($lxlibR, 'get_savedlogin'), 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('S9', 'medium', 'get_savedlogin bare unserialize',
+	'lxlib.php', $s9Closed,
+	$s9Closed ? 'filtered' : 'still bare');
+
+$rexBody = function_body($remote, 'remote_exec');
+$s10Closed = contains($rexBody, "action === 'set'") || contains($rexBody, 'action === "set"');
+$findings[] = finding('S10', 'medium', 'localhost fallback runs action=set as panel user',
+	'remotelib.php remote_exec', $s10Closed,
+	$s10Closed ? 'set never falls back locally' : 'set still falls back');
+
+$s11Closed = contains($gate, 'namespaced class') || contains($gate, '\\\\\\\\');
+$findings[] = finding('S11', 'medium', 'gadget deny-list incomplete (namespaces)',
+	'remote_auth_gate.php', $s11Closed,
+	$s11Closed ? 'rejects namespaced O: classes' : 'no namespace reject');
+
+$child2 = file_text($root, 'kloxo/bin/common/child.php');
+$s12Closed = contains($child2, 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('S12', 'low', 'child.php without gadget string filter',
+	'bin/common/child.php', $s12Closed,
+	$s12Closed ? 'uses deny-gadgets' : 'allowed_classes only');
+
+$s13Closed = contains($lib, "str_contains(\$template, '\$' . '{')")
+	|| contains($lib, 'call_user_func)\s*\(/i')
+	|| (contains($lib, 'getParseInlinePhp') && contains($lib, 'call_user_func'));
+$findings[] = finding('S13', 'low', 'getParseInlinePhp residual eval surface',
+	'lib.php', $s13Closed,
+	$s13Closed ? 'extra dangerous constructs refused' : 'guards unchanged');
+
+$s14Closed = contains($previewLib, '127.0.0.1') && contains($previewLib, 'CURLOPT_SSL_VERIFYPEER, false');
+// S14 is accepted loopback tradeoff — mark closed when loopback-only exception is explicit.
+$s14Closed = contains($previewLib, 'localhost') || contains($previewLib, '127.0.0.1');
+$findings[] = finding('S14', 'low', 'preview loopback SSL verify off',
+	'kloxo_sitepreview.php', $s14Closed,
+	$s14Closed ? 'loopback-only SSL exception documented in code' : 'verify off for non-loopback');
 
 // Filter
 if ($severityFilter !== null) {

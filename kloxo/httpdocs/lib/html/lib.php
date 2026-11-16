@@ -3081,7 +3081,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111603';
+	return '10.1-2026111604';
 }
 
 function getDownloadServer()
@@ -7159,7 +7159,12 @@ function getIpfromARecord($servername, $nobase = null)
 	$base = null;
 
 	foreach ($d as $dk => $dv) {
-		$w = unserialize(base64_decode($dv['ser_dns_record_a']));
+		$w = function_exists('kloxo_b64_unserialize')
+			? kloxo_b64_unserialize((string) ($dv['ser_dns_record_a'] ?? ''))
+			: @unserialize(base64_decode((string) ($dv['ser_dns_record_a'] ?? '')));
+		if (!is_array($w) && !is_object($w)) {
+			continue;
+		}
 
 		if ($nobase) {
 			foreach ($w as $wk => $wv) {
@@ -8242,9 +8247,11 @@ function getParseInlinePhp($template, $input)
 	if ($template === '') {
 		return '';
 	}
-	if (preg_match('/\b(system|exec|passthru|shell_exec|proc_open|popen|pcntl_exec|assert|create_function)\s*\(/i', $template)
+	if (preg_match('/\b(system|exec|passthru|shell_exec|proc_open|popen|pcntl_exec|assert|create_function|eval|call_user_func)\s*\(/i', $template)
 		|| preg_match('/`[^`]+`/', $template)
-		|| preg_match('/\b(include|require|include_once|require_once)\s*\(/i', $template)) {
+		|| preg_match('/\b(include|require|include_once|require_once)\s*[\(;]/i', $template)
+		|| str_contains($template, '$' . '{')
+		|| preg_match('/<\?(?!php|=|\s)/i', $template)) {
 		log_log('security', 'getParseInlinePhp refused dangerous template construct');
 
 		return '';

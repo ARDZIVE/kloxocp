@@ -62,9 +62,14 @@ JSON.parse; Roundcube/`setupsecondary` hardening. Re-check:
 `remote_main`; HTTPS + filtered response for legacy HTTP slave RPC;
 `kloxo_backend_callable_allowed` deny-list on `action=get`;
 `lfile_get_unserialize` filtered; preview non-HTML types restricted.
-*Residual risk:* backend still dispatches a wide panel callable surface after
-password (deny-list, not full allow-list / JSON agent); mutual TLS not built;
-template `eval` with pattern guards; broader legacy shell/`rawQuery` sites.
+*Also closed (2026-11 S1–S14):* filtered backend/master response unserialize;
+`action=set` requires `lxclass`; `lxshell_*` denied on `action=get`;
+FQDN `verify_peer_name`; `kloxo_load_slave_db`; DNS/cron/phpini/savedlogin
+gadget filters; no local fallback for `set`; namespace gadget reject;
+child/background filtered; stronger template guards.
+*Residual risk:* backend still uses a deny-list (not a full allow-list / JSON
+agent); mutual TLS not built; template `eval` with guards; broader legacy
+shell/`rawQuery` sites.
 *JSON replacement (planned, not built):* drop PHP serialization from the backend protocol.
 Payload becomes a versioned JSON object with a schema (action, class, nname, argument list);
 validate before dispatch. Transport: Unix socket for same-host (P0.5); slave TLS 7779 uses per-install

@@ -134,22 +134,37 @@ function kloxo_remote_verify_network_pass($user, $pass)
 		}
 	}
 
-	if (function_exists('lxfile_exists') && lxfile_exists('__path_slave_db') && function_exists('lfile_get_contents')) {
-		$raw = lfile_get_contents('__path_slave_db');
-		if (is_string($raw) && $raw !== '') {
-			$rmt = @unserialize($raw);
-			if (is_object($rmt) && isset($rmt->password) && is_string($rmt->password) && $rmt->password !== '') {
-				if (kloxo_remote_hash_equals($rmt->password, $pass)) {
-					return true;
-				}
-				if (function_exists('check_password') && check_password($pass, $rmt->password)) {
-					return true;
-				}
+	if (function_exists('kloxo_load_slave_db')) {
+		$rmt = kloxo_load_slave_db();
+		if (is_object($rmt) && isset($rmt->password) && is_string($rmt->password) && $rmt->password !== '') {
+			if (kloxo_remote_hash_equals($rmt->password, $pass)) {
+				return true;
+			}
+			if (function_exists('check_password') && check_password($pass, $rmt->password)) {
+				return true;
 			}
 		}
 	}
 
 	return false;
+}
+
+/**
+ * Load slave-db.db with gadget filtering (security S6).
+ *
+ * @return object|false
+ */
+function kloxo_load_slave_db()
+{
+	if (!function_exists('lxfile_exists') || !lxfile_exists('__path_slave_db')) {
+		return false;
+	}
+	$raw = function_exists('lfile_get_contents') ? lfile_get_contents('__path_slave_db') : false;
+	if (!is_string($raw) || $raw === '') {
+		return false;
+	}
+	$rmt = kloxo_unserialize_deny_gadgets($raw);
+	return is_object($rmt) ? $rmt : false;
 }
 
 /**
@@ -178,6 +193,11 @@ function kloxo_backend_callable_allowed($func)
 		'socket_create', 'socket_connect',
 		'posix_kill', 'posix_setuid', 'posix_seteuid',
 		'ReflectionFunction', 'ReflectionMethod', 'ReflectionClass',
+		// Panel shell bridges must not be reachable via action=get (S4).
+		'exec_with_all_closed', 'exec_with_all_closed_output',
+		'lxshell_direct', 'lxshell_return', 'lxshell_output', 'lxshell_php',
+		'lxshell_background', 'lxshell_expect', 'lxshell_input',
+		'lxshell_zip', 'lxshell_unzip', 'lxshell_tar', 'lxshell_tgz',
 	);
 	static $denyClass = array(
 		'PDO', 'PDOStatement', 'mysqli', 'SQLite3', 'Phar', 'PharData',
@@ -191,7 +211,10 @@ function kloxo_backend_callable_allowed($func)
 		if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $func)) {
 			return false;
 		}
-		if (in_array(strtolower($func), $denyFn, true)) {
+		$lower = strtolower($func);
+		if (in_array($lower, $denyFn, true)
+			|| str_starts_with($lower, 'lxshell_')
+			|| str_starts_with($lower, 'exec_with_')) {
 			return false;
 		}
 		return function_exists($func);
@@ -234,6 +257,9 @@ function kloxo_unserialize_deny_gadgets($raw, $options = true)
 		'CallbackFilterIterator', 'SQLite3', 'mysqli', 'CurlHandle',
 		'GuzzleHttp\\Psr7\\FnStream', 'Monolog\\Handler\\SyslogUdpHandler',
 		'Swift_KeyCache_DiskKeyCache', 'Swift_KeyCache_SimpleKeyCacheInputStream',
+		'ReflectionFunction', 'ReflectionMethod', 'ReflectionClass', 'ReflectionObject',
+		'ArrayIterator', 'ArrayObject', 'Generator', 'Closure',
+		'Error', 'TypeError', 'ParseError', 'SoapClient', 'XMLWriter',
 	);
 	foreach ($bad as $c) {
 		$needle = ':"' . $c . '"';
@@ -241,10 +267,13 @@ function kloxo_unserialize_deny_gadgets($raw, $options = true)
 		if (strpos($raw, $needle) !== false || strpos($raw, $needle2) !== false) {
 			return false;
 		}
-		// Also match short class names without namespace escapes in ser strings.
 		if (strpos($raw, 'O:') !== false && preg_match('/O:\\d+:"' . preg_quote($c, '/') . '"/', $raw)) {
 			return false;
 		}
+	}
+	// Reject any namespaced class in the blob (panel uses flat class names) (S11).
+	if (preg_match('/O:\\d+:"[^"]*\\\\/', $raw)) {
+		return false;
 	}
 	if (is_array($options)) {
 		return @unserialize($raw, $options);
@@ -253,4 +282,23 @@ function kloxo_unserialize_deny_gadgets($raw, $options = true)
 		return @unserialize($raw, array('allowed_classes' => false));
 	}
 	return @unserialize($raw);
+}
+
+/**
+ * Decode base64 then gadget-filter unserialize (network / DB helpers).
+ *
+ * @param string $b64
+ * @param array|bool $options
+ * @return mixed|false
+ */
+function kloxo_b64_unserialize($b64, $options = true)
+{
+	if (!is_string($b64) || $b64 === '') {
+		return false;
+	}
+	$raw = base64_decode($b64, true);
+	if (!is_string($raw)) {
+		return false;
+	}
+	return kloxo_unserialize_deny_gadgets($raw, $options);
 }

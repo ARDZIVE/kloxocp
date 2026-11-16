@@ -56,7 +56,11 @@ function child_main(): void
 	}
 
 	ob_start();
-	$rem = @unserialize($raw, ['allowed_classes' => ['Remote', 'stdClass']]);
+	if (function_exists('kloxo_unserialize_deny_gadgets')) {
+		$rem = kloxo_unserialize_deny_gadgets($raw, ['allowed_classes' => ['Remote', 'stdClass']]);
+	} else {
+		$rem = @unserialize($raw, ['allowed_classes' => ['Remote', 'stdClass']]);
+	}
 	if (!is_object($rem)) {
 		ob_end_clean();
 		exit(1);

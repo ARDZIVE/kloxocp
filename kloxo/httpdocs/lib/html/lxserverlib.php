@@ -17,8 +17,10 @@ function lxserver_main()
 	//	$login->initThisDef();
 		$gbl->is_slave = true;
 		$gbl->is_master = false;
-		$raw = lfile_get_contents($sgbl->__path_slave_db);
-		$rmt = is_string($raw) && $raw !== '' ? @unserialize($raw) : false;
+		$rmt = function_exists('kloxo_load_slave_db')
+			? kloxo_load_slave_db()
+			: ((is_string($raw = lfile_get_contents($sgbl->__path_slave_db)) && $raw !== '')
+				? @unserialize($raw) : false);
 		if (!is_object($rmt) || !isset($rmt->password) || !is_string($rmt->password) || $rmt->password === '') {
 			print("slave-db missing or unreadable\n");
 			exit(1);

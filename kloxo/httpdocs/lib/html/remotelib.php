@@ -292,10 +292,11 @@ function do_remote_exec($machine, $rmt, $cmdtype, $nname, $dbaction)
 
 	$totalout = send_to_some_server($machine, $var);
 
-	$res = unserialize(base64_decode($totalout));
+	$res = function_exists('kloxo_b64_unserialize')
+		? kloxo_b64_unserialize((string) $totalout)
+		: @unserialize(base64_decode((string) $totalout));
 
-
-	if (!$res) {
+	if (!$res || !is_object($res)) {
 		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
 		throw new lxException($login->getThrow('could_not_connect_to_server'), '', $machine);
 	}
@@ -421,10 +422,13 @@ function remote_exec($machine, $cmd)
 		$rmt = do_remote_exec($machine, $cmd, $cmdtype, $nname, $dbaction);
 	} catch (Throwable $e) {
 		// File Manager and similar still fall back in-process so a down
-		// backend cannot blank the page. Privileged work (PHP install/remove,
-		// FPM pools) sets no_local_fallback: retrying as lxlabs would hide
-		// the real error behind "kloxo-backend did not handle the request".
-		if (isLocalhost($machine) && empty($cmd->no_local_fallback)) {
+		// backend cannot blank the page. Privileged work sets
+		// no_local_fallback. Never fall back action=set as the panel user
+		// (security S10) — that would sync as lxlabs instead of root.
+		$canFallback = isLocalhost($machine)
+			&& empty($cmd->no_local_fallback)
+			&& !(isset($cmd->action) && $cmd->action === 'set');
+		if ($canFallback) {
 			log_log("error", "localhost backend: " . $e->getMessage());
 			try {
 				return do_local_action($cmd);
@@ -486,7 +490,12 @@ function send_to_master($object)
 	// Auth envelope before the serialized payload (same shape as do_remote_exec).
 	$var = "__master::" . $remotechar . "\n" . $user . "\n" . $pass . "\n" . $payload;
 	$out = send_to_some_stream_server("cmd", null, $raddress, $var, null);
-	$rmt = unserialize(base64_decode($out));
+	$rmt = function_exists('kloxo_b64_unserialize')
+		? kloxo_b64_unserialize((string) $out)
+		: @unserialize(base64_decode((string) $out));
+	if (!is_object($rmt)) {
+		return null;
+	}
 
 	return $rmt->ddata;
 }
@@ -546,11 +555,14 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 	} else {
 		// Per-install self-signed keys: verify the cert exists, allow self-signed
 		// (mutual TLS / pinned CA not built yet). Better than verify_peer off (N9).
+		// verify_peer_name on for FQDN hosts; off only for raw IPs (S5).
+		$peerName = !filter_var($rraddress, FILTER_VALIDATE_IP);
 		$opts = array(
 			$con => array(
 				'allow_self_signed' => true,
 				'verify_peer' => true,
-				'verify_peer_name' => false,
+				'verify_peer_name' => $peerName,
+				'peer_name' => $peerName ? (string) $raddress : '',
 			)
 		);
 
@@ -1065,7 +1077,14 @@ function do_local_action($rmt)
 	// This code never executes
 */
 	if ($rmt->action === "set") {
-		$object = $rmt->robject;
+		$object = isset($rmt->robject) ? $rmt->robject : null;
+		if (!is_object($object) || !($object instanceof lxclass)) {
+			throw new lxException('backend_set_refused', '');
+		}
+		$table = method_exists($object, 'get__table') ? (string) $object->get__table() : '';
+		if ($table === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
+			throw new lxException('backend_set_refused', '');
+		}
 		return $object->doSyncToSystem();
 	} else {
 		if ($rmt->action === "get") {
@@ -1214,8 +1233,12 @@ function reload_slave_password()
 	$cur = $stat['mtime'];
 
 	if ($cur > $time) {
-		$rmt = unserialize(lfile_get_contents("__path_slave_db"));
-		$login->password = $rmt->password;
+		$rmt = function_exists('kloxo_load_slave_db')
+			? kloxo_load_slave_db()
+			: @unserialize(lfile_get_contents("__path_slave_db"));
+		if (is_object($rmt) && isset($rmt->password)) {
+			$login->password = $rmt->password;
+		}
 		$time = $cur;
 	}
 
@@ -1241,7 +1264,9 @@ function remote_main()
 		$login = new Client(null, null, 'slave');
 		$gbl->is_slave = true;
 		if (lxfile_exists('__path_slave_db')) {
-			$sdb = @unserialize(lfile_get_contents("__path_slave_db"));
+			$sdb = function_exists('kloxo_load_slave_db')
+				? kloxo_load_slave_db()
+				: @unserialize(lfile_get_contents("__path_slave_db"));
 			if (is_object($sdb) && isset($sdb->password)) {
 				$login->password = $sdb->password;
 			}

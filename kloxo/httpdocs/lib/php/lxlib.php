@@ -3990,8 +3990,11 @@ function get_savedlogin($classname, $clientname)
 	$path = "$sgbl->__path_program_etc/$classname:$clientname";
 
 	if (file_exists($path)) {
-		$login = unserialize(lfile_get_contents($path));
-		if (!$login) {
+		$raw = lfile_get_contents($path);
+		$login = (is_string($raw) && function_exists('kloxo_unserialize_deny_gadgets'))
+			? kloxo_unserialize_deny_gadgets($raw)
+			: (is_string($raw) ? @unserialize($raw) : false);
+		if (!$login || !is_object($login)) {
 			return 0;
 		}
 
