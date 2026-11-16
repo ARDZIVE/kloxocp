@@ -21,7 +21,11 @@ function lpanel_main()
 	$gbl->__navigmenu = null;
 	$gbl->__navig = null;
 
-	$skincolor = $login->getSkinColor();
+	// Hex-only skin colour (security III5).
+	$skincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+	if ($skincolor === '' || (strlen($skincolor) !== 3 && strlen($skincolor) !== 6 && strlen($skincolor) !== 8)) {
+		$skincolor = 'aaa';
+	}
 
 	$imgbordermain = "{$login->getSkinDir()}/top_line_medium.gif";
 	
@@ -93,7 +97,11 @@ function tab_vheight()
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$skincolor = $login->getSkinColor();
+	// Hex-only skin colour (security III5).
+	$skincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+	if ($skincolor === '' || (strlen($skincolor) !== 3 && strlen($skincolor) !== 6 && strlen($skincolor) !== 8)) {
+		$skincolor = 'aaa';
+	}
 
 	$ghtml->print_css_source("/theme/css/examples.css");
 	print_ext_tree($login);
@@ -120,7 +128,11 @@ function xp_panel($object)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$skincolor = $login->getSkinColor();
+	// Hex-only skin colour (security III5).
+	$skincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+	if ($skincolor === '' || (strlen($skincolor) !== 3 && strlen($skincolor) !== 6 && strlen($skincolor) !== 8)) {
+		$skincolor = 'aaa';
+	}
 	$skin_name = basename($login->getSkinDir());
 
 	if (csa($skin_name, "_")) {

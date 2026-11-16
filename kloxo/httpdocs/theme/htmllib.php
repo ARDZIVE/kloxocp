@@ -513,7 +513,11 @@ class HtmlLib
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$skindir = $login->getSkinDir();
-		$col = $login->getSkinColor();
+		// Hex-only skin colour (security III5).
+		$col = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($col === '' || (strlen($col) !== 3 && strlen($col) !== 6 && strlen($col) !== 8)) {
+			$col = 'aaa';
+		}
 		// [FIXME] Put this css code on a file, NOT inline
 
 		$img_url = $this->get_expand_url();
@@ -664,7 +668,11 @@ class HtmlLib
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$skindir = $login->getSkinDir();
-		$col = $login->getSkinColor();
+		// Hex-only skin colour (security III5).
+		$col = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($col === '' || (strlen($col) !== 3 && strlen($col) !== 6 && strlen($col) !== 8)) {
+			$col = 'aaa';
+		}
 		// [FIXME] Put this css code on a file, NOT inline
 
 		$img_url = $this->get_expand_url();
@@ -1353,7 +1361,11 @@ class HtmlLib
 
 		$lclass = $login->get__table();
 		$skindir = $login->getSkinDir();
-		$col = $login->getSkinColor();
+		// Hex-only skin colour (security III5).
+		$col = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($col === '' || (strlen($col) !== 3 && strlen($col) !== 6 && strlen($col) !== 8)) {
+			$col = 'aaa';
+		}
 		$plus = "{$skindir}/images/plus.gif";
 		$minus = "{$skindir}/images/minus.gif";
 
@@ -4682,11 +4694,16 @@ class HtmlLib
 				}
 			}
 
+			// Escaped Advanced Search fields (security III5).
+			$fnEsc = htmlspecialchars((string) $filtername, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$nameEsc = htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$valEsc = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
 			if ($width) {
 				if ($width[0] === 's') {
 ?>
 
-									<select name="frm_hpfilter[<?= $filtername ?>][<?= $name ?>_o_cont]" class="searchbox" size="1" width="10" maxlength="30">
+									<select name="frm_hpfilter[<?= $fnEsc ?>][<?= $nameEsc ?>_o_cont]" class="searchbox" size="1" width="10" maxlength="30">
 <?php
 					foreach ($width[1] as $v) {
 						$sel = '';
@@ -4694,9 +4711,10 @@ class HtmlLib
 						if ($v === $value) {
 							$sel = 'SELECTED';
 						}
+						$vEsc = htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-										<option <?= $sel ?> value="<?= $v ?>"><?= $v ?></option>';
+										<option <?= $sel ?> value="<?= $vEsc ?>"><?= $vEsc ?></option>
 <?php
 					}
 ?>
@@ -4707,7 +4725,7 @@ class HtmlLib
 			} else {
 ?>
 
-									<input type="text" name="frm_hpfilter[<?= $filtername ?>][<?= $name ?>_o_cont]" value="<?= $value ?>" class="searchbox" size="11" maxlength="30">
+									<input type="text" name="frm_hpfilter[<?= $fnEsc ?>][<?= $nameEsc ?>_o_cont]" value="<?= $valEsc ?>" class="searchbox" size="11" maxlength="30">
 <?php
 			}
 ?>
@@ -7057,7 +7075,11 @@ class HtmlLib
 		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
 		$cssclass = 'div_icons_text';
 
-		$skincolor = $login->getSkinColor();
+		// Hex-only skin colour (security III5).
+		$skincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($skincolor === '' || (strlen($skincolor) !== 3 && strlen($skincolor) !== 6 && strlen($skincolor) !== 8)) {
+			$skincolor = 'aaa';
+		}
 		$shevron = "{$login->getSkinDir()}/images/shevron_line.gif";
 
 		$help = $this->get_full_help($descr[2]);
@@ -7566,7 +7588,11 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login;
 
-		$skincolor = $login->getSkinColor();
+		// Hex-only skin colour (security III5).
+		$skincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($skincolor === '' || (strlen($skincolor) !== 3 && strlen($skincolor) !== 6 && strlen($skincolor) !== 8)) {
+			$skincolor = 'aaa';
+		}
 		$shevron = "{$login->getSkinDir()}/images/shevron_line.gif";
 
 		$help = $this->get_full_help($descr[2]);
@@ -8264,8 +8290,9 @@ class HtmlLib
 		$skin_name = 'simplicity';
 		try {
 			if (is_object($login) && method_exists($login, 'getSkinColor')) {
-				$sc = $login->getSkinColor();
-				if (is_string($sc) && $sc !== '') {
+				// Hex-only skin colour (security III5).
+				$sc = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+				if ($sc !== '' && (strlen($sc) === 3 || strlen($sc) === 6 || strlen($sc) === 8)) {
 					$skincolor = $sc;
 				}
 			}
@@ -8417,9 +8444,12 @@ class HtmlLib
 			}
 
 			if ($variable->type === 'hidden') {
+				// Escaped hidden attrs (security III1).
+				$hidName = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$hidVal = htmlspecialchars((string) $variable->value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-						<input type="hidden" id="<?= $variable->name ?>" name="<?= $variable->name ?>" value="<?= $variable->value ?>">
+						<input type="hidden" id="<?= $hidName ?>" name="<?= $hidName ?>" value="<?= $hidVal ?>">
 <?php
 
 				continue;
@@ -8657,7 +8687,11 @@ class HtmlLib
 			return;
 		}
 
-		$skincolor = $login->getSkinColor();
+		// Hex-only skin colour (security III5).
+		$skincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($skincolor === '' || (strlen($skincolor) !== 3 && strlen($skincolor) !== 6 && strlen($skincolor) !== 8)) {
+			$skincolor = 'aaa';
+		}
 
 		$skindir = $login->getSkinDir();
 
@@ -8785,7 +8819,12 @@ class HtmlLib
 
 					<?= $filteropacitystringspan ?>
 
-					<input style="border: 1px solid #aaa;" <?= $filteropacitystring ?> <?= $blackstyle ?> type=checkbox name="<?= $variable->name ?>" <?= $checkv ?> value="<?= $variable->value ?>">
+<?php
+				// Escaped checkbox attrs (security III2).
+				$cbName = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$cbVal = htmlspecialchars((string) $variable->value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+					<input style="border: 1px solid #aaa;" <?= $filteropacitystring ?> <?= $blackstyle ?> type=checkbox name="<?= $cbName ?>" <?= $checkv ?> value="<?= $cbVal ?>">
 					<?= $variable_description ?> <?= $filteropacitystringspanend ?>
 <?php
 
@@ -8798,14 +8837,15 @@ class HtmlLib
 					$m_value = $prevvar[trim($variable->name)];
 				}
 
-				$v = $variable->name;
+				// Escaped select name/options (security III3).
+				$vEsc = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 					<?= $variable_description ?>
 
 					<br/>
 					<?= $filteropacitystringspan ?>
 
-					<select style="border: 1px solid #aaa; margin: 2px" <?= $filteropacitystring ?> class="textbox" name="<?= $v ?>">
+					<select style="border: 1px solid #aaa; margin: 2px" <?= $filteropacitystring ?> class="textbox" name="<?= $vEsc ?>">
 <?php
 				foreach ($variable->option as $k => $option) {
 					$issel = false;
@@ -8825,9 +8865,11 @@ class HtmlLib
 						$sel = 'SELECTED';
 					}
 
+					$kEsc = htmlspecialchars((string) $k, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$optEsc = htmlspecialchars((string) $option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-						<option <?= $sel ?> value="<?= $k ?>"><?= $option ?></option>
+						<option <?= $sel ?> value="<?= $kEsc ?>"><?= $optEsc ?></option>
 <?php
 				}
 ?>
@@ -9719,13 +9761,20 @@ function uploadAbort(e) { // upload abort
 
 				if (strtolower($variable->value) === 'updateall') {
 				//	$string = "Click Here to Update all the objects that appear in the top selectbox with the above values";
-					$string = $login->getKeywordUc("update_all");
-					$bgcolor = "bgcolor=$skincolor";
+					$string = htmlspecialchars((string) $login->getKeywordUc("update_all"), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$skinHexBtn = preg_replace('/[^0-9a-fA-F]/', '', (string) $skincolor) ?? '';
+					if ($skinHexBtn === '' || (strlen($skinHexBtn) !== 3 && strlen($skinHexBtn) !== 6 && strlen($skinHexBtn) !== 8)) {
+						$skinHexBtn = 'aaa';
+					}
+					$bgcolor = "bgcolor=#{$skinHexBtn}";
 					$onclick = "onclick='return updateallWarning();'";
+					// Escaped updateall JS strings (security III4).
+					$w1 = json_encode((string) $login->getKeywordUc('updateall_warning1'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+					$w2 = json_encode((string) $login->getKeywordUc('updateall_warning2'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
 ?>
 					<script>
-						var updateallwarning1 = "<?= $login->getKeywordUc('updateall_warning1') ?>";
-						var updateallwarning2 = "<?= $login->getKeywordUc('updateall_warning2') ?>";
+						var updateallwarning1 = <?= $w1 ?>;
+						var updateallwarning2 = <?= $w2 ?>;
 					</script>
 <?php
 				} else {
@@ -9734,11 +9783,16 @@ function uploadAbort(e) { // upload abort
 						$type = 'button';
 					}
 				}
+				// Escaped submit attrs (security III4).
+				$typeAllow = array('submit', 'button', 'reset');
+				$type = in_array(strtolower((string) $type), $typeAllow, true) ? strtolower((string) $type) : 'submit';
+				$btnName = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$btnVal = htmlspecialchars((string) $variable->value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 					<?= $string ?>
 
-					<input <?= $blackstyle ?> class="submitbutton" type="<?= $type ?>" <?= $onclick ?> id="<?= $variable->name ?>" name="<?= $variable->name ?>" value="&nbsp;&nbsp;<?= $variable->value ?>&nbsp;&nbsp;">
+					<input <?= $blackstyle ?> class="submitbutton" type="<?= $type ?>" <?= $onclick ?> id="<?= $btnName ?>" name="<?= $btnName ?>" value="&nbsp;&nbsp;<?= $btnVal ?>&nbsp;&nbsp;">
 <?php
 
 				break;

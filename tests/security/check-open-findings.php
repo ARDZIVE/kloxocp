@@ -3066,6 +3066,66 @@ $findings[] = finding('HHH6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $hhh6Closed,
 	$hhh6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- III wave ---
+$htmlIii = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$frameIii = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
+$iii1Closed = contains($htmlIii, 'security III1')
+	&& contains($htmlIii, '$hidName')
+	&& contains($htmlIii, '$hidVal')
+	&& not_contains($htmlIii, 'id="<?= $variable->name ?>" name="<?= $variable->name ?>" value="<?= $variable->value ?>"');
+$findings[] = finding('III1', 'medium', 'hidden input raw name/value',
+	'htmllib.php print_modify hidden', $iii1Closed,
+	$iii1Closed ? 'escaped name/value' : 'still raw');
+
+$iii2Closed = contains($htmlIii, 'security III2')
+	&& contains($htmlIii, '$cbName')
+	&& contains($htmlIii, '$cbVal')
+	&& not_contains($htmlIii, 'type=checkbox name="<?= $variable->name ?>"');
+$findings[] = finding('III2', 'medium', 'checkbox raw name/value',
+	'htmllib.php print_variable checkbox', $iii2Closed,
+	$iii2Closed ? 'escaped name/value' : 'still raw');
+
+$iii3Closed = contains($htmlIii, 'security III3')
+	&& contains($htmlIii, '$vEsc')
+	&& contains($htmlIii, '$optEsc')
+	&& not_contains($htmlIii, '<option <?= $sel ?> value="<?= $k ?>"><?= $option ?></option>');
+$findings[] = finding('III3', 'medium', 'plain select raw name/options',
+	'htmllib.php print_variable select', $iii3Closed,
+	$iii3Closed ? 'escaped name/options' : 'still raw');
+
+$iii4Closed = contains($htmlIii, 'security III4')
+	&& substr_count($htmlIii, 'security III4') >= 2
+	&& contains($htmlIii, '$btnName')
+	&& contains($htmlIii, 'var updateallwarning1 = <?= $w1 ?>')
+	&& not_contains($htmlIii, 'id="<?= $variable->name ?>" name="<?= $variable->name ?>" value="&nbsp;&nbsp;<?= $variable->value ?>&nbsp;&nbsp;"');
+$findings[] = finding('III4', 'medium', 'submit button raw attrs / updateall JS',
+	'htmllib.php print_variable button', $iii4Closed,
+	$iii4Closed ? 'escaped attrs + json_encode warnings' : 'still raw');
+
+$iii5Closed = contains($htmlIii, 'security III5')
+	&& contains($htmlIii, '$fnEsc')
+	&& contains($htmlIii, '$nameEsc')
+	&& contains($htmlIii, '$valEsc')
+	&& not_contains($htmlIii, 'name="frm_hpfilter[<?= $filtername ?>][<?= $name ?>_o_cont]" value="<?= $value ?>"')
+	&& substr_count($htmlIii, 'security III5') >= 5
+	&& contains($frameIii, 'security III5');
+$findings[] = finding('III5', 'low', 'Advanced Search raw fields / leftover getSkinColor',
+	'htmllib.php print_real_search + skin; frame_left.php', $iii5Closed,
+	$iii5Closed ? 'escaped search fields + hex skin' : 'still raw');
+
+$libIii = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibIii = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$extSecIii = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastIii = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$iii6Closed = contains($lxlibIii, 'security III6')
+	&& contains($extSecIii, 'security III6')
+	&& contains($toastIii, 'security III6')
+	&& contains($lxlibIii, 'gated unserialize')
+	&& contains($libIii, 'HHH5 / III5');
+$findings[] = finding('III6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $iii6Closed,
+	$iii6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
