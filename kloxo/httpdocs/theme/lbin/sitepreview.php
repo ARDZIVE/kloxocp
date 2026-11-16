@@ -96,18 +96,19 @@ if (KloxoSitepreview::isRewritableHtml($ctype, $path)) {
 	exit;
 }
 
-// Non-HTML: only allow a safe subset of types (no JS/SVG script).
-$safeType = preg_match('#^(image/(png|jpe?g|gif|webp|svg\+xml)|text/css|application/(json|javascript)|font/)#i', $ctype) === 1;
-if (!$safeType && !str_starts_with(strtolower($ctype), 'text/plain')
-	&& !str_starts_with(strtolower($ctype), 'image/')) {
+// Non-HTML (security R5): only safe image/css/font/plain; never JS/SVG/HTML-as-image.
+$ctypeLower = strtolower($ctype);
+if (str_contains($ctypeLower, 'javascript') || str_contains($ctypeLower, 'svg')
+	|| str_contains($ctypeLower, 'html') || str_contains($ctypeLower, 'xml')) {
+	header('Content-Type: text/plain; charset=UTF-8');
+	echo "Blocked content type in preview\n";
+	exit;
+}
+$safeType = preg_match('#^(image/(png|jpe?g|gif|webp)|text/(css|plain)|font/)#i', $ctype) === 1;
+if (!$safeType) {
 	header('Content-Type: application/octet-stream');
 	header('Content-Disposition: attachment');
 	echo $body;
-	exit;
-}
-if (stripos($ctype, 'javascript') !== false || stripos($ctype, 'svg') !== false) {
-	header('Content-Type: text/plain; charset=UTF-8');
-	echo "Blocked content type in preview\n";
 	exit;
 }
 

@@ -58,10 +58,13 @@ getlicense stubs; `getParseInlinePhp` guards; CSRF kill-switch ignored;
 `load_database_file` argv; `do_serve_file` path checks; reset rate-limit;
 JSON.parse; Roundcube/`setupsecondary` hardening. Re-check:
 `php tests/security/check-open-findings.php` (F1–F18 + N1–N28).
-*Residual risk:* PHP object model still uses serialization for DB `ser_*`
-columns and backend payloads (gadget deny-list only); mutual TLS for slaves
-not built; template `eval` remains for first-party config snippets with
-pattern guards.
+*Also closed (2026-11 R1–R5):* gadget deny-list on `process_in_master` /
+`remote_main`; HTTPS + filtered response for legacy HTTP slave RPC;
+`kloxo_backend_callable_allowed` deny-list on `action=get`;
+`lfile_get_unserialize` filtered; preview non-HTML types restricted.
+*Residual risk:* backend still dispatches a wide panel callable surface after
+password (deny-list, not full allow-list / JSON agent); mutual TLS not built;
+template `eval` with pattern guards; broader legacy shell/`rawQuery` sites.
 *JSON replacement (planned, not built):* drop PHP serialization from the backend protocol.
 Payload becomes a versioned JSON object with a schema (action, class, nname, argument list);
 validate before dispatch. Transport: Unix socket for same-host (P0.5); slave TLS 7779 uses per-install

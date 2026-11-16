@@ -153,6 +153,68 @@ function kloxo_remote_verify_network_pass($user, $pass)
 }
 
 /**
+ * Whether a backend action=get callable is allowed (security R3).
+ * Blocks shell/RCE builtins and non-identifier names; panel Class::method stays.
+ *
+ * @param mixed $func
+ */
+function kloxo_backend_callable_allowed($func)
+{
+	static $denyFn = array(
+		'system', 'exec', 'passthru', 'shell_exec', 'proc_open', 'popen',
+		'pcntl_exec', 'pcntl_fork', 'pcntl_alarm', 'eval', 'assert',
+		'create_function', 'call_user_func', 'call_user_func_array',
+		'forward_static_call', 'forward_static_call_array',
+		'register_shutdown_function', 'register_tick_function',
+		'include', 'include_once', 'require', 'require_once',
+		'dl', 'putenv', 'ini_alter', 'apache_setenv',
+		'mail', 'mb_send_mail',
+		'file_put_contents', 'file_get_contents', 'fopen', 'fwrite', 'fputs',
+		'unlink', 'rmdir', 'mkdir', 'rename', 'copy', 'link', 'symlink',
+		'chmod', 'chown', 'chgrp', 'touch',
+		'move_uploaded_file', 'parse_ini_file',
+		'curl_exec', 'curl_multi_exec',
+		'fsockopen', 'pfsockopen', 'stream_socket_client', 'stream_socket_server',
+		'socket_create', 'socket_connect',
+		'posix_kill', 'posix_setuid', 'posix_seteuid',
+		'ReflectionFunction', 'ReflectionMethod', 'ReflectionClass',
+	);
+	static $denyClass = array(
+		'PDO', 'PDOStatement', 'mysqli', 'SQLite3', 'Phar', 'PharData',
+		'SimpleXMLElement', 'SplFileObject', 'SplFileInfo', 'DirectoryIterator',
+		'FilesystemIterator', 'CallbackFilterIterator', 'CurlHandle',
+		'ReflectionFunction', 'ReflectionMethod', 'ReflectionClass',
+		'ReflectionObject', 'ReflectionProperty',
+	);
+
+	if (is_string($func)) {
+		if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $func)) {
+			return false;
+		}
+		if (in_array(strtolower($func), $denyFn, true)) {
+			return false;
+		}
+		return function_exists($func);
+	}
+
+	if (is_array($func) && count($func) === 2 && is_string($func[0]) && is_string($func[1])) {
+		$class = $func[0];
+		$method = $func[1];
+		if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $class)
+			|| !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $method)) {
+			return false;
+		}
+		if (in_array($class, $denyClass, true)
+			|| in_array(strtolower($method), $denyFn, true)) {
+			return false;
+		}
+		return true;
+	}
+
+	return false;
+}
+
+/**
  * Unserialize with a deny-list of known PHP object-injection gadgets (N6/N22).
  * Prefer this over bare unserialize() for network/DB blobs when a full class
  * allow-list is not yet available.

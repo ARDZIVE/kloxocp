@@ -140,11 +140,10 @@ class serverweb extends lxdb
 			if (!is_string($raw) || $raw === '') {
 				continue;
 			}
-			// allowed_classes=false yields __PHP_Incomplete_Class; cast to array for ->data.
-			$rmt = @unserialize($raw, array('allowed_classes' => false));
-			if ($rmt === false) {
-				$rmt = @unserialize($raw);
-			}
+			// Prefer gadget deny-list; fall back to allowed_classes=false (no bare unserialize).
+			$rmt = function_exists('kloxo_unserialize_deny_gadgets')
+				? kloxo_unserialize_deny_gadgets($raw, array('allowed_classes' => false))
+				: @unserialize($raw, array('allowed_classes' => false));
 			$data = null;
 			if (is_object($rmt)) {
 				$arr = (array) $rmt;

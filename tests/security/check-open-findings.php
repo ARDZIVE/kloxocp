@@ -507,6 +507,42 @@ $findings[] = finding('N28', 'low', 'setupsecondary shell/SQLi',
 	'kloxo/bin/common/setupsecondary.php', $n28Closed,
 	$n28Closed ? 'setupsecondary uses prepared/argv' : 'still shell/string SQL');
 
+// --- Wave 3 (R1–R5) ---
+$pimBody = function_body($remote, 'process_in_master');
+$rmBody = function_body($remote, 'remote_main');
+$r1Closed = contains($pimBody, 'kloxo_unserialize_deny_gadgets')
+	&& contains($rmBody, 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('R1', 'medium', 'process_in_master/remote_main bare unserialize after auth',
+	'kloxo/httpdocs/lib/html/remotelib.php', $r1Closed,
+	$r1Closed ? 'both use gadget deny-list' : 'still bare unserialize after auth');
+
+$lxlibR = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$httpFn = function_body($lxlibR, 'send_to_some_http_server');
+$r2Closed = (contains($httpFn, 'https') || contains($httpFn, '{$scheme}'))
+	&& contains(function_body($lxlibR, 'remote_http_exec'), 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('R2', 'medium', 'HTTP slave RPC cleartext + bare response unserialize',
+	'kloxo/httpdocs/lib/php/lxlib.php', $r2Closed,
+	$r2Closed ? 'HTTPS preferred + gadget filter on response' : 'still cleartext/bare unserialize');
+
+$r3Closed = contains($gate, 'kloxo_backend_callable_allowed')
+	&& contains(function_body($remote, 'do_local_action'), 'kloxo_backend_callable_allowed');
+$findings[] = finding('R3', 'critical', 'backend action=get unbounded call_user_func_array',
+	'kloxo/httpdocs/lib/html/remotelib.php do_local_action', $r3Closed,
+	$r3Closed ? 'callable deny-list enforced' : 'still unbounded call_user_func_array');
+
+$lfileUn = function_body($lxlibR, 'lfile_get_unserialize');
+$r4Closed = contains($lfileUn, 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('R4', 'low', 'lfile_get_unserialize bare unserialize',
+	'kloxo/httpdocs/lib/php/lxlib.php', $r4Closed,
+	$r4Closed ? 'uses gadget deny-list' : 'still bare unserialize');
+
+$prevPhp = file_text($root, 'kloxo/httpdocs/theme/lbin/sitepreview.php');
+$r5Closed = contains($prevPhp, 'Blocked content type')
+	&& contains($prevPhp, 'security R5');
+$findings[] = finding('R5', 'low', 'preview non-HTML body passthrough',
+	'kloxo/httpdocs/theme/lbin/sitepreview.php', $r5Closed,
+	$r5Closed ? 'non-HTML types restricted' : 'still echoes arbitrary Content-Type');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

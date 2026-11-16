@@ -340,7 +340,15 @@ function lfile_get_unserialize($file)
 	if (!lxfile_exists($file)) {
 		return null;
 	}
-	return unserialize(lfile_get_contents($file));
+	$raw = lfile_get_contents($file);
+	if (!is_string($raw) || $raw === '') {
+		return null;
+	}
+	if (function_exists('kloxo_unserialize_deny_gadgets')) {
+		return kloxo_unserialize_deny_gadgets($raw);
+	}
+
+	return @unserialize($raw);
 }
 
 function lfile_put_serialize($file, $var)
@@ -5310,12 +5318,18 @@ function remote_http_exec($server, $port, $rmt)
 	$pass = (isset($rmt->password) && is_string($rmt->password)) ? $rmt->password : '';
 	$res = send_to_some_http_server($server, "", $port, $var, $user, $pass);
 
-	$res = unserialize(base64_decode($res));
+	$raw = base64_decode((string) $res, true);
+	$obj = (is_string($raw) && function_exists('kloxo_unserialize_deny_gadgets'))
+		? kloxo_unserialize_deny_gadgets($raw, ['allowed_classes' => ['Remote', 'lxException', 'lxexception']])
+		: (is_string($raw) ? @unserialize($raw) : false);
 
-	if ($res->exception) {
-		throw $res->exception;
+	if (!is_object($obj)) {
+		throw new lxException('got_error_from_ur_end', '');
 	}
-	return $res->ddata;
+	if (isset($obj->exception) && $obj->exception) {
+		throw $obj->exception;
+	}
+	return $obj->ddata;
 }
 
 function send_to_some_http_server($raddress, $socket_type, $port, $var, $user = '', $pass = '')
@@ -5324,11 +5338,18 @@ function send_to_some_http_server($raddress, $socket_type, $port, $var, $user = 
 
 	print_time('server');
 
-	$ch = curl_init("http://$raddress:$port/lbin/remote.php");
+	// Prefer HTTPS (security R2). Cleartext HTTP only for loopback.
+	$host = (string) $raddress;
+	$port = (int) $port;
+	$loop = ($host === '127.0.0.1' || $host === 'localhost' || $host === '::1');
+	$scheme = $loop ? 'http' : 'https';
+	$url = "{$scheme}://{$host}:{$port}/lbin/remote.php";
+
+	$ch = curl_init($url);
 	curl_setopt($ch, CURLOPT_POST, true);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $loop ? 0 : 2);
 	$fields = 'frm_rmt=' . rawurlencode((string) $var)
 		. '&frm_remote_user=' . rawurlencode((string) $user)
 		. '&frm_remote_pass=' . rawurlencode((string) $pass);
@@ -5336,7 +5357,7 @@ function send_to_some_http_server($raddress, $socket_type, $port, $var, $user = 
 
 	$totalout = curl_exec($ch);
 	dprint(curl_error($ch));
-	$totalout = trim($totalout);
+	$totalout = trim((string) $totalout);
 	return $totalout;
 }
 

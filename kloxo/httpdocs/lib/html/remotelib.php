@@ -934,7 +934,10 @@ function process_in_master($total)
 		return process_server_auth_fail('remote_authentication_failed');
 	}
 
-	$rmt = unserialize(base64_decode($env['payload_b64']));
+	$payloadRaw = base64_decode($env['payload_b64'], true);
+	$rmt = (is_string($payloadRaw) && function_exists('kloxo_unserialize_deny_gadgets'))
+		? kloxo_unserialize_deny_gadgets($payloadRaw)
+		: (is_string($payloadRaw) ? @unserialize($payloadRaw) : false);
 	$res = new Remote();
 	$res->message = "Master info";
 	$res->exception = null;
@@ -1087,6 +1090,12 @@ function do_local_action($rmt)
 			// Since php 5.3 this won't take NULL
 			if(!$rmt->arglist) {
 				$rmt->arglist=array();
+			}
+
+			// Deny shell/RCE builtins and unsafe callables (security R3 / C2 slice).
+			if (!function_exists('kloxo_backend_callable_allowed')
+				|| !kloxo_backend_callable_allowed($rmt->func)) {
+				throw new lxException('backend_callable_refused', '');
 			}
 
 			return call_user_func_array($rmt->func, $rmt->arglist);
@@ -1258,7 +1267,10 @@ function remote_main()
 	}
 
 	$blob = isset($ghtml->frm_rmt) ? (string) $ghtml->frm_rmt : '';
-	$rmt = ($blob !== '') ? @unserialize(base64_decode($blob)) : false;
+	$payloadRaw = ($blob !== '') ? base64_decode($blob, true) : false;
+	$rmt = (is_string($payloadRaw) && function_exists('kloxo_unserialize_deny_gadgets'))
+		? kloxo_unserialize_deny_gadgets($payloadRaw)
+		: (is_string($payloadRaw) ? @unserialize($payloadRaw) : false);
 	if (!is_object($rmt)) {
 		while (@ob_end_clean()) {
 			;
