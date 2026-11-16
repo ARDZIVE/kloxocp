@@ -133,26 +133,74 @@ final class KloxoRoundcube
 		return $p;
 	}
 
+	/**
+	 * Optional DB runner for tests: fn(string $sql, list<string> $params): void
+	 * @var callable|null
+	 */
+	public static $sqlExec = null;
+
+	/**
+	 * Create roundcube DB/user via mysqli prepared statements (security CC6).
+	 * Password never appears on mysql argv / in `ps`.
+	 */
 	public static function ensureDatabase(string $pass): void
 	{
+		// Bound params via sqlExec — never mysql -e with password (security CC6).
 		if (!preg_match('/^[A-Za-z0-9]+$/', $pass)) {
 			throw new KloxoRoundcubeException('invalid db password');
 		}
-		$sql = [
-			'CREATE DATABASE IF NOT EXISTS roundcube CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
-			"CREATE USER IF NOT EXISTS 'roundcube'@'localhost' IDENTIFIED BY '{$pass}'",
-			"CREATE USER IF NOT EXISTS 'roundcube'@'127.0.0.1' IDENTIFIED BY '{$pass}'",
-			"ALTER USER 'roundcube'@'localhost' IDENTIFIED BY '{$pass}'",
-			"ALTER USER 'roundcube'@'127.0.0.1' IDENTIFIED BY '{$pass}'",
-			"GRANT ALL PRIVILEGES ON roundcube.* TO 'roundcube'@'localhost'",
-			"GRANT ALL PRIVILEGES ON roundcube.* TO 'roundcube'@'127.0.0.1'",
-			'FLUSH PRIVILEGES',
+		$steps = [
+			['CREATE DATABASE IF NOT EXISTS roundcube CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci', []],
+			["CREATE USER IF NOT EXISTS 'roundcube'@'localhost' IDENTIFIED BY ?", [$pass]],
+			["CREATE USER IF NOT EXISTS 'roundcube'@'127.0.0.1' IDENTIFIED BY ?", [$pass]],
+			["ALTER USER 'roundcube'@'localhost' IDENTIFIED BY ?", [$pass]],
+			["ALTER USER 'roundcube'@'127.0.0.1' IDENTIFIED BY ?", [$pass]],
+			["GRANT ALL PRIVILEGES ON roundcube.* TO 'roundcube'@'localhost'", []],
+			["GRANT ALL PRIVILEGES ON roundcube.* TO 'roundcube'@'127.0.0.1'", []],
+			['FLUSH PRIVILEGES', []],
 		];
-		foreach ($sql as $q) {
-			$r = self::run(['mysql', '-N', '-e', $q]);
-			if ($r['code'] !== 0) {
-				throw new KloxoRoundcubeException('mysql failed: ' . trim($r['err'] . ' ' . $r['out']));
+		foreach ($steps as [$sql, $params]) {
+			self::sqlExec($sql, $params);
+		}
+	}
+
+	/**
+	 * @param list<string> $params
+	 */
+	private static function sqlExec(string $sql, array $params = []): void
+	{
+		if (self::$sqlExec !== null) {
+			$fn = self::$sqlExec;
+			$fn($sql, $params);
+
+			return;
+		}
+		$conn = @mysqli_connect('localhost', 'root', '');
+		if (!$conn) {
+			throw new KloxoRoundcubeException('mysql connect failed: ' . mysqli_connect_error());
+		}
+		try {
+			if ($params === []) {
+				if (!mysqli_query($conn, $sql)) {
+					throw new KloxoRoundcubeException('mysql failed: ' . mysqli_error($conn));
+				}
+
+				return;
 			}
+			$stmt = mysqli_prepare($conn, $sql);
+			if ($stmt === false) {
+				throw new KloxoRoundcubeException('mysql prepare failed: ' . mysqli_error($conn));
+			}
+			$types = str_repeat('s', count($params));
+			mysqli_stmt_bind_param($stmt, $types, ...$params);
+			if (!mysqli_stmt_execute($stmt)) {
+				$err = mysqli_stmt_error($stmt);
+				mysqli_stmt_close($stmt);
+				throw new KloxoRoundcubeException('mysql execute failed: ' . $err);
+			}
+			mysqli_stmt_close($stmt);
+		} finally {
+			mysqli_close($conn);
 		}
 	}
 

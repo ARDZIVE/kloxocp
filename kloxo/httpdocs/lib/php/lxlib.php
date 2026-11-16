@@ -435,27 +435,39 @@ function new_process_mv_rec($user, $src, $dst)
 {
 	$src = expand_real_root($src);
 	$dst = expand_real_root($dst);
-	new_process_cmd($user, null, "'mv' -f \"$src\" \"$dst\"");
+	new_process_cmd($user, null, array('mv', '-f', '--', $src, $dst));
 }
 
 function new_process_chmod_rec($user, $file, $perm)
 {
 	$file = expand_real_root($file);
-	$cmd = "chmod -R $perm \"$file\"";
-	new_process_cmd($user, null, $cmd);
+	$perm = (string) $perm;
+	if (!preg_match('/^[0-7]{3,4}$/', $perm)) {
+		log_log('user_cmd', "chmod refused invalid mode {$perm}");
+
+		return 127;
+	}
+	new_process_cmd($user, null, array('chmod', '-R', $perm, '--', $file));
 }
 
 function new_process_cp_rec($user, $src, $dst)
 {
 	$src = expand_real_root($src);
 	$dst = expand_real_root($dst);
-	$cmd = "'cp' -a \"$src\" \"$dst\"";
-	new_process_cmd($user, null, $cmd);
+	new_process_cmd($user, null, array('cp', '-a', '--', $src, $dst));
 }
 
+/**
+ * Run a command as $user. Prefer an argv array.
+ * Legacy string cmds are refused when they contain shell metacharacters;
+ * otherwise they run as `sh -c` under the target uid (via phpexec argv).
+ *
+ * @param string|list<string> $cmd
+ */
 function new_process_cmd($user, $dir, $cmd)
 {
 	global $sgbl;
+	// Prefer argv array / proc_open — never shell-rebuild phpexec (security CC3).
 
 	if (csa($user, ':')) {
 		list($user, $group) = explode(':', $user);
@@ -467,24 +479,76 @@ function new_process_cmd($user, $dir, $cmd)
 		$user = '__system__';
 	}
 
+	if (is_array($cmd)) {
+		$argvCmd = array();
+		foreach ($cmd as $a) {
+			if (!is_string($a) || str_contains($a, "\0")) {
+				log_log('user_cmd', 'refused non-string/null argv');
+
+				return 127;
+			}
+			$argvCmd[] = $a;
+		}
+		if ($argvCmd === []) {
+			return 127;
+		}
+		$logCmd = implode(' ', $argvCmd);
+	} else {
+		$cmd = is_string($cmd) ? $cmd : '';
+		if ($cmd === '' || str_contains($cmd, "\0")
+			|| preg_match('/[;&|`$<>\\\\\n\r]/', $cmd)) {
+			log_log('user_cmd', "refused unsafe string cmd");
+
+			return 127;
+		}
+		$argvCmd = array('sh', '-c', $cmd);
+		$logCmd = $cmd;
+	}
+
 	if ($dir) {
 		$olddir = getcwd();
 		chdir($dir);
 	}
+
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('pipe', 'w'),
+	);
+	$output = array();
+	$retval = 127;
+
 	if ($user !== '__system__') {
 		$uid = is_numeric($user) ? (int) $user : os_get_uid_from_user($user);
 		$gid = is_numeric($group) ? (int) $group : os_get_gid_from_user($user);
-		exec("{$sgbl->__path_php_path} {$sgbl->__path_program_root}/bin/phpexec.php $uid $gid $cmd 2>&1", $output, $retval);
+		$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
+			? (string) $sgbl->__path_php_path
+			: 'php';
+		$phpexec = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+			? rtrim((string) $sgbl->__path_program_root, '/') . '/bin/phpexec.php'
+			: dirname(__DIR__, 3) . '/bin/phpexec.php';
+		$full = array_merge(array($php, $phpexec, (string) $uid, (string) $gid), $argvCmd);
+		$p = @proc_open($full, $desc, $pipes);
 	} else {
-		exec("$cmd 2>&1", $output, $retval);
+		$p = @proc_open($argvCmd, $desc, $pipes);
+	}
+
+	if (is_resource($p)) {
+		$out = stream_get_contents($pipes[1]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		$retval = proc_close($p);
+		if (is_string($out) && $out !== '') {
+			$output = explode("\n", rtrim($out, "\n"));
+		}
 	}
 
 	if ($dir) {
 		chdir($olddir);
 	}
 
-	$output = implode("\n", $output);
-	log_log('user_cmd', "($dir) $user $cmd $output");
+	$joined = implode("\n", $output);
+	log_log('user_cmd', "($dir) $user {$logCmd} {$joined}");
 
 	return $retval;
 }

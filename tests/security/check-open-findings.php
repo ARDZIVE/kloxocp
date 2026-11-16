@@ -1153,6 +1153,62 @@ $findings[] = finding('BB6', 'low', 'getParseInlinePhp still includes template P
 	'lib.php getParseInlinePhp', $bb6Closed,
 	$bb6Closed ? 'echo-only path without include' : 'always includes PHP templates');
 
+// --- Wave 14 (CC1–CC6) ---
+$ifaceTpl = function_body($lib, 'createDatabaseInterfaceTemplate');
+$cc1Closed = contains($ifaceTpl, 'defaults-extra-file')
+	&& contains($ifaceTpl, 'security CC1')
+	&& contains($ifaceTpl, 'proc_open')
+	&& not_contains($ifaceTpl, 'kloxo.pass`');
+$findings[] = finding('CC1', 'high', 'createDatabaseInterfaceTemplate mysql password via shell backtick',
+	'lib.php createDatabaseInterfaceTemplate', $cc1Closed,
+	$cc1Closed ? 'defaults-extra-file + proc_open' : 'still shell password');
+
+$setupSec = file_text($root, 'kloxo/bin/common/setupsecondary.php');
+$cc2Closed = contains($setupSec, 'defaults-extra-file')
+	&& contains($setupSec, 'security CC2')
+	&& not_contains($setupSec, "'-p' . \$pass")
+	&& not_contains($setupSec, "-p' . \$pass");
+$findings[] = finding('CC2', 'high', 'setupsecondary.php mysql -p on argv',
+	'bin/common/setupsecondary.php', $cc2Closed,
+	$cc2Closed ? 'defaults-extra-file' : 'still -p$password on argv');
+
+$phpexecSrc = file_text($root, 'kloxo/bin/phpexec.php');
+$lxNpc = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$cc3Closed = contains($phpexecSrc, 'security CC3')
+	&& contains($phpexecSrc, 'proc_open')
+	&& contains($lxNpc, 'security CC3')
+	&& contains($lxNpc, 'array_merge')
+	&& not_contains($lxNpc, 'phpexec.php $uid $gid $cmd');
+$findings[] = finding('CC3', 'high', 'new_process_cmd / phpexec shell rebuild',
+	'lxlib.php new_process_cmd + bin/phpexec.php', $cc3Closed,
+	$cc3Closed ? 'argv proc_open via phpexec' : 'still shells cmd string');
+
+$cc4Closed = contains($lib, 'security CC4')
+	&& contains($lib, 'function kloxo_shexec_argv')
+	&& not_contains(function_body($lib, 'shexec'), 'exec("{$caller}')
+	&& not_contains(function_body($lib, 'shexec_output'), 'shell_exec');
+$findings[] = finding('CC4', 'medium', 'shexec wrappers shell-quote $cmd',
+	'lib.php shexec*', $cc4Closed,
+	$cc4Closed ? 'argv + metachar refuse' : 'still exec caller with quoted cmd');
+
+$fixWebOwn = function_body($lib, 'setFixChownChmodWebPerUser');
+$cc5Closed = contains($fixWebOwn, 'security CC5')
+	&& contains($fixWebOwn, 'kloxo_exec_argv')
+	&& not_contains($fixWebOwn, 'exec("find {$cdir}')
+	&& not_contains($fixWebOwn, 'exec("chown {$clname}');
+$findings[] = finding('CC5', 'medium', 'lib.php ownership find/chown still shells vars',
+	'lib.php setFixChownChmod* / httpd chown', $cc5Closed,
+	$cc5Closed ? 'kloxo_exec_argv find/chown' : 'still exec(find/chown {$var})');
+
+$rcSrc = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_roundcube.php');
+$cc6Closed = contains($rcSrc, 'security CC6')
+	&& contains($rcSrc, 'function sqlExec')
+	&& contains($rcSrc, 'IDENTIFIED BY ?')
+	&& not_contains($rcSrc, "IDENTIFIED BY '{\$pass}'");
+$findings[] = finding('CC6', 'medium', 'Roundcube ensureDatabase password on mysql -e argv',
+	'kloxo_roundcube.php ensureDatabase', $cc6Closed,
+	$cc6Closed ? 'mysqli prepared / sqlExec' : 'still mysql -e with IDENTIFIED BY');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

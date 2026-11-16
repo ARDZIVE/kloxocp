@@ -3115,7 +3115,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111614';
+	return '10.1-2026111615';
 }
 
 function getDownloadServer()
@@ -3909,9 +3909,73 @@ function getKloxoLicenseInfo($nolog = null)
 
 function createDatabaseInterfaceTemplate($nolog = null)
 {
+	global $sgbl;
+
 	log_cleanup("- Create database interface template (Forced)", $nolog);
 
-	exec("mysql -u kloxo -p`cat ../etc/conf/kloxo.pass` kloxo < ../file/interface/interface_template.dump");
+	// defaults-extra-file — never shell backtick password (security CC1).
+	$passFile = '../etc/conf/kloxo.pass';
+	if (!is_readable($passFile)) {
+		log_cleanup("- skipped: cannot read kloxo.pass", $nolog);
+
+		return;
+	}
+	$pass = trim((string) file_get_contents($passFile));
+	if ($pass === '' || str_contains($pass, "\0")) {
+		log_cleanup("- skipped: empty/invalid kloxo.pass", $nolog);
+
+		return;
+	}
+	$dump = '../file/interface/interface_template.dump';
+	if (!is_readable($dump)) {
+		log_cleanup("- skipped: missing interface_template.dump", $nolog);
+
+		return;
+	}
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/pid';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$cnf = @tempnam($dir, 'iface-');
+	if ($cnf === false) {
+		log_cleanup("- skipped: cannot write mysql defaults", $nolog);
+
+		return;
+	}
+	@chmod($cnf, 0600);
+	$body = "[client]\nuser=kloxo\npassword=" . str_replace(array("\n", "\r"), '', $pass) . "\n";
+	if (@file_put_contents($cnf, $body) === false) {
+		@unlink($cnf);
+		log_cleanup("- skipped: cannot write mysql defaults", $nolog);
+
+		return;
+	}
+	@chmod($cnf, 0600);
+	$mysql = is_executable('/usr/bin/mysql') ? '/usr/bin/mysql'
+		: (is_executable('/usr/bin/mariadb') ? '/usr/bin/mariadb' : 'mysql');
+	$desc = array(
+		0 => array('file', $dump, 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('pipe', 'w'),
+	);
+	try {
+		$p = @proc_open(
+			array($mysql, '--defaults-extra-file=' . $cnf, 'kloxo'),
+			$desc,
+			$pipes
+		);
+		if (is_resource($p)) {
+			if (isset($pipes[2]) && is_resource($pipes[2])) {
+				fclose($pipes[2]);
+			}
+			proc_close($p);
+		}
+	} finally {
+		@unlink($cnf);
+	}
 
 //	exec("sh /script/fix-missing-admin");
 }
@@ -6923,7 +6987,8 @@ function setInitialPhpIniConfig($nolog = null)
 	$fpath = "../file/phpini";
 //	$inipath = "/opt/configs/phpini";
 
-	exec("'cp' -rf {$fpath} /opt/configs");
+	// argv cp (security CC5).
+	kloxo_exec_argv(array('cp', '-rf', '--', $fpath, '/opt/configs'));
 }
 
 function getInitialPhpFpmConfig($nolog = null)
@@ -6944,6 +7009,10 @@ function setKloxoCexeChownChmod($nolog = null)
 
 function setWebDriverChownChmod($type, $nolog = null)
 {
+	// Validated driver name (security CC5).
+	if (!is_string($type) || !preg_match('/^[A-Za-z0-9_-]+$/', $type)) {
+		return;
+	}
 	if (!file_exists("/opt/configs/{$type}")) {
 		return;
 	}
@@ -6954,7 +7023,10 @@ function setWebDriverChownChmod($type, $nolog = null)
 	log_cleanup("- chown {$webdirchown} FOR /opt/configs/{$type}/ AND INSIDE", $nolog);
 	lxfile_unix_chown_rec("/opt/configs/{$type}/", $webdirchown);
 
-	exec("find /opt/configs/{$type}/ -type f -name \"*.sh\" -exec chmod {$webdirchmod} \{\} \\;");
+	kloxo_exec_argv(array(
+		'find', "/opt/configs/{$type}/", '-type', 'f', '-name', '*.sh',
+		'-exec', 'chmod', $webdirchmod, '{}', ';',
+	));
 	log_cleanup("- chmod {$webdirchmod} FOR *.sh INSIDE /opt/configs/{$type}/", $nolog);
 }
 
@@ -6974,22 +7046,32 @@ function setKloxoHttpdChownChmod($nolog = null)
 	lxfile_unix_chown_rec("{$hkhpath}/", "{$hkhown}");
 	log_cleanup("- chown {$hkhown} FOR {$hkhpath}/ AND INSIDE", $nolog);
 
-	exec("find {$hkhpath}/ -type f -name \"*.php*\" -exec chmod {$phpfilechmod} \{\} \\;");
+	// argv find/chmod (security CC5).
+	kloxo_exec_argv(array(
+		'find', "{$hkhpath}/", '-type', 'f', '-name', '*.php*',
+		'-exec', 'chmod', $phpfilechmod, '{}', ';',
+	));
 	log_cleanup("- chmod {$phpfilechmod} FOR *.php* INSIDE {$hkhpath}/", $nolog);
 
-	exec("find {$hkhpath}/ -type f  -regex " . '".*\.\(pl\|cgi\|py\|rb\)"' . " -exec chmod {$domdirchmod} \{\} \\;");
+	kloxo_exec_argv(array(
+		'find', "{$hkhpath}/", '-type', 'f', '-regex', '.*\.\(pl\|cgi\|py\|rb\)',
+		'-exec', 'chmod', $domdirchmod, '{}', ';',
+	));
 	log_cleanup("- chmod {$domdirchmod} FOR *.pl/cgi/py/rb INSIDE {$hkhpath}/", $nolog);
 
-	exec("find {$hkhpath}/ -type d -exec chmod {$domdirchmod} \{\} \\;");
+	kloxo_exec_argv(array(
+		'find', "{$hkhpath}/", '-type', 'd',
+		'-exec', 'chmod', $domdirchmod, '{}', ';',
+	));
 	log_cleanup("- chmod {$domdirchmod} FOR {$hkhpath}/ AND INSIDE", $nolog);
 
 	lxfile_unix_chmod("{$hkhpath}/", $httpddirchmod);
 	log_cleanup("- chmod {$httpddirchmod} FOR {$hkhpath}/", $nolog);
 
 	if (file_exists("/home/kloxomail/mail")) {
-		exec("chmod {$domdirchmod} /home/kloxomail");
-		exec("chmod {$domdirchmod} /home/kloxomail/mail");
-		exec("chmod {$domdirchmod} /home/kloxomail/mail/domains");
+		kloxo_exec_argv(array('chmod', $domdirchmod, '/home/kloxomail'));
+		kloxo_exec_argv(array('chmod', $domdirchmod, '/home/kloxomail/mail'));
+		kloxo_exec_argv(array('chmod', $domdirchmod, '/home/kloxomail/mail/domains'));
 	}
 }
 
@@ -7048,8 +7130,9 @@ function setFixChownChmodWebPerUser($select, $user, $nolog = null)
 	$domdirchmod = '755';
 	$statsdirchmod = '777';
 
-	// Validated unix name + argv (security BB4).
-	if (preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', (string) $clname)) {
+	// Validated unix name + argv (security BB4 / CC5).
+	$clOk = preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', (string) $clname) === 1;
+	if ($clOk) {
 		kloxo_exec_argv(array('chown', "{$clname}:apache", "{$cdir}/"));
 		kloxo_exec_argv(array('chmod', (string) $userdirchmod, "{$cdir}/"));
 	}
@@ -7058,17 +7141,26 @@ function setFixChownChmodWebPerUser($select, $user, $nolog = null)
 
 	$ks = "kloxoscript";
 
-	if (file_exists("{$cdir}/{$ks}")) {
-		exec("find {$cdir}/{$ks} -not -user apache -not -group apache -exec chown {$clname}:{$clname} \{\} \\;");
+	if ($clOk && file_exists("{$cdir}/{$ks}")) {
+		kloxo_exec_argv(array(
+			'find', "{$cdir}/{$ks}", '-not', '-user', 'apache', '-not', '-group', 'apache',
+			'-exec', 'chown', "{$clname}:{$clname}", '{}', ';',
+		));
 		log_cleanup("- chown {$clname}:{$clname} FOR FILES/DIRS INSIDE {$cdir}/{$ks}/ EXCEPT apache:apache", $nolog);
 
-		exec("chown {$clname}:apache {$cdir}/{$ks}/");
+		kloxo_exec_argv(array('chown', "{$clname}:apache", "{$cdir}/{$ks}/"));
 		log_cleanup("- chown {$clname}:apache FOR {$cdir}/{$ks}/ DIR", $nolog);
 
-		exec("find {$cdir}/{$ks}/ -type f -name \"*.php*\" -exec chmod {$phpfilechmod} \{\} \\;");
+		kloxo_exec_argv(array(
+			'find', "{$cdir}/{$ks}/", '-type', 'f', '-name', '*.php*',
+			'-exec', 'chmod', $phpfilechmod, '{}', ';',
+		));
 		log_cleanup("- chmod {$phpfilechmod} FOR *.php* FILES INSIDE {$cdir}/{$ks}/", $nolog);
 
-		exec("find {$cdir}/{$ks} -type d -exec chmod {$domdirchmod} \{\} \\;");
+		kloxo_exec_argv(array(
+			'find', "{$cdir}/{$ks}", '-type', 'd',
+			'-exec', 'chmod', $domdirchmod, '{}', ';',
+		));
 		log_cleanup("- chmod {$domdirchmod} FOR {$cdir}/{$ks}/ DIR AND INSIDE", $nolog);
 	}
 
@@ -7077,38 +7169,63 @@ function setFixChownChmodWebPerUser($select, $user, $nolog = null)
 	foreach ((array)$dlist as $l) {
 		$web = $l->getObject('web');
 		$docroot = $web->docroot;
+		// Docroot / domain must stay path-safe (security CC5).
+		if (!is_string($docroot) || $docroot === '' || str_contains($docroot, '..')
+			|| str_contains($docroot, "\0") || !preg_match('#^[A-Za-z0-9._/-]+$#', $docroot)) {
+			continue;
+		}
 
 		if (in_array("{$cdir}/{$docroot}", $docrootlist)) {
 			continue;
 		}
 
 		$dom = $web->nname;
+		if (!is_string($dom) || !preg_match('/^[A-Za-z0-9.-]+$/', $dom)) {
+			continue;
+		}
 
-		if (($select === "all") || ($select === 'chown')) {
-			exec("find {$cdir}/{$docroot}/ -not -user apache -not -group apache -exec chown {$clname}:{$clname} \{\} \\;");
+		if ($clOk && (($select === "all") || ($select === 'chown'))) {
+			kloxo_exec_argv(array(
+				'find', "{$cdir}/{$docroot}/", '-not', '-user', 'apache', '-not', '-group', 'apache',
+				'-exec', 'chown', "{$clname}:{$clname}", '{}', ';',
+			));
 			log_cleanup("- chown {$clname}:{$clname} FOR FILES/DIRS INSIDE {$cdir}/{$docroot}/ EXCEPT apache:apache", $nolog);
 		}
 
 		if (($select === "all") || ($select === 'chmod')) {
-			exec("find {$cdir}/{$docroot}/ -type f -name \"*.php*\" -exec chmod {$phpfilechmod} \{\} \\;");
+			kloxo_exec_argv(array(
+				'find', "{$cdir}/{$docroot}/", '-type', 'f', '-name', '*.php*',
+				'-exec', 'chmod', $phpfilechmod, '{}', ';',
+			));
 			log_cleanup("- chmod {$phpfilechmod} FOR *.php* FILES INSIDE {$cdir}/{$docroot}/", $nolog);
 
-			exec("find {$cdir}/{$docroot}/ -type f  -regex " . '".*\.\(pl\|cgi\|py\|rb\)"' . " -exec chmod {$domdirchmod} \{\} \\;");
+			kloxo_exec_argv(array(
+				'find', "{$cdir}/{$docroot}/", '-type', 'f', '-regex', '.*\.\(pl\|cgi\|py\|rb\)',
+				'-exec', 'chmod', $domdirchmod, '{}', ';',
+			));
 			log_cleanup("- chmod {$domdirchmod} FOR *.pl/cgi/py/rb FILES INSIDE {$cdir}/{$docroot}/", $nolog);
 
-			exec("find {$cdir}/{$docroot}/ -type d -exec chmod {$domdirchmod} \{\} \\;");
+			kloxo_exec_argv(array(
+				'find', "{$cdir}/{$docroot}/", '-type', 'd',
+				'-exec', 'chmod', $domdirchmod, '{}', ';',
+			));
 			log_cleanup("- chmod {$domdirchmod} FOR {$cdir}/{$docroot}/ DIR AND INSIDE", $nolog);
 
 			// MR -- fix nginx permissions issue
-			exec("find {$sdir}/{$dom}/stats -type d -exec chmod {$statsdirchmod} \{\} \\;");
+			kloxo_exec_argv(array(
+				'find', "{$sdir}/{$dom}/stats", '-type', 'd',
+				'-exec', 'chmod', $statsdirchmod, '{}', ';',
+			));
 			log_cleanup("- chmod {$statsdirchmod} FOR {$sdir}/{$dom}/stats DIR AND INSIDE", $nolog);
 		}
 
-		exec("chown {$clname}:{$clname} {$cdir}/{$docroot}/");
+		if ($clOk) {
+			kloxo_exec_argv(array('chown', "{$clname}:{$clname}", "{$cdir}/{$docroot}/"));
+		}
 		log_cleanup("- chown {$clname}:{$clname} FOR {$cdir}/{$docroot}/ DIR", $nolog);
 
 		if (lxfile_exists("{$cdir}/{$docroot}/cgi-bin")) {
-			exec("chmod -R {$domdirchmod} {$cdir}/{$docroot}/cgi-bin");
+			kloxo_exec_argv(array('chmod', '-R', $domdirchmod, "{$cdir}/{$docroot}/cgi-bin"));
 			log_cleanup("- chmod {$domdirchmod} FOR {$cdir}/{$docroot}/cgi-bin DIR AND FILES", $nolog);
 		}
 
@@ -7140,24 +7257,35 @@ function setFixChownChmodMailPerUser($select, $user, $nolog = null)
 	$mdir = "/home/kloxomail/mail/domains";
 	$mailfilechmod = "600";
 	$maildirchmod = "700";
+	$clOk = preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', (string) $clname) === 1;
 
 	foreach ((array)$dlist as $l) {
 		$web = $l->getObject('web');
 		$dom = $web->nname;
+		if (!$clOk || !is_string($dom) || !preg_match('/^[A-Za-z0-9.-]+$/', $dom)) {
+			continue;
+		}
 
-		exec("chown {$clname}:{$clname} {$mdir}/{$dom}/");
+		// argv chown/find (security CC5).
+		kloxo_exec_argv(array('chown', "{$clname}:{$clname}", "{$mdir}/{$dom}/"));
 		log_cleanup("- chown {$clname}:{$clname} FOR {$mdir}/{$dom}/ DIR", $nolog);
 
 		if (($select === "all") || ($select === 'chown')) {
-			exec("chown -R {$clname}:{$clname} {$mdir}/{$dom}/");
+			kloxo_exec_argv(array('chown', '-R', "{$clname}:{$clname}", "{$mdir}/{$dom}/"));
 			log_cleanup("- chown {$clname}:{$clname} FOR DIR/FILES INSIDE {$mdir}/{$dom}/", $nolog);
 		}
 
 		if (($select === "all") || ($select === 'chmod')) {
-			exec("find {$mdir}/{$dom}/ -type f -name \"*\" -exec chmod {$mailfilechmod} \{\} \\;");
+			kloxo_exec_argv(array(
+				'find', "{$mdir}/{$dom}/", '-type', 'f', '-name', '*',
+				'-exec', 'chmod', $mailfilechmod, '{}', ';',
+			));
 			log_cleanup("- chmod {$mailfilechmod} FOR * FILES INSIDE {$mdir}/{$dom}/", $nolog);
 
-			exec("find {$mdir}/{$dom}/ -type d -exec chmod {$maildirchmod} \{\} \\;");
+			kloxo_exec_argv(array(
+				'find', "{$mdir}/{$dom}/", '-type', 'd',
+				'-exec', 'chmod', $maildirchmod, '{}', ';',
+			));
 			log_cleanup("- chmod {$maildirchmod} FOR {$mdir}/{$dom}/ DIR AND INSIDE", $nolog);
 		}
 	}
@@ -9237,31 +9365,66 @@ function getFSBlockSizeInKb()
 	return $out[0];
 }
 
-// MR -- all exec() will be change with this function because no need 'root' user for php for panel itself
-// for security reason, shexec only permit execute with caller from inside /opt/kloxo
+// shexec helpers: argv-only to ../sbin/shexec (security CC4).
+// $cmd must be a single argument with no shell metacharacters.
+function kloxo_shexec_argv(string $cmd): ?array
+{
+	$cmd = trim($cmd);
+	if ($cmd === '' || str_contains($cmd, "\0")
+		|| preg_match('/[;&|`$<>\\\\\n\r"]/', $cmd)) {
+		log_shell('shexec refused unsafe command');
+
+		return null;
+	}
+	$caller = '../sbin/shexec';
+	if (!is_executable($caller) && !is_file($caller)) {
+		log_shell('shexec binary missing');
+
+		return null;
+	}
+
+	return array($caller, $cmd);
+}
+
 function shexec($cmd)
 {
-	$caller = "../sbin/shexec";
-
-	// MR -- $cmd must be full command like: 'rm' -rf /tmp/del.txt
-	// no permit with "" (doublequote) because conflict
-	exec("{$caller} \"$cmd\"");
+	$argv = kloxo_shexec_argv(is_string($cmd) ? $cmd : '');
+	if ($argv === null) {
+		return;
+	}
+	kloxo_exec_argv($argv);
 }
 
 function shexec_return($cmd)
 {
-	$caller = "../sbin/shexec";
+	$argv = kloxo_shexec_argv(is_string($cmd) ? $cmd : '');
+	if ($argv === null) {
+		return 127;
+	}
 
-	exec("{$caller} \"$cmd\"", $out, $ret);
-
-	return $ret;
+	return kloxo_exec_argv($argv);
 }
 
 function shexec_output($cmd)
 {
-	$caller = "../sbin/shexec";
+	$argv = kloxo_shexec_argv(is_string($cmd) ? $cmd : '');
+	if ($argv === null) {
+		return '';
+	}
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open($argv, $desc, $pipes);
+	if (!is_resource($p)) {
+		return '';
+	}
+	$res = stream_get_contents($pipes[1]);
+	fclose($pipes[1]);
+	proc_close($p);
 
-	return shell_exec("{$caller} \"$cmd\"");
+	return is_string($res) ? trim($res) : '';
 }
 
 // MR -- needed especially in install step
