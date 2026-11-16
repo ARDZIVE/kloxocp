@@ -10,7 +10,11 @@ function __ac_desc_desktop($object)
 	global $gbl, $sgbl, $login, $ghtml;
 
 	$skindir = $login->getSkinDir();
-	$col = $login->getSkinColor();
+	// Hex-only skin colour (security EEE1).
+	$col = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+	if ($col === '' || (strlen($col) !== 3 && strlen($col) !== 6 && strlen($col) !== 8)) {
+		$col = 'aaa';
+	}
 
 	$imgpath = get_image_path();
 
@@ -24,7 +28,7 @@ function __ac_desc_desktop($object)
 
 ?>
 
-	<table cellpadding="0" width="90%" cellspacing="1" style='border:1px solid #<?=$col?>; background:#fffafa;'>
+	<table cellpadding="0" width="90%" cellspacing="1" style='border:1px solid #<?= $col ?>; background:#fffafa;'>
 		<tr></tr>
 		<tr height="50">
 			<td align="center">
@@ -134,7 +138,7 @@ function __ac_desc_updateshow($object)
 	</table>
 	<table cellpadding="0" cellspacing="0">
 		<tr>
-			<td> [<a href="<?=$url?>"> Go Back </a>]</td>
+			<td> [<a href="<?= htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"> Go Back </a>]</td>
 		</tr>
 	</table>
 <?php
@@ -144,20 +148,27 @@ function print_customer_mode($object)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$skin_color = $login->getSkinColor();
+	// Escaped mode-switch banner (security EEE1).
+	$skin_color = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+	if ($skin_color === '' || (strlen($skin_color) !== 3 && strlen($skin_color) !== 6 && strlen($skin_color) !== 8)) {
+		$skin_color = 'aaa';
+	}
 
-	$url = $ghtml->getFullUrl('a=update&sa=customermode');
+	$url = htmlspecialchars((string) $ghtml->getFullUrl('a=update&sa=customermode'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 	if ($object->isDomainOwnerMode()) {
-		$mode = ucfirst($object->cttype);
+		$mode = ucfirst((string) $object->cttype);
 	} else {
-		$mode = $login->getKeywordUc('domainowner');
+		$mode = (string) $login->getKeywordUc('domainowner');
 	}
+	$modeEsc = htmlspecialchars($mode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$switchEsc = htmlspecialchars((string) $login->getKeywordUc('switchto'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$modeLabelEsc = htmlspecialchars((string) $login->getKeywordUc('mode'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 ?>
 
-	<div style="background: #<?=$skin_color?> url(<?=$col?>); padding: 4px; margin: 0 25px; text-align: center">
-		<a href="<?=$url?>">&nbsp;>>>> <?= $login->getKeywordUc('switchto') ?> <?=$mode?> <?= $login->getKeywordUc('mode') ?> <<<<&nbsp;</a>
+	<div style="background: #<?= $skin_color ?>; padding: 4px; margin: 0 25px; text-align: center">
+		<a href="<?= $url ?>">&nbsp;>>>> <?= $switchEsc ?> <?= $modeEsc ?> <?= $modeLabelEsc ?> <<<<&nbsp;</a>
 	</div>
 <?php
 }

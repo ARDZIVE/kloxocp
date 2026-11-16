@@ -7248,9 +7248,15 @@ class HtmlLib
 
 ?>
 
-		<div <?= $idvar ?> <?= $onclickvar ?> class="div_container_icons" onmouseover="getElementById('aaid_<?= $formname ?>').style.textDecoration='none'; this.style.backgroundColor='<?= $selectcolor ?>';" onmouseout="this.style.backgroundColor=''; getElementById('aaid_<?= $formname ?>').style.textDecoration='none'">
-			<div class="div_icons_image"><span title='<?= $alt ?>'><?= $imgvar ?></span></div>
-			<div class="<?= $cssclass ?>"><span title='<?= $alt ?>'><?= $displayvar ?></span></div>
+<?php
+		// Escaped icon title (security EEE3).
+		$tileAltEsc = htmlspecialchars((string) $alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$selectEsc = htmlspecialchars((string) $selectcolor, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$cssEsc = htmlspecialchars((string) $cssclass, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+		<div <?= $idvar ?> <?= $onclickvar ?> class="div_container_icons" onmouseover="getElementById('aaid_<?= $formname ?>').style.textDecoration='none'; this.style.backgroundColor='<?= $selectEsc ?>';" onmouseout="this.style.backgroundColor=''; getElementById('aaid_<?= $formname ?>').style.textDecoration='none'">
+			<div class="div_icons_image"><span title="<?= $tileAltEsc ?>"><?= $imgvar ?></span></div>
+			<div class="<?= $cssEsc ?>"><span title="<?= $tileAltEsc ?>"><?= $displayvar ?></span></div>
 		</div>
 <?php
 	}
@@ -7583,13 +7589,22 @@ class HtmlLib
 		}
 ?>
 
-	<span title='<?= $alt ?>'>
-		<table <?= $idvar ?> style='border: 1px solid #<?= $skincolor ?>; cursor: pointer' onmouseover="getElementById('aaid_<?= $name ?>').style.textDecoration='none'; this.style.backgroundColor='#fff'; this.style.border='1px solid #<?= $skincolor ?>';" onmouseout="this.style.border='1px solid #<?= $skincolor ?>'; this.style.backgroundColor=''; getElementById('aaid_<?= $name ?>').style.textDecoration='none';" cellpadding='3' cellspacing='3' height='10' width='10' valign='top'>
+<?php
+	// Escaped icon title/skin (security EEE3).
+	$linkAltEsc = htmlspecialchars((string) $alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$skinHex = preg_replace('/[^0-9a-fA-F]/', '', (string) $skincolor) ?? '';
+	if ($skinHex === '' || (strlen($skinHex) !== 3 && strlen($skinHex) !== 6 && strlen($skinHex) !== 8)) {
+		$skinHex = 'aaa';
+	}
+	$nameIdSafe = preg_replace('/[^A-Za-z0-9_]/', '', (string) ($nameId ?? $name)) ?: 'kloxolink';
+?>
+	<span title="<?= $linkAltEsc ?>">
+		<table <?= $idvar ?> style="border: 1px solid #<?= $skinHex ?>; cursor: pointer" onmouseover="getElementById('aaid_<?= $nameIdSafe ?>').style.textDecoration='none'; this.style.backgroundColor='#fff'; this.style.border='1px solid #<?= $skinHex ?>';" onmouseout="this.style.border='1px solid #<?= $skinHex ?>'; this.style.backgroundColor=''; getElementById('aaid_<?= $nameIdSafe ?>').style.textDecoration='none';" cellpadding="3" cellspacing="3" height="10" width="10" valign="top">
 			<tr>
-				<td valign='top' align='center'><?= $imgvar ?></td>
+				<td valign="top" align="center"><?= $imgvar ?></td>
 			</tr>
-			<tr valign='top' height='100%'>
-				<td width='10' align='center'><span title='<?= $alt ?>'><?= $displayvar ?></span></td>
+			<tr valign="top" height="100%">
+				<td width="10" align="center"><span title="<?= $linkAltEsc ?>"><?= $displayvar ?></span></td>
 			</tr>
 		</table>
 	</span>
@@ -7858,10 +7873,17 @@ class HtmlLib
 								<td class='col' width='15%' align='center'>
 									<table align='center'>
 										<tr>
-											<td><INPUT TYPE='button' class='submitbutton' onClick="multiSelectPopulate('<?= $form ?>', '<?= trim($variablename) ?>',  '<?= $ts_name1 ?>', '<?= $ts_name2 ?>')" VALUE="&nbsp;&#x00bb;&nbsp;"></td>
+<?php
+		// Allow-listed multiselect ids (security EEE2).
+		$msForm = preg_replace('/[^A-Za-z0-9_]/', '', (string) $form) ?: 'form';
+		$msVar = preg_replace('/[^A-Za-z0-9_]/', '', trim((string) $variablename)) ?: 'var';
+		$msTs1 = preg_replace('/[^A-Za-z0-9_]/', '', (string) $ts_name1) ?: 'ts1';
+		$msTs2 = preg_replace('/[^A-Za-z0-9_]/', '', (string) $ts_name2) ?: 'ts2';
+?>
+											<td><INPUT TYPE='button' class='submitbutton' onClick="multiSelectPopulate('<?= $msForm ?>', '<?= $msVar ?>',  '<?= $msTs1 ?>', '<?= $msTs2 ?>')" VALUE="&nbsp;&#x00bb;&nbsp;"></td>
 										</tr>
 										<tr>
-											<td><INPUT TYPE='button' class='submitbutton' onClick="multiSelectRemove('<?= $form ?>', '<?= trim($variablename) ?>', '<?= $ts_name2 ?>')" VALUE="&nbsp;&#x00ab;&nbsp;"></td>
+											<td><INPUT TYPE='button' class='submitbutton' onClick="multiSelectRemove('<?= $msForm ?>', '<?= $msVar ?>', '<?= $msTs2 ?>')" VALUE="&nbsp;&#x00ab;&nbsp;"></td>
 										</tr>
 									</table>
 								</td>
@@ -8036,8 +8058,15 @@ class HtmlLib
 					</select>
 				</td>
 				<td>
-					<INPUT TYPE="button" class="submitbutton" onClick="multiSelectPopulate('<?= $form ?>', '<?= trim($variable->name) ?>',  '<?= $ts_name1 ?>', '<?= $ts_name2 ?>')" VALUE="&nbsp;&#x00bb;&nbsp;">
-					<INPUT TYPE="button" class="submitbutton" onClick="multiSelectRemove('<?= $form ?>', '<?= trim($variable->name) ?>', '<?= $ts_name2 ?>')" VALUE="&nbsp;&#x00ab;&nbsp;">
+<?php
+		// Allow-listed multiselect ids (security EEE2).
+		$msForm = preg_replace('/[^A-Za-z0-9_]/', '', (string) $form) ?: 'form';
+		$msVar = preg_replace('/[^A-Za-z0-9_]/', '', trim((string) $variable->name)) ?: 'var';
+		$msTs1 = preg_replace('/[^A-Za-z0-9_]/', '', (string) $ts_name1) ?: 'ts1';
+		$msTs2 = preg_replace('/[^A-Za-z0-9_]/', '', (string) $ts_name2) ?: 'ts2';
+?>
+					<INPUT TYPE="button" class="submitbutton" onClick="multiSelectPopulate('<?= $msForm ?>', '<?= $msVar ?>',  '<?= $msTs1 ?>', '<?= $msTs2 ?>')" VALUE="&nbsp;&#x00bb;&nbsp;">
+					<INPUT TYPE="button" class="submitbutton" onClick="multiSelectRemove('<?= $msForm ?>', '<?= $msVar ?>', '<?= $msTs2 ?>')" VALUE="&nbsp;&#x00ab;&nbsp;">
 				</td>
 				<td>
 					<select class="textbox" id="<?= $ts_name2 ?>" name="<?= trim($variable2->name) ?>[]" multiple size="5">
@@ -8438,9 +8467,14 @@ class HtmlLib
 
 		if ($variable->type === 'fileselect') {
 			/*--- issue #609 - "'<?=$url?>';);"><img" to "'<?=$url?>');"><img;" ---*/
+			// Allow-listed form/field + escaped url/src (security EEE4).
+			$fsForm = preg_replace('/[^A-Za-z0-9_]/', '', trim((string) $form)) ?: 'form';
+			$fsField = preg_replace('/[^A-Za-z0-9_]/', '', trim((string) $variable->name)) ?: 'field';
+			$fsUrl = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$fsIcon = htmlspecialchars(rtrim((string) $icondir, '/') . '/ffile_ttype_v_directory.gif', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-			<a href="javascript:void(0);" onclick="selectFolder(<?= trim($form) ?>.<?= trim($variable->name) ?>, '', '<?= $url ?>');"><img width="15" height="15" src="<?= $icondir ?>/ffile_ttype_v_directory.gif" border="0" alt="Select Folder" align="absmiddle"></a>
+			<a href="javascript:void(0);" onclick="selectFolder(<?= $fsForm ?>.<?= $fsField ?>, '', '<?= $fsUrl ?>');"><img width="15" height="15" src="<?= $fsIcon ?>" border="0" alt="Select Folder" align="absmiddle"></a>
 <?php
 		}
 
@@ -11244,18 +11278,28 @@ function uploadAbort(e) { // upload abort
 			$sortdir = ($sortdir === "desc") ? "asc" : "desc";
 		}
 
-		$formname = 'lpform_' . $unique_name . $sortby;
+		// Allow-listed form id + escaped label (security EEE3).
+		$formname = 'lpform_' . preg_replace('/[^A-Za-z0-9_]/', '', (string) $unique_name . (string) $sortby);
+		if ($formname === 'lpform_') {
+			$formname = 'lpform_sort';
+		}
+		$urlEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$altEsc = htmlspecialchars((string) $alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$descEsc = htmlspecialchars((string) $desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$filterEsc = htmlspecialchars((string) $filtername, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$sortbyEsc = htmlspecialchars((string) $sortby, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$sortdirEsc = htmlspecialchars((string) $sortdir, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 ?>
 
-		<form name="<?= $formname ?>" method="get" action="<?= $url ?>" accept-charset="utf-8">
+		<form name="<?= $formname ?>" method="get" action="<?= $urlEsc ?>" accept-charset="utf-8">
 			<?= $this->print_current_input_vars(array('frm_hpfilter')) ?>
 
-			<input type="hidden" id="frm_hpfilter[<?= $filtername ?>][sortby]" name="frm_hpfilter[<?= $filtername ?>][sortby]" value="<?= $sortby ?>">
-			<input type="hidden" id="frm_hpfilter[<?= $filtername ?>][sortdir]" name="frm_hpfilter[<?= $filtername ?>][sortdir]" value="<?= $sortdir ?>">
+			<input type="hidden" id="frm_hpfilter[<?= $filterEsc ?>][sortby]" name="frm_hpfilter[<?= $filterEsc ?>][sortby]" value="<?= $sortbyEsc ?>">
+			<input type="hidden" id="frm_hpfilter[<?= $filterEsc ?>][sortdir]" name="frm_hpfilter[<?= $filterEsc ?>][sortdir]" value="<?= $sortdirEsc ?>">
 		</form>
 
-		<span title='<?= $alt ?>'><a class='tableheadtext' href="javascript:document.<?= $formname ?>.submit()"><?= $desc ?> </a> </span>
+		<span title="<?= $altEsc ?>"><a class="tableheadtext" href="javascript:document.<?= $formname ?>.submit()"><?= $descEsc ?> </a> </span>
 <?php
 	}
 

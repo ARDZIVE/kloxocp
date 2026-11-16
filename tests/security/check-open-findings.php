@@ -2856,6 +2856,61 @@ $findings[] = finding('DDD6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $ddd6Closed,
 	$ddd6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- EEE wave ---
+$coreEee = file_text($root, 'kloxo/httpdocs/theme/coredisplaylib.php');
+$eee1Closed = contains($coreEee, 'security EEE1')
+	&& substr_count($coreEee, 'security EEE1') >= 2
+	&& not_contains($coreEee, 'url(<?=$col?>)')
+	&& contains($coreEee, '$modeEsc')
+	&& contains($coreEee, '$switchEsc');
+$findings[] = finding('EEE1', 'medium', 'coredisplaylib mode-switch raw skin/url/mode',
+	'coredisplaylib.php print_customer_mode / desktop', $eee1Closed,
+	$eee1Closed ? 'hex skin + escaped href/mode' : 'still raw');
+
+$htmlEee = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$eee2Closed = contains($htmlEee, 'security EEE2')
+	&& substr_count($htmlEee, 'security EEE2') >= 2
+	&& not_contains($htmlEee, "multiSelectPopulate('<?= \$form ?>', '<?= trim(\$variablename) ?>'")
+	&& not_contains($htmlEee, "multiSelectPopulate('<?= \$form ?>', '<?= trim(\$variable->name) ?>'");
+$findings[] = finding('EEE2', 'medium', 'multiselect onClick raw form/variable/ts ids',
+	'htmllib.php fancy/multiselect buttons', $eee2Closed,
+	$eee2Closed ? 'allow-listed form/var/ts ids' : 'still raw');
+
+$eee3Closed = contains($htmlEee, 'security EEE3')
+	&& contains($htmlEee, '$altEsc')
+	&& contains($htmlEee, '$descEsc')
+	&& not_contains($htmlEee, "title='<?= \$alt ?>'");
+$findings[] = finding('EEE3', 'low', 'tablehead sort link raw alt/formname/desc',
+	'htmllib.php tablehead sort', $eee3Closed,
+	$eee3Closed ? 'allow-listed form + escaped label' : 'still raw');
+
+$eee4Closed = contains($htmlEee, 'security EEE4')
+	&& contains($htmlEee, '$fsForm')
+	&& contains($htmlEee, '$fsUrl')
+	&& not_contains($htmlEee, "selectFolder(<?= trim(\$form) ?>.<?= trim(\$variable->name) ?>");
+$findings[] = finding('EEE4', 'low', 'selectFolder picker raw form/field/url/icon',
+	'htmllib.php fileselect picker', $eee4Closed,
+	$eee4Closed ? 'allow-listed form/field + escaped url' : 'still raw');
+
+$libEee = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibEee = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$eee5Closed = contains($libEee, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5')
+	&& contains($libEee, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5')
+	&& contains($lxlibEee, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5');
+$findings[] = finding('EEE5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $eee5Closed,
+	$eee5Closed ? 'ident-gated sites marked EEE5' : 'unmarked');
+
+$extSecEee = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastEee = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$eee6Closed = contains($lxlibEee, 'security EEE6')
+	&& contains($extSecEee, 'security EEE6')
+	&& contains($toastEee, 'security EEE6')
+	&& contains($lxlibEee, 'gated unserialize');
+$findings[] = finding('EEE6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $eee6Closed,
+	$eee6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
