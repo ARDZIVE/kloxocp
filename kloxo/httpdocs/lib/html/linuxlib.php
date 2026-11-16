@@ -515,7 +515,21 @@ function os_get_commandname($pid)
 
 function os_killpid_by_name($name)
 {
-	system("pkill -f $name");
+	// Argument-array only — never shell-interpolate $name (security AA2).
+	$name = is_string($name) ? $name : '';
+	if ($name === '' || strlen($name) > 200 || preg_match('/[\x00-\x1f]/', $name)) {
+		return;
+	}
+	$pkill = is_executable('/usr/bin/pkill') ? '/usr/bin/pkill' : 'pkill';
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open(array($pkill, '-f', '--', $name), $desc, $pipes);
+	if (is_resource($p)) {
+		proc_close($p);
+	}
 }
 
 function os_killpid($pid)

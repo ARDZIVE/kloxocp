@@ -2,6 +2,21 @@
 
 include_once "lib/html/include.php";
 
+/** Argument-array file ops (security AA6). */
+function kloxo_fixssl_run(array $argv): int
+{
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open($argv, $desc, $pipes);
+	if (!is_resource($p)) {
+		return 1;
+	}
+	return proc_close($p);
+}
+
 initProgram('admin');
 
 $kloxo_file_path = "{$sgbl->__path_program_root}/file/ssl";
@@ -22,7 +37,7 @@ foreach($ilist as $b) {
 
 			foreach ($list as $k => $v) {
 				if (file_exists("{$kloxo_file_path}/default.{$v}")) {
-					exec("'cp' -f {$kloxo_file_path}/default.{$v} {$kloxo_ssl_path}/$n.{$v}");
+					kloxo_fixssl_run(array('cp', '-f', '--', "{$kloxo_file_path}/default.{$v}", "{$kloxo_ssl_path}/{$n}.{$v}"));
 				}
 			}
 		}
@@ -37,8 +52,8 @@ if ((!is_link("{$kloxo_etc_path}/program.pem")) ||
 
 	foreach ($list as $k => $v) {
 		if (file_exists("{$kloxo_file_path}/default.{$v}")) {
-			exec("'rm' -f {$kloxo_etc_path}/program.{$v}");
-			exec("'cp' -f {$kloxo_file_path}/default.{$v} {$kloxo_etc_path}/program.{$v}");
+			kloxo_fixssl_run(array('rm', '-f', '--', "{$kloxo_etc_path}/program.{$v}"));
+			kloxo_fixssl_run(array('cp', '-f', '--', "{$kloxo_file_path}/default.{$v}", "{$kloxo_etc_path}/program.{$v}"));
 		}
 	}
 }
@@ -49,13 +64,13 @@ $pureftp_path="/etc/pki/pure-ftpd";
 
 if (file_exists("{$pureftp_path}/pure-ftpd.pem")) {
 	if (!file_exists("{$pureftp_path}/pure-ftpd.pem.old")) {
-		exec("'mv' -f {$pureftp_path}/pure-ftpd.pem {$pureftp_path}/pure-ftpd.pem.old");
+		kloxo_fixssl_run(array('mv', '-f', '--', "{$pureftp_path}/pure-ftpd.pem", "{$pureftp_path}/pure-ftpd.pem.old"));
 	} else {
-		exec("'mv' -f {$pureftp_path}/pure-ftpd.pem {$pureftp_path}/pure-ftpd.pem.old");
+		kloxo_fixssl_run(array('mv', '-f', '--', "{$pureftp_path}/pure-ftpd.pem", "{$pureftp_path}/pure-ftpd.pem.old"));
 	}
 }
 
-exec("ln -sf {$kloxo_etc_path}/program.pem {$pureftp_path}/pure-ftpd.pem");
+kloxo_fixssl_run(array('ln', '-sf', '--', "{$kloxo_etc_path}/program.pem", "{$pureftp_path}/pure-ftpd.pem"));
 
 $login->loadAllObjects('sslcert');
 $slist = $login->getList('sslcert');
@@ -108,9 +123,17 @@ foreach($slist as $b) {
 		$dom = $b->nname;
 
 		// MR -- remove old data for domain in letsencrypt data
-		exec("'rm' -rf {$lepath}/{live,archive,renewal}/{$dom}-*");
+		foreach (array('live', 'archive', 'renewal') as $__le) {
+			foreach (glob("{$lepath}/{$__le}/{$dom}-*") ?: array() as $__g) {
+				kloxo_fixssl_run(array('rm', '-rf', '--', $__g));
+			}
+		}
 
-		exec("'rm' -f {$sslpath}/{$dom}*.{key,crt,ca,pem}");
+		foreach (array('key', 'crt', 'ca', 'pem') as $__e) {
+			foreach (glob("{$sslpath}/{$dom}*.{$__e}") ?: array() as $__g) {
+				kloxo_fixssl_run(array('rm', '-f', '--', $__g));
+			}
+		}
 
 		if ($b->parent_domain) {
 			$par = $b->parent_domain;
@@ -120,7 +143,7 @@ foreach($slist as $b) {
 			foreach ($list as $k => $v) {
 				if (file_exists("{$sslpath}/{$par}.{$v}")) {
 					print("  * SymLink SSL file for '{$dom}' from '{$par}'\n");
-					exec("ln -sf {$sslpath}/{$par}.{$v} {$sslpath}/{$dom}.{$v}");
+					kloxo_fixssl_run(array('ln', '-sf', '--', "{$sslpath}/{$par}.{$v}", "{$sslpath}/{$dom}.{$v}"));
 				}
 			}
 		} else {
@@ -133,7 +156,7 @@ foreach($slist as $b) {
 
 			foreach($list as $k => $v) {
 				if (strpos($v, '-----BEGIN') !== false) {
-					exec("echo '{$v}' >{$sslpath}/{$dom}.{$k}");
+					@file_put_contents("{$sslpath}/{$dom}.{$k}", $v);
 				}
 			}
 

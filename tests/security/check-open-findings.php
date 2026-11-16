@@ -1041,6 +1041,64 @@ $findings[] = finding('Z6', 'low', 'unserialize allow-list accepts any lowercase
 	'remote_auth_gate.php kloxo_unserialize_panel_class_ok', $z6Closed,
 	$z6Closed ? 'known set + gl_class_array + *_a/b/o only' : 'catch-all lowercase remains');
 
+// --- Wave 12 (AA1–AA7) ---
+$meBackup = file_text($root, 'kloxo/bin/common/mebackup.php');
+$aa1Closed = contains($meBackup, 'defaults-extra-file')
+	&& contains($meBackup, 'security AA1')
+	&& not_contains($meBackup, '-p{$pass}');
+$findings[] = finding('AA1', 'high', 'mebackup.php puts DB password on mysqldump cmdline',
+	'bin/common/mebackup.php', $aa1Closed,
+	$aa1Closed ? 'defaults-extra-file 0600 + proc_open' : 'still -p{$pass}');
+
+$killByName = function_body(file_text($root, 'kloxo/httpdocs/lib/html/linuxlib.php'), 'os_killpid_by_name');
+$aa2Closed = contains($killByName, 'security AA2')
+	&& contains($killByName, 'proc_open')
+	&& not_contains($killByName, 'system("pkill');
+$findings[] = finding('AA2', 'medium', 'os_killpid_by_name shells pkill -f $name',
+	'linuxlib.php os_killpid_by_name', $aa2Closed,
+	$aa2Closed ? 'proc_open argv pkill' : 'still system(pkill)');
+
+$redir = function_body(file_text($root, 'kloxo/httpdocs/lib/html/commonfslib.php'), 'lxshell_redirect');
+$aa3Closed = contains($redir, 'security AA3')
+	&& contains($redir, 'proc_open')
+	&& not_contains($redir, 'system("');
+$findings[] = finding('AA3', 'medium', 'lxshell_redirect uses system shell string',
+	'commonfslib.php lxshell_redirect', $aa3Closed,
+	$aa3Closed ? 'proc_open argv' : 'still system($cmd > $file)');
+
+$aa4Closed = not_contains(file_text($root, 'kloxo/httpdocs/lib/html/commonfslib.php'), 'eval($sgbl->arg_getting_string)')
+	&& not_contains($lxlibR, 'eval($sgbl->arg_getting_string)')
+	&& not_contains(file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php'), 'eval($sgbl->arg_getting_string)');
+$findings[] = finding('AA4', 'medium', 'dead PHP<5.3 eval($sgbl->arg_getting_string) branches',
+	'commonfslib / lxlib / lxclass', $aa4Closed,
+	$aa4Closed ? 'eval branches removed' : 'eval($sgbl->arg_getting_string) remains');
+
+$randLcase = function_body($lib, 'random_string_lcase');
+$aa5Closed = contains($randLcase, 'random_int')
+	&& contains($randLcase, 'security AA5')
+	&& not_contains($randLcase, 'array_rand');
+$findings[] = finding('AA5', 'low', 'random_string_lcase uses array_rand',
+	'lib.php random_string_lcase', $aa5Closed,
+	$aa5Closed ? 'random_int CSPRNG' : 'still array_rand');
+
+$fixLogo = file_text($root, 'kloxo/bin/fix/fix-userlogo.php');
+$fixSsl = file_text($root, 'kloxo/bin/fix/fixssl.php');
+$aa6Closed = contains($fixLogo, 'security AA6')
+	&& contains($fixSsl, 'security AA6')
+	&& not_contains($fixLogo, "system(\"'cp'")
+	&& not_contains($fixSsl, "exec(\"'cp'");
+$findings[] = finding('AA6', 'low', 'fix-userlogo / fixssl shell cp with paths',
+	'bin/fix/fix-userlogo.php / fixssl.php', $aa6Closed,
+	$aa6Closed ? 'proc_open argv cp/rm/mv/ln' : 'still system/exec cp');
+
+$parseInlineAa = function_body($lib, 'getParseInlinePhp');
+$aa7Closed = contains($parseInlineAa, 'security AA7')
+	&& contains($parseInlineAa, 'include $__file')
+	&& not_contains($parseInlineAa, "eval('?>'");
+$findings[] = finding('AA7', 'low', 'getParseInlinePhp still uses eval after token gate',
+	'lib.php getParseInlinePhp', $aa7Closed,
+	$aa7Closed ? 'temp include after token gate' : 'still eval');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

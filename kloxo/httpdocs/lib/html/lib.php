@@ -3040,7 +3040,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111612';
+	return '10.1-2026111613';
 }
 
 function getDownloadServer()
@@ -8303,19 +8303,36 @@ function getParseInlinePhp($template, $input)
 			}
 		}
 	}
-	extract($safe, EXTR_SKIP);
 
-	ob_start();
-	try {
-		eval('?>' . $template);
-	} catch (Throwable $e) {
-		ob_end_clean();
-		log_log('security', 'getParseInlinePhp eval failed: ' . $e->getMessage());
+	// No eval (security AA7): render via include of a temp file after the
+	// token allow-list. Scope is a closure so only $safe keys are visible.
+	$tmp = @tempnam(sys_get_temp_dir(), 'kloxo-tpl-');
+	if ($tmp === false) {
+		return '';
+	}
+	if (@file_put_contents($tmp, $template) === false) {
+		@unlink($tmp);
 
 		return '';
 	}
-	$ret = ob_get_contents();
+	@chmod($tmp, 0600);
+
+	ob_start();
+	try {
+		(static function (string $__file, array $__vars): void {
+			extract($__vars, EXTR_SKIP);
+			include $__file;
+		})($tmp, $safe);
+		$ret = ob_get_contents();
+	} catch (Throwable $e) {
+		ob_end_clean();
+		@unlink($tmp);
+		log_log('security', 'getParseInlinePhp include failed: ' . $e->getMessage());
+
+		return '';
+	}
 	ob_end_clean();
+	@unlink($tmp);
 	if (!is_string($ret)) {
 		$ret = '';
 	}
@@ -8936,17 +8953,16 @@ function get_function_arglist($start = 0, $transforming_func = null)
 
 function random_string_lcase($length)
 {
-	$key = '';
-
-	$keys1 = array_merge(range('a', 'z'));
+	// CSPRNG (security AA5) — same alphabet as before.
+	$length = (int) $length;
+	if ($length < 1) {
+		return '';
+	}
+	$keys1 = range('a', 'z');
 	$keys2 = array_merge(range(0, 9), range('a', 'z'));
-
-	for ($i = 0; $i < $length; $i++) {
-		if ($i === 0) {
-			$key .= $keys1[array_rand($keys1)];
-		} else {
-			$key .= $keys2[array_rand($keys2)];
-		}
+	$key = $keys1[random_int(0, count($keys1) - 1)];
+	for ($i = 1; $i < $length; $i++) {
+		$key .= $keys2[random_int(0, count($keys2) - 1)];
 	}
 
 	return $key;

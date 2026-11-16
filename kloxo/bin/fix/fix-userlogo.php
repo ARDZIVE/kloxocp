@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 // by mustafa@bigraf.com for Kloxo-MR
 
@@ -13,16 +13,32 @@ $nolog  = (isset($list['nolog'])) ? $list['nolog'] : null;
 
 setFixUserlogo($select);
 
+/** Argument-array cp (security AA6). */
+function kloxo_fix_cp(string $src, string $dst): bool
+{
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open(array('cp', '-rf', '--', $src, $dst), $desc, $pipes);
+	if (!is_resource($p)) {
+		return false;
+	}
+
+	return proc_close($p) === 0;
+}
+
 /* ****** BEGIN - setFixUserlogo ***** */
 
 function setFixUserlogo($select)
 {
-	global $gbl, $sgbl, $login, $ghtml;
+	global $gbl, $sgbl, $login, $ghtml, $nolog;
 
 	log_cleanup("Fix user logo", $nolog);
 
 	if (file_exists("/opt/kloxo/httpdocs/user-logo.png")) {
-		system("'cp' -rf /opt/kloxo/httpdocs/user-logo.png /home/kloxo/httpd/user-logo.png");
+		kloxo_fix_cp('/opt/kloxo/httpdocs/user-logo.png', '/home/kloxo/httpd/user-logo.png');
 		log_cleanup("- User logo copy from -> /opt/kloxo/user-logo.png", $nolog);
 		log_cleanup("- User logo copy to -> /home/kloxo/httpd/user-logo.png", $nolog);
 	}
@@ -48,26 +64,31 @@ function setFixUserlogo($select)
 
 function setFixUserlogoDefaultPages()
 {
+	global $nolog;
+
 	$list = array('cp', 'default', 'disable', 'webmail');
-	
+
 	foreach($list as $k => $l) {
-		system("'cp' -rf /home/kloxo/httpd/user-logo.png /home/kloxo/httpd/{$l}/images/user-logo.png");
-		system("'cp' -rf /home/kloxo/httpd/user-logo.png /home/kloxo/httpd/{$l}/images/logo.png");
+		if (!preg_match('/^[a-z]+$/', $l)) {
+			continue;
+		}
+		kloxo_fix_cp('/home/kloxo/httpd/user-logo.png', "/home/kloxo/httpd/{$l}/images/user-logo.png");
+		kloxo_fix_cp('/home/kloxo/httpd/user-logo.png', "/home/kloxo/httpd/{$l}/images/logo.png");
 		log_cleanup("- User logo for default pages copy to -> /home/kloxo/httpd/{$l}/images/logo.png", $nolog);
 	}
-	
-	system("'cp' -rf /home/kloxo/httpd/user-logo.png /opt/kloxo/httpdocs/login/images/user-logo.png");
-	system("'cp' -rf /home/kloxo/httpd/user-logo.png /opt/kloxo/httpdocs/login/images/logo.png");
+
+	kloxo_fix_cp('/home/kloxo/httpd/user-logo.png', '/opt/kloxo/httpdocs/login/images/user-logo.png');
+	kloxo_fix_cp('/home/kloxo/httpd/user-logo.png', '/opt/kloxo/httpdocs/login/images/logo.png');
 	log_cleanup("- User logo copy to -> /opt/kloxo/httpdocs/login/images/user-logo.png", $nolog);
 }
 
 function setFixUserlogoDomainPages()
 {
 	global $gbl, $sgbl, $login, $ghtml;
-	
+
 	$login->loadAllObjects('client');
 	$list = $login->getList('client');
-	
+
 	foreach($list as $c) {
 		$cinfo = posix_getpwnam($c->nname);
 
@@ -82,12 +103,11 @@ function setFixUserlogoDomainPages()
 			$docroot = $web->getFullDocRoot();
 
 			if (file_exists("$docroot/images")) {
-				system("'cp' -rf /home/kloxo/httpd/user-logo.png $docroot/images/user-logo.png");
-				system("'cp' -rf /home/kloxo/httpd/user-logo.png $docroot/images/logo.png");
+				kloxo_fix_cp('/home/kloxo/httpd/user-logo.png', "{$docroot}/images/user-logo.png");
+				kloxo_fix_cp('/home/kloxo/httpd/user-logo.png', "{$docroot}/images/logo.png");
 			}
 		}
 	}
 }
 
 /* ****** END - setFixUserlogo ***** */
-
