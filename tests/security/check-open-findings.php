@@ -628,6 +628,50 @@ $findings[] = finding('S14', 'low', 'preview loopback SSL verify off',
 	'kloxo_sitepreview.php', $s14Closed,
 	$s14Closed ? 'loopback-only SSL exception documented in code' : 'verify off for non-loopback');
 
+// --- Wave 5 (T1–T6) ---
+$blanket = file_text($root, 'kloxo/bin/common/securityblanket.php');
+$t1Closed = contains($blanket, 'kloxo_unserialize_deny_gadgets')
+	&& contains($blanket, 'kloxo_securityblanket_callable_allowed')
+	&& not_contains($blanket, 'unserialize(lfile_get_contents')
+	&& contains($blanket, 'kloxo_securityblanket_ident');
+$findings[] = finding('T1', 'high', 'securityblanket.php bare unserialize + call_user_func + string SQL',
+	'bin/common/securityblanket.php', $t1Closed,
+	$t1Closed ? 'deny-gadgets + empty callable allow-list + ident-checked SQL' : 'still bare worker');
+
+$blanketExec = function_body($lib, 'securityBlanketExec');
+$t2Closed = contains($blanketExec, 'refused') || contains($blanketExec, 'security T2')
+	|| (contains($blanketExec, '/pid') && not_contains($blanketExec, '/tmp'));
+$findings[] = finding('T2', 'medium', 'securityBlanketExec writes jobs under /tmp',
+	'lib.php securityBlanketExec', $t2Closed,
+	$t2Closed ? 'refuses spawn / no /tmp jobs' : 'still tempnam(/tmp)');
+
+$gkp = function_body($lib, 'get_kloxo_port');
+$t3Closed = contains($gkp, 'kloxo_b64_unserialize') || contains($gkp, 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('T3', 'low', 'get_kloxo_port bare unserialize of ser_portconfig_b',
+	'lib.php get_kloxo_port', $t3Closed,
+	$t3Closed ? 'filtered unserialize' : 'still bare unserialize');
+
+$fsBody = function_body($lib, 'file_server');
+$t4Closed = contains($fsBody, 'kloxo_b64_unserialize') || contains($fsBody, 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('T4', 'low', 'file_server allowed_classes only without gadget scan',
+	'lib.php file_server', $t4Closed,
+	$t4Closed ? 'uses kloxo_b64_unserialize' : 'still allowed_classes only');
+
+$t5Closed = contains($gate, 'kloxo_localhost_get_fallback_allowed')
+	&& contains($rexBody, 'kloxo_localhost_get_fallback_allowed');
+$findings[] = finding('T5', 'low', 'localhost action=get falls back as panel user for privileged callables',
+	'remotelib.php remote_exec', $t5Closed,
+	$t5Closed ? 'privileged get fallback refused' : 'get still falls back for Kloxo*/Service__*');
+
+$dbCli = file_text($root, 'kloxo/bin/database.php');
+$rpCli = file_text($root, 'kloxo/bin/common/resetpassword.php');
+$t6Closed = (contains($dbCli, 'kloxo_b64_unserialize') || contains($dbCli, 'kloxo_unserialize_deny_gadgets'))
+	&& (contains($rpCli, 'kloxo_load_slave_db') || contains($rpCli, 'kloxo_unserialize_deny_gadgets'))
+	&& contains($dbCli, 'Only a single SELECT');
+$findings[] = finding('T6', 'low', 'CLI database.php / resetpassword.php bare unserialize',
+	'bin/database.php + bin/common/resetpassword.php', $t6Closed,
+	$t6Closed ? 'filtered unserialize + SELECT-only exec' : 'still bare');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

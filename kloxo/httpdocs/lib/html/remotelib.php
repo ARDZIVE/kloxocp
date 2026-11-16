@@ -425,9 +425,13 @@ function remote_exec($machine, $cmd)
 		// backend cannot blank the page. Privileged work sets
 		// no_local_fallback. Never fall back action=set as the panel user
 		// (security S10) — that would sync as lxlabs instead of root.
+		// action=get: refuse privileged callables as panel user (security T5).
 		$canFallback = isLocalhost($machine)
 			&& empty($cmd->no_local_fallback)
-			&& !(isset($cmd->action) && $cmd->action === 'set');
+			&& !(isset($cmd->action) && $cmd->action === 'set')
+			&& (!(isset($cmd->action) && $cmd->action === 'get')
+				|| !function_exists('kloxo_localhost_get_fallback_allowed')
+				|| kloxo_localhost_get_fallback_allowed($cmd->func ?? null));
 		if ($canFallback) {
 			log_log("error", "localhost backend: " . $e->getMessage());
 			try {

@@ -1,6 +1,12 @@
-<?php 
+<?php
+/**
+ * Root-only CLI password reset. Not network-reachable (security T6).
+ * Slave DB load uses gadget-filtered unserialize.
+ */
 
 include_once "lib/html/include.php";
+
+global $sgbl, $argv;
 
 if (!os_isSelfSystemOrLxlabsUser()) {
 	print("Must be Root \n");
@@ -8,27 +14,39 @@ if (!os_isSelfSystemOrLxlabsUser()) {
 	exit;
 }
 
-if (!isset($argv[1])) {
-	print("Usage: $argv[0] <master/slave> <password>\n");
+if (!isset($argv[1]) || !isset($argv[2])) {
+	print("Usage: {$argv[0]} <master/slave> <password>\n");
 	exit;
 }
 
 if ($argv[1] === 'master') {
 	initProgram('admin');
-	$login->password = crypt($argv[2], '$1$'.randomString(8).'$');
+	$login = $GLOBALS['login'];
+	$login->password = crypt($argv[2], '$1$' . randomString(8) . '$');
 	$login->realpass = $argv[2];
 	$login->setUpdateSubaction('password');
 	$login->createSyncClass();
 	$login->was();
 } else if ($argv[1] === 'slave') {
-	if (!lxfile_exists("$sgbl->__path_slave_db")) {
+	if (!lxfile_exists("__path_slave_db")) {
 		print("Not Slave\n");
 
 		exit;
-		}
-	$rmt = unserialize(lfile_get_contents("$sgbl->__path_slave_db"));
-	$rmt->password = crypt($argv[2], '$1$'.randomString(8).'$');
-	lfile_put_contents("$sgbl->__path_slave_db", serialize($rmt));
+	}
+	if (function_exists('kloxo_load_slave_db')) {
+		$rmt = kloxo_load_slave_db();
+	} elseif (function_exists('kloxo_unserialize_deny_gadgets')) {
+		$raw = lfile_get_contents("__path_slave_db");
+		$rmt = kloxo_unserialize_deny_gadgets((string) $raw, array('allowed_classes' => array('Remote', 'stdClass')));
+	} else {
+		$rmt = @unserialize(lfile_get_contents("__path_slave_db"), array('allowed_classes' => array('Remote', 'stdClass')));
+	}
+	if (!is_object($rmt)) {
+		print("Could not load slave-db\n");
+		exit(1);
+	}
+	$rmt->password = crypt($argv[2], '$1$' . randomString(8) . '$');
+	lfile_put_contents("__path_slave_db", serialize($rmt));
 } else {
 	print("first argument is master/slave\n");
 

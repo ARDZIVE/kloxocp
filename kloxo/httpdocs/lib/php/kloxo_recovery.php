@@ -858,7 +858,8 @@ final class KloxoRecovery
             return is_array($got) ? $got : null;
         }
         try {
-            $got = rl_exec_get(null, 'localhost', ['KloxoRecovery', $method], $args);
+            // No panel-user fallback (security T5): needs root via kloxo-backend.
+            $got = rl_exec_get(null, 'localhost', ['KloxoRecovery', $method], $args, false);
         } catch (Throwable $e) {
             return ['ok' => false, 'err' => 'kloxo-backend: ' . $e->getMessage(), 'text' => 'kloxo-backend: ' . $e->getMessage(), 'euid' => $euid];
         }

@@ -168,6 +168,40 @@ function kloxo_load_slave_db()
 }
 
 /**
+ * Whether localhost action=get may fall back in-process as the panel user when
+ * kloxo-backend is down (security T5). Privileged Kloxo… / Service__… and host
+ * mutation drivers must not run as lxlabs; File Manager (coreFfile) still may.
+ *
+ * @param mixed $func
+ */
+function kloxo_localhost_get_fallback_allowed($func)
+{
+	if (is_array($func) && isset($func[0]) && is_string($func[0])) {
+		$class = $func[0];
+		if (str_starts_with($class, 'Kloxo') || str_starts_with($class, 'Service__')) {
+			return false;
+		}
+		$method = isset($func[1]) ? (string) $func[1] : '';
+		static $denyMethod = array(
+			'switchDriver', 'installMe', 'unInstallMe', 'mysqlPasswordReset',
+			'systemctlRunDetail', 'systemctlRun', 'controlUnit',
+		);
+		if ($method !== '' && in_array($method, $denyMethod, true)) {
+			return false;
+		}
+		return true;
+	}
+	if (is_string($func)) {
+		static $denyFn = array(
+			'slave_save_db', 'lfile_put_contents', 'lxfile_rm_rec_content',
+			'lxfile_rm_rec', 'lxfile_mkdir',
+		);
+		return !in_array($func, $denyFn, true);
+	}
+	return false;
+}
+
+/**
  * Whether a backend action=get callable is allowed (security R3).
  * Blocks shell/RCE builtins and non-identifier names; panel Class::method stays.
  *

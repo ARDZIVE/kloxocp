@@ -2091,16 +2091,24 @@ function get_kloxo_port($type)
 	global $sgbl;
 
 	$port = db_get_value("general", "admin", "ser_portconfig_b");
-	$port = unserialize(base64_decode($port));
+	// Filtered unserialize (security T3) — blob is panel-owned but still deny gadgets.
+	if (function_exists('kloxo_b64_unserialize')) {
+		$port = kloxo_b64_unserialize((string) $port, array('allowed_classes' => array('portconfig_b', 'stdClass')));
+	} else {
+		$port = @unserialize(base64_decode((string) $port), array('allowed_classes' => array('portconfig_b', 'stdClass')));
+	}
+	if (!is_object($port)) {
+		$port = null;
+	}
 
 	if ($type === 'ssl') {
-		if (isset($port->sslport)) {
+		if ($port && isset($port->sslport)) {
 			$ret = $port->sslport;
 		} else {
 			$ret = $sgbl->__var_prog_ssl_port;
 		}
 	} else {
-		if (isset($port->nonsslport)) {
+		if ($port && isset($port->nonsslport)) {
 			$ret = $port->nonsslport;
 		} else {
 			$ret = $sgbl->__var_prog_port;
@@ -3081,7 +3089,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111605';
+	return '10.1-2026111606';
 }
 
 function getDownloadServer()
@@ -5180,22 +5188,18 @@ function slave_save_db($file, $list)
 	lfile_put_serialize($dir . '/' . $file, $rmt);
 }
 
+/**
+ * Legacy async runner for securityblanket.php. Unused; refuse to spawn into
+ * world-writable /tmp (security T2). If ever re-enabled, jobs must live under
+ * {program_root}/pid/ and the worker allow-list must be non-empty.
+ */
 function securityBlanketExec($table, $nname, $variable, $func, $arglist)
 {
-	global $sgbl;
+	if (function_exists('log_log')) {
+		log_log('error', 'securityBlanketExec refused (security T2: dormant; no /tmp jobs)');
+	}
 
-	$rem = new Remote();
-	$rem->table = $table;
-	$rem->nname = $nname;
-	$rem->flagvariable = $variable;
-	$rem->func = $func;
-	$rem->arglist = $arglist;
-	$name = tempnam("/tmp", "security");
-
-	lxfile_generic_chmod($name, "700");
-	lfile_put_contents($name, serialize($rem));
-
-	lxshell_background($sgbl->__path_php_path, "../bin/common/securityblanket.php", $name);
+	return false;
 }
 
 function checkClusterDiskQuota()
@@ -5328,7 +5332,12 @@ function file_server($fd, $string)
 
 			return false;
 		}
-		$rem = @unserialize(base64_decode($env['payload_b64']), ['allowed_classes' => ['Remote']]);
+		// Gadget string scan + Remote allow-list (security T4).
+		if (function_exists('kloxo_b64_unserialize')) {
+			$rem = kloxo_b64_unserialize((string) $env['payload_b64'], ['allowed_classes' => ['Remote']]);
+		} else {
+			$rem = @unserialize(base64_decode((string) $env['payload_b64']), ['allowed_classes' => ['Remote']]);
+		}
 	} else {
 		// Fail closed if the auth gate is missing.
 		print_or_write($fd, "fAuthentication required\n\n");
