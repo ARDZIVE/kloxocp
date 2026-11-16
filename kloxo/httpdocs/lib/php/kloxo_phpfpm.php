@@ -542,8 +542,21 @@ final class KloxoPhpfpm
         if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
             throw new KloxoPhpfpmException('cannot create ' . $dir);
         }
+        // Absolute phpX.Y only; fail-closed quote (security LL4).
+        if (preg_match('#^/usr/bin/php\d+(\.\d+)?$#', $cli) !== 1) {
+            throw new KloxoPhpfpmException('invalid cron wrapper cli');
+        }
+        if (!class_exists('KloxoPhpver', false)) {
+            include_once __DIR__ . '/kloxo_phpver.php';
+        }
+        $q = (class_exists('KloxoPhpver', false) && method_exists('KloxoPhpver', 'bashQuote'))
+            ? KloxoPhpver::bashQuote($cli)
+            : '';
+        if ($q === '') {
+            throw new KloxoPhpfpmException('invalid cron wrapper cli');
+        }
         $file = $dir . '/php-' . $d;
-        $body = "#!/bin/sh\nexec " . escapeshellarg($cli) . " \"\$@\"\n";
+        $body = "#!/bin/sh\nexec " . $q . " \"\$@\"\n";
         self::atomicWrite($file, $body, 0755);
 
         return $file;

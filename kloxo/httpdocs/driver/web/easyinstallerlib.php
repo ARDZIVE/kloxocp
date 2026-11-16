@@ -260,7 +260,8 @@ class easyinstaller extends Lxdb
 				}
 
 				if (!$this->dbpass) {
-					$this->dbpass = substr(md5(time()), 0, 10);
+					// CSPRNG — EasyInstaller install path is refused elsewhere (security LL1).
+					$this->dbpass = bin2hex(random_bytes(8));
 				}
 
 				try {

@@ -2777,60 +2777,8 @@ function lx_core_lock_check_only($prog, $file = null)
 
 function appvault_dbfilter($inputfile, $outputfile, $cont)
 {
-	$val = lfile_get_contents($inputfile);
-	$fullurl = "{$cont['domain']}/{$cont['installdir']}";
-	$fullurl = trim($fullurl, "/");
-	$full_install_path = "{$cont['full_document_root']}/{$cont['installdir']}";
-	$full_install_path = remove_extra_slash($full_install_path);
-	$full_install_path = trim($full_install_path, "/");
-	$full_install_path = "/$full_install_path";
-	$install_dir = $cont['installdir'];
-	$install_dir = trim($install_dir, "/");
-	$full_doc_root = $cont['full_document_root'];
-	$full_doc_root = trim($full_doc_root, "/");
-	$full_doc_root = "/$full_doc_root";
-
-	if (isset($cont['relative_script_path'])) {
-		$relative_script_path = $cont['relative_script_path'];
-		$relative_script_path = remove_extra_slash("/$relative_script_path");
-	} else {
-		if (isset($cont['executable_file_path'])) {
-			$execpath = $cont['executable_file_path'];
-			$relative_script_path = remove_extra_slash("/$install_dir/$execpath");
-		} else {
-			$relative_script_path = $install_dir;
-		}
-	}
-
-	$val = str_replace("__lx_full_url", $fullurl, $val);
-	$val = str_replace("__lx_full_installdir", $full_install_path, $val);
-	$val = str_replace("__lx_full_script_path", $full_install_path, $val);
-	$val = str_replace("__lx_document_root", $full_doc_root, $val);
-	$val = str_replace("__lx_installdir", $install_dir, $val);
-	$val = str_replace("__lx_relative_script_path", $relative_script_path, $val);
-
-	$val = str_replace("__lx_title", $cont['title'], $val);
-	$val = str_replace("__lx_admin_email", $cont['email'], $val);
-	$val = str_replace("__lx_admin_company", $cont['company'], $val);
-	$val = str_replace("__lx_real_name", $cont['realname'], $val);
-	$val = str_replace("__lx_install_flag", $cont['install_flag'], $val);
-	$val = str_replace("__lx_admin_name", $cont['adminname'], $val);
-	$val = str_replace("__lx_submit_value", $cont['submit_value'], $val);
-	$val = str_replace("__lx_client_path", "/home/{$cont['customer_name']}", $val);
-	$val = str_replace("__lx_adminemail_login", $cont['admin_email_login'], $val);
-	$val = str_replace("__lx_admin_pass", $cont['adminpass'], $val);
-	// Legacy EasyInstaller template token only (not panel auth; security JJ5).
-	$val = str_replace("__lx_md5_adminpass", md5($cont['adminpass']), $val);
-	$val = str_replace("__lx_db_host", $cont['realhost'], $val);
-	$val = str_replace("__lx_db_name", $cont['dbname'], $val);
-	$val = str_replace("__lx_db_pass", $cont['dbpass'], $val);
-	$val = str_replace("__lx_db_user", $cont['dbuser'], $val);
-	$val = str_replace("__lx_db_type", $cont['dbtype'], $val);
-	$val = str_replace("__lx_url", $cont['domain'], $val);
-	$val = str_replace("__lx_domain_name", $cont['domain'], $val);
-	$val = str_replace("__lx_action", $cont['action'], $val);
-
-	lfile_put_contents($outputfile, $val);
+	// EasyInstaller template rewrite removed (security LL1; security JJ5).
+	log_log('security', 'appvault_dbfilter refused — EasyInstaller removed');
 }
 
 function installLxetc()
@@ -3203,7 +3151,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111624';
+	return '10.1-2026111625';
 }
 
 function getDownloadServer()

@@ -2805,17 +2805,15 @@ function kloxo_password_hash($plain)
 	if (!is_string($plain) || $plain === '') {
 		return '';
 	}
-	if (defined('PASSWORD_ARGON2ID')) {
-		$h = password_hash($plain, PASSWORD_ARGON2ID);
-		if (is_string($h) && $h !== '') {
-			return $h;
-		}
+	// Argon2id only — no PASSWORD_DEFAULT / crypt fallback (security LL6 / Y7).
+	if (!defined('PASSWORD_ARGON2ID')) {
+		return '';
 	}
-	$h = password_hash($plain, PASSWORD_DEFAULT);
+	$h = password_hash($plain, PASSWORD_ARGON2ID);
 	if (is_string($h) && $h !== '') {
 		return $h;
 	}
-	// Fail closed — never mint MD5-crypt (security Y7).
+
 	return '';
 }
 
