@@ -3015,6 +3015,57 @@ $findings[] = finding('GGG6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $ggg6Closed,
 	$ggg6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- HHH wave ---
+$htmlHhh = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$hhh1Closed = contains($htmlHhh, 'security HHH1')
+	&& contains($htmlHhh, '$nameEsc')
+	&& contains($htmlHhh, '$valEsc')
+	&& not_contains($htmlHhh, 'name="<?= $variable->name ?>" value="<?= $m_value ?>"');
+$findings[] = finding('HHH1', 'medium', 'textbox input raw name/value/type',
+	'htmllib.php print_modify textbox', $hhh1Closed,
+	$hhh1Closed ? 'escaped name/value + allow-listed type' : 'still raw');
+
+$hhh2Closed = contains($htmlHhh, 'security HHH2')
+	&& contains($htmlHhh, '$titleEsc')
+	&& not_contains($htmlHhh, 'background="<?= $imgheadbg ?>"><b><span style="color:#fff"><?= $title ?></span></b>');
+$findings[] = finding('HHH2', 'medium', 'form_header raw title/img paths',
+	'htmllib.php form_header', $hhh2Closed,
+	$hhh2Closed ? 'escaped title/imgs' : 'still raw');
+
+$coreHhh = file_text($root, 'kloxo/httpdocs/theme/coredisplaylib.php');
+$hhh3Closed = contains($coreHhh, 'security HHH3')
+	&& contains($coreHhh, "preg_replace('/[^0-9a-fA-F]/', '', (string) \$login->getSkinColor())");
+$findings[] = finding('HHH3', 'low', 'display chrome getSkinColor unsanitized',
+	'coredisplaylib.php kloxo_print_display_chrome', $hhh3Closed,
+	$hhh3Closed ? 'hex-only skin colour' : 'still raw');
+
+$hhh4Closed = contains($htmlHhh, 'security HHH4')
+	&& substr_count($htmlHhh, 'security HHH4') >= 3
+	&& not_contains($htmlHhh, '<option value="<?= $k ?>"><?= $option ?></option>')
+	&& not_contains($htmlHhh, '<option value="<?= $vv ?>"><?= $vv ?></option>');
+$findings[] = finding('HHH4', 'low', 'select option value/label unescaped',
+	'htmllib.php fancy/multiselect/postvar options', $hhh4Closed,
+	$hhh4Closed ? 'escaped option value/label' : 'still raw');
+
+$libHhh = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibHhh = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$hhh5Closed = contains($libHhh, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5 / GGG5 / HHH5')
+	&& contains($libHhh, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5 / GGG5 / HHH5')
+	&& contains($lxlibHhh, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5 / GGG5 / HHH5');
+$findings[] = finding('HHH5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $hhh5Closed,
+	$hhh5Closed ? 'ident-gated sites marked HHH5' : 'unmarked');
+
+$extSecHhh = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastHhh = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$hhh6Closed = contains($lxlibHhh, 'security HHH6')
+	&& contains($extSecHhh, 'security HHH6')
+	&& contains($toastHhh, 'security HHH6')
+	&& contains($lxlibHhh, 'gated unserialize');
+$findings[] = finding('HHH6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $hhh6Closed,
+	$hhh6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

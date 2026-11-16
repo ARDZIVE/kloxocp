@@ -3226,7 +3226,11 @@ function kloxo_print_display_chrome(): void
 	global $gbl, $sgbl, $login, $ghtml;
 
 	$skindir = $login->getSkinDir();
-	$col = $login->getSkinColor();
+	// Hex-only skin colour (security HHH3).
+	$col = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+	if ($col === '' || (strlen($col) !== 3 && strlen($col) !== 6 && strlen($col) !== 8)) {
+		$col = 'aaa';
+	}
 	$buttontype = $login->getSpecialObject('sp_specialplay')->button_type;
 ?>
 	<html>

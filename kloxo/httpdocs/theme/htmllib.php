@@ -7789,10 +7789,16 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$imgheadleft = $login->getSkinDir() . "/images/top_lt.gif";
-		$imgheadright = $login->getSkinDir() . "/images/top_rt.gif";
-		$imgheadbg = $login->getSkinDir() . "/images/top_bg.gif";
-		$imgtopline = $login->getSkinDir() . "/images/top_line.gif";
+		// Escaped header title/imgs (security HHH2).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+		$skin = rtrim((string) $login->getSkinDir(), '/');
+		$imgheadleft = $esc($skin . '/images/top_lt.gif');
+		$imgheadright = $esc($skin . '/images/top_rt.gif');
+		$imgheadbg = $esc($skin . '/images/top_bg.gif');
+		$imgtopline = $esc($skin . '/images/top_line.gif');
+		$titleEsc = $esc($title);
 
 ?>
 
@@ -7808,9 +7814,9 @@ class HtmlLib
 				<td align=right width=1%>
 					<table cellpadding=0 cellspacing=0 border=0 width=100%>
 						<tr>
-							<td><img src="<?= $imgheadleft ?>"></td>
-							<td nowrap width=100% background="<?= $imgheadbg ?>"><b><span style="color:#fff"><?= $title ?></span></b></td>
-							<td><img src="<?= $imgheadright ?>"></td>
+							<td><img src="<?= $imgheadleft ?>" alt=""></td>
+							<td nowrap width=100% background="<?= $imgheadbg ?>"><b><span style="color:#fff"><?= $titleEsc ?></span></b></td>
+							<td><img src="<?= $imgheadright ?>" alt=""></td>
 						</tr>
 					</table>
 				</td>
@@ -7901,7 +7907,18 @@ class HtmlLib
 			}
 ?>
 
-										<option value="<?= $key ?>" style="vertical-align:middle;padding:0 0 0 25px; width:300px; height:20px; background:#edc url(<?= $_t_image ?>) no-repeat;"><?= $desc ?></option>
+<?php
+			// Escaped option value/label/img (security HHH4).
+			$keyEsc = htmlspecialchars((string) $key, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$descEsc = htmlspecialchars((string) $desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$imgEsc = ($_t_image !== null && $_t_image !== '')
+				? htmlspecialchars((string) $_t_image, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				: '';
+			$bgStyle = $imgEsc !== ''
+				? "vertical-align:middle;padding:0 0 0 25px; width:300px; height:20px; background:#edc url({$imgEsc}) no-repeat;"
+				: 'vertical-align:middle;padding:0 0 0 25px; width:300px; height:20px;';
+?>
+										<option value="<?= $keyEsc ?>" style="<?= $bgStyle ?>"><?= $descEsc ?></option>
 <?php
 		}
 ?>
@@ -7926,7 +7943,11 @@ class HtmlLib
 									</table>
 								</td>
 								<td class='col' align='center' width='30%'>
-									<select class="textbox" id="<?= $ts_name2 ?>" <?= $stylestring ?> multiple name="<?= trim($dstname) ?>[]">
+<?php
+		$msTs2Esc = htmlspecialchars((string) $ts_name2, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$msDstEsc = htmlspecialchars(trim((string) $dstname), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+									<select class="textbox" id="<?= $msTs2Esc ?>" <?= $stylestring ?> multiple name="<?= $msDstEsc ?>[]">
 <?php
 
 		foreach ($dst as $k => $d) {
@@ -7941,8 +7962,17 @@ class HtmlLib
 				$_t_image = dirname($_t_image) . "/small/" . basename($_t_image);
 				$desc = $ac_descr[2];
 			}
+			// Escaped option value/label/img (security HHH4).
+			$dEsc = htmlspecialchars((string) $d, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$descEsc = htmlspecialchars((string) $desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$imgEsc = ($_t_image !== null && $_t_image !== '')
+				? htmlspecialchars((string) $_t_image, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				: '';
+			$bgStyle = $imgEsc !== ''
+				? "vertical-align:middle; padding:0 0 0 25px; width:300px; height:20px; background:#edc url({$imgEsc}) no-repeat;"
+				: 'vertical-align:middle; padding:0 0 0 25px; width:300px; height:20px;';
 ?>
-										<option value="<?= $d ?>" style="vertical-align:middle; padding:0 0 0 25px; width:300px; height:20px; background:#edc url(<?= $_t_image ?>) no-repeat;"><?= $desc ?></option>
+										<option value="<?= $dEsc ?>" style="<?= $bgStyle ?>"><?= $descEsc ?></option>
 <?php
 		}
 ?>
@@ -7950,13 +7980,16 @@ class HtmlLib
 									</select>
 
 									<script>
-										createFormVariable('<?=$form?>', '<?=trim($variablename)?>', '<?=$ts_name2?>');
+										createFormVariable('<?= $msForm ?>', '<?= $msVar ?>', '<?= $msTs2 ?>');
 									</script>
 
 								</td>
 								<td>
-									<input type="button" class='submitbutton' value="&nbsp;&nbsp;Up&nbsp;&nbsp;" onclick="shiftOptionUp('<?= $form ?>', '<?= $variablename ?>', <?= $dstname ?>)"/><br/><br/>
-									<input type="button" class='submitbutton' value="&nbsp;&nbsp;Down&nbsp;&nbsp;" onclick="shiftOptionDown('<?= $form ?>', '<?= $variablename ?>', <?= $dstname ?>)"/><br/><br/>
+<?php
+		$msDstJs = preg_replace('/[^A-Za-z0-9_]/', '', trim((string) $dstname)) ?: 'dst';
+?>
+									<input type="button" class='submitbutton' value="&nbsp;&nbsp;Up&nbsp;&nbsp;" onclick="shiftOptionUp('<?= $msForm ?>', '<?= $msVar ?>', <?= $msDstJs ?>)"/><br/><br/>
+									<input type="button" class='submitbutton' value="&nbsp;&nbsp;Down&nbsp;&nbsp;" onclick="shiftOptionDown('<?= $msForm ?>', '<?= $msVar ?>', <?= $msDstJs ?>)"/><br/><br/>
 								</td>
 							</tr>
 
@@ -8082,13 +8115,23 @@ class HtmlLib
 			</tr>
 			<tr>
 				<td>
-					<input type='hidden' id="<?= $variable->name ?>" name="<?= $variable->name ?>" value="">
-					<select class="textbox" id="<?= $ts_name1 ?>" name="<?= $variable1->name ?>[]" multiple size="5">
+<?php
+		// Escaped multiselect names/options (security HHH4).
+		$msNameEsc = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$msV1Esc = htmlspecialchars((string) $variable1->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$msV2Esc = htmlspecialchars(trim((string) $variable2->name), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$msTs1Esc = htmlspecialchars((string) $ts_name1, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$msTs2Esc = htmlspecialchars((string) $ts_name2, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+					<input type='hidden' id="<?= $msNameEsc ?>" name="<?= $msNameEsc ?>" value="">
+					<select class="textbox" id="<?= $msTs1Esc ?>" name="<?= $msV1Esc ?>[]" multiple size="5">
 <?php
 		foreach ($variable1->option as $k => $option) {
+			$kEsc = htmlspecialchars((string) $k, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$optEsc = htmlspecialchars((string) $option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-						<option value="<?= $k ?>"><?= $option ?></option>
+						<option value="<?= $kEsc ?>"><?= $optEsc ?></option>
 <?php
 		}
 ?>
@@ -8107,24 +8150,25 @@ class HtmlLib
 					<INPUT TYPE="button" class="submitbutton" onClick="multiSelectRemove('<?= $msForm ?>', '<?= $msVar ?>', '<?= $msTs2 ?>')" VALUE="&nbsp;&#x00ab;&nbsp;">
 				</td>
 				<td>
-					<select class="textbox" id="<?= $ts_name2 ?>" name="<?= trim($variable2->name) ?>[]" multiple size="5">
+					<select class="textbox" id="<?= $msTs2Esc ?>" name="<?= $msV2Esc ?>[]" multiple size="5">
 <?php
 		$v2count = 0;
 
 		foreach ($v2 as $k => $option) {
 			$v2count++;
-
+			$optEsc = htmlspecialchars((string) $option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-						<option value="<?= $option ?>"><?= $option ?></option>
+						<option value="<?= $optEsc ?>"><?= $optEsc ?></option>
 <?php
 		}
 
 		if (!$v2count) {
 			foreach ((array)$variable2->option as $k => $option) {
+				$optEsc = htmlspecialchars((string) $option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-						<option value="<?= $option ?>"><?= $option ?></option>
+						<option value="<?= $optEsc ?>"><?= $optEsc ?></option>
 <?php
 			}
 		}
@@ -8133,13 +8177,18 @@ class HtmlLib
 					</select>
 
 					<script>
-						createFormVariable('<?=$form?>', '<?=$variable->name?>', '<?=$ts_name2?>');
+						createFormVariable('<?= $msForm ?>', '<?= $msVar ?>', '<?= $msTs2 ?>');
 					</script>
 
 				</td>
 				<td>
-					<input type="button" name="upbutton" class="submitbutton" value="&nbsp;<?=$login->getKeywordUc('up');?>&nbsp;" onclick="shiftOptionUp('<?= $form ?>', '<?= $variable->name ?>', <?= $variable2->name ?>)"/>
-					<input type="button" name="downbutton" class='submitbutton' value="&nbsp;<?=$login->getKeywordUc('down');?>&nbsp;" onclick="shiftOptionDown('<?= $form ?>', '<?= $variable->name ?>', <?= $variable2->name ?>)"/>
+<?php
+		$msV2Js = preg_replace('/[^A-Za-z0-9_]/', '', trim((string) $variable2->name)) ?: 'v2';
+		$upLabel = htmlspecialchars((string) $login->getKeywordUc('up'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$downLabel = htmlspecialchars((string) $login->getKeywordUc('down'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+					<input type="button" name="upbutton" class="submitbutton" value="&nbsp;<?= $upLabel ?>&nbsp;" onclick="shiftOptionUp('<?= $msForm ?>', '<?= $msVar ?>', <?= $msV2Js ?>)"/>
+					<input type="button" name="downbutton" class='submitbutton' value="&nbsp;<?= $downLabel ?>&nbsp;" onclick="shiftOptionDown('<?= $msForm ?>', '<?= $msVar ?>', <?= $msV2Js ?>)"/>
 
 				</td>
 			</tr>
@@ -8494,13 +8543,22 @@ class HtmlLib
 			$texttype = $variable->texttype;
 		}
 
+		// Escaped textbox attrs (security HHH1).
+		$nameEsc = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$classToken = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $variable->name) ?: 'textbox';
+		$typeAllow = array('text', 'password', 'hidden', 'email', 'number', 'url', 'search', 'tel');
+		$texttype = in_array(strtolower((string) $texttype), $typeAllow, true) ? strtolower((string) $texttype) : 'text';
+		$valEsc = htmlspecialchars((string) $m_value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$preEsc = htmlspecialchars((string) ($variable->pretext ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$postEsc = htmlspecialchars((string) ($variable->posttext ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
 ?>
 
 		<?= $variable_description ?> <?= $myneedstring ?>
 
 		<br/>
-		<?= $variable->pretext ?>
-		<input class="<?= $variable->name ?> textbox" type="<?= $texttype ?>" style="width: 45%; border: 1px solid #aaa; margin: 2px 0 2px 0; padding: 2px 0 2px 0" name="<?= $variable->name ?>" value="<?= $m_value ?>"> <?= $variable->posttext ?>
+		<?= $preEsc ?>
+		<input class="<?= $classToken ?> textbox" type="<?= $texttype ?>" style="width: 45%; border: 1px solid #aaa; margin: 2px 0 2px 0; padding: 2px 0 2px 0" name="<?= $nameEsc ?>" value="<?= $valEsc ?>"> <?= $postEsc ?>
 <?php
 
 		if ($variable->type === 'fileselect') {
@@ -8533,7 +8591,11 @@ class HtmlLib
 					</div>
 				</div>
 			</div>
-			<input style="margin: 2px; border: 1px solid #aaa; background-color: #eee; width: 120px;" class=textbox type=button value="Generate Password" onclick="generatePass('<?= $form ?>', '<?= $variable->name ?>');" width="10">
+<?php
+			$gpForm = preg_replace('/[^A-Za-z0-9_]/', '', (string) $form) ?: 'form';
+			$gpVar = preg_replace('/[^A-Za-z0-9_]/', '', (string) $variable->name) ?: 'field';
+?>
+			<input style="margin: 2px; border: 1px solid #aaa; background-color: #eee; width: 120px;" class=textbox type=button value="Generate Password" onclick="generatePass('<?= $gpForm ?>', '<?= $gpVar ?>');" width="10">
 <?php
 		}
 
@@ -8542,12 +8604,17 @@ class HtmlLib
 		if ($postvar) {
 ?>
 
-			<select style="width: 45%; margin: 2px" name="<?= $postvar->name ?>" value="">
+<?php
+			// Escaped postvar select (security HHH4).
+			$pvNameEsc = htmlspecialchars((string) $postvar->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+			<select style="width: 45%; margin: 2px" name="<?= $pvNameEsc ?>" value="">
 <?php
 				foreach ($postvar->option as $vv) {
+					$vvEsc = htmlspecialchars((string) $vv, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-				<option value="<?= $vv ?>"><?= $vv ?></option>
+				<option value="<?= $vvEsc ?>"><?= $vvEsc ?></option>
 <?php
 				}
 ?>
