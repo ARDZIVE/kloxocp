@@ -3984,7 +3984,8 @@ class HtmlLib
 				}
 
 				if ($name === 'syncserver') {
-					$pname = "<span title='$serverdiscr'>$pname</span>";
+					// Escaped title (security AAA1).
+					$pname = '<span title="' . htmlspecialchars((string) $serverdiscr, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">' . $pname . '</span>';
 				}
 			}
 		}
@@ -4096,8 +4097,11 @@ class HtmlLib
 			$align = "center onmouseover=\"changeContent('help',{$helpJs})\" onmouseout=\"changeContent('help','helparea')\"";
 
 			if (!$sgbl->isBlackBackground()) {
+				// Escaped title/src (security AAA1).
+				$altEsc = htmlspecialchars((string) $alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$imgEsc = htmlspecialchars((string) $image, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 				if ($button_type === 'image') {
-					$pname = " <span title='$alt'><img src='$image' width='16' height='16'></span>";
+					$pname = " <span title=\"{$altEsc}\"><img src=\"{$imgEsc}\" width=\"16\" height=\"16\" alt=\"\"></span>";
 				} else {
 					$spancolor = '#333';
 					$spanchar = '&#xf0d3;';
@@ -4126,8 +4130,7 @@ class HtmlLib
 						}
 					}
 
-				//	$pname = "<span title='$alt'><span style='font-size: 1.5em; line-height: 0; color:{$spancolor}'>{$spanchar}</span></span>";
-					$pname = "<span class='if12' style='color:{$spancolor}' title='$alt'>{$spanchar}</span>";
+					$pname = "<span class=\"if12\" style=\"color:{$spancolor}\" title=\"{$altEsc}\">{$spanchar}</span>";
 				}
 			}
 
@@ -4170,8 +4173,11 @@ class HtmlLib
 						if ($sgbl->isBlackBackground()) {
 							$pname = "b";
 						} else {
+							// Escaped title/src (security AAA1).
+							$altEsc = htmlspecialchars((string) $alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+							$tImgEsc = htmlspecialchars((string) $_t_image, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 							if ($button_type === 'image') {
-								$pname = " <span title='$alt'><img src='$_t_image' height=15 width=15></span>";
+								$pname = " <span title=\"{$altEsc}\"><img src=\"{$tImgEsc}\" height=\"15\" width=\"15\" alt=\"\"></span>";
 							} else {
 								$tcol = '#333';
 								$tico = '&#xf0d3;';
@@ -4191,7 +4197,8 @@ class HtmlLib
 								} elseif (strpos($name, '_disable') !== false) {
 									$tcol = '#c33';
 									$tico = '&#xf572;';
-								}								$a = array('password' => '&#xf03f;', 'process' => '&#xf4f2;', 'ip' => '&#xf51c;',
+								}
+								$a = array('password' => '&#xf03f;', 'process' => '&#xf4f2;', 'ip' => '&#xf51c;',
 									'service' => '&#xf014;', 'usage' => '&#xf000;', 'file' => '&#xf095;',
 									'information' => '&#xf15a;', 'ticket' => '&#xf3dc;', 'utmp' => '&#xf0c1;',
 									'limit' => '&#xf189;', 'phpmyadmin' => '&#xf00b;', 'dns' => '&#xf07f;',
@@ -4208,8 +4215,7 @@ class HtmlLib
 									}
 								}
 
-							//	$pname = "<span title='$alt'><span id='if8' style='font-size:1.5em; line-height: 0; color:{$tcol}'>{$tico}</span></span>";
-								$pname = "<span class='if12' style='color:{$tcol}' title='$alt'>{$tico}</span>";
+								$pname = "<span class=\"if12\" style=\"color:{$tcol}\" title=\"{$altEsc}\">{$tico}</span>";
 							}
 						}
 
@@ -4220,7 +4226,7 @@ class HtmlLib
 				}
 			}
 ?>
-			<td <?= $bgcolorstring ?> <?= $wrapstr ?> <?= $align ?> class="collist"> <span title='<?= $alt ?>'>
+			<td <?= $bgcolorstring ?> <?= $wrapstr ?> <?= $align ?> class="collist"> <span title="<?= htmlspecialchars((string) $alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
 <?php
 		//	$method = ($__external) ? "get" : $sgbl->method;
 			$method = "get";
@@ -4290,9 +4296,17 @@ class HtmlLib
 
 	function print_input($type, $name, $value, $extra = null)
 	{
+		// Escaped attrs (security AAA3). Extra limited to class=token.
+		$typeEsc = htmlspecialchars((string) $type, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$nameEsc = htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$valueEsc = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$extraAttr = '';
+		if (is_string($extra) && preg_match('/^class=([A-Za-z0-9_-]+)$/', $extra, $m)) {
+			$extraAttr = ' class="' . htmlspecialchars($m[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+		}
 ?>
 
-			<input type="<?= $type ?>" name="<?= $name ?>" value="<?= $value ?>" <?= $extra ?> />
+			<input type="<?= $typeEsc ?>" name="<?= $nameEsc ?>" value="<?= $valueEsc ?>"<?= $extraAttr ?> />
 <?php
 	}
 
@@ -10320,7 +10334,9 @@ function uploadAbort(e) { // upload abort
 			}
 
 			$stimg = $this->get_image($path, $class, "status_v_" . $status, ".gif");
-			$imgstr = "<img height=8 width=8 src='$stimg'>";
+			// Escaped tree/toolbar imgstr (security AAA4).
+			$imgstr = '<img height="8" width="8" src="'
+				. htmlspecialchars((string) $stimg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="">';
 		} else {
 			$imgstr = null;
 			$hstr = null;
@@ -10343,7 +10359,9 @@ function uploadAbort(e) { // upload abort
 			$url = null;
 		}
 
-		$imgstr = "$inputstr <img src='$img' width=14 height=14>   $imgstr $name";
+		$nameEsc = htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$imgEsc = htmlspecialchars((string) $img, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$imgstr = "{$inputstr} <img src=\"{$imgEsc}\" width=\"14\" height=\"14\" alt=\"\">   {$imgstr} {$nameEsc}";
 
 		if (isset($object->__v_message)) {
 			$imgstr .= " " . $object->__v_message;
@@ -10373,7 +10391,8 @@ function uploadAbort(e) { // upload abort
 
 		if ($alist && $alistflag) {
 			$open = 'false';
-			$imgstr = "<img src='$homeimg' width=14 height=14> <span style='color:#55a'><b>Functions</b></span> ";
+			$homeEsc = htmlspecialchars((string) $homeimg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$imgstr = "<img src=\"{$homeEsc}\" width=\"14\" height=\"14\" alt=\"\"> <span style=\"color:#55a\"><b>Functions</b></span> ";
 			$ttr = createTreeObject($name, '', $imgstr, $url, $open, $help, $alt);
 			$pttr->addToList('tree', $ttr);
 			$this->print_resourcelist($ttr, $alist, null);
@@ -10410,7 +10429,9 @@ function uploadAbort(e) { // upload abort
 				$open = 'true';
 				$gbl->__navigmenu[$level + 2] = array('show', $object);
 				$gbl->__navig[$level + 2] = $this->get_post_from_get($url, $__tpath, $__tpost);
-				$imgstr = "<img src='$img' width=20 height=20>$printname";
+				$imgEsc2 = htmlspecialchars((string) $img, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$printEsc = htmlspecialchars((string) $printname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$imgstr = "<img src=\"{$imgEsc2}\" width=\"20\" height=\"20\" alt=\"\">{$printEsc}";
 
 				if (!$showurlflag) {
 					$url = null;
@@ -10486,22 +10507,27 @@ function uploadAbort(e) { // upload abort
 
 	function getMenuDescrString($img, $descr, $endimg = null)
 	{
+		// Escaped menu HTML (security AAA4).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
 		$endstr = null;
 		$imgstr = null;
 
 		if ($endimg) {
-			$endstr = "<td> <img src='$endimg'> </td> <td width='4'> &nbsp; </td> ";
+			$endstr = '<td> <img src="' . $esc($endimg) . '" alt=""> </td> <td width="4"> &nbsp; </td> ';
 		}
 
 		if ($img) {
-			$imgstr = "<img width=14 height=14 src='$img'> ";
+			$imgstr = '<img width="14" height="14" src="' . $esc($img) . '" alt=""> ';
 		}
 
 		// hack hack using the hilite class ( the lighter one for images.. and the image class is used for hilite)
-		$string = "<table width='100%' cellpadding='0' cellspacing='0'> <tr> " .
-			"<td valign='middle' align='center' style='padding:0' height='25' nowrap width='30' class='menuhilite'> " .
-			"{$imgstr} </td> <td style='size:7pt' width='100%'>&nbsp;&nbsp;<span style='size:8pt'>$descr</span> " .
-			"</td> $endstr </tr></table> ";
+		$string = '<table width="100%" cellpadding="0" cellspacing="0"> <tr> '
+			. '<td valign="middle" align="center" style="padding:0" height="25" nowrap width="30" class="menuhilite"> '
+			. "{$imgstr} </td> <td style=\"size:7pt\" width=\"100%\">&nbsp;&nbsp;<span style=\"size:8pt\">"
+			. $esc($descr) . '</span> '
+			. "</td> {$endstr} </tr></table> ";
 
 		return $string;
 	}
@@ -10607,7 +10633,10 @@ function uploadAbort(e) { // upload abort
 
 		// Hack hack... Just not setting frame for navigation menus. THis is not the way to do it.
 		// a flag should be passed... is the correct way...
-		$imgstr = "<img src='$image' width=14 height=14>$descr[2]";
+		// Escaped tree label (security AAA4).
+		$imgstr = '<img src="' . htmlspecialchars((string) $image, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+			. '" width="14" height="14" alt="">'
+			. htmlspecialchars((string) $descr[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		$ttr = createTreeObject($name, $image, $imgstr, $url, $open, $help, $alt);
 		$tree->addToList('tree', $ttr);
 	}
@@ -11228,28 +11257,33 @@ function uploadAbort(e) { // upload abort
 		return 'Html';
 	}
 
-	// function printTabForTabButton($key, $linkflag, $height, $imageheight, $sel, $imgbg, $url, $name, $imagesrc, $descr, $check)
-	function printTabForTabButton($key, $linkflag, $height, $imageheight, $sel, $imgbg, $formname, $name, $imagesrc, $descr, $check)
+	// 7th arg is the tab URL (legacy name was formname; security AAA2).
+	function printTabForTabButton($key, $linkflag, $height, $imageheight, $sel, $imgbg, $url, $name, $imagesrc, $descr, $check)
 	{
 		global $gbl, $sgbl, $login;
 
-		$help = $descr['help'];
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+		$help = isset($descr['help']) ? (string) $descr['help'] : '';
+		$label = isset($descr[2]) ? (string) $descr[2] : '';
 		$imgstr = null;
 
 		if ($imagesrc) {
-			$imgstr = "<img width='$imageheight' height='$imageheight' src='$imagesrc'>";
+			$imgstr = '<img width="' . $esc($imageheight) . '" height="' . $esc($imageheight)
+				. '" src="' . $esc($imagesrc) . '" alt="">';
 		}
 
 		if ($linkflag) {
-			if ($login->getSpecialObject('sp_specialplay')->isOn('enable_ajax') && csb($key, "__v_dialog")) {
-				$displaystring = "<span title='$help'> $descr[2] </span>";
+			if ($login->getSpecialObject('sp_specialplay')->isOn('enable_ajax') && csb($key, '__v_dialog')) {
+				$displaystring = '<span title="' . $esc($help) . '"> ' . $esc($label) . ' </span>';
 			} else {
-			//	$displaystring = "<span title='$help'> <a href=\"javascript:document.form_{$formname}.submit()\">$descr[2]</a> </span>";
-				$displaystring = "<span title='$help'> <a href=\"$url\">$descr[2]</a> </span>";
+				$displaystring = '<span title="' . $esc($help) . '"> <a href="'
+					. $esc($url) . '">' . $esc($label) . '</a> </span>';
 			}
 
 		} else {
-			$displaystring = "<span title=\"You don't have permission\">$descr[2] </span>";
+			$displaystring = '<span title="You don\'t have permission">' . $esc($label) . ' </span>';
 		}
 
 		if ($check) {

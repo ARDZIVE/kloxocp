@@ -2642,6 +2642,61 @@ $findings[] = finding('ZZ6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo / toast', $zz6Closed,
 	$zz6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- AAA wave ---
+$htmlAaa = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$aaa1Closed = contains($htmlAaa, 'security AAA1')
+	&& substr_count($htmlAaa, 'security AAA1') >= 3
+	&& not_contains($htmlAaa, "<span title='\$alt'><img src='\$image'")
+	&& not_contains($htmlAaa, "<span title='\$serverdiscr'>");
+$findings[] = finding('AAA1', 'medium', 'htmllib list-column icons unescaped title/src',
+	'htmllib.php list column icons', $aaa1Closed,
+	$aaa1Closed ? 'htmlspecialchars on title/src' : 'still raw');
+
+$tabAaa = file_text($root, 'kloxo/httpdocs/theme/tab_feather.php');
+$aaa2Closed = contains($htmlAaa, 'security AAA2')
+	&& contains($tabAaa, 'security AAA2')
+	&& contains($tabAaa, '$urlEsc')
+	&& not_contains($tabAaa, "<span title='\$help'>")
+	&& not_contains($htmlAaa, "<span title='\$help'> <a href=\"\$url\">");
+$findings[] = finding('AAA2', 'medium', 'tab buttons unescaped title/href',
+	'htmllib.php printTabForTabButton / tab_feather.php', $aaa2Closed,
+	$aaa2Closed ? 'escaped title/label/href' : 'still raw');
+
+$aaa3Closed = contains($htmlAaa, 'security AAA3')
+	&& contains($htmlAaa, '$typeEsc')
+	&& contains($htmlAaa, '$valueEsc')
+	&& contains($htmlAaa, 'class=([A-Za-z0-9_-]+)');
+$findings[] = finding('AAA3', 'low', 'print_input emits unescaped type/name/value/extra',
+	'htmllib.php print_input', $aaa3Closed,
+	$aaa3Closed ? 'escaped attrs + class allow-list' : 'still raw');
+
+$aaa4Closed = contains($htmlAaa, 'security AAA4')
+	&& substr_count($htmlAaa, 'security AAA4') >= 2
+	&& not_contains($htmlAaa, "<img src='\$image' width=14 height=14>\$descr[2]")
+	&& not_contains($htmlAaa, "<img width=14 height=14 src='\$img'>");
+$findings[] = finding('AAA4', 'low', 'toolbar/imgstr builders concat unescaped img/name/descr',
+	'htmllib.php tree/menu imgstr', $aaa4Closed,
+	$aaa4Closed ? 'htmlspecialchars on img/label' : 'still raw');
+
+$libAaa = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibAaa = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$aaa5Closed = contains($libAaa, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5')
+	&& contains($libAaa, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5')
+	&& contains($lxlibAaa, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5');
+$findings[] = finding('AAA5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $aaa5Closed,
+	$aaa5Closed ? 'ident-gated sites marked AAA5' : 'unmarked');
+
+$extSecAaa = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastAaa = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$aaa6Closed = contains($lxlibAaa, 'security AAA6')
+	&& contains($extSecAaa, 'security AAA6')
+	&& contains($toastAaa, 'security AAA6')
+	&& contains($lxlibAaa, 'gated unserialize');
+$findings[] = finding('AAA6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $aaa6Closed,
+	$aaa6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

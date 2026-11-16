@@ -150,7 +150,11 @@ function print_tab_button($key, $url, $list)
 	if ($help === '' && is_string($str)) {
 		$help = $str;
 	}
-	$descstring = "<span title='$help'> &nbsp; &nbsp; $str &nbsp; &nbsp;</span>";
+	// Escaped title/label/href (security AAA2).
+	$helpEsc = htmlspecialchars((string) $help, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$strEsc = htmlspecialchars((string) $str, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$urlEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$descstring = "<span title=\"{$helpEsc}\"> &nbsp; &nbsp; {$strEsc} &nbsp; &nbsp;</span>";
 
 	if ($sgbl->isBlackBackground()) {
 		if ($check) {
@@ -161,7 +165,7 @@ function print_tab_button($key, $url, $list)
 
 		$fcolor = "#999999";
 ?>
-		<a <?= $targetstring ?> href="<?= $url ?>"><font <?= $stylestring ?>
+		<a <?= $targetstring ?> href="<?= $urlEsc ?>"><font <?= $stylestring ?>
 				color="<?= $fcolor ?>"><?= $descstring ?></font> </a>
 <?php
 		return;
@@ -181,7 +185,7 @@ function print_tab_button($key, $url, $list)
 		}
 ?>
 		<td class='tabnew'>
-			<div class='verb3'><a <?= $targetstring ?> href="<?= $url ?>"><?= $descstring ?></a></div>
+			<div class='verb3'><a <?= $targetstring ?> href="<?= $urlEsc ?>"><?= $descstring ?></a></div>
 		</td>
 <?php
 		if ($key === $lastkey - 3) {
@@ -201,7 +205,7 @@ function print_tab_button($key, $url, $list)
 		}
 ?>
 		<td class='tabnew1'>
-			<div nowrap class='verb'><a <?= $targetstring ?> href="<?= $url ?>"><?= $descstring ?></a></div>
+			<div nowrap class='verb'><a <?= $targetstring ?> href="<?= $urlEsc ?>"><?= $descstring ?></a></div>
 		</td>
 <?php
 		if ($key === $lastkey - 3) {
