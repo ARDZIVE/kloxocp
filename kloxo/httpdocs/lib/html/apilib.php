@@ -10,13 +10,10 @@ function send_to_some_http_server($raddress, $port, $url)
 
 	curl_setopt($ch, CURLOPT_POST, true);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 	curl_setopt($ch, CURLOPT_POSTFIELDS, $url);
 
-	// MR -- importance if using ssl after openssl issue
-	curl_setopt($ch, CURLOPT_SSLVERSION, 3);
-	curl_setopt($ch, CURLOPT_SSL_CIPHER_LIST, 'SSLv3');
 
 	$totalout = curl_exec($ch);
 	$totalout = trim($totalout);

@@ -1,9 +1,10 @@
-<?php 
-
-chdir("../..");
-include_once "lib/html/include.php"; 
-include_once "lib/php/display.php";
-
-initProgram('admin');
-do_addform($login, "client", array('var' => 'cttype', 'val' => "customer"));
-
+<?php
+/**
+ * Legacy public signup removed (security F5).
+ * Client creation stays in the authenticated panel UI.
+ */
+http_response_code(403);
+header('Content-Type: text/plain; charset=UTF-8');
+header('Cache-Control: no-store');
+print("disabled: unauthenticated signup removed\n");
+exit;

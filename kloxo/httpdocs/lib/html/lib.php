@@ -2937,12 +2937,9 @@ function curl_get_file_contents($file)
 	ob_start();
 
 	curl_setopt($ch, CURLOPT_FAILONERROR, true);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 
-	// MR -- possible fix download/upload issue in php 5.3
-	curl_setopt($ch, CURLOPT_SSLVERSION, 3);
-	curl_setopt($ch, CURLOPT_SSL_CIPHER_LIST, 'SSLv3');
 
 	curl_exec($ch);
 
@@ -2986,8 +2983,8 @@ function curl_general_get($url)
 	ob_start();
 
 	curl_setopt($ch, CURLOPT_FAILONERROR, true);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 	curl_exec($ch);
 
 	$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -3056,7 +3053,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111524';
+	return '10.1-2026111601';
 }
 
 function getDownloadServer()
@@ -3176,8 +3173,8 @@ function download_file($url, $localfile = null)
 	}
 
 	curl_setopt($ch, CURLOPT_HEADER, 0);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 	curl_exec($ch);
 
 	dprint("Curl Message: " . curl_error($ch) . "\n");
@@ -3747,8 +3744,8 @@ function download_and_print_file($server, $file)
 	$ch = curl_init("$server/$file");
 
 	curl_setopt($ch, CURLOPT_HEADER, 0);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 	curl_exec($ch);
 	kloxo_curl_close($ch);
 }
@@ -8822,29 +8819,34 @@ function isCSRFTokenMatch()
 	$ret = true;
 
 	if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-		// or possibly, count($_POST) > 0
+		$token_post = isset($_POST['frm_token']) ? (string) $_POST['frm_token'] : '';
+		$token_session = '';
+		if (isset($gbl->c_session) && is_object($gbl->c_session)
+			&& isset($gbl->c_session->ssession_vars['__tmp_csrf_token'])) {
+			$token_session = (string) $gbl->c_session->ssession_vars['__tmp_csrf_token'];
+		}
 
-		$token_post = $_POST['frm_token'];
-		$token_session = $gbl->c_session->ssession_vars['__tmp_csrf_token'];
-
-		if ($token_post !== $token_session) {
+		if ($token_post === '' || $token_session === '' || !hash_equals($token_session, $token_post)) {
 			$ret = false;
 		}
 	} else {
-	/*
-		// MR -- disable for implementation because too much exception and include less of less risk
-		$action = $_GET['frm_action'];
-		$subaction = $_GET['frm_subaction'];
-
-		if (($action === 'add') || ($action === 'update') || ($action === 'delete')) {
-			if (($subaction !== 'toggle_state') && ($subaction !== 'toggle_boot_state') &&
-				($subaction !== 'start') && ($subaction !== 'stop') && ($subaction !== 'restart') &&
-				($subaction !== 'readipaddress')) {
-
+		// State-changing actions must not run over bare GET (CSRF F8),
+		// including service start/stop/restart and boot toggles.
+		// A matching frm_token in the query is accepted (same-origin JS may
+		// still POST; tokenised GET is for gradual callers).
+		$action = isset($_GET['frm_action']) ? (string) $_GET['frm_action'] : '';
+		if ($action === 'add' || $action === 'update' || $action === 'delete') {
+			$token_get = isset($_GET['frm_token']) ? (string) $_GET['frm_token'] : '';
+			$token_session = '';
+			if (isset($gbl->c_session) && is_object($gbl->c_session)
+				&& isset($gbl->c_session->ssession_vars['__tmp_csrf_token'])) {
+				$token_session = (string) $gbl->c_session->ssession_vars['__tmp_csrf_token'];
+			}
+			if ($token_get === '' || $token_session === ''
+				|| !hash_equals($token_session, $token_get)) {
 				$ret = false;
 			}
 		}
-	*/
 	}
 
 	return $ret;

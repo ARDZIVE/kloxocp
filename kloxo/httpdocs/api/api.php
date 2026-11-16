@@ -15,7 +15,7 @@ Add an Kloxo CP Client: <br>
 
 <input type='hidden' name='login-class' value='client'>
 <input type='hidden' name='login-name' value='admin'>
-<input type='hidden' name='login-password' value='lxlabs'>
+<input type='password' name='login-password' value='' placeholder='admin password' autocomplete='current-password'>
 <input type='hidden' name='action' value='add'>
 <input type='hidden' name='class' value='client'>
 <input type='hidden' name='v-type' value='customer'>

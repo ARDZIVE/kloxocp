@@ -1,21 +1,10 @@
-<?php 
-main();
-
-function main()
-{
-	$v = $_REQUEST['session'];
-
-	$v = unserialize(base64_decode($v));
-
-	$r = unserialize(file_get_contents("/home/kloxo/httpd/script/sess_{$v['session']}"));
-
-	if ($r['ip_address'] !== $_SERVER['REMOTE_ADDR']) {
-		print("No Session. You can access this only through kloxo and needs proper authentication. " .
-			"If you are indeed accessing from Inside Kloxo CP, then please logout and login again, " .
-			"so that a new session is created properly.\n");
-
-		exit;
-	} 
-
-	phpinfo();
-}
+<?php
+/**
+ * Legacy phpinfo endpoint removed (security F6).
+ * Use the in-panel Domain PHPinfo tile instead.
+ */
+http_response_code(403);
+header('Content-Type: text/plain; charset=UTF-8');
+header('Cache-Control: no-store');
+print("disabled: use panel PHPinfo\n");
+exit;

@@ -275,11 +275,22 @@ abstract class Lxclass
 
 	function getShowInfo() { return null; }
 
+	/**
+	 * Safe predicate for filter_object_list (security F13).
+	 * Only allow-listed $this->method("arg") forms — no arbitrary eval.
+	 */
 	function eeval($rule)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		if (!is_string($rule)) {
+			return false;
+		}
+		$rule = trim($rule);
+		if (preg_match('/^\$this->(isOn|isOff)\("([A-Za-z0-9_]+)"\)$/', $rule, $m)) {
+			$method = $m[1];
+			return (bool) $this->$method($m[2]);
+		}
 
-		return eval("return {$rule};");
+		return false;
 	}
 
 	function syncToSystemCommon()

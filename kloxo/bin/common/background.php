@@ -6,6 +6,9 @@
  * start in /, so relative "lib/html/include.php" never loads and welcome /
  * ticket / notify mail silently never send. Bootstrap from __DIR__.
  *
+ * Job files are PHP-serialized under {program_root}/pid/ (mode 0700). Only a
+ * fixed allow-list of callables / object method names may run (security F12).
+ *
  * Copyright (C) 2026 Kloxo CP contributors
  * GNU Affero General Public License v3 or later. See LICENSE.txt.
  */
@@ -25,6 +28,27 @@ include_once $include;
 
 background_main();
 
+/**
+ * @return list<string>
+ */
+function kloxo_background_allowed_functions(): array
+{
+	return [
+		'lx_mail',
+		'se_submit',
+	];
+}
+
+/**
+ * @return list<string>
+ */
+function kloxo_background_allowed_methods(): array
+{
+	return [
+		'send_mail_to_admin',
+	];
+}
+
 function background_main(): void
 {
 	global $argv;
@@ -34,19 +58,33 @@ function background_main(): void
 		exit(1);
 	}
 
-	$raw = @file_get_contents($path);
-	@unlink($path);
+	// Job path must stay under the program pid directory (no traversal).
+	$real = realpath($path);
+	$root = dirname(__DIR__, 2);
+	$pidDir = realpath($root . '/pid');
+	if ($real === false || $pidDir === false
+		|| !str_starts_with($real, $pidDir . DIRECTORY_SEPARATOR)) {
+		@unlink($path);
+		exit(1);
+	}
+
+	$raw = @file_get_contents($real);
+	@unlink($real);
 	if ($raw === false || $raw === '') {
 		exit(1);
 	}
 
-	$rem = @unserialize($raw, ['allowed_classes' => true]);
+	// Do not instantiate arbitrary classes from the job blob.
+	$rem = @unserialize($raw, ['allowed_classes' => ['Remote', 'stdClass']]);
 	if (!is_object($rem)) {
 		exit(1);
 	}
 
 	if (isset($rem->sleep) && is_numeric($rem->sleep)) {
-		sleep((int) $rem->sleep);
+		$sleep = (int) $rem->sleep;
+		if ($sleep > 0 && $sleep <= 120) {
+			sleep($sleep);
+		}
 	}
 
 	$type = isset($rem->__type) ? (string) $rem->__type : '';
@@ -55,7 +93,8 @@ function background_main(): void
 			exit(1);
 		}
 		$func = isset($rem->func) ? (string) $rem->func : '';
-		if ($func === '' || !method_exists($rem->__exec_object, $func)) {
+		if ($func === '' || !in_array($func, kloxo_background_allowed_methods(), true)
+			|| !method_exists($rem->__exec_object, $func)) {
 			exit(1);
 		}
 		$rem->__exec_object->$func();
@@ -65,13 +104,8 @@ function background_main(): void
 
 	$func = $rem->func ?? null;
 	$arglist = isset($rem->arglist) && is_array($rem->arglist) ? $rem->arglist : [];
-	if (is_array($func) && count($func) > 0) {
-		$class = $func[0];
-		if (is_string($class)) {
-			class_exists($class);
-		}
-	}
-	if (!is_callable($func)) {
+	if (!is_string($func) || !in_array($func, kloxo_background_allowed_functions(), true)
+		|| !is_callable($func)) {
 		exit(1);
 	}
 	call_user_func_array($func, $arglist);

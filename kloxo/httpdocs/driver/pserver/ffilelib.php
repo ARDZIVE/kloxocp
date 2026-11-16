@@ -623,20 +623,12 @@ class Ffile extends Lxclass
 			$size = (int) $this->size;
 		}
 
-		if ($this->isLocalhost('__readserver') || $gen->isOn('masterdownload')) {
-			kloxo_send_download_headers($fname, $size);
-			printFromFileServ($this->__readserver, $ret);
-			flush();
-			exit;
-		}
-
-		$url = getFQDNforServer($this->__readserver);
-		$ret['realname'] = kloxo_download_filename($fname);
-		$ob = new Remote();
-		$ob->filepass = $ret;
-		$var = base64_encode(serialize($ob));
-		$url = "http://$url:{$sgbl->__var_prog_port}/theme/lbin/filedownload.php?frm_info=$var";
-		header("Location: $url");
+		// Always stream through this authenticated panel request. The old
+		// redirect to theme/lbin/filedownload.php?frm_info=… unserialized
+		// client input with no session (security F4).
+		kloxo_send_download_headers($fname, $size);
+		printFromFileServ($this->__readserver, $ret);
+		flush();
 		exit;
 	}
 

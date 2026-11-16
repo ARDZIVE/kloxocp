@@ -339,14 +339,52 @@
 
 	var refreshRe = /http-equiv\s*=\s*["']?refresh["']?\s+content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*([^"'>\s]+)/i;
 
+	function csrfToken() {
+		if (typeof win.kloxoCsrfToken === 'string' && win.kloxoCsrfToken) {
+			return win.kloxoCsrfToken;
+		}
+		if (typeof win.uploadCsrfToken === 'string' && win.uploadCsrfToken) {
+			return win.uploadCsrfToken;
+		}
+		var el = doc.querySelector('input[name="frm_token"]');
+		return el && el.value ? el.value : '';
+	}
+
 	function run(href, text) {
 		beginNavigation(text, false);
 		showSoon(text, Date.now(), false);
+		var tok = csrfToken();
+		var postUrl = href;
+		var postBody = '';
+		try {
+			var u = new URL(href, win.location.href);
+			postUrl = u.pathname;
+			postBody = u.searchParams.toString();
+			if (tok && postBody.indexOf('frm_token=') === -1) {
+				postBody += (postBody ? '&' : '') + 'frm_token=' + encodeURIComponent(tok);
+			}
+		} catch (e) {
+			if (tok && href.indexOf('frm_token=') === -1) {
+				href += (href.indexOf('?') >= 0 ? '&' : '?') + 'frm_token=' + encodeURIComponent(tok);
+			}
+			postUrl = href;
+		}
 		if (!win.fetch) {
-			win.location.href = href;
+			win.location.href = tok && href.indexOf('frm_token=') === -1
+				? (href + (href.indexOf('?') >= 0 ? '&' : '?') + 'frm_token=' + encodeURIComponent(tok))
+				: href;
 			return;
 		}
-		win.fetch(href, {credentials: 'same-origin', cache: 'no-store'}).then(function (res) {
+		var fetchOpts = postBody
+			? {
+				method: 'POST',
+				credentials: 'same-origin',
+				cache: 'no-store',
+				headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+				body: postBody
+			}
+			: {credentials: 'same-origin', cache: 'no-store'};
+		win.fetch(postUrl, fetchOpts).then(function (res) {
 			return res.text().then(function (body) {
 				return {url: res.url, body: body};
 			});

@@ -105,6 +105,17 @@ else
   bad "copyCertificate fails closed without keys"
 fi
 
+echo "== open findings checklist (informational; does not fail this suite)"
+if php "$HERE/check-open-findings.php" >/tmp/kloxo-open-findings.out 2>&1; then
+  ok "all tracked open findings CLOSED"
+  cat /tmp/kloxo-open-findings.out | tail -n 2
+else
+  # Expected while legacy surfaces remain: report count, do not fail P0 suite.
+  open_line=$(grep -E '^[0-9]+ closed,' /tmp/kloxo-open-findings.out | tail -n 1)
+  ok "checklist ran (${open_line:-see check-open-findings.php})"
+  echo "       Re-validate: php tests/security/check-open-findings.php"
+fi
+
 echo
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

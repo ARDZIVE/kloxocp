@@ -43,8 +43,15 @@ reachable from the backend port.
 envelope as strings, verify the password, and only then allow the caller to unserialize
 the payload. `do_remote_exec` always attaches that envelope, including for localhost.
 Regression: `tests/remote/` (object-injection gadget is not woken without credentials).
-*Still open:* other unserialize-on-untrusted-input sites, including `process_in_master()`
-and `remote_main()` (`frm_rmt`). Those are not this path.
+*Also closed (2026-11 scan F1–F4):* `remote_main()` requires `frm_remote_user` /
+`frm_remote_pass` before unserialize and `check_for_remote()` always verifies the
+password (never trusts `$rmt->authenticated` alone); `process_in_master()` uses the
+same auth envelope as `process_server_input()`; `theme/lbin/monitordata.php`,
+`filedownload.php`, `serverfile.php`, and `signup.php` are 403 stubs;
+File Manager download streams in-session only. Re-check:
+`php tests/security/check-open-findings.php`.
+*Still open:* other unserialize-on-untrusted-input sites outside these paths (DB
+serialized columns, etc.).
 *JSON replacement (planned, not built):* drop PHP serialization from the backend protocol.
 Payload becomes a versioned JSON object with a schema (action, class, nname, argument list);
 validate before dispatch. Transport: Unix socket for same-host (P0.5); slave TLS 7779 uses per-install

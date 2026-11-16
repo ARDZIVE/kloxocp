@@ -5322,7 +5322,11 @@ function pad_to_length($var, $len)
 function remote_http_exec($server, $port, $rmt)
 {
 	$var = base64_encode(serialize($rmt));
-	$res = send_to_some_http_server($server, "", $port, $var);
+	$user = (isset($rmt->remote_login) && is_string($rmt->remote_login) && $rmt->remote_login !== '')
+		? $rmt->remote_login
+		: 'slave';
+	$pass = (isset($rmt->password) && is_string($rmt->password)) ? $rmt->password : '';
+	$res = send_to_some_http_server($server, "", $port, $var, $user, $pass);
 
 	$res = unserialize(base64_decode($res));
 
@@ -5332,7 +5336,7 @@ function remote_http_exec($server, $port, $rmt)
 	return $res->ddata;
 }
 
-function send_to_some_http_server($raddress, $socket_type, $port, $var)
+function send_to_some_http_server($raddress, $socket_type, $port, $var, $user = '', $pass = '')
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
@@ -5341,13 +5345,12 @@ function send_to_some_http_server($raddress, $socket_type, $port, $var)
 	$ch = curl_init("http://$raddress:$port/lbin/remote.php");
 	curl_setopt($ch, CURLOPT_POST, true);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-	curl_setopt($ch, CURLOPT_POSTFIELDS, "frm_rmt=$var&");
-
-	// MR -- possible fix download/upload issue in php 5.3
-	curl_setopt($ch, CURLOPT_SSLVERSION, 3);
-	curl_setopt($ch, CURLOPT_SSL_CIPHER_LIST, 'SSLv3');
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+	$fields = 'frm_rmt=' . rawurlencode((string) $var)
+		. '&frm_remote_user=' . rawurlencode((string) $user)
+		. '&frm_remote_pass=' . rawurlencode((string) $pass);
+	curl_setopt($ch, CURLOPT_POSTFIELDS, $fields);
 
 	$totalout = curl_exec($ch);
 	dprint(curl_error($ch));

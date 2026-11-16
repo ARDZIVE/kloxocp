@@ -129,26 +129,40 @@ function check_for_remote($rmt)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
-	$local = false;
-
 	$res = new Remote();
 	$res->exception = null;
 
-	if (!$rmt->authenticated) {
-		$local = true;
-
+	// Never trust $rmt->authenticated alone (HTTP remote_main / forged payloads).
+	// Always verify the password against the admin/slave secret.
+	$pass = (isset($rmt->password) && is_string($rmt->password)) ? $rmt->password : '';
+	$user = (isset($rmt->remote_login) && is_string($rmt->remote_login)) ? $rmt->remote_login : 'slave';
+	$ok = false;
+	if ($pass !== '' && function_exists('kloxo_remote_verify_network_pass')) {
+		$ok = kloxo_remote_verify_network_pass($user, $pass);
+	}
+	if (!$ok && $pass !== '' && function_exists('getAdminDbPass')) {
 		try {
-			$ok = ($rmt->password === getAdminDbPass());
+			$admin = getAdminDbPass();
+			$ok = is_string($admin) && $admin !== '' && (
+				(function_exists('kloxo_remote_hash_equals') && kloxo_remote_hash_equals(trim($admin), $pass))
+				|| $pass === $admin
+				|| (function_exists('check_password') && check_password($pass, $admin))
+			);
 		} catch (Throwable $e) {
 			$ok = false;
 		}
-		if (!$ok) {
-			log_message("Failed Local access to $rmt->remote_login from localhost");
-			$res->exception = new lxException("login_failed", $rmt->machine);
-
-			return $res;
-		}
 	}
+	if (!$ok) {
+		log_message("Failed remote access to " . (isset($rmt->remote_login) ? $rmt->remote_login : '') .
+			" from " . (isset($rmt->machine) ? $rmt->machine : ''));
+		$res->exception = new lxException("login_failed", isset($rmt->machine) ? $rmt->machine : '');
+
+		return $res;
+	}
+
+	// Password-verified local-style calls skip the slave version gate below
+	// only when the target is this host (see localhostCall).
+	$local = !empty($rmt->authenticated) ? false : true;
 
 	if (!$local) {
 		log_message("Successful Access access to $rmt->remote_login from $rmt->machine");
@@ -456,10 +470,17 @@ function send_to_master($object)
 
 	$res = new Remote();
 	$res->var = $object;
-	$var = base64_encode(serialize($res));
-	$var = "__master::$var";
+	$payload = base64_encode(serialize($res));
 	$rmt = lfile_get_unserialize("__path_slave_db");
-	$raddress = $rmt->master_c;
+	$raddress = is_object($rmt) && isset($rmt->master_c) ? $rmt->master_c : '';
+	$password = (is_object($rmt) && isset($rmt->password) && is_string($rmt->password))
+		? $rmt->password
+		: '';
+	$remotechar = $sgbl->__var_remote_char;
+	$user = base64_encode('slave');
+	$pass = base64_encode($password);
+	// Auth envelope before the serialized payload (same shape as do_remote_exec).
+	$var = "__master::" . $remotechar . "\n" . $user . "\n" . $pass . "\n" . $payload;
 	$out = send_to_some_stream_server("cmd", null, $raddress, $var, null);
 	$rmt = unserialize(base64_decode($out));
 
@@ -898,10 +919,24 @@ function process_in_master($total)
 	$remotechar = $sgbl->__var_remote_char;
 
 	$total = strfrom($total, "__master::");
-	$rmt = unserialize(base64_decode($total));
+	$env = kloxo_remote_parse_envelope($total, $remotechar);
+	if (empty($env['ok'])) {
+		return process_server_auth_fail(isset($env['reason']) ? $env['reason'] : 'authentication_required');
+	}
+	if (!kloxo_remote_verify_network_pass($env['user'], $env['pass'])) {
+		return process_server_auth_fail('remote_authentication_failed');
+	}
+
+	$rmt = unserialize(base64_decode($env['payload_b64']));
 	$res = new Remote();
 	$res->message = "Master info";
 	$res->exception = null;
+	if (!is_object($rmt) || !isset($rmt->var)) {
+		$res->ddata = null;
+		$res->exception = new lxException('got_error_from_ur_end', '');
+
+		return base64_encode(serialize($res));
+	}
 	$vv = master_get_data($rmt->var);
 	$res->ddata = $vv;
 	$out = base64_encode(serialize($res));
@@ -1185,18 +1220,49 @@ function remote_main()
 		$login->get();
 	} else {
 		$login = new Client(null, null, 'slave');
-	//	$login->initThisDef();
 		$gbl->is_slave = true;
-		$rmt = unserialize(lfile_get_contents("__path_slave_db"));
-		$login->password = $rmt->password;
+		if (lxfile_exists('__path_slave_db')) {
+			$sdb = @unserialize(lfile_get_contents("__path_slave_db"));
+			if (is_object($sdb) && isset($sdb->password)) {
+				$login->password = $sdb->password;
+			}
+		}
 	}
 
 	$login->cttype = 'admin';
 
-	// This is to prevent the socket already used error. If use a strict single interface, 
-	// the socket operations happen through our own functions, and we can set the reuse option.
+	// Auth BEFORE unserialize: credentials must arrive outside the serialized blob
+	// (forged $rmt->authenticated alone must never skip the password check).
+	$user = isset($ghtml->frm_remote_user) ? (string) $ghtml->frm_remote_user : '';
+	$pass = isset($ghtml->frm_remote_pass) ? (string) $ghtml->frm_remote_pass : '';
+	if ($user === '' || $pass === '' || !kloxo_remote_verify_network_pass($user, $pass)) {
+		while (@ob_end_clean()) {
+			;
+		}
+		$fail = new Remote();
+		$fail->exception = new lxException('remote_authentication_failed', '');
+		$fail->ddata = null;
+		$fail->message = 'authentication_required';
+		print(base64_encode(serialize($fail)));
+		exit;
+	}
 
-	$rmt = unserialize(base64_decode($ghtml->frm_rmt));
+	$blob = isset($ghtml->frm_rmt) ? (string) $ghtml->frm_rmt : '';
+	$rmt = ($blob !== '') ? @unserialize(base64_decode($blob)) : false;
+	if (!is_object($rmt)) {
+		while (@ob_end_clean()) {
+			;
+		}
+		$fail = new Remote();
+		$fail->exception = new lxException('got_error_from_ur_end', '');
+		$fail->ddata = null;
+		print(base64_encode(serialize($fail)));
+		exit;
+	}
+
+	$rmt->password = $pass;
+	$rmt->remote_login = $user;
+	$rmt->authenticated = true;
 
 	$res = do_remote($rmt);
 	print_time('full', 'timing');
