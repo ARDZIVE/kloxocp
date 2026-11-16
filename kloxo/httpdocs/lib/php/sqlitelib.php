@@ -303,22 +303,50 @@ class Sqlite
 
 	function getRowsOr($field1, $value1, $field2, $value2)
 	{
-		return $this->getRowsWhere("{$field1} = '{$value1}' or {$field2} = '{$value2}'");
+		// Quote values + ident check (security QQ1).
+		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $field1)
+			|| !kloxo_sql_ident((string) $field2)) {
+			return null;
+		}
+		$v1 = $this->escapeBack($field1, $value1);
+		$v2 = $this->escapeBack($field2, $value2);
+
+		return $this->getRowsWhere("{$field1} = '{$v1}' or {$field2} = '{$v2}'");
 	}
 
 	function getRowAnd($field1, $value1, $field2, $value2)
 	{
-		return $this->getRowsWhere("{$field1} = '{$value1}' and  {$field2} = '{$value2}'");
+		// Quote values + ident check (security QQ1).
+		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $field1)
+			|| !kloxo_sql_ident((string) $field2)) {
+			return null;
+		}
+		$v1 = $this->escapeBack($field1, $value1);
+		$v2 = $this->escapeBack($field2, $value2);
+
+		return $this->getRowsWhere("{$field1} = '{$v1}' and  {$field2} = '{$v2}'");
 	}
 
 	function getRowsNot($field, $notval)
 	{
-		return $this->getRowsWhere("{$field} != '{$notval}'");
+		// Quote values + ident check (security QQ1).
+		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $field)) {
+			return null;
+		}
+		$v = $this->escapeBack($field, $notval);
+
+		return $this->getRowsWhere("{$field} != '{$v}'");
 	}
 
 	function getRows($field, $value)
 	{
-		return $this->getRowsWhere("{$field} = '{$value}'");
+		// Quote values + ident check (security QQ1).
+		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $field)) {
+			return null;
+		}
+		$v = $this->escapeBack($field, $value);
+
+		return $this->getRowsWhere("{$field} = '{$v}'");
 	}
 
 	function getTable($list = null)
@@ -648,7 +676,16 @@ class Sqlite
 
 		$fdbvar = "__fdb_{$this->__readserver}";
 
-		$delete = "delete from {$this->__sqtable} where {$nname} = '{$value}'";
+		// Ident + where-value quote (security QQ2 / PP2).
+		if (!function_exists('kloxo_sql_ident')
+			|| !kloxo_sql_ident((string) $nname)
+			|| !kloxo_sql_ident((string) $this->__sqtable)) {
+			log_database('DbError: delRow refused unsafe table/column ident');
+			return false;
+		}
+
+		$escValue = $this->escapeBack($nname, $value);
+		$delete = "delete from {$this->__sqtable} where {$nname} = '{$escValue}'";
 
 		$delresult = $this->database_query($gbl->$fdbvar, $delete);
 

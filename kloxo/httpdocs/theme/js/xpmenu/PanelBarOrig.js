@@ -20,6 +20,16 @@ var _imageFolder  = "/theme/xpmenu/";
 var _browser      = -1;
 var _strCtxt      = "";
 
+// Escape labels before document.write (security QQ4).
+function kloxoEscHtml(s) {
+	return String(s == null ? '' : s)
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
+
 function MenuBand(pstrDesc, pstrTip, open)
 {
 	// Properties
@@ -68,6 +78,8 @@ function drawMenu()
 	var iCntr = 0;
 	var objMenu;
 	var strId, strLbl;
+	var safeLabel = kloxoEscHtml(this.label);
+	var safeId = kloxoEscHtml(this.id);
 	if (this.open) {
 		visib = 'visibile';
 		disp = 'block';
@@ -82,13 +94,13 @@ function drawMenu()
 	
 	document.write("<table  border=\"0\" cellspacing=\"0\"" +
 					" cellpadding=\"0\" style=\"padding:0 0 0 0;\" width=\"100%\">");
-	document.write("<tr style=\"background:url('/background1.gif')\" onMouseover=\"this.style.background='url(/onexpand.gif)'\" onMouseout=\"this.style.background='url(/background1.gif)'\"><td style=\"width:180px;vertical-align: center; \"><font style='font-weight:bold'>&nbsp;" + this.label +
-					"</font></td><td class=" + menuclass + " id=\"" + this.id + "\"" + 
+	document.write("<tr style=\"background:url('/background1.gif')\" onMouseover=\"this.style.background='url(/onexpand.gif)'\" onMouseout=\"this.style.background='url(/background1.gif)'\"><td style=\"width:180px;vertical-align: center; \"><font style='font-weight:bold'>&nbsp;" + safeLabel +
+					"</font></td><td class=" + menuclass + " id=\"" + safeId + "\"" + 
 					"onclick=\"toggle(this)\">");
-	document.write("&nbsp;<img id="+ this.id +"_image src="+ image +"></td></tr>");
+	document.write("&nbsp;<img id="+ safeId +"_image src="+ image +"></td></tr>");
 	document.write("</table>");
 	document.write("<div style=\"display: " + disp + "; visibility: " + visib + ";\"" +
-			" class=\"menuItems\" id=\"" + this.id + "_child" + "\">");
+			" class=\"menuItems\" id=\"" + safeId + "_child" + "\">");
 	document.write("<table border=0 style='background:white' border=0 cellspacing=1 cellpadding=0 width=100%>");
 	for (iCntr = 0; iCntr < this.smcount; iCntr++)
 	{
@@ -101,14 +113,14 @@ function drawSubMenu()
 {
 	var strImg = "";
 	var leftmargin = "";
-
+	var safeLabel = kloxoEscHtml(this.label);
 
 	if (this.hlink) {
 		document.write("<a href=" + getLink(this.linkTarget, (_strCtxt + this.hlink), this.linkData) + ">");
-		document.write(this.label);
+		document.write(safeLabel);
 		document.write("</a>");
 	} else {
-		document.write(this.label);
+		document.write(safeLabel);
 	}
 }
 

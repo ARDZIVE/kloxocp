@@ -8101,7 +8101,12 @@ class HtmlLib
 				}
 			} catch (Throwable $e) {
 			}
-			$wait_text = "document.getElementById('div_status').style.color='#fff';document.getElementById('div_status').innerHTML='&nbsp;{$wait}&nbsp;';";
+			// textContent + json_encode (security QQ3) — never interpolate into innerHTML.
+			$waitJson = json_encode("\xc2\xa0" . (string) $wait . "\xc2\xa0", JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+			if (!is_string($waitJson) || $waitJson === '') {
+				$waitJson = '" Wait "';
+			}
+			$wait_text = "var __kloxoWait=document.getElementById('div_status');if(__kloxoWait){__kloxoWait.style.color='#fff';__kloxoWait.textContent={$waitJson};}";
 		} else {
 			$wait_text = "";
 		}

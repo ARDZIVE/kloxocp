@@ -315,9 +315,12 @@ function checkBoxTextToggle(frmname, cname, tname,  cvalue, tvalue)
 
 function my_alert(message)
 {
+	// Dead path kept for callers; textContent if ever re-enabled (security QQ6).
 	return;
 	var elem = document.getElementById('j_message');
-	elem.innerHTML = message;
+	if (elem) {
+		elem.textContent = message == null ? '' : String(message);
+	}
 }
 
 expandMess = 'Click to Expand Navigation Bar';

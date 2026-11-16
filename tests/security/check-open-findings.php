@@ -2058,6 +2058,68 @@ $findings[] = finding('PP6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo', $pp6Closed,
 	$pp6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- QQ wave ---
+$sqlQq = file_text($root, 'kloxo/httpdocs/lib/php/sqlitelib.php');
+$qq1Closed = contains($sqlQq, 'security QQ1')
+	&& preg_match('/function getRows\s*\([^)]*\)[\s\S]{0,400}escapeBack/', $sqlQq)
+	&& preg_match('/function getRowsOr\s*\([^)]*\)[\s\S]{0,400}escapeBack/', $sqlQq)
+	&& preg_match('/function getRowAnd\s*\([^)]*\)[\s\S]{0,400}escapeBack/', $sqlQq)
+	&& preg_match('/function getRowsNot\s*\([^)]*\)[\s\S]{0,400}escapeBack/', $sqlQq)
+	&& not_contains($sqlQq, "return \$this->getRowsWhere(\"{\$field} = '{\$value}'\")");
+$findings[] = finding('QQ1', 'medium', 'sqlitelib getRows* interpolate WHERE without quote',
+	'lib/php/sqlitelib.php getRows*', $qq1Closed,
+	$qq1Closed ? 'escapeBack + ident checks' : 'still unquoted');
+
+$qq2Closed = contains($sqlQq, 'security QQ2')
+	&& contains($sqlQq, 'delRow refused unsafe')
+	&& contains($sqlQq, "escapeBack(\$nname, \$value)")
+	&& not_contains($sqlQq, "where {\$nname} = '{\$value}'");
+$findings[] = finding('QQ2', 'medium', 'sqlitelib delRow interpolates value unquoted',
+	'lib/php/sqlitelib.php delRow', $qq2Closed,
+	$qq2Closed ? 'escapeBack + ident checks' : 'still unquoted');
+
+$htmlQq = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$qq3Closed = contains($htmlQq, 'security QQ3')
+	&& contains($htmlQq, 'json_encode')
+	&& contains($htmlQq, '__kloxoWait.textContent')
+	&& not_contains($htmlQq, "innerHTML='&nbsp;{\$wait}&nbsp;'");
+$findings[] = finding('QQ3', 'low', 'htmllib embeds $wait into JS innerHTML string',
+	'theme/htmllib.php', $qq3Closed,
+	$qq3Closed ? 'textContent + json_encode' : 'still innerHTML interpolate');
+
+$frameQq = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
+$panelQq = file_text($root, 'kloxo/httpdocs/theme/js/xpmenu/PanelBarOrig.js');
+$qq4Closed = contains($frameQq, 'security QQ4')
+	&& contains($frameQq, 'kloxoEscHtml')
+	&& contains($frameQq, 'safeLabel')
+	&& contains($panelQq, 'security QQ4')
+	&& contains($panelQq, 'kloxoEscHtml(this.label)')
+	&& not_contains($panelQq, 'document.write(this.label)');
+$findings[] = finding('QQ4', 'low', 'frame_left/xpmenu document.write concatenates this.label',
+	'theme/frame_left.php / PanelBarOrig.js', $qq4Closed,
+	$qq4Closed ? 'kloxoEscHtml on labels' : 'still raw label write');
+
+$defQq = file_text($root, 'kloxo/httpdocs/lib/html/definecore.php');
+$webQq = file_text($root, 'kloxo/httpdocs/driver/web/weblib.php');
+$qq5Closed = contains($defQq, 'security QQ5')
+	&& !preg_match('/^\s*\$gl_class_array\["aspnet"\]/m', $defQq)
+	&& contains($webQq, 'security QQ5')
+	&& !preg_match('/^\s*class aspnetconf_b/m', $webQq);
+$findings[] = finding('QQ5', 'low', 'definecore still registers aspnet; aspnetconf_b remains',
+	'definecore.php / weblib.php', $qq5Closed,
+	$qq5Closed ? 'aspnet unregistered; conf class commented' : 'aspnet still registered');
+
+$lxlibQq = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$extSecQq = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$lxaQq = file_text($root, 'kloxo/httpdocs/theme/js/lxa.js');
+$qq6Closed = contains($lxlibQq, 'security QQ6')
+	&& contains($extSecQq, 'security QQ6')
+	&& contains($lxaQq, 'security QQ6')
+	&& contains($lxlibQq, 'gated unserialize');
+$findings[] = finding('QQ6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs / lxa.js', $qq6Closed,
+	$qq6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

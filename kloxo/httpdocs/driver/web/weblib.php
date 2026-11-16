@@ -7,9 +7,10 @@ class webmisc_b extends Lxaclass
 	static $__desc_disable_openbasedir = array("f", "", "disable_openbasedir");
 }
 
-class aspnetconf_b extends lxaclass
-{
-}
+// ASP.NET config class removed on Ubuntu (security QQ5 / PP4).
+// class aspnetconf_b extends lxaclass
+// {
+// }
 
 class phpconfig_b extends Lxaclass
 {

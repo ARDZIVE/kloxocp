@@ -139,10 +139,21 @@ function xp_panel($object)
 		<script src="/theme/js/xpmenu/ua.js"></script>
 		<script src="/theme/js/xpmenu/PanelBarOrig.js"></script>
 		<script>
+			// Escape labels before document.write (security QQ4).
+			function kloxoEscHtml(s) {
+				return String(s == null ? '' : s)
+					.replace(/&/g, '&amp;')
+					.replace(/</g, '&lt;')
+					.replace(/>/g, '&gt;')
+					.replace(/"/g, '&quot;')
+					.replace(/'/g, '&#39;');
+			}
 			function drawMenu() {
 				var iCntr = 0;
 				var objMenu;
 				var strId, strLbl;
+				var safeLabel = kloxoEscHtml(this.label);
+				var safeId = kloxoEscHtml(this.id);
 
 				if (this.open) {
 					visib = 'visibile';
@@ -159,10 +170,10 @@ function xp_panel($object)
 				}
 
 				document.write("<table  border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:0 0 0 0;\" width=\"100%\">");
-				document.write("<tr style=\"background:#efe8e0 url(<?=$skinget?>/images/expand.gif)\" onMouseover=\"this.style.background='#efe8e0 url(<?=$skinget?>/images/onexpand.gif)'\" onMouseout=\"this.style.background='#efe8e0 url(<?=$skinget?>/images/expand.gif)'\"><td style=\"width:180px;vertical-align: center; \"><span style='font-weight:bold'>&nbsp;" + this.label + "</span></td><td class=" + menuclass + " id=\"" + this.id + "\"" + "onclick=\"toggle(this)\">");
-				document.write("&nbsp;<img id=" + this.id + "_image src=" + image + "></td></tr>");
+				document.write("<tr style=\"background:#efe8e0 url(<?=$skinget?>/images/expand.gif)\" onMouseover=\"this.style.background='#efe8e0 url(<?=$skinget?>/images/onexpand.gif)'\" onMouseout=\"this.style.background='#efe8e0 url(<?=$skinget?>/images/expand.gif)'\"><td style=\"width:180px;vertical-align: center; \"><span style='font-weight:bold'>&nbsp;" + safeLabel + "</span></td><td class=" + menuclass + " id=\"" + safeId + "\"" + "onclick=\"toggle(this)\">");
+				document.write("&nbsp;<img id=" + safeId + "_image src=" + image + "></td></tr>");
 				document.write("</table>");
-				document.write("<div style=\"display: " + disp + "; visibility: " + visib + ";\"" + " class=\"menuItems\" id=\"" + this.id + "_child" + "\">");
+				document.write("<div style=\"display: " + disp + "; visibility: " + visib + ";\"" + " class=\"menuItems\" id=\"" + safeId + "_child" + "\">");
 				document.write("<table border='0' style='background:white' border='0' cellspacing='1' cellpadding='0' width='100%'>");
 
 				for (iCntr = 0; iCntr < this.smcount; iCntr++) {

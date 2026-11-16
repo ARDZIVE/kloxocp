@@ -86,7 +86,8 @@ $gl_class_array["sslipaddress"] = "driver/pserver/sslipaddresslib.php";
 $gl_class_array["domainipaddress"] = "driver/pserver/domainipaddresslib.php";
 $gl_class_array["sslcert"] = "driver/pserver/sslcertlib.php";
 $gl_class_array["package"] = "driver/pserver/packagelib.php";
-$gl_class_array["aspnet"] = "driver/pserver/aspnetlib.php";
+// ASP.NET removed on Ubuntu (security QQ5 / PP4 / OO5).
+// $gl_class_array["aspnet"] = "driver/pserver/aspnetlib.php";
 $gl_class_array["databasecore"] = "driver/pserver/ddatabaselib.php";
 $gl_class_array["databaseusercore"] = "driver/pserver/ddatabaseuserlib.php";
 $gl_class_array["mysqldb"] = "driver/pserver/ddatabaselib.php";
