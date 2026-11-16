@@ -6139,7 +6139,7 @@ class HtmlLib
 		$this->print_jscript_source($preop_path);
 		$busyJs = str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js"));
 		if (is_string($busyJs) && $busyJs !== '' && !str_contains($busyJs, '?')) {
-			$busyJs .= '?v=5';
+			$busyJs .= '?v=6';
 		}
 		$this->print_jscript_source($busyJs);
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-toast.js")));
@@ -6475,21 +6475,26 @@ class HtmlLib
 			dprint(" <b><br /> <br />  Click <a href=\"$redirect_url\"><b> here to go to Continue. </a> </b> \n");
 
 			if ($sgbl->dbg < 0 || (isset($gbl->__no_debug_redirect) && $gbl->__no_debug_redirect)) {
-				while (ob_get_level() > 0) {
-					@ob_end_clean();
-				}
-				if (!headers_sent()) {
+				// HTTP 200 + stub only (no Location): a 303 makes the browser
+				// discard the stub that clears kloxo-busy, so Add Domain left
+				// "Please wait..." stuck on the Domains list (refresh re-armed it).
+				if ($windowurl && !headers_sent()) {
 					header('Content-Type: text/html; charset=utf-8');
-					http_response_code(303);
-					$abs = function_exists('kloxo_redirect_abs_url')
-						? kloxo_redirect_abs_url((string) $redirect_url)
-						: (string) $redirect_url;
-					header('Location: ' . $abs);
 				}
 				if ($windowurl) {
 					print('<script>window.open(' . json_encode((string) $windowurl) . ');</script>');
 				}
-				if (function_exists('kloxo_redirect_stub_html')) {
+				if (function_exists('kloxo_emit_local_redirect')) {
+					$gbl->__this_redirect = (string) $redirect_url;
+					kloxo_emit_local_redirect();
+				} elseif (function_exists('kloxo_redirect_stub_html')) {
+					while (ob_get_level() > 0) {
+						@ob_end_clean();
+					}
+					if (!headers_sent()) {
+						header('Content-Type: text/html; charset=utf-8');
+						http_response_code(200);
+					}
 					print(kloxo_redirect_stub_html((string) $redirect_url));
 				} else {
 					$esc = htmlspecialchars((string) $redirect_url, ENT_QUOTES);
@@ -6528,22 +6533,30 @@ class HtmlLib
 				&& function_exists('kloxo_xhr_redirect_response')) {
 				kloxo_xhr_redirect_response((string) $redirect_url);
 			}
-			while (ob_get_level() > 0) {
-				@ob_end_clean();
+			// Same as Add Client / password: 200 stub clears kloxo-busy then
+			// navigates. Never send Location (303) here.
+			if (is_object($gbl)) {
+				$gbl->__this_redirect = (string) $redirect_url;
 			}
-			$abs = function_exists('kloxo_redirect_abs_url')
-				? kloxo_redirect_abs_url((string) $redirect_url)
-				: (string) $redirect_url;
-			if (!headers_sent()) {
-				header('Content-Type: text/html; charset=utf-8');
-				http_response_code(303);
-				header('Location: ' . $abs);
+			if (function_exists('kloxo_emit_local_redirect')) {
+				kloxo_emit_local_redirect();
+			} else {
+				while (ob_get_level() > 0) {
+					@ob_end_clean();
+				}
+				$abs = function_exists('kloxo_redirect_abs_url')
+					? kloxo_redirect_abs_url((string) $redirect_url)
+					: (string) $redirect_url;
+				if (!headers_sent()) {
+					header('Content-Type: text/html; charset=utf-8');
+					http_response_code(200);
+				}
+				print(function_exists('kloxo_redirect_stub_html')
+					? kloxo_redirect_stub_html((string) $redirect_url)
+					: ('<!DOCTYPE html><html><head><meta charset="utf-8">'
+						. '<meta http-equiv="Refresh" content="0;URL='
+						. htmlspecialchars($abs, ENT_QUOTES) . '"></head><body></body></html>'));
 			}
-			print(function_exists('kloxo_redirect_stub_html')
-				? kloxo_redirect_stub_html((string) $redirect_url)
-				: ('<!DOCTYPE html><html><head><meta charset="utf-8">'
-					. '<meta http-equiv="Refresh" content="0;URL='
-					. htmlspecialchars($abs, ENT_QUOTES) . '"></head><body></body></html>'));
 		}
 
 		exit(0);

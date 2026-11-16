@@ -311,10 +311,14 @@
 		}
 	});
 
-	// Only bfcache restores need an extra clear (persisted document).
+	// Clear stuck spinner on bfcache restore and on ordinary show of a
+	// finished page (Add Domain used to leave Please wait... after 303).
 	win.addEventListener('pageshow', function (ev) {
-		if (ev.persisted) {
+		if (ev.persisted || (doc.readyState === 'complete' && !isImmediateRefresh())) {
 			settled = true;
+			navToken += 1;
+			cancelPending();
+			cancelMaxWait();
 			flagClear();
 			api.hide();
 		}
@@ -471,6 +475,12 @@
 
 	win.addEventListener('beforeunload', function () {
 		if (Date.now() < suppressUntil) {
+			return;
+		}
+		// Page already finished (toast/list visible) but overlay stuck: a refresh
+		// must not re-arm the flag or Please wait... comes back forever.
+		if (settled) {
+			flagClear();
 			return;
 		}
 		var f = flagGet();

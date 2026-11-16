@@ -3167,15 +3167,17 @@ function do_display_init()
 	check_if_disabled_and_exit();
 
 	if ($gbl->getSessionV('__refresh_lpanel') == 'true') {
-		print("<script> top.leftframe.window.location.reload() ; </script>");
-		print("<script> top.topframe.window.location.reload() ; </script>");
+		// Guard missing frames (direct /display.php) so a throw cannot break
+		// later kloxo-busy.js; never leave Please wait... stuck after Add Domain.
+		print("<script>(function(){try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
+			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}})();</script>");
 		$gbl->unsetSessionV('__refresh_lpanel');
 	}
 
 	if ($ghtml->frm_refresh_lpanel === 'true') {
 		unset($ghtml->__http_vars['frm_refresh_lpanel']);
-		print("<script> top.leftframe.window.location.reload(); </script>");
-		print("<script> top.topframe.window.location.reload() ; </script>");
+		print("<script>(function(){try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
+			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}})();</script>");
 	}
 
 	createPrincipleObject();

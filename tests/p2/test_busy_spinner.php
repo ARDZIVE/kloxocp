@@ -136,6 +136,36 @@ if (str_contains($js, "addEventListener('beforeunload'") && str_contains($js, 's
 } else {
 	bad('JS shows the modal on click/submit and resets settled so later navigations work');
 }
+// Stuck Please wait... after Add Domain: refresh must not re-arm when settled;
+// pageshow clears a finished page; print_redirect must not use HTTP 303 Location.
+$beforeFn = '';
+if (preg_match("/addEventListener\\('beforeunload',\\s*function\\s*\\([^)]*\\)\\s*\\{.*?\\}\\);/s", $js, $mBu) === 1) {
+	$beforeFn = $mBu[0];
+}
+if ($beforeFn !== '' && str_contains($beforeFn, 'if (settled)') && str_contains($beforeFn, 'flagClear()')) {
+	ok('beforeunload does not re-arm busy after the page has settled');
+} else {
+	bad('beforeunload does not re-arm busy after the page has settled');
+}
+if (str_contains($js, "addEventListener('pageshow'")
+	&& str_contains($js, "doc.readyState === 'complete'")
+	&& str_contains($js, '!isImmediateRefresh()')) {
+	ok('pageshow clears stuck spinner on a finished page');
+} else {
+	bad('pageshow clears stuck spinner on a finished page');
+}
+$redirFn = '';
+if (preg_match('/function print_redirect\(\$redirect_url.*?\n\tfunction /s', $html, $mPr) === 1) {
+	$redirFn = $mPr[0];
+}
+if ($redirFn !== ''
+	&& str_contains($redirFn, 'kloxo_emit_local_redirect')
+	&& !str_contains($redirFn, "http_response_code(303)")
+	&& !str_contains($redirFn, "header('Location:")) {
+	ok('print_redirect uses 200 stub (no 303 Location) so busy clears');
+} else {
+	bad('print_redirect uses 200 stub (no 303 Location) so busy clears');
+}
 if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") && str_contains($js, 'mailto:')
 	&& str_contains($js, 'hasChosenFile') && !str_contains($js, "enctype === 'multipart/form-data'") && str_contains($js, 'frm_subaction=download')) {
 	ok('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form (the panel renders all forms as multipart)');
