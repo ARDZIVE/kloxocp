@@ -712,9 +712,7 @@ class pservercore extends Lxclient
 		$param['nname'] = $nname;
 		$param['syncserver'] = $nname;
 		$param['realpass'] = $pass;
-		$param['password'] = function_exists('kloxo_password_hash')
-			? kloxo_password_hash($pass)
-			: crypt($pass, '$1$'.randomString(8).'$');
+		$param['password'] = kloxo_password_hash($pass); // security Y7
 
 		return $param;
 	}

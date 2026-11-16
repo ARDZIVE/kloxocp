@@ -48,11 +48,10 @@ function database_main()
 		}
 		foreach ($r as $k => &$__r) {
 			if (csb($k, 'ser_')) {
-				if (function_exists('kloxo_b64_unserialize')) {
-					$__r = kloxo_b64_unserialize((string) $__r);
-				} else {
-					$__r = @unserialize(base64_decode((string) $__r));
-				}
+				// Fail closed without gadget helper (security Y5).
+				$__r = function_exists('kloxo_b64_unserialize')
+					? kloxo_b64_unserialize((string) $__r)
+					: false;
 			}
 		}
 		unset($__r);

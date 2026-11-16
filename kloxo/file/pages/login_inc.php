@@ -243,36 +243,53 @@ if (!$cgi_forgotpwd) {
 		$classname = getClassFromName($cgi_clientname);
 	}
 
-	if ($cgi_clientname != "" && $cgi_email != "") {
-		$tablename = $classname;
-		$rawdb = new Sqlite(null, $tablename);
-		$email = $rawdb->rawQuery("select contactemail from $tablename where nname = '$cgi_clientname';");
-
-
-		if ($email && $cgi_email == $email[0]['contactemail']) {
-			$rndstring = randomString(8);
-			$pass = crypt($rndstring, '$1$'.randomString(8).'$');
-
-			$rawdb->rawQuery("update $tablename set password = '$pass' where nname = '$cgi_clientname'");
-			$mailto = $email[0]['contactemail'];
-			$name = "$cprogname";
-			$email = "Admin";
-
-			$cc = "";
-			$subject = "$cprogname Password Reset Request";
-			$message = "\n\n\nYour password has been reset to the one below for your $cprogname login.\n";
-			$message .= "The Client IP address which requested the Reset: {$_SERVER['REMOTE_ADDR']}\n";
-			$message .= 'Username: ' . $cgi_clientname . "\n";
-			$message .= 'New Password: ' . $rndstring . '';
-
-			//$message = nl2br($message);
-
-			lx_mail(null, $mailto, $subject, $message);
-
-			$ghtml->print_redirect("/login/?frm_smessage=password_sent");
-
-		} else {
+	// Whitelist table name; Argon2id + setRow (security Y8 / Y7).
+	$tablename = preg_replace('/[^a-zA-Z0-9_]/', '', (string) $classname);
+	$cgi_clientname = (string) $cgi_clientname;
+	$cgi_email = (string) $cgi_email;
+	if ($cgi_clientname !== '' && $cgi_email !== '') {
+		if ($tablename === '' || !preg_match('/^[A-Za-z0-9._@-]{1,64}$/', $cgi_clientname)) {
 			$ghtml->print_redirect("/login/?frm_emessage=nouser_email");
+		} else {
+			$rawdb = new Sqlite(null, $tablename);
+			$email = $rawdb->getRows('nname', $cgi_clientname);
+
+			if ($email && isset($email[0]['contactemail'])
+				&& hash_equals((string) $email[0]['contactemail'], $cgi_email)) {
+				$rndstring = randomString(8);
+				if (!function_exists('kloxo_password_hash')) {
+					$ghtml->print_redirect("/login/?frm_emessage=nouser_email");
+					return;
+				}
+				$pass = kloxo_password_hash($rndstring);
+				if (!is_string($pass) || $pass === '') {
+					$ghtml->print_redirect("/login/?frm_emessage=nouser_email");
+					return;
+				}
+
+				$rawdb->setRow('nname', $cgi_clientname, array(
+					'nname' => $cgi_clientname,
+					'password' => $pass,
+				));
+				$mailto = $email[0]['contactemail'];
+				$name = "$cprogname";
+				$email = "Admin";
+
+				$cc = "";
+				$subject = "$cprogname Password Reset Request";
+				$message = "\n\n\nYour password has been reset to the one below for your $cprogname login.\n";
+				$ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '';
+				$message .= "The Client IP address which requested the Reset: {$ip}\n";
+				$message .= 'Username: ' . $cgi_clientname . "\n";
+				$message .= 'New Password: ' . $rndstring . '';
+
+				lx_mail(null, $mailto, $subject, $message);
+
+				$ghtml->print_redirect("/login/?frm_smessage=password_sent");
+
+			} else {
+				$ghtml->print_redirect("/login/?frm_emessage=nouser_email");
+			}
 		}
 	}
 }

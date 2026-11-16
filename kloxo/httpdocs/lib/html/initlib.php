@@ -86,7 +86,7 @@ function add_admin($pass)
 			$res['contacemail'] = 'admin@mratwork.com';
 		}
 
-		$res['password'] = function_exists('kloxo_password_hash') ? kloxo_password_hash($pass) : crypt($pass, '$1$'.randomString(8).'$');
+		$res['password'] = kloxo_password_hash($pass); // security Y7
 		$res['cttype'] = 'admin';
 		$res['cpstatus'] = 'on';
 
@@ -159,7 +159,7 @@ function create_servername()
 
 	if (if_demo()) {
 		$pserver->realpass = 'admin';
-		$pserver->password = function_exists('kloxo_password_hash') ? kloxo_password_hash('admin') : crypt('admin', '$1$'.randomString(8).'$');
+		$pserver->password = kloxo_password_hash('admin'); // security Y7
 		$pserver->cpstatus = 'on';
 	}
 

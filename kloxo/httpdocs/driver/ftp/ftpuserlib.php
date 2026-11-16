@@ -68,7 +68,7 @@ class ftpuser extends Lxclient
 		$web = $parent;
 		$param['realpass'] = $param['password'];
 
-		$param['password'] = function_exists('kloxo_password_hash') ? kloxo_password_hash($param['password']) : crypt($param['password'], '$1$'.randomString(8).'$');
+		$param['password'] = kloxo_password_hash($param['password']); // security Y7
 
 		if ($param['directory'] === '') {
 			$param['directory'] = '/';

@@ -952,16 +952,25 @@ function licenseEncrypt($string)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 	$file = "$sgbl->__path_program_root/file/license_privatekey.key";
-	// encrypt
-	$pass = "helloworld";
+	// Passphrase from env or sibling file — never hardcode (security Y9).
+	$pass = getenv('KLOXO_LICENSE_KEY_PASS');
+	if (!is_string($pass) || $pass === '') {
+		$passFile = $file . '.pass';
+		$pass = is_file($passFile) ? trim((string) @file_get_contents($passFile)) : '';
+	}
+	if ($pass === '') {
+		throw new lxException('license_private_key_passphrase_required', '');
+	}
 	$result = openssl_get_privatekey(array("file://" . $file, $pass));
+	if ($result === false) {
+		throw new lxException('license_private_key_unreadable', '');
+	}
 	$ar = str_split($string, 100);
 	$fullstring = null;
 	foreach ($ar as $s) {
 		openssl_private_encrypt($s, $encrypted_string, $result);
 		$fullstring .= base64_encode($encrypted_string) . "\n";
 	}
-	print(openssl_error_string());
 
 	return $fullstring;
 }
@@ -2275,28 +2284,16 @@ function get_image_path($path = null)
 
 function randomString($length)
 {
-/*
-	$randstr = '';
-
-	$chars = array('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C',
-		'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-		'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z');
-
-	for ($rand = 0; $rand <= $length; $rand++) {
-		$random = rand(0, count($chars) - 1);
-		$randstr .= $chars[$random];
+	// CSPRNG (security Y1) — used by getCSRFToken and password salts.
+	$length = (int) $length;
+	if ($length < 1) {
+		return '';
 	}
-
-	return $randstr;
-*/
-	$key = '';
-
 	$keys = array_merge(range(0, 9), range('a', 'z'), range('A', 'Z'));
-
+	$max = count($keys) - 1;
+	$key = '';
 	for ($i = 0; $i < $length; $i++) {
-			$key .= $keys[array_rand($keys)];
+		$key .= $keys[random_int(0, $max)];
 	}
 
 	return $key;
@@ -2729,7 +2726,8 @@ function kloxo_password_hash($plain)
 	if (is_string($h) && $h !== '') {
 		return $h;
 	}
-	return crypt($plain, '$1$'.randomString(8).'$');
+	// Fail closed — never mint MD5-crypt (security Y7).
+	return '';
 }
 
 /**
@@ -5430,9 +5428,7 @@ function add_superadmin($pass)
 
 	$ddb = new Sqlite(null, "superclient");
 	if (!$ddb->existInTable("nname", 'superclient')) {
-		$res['password'] = function_exists('kloxo_password_hash')
-			? kloxo_password_hash($pass)
-			: crypt($pass, '$1$'.randomString(8).'$');
+		$res['password'] = kloxo_password_hash($pass); // security Y7
 		$res['cttype'] = 'superadmin';
 		$res['cpstatus'] = 'on';
 		if (if_demo()) {

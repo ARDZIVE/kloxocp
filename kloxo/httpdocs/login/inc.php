@@ -286,10 +286,12 @@ if (!$cgi_forgotpwd) {
 					return;
 				}
 
-				$escName = str_replace("'", "''", $cgi_clientname);
-				$escPass = str_replace("'", "''", $pass);
-				// Password hash is generated here (no user metacharacters); nname escaped.
-				$rawdb->rawQuery("update {$tablename} set password = '{$escPass}' where nname = '{$escName}'");
+				// Bound update via setRow (security Y8) — nname already regex-validated;
+				// password is a generated Argon2id hash, not user input.
+				$rawdb->setRow('nname', $cgi_clientname, array(
+					'nname' => $cgi_clientname,
+					'password' => $pass,
+				));
 				$mailto = $email[0]['contactemail'];
 				$name = "$cprogname";
 				$email = "Admin";

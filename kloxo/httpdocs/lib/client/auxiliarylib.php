@@ -72,9 +72,7 @@ class auxiliary extends Lxclient
 		$param['cpstatus'] = 'on';
 		$param['status'] = 'on';
 		$param['realpass'] = $pass;
-		$param['password'] = function_exists('kloxo_password_hash')
-			? kloxo_password_hash($pass)
-			: crypt($pass, '$1$'.randomString(8).'$');
+		$param['password'] = kloxo_password_hash($pass); // security Y7
 		$param['delete_flag'] = (isset($param['delete_flag']) && $param['delete_flag'] === 'on') ? 'on' : 'off';
 		$param['pserver_flag'] = (isset($param['pserver_flag']) && $param['pserver_flag'] === 'on') ? 'on' : 'off';
 

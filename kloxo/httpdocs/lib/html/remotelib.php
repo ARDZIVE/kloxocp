@@ -964,9 +964,10 @@ function process_in_master($total)
 	}
 
 	$payloadRaw = base64_decode($env['payload_b64'], true);
+	// Fail closed without gadget helper (security Y2).
 	$rmt = (is_string($payloadRaw) && function_exists('kloxo_unserialize_deny_gadgets'))
 		? kloxo_unserialize_deny_gadgets($payloadRaw)
-		: (is_string($payloadRaw) ? @unserialize($payloadRaw) : false);
+		: false;
 	$res = new Remote();
 	$res->message = "Master info";
 	$res->exception = null;
@@ -1035,9 +1036,10 @@ function process_server_input($total)
 	}
 
 	$payloadRaw = base64_decode($env['payload_b64'], true);
+	// Fail closed without gadget helper (security Y2).
 	$rmt = (is_string($payloadRaw) && function_exists('kloxo_unserialize_deny_gadgets'))
 		? kloxo_unserialize_deny_gadgets($payloadRaw)
-		: (is_string($payloadRaw) ? @unserialize($payloadRaw) : false);
+		: false;
 	if ($rmt) {
 		$rmt->authenticated = true;
 		save_slave_name($rmt);
@@ -1308,9 +1310,10 @@ function remote_main()
 
 	$blob = isset($ghtml->frm_rmt) ? (string) $ghtml->frm_rmt : '';
 	$payloadRaw = ($blob !== '') ? base64_decode($blob, true) : false;
+	// Fail closed without gadget helper (security Y2).
 	$rmt = (is_string($payloadRaw) && function_exists('kloxo_unserialize_deny_gadgets'))
 		? kloxo_unserialize_deny_gadgets($payloadRaw)
-		: (is_string($payloadRaw) ? @unserialize($payloadRaw) : false);
+		: false;
 	if (!is_object($rmt)) {
 		while (@ob_end_clean()) {
 			;

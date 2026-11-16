@@ -53,9 +53,10 @@ class Gbllib  extends Lxclass
 				if (csb($key, "ser_")) {
 					$key = strfrom($key, "ser_");
 					$decoded = base64_decode((string) $value, true);
+					// Fail closed without gadget helper (security Y3).
 					$value = (is_string($decoded) && function_exists('kloxo_unserialize_deny_gadgets'))
 						? kloxo_unserialize_deny_gadgets($decoded)
-						: (is_string($decoded) ? @unserialize($decoded) : false);
+						: false;
 				}
 
 				if (cse($key, "_b") && !is_object($value)) {

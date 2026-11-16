@@ -2,6 +2,7 @@
 /**
  * Root-only CLI password reset. Not network-reachable (security T6).
  * Slave DB load uses gadget-filtered unserialize.
+ * Hashes with Argon2id like init_slave / init-slave (security Y4).
  */
 
 include_once "lib/html/include.php";
@@ -22,7 +23,12 @@ if (!isset($argv[1]) || !isset($argv[2])) {
 if ($argv[1] === 'master') {
 	initProgram('admin');
 	$login = $GLOBALS['login'];
-	$login->password = crypt($argv[2], '$1$' . randomString(8) . '$');
+	$hash = function_exists('kloxo_password_hash') ? kloxo_password_hash((string) $argv[2]) : '';
+	if ($hash === '') {
+		print("Could not hash password\n");
+		exit(1);
+	}
+	$login->password = $hash;
 	$login->realpass = $argv[2];
 	$login->setUpdateSubaction('password');
 	$login->createSyncClass();
@@ -46,7 +52,12 @@ if ($argv[1] === 'master') {
 		print("Could not load slave-db\n");
 		exit(1);
 	}
-	$rmt->password = crypt($argv[2], '$1$' . randomString(8) . '$');
+	$hash = function_exists('kloxo_password_hash') ? kloxo_password_hash((string) $argv[2]) : '';
+	if ($hash === '') {
+		print("Could not hash password\n");
+		exit(1);
+	}
+	$rmt->password = $hash;
 	lfile_put_contents("__path_slave_db", serialize($rmt));
 } else {
 	print("first argument is master/slave\n");

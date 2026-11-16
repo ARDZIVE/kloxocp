@@ -42,7 +42,9 @@ foreach($list as $c) {
 		$clientname = $w->getRealClientParentO()->getPathFromName('nname');
 		$ftpuser->realpass = $uuser->realpass;
 		$w->addObject('ftpuser', $ftpuser);
-		$ftpuser->password = crypt($uuser->realpass, '$1$'.randomString(8).'$');
+		$ftpuser->password = function_exists('kloxo_password_hash')
+			? kloxo_password_hash($uuser->realpass)
+			: ''; // security Y7
 		$w->username = $w->getRealClientParentO()->username;
 		$w->setUpdateSubaction('full_update');
 

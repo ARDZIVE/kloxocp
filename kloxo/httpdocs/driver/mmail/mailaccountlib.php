@@ -434,7 +434,7 @@ class Mailaccount extends Lxclient
 		$parent = $this->getTrueParentO();
 
 		$this->realpass = $this->password;
-		$this->password = function_exists('kloxo_password_hash') ? kloxo_password_hash($this->password) : crypt($this->password, '$1$'.randomString(8).'$');
+		$this->password = kloxo_password_hash($this->password); // security Y7
 
 		if ($this->isOn("simple_add_f")) {
 			$this->priv = clone $parent->priv;

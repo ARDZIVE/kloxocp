@@ -908,6 +908,76 @@ $findings[] = finding('X9', 'low', 'dbschema-convert bare unserialize',
 	'file/sql/dbschema-convert.php', $x9Closed,
 	$x9Closed ? 'arrays-only unserialize' : 'still bare unserialize($c)');
 
+// --- Wave 10 (Y1–Y9) ---
+$randFn = function_body($lxlibR, 'randomString');
+$y1Closed = contains($randFn, 'random_int') && not_contains($randFn, 'array_rand');
+$findings[] = finding('Y1', 'high', 'randomString / getCSRFToken use array_rand',
+	'lxlib.php randomString', $y1Closed,
+	$y1Closed ? 'random_int CSPRNG' : 'still array_rand');
+
+$y2Closed = contains($remote, 'security Y2')
+	&& substr_count($remote, 'security Y2') >= 3;
+$findings[] = finding('Y2', 'medium', 'remotelib inbound bare unserialize fallback',
+	'remotelib.php process_master / process_server / remote_main', $y2Closed,
+	$y2Closed ? 'fail closed without helper' : 'bare @unserialize fallback remains');
+
+$gblLib = file_text($root, 'kloxo/httpdocs/lib/php/gbllib.php');
+$y3Closed = contains($gblLib, 'security Y3')
+	&& not_contains($gblLib, '@unserialize($decoded)');
+$findings[] = finding('Y3', 'medium', 'gbllib driver ser_* bare unserialize fallback',
+	'gbllib.php', $y3Closed,
+	$y3Closed ? 'fail closed' : 'bare unserialize fallback remains');
+
+$resetPw = file_text($root, 'kloxo/bin/common/resetpassword.php');
+$y4Closed = contains($resetPw, 'kloxo_password_hash')
+	&& not_contains($resetPw, "crypt(\$argv[2]")
+	&& not_contains($resetPw, "crypt(\$argv");
+$findings[] = finding('Y4', 'medium', 'resetpassword.php still MD5-crypt',
+	'bin/common/resetpassword.php', $y4Closed,
+	$y4Closed ? 'Argon2id via kloxo_password_hash' : 'still crypt');
+
+$dbCli = file_text($root, 'kloxo/bin/database.php');
+$y5Closed = contains($dbCli, 'security Y5')
+	&& not_contains($dbCli, '@unserialize(base64_decode');
+$findings[] = finding('Y5', 'medium', 'bin/database.php ser_* bare unserialize fallback',
+	'bin/database.php', $y5Closed,
+	$y5Closed ? 'fail closed' : 'bare unserialize fallback remains');
+
+$prepMyDns = function_body($lib, 'PrepareMyDnsDb');
+$y6Closed = contains($prepMyDns, 'security Y6')
+	&& not_contains($prepMyDns, 'mysqladmin')
+	&& not_contains($prepMyDns, "mysql -u mydns");
+$findings[] = finding('Y6', 'medium', 'MyDNS setup shells DB password',
+	'lib.php PrepareMyDnsDb', $y6Closed,
+	$y6Closed ? 'MyDNS prepare refused / no shell password' : 'still shells password');
+
+$pwHashFn = function_body($lxlibR, 'kloxo_password_hash');
+$y7Closed = contains($pwHashFn, 'security Y7')
+	&& not_contains($pwHashFn, "crypt(\$plain")
+	&& not_contains(file_text($root, 'kloxo/bin/changetoclientlogin.php'), "crypt(\$uuser");
+$findings[] = finding('Y7', 'low', 'crypt MD5 fallbacks when hash helper missing',
+	'kloxo_password_hash + callers / changetoclientlogin', $y7Closed,
+	$y7Closed ? 'fail closed / no crypt mint' : 'still crypt fallback');
+
+$loginIncY = file_text($root, 'kloxo/httpdocs/login/inc.php');
+$loginIncTplY = file_text($root, 'kloxo/file/pages/login_inc.php');
+$y8Closed = contains($loginIncY, 'security Y8')
+	&& contains($loginIncY, 'setRow')
+	&& contains($loginIncTplY, 'setRow')
+	&& not_contains($loginIncY, "rawQuery(\"update {\$tablename} set password")
+	&& not_contains($loginIncTplY, "rawQuery(\"update \$tablename set password");
+$findings[] = finding('Y8', 'low', 'forgot-password rawQuery string concat',
+	'login/inc.php / file/pages/login_inc.php', $y8Closed,
+	$y8Closed ? 'setRow + Argon2id' : 'still rawQuery with interpolated password');
+
+$licEnc = function_body($lxlibR, 'licenseEncrypt');
+$y9Closed = contains($licEnc, 'security Y9')
+	&& not_contains($licEnc, '"helloworld"')
+	&& contains($licEnc, 'KLOXO_LICENSE_KEY_PASS');
+$findings[] = finding('Y9', 'low', 'licenseEncrypt hardcoded helloworld passphrase',
+	'lxlib.php licenseEncrypt', $y9Closed,
+	$y9Closed ? 'env/file passphrase required' : 'still helloworld');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

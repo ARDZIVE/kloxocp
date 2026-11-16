@@ -376,7 +376,7 @@ function createHtpasswordFile($object, $sdir, $list)
 	$fstr = null;
 
 	foreach ($list as $k => $p) {
-		$cr = function_exists('kloxo_htpasswd_hash') ? kloxo_htpasswd_hash($p) : crypt($p, '$1$'.randomString(8).'$');
+		$cr = kloxo_htpasswd_hash($p); // security Y7
 		$fstr .= "$k:$cr\n";
 	}
 
@@ -543,60 +543,10 @@ function PrepareKnotConf($nolog = null)
 
 function PrepareMyDnsDb($nolog = null)
 {
+	// MyDNS is not offered on Ubuntu (BIND/Knot only). Do not shell DB
+	// credentials into CLI clients (security Y6).
 	log_cleanup("Prepare MyDns database", $nolog);
-
-	$pass = slave_get_db_pass();
-	$user = "root";
-	$host = "localhost";
-
-	$link = new mysqli($host, $user, $pass);
-
-	if (!$link) {
-		log_cleanup("- Mysql root password incorrect", $nolog);
-
-		exit;
-	}
-
-	$pstring = null;
-
-	if ($pass) {
-		$pstring = "-p\"$pass\"";
-	}
-
-	log_cleanup("- Fix MySQL commands in import files", $nolog);
-
-	$mydnspath = "/opt/configs/mydns";
-
-	exec(" mysqladmin -u root {$pstring} create mydns 2>&1");
-
-	$sfile = getLinkCustomfile("{$mydnspath}/etc/conf", "mydns.conf");
-	$tfile = "/etc/mydns.conf";
-
-	$content = file_get_contents($sfile);
-
-	log_cleanup("- Generate password", $nolog);
-	$pass = randomString(8);
-
-	$link->query("GRANT ALL ON mydns.* TO mydns@localhost IDENTIFIED BY '{$pass}'");
-	$link->query("flush privileges");
-
-	$content = str_replace("db-password = mydns", "db-password = {$pass}", $content);
-
-	log_cleanup("- Add Password to configuration file", $nolog);
-
-	file_put_contents($tfile, $content);
-
-	$mydns = null;
-
-	if (file_exists("/opt/mydns/usr/sbin/mydns-mysql")) {
-		$mydns = "/opt/mydns/usr/sbin/mydns-mysql";
-	} elseif (file_exists("/usr/sbin/mydns-mysql")) {
-		$mydns = "/usr/sbin/mydns-mysql";
-	}
-
-	if ($mydns) {
-		exec("{$mydns} --create-tables | mysql -u mydns -p'{$pass}'");
-	}
+	log_cleanup("- skipped: MyDNS removed; use Switch Program DNS (bind/knot)", $nolog);
 }
 
 function run_mail_to_ticket()
@@ -3089,7 +3039,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111610';
+	return '10.1-2026111611';
 }
 
 function getDownloadServer()
