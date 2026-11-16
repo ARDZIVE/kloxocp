@@ -489,10 +489,17 @@ $findings[] = finding('N24', 'medium', 'sesubmit unauthenticated UI',
 	$n24Closed ? 'sesubmit disabled' : 'sesubmit still live');
 
 $webdisk = file_text($root, 'kloxo/httpdocs/webdisk/index.php');
-$n25Closed = contains($webdisk, 'disabled') || not_contains($webdisk, '$DBPWD');
+$webdav = file_text($root, 'kloxo/httpdocs/webdisk/webdav.php');
+$webAuth = file_text($root, 'kloxo/httpdocs/webdisk/authenticate.php');
+$n25Closed = (contains($webdisk, 'disabled') || not_contains($webdisk, '$DBPWD'))
+	&& contains($webdav, 'disabled')
+	&& not_contains($webdav, '$DBPWD')
+	&& contains($webAuth, 'disabled')
+	&& !is_dir($root . '/kloxo/httpdocs/webdisk/PEAR')
+	&& !is_dir($root . '/kloxo/httpdocs/webdisk/HTTP');
 $findings[] = finding('N25', 'medium', 'webdisk mysql_query / hardcoded creds',
-	'kloxo/httpdocs/webdisk/index.php', $n25Closed,
-	$n25Closed ? 'webdisk entry disabled' : 'webdisk still exposes legacy stack');
+	'kloxo/httpdocs/webdisk/', $n25Closed,
+	$n25Closed ? 'webdisk stubs only; PEAR/WebDAV removed' : 'webdisk still exposes legacy stack');
 
 $rc = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_roundcube.php');
 $n26Closed = contains($rc, "'verify_peer' => true") || contains($rc, '"verify_peer" => true');
@@ -1676,6 +1683,64 @@ $jj6Closed = contains($libJj, 'security JJ6')
 $findings[] = finding('JJ6', 'low', 'getParseInlinePhp still extract() in include sandbox',
 	'lib.php getParseInlinePhp', $jj6Closed,
 	$jj6Closed ? 'foreach assign of filtered scalars' : 'still extract');
+
+// --- Wave 22 (KK1–KK6) ---
+$libKk = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$commonKk = file_text($root, 'kloxo/httpdocs/lib/html/commonfslib.php');
+$lxclassKk = file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php');
+$kk1Closed = contains($libKk, 'security KK1')
+	&& contains($commonKk, 'security KK1')
+	&& contains($lxclassKk, 'security KK1')
+	&& not_contains($libKk, 'exec_with_all_closed("sh /script/load-wrapper')
+	&& not_contains($commonKk, 'exec_with_all_closed("sh /script/load-wrapper')
+	&& not_contains($lxclassKk, 'exec_with_all_closed("sh /script/load-wrapper');
+$findings[] = finding('KK1', 'medium', 'load-wrapper still closed-exec shell strings',
+	'lib.php / commonfslib / lxclass / callers', $kk1Closed,
+	$kk1Closed ? 'argv array sh /script/load-wrapper' : 'still string load-wrapper');
+
+$webdiskKk = file_text($root, 'kloxo/httpdocs/webdisk/index.php');
+$webdavKk = file_text($root, 'kloxo/httpdocs/webdisk/webdav.php');
+$kk2Closed = contains($webdiskKk, 'security KK2')
+	&& contains($webdavKk, 'security KK2')
+	&& !is_dir($root . '/kloxo/httpdocs/webdisk/PEAR')
+	&& !is_file($root . '/kloxo/httpdocs/webdisk/PEAR.php')
+	&& not_contains($webdavKk, '$DBPWD');
+$findings[] = finding('KK2', 'medium', 'webdisk PEAR/WebDAV extract/create_function/md5 stack',
+	'httpdocs/webdisk/', $kk2Closed,
+	$kk2Closed ? 'PEAR/HTTP removed; stubs only' : 'PEAR/WebDAV still present');
+
+$phpverKk = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_phpver.php');
+$kk3Closed = contains($phpverKk, 'security KK3')
+	&& contains($phpverKk, 'function bashQuote')
+	&& contains($phpverKk, 'Fail-closed');
+$findings[] = finding('KK3', 'low', 'kloxo_phpver bash job scripts via raw escapeshellarg',
+	'lib/php/kloxo_phpver.php', $kk3Closed,
+	$kk3Closed ? 'bashQuote fail-closed then escapeshellarg' : 'still raw escapeshellarg only');
+
+$setupKk = file_text($root, 'kloxo/bin/common/setupsecondary.php');
+$kk4Closed = contains($setupKk, 'security KK4')
+	&& not_contains($setupKk, 'escapeshellarg($slavepass)')
+	&& contains($setupKk, 'preg_match(\'/^[A-Za-z0-9]+$/\', $slavepass)');
+$findings[] = finding('KK4', 'low', 'setupsecondary SSH remote embeds escapeshellarg(slavepass)',
+	'bin/common/setupsecondary.php', $kk4Closed,
+	$kk4Closed ? 'alphanumeric slavepass; no escapeshellarg embed' : 'still escapeshellarg in SSH remote');
+
+$lxlibKk = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$getShellBody = function_body($lxlibKk, 'getShellCommand');
+$kk5Closed = contains($lxlibKk, 'security KK5')
+	&& contains($getShellBody, 'refused')
+	&& not_contains($getShellBody, 'implode');
+$findings[] = finding('KK5', 'low', 'deprecated getShellCommand still rebuilds shell strings',
+	'lib/php/lxlib.php getShellCommand', $kk5Closed,
+	$kk5Closed ? 'stub returns empty' : 'still rebuilds quoted shell string');
+
+$checkpwKk = file_text($root, 'kloxo/bin/common/misc/checkpassword.php');
+$kk6Closed = contains($lxlibKk, 'security KK6')
+	&& contains($checkpwKk, 'security KK6')
+	&& contains($libKk, 'security JJ5');
+$findings[] = finding('KK6', 'low', 'residual crypt mint / unmarked non-auth md5',
+	'check_password / checkpassword / EasyInstaller md5 token', $kk6Closed,
+	$kk6Closed ? 'crypt verify-only marked; non-auth md5 marked' : 'still unmarked');
 
 // Filter
 if ($severityFilter !== null) {

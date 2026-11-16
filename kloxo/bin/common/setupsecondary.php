@@ -36,7 +36,12 @@ function setupsecondary_main()
 	lxshell_php("../bin/common/mebackup.php");
 
 
-	$slavepass = randomString(8);
+	// Alphanumeric only so the remote SSH command needs no shell quoting (security KK4).
+	$slavepass = randomString(16);
+	if (preg_match('/^[A-Za-z0-9]+$/', $slavepass) !== 1) {
+		print("could not generate safe slave password\n");
+		exit(1);
+	}
 
 	print("Setting up mysql to receive data from master\n");
 	add_line_to_secondary_mycnf($master, $slavepass);
@@ -59,9 +64,12 @@ function setupsecondary_main()
 		print("cannot write mysql defaults file\n");
 		exit(1);
 	}
+	// Remote command: charset-validated tokens only — no escapeshellarg embed (security KK4).
+	$remote = 'cd /opt/kloxo/' . $prgmSafe
+		. '/httpdocs && exec lxphp.exe ../bin/common/setupprimarymaster.php --slavepass='
+		. $slavepass;
 	$sshCmd = [
-		'/usr/bin/ssh', '-p', $sshport, $master,
-		'(cd /opt/kloxo/' . $prgmSafe . '/httpdocs ; lxphp.exe ../bin/common/setupprimarymaster.php --slavepass=' . escapeshellarg($slavepass) . ')',
+		'/usr/bin/ssh', '-p', $sshport, $master, $remote,
 	];
 	$mysqlBin = is_executable('/usr/bin/mysql') ? '/usr/bin/mysql'
 		: (is_executable('/usr/bin/mariadb') ? '/usr/bin/mariadb' : 'mysql');

@@ -1908,7 +1908,7 @@ function do_zip_to_fileserv($type, $arg, $logto = null)
 		if ($logto) {
 			log_log($logto, "- Could not zip for '{$vd}'");
 		} else {
-			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+			exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 			throw new lxException($login->getThrow("could_not_zip_dir"), '', $vd);
 		}
 	} else {
@@ -2276,7 +2276,7 @@ function rrd_graph_single($type, $file, $time)
 	$ret = lxshell_return('rrdtool', 'graph', $graphfile, '--start', "-$time", '-w', '600', '-h', '200', '--x-grid', $grid, "--vertical-label=$type", "DEF:dss1=$file:$dir:AVERAGE", "LINE1:dss1#FF0000:$dir\\r");
 
 	if ($ret) {
-		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+		exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 		throw new lxException($login->getThrow("could_not_get_graph_data"), '', $global_shell_error);
 	}
 
@@ -2455,7 +2455,7 @@ function createTempDir($dir, $name)
 	$vd = tempnam($dir, $name);
 
 	if (!$vd) {
-		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+		exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 		throw new lxException($login->getThrow('could_not_create_tmp_dir'), '', $vd);
 	}
 
@@ -3203,7 +3203,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111623';
+	return '10.1-2026111624';
 }
 
 function getDownloadServer()
@@ -3259,7 +3259,7 @@ function download_from_ftp($url, $user, $pass, $localfile = null)
 	$auth = ftp_login($fn, $user, $pass);
 
 	if (!$auth) {
-		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+		exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 		throw new lxException($login->getThrow('could_not_connect_to_server'), '', $url);
 	}
 
@@ -3287,7 +3287,7 @@ function download_from_scp($url, $user, $pass, $localfile = null)
 	$auth = ssh2_auth_password($fn, $user, $pass);
 
 	if (!$auth) {
-		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+		exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 		throw new lxException($login->getThrow('could_not_connect_to_server'), '', $url);
 	}
 

@@ -304,7 +304,7 @@ function do_remote_exec($machine, $rmt, $cmdtype, $nname, $dbaction)
 		: false;
 
 	if (!$res || !is_object($res)) {
-		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+		exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 		throw new lxException($login->getThrow('could_not_connect_to_server'), '', $machine);
 	}
 
@@ -593,7 +593,7 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 		if ($raddress === 'localhost' && !$sgbl->isDebug()) {
 		//	lxshell_background("/usr/sbin/lxrestart", $sgbl->__var_program_name);
 
-			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+			exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 			throw new lxException($login->getThrow('no_socket_connect_to_server'), '', $raddress);
 			throw new lxException($login->getThrow('restarting_backend'), '', $raddress);
 		} else {

@@ -55,7 +55,7 @@ class easyinstaller__linux extends LxDriverclass
 			$__tmpr = new mysqli($this->main->realhost, $this->main->dbuser, $this->main->dbpass);
 
 			if (!$__tmpr) {
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+				exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 				throw new lxException($login->getThrow('could_not_connect_to_mysql_server_from_web_server'), '', $this->main->realhost);
 			}
 		}
@@ -76,7 +76,7 @@ class easyinstaller__linux extends LxDriverclass
 			if ($type !== "zip") {
 				lxfile_rm($tf);
 
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+				exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 				throw new lxException($login->getThrow('could_not_download_application_archive'), '', $this->main->appname);
 			}
 
@@ -97,7 +97,7 @@ class easyinstaller__linux extends LxDriverclass
 
 		if (!lxfile_exists("$dompath/{$res['installdir']}/__kloxo/lxinstaller.inc")) {
 			if (!lxfile_exists("$dompath/{$res['installdir']}/lxinstaller.inc")) {
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+				exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 				throw new lxException($login->getThrow('could_not_copy_to_domain_root'), '', $dompath);
 			} else {
 				$file = "$dompath/{$res['installdir']}/lxinstaller.inc";
@@ -111,7 +111,7 @@ class easyinstaller__linux extends LxDriverclass
 		}
 
 		if (!function_exists("__lxinstaller_{$this->main->appname}")) {
-			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+			exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 			throw new lxException($login->getThrow('could_not_copy_document_root'), '', $dompath);
 		}
 

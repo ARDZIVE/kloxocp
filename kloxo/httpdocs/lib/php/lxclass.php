@@ -5887,7 +5887,7 @@ abstract class Lxclass
 		$fname = $_FILES['restore_file_f']['tmp_name'];
 
 		if (!lxfile_exists($fname)) {
-			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+			exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 			throw new lxException($login->getThrow('could_not_get_file'), '', $fname);
 		}
 
@@ -5926,7 +5926,7 @@ abstract class Lxclass
 		$fname = $_FILES['restore_file_f']['tmp_name'];
 
 		if (!lxfile_exists($fname)) {
-			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+			exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 			throw new lxException($login->getThrow('could_not_get_file'), '', $fname);
 		}
 

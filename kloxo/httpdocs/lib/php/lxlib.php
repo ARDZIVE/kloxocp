@@ -1085,23 +1085,18 @@ function kloxo_shell_argv($cmd, array $arglist = array())
 }
 
 /**
- * @deprecated Prefer kloxo_shell_argv + do_exec_system argv (security JJ1).
+ * Removed shell-string rebuild (security KK5). Use kloxo_shell_argv + argv proc_open.
+ *
+ * @deprecated
+ * @return string Always empty
  */
 function getShellCommand($cmd, $arglist)
 {
-	global $gbl, $sgbl, $login, $ghtml;
-	$argv = kloxo_shell_argv($cmd, is_array($arglist) ? $arglist : array());
-	if ($argv === array()) {
-		return '';
-	}
-	$q = isset($sgbl->__var_quote_char) ? $sgbl->__var_quote_char : "'";
-	$parts = array();
-	foreach ($argv as $a) {
-		$a = str_replace(';', '', $a);
-		$parts[] = $q . $a . $q;
+	if (function_exists('log_shell')) {
+		log_shell('getShellCommand refused — use kloxo_shell_argv (security KK5)');
 	}
 
-	return implode(' ', $parts);
+	return '';
 }
 
 #[AllowDynamicProperties]
@@ -2872,7 +2867,8 @@ function check_password($unenc, $enc)
 	if (is_array($info) && isset($info['algo']) && $info['algo'] !== 0 && $info['algo'] !== null) {
 		return password_verify($unenc, $enc);
 	}
-	return hash_equals($enc, (string)crypt($unenc, $enc));
+	// Legacy MD5-crypt / DES verify only — never mint new crypt hashes (security KK6).
+	return hash_equals($enc, (string) crypt($unenc, $enc));
 }
 /*
 	MR - this function trouble if running on php 7.0+

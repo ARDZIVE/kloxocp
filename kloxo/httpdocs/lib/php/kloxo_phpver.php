@@ -700,8 +700,24 @@ final class KloxoPhpver
     }
 
     /**
+     * Fail-closed bash quoting for generated job scripts (security KK3).
+     * Refuses control chars; then escapeshellarg. Empty string = refuse.
+     */
+    public static function bashQuote(string $s): string
+    {
+        if ($s === '' || str_contains($s, "\0") || str_contains($s, "\n") || str_contains($s, "\r")) {
+            return '';
+        }
+        if (preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $s) === 1) {
+            return '';
+        }
+
+        return escapeshellarg($s);
+    }
+
+    /**
      * Build the wrapper script body. trap uses a double-quoted body so
-     * escapeshellarg() quotes stay valid (single-quoted trap bodies break).
+     * quoted paths stay valid (single-quoted trap bodies break).
      */
     public static function sitePhpInstallWrap(
         string $script,
@@ -720,15 +736,27 @@ final class KloxoPhpver
             return '';
         }
 
+        $qScript = self::bashQuote($script);
+        $qRoot = self::bashQuote($root);
+        $qVers = self::bashQuote($versArg);
+        $qLog = self::bashQuote($log);
+        $qLock = self::bashQuote($lock);
+        $qJob = self::bashQuote($job);
         $start = '=== install php ' . $versArg . ' starting ===';
-        $run = '/bin/bash ' . escapeshellarg($script)
-            . ' --root=' . escapeshellarg($root)
-            . ' --versions=' . escapeshellarg($versArg)
-            . ' >>' . escapeshellarg($log) . " 2>&1\n";
+        $qStart = self::bashQuote($start);
+        if ($qScript === '' || $qRoot === '' || $qVers === '' || $qLog === ''
+            || $qLock === '' || $qJob === '' || $qStart === '') {
+            return '';
+        }
+
+        $run = '/bin/bash ' . $qScript
+            . ' --root=' . $qRoot
+            . ' --versions=' . $qVers
+            . ' >>' . $qLog . " 2>&1\n";
 
         return "#!/bin/bash\nset -euo pipefail\n"
-            . 'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT' . "\n"
-            . 'printf "%s\\n" ' . escapeshellarg($start) . ' >>' . escapeshellarg($log) . "\n"
+            . 'trap "rm -f -- ' . $qLock . ' ' . $qJob . '" EXIT' . "\n"
+            . 'printf "%s\\n" ' . $qStart . ' >>' . $qLog . "\n"
             . 'if command -v stdbuf >/dev/null 2>&1; then' . "\n"
             . '  stdbuf -oL -eL ' . $run
             . "else\n"
@@ -1020,18 +1048,27 @@ final class KloxoPhpver
             $byVer[$v] = array_values(array_unique($byVer[$v]));
         }
         $human = implode(' ', $vers);
-        $init = '';
-        foreach ($vers as $v) {
-            $init .= 'php' . $v . "|queued|5|Waiting to start removal\n";
+        // Fail-closed quotes (security KK3). Multiline job init is printed line-by-line.
+        $qLock = self::bashQuote($lock);
+        $qJob = self::bashQuote($job);
+        $qJobs = self::bashQuote($jobsFile);
+        $qLog = self::bashQuote($log);
+        $qStatus = self::bashQuote($status);
+        $qRunMsg = self::bashQuote('removing ' . $human);
+        $qFailMsg = self::bashQuote('could not remove ' . $human);
+        $qOkMsg = self::bashQuote('removed ' . $human);
+        if ($qLock === '' || $qJob === '' || $qJobs === '' || $qLog === ''
+            || $qStatus === '' || $qRunMsg === '' || $qFailMsg === '' || $qOkMsg === '') {
+            return '';
         }
         $lines = [
             '#!/bin/bash',
             'set -uo pipefail',
             'export DEBIAN_FRONTEND=noninteractive',
-            'trap "rm -f -- ' . escapeshellarg($lock) . ' ' . escapeshellarg($job) . '" EXIT',
-            'JOBS=' . escapeshellarg($jobsFile),
-            'LOG=' . escapeshellarg($log),
-            'stamp() { printf \'%s|%s|%s\\n\' "$(date +%s)" "$1" "$2" > ' . escapeshellarg($status) . ' 2>/dev/null || true; }',
+            'trap "rm -f -- ' . $qLock . ' ' . $qJob . '" EXIT',
+            'JOBS=' . $qJobs,
+            'LOG=' . $qLog,
+            'stamp() { printf \'%s|%s|%s\\n\' "$(date +%s)" "$1" "$2" > ' . $qStatus . ' 2>/dev/null || true; }',
             'set_job() {',
             '  local id="$1" st="$2" pct="$3" act="$4" tmp="${JOBS}.tmp" line nid',
             '  : > "$tmp"',
@@ -1091,19 +1128,34 @@ final class KloxoPhpver
             '  set_job "$id" ok 100 "Removed php${ver}"',
             '  return 0',
             '}',
-            'printf "%s" ' . escapeshellarg($init) . ' > "$JOBS"',
-            'stamp running ' . escapeshellarg('removing ' . $human),
-            'failed=0',
+            ': > "$JOBS"',
         ];
         foreach ($vers as $v) {
-            $args = [escapeshellarg($v)];
+            $qLine = self::bashQuote('php' . $v . '|queued|5|Waiting to start removal');
+            if ($qLine === '') {
+                return '';
+            }
+            $lines[] = 'printf \'%s\\n\' ' . $qLine . ' >> "$JOBS"';
+        }
+        $lines[] = 'stamp running ' . $qRunMsg;
+        $lines[] = 'failed=0';
+        foreach ($vers as $v) {
+            $qv = self::bashQuote($v);
+            if ($qv === '') {
+                return '';
+            }
+            $args = [$qv];
             foreach ($byVer[$v] as $p) {
-                $args[] = escapeshellarg($p);
+                $qp = self::bashQuote($p);
+                if ($qp === '') {
+                    return '';
+                }
+                $args[] = $qp;
             }
             $lines[] = 'remove_ver ' . implode(' ', $args) . ' || failed=1';
         }
-        $lines[] = 'if [[ "$failed" -eq 1 ]]; then stamp failed ' . escapeshellarg('could not remove ' . $human) . '; exit 1; fi';
-        $lines[] = 'stamp ok ' . escapeshellarg('removed ' . $human);
+        $lines[] = 'if [[ "$failed" -eq 1 ]]; then stamp failed ' . $qFailMsg . '; exit 1; fi';
+        $lines[] = 'stamp ok ' . $qOkMsg;
 
         return implode("\n", $lines) . "\n";
     }

@@ -71,7 +71,7 @@ class SuperClient extends ClientBase
 			if ($return) {
 				log_log("admin_error", "mysql change password Failed . $out");
 
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+				exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 				throw new lxException($login->getThrow("could_not_change_admin_pass"));
 			}
 
@@ -80,7 +80,7 @@ class SuperClient extends ClientBase
 			if (!$return) {
 				log_log("admin_error", "Admin pass change failed  $last_error");
 
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+				exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 				throw new lxException($login->getThrow("could_not_change_admin_pass"));
 			}
 		}
@@ -104,7 +104,7 @@ class SuperClient extends ClientBase
 			if (!$return) {
 				log_log("admin_error", "Admin pass change failed  $last_error");
 
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+				exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 				throw new lxException($login->getThrow("could_not_change_superadmin_pass"));
 			}
 
@@ -116,7 +116,7 @@ class SuperClient extends ClientBase
 				$return = lfile_put_contents("__path_super_pass", $oldpass);
 				log_log("admin_error", "mysqladmin Failed . $out");
 
-				exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+				exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 				throw new lxException($login->getThrow("could_not_change_superadmin_pass"));
 			}
 		}

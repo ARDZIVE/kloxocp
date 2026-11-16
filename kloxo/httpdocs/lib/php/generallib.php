@@ -216,7 +216,7 @@ class General extends Lxdb
 		$ret = lfile_put_contents("../etc/conf/scavenge_time.conf", "{$param['generalmisc_b-scavengehour']} {$param['generalmisc_b-scavengeminute']}");
 		
 		if (!$ret) {
-			exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+			exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 			throw new lxException($login->getThrow("could_not_save_file"), '', '../etc/conf/scavenge_time.conf');
 		}
 

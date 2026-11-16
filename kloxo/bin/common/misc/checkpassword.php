@@ -22,7 +22,7 @@ if (function_exists('password_get_info') && function_exists('password_verify')) 
 	}
 }
 if (!$ok && function_exists('hash_equals') && function_exists('crypt')) {
-	// Legacy MD5-crypt / DES verify only (no new crypt hashes minted here).
+	// Legacy MD5-crypt / DES verify only — never mint new crypt hashes (security KK6).
 	$ok = hash_equals($enc, (string) crypt($plain, $enc));
 }
 

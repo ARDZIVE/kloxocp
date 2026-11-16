@@ -50,7 +50,7 @@ function lxshell_unzip_numeric_with_throw($dir, $file, $list = null)
 
 	if ($ret) {
 		// MR -- more informative error message
-		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+		exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 		throw new lxException($login->getThrow("could_not_unzip_file"), '', "dir: {$dir}; file: {$file}");
 	}
 }
@@ -235,7 +235,7 @@ function lxuser_unzip_with_throw($username, $dir, $file, $list = null)
 
 	if ($ret) {
 		// MR -- more informative error message
-		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
+		exec_with_all_closed(array('sh', '/script/load-wrapper')); // argv (security KK1)
 		throw new lxException($login->getThrow("could_not_unzip_file"), '', "dir: {$dir}; file: {$file}");
 	}
 }
