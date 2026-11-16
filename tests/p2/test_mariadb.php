@@ -38,6 +38,27 @@ check(!KloxoMariadb::ident('acme;drop') && !KloxoMariadb::ident("acme`x")
 check(KloxoMariadb::userIdent('acme_wp') && !KloxoMariadb::userIdent('root')
 	&& !KloxoMariadb::userIdent('kloxo_pma'), 'reserved users rejected');
 check(KloxoMariadb::quoteIdent('acme_wp') === '`acme_wp`', 'database is backtick-quoted');
+
+echo "== setRootPassword (security V1/V2)\n";
+$fake = new KloxoMariadb(null);
+try {
+	$fake->setRootPassword('good-pass-1');
+	$okRoot = true;
+} catch (Throwable $e) {
+	$okRoot = false;
+}
+check($okRoot && count($fake->log) >= 3
+	&& str_contains($fake->log[0][0], "ALTER USER 'root'@'localhost'")
+	&& str_contains($fake->log[1][0], "ALTER USER 'root'@'127.0.0.1'")
+	&& str_contains($fake->log[2][0], 'FLUSH PRIVILEGES'),
+	'setRootPassword emits ALTER USER for localhost and 127.0.0.1');
+$thrown = false;
+try {
+	$fake->setRootPassword("bad\0pass");
+} catch (KloxoMariadbException $e) {
+	$thrown = true;
+}
+check($thrown, 'setRootPassword refuses NUL in password');
 check(KloxoMariadb::quoteUser('acme_wp', 'localhost') === "'acme_wp'@'localhost'",
 	'user@host is quoted');
 $threw = false;

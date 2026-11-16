@@ -85,8 +85,37 @@ class pserver__Linux extends lxDriverClass
 
 	static function mysqlPasswordReset($pass)
 	{
-	//	lxshell_return("lxphp.exe", "../bin/common/misc/reset-mysql-root-password.php", $pass);
-		exec("sh /script/reset-mysql-root-password {$pass}");
+		// Argument-array / in-process only — never interpolate $pass into a shell
+		// string (security V1). Prefer live unix_socket ALTER USER as root.
+		$pass = is_string($pass) ? $pass : '';
+		if ($pass === '' || strlen($pass) > 64 || str_contains($pass, "\0")) {
+			return;
+		}
+		$mariadb = dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
+		if (is_file($mariadb)) {
+			include_once $mariadb;
+		}
+		if (class_exists('KloxoMariadb', false) && method_exists('KloxoMariadb', 'setRootPassword')) {
+			$db = KloxoMariadb::connectAdmin();
+			$db->setRootPassword($pass);
+			if (function_exists('slave_save_db')) {
+				slave_save_db('dbadmin', array('mysql' => array('dbpassword' => $pass)));
+			}
+
+			return;
+		}
+		global $sgbl;
+		$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
+			? (string) $sgbl->__path_php_path
+			: '/usr/bin/php';
+		$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+			? rtrim((string) $sgbl->__path_program_root, '/')
+			: '/opt/kloxo';
+		$script = $root . '/bin/common/misc/reset-mysql-root-password.php';
+		if (!is_file($script) || !function_exists('lxshell_return')) {
+			return;
+		}
+		lxshell_return($php, $script, $pass);
 	}
 
 	function setTimeZone()

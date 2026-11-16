@@ -1,72 +1,101 @@
-<?php 
+<?php
+/**
+ * Reset the MariaDB root password (CLI / panel path).
+ *
+ * Prefer live unix_socket as root + ALTER USER (no password on disk, no shell
+ * interpolation). Legacy mysqld_safe --init-file remains only as a last resort
+ * with a 0600 temp SQL file under the program root (security V1/V2).
+ *
+ * Copyright (C) 2026 Kloxo CP contributors
+ * GNU Affero General Public License v3 or later. See LICENSE.txt.
+ */
 
-include_once "lib/html/include.php";
+declare(strict_types=1);
 
-// MR -- make trouble for reset password if serverfile dir not exists
-$tpath = "/opt/kloxo/serverfile";
-// $tpath = "/tmp";
+include_once 'lib/html/include.php';
 
-if (isset($argv[1])) {
-	$pass = $argv[1];
-} else {
-	$pass = randomString(9);
+if (!function_exists('os_isSelfSystemOrLxlabsUser') || !os_isSelfSystemOrLxlabsUser()) {
+	fwrite(STDERR, "Must be root\n");
+	exit(1);
 }
 
-/*
-$text = <<<EOF
-UPDATE mysql.user SET Password=PASSWORD('PASSWORD') WHERE User='USER';
-UPDATE mysql.user SET authentication_string=PASSWORD('PASSWORD') WHERE User='USER';
-ALTER USER 'USER'@'locxalhost' IDENTIFIED BY 'PASSWORD';
-FLUSH PRIVILEGES;
-EOF;
-*/
-
-$text = <<<EOF
-USE mysql;
-UPDATE mysql.user SET Password=PASSWORD('PASSWORD') WHERE User='USER';
-FLUSH PRIVILEGES;
-EOF;
-
-$text = str_replace("'USER'", "'root'", $text);
-$text = str_replace("'PASSWORD'", "'{$pass}'", $text);
-
-file_put_contents("{$tpath}/reset-mysql-password.sql", $text);
-
-print("Stop MySQL service...\n");
-if (isServiceExists('mysqld')) {
-//	exec("service mysqld stop");
-	exec("service mysqld stop; pkill mysqld; pkill mysqld_safe");
-} else {
-//	exec("service mysql stop");
-	exec("service mysql stop; pkill mysqld; pkill mysqld_safe");
+$pass = isset($argv[1]) ? (string) $argv[1] : '';
+if ($pass === '') {
+	$pass = function_exists('randomString') ? randomString(12) : bin2hex(random_bytes(8));
+}
+if (strlen($pass) > 64 || str_contains($pass, "\0")) {
+	fwrite(STDERR, "Invalid password\n");
+	exit(1);
 }
 
-print("MySQL ROOT password reset...\n");
-//sleep(5);
-exec("mysqld_safe --defaults-file=/etc/my.cnf --init-file={$tpath}/reset-mysql-password.sql &");
-//sleep(5);
-
-print("Start MySQL service...\n");
-if (isServiceExists('mysqld')) {
-	exec("pkill mysqld; pkill mysqld_safe; service mysqld start");
-} else {
-	exec("pkill mysqld; pkill mysqld_safe; service mysql start");
+$mariadbLib = dirname(__DIR__, 3) . '/httpdocs/lib/php/kloxo_mariadb.php';
+if (is_file($mariadbLib)) {
+	include_once $mariadbLib;
 }
 
-exec("'rm' -f {$tpath}/reset-mysql-password.sql");
-
-$conn = new mysqli('localhost', 'root', $pass, 'mysql');
-
-if ($conn->connect_errno) {
-	printf("Connect failed: %s\n", $conn->connect_error);
-
-	exit();
+$ok = false;
+if (class_exists('KloxoMariadb', false) && method_exists('KloxoMariadb', 'setRootPassword')) {
+	try {
+		print("Resetting MariaDB root via unix_socket ALTER USER...\n");
+		$db = KloxoMariadb::connectAdmin();
+		$db->setRootPassword($pass);
+		$ok = true;
+	} catch (Throwable $e) {
+		fwrite(STDERR, "Live ALTER USER failed: " . $e->getMessage() . "\n");
+		fwrite(STDERR, "Falling back to init-file reset...\n");
+	}
 }
 
-$conn->close();
+if (!$ok) {
+	global $sgbl;
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/serverfile';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$sqlFile = tempnam($dir, 'reset-mysql-');
+	if ($sqlFile === false) {
+		fwrite(STDERR, "Could not create temp SQL file\n");
+		exit(1);
+	}
+	@chmod($sqlFile, 0600);
 
-$a['mysql']['dbpassword'] = $pass;
+	$q = class_exists('KloxoMariadb', false)
+		? KloxoMariadb::quoteString($pass)
+		: ("'" . str_replace(array('\\', "'"), array('\\\\', "''"), $pass) . "'");
+	$text = "ALTER USER 'root'@'localhost' IDENTIFIED BY {$q};\n"
+		. "ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY {$q};\n"
+		. "FLUSH PRIVILEGES;\n";
+	if (@file_put_contents($sqlFile, $text) === false) {
+		@unlink($sqlFile);
+		fwrite(STDERR, "Could not write temp SQL file\n");
+		exit(1);
+	}
+	@chmod($sqlFile, 0600);
 
-slave_save_db("dbadmin", $a);
+	$unit = 'mariadb';
+	if (function_exists('lxshell_return')) {
+		print("Stop MariaDB...\n");
+		lxshell_return('systemctl', 'stop', 'mariadb');
+		lxshell_return('systemctl', 'stop', 'mysql');
+		print("Apply init-file...\n");
+		// Password is only in the 0600 file — never on the argv of mysql/mysqladmin.
+		lxshell_return('mysqld_safe', '--defaults-file=/etc/mysql/my.cnf', '--init-file=' . $sqlFile);
+		usleep(1500000);
+		print("Start MariaDB...\n");
+		lxshell_return('systemctl', 'start', 'mariadb');
+		if ((int) lxshell_return('systemctl', 'is-active', '--quiet', 'mariadb') !== 0) {
+			lxshell_return('systemctl', 'start', 'mysql');
+		}
+	}
+	@unlink($sqlFile);
+}
 
-exec("mysql -u root -p{$pass} kloxo -e \"UPDATE dbadmin SET dbpassword='{$pass}' WHERE dbadmin_name='root';\"");
+if (function_exists('slave_save_db')) {
+	slave_save_db('dbadmin', array('mysql' => array('dbpassword' => $pass)));
+}
+
+print("MariaDB root password updated.\n");
+exit(0);

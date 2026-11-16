@@ -384,6 +384,24 @@ final class KloxoMariadb
 	}
 
 	/**
+	 * Set the MariaDB root password (localhost + 127.0.0.1 only).
+	 * Used by the panel MySQL password-reset path (security V1/V2).
+	 * root is reserved for customer CREATE USER, so setPassword() cannot be used.
+	 */
+	public function setRootPassword(string $password): void
+	{
+		if ($password === '' || strlen($password) > 64 || str_contains($password, "\0")) {
+			throw new KloxoMariadbException('Invalid database password');
+		}
+		$q = $this->quotePassword($password);
+		foreach (array('localhost', '127.0.0.1') as $host) {
+			$uh = "'root'@'" . str_replace("'", "''", $host) . "'";
+			$this->run('ALTER USER ' . $uh . ' IDENTIFIED BY ' . $q);
+		}
+		$this->run('FLUSH PRIVILEGES');
+	}
+
+	/**
 	 * Update the panel MariaDB account (`kloxo` / program name). That name is
 	 * reserved for customer CREATE USER, so setPassword() cannot be used.
 	 * Hosts are localhost + 127.0.0.1 only (no %).

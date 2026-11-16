@@ -1,13 +1,17 @@
 <?php
+/**
+ * Legacy demo form for webcommand. Server-side plan fetch with a blank admin
+ * password is disabled (security V4). The form still POSTs to webcommand;
+ * U1 requires POST + origin check + auth rate limit there.
+ */
 
-include "lib/html/apilib.php";
+include 'lib/html/apilib.php';
 
 api_main();
 
 function api_main()
 {
-	list($server, $port) = explode(":", $_SERVER['SERVER_NAME']);
-?>
+	?>
 Add a Kloxo CP Client: <br>
 
 <form method="post" action="/bin/webcommand.php">
@@ -27,7 +31,7 @@ Password:<br>
 <input type='password' name='v-password' value='' autocomplete='new-password'><br>
 <?php
 
-	get_and_print_a_select_variable("Plan", "resourceplan", "v-plan_name");
+	get_and_print_a_select_variable('Plan', 'resourceplan', 'v-plan_name');
 ?>
 
 <input type='submit' name='submit' value='submit'><br>

@@ -1256,17 +1256,28 @@ abstract class Lxclass
 
 	static function filterFunc($op, $oval, $val)
 	{
-		static $oplist = array('gt' => '>', 'lt' => '<', 'eq' => '===', 'ne' => '!=');
+		// No eval (security V6 / F13) — compare in PHP only.
+		$oval = is_scalar($oval) ? (string) $oval : '';
+		$val = is_scalar($val) ? (string) $val : '';
+		$op = is_string($op) ? $op : '';
 
-		if (isset($oplist[$op])) {
-			$string = "('{$oval}' {$oplist[$op]} '{$val}')";
-
-			return eval("return {$string} ;");
+		if ($op === 'gt') {
+			return $oval > $val;
 		}
-
+		if ($op === 'lt') {
+			return $oval < $val;
+		}
+		if ($op === 'eq') {
+			return $oval === $val;
+		}
+		if ($op === 'ne') {
+			return $oval !== $val;
+		}
 		if ($op === 'cont') {
-			return strstr($oval, $val) ? true : false;
+			return str_contains($oval, $val);
 		}
+
+		return false;
 	}
 
 	function isDisplay($filter = null)

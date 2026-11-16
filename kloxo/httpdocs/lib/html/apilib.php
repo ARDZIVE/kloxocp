@@ -1,56 +1,86 @@
-<?php 
+<?php
 
-function send_to_some_http_server($raddress, $port, $url)
+/**
+ * Legacy HyperVM-style HTTP helpers for the /api/ demo page.
+ * Disabled for unauthenticated server-side calls (security V4 / N13).
+ */
+
+function send_to_some_http_server($raddress, $port, $url, $password = '')
 {
-	global $gbl, $sgbl, $login, $ghtml; 
+	// Refuse empty credentials — never probe webcommand as admin with a blank password.
+	$password = is_string($password) ? $password : '';
+	if ($password === '') {
+		return null;
+	}
+	$raddress = is_string($raddress) ? $raddress : '';
+	$port = is_numeric($port) ? (int) $port : 0;
+	if ($raddress === '' || $port < 1 || $port > 65535) {
+		return null;
+	}
+	if (!preg_match('/^[A-Za-z0-9.:_-]+$/', $raddress)) {
+		return null;
+	}
 
-	// Never embed a default password (security N13). Caller must supply auth.
-	$url = "login-class=client&login-name=admin&login-password=&output-type=json&$url";
+	$fields = array(
+		'login-class' => 'client',
+		'login-name' => 'admin',
+		'login-password' => $password,
+		'output-type' => 'json',
+	);
+	if (is_string($url) && $url !== '') {
+		parse_str($url, $extra);
+		if (is_array($extra)) {
+			foreach ($extra as $k => $v) {
+				if (is_string($k) && (is_string($v) || is_numeric($v))) {
+					$fields[$k] = (string) $v;
+				}
+			}
+		}
+	}
 
-	$ch = curl_init("http://$raddress:$port/bin/webcommand.php");
-
+	// Prefer HTTPS on the panel SSL port; fall back to http only for loopback tests.
+	$scheme = 'https';
+	if ($raddress === '127.0.0.1' || strtolower($raddress) === 'localhost') {
+		$scheme = (!empty($_SERVER['HTTPS']) && (string) $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+	}
+	$ch = curl_init("{$scheme}://{$raddress}:{$port}/bin/webcommand.php");
+	if ($ch === false) {
+		return null;
+	}
 	curl_setopt($ch, CURLOPT_POST, true);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-	curl_setopt($ch, CURLOPT_POSTFIELDS, $url);
-
-
+	curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($fields));
 	$totalout = curl_exec($ch);
-	$totalout = trim($totalout);
-	$totalout = json_decode($totalout);
+	curl_close($ch);
+	if (!is_string($totalout) || $totalout === '') {
+		return null;
+	}
 
-	return $totalout;
+	return json_decode(trim($totalout));
 }
 
 function get_and_print_a_select_variable($description, $remotevar, $localvar)
 {
-	list($server, $port) = explode(":", $_SERVER['SERVER_NAME']);
-	print("$description <br> ");
-	// Send the remote variable to hypervm and get the result.
-	$out = send_to_some_http_server($server, $port, "action=simplelist&resource=$remotevar");
-	// The resul is a json object with two paramters.
-	// The message, which will tell you whether it was a success or not, and the result, which conttins the data.
-
-	// Check the reutrn value, you can print the message you got from hypervm.
-	if ($out->return === 'error') {
-		print("The server said, error. The message is:\n");
-		print($out->message);
-
-		exit;
-	}
-
-	print_select($localvar, $out->result);
-	print("<br> ");
+	// Do not auto-call webcommand with an empty admin password on page load (V4).
+	$description = htmlspecialchars((string) $description, ENT_QUOTES);
+	$localvar = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $localvar) ?? 'v-plan_name';
+	print("{$description}<br>\n");
+	print("<input type=\"text\" name=\"{$localvar}\" value=\"\" "
+		. "placeholder=\"resource plan name (enter manually)\"><br>\n");
 }
 
 function print_select($var, $list)
 {
-	print("<select name=$var> ");
-
-	foreach($list as $realname => $displayname) {
-		print("<option value=$realname> $displayname </option>");
+	$var = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $var) ?? 'select';
+	print("<select name=\"{$var}\"> ");
+	if (is_array($list)) {
+		foreach ($list as $realname => $displayname) {
+			$rn = htmlspecialchars((string) $realname, ENT_QUOTES);
+			$dn = htmlspecialchars((string) $displayname, ENT_QUOTES);
+			print("<option value=\"{$rn}\"> {$dn} </option>");
+		}
 	}
-
-	print("</select>");
+	print('</select>');
 }

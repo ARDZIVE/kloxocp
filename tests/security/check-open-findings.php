@@ -726,6 +726,52 @@ $findings[] = finding('U8', 'low', 'iptraffic.php bare unserialize of Xen bw dat
 	'bin/common/iptraffic.php', $u8Closed,
 	$u8Closed ? 'filtered unserialize' : 'still bare');
 
+// --- Wave 7 (V1–V6) ---
+$pserverLinux = file_text($root, 'kloxo/httpdocs/driver/pserver/pserver__linuxlib.php');
+$resetMysql = file_text($root, 'kloxo/bin/common/misc/reset-mysql-root-password.php');
+$mariadbLib = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_mariadb.php');
+$v1Closed = contains(function_body($pserverLinux, 'mysqlPasswordReset'), 'setRootPassword')
+	&& not_contains(function_body($pserverLinux, 'mysqlPasswordReset'), 'exec("sh /script/reset-mysql-root-password');
+$findings[] = finding('V1', 'critical', 'mysqlPasswordReset shell-injects password',
+	'pserver__linuxlib.php mysqlPasswordReset', $v1Closed,
+	$v1Closed ? 'in-process/argv ALTER USER only' : 'still exec with unquoted $pass');
+
+$v2Closed = contains($resetMysql, 'setRootPassword')
+	&& not_contains($resetMysql, 'exec("mysql -u root -p')
+	&& not_contains($resetMysql, "file_put_contents(\"{\$tpath}/reset-mysql-password.sql\"");
+$findings[] = finding('V2', 'high', 'reset-mysql-root-password plaintext SQL + shell mysql',
+	'bin/common/misc/reset-mysql-root-password.php', $v2Closed,
+	$v2Closed ? 'socket ALTER USER + no shell password' : 'still writes/shells password');
+
+$redir = file_text($root, 'kloxo/httpdocs/lib/redirect.php');
+$v3Closed = contains($redir, 'header(') && contains($redir, 'Location:')
+	&& not_contains($redir, 'location.replace');
+$findings[] = finding('V3', 'high', 'redirect.php XSS via REQUEST_URI in JS',
+	'lib/redirect.php', $v3Closed,
+	$v3Closed ? 'validated Location header' : 'still echoes into location.replace');
+
+$apilib = file_text($root, 'kloxo/httpdocs/lib/html/apilib.php');
+$v4Closed = contains($apilib, "password === ''")
+	&& contains($apilib, 'enter manually')
+	&& not_contains($apilib, 'login-password=&');
+$findings[] = finding('V4', 'medium', 'api.php/apilib blank-password webcommand probe',
+	'apilib.php', $v4Closed,
+	$v4Closed ? 'empty password refused; no auto probe' : 'still probes with blank password');
+
+$mysqlOpt = file_text($root, 'kloxo/bin/fix/mysql-optimize.php');
+$v5Closed = contains($mysqlOpt, 'defaults-extra-file')
+	&& contains($mysqlOpt, 'lxshell_return')
+	&& not_contains($mysqlOpt, 'system("mysqlcheck');
+$findings[] = finding('V5', 'medium', 'mysql-optimize.php shell-interpolates DB password',
+	'bin/fix/mysql-optimize.php', $v5Closed,
+	$v5Closed ? 'defaults-extra-file + argv' : 'still system() with $pass');
+
+$filterFn = function_body(file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php'), 'filterFunc');
+$v6Closed = not_contains($filterFn, 'eval(') && contains($filterFn, 'security V6');
+$findings[] = finding('V6', 'low', 'lxclass filterFunc latent eval',
+	'lxclass.php filterFunc', $v6Closed,
+	$v6Closed ? 'PHP comparisons only' : 'still eval');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
