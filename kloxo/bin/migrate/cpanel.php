@@ -153,9 +153,26 @@ function cpanel_old_main()
 
 	$clientname = $argv[2];
 
-	system("tar -C $v -xzf {$argv[1]}");
+	// Argument-array tar — never shell-interpolate archive path (security BB5).
+	$archive = isset($argv[1]) ? (string) $argv[1] : '';
+	if ($archive === '' || !is_file($archive) || str_contains($archive, "\0")) {
+		print("missing or invalid archive\n");
+		exit(1);
+	}
+	$tar = is_executable('/usr/bin/tar') ? '/usr/bin/tar'
+		: (is_executable('/bin/tar') ? '/bin/tar' : 'tar');
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open(array($tar, '-C', $v, '-xzf', $archive), $desc, $pipes);
+	if (!is_resource($p) || proc_close($p) !== 0) {
+		print("tar extract failed\n");
+		exit(1);
+	}
 
-	$dir = strtil(basename($argv[1]), ".tar.gz");
+	$dir = strtil(basename($archive), ".tar.gz");
 
 	dprint("$v/$dir");
 	chdir("$v/$dir");

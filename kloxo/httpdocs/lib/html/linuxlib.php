@@ -74,8 +74,24 @@ function os_fix_fstab()
 	lfile_put_contents("/etc/fstab", $out);
 	dprintr($mount);
 
-	foreach($mount as $m) {
-		system("mount $m -o remount");
+	foreach ($mount as $m) {
+		// Argument-array only — never shell-interpolate mount points (security BB3).
+		$m = is_string($m) ? $m : '';
+		if ($m === '' || strlen($m) > 512 || preg_match('/[\x00-\x1f]/', $m)
+			|| str_contains($m, '..')) {
+			continue;
+		}
+		$mountBin = is_executable('/bin/mount') ? '/bin/mount'
+			: (is_executable('/usr/bin/mount') ? '/usr/bin/mount' : 'mount');
+		$desc = array(
+			0 => array('file', '/dev/null', 'r'),
+			1 => array('file', '/dev/null', 'w'),
+			2 => array('file', '/dev/null', 'w'),
+		);
+		$p = @proc_open(array($mountBin, $m, '-o', 'remount'), $desc, $pipes);
+		if (is_resource($p)) {
+			proc_close($p);
+		}
 	}
 }
 

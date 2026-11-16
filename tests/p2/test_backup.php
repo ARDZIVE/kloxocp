@@ -103,15 +103,24 @@ check($ran['code'] === 0
 KloxoBackup::$runCmd = $prevRun;
 
 echo "== MariaDB dump argv (no live mysqldump)\n";
-$dump = KloxoBackup::dumpArgv('/usr/bin/mysqldump', 'acme_wp', 'kloxo_pma', 's3cret');
+$threwPass = false;
+try {
+	KloxoBackup::dumpArgv('/usr/bin/mysqldump', 'acme_wp', 'kloxo_pma', 's3cret');
+} catch (KloxoBackupException $e) {
+	$threwPass = true;
+}
+check($threwPass, 'password dump without defaults file is refused (BB2)');
+$cnf = sys_get_temp_dir() . '/kloxo-bakmyc-' . getmypid() . '.cnf';
+file_put_contents($cnf, "[client]\nuser=kloxo_pma\npassword=s3cret\n");
+$dump = KloxoBackup::dumpArgv('/usr/bin/mysqldump', 'acme_wp', 'kloxo_pma', 's3cret', $cnf);
 check($dump[0] === '/usr/bin/mysqldump'
 	&& in_array('--add-drop-table', $dump, true)
-	&& in_array('-u', $dump, true)
-	&& in_array('kloxo_pma', $dump, true)
-	&& in_array('--password=s3cret', $dump, true)
+	&& in_array('--defaults-extra-file=' . $cnf, $dump, true)
+	&& !in_array('--password=s3cret', $dump, true)
+	&& !in_array("-p's3cret'", $dump, true)
 	&& end($dump) === 'acme_wp',
-	'mysqldump argv is argument-array with --password=');
-check(!in_array("-p's3cret'", $dump, true), 'dump does not use shell-quoted -p');
+	'mysqldump argv uses defaults-extra-file (no --password=)');
+@unlink($cnf);
 $threw = false;
 try {
 	KloxoBackup::dumpArgv('/usr/bin/mysqldump', 'mysql', 'kloxo_pma', '');
@@ -119,9 +128,14 @@ try {
 	$threw = true;
 }
 check($threw, 'reserved database name is rejected');
-$rst = KloxoBackup::restoreDumpArgv('/usr/bin/mysql', 'acme_wp', 'kloxo_pma', 's3cret');
-check(in_array('--password=s3cret', $rst, true) && end($rst) === 'acme_wp',
-	'mysql restore argv is argument-array');
+$cnf2 = sys_get_temp_dir() . '/kloxo-bakmyc2-' . getmypid() . '.cnf';
+file_put_contents($cnf2, "[client]\nuser=kloxo_pma\npassword=s3cret\n");
+$rst = KloxoBackup::restoreDumpArgv('/usr/bin/mysql', 'acme_wp', 'kloxo_pma', 's3cret', $cnf2);
+check(in_array('--defaults-extra-file=' . $cnf2, $rst, true)
+	&& !in_array('--password=s3cret', $rst, true)
+	&& end($rst) === 'acme_wp',
+	'mysql restore argv uses defaults-extra-file');
+@unlink($cnf2);
 
 echo "== dump/extract against fakes\n";
 $base = sys_get_temp_dir() . '/kloxo-backup-' . getmypid();

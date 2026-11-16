@@ -402,9 +402,41 @@ final class KloxoBackup
 	}
 
 	/**
+	 * Write a 0600 MySQL client defaults file (security BB2).
+	 * Password never appears on argv / in `ps`.
+	 */
+	public static function mysqlDefaultsFile(string $user, string $pass): string
+	{
+		if ($user === '' || preg_match('/^[A-Za-z0-9_]+$/', $user) !== 1) {
+			throw new KloxoBackupException('invalid dump user');
+		}
+		if (str_contains($pass, "\0")) {
+			throw new KloxoBackupException('invalid dump password');
+		}
+		$dir = self::programRoot() . '/pid';
+		if (!is_dir($dir)) {
+			@mkdir($dir, 0750, true);
+		}
+		$file = @tempnam($dir, 'bakmyc-');
+		if ($file === false) {
+			throw new KloxoBackupException('cannot write mysql defaults file');
+		}
+		@chmod($file, 0600);
+		$body = "[client]\nuser=" . $user . "\npassword="
+			. str_replace(array("\n", "\r"), '', $pass) . "\n";
+		if (@file_put_contents($file, $body) === false) {
+			@unlink($file);
+			throw new KloxoBackupException('cannot write mysql defaults file');
+		}
+		@chmod($file, 0600);
+
+		return $file;
+	}
+
+	/**
 	 * @return list<string>
 	 */
-	public static function dumpArgv(string $mysqldump, string $dbname, string $user, string $pass): array
+	public static function dumpArgv(string $mysqldump, string $dbname, string $user, string $pass, string $defaultsFile = ''): array
 	{
 		if (!self::dbIdent($dbname) || $mysqldump === '') {
 			throw new KloxoBackupException('invalid mysqldump or database');
@@ -412,17 +444,20 @@ final class KloxoBackup
 		if ($user === '' || preg_match('/^[A-Za-z0-9_]+$/', $user) !== 1) {
 			throw new KloxoBackupException('invalid dump user');
 		}
-		$argv = array(
-			$mysqldump,
-			'--add-drop-table',
-			'--default-character-set=utf8mb4',
-			'--single-transaction',
-			'-u',
-			$user,
-		);
-		if ($pass !== '') {
-			$argv[] = '--password=' . $pass;
+		$argv = array($mysqldump);
+		// Prefer defaults-extra-file — never --password= on argv (security BB2).
+		if ($defaultsFile !== '') {
+			$argv[] = '--defaults-extra-file=' . $defaultsFile;
+		} elseif ($pass !== '') {
+			// Legacy callers/tests: still refuse putting the secret on argv.
+			throw new KloxoBackupException('mysql defaults file required for password dump');
+		} else {
+			$argv[] = '-u';
+			$argv[] = $user;
 		}
+		$argv[] = '--add-drop-table';
+		$argv[] = '--default-character-set=utf8mb4';
+		$argv[] = '--single-transaction';
 		$argv[] = $dbname;
 
 		return $argv;
@@ -431,7 +466,7 @@ final class KloxoBackup
 	/**
 	 * @return list<string>
 	 */
-	public static function restoreDumpArgv(string $mysql, string $dbname, string $user, string $pass): array
+	public static function restoreDumpArgv(string $mysql, string $dbname, string $user, string $pass, string $defaultsFile = ''): array
 	{
 		if (!self::dbIdent($dbname) || $mysql === '') {
 			throw new KloxoBackupException('invalid mysql client or database');
@@ -439,10 +474,16 @@ final class KloxoBackup
 		if ($user === '' || preg_match('/^[A-Za-z0-9_]+$/', $user) !== 1) {
 			throw new KloxoBackupException('invalid restore user');
 		}
-		$argv = array($mysql, '--default-character-set=utf8mb4', '-u', $user);
-		if ($pass !== '') {
-			$argv[] = '--password=' . $pass;
+		$argv = array($mysql);
+		if ($defaultsFile !== '') {
+			$argv[] = '--defaults-extra-file=' . $defaultsFile;
+		} elseif ($pass !== '') {
+			throw new KloxoBackupException('mysql defaults file required for password restore');
+		} else {
+			$argv[] = '-u';
+			$argv[] = $user;
 		}
+		$argv[] = '--default-character-set=utf8mb4';
 		$argv[] = $dbname;
 
 		return $argv;
@@ -451,17 +492,25 @@ final class KloxoBackup
 	public static function dumpMysql(string $dbname, string $user, string $pass, string $outfile): void
 	{
 		$bin = self::firstExec(array('/usr/bin/mysqldump', '/usr/bin/mariadb-dump', 'mysqldump'));
-		$argv = self::dumpArgv($bin !== '' ? $bin : 'mysqldump', $dbname, $user, $pass);
-		$dir = dirname($outfile);
-		if ($dir !== '' && $dir !== '.' && !is_dir($dir)) {
-			@mkdir($dir, 0700, true);
-		}
-		$r = self::run($argv, $outfile);
-		if (($r['code'] ?? 1) !== 0) {
-			throw new KloxoBackupException('mysqldump failed for ' . $dbname);
-		}
-		if (!is_file($outfile) || filesize($outfile) === 0) {
-			throw new KloxoBackupException('mysqldump wrote no data for ' . $dbname);
+		$cnf = '';
+		try {
+			$cnf = ($pass !== '') ? self::mysqlDefaultsFile($user, $pass) : '';
+			$argv = self::dumpArgv($bin !== '' ? $bin : 'mysqldump', $dbname, $user, $pass, $cnf);
+			$dir = dirname($outfile);
+			if ($dir !== '' && $dir !== '.' && !is_dir($dir)) {
+				@mkdir($dir, 0700, true);
+			}
+			$r = self::run($argv, $outfile);
+			if (($r['code'] ?? 1) !== 0) {
+				throw new KloxoBackupException('mysqldump failed for ' . $dbname);
+			}
+			if (!is_file($outfile) || filesize($outfile) === 0) {
+				throw new KloxoBackupException('mysqldump wrote no data for ' . $dbname);
+			}
+		} finally {
+			if ($cnf !== '' && is_file($cnf)) {
+				@unlink($cnf);
+			}
 		}
 	}
 
@@ -471,10 +520,18 @@ final class KloxoBackup
 			throw new KloxoBackupException('mysql dump file missing');
 		}
 		$bin = self::firstExec(array('/usr/bin/mysql', '/usr/bin/mariadb', 'mysql'));
-		$argv = self::restoreDumpArgv($bin !== '' ? $bin : 'mysql', $dbname, $user, $pass);
-		$r = self::run($argv, null, $infile);
-		if (($r['code'] ?? 1) !== 0) {
-			throw new KloxoBackupException('mysql restore failed for ' . $dbname);
+		$cnf = '';
+		try {
+			$cnf = ($pass !== '') ? self::mysqlDefaultsFile($user, $pass) : '';
+			$argv = self::restoreDumpArgv($bin !== '' ? $bin : 'mysql', $dbname, $user, $pass, $cnf);
+			$r = self::run($argv, null, $infile);
+			if (($r['code'] ?? 1) !== 0) {
+				throw new KloxoBackupException('mysql restore failed for ' . $dbname);
+			}
+		} finally {
+			if ($cnf !== '' && is_file($cnf)) {
+				@unlink($cnf);
+			}
 		}
 	}
 

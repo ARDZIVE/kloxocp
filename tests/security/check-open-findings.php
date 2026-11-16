@@ -1099,6 +1099,60 @@ $findings[] = finding('AA7', 'low', 'getParseInlinePhp still uses eval after tok
 	'lib.php getParseInlinePhp', $aa7Closed,
 	$aa7Closed ? 'temp include after token gate' : 'still eval');
 
+// --- Wave 13 (BB1–BB6) ---
+$setupPrimary = file_text($root, 'kloxo/bin/common/setupprimarymaster.php');
+$bb1Closed = contains($setupPrimary, 'defaults-extra-file')
+	&& contains($setupPrimary, 'security BB1')
+	&& not_contains($setupPrimary, "'-p\$pass'")
+	&& not_contains($setupPrimary, '-p$pass');
+$findings[] = finding('BB1', 'high', 'setupprimarymaster.php mysqldump -p on cmdline',
+	'bin/common/setupprimarymaster.php', $bb1Closed,
+	$bb1Closed ? 'defaults-extra-file + proc_open' : 'still -p$pass');
+
+$bakPhp = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_backup.php');
+$bb2Closed = contains($bakPhp, 'mysqlDefaultsFile')
+	&& contains($bakPhp, 'security BB2')
+	&& not_contains(function_body($bakPhp, 'dumpArgv'), "'--password='")
+	&& not_contains(function_body($bakPhp, 'restoreDumpArgv'), "'--password='");
+$findings[] = finding('BB2', 'medium', 'KloxoBackup dump/restore --password= on argv',
+	'kloxo_backup.php dumpArgv/restoreDumpArgv', $bb2Closed,
+	$bb2Closed ? 'defaults-extra-file only' : 'still --password= on argv');
+
+$mountLoop = function_body(file_text($root, 'kloxo/httpdocs/lib/html/linuxlib.php'), 'os_update_mount');
+if ($mountLoop === '') {
+	// function name may differ — search marker
+	$mountLoop = file_text($root, 'kloxo/httpdocs/lib/html/linuxlib.php');
+}
+$bb3Closed = contains($mountLoop, 'security BB3')
+	&& contains($mountLoop, 'proc_open')
+	&& not_contains($mountLoop, 'system("mount $m');
+$findings[] = finding('BB3', 'medium', 'linuxlib mount shells $m',
+	'linuxlib.php mount remount', $bb3Closed,
+	$bb3Closed ? 'proc_open argv mount' : 'still system(mount $m)');
+
+$bb4Closed = contains($lib, 'function kloxo_exec_argv')
+	&& contains($lib, 'security BB4')
+	&& contains($lib, 'FILTER_VALIDATE_IP')
+	&& contains($lib, 'add-blackhole-block');
+$findings[] = finding('BB4', 'medium', 'legacy exec find/chown/cp with interpolated vars',
+	'lib.php blackhole / ownership / closed-exec', $bb4Closed,
+	$bb4Closed ? 'kloxo_exec_argv + IP validate + closed-exec guard' : 'still bare exec with vars');
+
+$cpanelMig = file_text($root, 'kloxo/bin/migrate/cpanel.php');
+$bb5Closed = contains($cpanelMig, 'security BB5')
+	&& contains($cpanelMig, 'proc_open')
+	&& not_contains($cpanelMig, 'system("tar');
+$findings[] = finding('BB5', 'low', 'cpanel migrate tar shells $argv[1]',
+	'bin/migrate/cpanel.php', $bb5Closed,
+	$bb5Closed ? 'proc_open argv tar' : 'still system(tar)');
+
+$parseBb = function_body($lib, 'getParseInlinePhp');
+$bb6Closed = contains($parseBb, 'security BB6')
+	&& (contains($parseBb, 'Prefer non-PHP') || contains($parseBb, 'preg_replace_callback'));
+$findings[] = finding('BB6', 'low', 'getParseInlinePhp still includes template PHP',
+	'lib.php getParseInlinePhp', $bb6Closed,
+	$bb6Closed ? 'echo-only path without include' : 'always includes PHP templates');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

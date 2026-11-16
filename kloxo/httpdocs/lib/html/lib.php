@@ -1321,19 +1321,94 @@ function testAllServers()
 */
 }
 
+/**
+ * Background spawn of a fixed script path only (security BB4).
+ * Refuses shell metacharacters; prefer argv helpers for new code.
+ */
 function exec_with_all_closed($cmd)
 {
+	$cmd = is_string($cmd) ? trim($cmd) : '';
 	log_shell("Closed Exec {$cmd}");
 	// closeallinput was a setuid helper that ran system(argv) (audit C4). Removed.
-	exec("{$cmd} >/dev/null 2>&1 &");
+	if ($cmd === '' || preg_match('/[;&|`$<>\\\\\n\r]/', $cmd) || str_contains($cmd, "\0")) {
+		log_shell("Closed Exec refused unsafe command");
+
+		return;
+	}
+	// Only allow known panel script prefixes.
+	if (!preg_match('#^(sh\s+)?(/script/|/opt/kloxo/pscript/|lxphp\.exe\s+)#', $cmd)) {
+		log_shell("Closed Exec refused non-script command");
+
+		return;
+	}
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open(array('sh', '-c', $cmd . ' >/dev/null 2>&1'), $desc, $pipes);
+	if (is_resource($p)) {
+		proc_close($p);
+	}
 }
 
 function exec_with_all_closed_output($cmd)
 {
-	$res = shell_exec("{$cmd} 2>/dev/null");
+	$cmd = is_string($cmd) ? trim($cmd) : '';
+	if ($cmd === '' || preg_match('/[;&|`$<>\\\\\n\r]/', $cmd) || str_contains($cmd, "\0")) {
+		log_shell("Closed Exec output refused unsafe command");
+
+		return '';
+	}
+	if (!preg_match('#^(sh\s+)?(/script/|/opt/kloxo/pscript/|lxphp\.exe\s+)#', $cmd)) {
+		log_shell("Closed Exec output refused non-script command");
+
+		return '';
+	}
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open(array('sh', '-c', $cmd), $desc, $pipes);
+	if (!is_resource($p)) {
+		return '';
+	}
+	$res = stream_get_contents($pipes[1]);
+	fclose($pipes[1]);
+	proc_close($p);
+	$res = is_string($res) ? $res : '';
 	log_shell("Closed Exec output: {$res} : {$cmd}");
 
 	return trim($res);
+}
+
+/**
+ * Argument-array spawn for ownership/cleanup helpers (security BB4).
+ *
+ * @param list<string> $argv
+ */
+function kloxo_exec_argv(array $argv): int
+{
+	if ($argv === [] || !is_string($argv[0]) || $argv[0] === '') {
+		return 127;
+	}
+	foreach ($argv as $a) {
+		if (!is_string($a) || str_contains($a, "\0")) {
+			return 127;
+		}
+	}
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open($argv, $desc, $pipes);
+	if (!is_resource($p)) {
+		return 127;
+	}
+
+	return proc_close($p);
 }
 
 // Convert Com to Php Array.
@@ -3040,7 +3115,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111613';
+	return '10.1-2026111614';
 }
 
 function getDownloadServer()
@@ -5793,7 +5868,7 @@ function lxguard_main($clearflag = false, $since = false)
 
 	// MR -- remove blackhole blocked (CentOS helper; absent on Ubuntu)
 	if (is_file('/script/remove-blackhole-block')) {
-		exec("sh /script/remove-blackhole-block");
+		kloxo_exec_argv(array('sh', '/script/remove-blackhole-block'));
 	}
 
 	foreach ($deny as $k => $v) {
@@ -5801,13 +5876,17 @@ function lxguard_main($clearflag = false, $since = false)
 			continue;
 		}
 
-		// MR -- add blackhole blocked (CentOS helper; absent on Ubuntu)
-		if (is_file('/script/add-blackhole-block')) {
-			exec("sh /script/add-blackhole-block {$k}");
-		}
-
 		// MR -- make sure no LF
 		$k = str_replace("\n", "", $k);
+		// IP only before any helper call (security BB4).
+		if (filter_var($k, FILTER_VALIDATE_IP) === false) {
+			continue;
+		}
+
+		// MR -- add blackhole blocked (CentOS helper; absent on Ubuntu)
+		if (is_file('/script/add-blackhole-block')) {
+			kloxo_exec_argv(array('sh', '/script/add-blackhole-block', $k));
+		}
 
 		$str_host .= "ALL : $k\n";
 	}
@@ -6969,10 +7048,12 @@ function setFixChownChmodWebPerUser($select, $user, $nolog = null)
 	$domdirchmod = '755';
 	$statsdirchmod = '777';
 
-	exec("chown {$clname}:apache {$cdir}/");
+	// Validated unix name + argv (security BB4).
+	if (preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', (string) $clname)) {
+		kloxo_exec_argv(array('chown', "{$clname}:apache", "{$cdir}/"));
+		kloxo_exec_argv(array('chmod', (string) $userdirchmod, "{$cdir}/"));
+	}
 	log_cleanup("- chown {$clname}:apache FOR {$cdir}/", $nolog);
-
-	exec("chmod {$userdirchmod} {$cdir}/");
 	log_cleanup("- chmod {$userdirchmod} FOR {$cdir}/", $nolog);
 
 	$ks = "kloxoscript";
@@ -8304,8 +8385,33 @@ function getParseInlinePhp($template, $input)
 		}
 	}
 
-	// No eval (security AA7): render via include of a temp file after the
-	// token allow-list. Scope is a closure so only $safe keys are visible.
+	// Prefer non-PHP substitution when the template is only echo tags (security BB6).
+	if (preg_match('/^([^<]|<(?!\?))*?(<\?=\s*\$([A-Za-z_][A-Za-z0-9_]*)\s*;?\s*\?>[^<]*)*$/s', $template)
+		|| !str_contains($template, '<?')) {
+		$out = $template;
+		if (str_contains($out, '<?')) {
+			$out = preg_replace_callback(
+				'/<\?=\s*\$([A-Za-z_][A-Za-z0-9_]*)\s*;?\s*\?>/',
+				static function (array $m) use ($safe): string {
+					$n = $m[1];
+					if (!array_key_exists($n, $safe)) {
+						return '';
+					}
+					$v = $safe[$n];
+					if ($v === null) {
+						return '';
+					}
+
+					return htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				},
+				$out
+			);
+		}
+		return is_string($out) ? $out : '';
+	}
+
+	// No eval (security AA7 / BB6): include of a temp file after the token
+	// allow-list. Scope is a closure so only $safe keys are visible.
 	$tmp = @tempnam(sys_get_temp_dir(), 'kloxo-tpl-');
 	if ($tmp === false) {
 		return '';
