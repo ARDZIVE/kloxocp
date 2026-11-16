@@ -3126,6 +3126,66 @@ $findings[] = finding('III6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $iii6Closed,
 	$iii6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- JJJ wave ---
+$htmlJjj = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$jjj1Closed = contains($htmlJjj, 'security JJJ1')
+	&& contains($htmlJjj, '$strEsc')
+	&& contains($htmlJjj, '$nvEsc')
+	&& contains($htmlJjj, '$valEsc')
+	&& not_contains($htmlJjj, 'id="<?= $str ?>" name="<?= $str ?>" value="<?= $nv ?>"')
+	&& not_contains($htmlJjj, 'id="<?= $str ?>" name="<?= $str ?>" value="<?= $value ?>"');
+$findings[] = finding('JJJ1', 'medium', 'html_variable_inherit raw HTTP hiddens',
+	'htmllib.php html_variable_inherit', $jjj1Closed,
+	$jjj1Closed ? 'escaped name/value; scalar uses key' : 'still raw');
+
+$jjj2Closed = contains($htmlJjj, 'security JJJ2')
+	&& contains($htmlJjj, '$textNameEsc')
+	&& contains($htmlJjj, "checkBoxTextToggle('<?= \$formJs ?>'")
+	&& not_contains($htmlJjj, 'name="<?= $variable->text->name ?>" value="<?= $variable->text->value ?>"');
+$findings[] = finding('JJJ2', 'medium', 'checkboxwithtext raw attrs/onclick',
+	'htmllib.php print_checkboxwithtext', $jjj2Closed,
+	$jjj2Closed ? 'escaped attrs + allow-listed onclick' : 'still raw');
+
+$jjj3Closed = contains($htmlJjj, 'security JJJ3')
+	&& substr_count($htmlJjj, 'security JJJ3') >= 2
+	&& contains($htmlJjj, '$tabTitle')
+	&& contains($htmlJjj, '$imgSrc')
+	&& not_contains($htmlJjj, 'id="<?= $k ?>-tab" class="x-dlg-tab" title="<?= $descr[2] ?>"')
+	&& not_contains($htmlJjj, 'src="<?= $variable->value ?>" width="<?= $width ?>" height="<?= $height ?>"');
+$findings[] = finding('JJJ3', 'medium', 'image attrs / comments dlg tab raw',
+	'htmllib.php image case + comments dlg', $jjj3Closed,
+	$jjj3Closed ? 'escaped image + tab id/title' : 'still raw');
+
+$jjj4Closed = contains($htmlJjj, 'security JJJ4')
+	&& substr_count($htmlJjj, 'security JJJ4') >= 2
+	&& contains($htmlJjj, 'global_need_list[<?= $needKey ?>]')
+	&& contains($htmlJjj, 'global_match_list[<?= $mName ?>]')
+	&& not_contains($htmlJjj, "global_need_list['<?=\$variable->name?>'] = '<?=\$variable->desc?>';");
+$findings[] = finding('JJJ4', 'medium', 'global_need/match/desc raw JS strings',
+	'htmllib.php form need/match scripts', $jjj4Closed,
+	$jjj4Closed ? 'json_encode keys/values' : 'still raw');
+
+$jjj5Closed = contains($htmlJjj, 'security JJJ5')
+	&& contains($htmlJjj, '$nametitleId')
+	&& contains($htmlJjj, "blindUpOrDown('<?= \$lclassJs ?>'")
+	&& not_contains($htmlJjj, "blindUpOrDown('<?= \$lclass ?>', '<?= \$class ?>', '<?= \$skindir ?>', '<?= \$nametitle ?>')");
+$libJjj = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$jjj5Closed = $jjj5Closed && contains($libJjj, 'III5 / JJJ5');
+$findings[] = finding('JJJ5', 'low', 'blindUpOrDown raw skindir/nametitle / schema residual',
+	'htmllib.php print_drag_drop; lib.php schema', $jjj5Closed,
+	$jjj5Closed ? 'allow-listed ids + schema marked JJJ5' : 'still raw/unmarked');
+
+$lxlibJjj = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$extSecJjj = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastJjj = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$jjj6Closed = contains($lxlibJjj, 'security JJJ6')
+	&& contains($extSecJjj, 'security JJJ6')
+	&& contains($toastJjj, 'security JJJ6')
+	&& contains($lxlibJjj, 'gated unserialize');
+$findings[] = finding('JJJ6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $jjj6Closed,
+	$jjj6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

@@ -1064,9 +1064,12 @@ class HtmlLib
 			}
 
 			$count++;
+			// Escaped comments dlg tab id/title (security JJJ3).
+			$tabId = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $k) ?: ('tab' . (string) $count);
+			$tabTitle = htmlspecialchars((string) ($descr[2] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
-				<div id="<?= $k ?>-tab" class="x-dlg-tab" title="<?= $descr[2] ?>">
-					<div id="<?= $k ?>-list" class="inner-tab"></div>
+				<div id="<?= $tabId ?>-tab" class="x-dlg-tab" title="<?= $tabTitle ?>">
+					<div id="<?= $tabId ?>-list" class="inner-tab"></div>
 				</div>
 <?php
 		}
@@ -1390,11 +1393,14 @@ class HtmlLib
 
 <?php
 		foreach ($ret as $title => $a) {
-			$nametitle = strfrom($title, "__title_");
+			// Allow-listed drag ids (security JJJ5).
+			$nametitle = preg_replace('/[^A-Za-z0-9_-]/', '', (string) strfrom($title, "__title_")) ?: 'sec';
+			$ntJs = json_encode('item_' . $nametitle, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+			$nhJs = json_encode('handle_' . $nametitle, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
 ?>
-						dd = new YAHOO.example.DDList('item_<?=$nametitle?>');
+						dd = new YAHOO.example.DDList(<?= $ntJs ?>);
 						dd.setXConstraint(0, 0, 0);
-						dd.setHandleElId('handle_<?=$nametitle?>');
+						dd.setHandleElId(<?= $nhJs ?>);
 <?php
 		}
 ?>
@@ -1910,6 +1916,14 @@ class HtmlLib
 
 			unset($a['open']);
 			$nametitle = strfrom($title, "__title_");
+			// Allow-listed drag section ids / escaped blindUpOrDown (security JJJ5).
+			$nametitleId = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $nametitle) ?: ('sec' . (string) $count);
+			$lclassJs = preg_replace('/[^A-Za-z0-9_]/', '', (string) $lclass) ?: 'client';
+			$classJs = preg_replace('/[^A-Za-z0-9_]/', '', (string) $class) ?: 'class';
+			$skindirJs = json_encode((string) $skindir, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+			$dragEsc = htmlspecialchars((string) $dragstring, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$titleEsc = htmlspecialchars((string) $a[$title], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$dispEsc = htmlspecialchars((string) $dispstring, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 			if (($count % 2 === 0) && ($show_direction === 'vertical 2')) {
 ?>
@@ -1917,26 +1931,26 @@ class HtmlLib
 <?php
 			}
 ?>
-							<div id="item_<?= $nametitle ?>" class="section">
+							<div id="item_<?= $nametitleId ?>" class="section">
 								<table cellpadding='2' cellspacing='0'>
 <?php
 			if ($show_direction !== 'horizontal') {
 ?>
-									<tr class='handle' id="handle_<?= $nametitle ?>" style="background:#edc <?= $img_url ?>" onMouseover="document.getElementById('font_<?= $nametitle ?>').style.visibility='visible'; this.style.background='#edc'" onMouseout="document.getElementById('font_<?= $nametitle ?>').style.visibility='hidden'; this.style.background='#edc'">
+									<tr class='handle' id="handle_<?= $nametitleId ?>" style="background:#edc <?= $img_url ?>" onMouseover="document.getElementById('font_<?= $nametitleId ?>').style.visibility='visible'; this.style.background='#edc'" onMouseout="document.getElementById('font_<?= $nametitleId ?>').style.visibility='hidden'; this.style.background='#edc'">
 <?php
 			} else {
 ?>
-									<tr class='handle' id="handle_<?= $nametitle ?>" style="background:#edc">
+									<tr class='handle' id="handle_<?= $nametitleId ?>" style="background:#edc">
 
 <?php
 			}
 ?>
-										<td width='100%' style="cursor: move;" align='center'><span style='font-weight: bold' title='<?= $dragstring ?>'>&nbsp;<?= $a[$title] ?>&nbsp;</span></td>
-										<td class='handle' style='cursor: pointer' onclick="blindUpOrDown('<?= $lclass ?>', '<?= $class ?>', '<?= $skindir ?>', '<?= $nametitle ?>')">&nbsp;&#x00b1;&nbsp;</td>
+										<td width='100%' style="cursor: move;" align='center'><span style='font-weight: bold' title='<?= $dragEsc ?>'>&nbsp;<?= $titleEsc ?>&nbsp;</span></td>
+										<td class='handle' style='cursor: pointer' onclick="blindUpOrDown('<?= $lclassJs ?>', '<?= $classJs ?>', <?= $skindirJs ?>, '<?= $nametitleId ?>')">&nbsp;&#x00b1;&nbsp;</td>
 									</tr>
 								</table>
 
-							<div style="<?= $dispstring ?>" id="internal_<?= $nametitle ?>">
+							<div style="<?= $dispEsc ?>" id="internal_<?= $nametitleId ?>">
 <?php
 			array_shift($a);
 			$n = 0;
@@ -3065,6 +3079,10 @@ class HtmlLib
 	function html_variable_inherit($var = null)
 	{
 		$string = null;
+		// Escaped inherit hiddens (security JJJ1).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
 
 		foreach ($this->__http_vars as $key => $value) {
 			if ($var && $var != $key) {
@@ -3078,16 +3096,20 @@ class HtmlLib
 					if (is_array($v)) {
 						foreach ($v as $nk => $nv) {
 							$str = "{$key}" . "[$k][$nk]";
+							$strEsc = $esc($str);
+							$nvEsc = $esc($nv);
 ?>
 
-			<input type="hidden" id="<?= $str ?>" name="<?= $str ?>" value="<?= $nv ?>">
+			<input type="hidden" id="<?= $strEsc ?>" name="<?= $strEsc ?>" value="<?= $nvEsc ?>">
 <?php
 						}
 					} else {
 						$str = "{$key}" . "[$k]";
+						$strEsc = $esc($str);
+						$vEsc = $esc($v);
 ?>
 
-			<input type="hidden" id="<?= $str ?>" name="<?= $str ?>" value="<?= $v ?>">
+			<input type="hidden" id="<?= $strEsc ?>" name="<?= $strEsc ?>" value="<?= $vEsc ?>">
 <?php
 					}
 				}
@@ -3095,9 +3117,12 @@ class HtmlLib
 				if (!$value) {
 					continue;
 				}
+				$str = (string) $key;
+				$strEsc = $esc($str);
+				$valEsc = $esc($value);
 ?>
 
-			<input type="hidden" id="<?= $str ?>" name="<?= $str ?>" value="<?= $value ?>">
+			<input type="hidden" id="<?= $strEsc ?>" name="<?= $strEsc ?>" value="<?= $valEsc ?>">
 <?php
 			}
 		}
@@ -8266,15 +8291,33 @@ class HtmlLib
 		} else {
 			$checked = " ";
 		}
+		// Escaped checkboxwithtext attrs/onclick (security JJJ2).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+		$tclassEsc = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $tclass) ?: 'textenable';
+		$ckClassEsc = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $ckclass) ?: 'ckbox1';
+		$textNameEsc = $esc($variable->text->name);
+		$textValEsc = $esc($variable->text->value);
+		$textHintEsc = $esc($variable->text->text ?? '');
+		$cbDescEsc = $esc($variable->checkbox->desc ?? '');
+		$cbNameEsc = $esc($variable->checkbox->name);
+		$cbValEsc = $esc(trim((string) $variable->checkbox->value));
+		$formJs = preg_replace('/[^A-Za-z0-9_]/', '', (string) $form) ?: 'form';
+		$cbNameJs = preg_replace('/[^A-Za-z0-9_]/', '', (string) $variable->checkbox->name) ?: 'cb';
+		$textNameJs = preg_replace('/[^A-Za-z0-9_]/', '', (string) $variable->text->name) ?: 'tx';
+		$cbValJs = json_encode(trim((string) $variable->checkbox->value), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+		$textValJs = json_encode((string) $variable->text->value, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+		$descEsc = $esc($variable_description);
 ?>
 
-		<?= $variable_description ?>
+		<?= $descEsc ?>
 
 		<br/>
-		<input class="<?= $tclass ?>" <?= $tdisabled ?> type="text" name="<?= $variable->text->name ?>" value="<?= $variable->text->value ?>" size="20">
-		<span class="small"><?= $variable->text->text ?></span>
-		<?= $variable->checkbox->desc ?>
-		<input class="<?= $ckclass ?>" type="checkbox" name="<?= $variable->checkbox->name ?>" value="<?= trim($variable->checkbox->value) ?>" <?= $checked ?> onclick="<?= "checkBoxTextToggle('$form', '{$variable->checkbox->name}', '{$variable->text->name}', '{$variable->checkbox->value}', '{$variable->text->value}');" ?>">
+		<input class="<?= $tclassEsc ?>" <?= $tdisabled ?> type="text" name="<?= $textNameEsc ?>" value="<?= $textValEsc ?>" size="20">
+		<span class="small"><?= $textHintEsc ?></span>
+		<?= $cbDescEsc ?>
+		<input class="<?= $ckClassEsc ?>" type="checkbox" name="<?= $cbNameEsc ?>" value="<?= $cbValEsc ?>" <?= $checked ?> onclick="checkBoxTextToggle('<?= $formJs ?>', '<?= $cbNameJs ?>', '<?= $textNameJs ?>', <?= $cbValJs ?>, <?= $textValJs ?>);">
 <?php
 	}
 
@@ -8463,10 +8506,13 @@ class HtmlLib
 
 					$gbl->__ajax_need_var[$variable->name] = $variable->desc;
 				} else {
+					// JSON keys/values for need list (security JJJ4).
+					$needKey = json_encode((string) $variable->name, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
+					$needVal = json_encode((string) $variable->desc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
 ?>
 
 						<script>
-							global_need_list['<?=$variable->name?>'] = '<?=$variable->desc?>';
+							global_need_list[<?= $needKey ?>] = <?= $needVal ?>;
 						</script>
 <?php
 				}
@@ -8487,12 +8533,18 @@ class HtmlLib
 					$gbl->__ajax_desc_var[$variable->name] = $variable->desc;
 					$gbl->__ajax_desc_var[$variable->match] = $variable->matchdesc;
 				} else {
+					// JSON keys/values for match/desc lists (security JJJ4).
+					$je = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE;
+					$mName = json_encode((string) $variable->name, $je);
+					$mMatch = json_encode((string) $variable->match, $je);
+					$mDesc = json_encode((string) $variable->desc, $je);
+					$mMatchDesc = json_encode((string) $variable->matchdesc, $je);
 ?>
 
 						<script>
-							global_match_list['<?=$variable->name?>'] = '<?=$variable->match?>';
-							global_desc_list['<?=$variable->name?>'] = '<?=$variable->desc?>';
-							global_desc_list['<?=$variable->match?>'] = '<?=$variable->matchdesc?>';
+							global_match_list[<?= $mName ?>] = <?= $mMatch ?>;
+							global_desc_list[<?= $mName ?>] = <?= $mDesc ?>;
+							global_desc_list[<?= $mMatch ?>] = <?= $mMatchDesc ?>;
 						</script>
 <?php
 				}
@@ -8966,12 +9018,20 @@ class HtmlLib
 <?php
 				break;
 			case "image" :
-				$width = trim($variable->width);
-				$height = trim($variable->height);
+				// Escaped image attrs (security JJJ3).
+				$width = trim((string) $variable->width);
+				$height = trim((string) $variable->height);
+				$width = preg_match('/^[0-9]{1,4}%?$/', $width) ? $width : '100';
+				$height = preg_match('/^[0-9]{1,4}%?$/', $height) ? $height : '100';
+				$imgSrc = htmlspecialchars((string) $variable->value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				if (preg_match('#^\s*(javascript|data|vbscript):#i', (string) $variable->value)) {
+					$imgSrc = '';
+				}
+				$imgDesc = htmlspecialchars((string) $variable_description, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-					<?= $variable_description ?> <br/>
-					<img src="<?= $variable->value ?>" width="<?= $width ?>" height="<?= $height ?>">
+					<?= $imgDesc ?> <br/>
+					<img src="<?= $imgSrc ?>" width="<?= $width ?>" height="<?= $height ?>" alt="">
 <?php
 
 				break;
