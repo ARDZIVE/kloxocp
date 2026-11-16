@@ -474,10 +474,16 @@ class Html extends Htmllib
 			// MR -- change to
 			$ret = "/$ret/$basename";
 			$ret = preg_replace('/(\/){1,3}(.*)/', '/$2', $ret);
+			// JS string + HTML attr safe (security NNN8).
+			$retJs = htmlspecialchars(
+				(string) json_encode((string) $ret, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
+				ENT_QUOTES | ENT_SUBSTITUTE,
+				'UTF-8'
+			);
 
 ?>
 
-				<td width='10'>&nbsp;<a class='button' href="javascript:callSetSelectFolder('<?= $ret ?>')">Select</a>&nbsp;</td>
+				<td width='10'>&nbsp;<a class='button' href="javascript:callSetSelectFolder(<?= $retJs ?>)">Select</a>&nbsp;</td>
 			</tr>
 <?php
 			if ($count === 0) {

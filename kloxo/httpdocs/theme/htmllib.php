@@ -5849,13 +5849,17 @@ class HtmlLib
 		$noselect = (isset($button[1]) && $button[1]) ? 1 : 0;
 		$doconfirm = (isset($button[3]) && $button[3]) ? 1 : 0;
 		$imgbtnsep = $login->getSkinDir() . "/images/btn_sep.gif";
-		// Escaped toolbar form attrs (security MMM4).
+		// Escaped toolbar form attrs (security MMM4 / NNN7).
 		$formNameEsc = preg_replace('/[^A-Za-z0-9_]/', '', (string) $form_name) ?: 'form';
+		$uniqueEsc = preg_replace('/[^A-Za-z0-9_]/', '', (string) $uniquename) ?: 'u';
 		$urlBtnEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		if (preg_match('#^\s*(javascript|data|vbscript):#i', (string) $url)) {
 			$urlBtnEsc = htmlspecialchars('/display.php', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		}
 		$btnCsrf = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$helpTitleEsc = htmlspecialchars(strip_tags((string) $help), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$noselectJs = ((int) $noselect) ? '1' : '0';
+		$doconfirmJs = ((int) $doconfirm) ? '1' : '0';
 ?>
 
 		<td width=10></td>
@@ -5880,7 +5884,7 @@ class HtmlLib
 		if (!$button[2]) {
 ?>
 
-				<span title="<?= $help ?>"> <a class=button href="javascript:storevalue(document.form<?= $form_name ?>,'accountsel','ckbox<?= $uniquename ?>',ckcount<?= $uniquename ?>, <?= $noselect ?>, <?= $doconfirm ?>)">
+				<span title="<?= $helpTitleEsc ?>"> <a class=button href="javascript:storevalue(document.form<?= $formNameEsc ?>,'accountsel','ckbox<?= $uniqueEsc ?>',ckcount<?= $uniqueEsc ?>, <?= $noselectJs ?>, <?= $doconfirmJs ?>)">
 <?php
 		}
 
@@ -6600,7 +6604,9 @@ class HtmlLib
 		}
 
 		if ($name) {
-			$val = " <span style='color:blue'> " . kloxo_string($name) . "</span>";
+			// Escape identity before embedding in help HTML (security NNN7).
+			$nameSafe = htmlspecialchars(kloxo_string($name), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$val = " <span style='color:blue'> " . $nameSafe . "</span>";
 			if (preg_match("/\[%s\]/", $help)) {
 				$help = str_replace("[%s]", $val, $help);
 			} else {
@@ -6634,27 +6640,36 @@ class HtmlLib
 
 		$oldname = $this->frm_c_graph_time;
 
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+
 		$subactionstr = null;
 
+		// Escaped graph select path/period (security NNN9).
 		if ($this->frm_subaction) {
-			$subactionstr = "<input type='hidden' id='frm_subaction' name='frm_subaction' value='{$this->frm_subaction}'>";
+			$subactionstr = "<input type='hidden' id='frm_subaction' name='frm_subaction' value='"
+				. $esc($this->frm_subaction) . "'>";
 		}
 
 		$cnamestr = null;
 
 		if ($this->frm_o_cname) {
-			$cnamestr = "<input type='hidden' id='frm_o_cname' name='frm_o_cname' value='{$this->frm_o_cname}'>";
+			$cnamestr = "<input type='hidden' id='frm_o_cname' name='frm_o_cname' value='"
+				. $esc($this->frm_o_cname) . "'>";
 		}
 
 		$dttypestr = null;
 
 		// This needs to be an array.
 		if ($this->frm_dttype) {
-			$dttypestr = "<input type='hidden' id='frm_dttype[val]' name='frm_dttype[val]' value='{$this->frm_dttype['val']}'>";
-			$dttypestr = "<input type='hidden' id='frm_dttype[var]' name='frm_dttype[var]' value='{$this->frm_dttype['var']}'>";
+			$dttypestr = "<input type='hidden' id='frm_dttype[val]' name='frm_dttype[val]' value='"
+				. $esc($this->frm_dttype['val'] ?? '') . "'>";
+			$dttypestr .= "<input type='hidden' id='frm_dttype[var]' name='frm_dttype[var]' value='"
+				. $esc($this->frm_dttype['var'] ?? '') . "'>";
 		}
 
-		$frm_action = $this->frm_action;
+		$frm_action = $esc($this->frm_action);
 		$filter = null;
 		$hpfilter = $login->getHPFilter();
 
@@ -6669,15 +6684,18 @@ class HtmlLib
 				<td align='left'>
 					<form name="graphselectjump" method="get" action="display.php" accept-charset="utf-8">
 <?php
-		foreach ($cgi_o_o as $k => $v) {
+		foreach ((array) $cgi_o_o as $k => $v) {
+			$ek = preg_replace('/[^0-9]/', '', (string) $k);
+			$eclass = $esc($v['class'] ?? '');
 ?>
 
-						<input type='hidden' id='frm_o_o[<?= $k ?>][class]' name='frm_o_o[<?= $k ?>][class]' value='<?= $v['class'] ?>'>
+						<input type='hidden' id='frm_o_o[<?= $ek ?>][class]' name='frm_o_o[<?= $ek ?>][class]' value='<?= $eclass ?>'>
 <?php
 			if (isset($v['nname'])) {
+				$enname = $esc($v['nname']);
 ?>
 
-						<input type='hidden' id='frm_o_o[<?= $k ?>][nname]' name='frm_o_o[<?= $k ?>][nname]' value='<?= $v['nname'] ?>'>
+						<input type='hidden' id='frm_o_o[<?= $ek ?>][nname]' name='frm_o_o[<?= $ek ?>][nname]' value='<?= $enname ?>'>
 <?php
 			}
 		}
@@ -6697,9 +6715,11 @@ class HtmlLib
 			if ($k == $oldname) {
 				$sssl = 'SELECTED';
 			}
+			$ek = $esc($k);
+			$el = $esc($l);
 
 ?>
-							<option <?= $sssl ?> value="<?= $k ?>"><?= $l ?></option>
+							<option <?= $sssl ?> value="<?= $ek ?>"><?= $el ?></option>
 <?php
 		}
 ?>
@@ -7920,20 +7940,29 @@ class HtmlLib
 
 		$val = Resource::privdisplay($varname, null, $val);
 
+		// Escape resource chrome text before HTML/JS (security NNN7).
+		$nameEsc = htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$valEsc = htmlspecialchars((string) $val, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$unitEsc = htmlspecialchars((string) $unit, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$realEsc = htmlspecialchars((string) $realval, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$maxEsc = htmlspecialchars((string) $maxval, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$valViewEsc = htmlspecialchars((string) $val_view, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$maxViewEsc = htmlspecialchars((string) $maxval_view, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
 		if ($type === "small") {
-			$help = "<br /> <br /> <span style=color:blue>$name </span> uses $val $unit ($realval%) of $maxval";
+			$help = "<br /> <br /> <span style=color:blue>{$nameEsc} </span> uses {$valEsc} {$unitEsc} ({$realEsc}%) of {$maxEsc}";
 			$alt = lx_strip_tags($help);
 			$help = "<b> Message: </b>" . $help;
 			$helpJs = self::jsString(' ' . (string) $help);
 			$help = "onmouseover=\"changeContent('help',{$helpJs})\" onmouseout=\"changeContent('help','helparea')\"";
 		} else {
-			$text = "<span class=last> <span size=1>$realval%</span></span>";
+			$text = "<span class=last> <span size=1>{$realEsc}%</span></span>";
 		}
 
 		// MR -- also need this process to fix title
 		$alt = preg_replace("/_lxspan:([^:]*):([^:]*):/", "$2", $alt);
 
-		$final_view = "{$val_view} {$unit} ({$realval}%) / {$maxval_view}";
+		$final_view = "{$valViewEsc} {$unitEsc} ({$realEsc}%) / {$maxViewEsc}";
 ?>
 
 		<div <?= $help ?> style="float: left"><?= $final_view ?></div>
@@ -8851,19 +8880,23 @@ class HtmlLib
 
 	function print_radio($form, $variable, $list, $rowuniqueid, $rowclass, $rowcount)
 	{
+		// Escaped radio name/value/label (security NNN9).
+		$varEsc = htmlspecialchars((string) $variable, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 <?php
-		foreach ($list as $k => $l) {
+		foreach ((array) $list as $k => $l) {
+			$kEsc = htmlspecialchars((string) $k, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$lEsc = htmlspecialchars((string) $l, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-			<input type="radio" name="radio_<?= $variable ?>" value="<?= $k ?>"> <?= $l ?> <br/>
+			<input type="radio" name="radio_<?= $varEsc ?>" value="<?= $kEsc ?>"> <?= $lEsc ?> <br/>
 <?php
 		}
 ?>
 
-		<input type="radio" name="radio_<?= $variable ?>" value="__provide__"> Provide
-		<input type="textbox" name="<?= $variable ?> value="">
+		<input type="radio" name="radio_<?= $varEsc ?>" value="__provide__"> Provide
+		<input type="textbox" name="<?= $varEsc ?>" value="">
 
 <?php
 	}
@@ -10484,7 +10517,8 @@ function uploadAbort(e) { // upload abort
 			$error_box = 'Error Box';
 			$press_esc_to_close = '';
 		} else {
-			$error_box = (string) $login->getKeywordUc('error_box');
+			// Escaped error box title (security NNN5).
+			$error_box = $esc($login->getKeywordUc('error_box'));
 			$press_esc_to_close = '&nbsp;-&nbsp;' . $esc($login->getKeywordUc('press_esc_to_close'));
 		}
 
@@ -10699,12 +10733,13 @@ function uploadAbort(e) { // upload abort
 			$this->print_input("hidden", "frm_action", "update");
 			$sub = $this->frm_subaction;
 			$actionimg = "finish.gif";
-			$actiontxt = $login->getKeywordUc('finish');
+			// Escaped tree action label (security NNN3).
+			$actiontxt = htmlspecialchars((string) $login->getKeywordUc('finish'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		} else {
 			$this->print_input("hidden", "frm_action", "updateform");
 			$sub = $this->frm_subaction . "_confirm";
 			$actionimg = "next.gif";
-			$actiontxt = $login->getKeywordUc('next');
+			$actiontxt = htmlspecialchars((string) $login->getKeywordUc('next'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		}
 
 		$this->print_input("hidden", "frm_subaction", "$sub");
@@ -10929,7 +10964,12 @@ function uploadAbort(e) { // upload abort
 			$desc = $this->get_class_description($name);
 			$printname = get_plural($desc[2]);
 		//	$help = "Click to Show $printname";
-			$help = $login->getKeywordUc('click_to_show') . " $printname";
+			// Escaped tree help/alt (security NNN3).
+			$help = htmlspecialchars(
+				(string) $login->getKeywordUc('click_to_show') . ' ' . (string) $printname,
+				ENT_QUOTES | ENT_SUBSTITUTE,
+				'UTF-8'
+			);
 			$alt = $help;
 			$npttr = $pttr;
 

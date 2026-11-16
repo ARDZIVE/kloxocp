@@ -2445,7 +2445,7 @@ function kloxo_sql_like($field, $value, string $mode = 'contains'): string
  * Intentional residual surfaces (security MM6; security NN6; security OO6;
  * security PP6; security QQ6; security RR6; security SS6; security TT6;
  * security UU6; security VV6; security WW6; security XX6; security YY6;
- * security ZZ6; security AAA6; security BBB6; security CCC6; security DDD6; security EEE6; security FFF6; security GGG6; security HHH6; security III6; security JJJ6; security KKK6; security LLL6; security MMM6): crypt() verify-only
+ * security ZZ6; security AAA6; security BBB6; security CCC6; security DDD6; security EEE6; security FFF6; security GGG6; security HHH6; security III6; security JJJ6; security KKK6; security LLL6; security MMM6; security NNN6): crypt() verify-only
  * in check_password; getShellCommand stub; SMTP/FormMail stubs; ExtJS retained
  * for UI; gated unserialize / allow-listed eeval; toast icon SVG via
  * allow-listed innerHTML. Do not mint new crypt/md5 password hashes.
@@ -5323,6 +5323,7 @@ function kloxo_menu_title($url)
 	global $ghtml;
 
 	$fallback = is_string($url) ? $url : 'Item';
+	$out = $fallback;
 	try {
 		if (isset($ghtml) && is_object($ghtml) && method_exists($ghtml, 'getTitleOnly')) {
 			// Do not assign $ghtml->frm_o_o: that creates a real property and
@@ -5354,13 +5355,15 @@ function kloxo_menu_title($url)
 				}
 			}
 			if (is_string($t) && $t !== '') {
-				return $t;
+				$out = $t;
 			}
 		}
 	} catch (Throwable $e) {
 		log_log('error', 'menu title: ' . $e->getMessage());
 	}
-	return $fallback;
+
+	// HTML-escaped for menu link text (security NNN4 / NNN).
+	return htmlspecialchars((string) $out, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
 function get_class_variable($class, $var)
@@ -6038,7 +6041,7 @@ function get_default_fields()
 function create_table_with_drop($tbl_name, $list)
 {
 	global $gbl, $sgbl, $login, $ghtml;
-	// Identifier allow-list (security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5 / GGG5 / HHH5 / III5 / JJJ5 / KKK5 / LLL5 / MMM5).
+	// Identifier allow-list (security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5 / GGG5 / HHH5 / III5 / JJJ5 / KKK5 / LLL5 / MMM5 / NNN5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $tbl_name)) {
 		return;
 	}

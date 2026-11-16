@@ -3341,6 +3341,86 @@ $findings[] = finding('MMM6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $mmm6Closed,
 	$mmm6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- NNN wave (nav/topbar/tree/menu chrome + toolbar help) ---
+$coreNnn = file_text($root, 'kloxo/httpdocs/theme/coredisplaylib.php');
+$topbarNnn = file_text($root, 'kloxo/httpdocs/theme/skin/simplicity/default/topbar_right.php');
+$menuNnn = file_text($root, 'kloxo/httpdocs/theme/skin/simplicity/default/menu.php');
+$htmlNnn = $htmlMmm;
+
+$nnn1Closed = contains($coreNnn, 'security NNN1')
+	&& contains($coreNnn, '$logoutConfirm = json_encode')
+	&& contains($coreNnn, '$helpKwEsc')
+	&& contains($coreNnn, '$loginAsEsc');
+$findings[] = finding('NNN1', 'medium', 'nav chrome logout/help/favorites/login_as raw',
+	'coredisplaylib.php header nav', $nnn1Closed,
+	$nnn1Closed ? 'escaped keywords + json_encode confirm' : 'still raw');
+
+$nnn2Closed = contains($topbarNnn, 'security NNN2')
+	&& contains($topbarNnn, '$statusKwEsc')
+	&& contains($topbarNnn, '$showhideKwEsc');
+$findings[] = finding('NNN2', 'medium', 'topbar status/showhide/clock raw',
+	'topbar_right.php', $nnn2Closed,
+	$nnn2Closed ? 'escaped status/showhide/clock' : 'still raw');
+
+$nnn3Closed = contains($htmlNnn, 'security NNN3')
+	&& contains($htmlNnn, "getKeywordUc('finish')")
+	&& contains($htmlNnn, "getKeywordUc('click_to_show')")
+	&& contains($htmlNnn, 'security NNN5')
+	&& contains($htmlNnn, '$error_box = $esc(');
+$findings[] = finding('NNN3', 'medium', 'tree finish/next/click_to_show + error_box raw',
+	'htmllib.php tree + error box', $nnn3Closed,
+	$nnn3Closed ? 'escaped tree labels + error box' : 'still raw');
+
+$nnn4Closed = contains($menuNnn, 'security NNN4')
+	&& contains($menuNnn, 'function kloxo_menu_kw')
+	&& contains($menuNnn, '$domainidEsc')
+	&& contains($lxlibLll, 'security NNN4')
+	&& contains($lxlibLll, 'htmlspecialchars((string) $out');
+$findings[] = finding('NNN4', 'medium', 'menu keywords/ids/titles raw',
+	'menu.php / lxlib kloxo_menu_title', $nnn4Closed,
+	$nnn4Closed ? 'kloxo_menu_kw + Esc ids + title escape' : 'still raw');
+
+$nnn5Closed = contains($libLll, 'MMM5 / NNN5') && contains($lxlibLll, 'MMM5 / NNN5');
+$findings[] = finding('NNN5', 'low', 'schema rawQuery residual unmarked',
+	'lib.php / lxlib.php schema helpers', $nnn5Closed,
+	$nnn5Closed ? 'marked NNN5' : 'unmarked');
+
+$nnn6Closed = contains($lxlibLll, 'security NNN6')
+	&& contains($extSecLll, 'security NNN6')
+	&& contains($toastLll, 'security NNN6')
+	&& contains($lxlibLll, 'gated unserialize');
+$findings[] = finding('NNN6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $nnn6Closed,
+	$nnn6Closed ? 'documented intentional leftovers' : 'unmarked');
+
+$nnn7Closed = contains($htmlNnn, 'security NNN7')
+	&& contains($htmlNnn, '$helpTitleEsc')
+	&& contains($htmlNnn, 'document.form<?= $formNameEsc ?>')
+	&& contains($htmlNnn, '$nameSafe = htmlspecialchars')
+	&& contains($htmlNnn, '$valViewEsc');
+$findings[] = finding('NNN7', 'medium', 'toolbar help title / resource quota chrome raw',
+	'htmllib.php list toolbar + resource bar', $nnn7Closed,
+	$nnn7Closed ? 'escaped help title + resource views' : 'still raw');
+
+$htmlPhpNnn = file_text($root, 'kloxo/httpdocs/theme/html.php');
+$nnn8Closed = contains($htmlPhpNnn, 'security NNN8')
+	&& contains($htmlPhpNnn, 'callSetSelectFolder(<?= $retJs ?>)')
+	&& contains($coreNnn, 'security NNN8')
+	&& contains($coreNnn, 'Escaped quick-action options')
+	&& contains($coreNnn, 'Escaped fatal chrome');
+$findings[] = finding('NNN8', 'medium', 'select-folder / quickaction / display_die raw',
+	'html.php + coredisplaylib.php', $nnn8Closed,
+	$nnn8Closed ? 'JS-safe path + escaped options/die' : 'still raw');
+
+$nnn9Closed = contains($htmlNnn, 'security NNN9')
+	&& contains($htmlNnn, 'Escaped graph select path/period')
+	&& contains($htmlNnn, 'Escaped radio name/value/label')
+	&& contains($htmlNnn, 'name="<?= $varEsc ?>" value="">')
+	&& not_contains($htmlNnn, 'name="<?= $variable ?> value="">');
+$findings[] = finding('NNN9', 'medium', 'graph select / radio form attrs raw',
+	'htmllib.php printGraphSelect + print_radio', $nnn9Closed,
+	$nnn9Closed ? 'escaped path/period/radio attrs' : 'still raw');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

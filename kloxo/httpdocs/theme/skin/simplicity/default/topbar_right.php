@@ -30,12 +30,19 @@
 <?php
 	}
 ?>
+<?php
+	// Escaped status/showhide labels (security NNN2).
+	$statusKwEsc = htmlspecialchars((string) $login->getKeywordUc('status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$showhideKwEsc = htmlspecialchars((string) $login->getKeywordUc('showhide'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$divclassEsc = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $divclass) ?: 'div_header_message';
+	$clockEsc = htmlspecialchars((string) $clock_now, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 				<div class="div_fixed_right">
-					<div id="div_status" class="<?=$divclass;?>" onMouseOver="this.style.backgroundColor='#fff'; this.style.color='#000'; displayStatus('div_cfstatus', 'flex');" onMouseOut="this.style.backgroundColor='#3498db'; this.style.color='#fff'; if (!window.kloxoStatusToastPinned) { displayStatus('div_cfstatus', 'none'); }">&nbsp;<?= $login->getKeywordUc('status'); ?>&nbsp;</div>
+					<div id="div_status" class="<?= $divclassEsc ?>" onMouseOver="this.style.backgroundColor='#fff'; this.style.color='#000'; displayStatus('div_cfstatus', 'flex');" onMouseOut="this.style.backgroundColor='#3498db'; this.style.color='#fff'; if (!window.kloxoStatusToastPinned) { displayStatus('div_cfstatus', 'none'); }">&nbsp;<?= $statusKwEsc ?>&nbsp;</div>
 					<a href="#" onClick="toggleVisibilityById('mmm'); return false;">
-						<div id="div_showhide" class="div_header_message" onMouseOver="this.style.backgroundColor='#fff'; this.style.color='#000';" onMouseOut="this.style.backgroundColor='#3498db'; this.style.color='#fff';">&nbsp;<?= $login->getKeywordUc('showhide') ?>&nbsp;</div>
+						<div id="div_showhide" class="div_header_message" onMouseOver="this.style.backgroundColor='#fff'; this.style.color='#000';" onMouseOut="this.style.backgroundColor='#3498db'; this.style.color='#fff';">&nbsp;<?= $showhideKwEsc ?>&nbsp;</div>
 					</a>
-					<div id="clock_div" class="div_header_message">&nbsp;<?= $clock_now; ?>&nbsp;</div>
+					<div id="clock_div" class="div_header_message">&nbsp;<?= $clockEsc ?>&nbsp;</div>
 				</div>
 <?php
 		$clock_path = str_replace(getcwd(), "", getLinkCustomfile("{$skin_dir}/js", "clock.js"));

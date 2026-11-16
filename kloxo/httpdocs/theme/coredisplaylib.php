@@ -2838,9 +2838,27 @@ function print_navigation($navig)
 		}
 
 		$fullimgstr = implode(" ", $imgstr);
+		// Escaped nav chrome (security NNN1).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+		$clienttypeEsc = $esc($clienttype);
+		$descEsc = $esc(trim((string) ($description['desc'] ?? '')));
+		$kEsc = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $k) ?: '0';
+		$paddEsc = preg_match('/^[0-9.]+(px|em|%)?$/', (string) $padd) ? (string) $padd : '0';
+		$logoutConfirm = json_encode(
+			(string) $login->getKeywordUc('is_want_logout'),
+			JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+		);
+		$helpKwEsc = $esc($login->getKeywordUc('help'));
+		$favKwEsc = $esc($login->getKeywordUc('add_to_favorites'));
+		$shurlEsc = $esc($shurl);
+		$loginAsEsc = $esc($login->getKeywordUc('login_as'));
+		$nnameEsc = $esc($login->nname);
+		$clickHelpEsc = $esc($login->getKeywordUc('click_help'));
 ?>
 
-		<div style="float:left; padding-top: <?= $padd ?>;" id="tnavig<?=$k?>" onMouseOut="changeContent('help', 'helparea');">&nbsp;{<?=$clienttype?><?=trim($description['desc'])?>}<?=$fullimgstr?></div>
+		<div style="float:left; padding-top: <?= $paddEsc ?>;" id="tnavig<?= $kEsc ?>" onMouseOut="changeContent('help', 'helparea');">&nbsp;{<?= $clienttypeEsc ?><?= $descEsc ?>}<?= $fullimgstr ?></div>
 <?php
 
 		$hypervm = null;
@@ -2855,7 +2873,7 @@ function print_navigation($navig)
 				//	$ghtml->print_div_button_on_header(null, true, $k, '');
 ?>
 
-				<div style="float:right; padding: 2px;"><input type="button" value="Help" onClick="toggleVisibilityById('infomsg');"/><input type="button" value="Logout" onClick="if (confirm('<?= $login->getKeywordUc('is_want_logout') ?>')) {top.location = '/lib/php/logout.php';}" /></div>
+				<div style="float:right; padding: 2px;"><input type="button" value="Help" onClick="toggleVisibilityById('infomsg');"/><input type="button" value="Logout" onClick="if (confirm(<?= $logoutConfirm ?>)) {top.location = '/lib/php/logout.php';}" /></div>
 <?php
 			}
 
@@ -2868,14 +2886,14 @@ function print_navigation($navig)
 
 ?>
 
-			<div style="float: right; padding-top: <?= $padd ?>;">&nbsp;<a href="javascript://" onclick="toggleVisibilityById('infomsg');"><?= $login->getKeywordUc('help') ?></a>&nbsp;-&nbsp;<a href="<?=$shurl?>"><?= $login->getKeywordUc('add_to_favorites') ?></a>&nbsp;</div>
+			<div style="float: right; padding-top: <?= $paddEsc ?>;">&nbsp;<a href="javascript://" onclick="toggleVisibilityById('infomsg');"><?= $helpKwEsc ?></a>&nbsp;-&nbsp;<a href="<?= $shurlEsc ?>"><?= $favKwEsc ?></a>&nbsp;</div>
 <?php
 		}
 
 ?>
 	</div>
 </td>
-<td align="right"><div style="padding: 2px"><span style='font-weight: bold; color: #3498db'><?php echo $login->getKeywordUc('login_as'); ?>&nbsp;'<?php echo $login->nname; ?>'&nbsp;&mdash;&nbsp;<?php echo $login->getKeywordUc('click_help'); ?><span>&nbsp;</div></td>
+<td align="right"><div style="padding: 2px"><span style='font-weight: bold; color: #3498db'><?= $loginAsEsc ?>&nbsp;'<?= $nnameEsc ?>'&nbsp;&mdash;&nbsp;<?= $clickHelpEsc ?><span>&nbsp;</div></td>
 </tr></table>
 
 <?php
@@ -3766,11 +3784,16 @@ function print_quick_action($class)
 	}
 
 	$stylestr = "style=\"font-size: 10px\"";
+	$esc = static function ($s): string {
+		return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	};
+	$method = strtolower((string) ($sgbl->method ?? 'post'));
+	$method = ($method === 'get') ? 'get' : 'post';
 
 	$res = null;
 	$res .= " <tr style=\"background:#d6dff7\"> <td >";
-	$res .= "<form name='quickaction' method='{$sgbl->method}' target='mainframe' action=\"/theme/lbin/redirect.php\">";
-//	$res .= "<form name='quickaction' method='get' target='mainframe' action=\"/theme/lbin/redirect.php\">";
+	// Escaped quick-action options (security NNN8).
+	$res .= "<form name='quickaction' method='{$method}' target='mainframe' action=\"/theme/lbin/redirect.php\">";
 
 	$desc = $ghtml->get_class_description($class);
 
@@ -3778,8 +3801,8 @@ function print_quick_action($class)
 		$res .= "<select $stylestr name=frm_redirectname>";
 
 		foreach ($namelist as $l) {
-			$pl = substr($l, 0, 26);
-			$res .= '<option ' . $stylestr . ' value="' . $l . '" >' . $pl . '</option>';
+			$pl = substr((string) $l, 0, 26);
+			$res .= '<option ' . $stylestr . ' value="' . $esc($l) . '" >' . $esc($pl) . '</option>';
 		}
 
 		$res .= "</select> </td> </tr>  ";
@@ -3789,17 +3812,17 @@ function print_quick_action($class)
 
 	foreach ($alist as $k => $a) {
 		if (csb($k, "__title")) {
-			$res .= '<option value="" >------' . $a . '----</option>';
+			$res .= '<option value="" >------' . $esc($a) . '----</option>';
 
 			continue;
 		}
 
 		$ac_descr = $ghtml->getActionDetails($a, null, $iconpath, $path, $post, $_t_file, $_t_name, $_t_image, $__t_identity);
 
-		$a = base64_encode($a);
+		$aEnc = base64_encode((string) $a);
 
-		$desc = substr($ac_descr[2], 0, 20);
-		$res .= '<option ' . $stylestr . ' value="' . $a . '" >' . $desc . '</option>';
+		$desc = substr((string) ($ac_descr[2] ?? ''), 0, 20);
+		$res .= '<option ' . $stylestr . ' value="' . $esc($aEnc) . '" >' . $esc($desc) . '</option>';
 	}
 
 	$res .= "</select> </td> </tr> ";
@@ -3810,6 +3833,7 @@ function print_quick_action($class)
 
 function display_die($string)
 {
-	die("<div class='div_display_die'>" . $string ."</div>");	
+	// Escaped fatal chrome (security NNN8).
+	die("<div class='div_display_die'>" . htmlspecialchars((string) $string, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</div>");
 }
 

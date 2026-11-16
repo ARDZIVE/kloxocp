@@ -170,6 +170,7 @@ function createHeaderData()
 	global $gbl, $sgbl, $login, $ghtml; 
 	global $gdata;
 
+	// Labels escaped at print_one_link (security CCC2 / NNN4 residual noted).
 	$homedesc = $login->getKeywordUc('home');
 	$deskdesc = $login->getKeywordUc('desktop');
 	$aboutdesc = $login->getKeywordUc('about');
