@@ -315,12 +315,18 @@ class HtmlLib
 
 	function print_info_block($obj, $ilist)
 	{
+		// Escaped info block labels/ids (security LLL1).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+		$headDesc = $esc(get_description($obj));
+		$headId = $esc($obj->getId());
 ?>
 
 		<table class="tableheader" width="95%">
 			<tr align="right">
 				<td>
-					<b><?= get_description($obj) ?> Info for <?= $obj->getId() ?></b>
+					<b><?= $headDesc ?> Info for <?= $headId ?></b>
 				</td>
 			</tr>
 		</table>
@@ -334,10 +340,12 @@ class HtmlLib
 			$desc = "__desc_$i";
 			$descr = get_classvar_description($class, $desc);
 			$descr[2] = getNthToken($descr[2], 1);
+			$labEsc = $esc($descr[2] ?? '');
+			$valEsc = $esc($obj->display($i));
 ?>
 
 				<td width="16%" align="left">
-					<span style="color: #b33;"><b><?= $descr[2] ?>: <?= $obj->display($i) ?></b></span>
+					<span style="color: #b33;"><b><?= $labEsc ?>: <?= $valEsc ?></b></span>
 				</td>
 <?php
 
@@ -2357,8 +2365,28 @@ class HtmlLib
 			}
 		</script>
 
+<?php
+		// Escaped chmod CSRF + title/labels (security LLL3 / LLL4).
+		$permCsrf = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$permEsc = static function (string $k) use ($login): string {
+			return htmlspecialchars((string) $login->getKeywordUC($k), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+		$permTitle = $permEsc('permissions_change');
+		$permUser = $permEsc('permissions_user');
+		$permGroup = $permEsc('permissions_group');
+		$permOthers = $permEsc('permissions_others');
+		$permRead = $permEsc('permissions_read');
+		$permWrite = $permEsc('permissions_write');
+		$permExec = $permEsc('permissions_execute');
+		$permTotal = $permEsc('permissions_total');
+		$permTarget = $permEsc('permissions_target');
+		$permTargetFile = $permEsc('permissions_target_file');
+		$permTargetDir = $permEsc('permissions_target_dir');
+		$permTargetAll = $permEsc('permissions_target_all');
+		$permRecurse = $permEsc('permissions_recursively');
+?>
 		<form name="frmsend" method="post" action="/display.php" accept-charset="utf-8">
-			<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
+			<input type='hidden' name='frm_token' value='<?= $permCsrf ?>'>
 			<input type="hidden" name="frm_ffile_c_file_permission_f">
 <?php
 		$post['frm_o_o'] = $this->__http_vars['frm_o_o'];
@@ -2373,7 +2401,7 @@ class HtmlLib
 <div style="padding:0px; border:1px solid #eee; background-color: #def; width: 330px; margin: 0 auto;">
 	<table cellpadding="10" cellspacing="5" border="0" width="100%" style="background-color:#efead8;">
 		<tr>
-			<td nowrap width="100%" align="center"><?=$login->getKeywordUC('permissions_change');?></td>
+			<td nowrap width="100%" align="center"><?= $permTitle ?></td>
 		</tr>
 	</table>
 
@@ -2384,9 +2412,9 @@ class HtmlLib
 			</tr>
 			<tr class="tablerow0">
 				<td width="100" class="col">&nbsp;</td>
-				<td width="75" align="center"><?=$login->getKeywordUC('permissions_user');?></td>
-				<td width="75" align="center"><?=$login->getKeywordUC('permissions_group');?></td>
-				<td width="75" align="center"><?=$login->getKeywordUC('permissions_others');?></td>
+				<td width="75" align="center"><?= $permUser ?></td>
+				<td width="75" align="center"><?= $permGroup ?></td>
+				<td width="75" align="center"><?= $permOthers ?></td>
 			</tr>
 			<tr class="tablerow1">
 				<td class="col">&nbsp;</td>
@@ -2395,19 +2423,19 @@ class HtmlLib
 				<td align="center"><input type="checkbox" name="otherall" onclick="allrights(document.chmod,this,'other');"></td>
 			</tr>
 			<tr class="tablerow0">
-				<td class="col"><?=$login->getKeywordUC('permissions_read');?></td>
+				<td class="col"><?= $permRead ?></td>
 				<td align="center"><input type="checkbox" name="ru" onclick="changerights(document.chmod,this,'user',4);"></td>
 				<td align="center"><input type="checkbox" name="rg" onclick="changerights(document.chmod,this,'group',4);"></td>
 				<td align="center"><input type="checkbox" name="ro" onclick="changerights(document.chmod,this,'other',4);"></td>
 			</tr>
 			<tr class="tablerow1">
-				<td class="col"><?=$login->getKeywordUC('permissions_write');?></td>
+				<td class="col"><?= $permWrite ?></td>
 				<td align="center"><input type="checkbox" name="wu" onclick="changerights(document.chmod,this,'user',2);"></td>
 				<td align="center"><input type="checkbox" name="wg" onclick="changerights(document.chmod,this,'group',2);"></td>
 				<td align="center"><input type="checkbox" name="wo" onclick="changerights(document.chmod,this,'other',2);"></td>
 			</tr>
 			<tr class="tablerow0">
-				<td class="col"><?=$login->getKeywordUC('permissions_execute');?></td>
+				<td class="col"><?= $permExec ?></td>
 				<td align="center"><input type="checkbox" name="eu" onclick="changerights(document.chmod,this,'user',1);"></td>
 				<td align="center"><input type="checkbox" name="eg" onclick="changerights(document.chmod,this,'group',1);"></td>
 				<td align="center"><input type="checkbox" name="eo" onclick="changerights(document.chmod,this,'other',1);"></td>
@@ -2416,7 +2444,7 @@ class HtmlLib
 				<td colspan="4" height="2">&nbsp;</td>
 			</tr>
 			<tr class="tablerow1">
-				<td class="col"><?=$login->getKeywordUC('permissions_total');?></td> 
+				<td class="col"><?= $permTotal ?></td> 
 				<td align="center"><input type="text" size="1" name="user" class="textchmoddisable" value="<?= $user ?>"></td>
 				<td align="center"><input type="text" size="1" name="group" class="textchmoddisable" value="<?= $group ?>"></td>
 				<td align="center"><input type="text" size="1" name="other" class="textchmoddisable" value="<?= $other ?>"></td>
@@ -2428,11 +2456,11 @@ class HtmlLib
 	if ($ffile->ttype === 'directory') {
 ?>
 			<tr>
-				<td colspan="4">&nbsp;&nbsp;<?=$login->getKeywordUC('permissions_target');?>:&nbsp;
+				<td colspan="4">&nbsp;&nbsp;<?= $permTarget ?>:&nbsp;
 					<select name="frm_ffile_c_target_f">
-						<option value="file"><?=$login->getKeywordUC('permissions_target_file');?></option>
-						<option value="dir"><?=$login->getKeywordUC('permissions_target_dir');?></option>
-						<option SELECTED value="all"><?=$login->getKeywordUC('permissions_target_all');?></option>
+						<option value="file"><?= $permTargetFile ?></option>
+						<option value="dir"><?= $permTargetDir ?></option>
+						<option SELECTED value="all"><?= $permTargetAll ?></option>
 					</select>
 				</td>
 			</tr>
@@ -2440,7 +2468,7 @@ class HtmlLib
 				<td colspan="4" height="4">&nbsp;</td>
 			</tr>
 			<tr>
-				<td colspan="4">&nbsp;&nbsp;<input type="checkbox" name="frm_ffile_c_recursive_f">&nbsp;<?=$login->getKeywordUC('permissions_recursively');?></td>
+				<td colspan="4">&nbsp;&nbsp;<input type="checkbox" name="frm_ffile_c_recursive_f">&nbsp;<?= $permRecurse ?></td>
 			</tr>
 <?php
 	}
@@ -2516,8 +2544,12 @@ class HtmlLib
 			}
 		</script>
 
+<?php
+		// Escaped ownership CSRF (security LLL3).
+		$ownCsrf = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 		<form name="frmsend" method="post" action="/display.php" accept-charset="utf-8">
-			<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
+			<input type='hidden' name='frm_token' value='<?= $ownCsrf ?>'>
 			<input type="hidden" name="frm_ffile_c_file_ownership_f">
 <?php
 		$post['frm_o_o'] = $oo;
@@ -4494,7 +4526,10 @@ class HtmlLib
 	function print_machine($object)
 	{
 		if (!$object->isClass('client') && !$object->isLocalhost() && $object->syncserver != $object->nname) {
-			return "(on $object->syncserver)";
+			// Escaped syncserver (security LLL2).
+			$srv = htmlspecialchars((string) $object->syncserver, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+			return "(on {$srv})";
 		}
 
 		return '';
@@ -4512,9 +4547,11 @@ class HtmlLib
 		$classdesc = get_classvar_description($class);
 
 		if (!$classdesc) {
+			// Escaped class error (security LLL4).
+			$classEsc = htmlspecialchars((string) $class, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
-		<!-- Cannot access <?= $class ?>::\$__desc -->
-		Cannot access '<?= $class ?>' class
+		<!-- Cannot access <?= $classEsc ?>::\$__desc -->
+		Cannot access '<?= $classEsc ?>' class
 <?php
 
 			exit(0);
@@ -4703,8 +4740,11 @@ class HtmlLib
 			$descr[$name] = get_classvar_description($rclass, $desc);
 
 			if (!$descr[$name]) {
+				// Escaped class/desc error (security LLL4).
+				$rcEsc = htmlspecialchars((string) $rclass, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$descEsc = htmlspecialchars((string) $desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
-			Cannot access static variable <?= $rclass ?>::<?= $desc ?>
+			Cannot access static variable <?= $rcEsc ?>::<?= $descEsc ?>
 <?php
 
 				exit(0);
@@ -4868,6 +4908,8 @@ class HtmlLib
 		}
 
 		$filtername = $parent->getFilterVariableForThis($class);
+		// Escaped filter name for HTML attrs (security LLL4 / MMM1).
+		$filternameEsc = htmlspecialchars((string) $filtername, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 		$sortdir = null;
 		$sortby = null;
@@ -4985,14 +5027,15 @@ class HtmlLib
 		$filterundermes = null;
 
 		if ($login->issetHpFilter($filtername) && $this->checkIfFilter($login->getHPFilter($filtername))) {
-			$filterundermes = "({$login->getKeywordUc('search_on')}";
+			// Escaped list chrome text (security LLL2).
+			$filterundermes = '(' . htmlspecialchars((string) $login->getKeywordUc('search_on'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 			if ($total_num == 0) {
 			//	$filterundermes .= ". Click on show all to see all the objects";
-				$filterundermes .= ". " . $login->getKeywordUc('click_on_showall_to_see_all_objects');
+				$filterundermes .= '. ' . htmlspecialchars((string) $login->getKeywordUc('click_on_showall_to_see_all_objects'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 			}
 
-			$filterundermes .= ")";
+			$filterundermes .= ')';
 		}
 
 		$perpageof = null;
@@ -5010,7 +5053,8 @@ class HtmlLib
 		}
 
 		$total_page = strtil($total_num / $pagesize, ".") + 1;
-		$perpageof = "$lower to $upper of ";
+		// Numeric range only (security LLL2).
+		$perpageof = ((int) $lower) . ' to ' . ((int) $upper) . ' of ';
 
 		if ($sgbl->isBlackBackground()) {
 			$backgroundstring = "background:#222;";
@@ -5038,13 +5082,22 @@ class HtmlLib
 		}
 
 		if (!$sellist && !$this->isResourceClass($class)) {
+			// Escaped list header chrome (security LLL2).
+			$esc = static function ($s): string {
+				return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			};
+			$legPlural = $esc(kloxo_string($pluraldesc));
+			$legShow = $esc(kloxo_string($showvar));
+			$legUnder = $esc($login->getKeywordUc('under'));
+			$legParent = $esc(kloxo_string($parent->getId()));
+			$legTotal = (int) $total_num;
 ?>
 		<br/>
 		<div class="div_showhide">
 			<fieldset style="padding: 0 ; text-align: center ; margin: 0; border: 0; border-top: 1px solid <?= $bordertop ?>">
 				<legend>
-					<span style='font-weight:bold'><?= kloxo_string($pluraldesc) ?> <?= kloxo_string($showvar) ?> <?= $login->getKeywordUc('under') ?> <?= kloxo_string($parent->getId()) ?>
-					<span style="color:red"><?= $filterundermes ?></span> <?= $this->print_machine($parent) ?> (<?= $perpageof ?><?= $total_num ?>)</span>
+					<span style='font-weight:bold'><?= $legPlural ?> <?= $legShow ?> <?= $legUnder ?> <?= $legParent ?>
+					<span style="color:red"><?= $filterundermes ?></span> <?= $this->print_machine($parent) ?> (<?= $perpageof ?><?= $legTotal ?>)</span>
 				</legend>
 			</fieldset>
 		</div>
@@ -5130,14 +5183,14 @@ class HtmlLib
 				if ($last) {
 ?>
 
-							<input type="hidden" id="frm_hpfilter[<?= $filtername ?>][pagenum]" name="frm_hpfilter[<?= $filtername ?>][pagenum]" value="<?= $total_page ?>" class="small">
-							<a href="javascript:page<?= $unique_name ?><?= $i ?>.submit()">...Last&nbsp;</a>
+							<input type="hidden" id="frm_hpfilter[<?= $filternameEsc ?>][pagenum]" name="frm_hpfilter[<?= $filternameEsc ?>][pagenum]" value="<?= (int) $total_page ?>" class="small">
+							<a href="javascript:page<?= $unique_name ?><?= (int) $i ?>.submit()">...Last&nbsp;</a>
 <?php
 				} else {
 ?>
 
-							<input type="hidden" id="frm_hpfilter[<?= $filtername ?>][pagenum]" name="frm_hpfilter[<?= $filtername ?>][pagenum]" value="<?= $i ?>" class="small">
-							<a href="javascript:page<?= $unique_name ?><?= $i ?>.submit()">&nbsp;<?= $i ?>&nbsp;</a>
+							<input type="hidden" id="frm_hpfilter[<?= $filternameEsc ?>][pagenum]" name="frm_hpfilter[<?= $filternameEsc ?>][pagenum]" value="<?= (int) $i ?>" class="small">
+							<a href="javascript:page<?= $unique_name ?><?= (int) $i ?>.submit()">&nbsp;<?= (int) $i ?>&nbsp;</a>
 <?php
 				}
 ?>
@@ -5150,7 +5203,11 @@ class HtmlLib
 			}
 ?>
 					<td width="100%"></td>
-					<td nowrap><b><?= $login->getKeywordUc('show') ?></b>&nbsp;</td>
+<?php
+			// Escaped show label (security LLL4).
+			$showKwEsc2 = htmlspecialchars((string) $login->getKeywordUc('show'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+					<td nowrap><b><?= $showKwEsc2 ?></b>&nbsp;</td>
 <?php
 			$f_page = (int)$login->issetHpFilter($filtername, 'pagesize') ? $login->getHPFilter($filtername, 'pagesize') : $pagesize;
 
@@ -5171,14 +5228,14 @@ class HtmlLib
 					$el = explode("__", $filtername);
 ?>
 					<td width="6" style="border: 1px solid #<?= $col ?>; <?= $bgcolorstring ?>">
-						<form name="perpage_<?= $i ?><?= $unique_name ?>" method="get" action="/display.php" accept-charset="utf-8">
+						<form name="perpage_<?= (int) $i ?><?= $unique_name ?>" method="get" action="/display.php" accept-charset="utf-8">
 <?php
 					$this->print_current_input_var_unset_filter($filtername, array('pagesize', 'pagenum'));
 					$this->print_current_input_vars(array('frm_hpfilter'));
 ?>
-							<input type="hidden" id="frm_hpfilter[<?= $filtername ?>][pagesize]" name="frm_hpfilter[<?= $filtername ?>][pagesize]" value="<?= $l ?>">
+							<input type="hidden" id="frm_hpfilter[<?= $filternameEsc ?>][pagesize]" name="frm_hpfilter[<?= $filternameEsc ?>][pagesize]" value="<?= (int) $l ?>">
 						</form>
-						<a href="javascript:perpage_<?= $i ?><?= $unique_name ?>.submit()">&nbsp;<?= $l ?>&nbsp;</a>
+						<a href="javascript:perpage_<?= (int) $i ?><?= $unique_name ?>.submit()">&nbsp;<?= (int) $l ?>&nbsp;</a>
 					</td>
 <?php
 
@@ -5235,9 +5292,12 @@ class HtmlLib
 			}
 
 			if (!$descr[$name]) {
+				// Escaped class/desc error (security LLL4).
+				$rcEsc = htmlspecialchars((string) $rclass, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$descEsc = htmlspecialchars((string) $desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
-				Cannot access static variable <?= $rclass ?>::<?= $desc ?>
+				Cannot access static variable <?= $rcEsc ?>::<?= $descEsc ?>
 <?php
 
 				exit(0);
@@ -5426,25 +5486,34 @@ class HtmlLib
 					<td colspan="<?= $nlcount ?>">
 <?php
 		if (!$rowcount) {
+			// Escaped empty-list chrome (security LLL2).
+			$esc = static function ($s): string {
+				return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			};
 			if ($login->issetHpFilter($filtername, 'searchstring') && $login->getHPFilter($filtername, 'searchstring')) {
+				$noMatchEsc = $esc($login->getKeywordUc('no_matches_found'));
 ?>
 
-						<div style="width: 100%; text-align: center"><b><?= $login->getKeywordUc('no_matches_found') ?></b></div>
+						<div style="width: 100%; text-align: center"><b><?= $noMatchEsc ?></b></div>
 <?php
 
 			} else {
 				$filtermessagstring = null;
 
 				if ($login->issetHpFilter($filtername)) {
-					$filtermessagstring = $login->getKeywordUc('search_note');
+					$filtermessagstring = $esc($login->getKeywordUc('search_note'));
 ?>
 
 						<div style="width: 100%; text-align: center"><b><?= $filtermessagstring ?></b></div>
 <?php
 				} else {
+					$noEsc = $esc($login->getKeywordUc('no'));
+					$pluralEsc = $esc(function_exists('get_plural') ? get_plural($classdesc2) : ucfirst((string) $classdesc2));
+					$underEsc = $esc($login->getKeywordUc('under'));
+					$parentEsc = $esc($parent->getId());
 ?>
 
-						<div style="width: 100%; text-align: center"><b><?= $login->getKeywordUc('no') ?>&nbsp;<?= function_exists('get_plural') ? get_plural($classdesc2) : ucfirst((string) $classdesc2) ?>&nbsp;<?= $login->getKeywordUc('under') ?>&nbsp;<?= $parent->getId() ?></b></div>
+						<div style="width: 100%; text-align: center"><b><?= $noEsc ?>&nbsp;<?= $pluralEsc ?>&nbsp;<?= $underEsc ?>&nbsp;<?= $parentEsc ?></b></div>
 <?php
 
 				}
@@ -5556,14 +5625,16 @@ class HtmlLib
 										<table width="100%" cellpadding="0" cellspacing="0">
 											<tr>
 <?php
+			// Escaped show label (security LLL4).
+			$showKwEsc = htmlspecialchars((string) $login->getKeywordUc('show'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 			if ($skin_name === 'feather') {
 ?>
-												<td width="40">&nbsp;<b><?= $login->getKeywordUc('show') ?></b>&nbsp;</td>
+												<td width="40">&nbsp;<b><?= $showKwEsc ?></b>&nbsp;</td>
 												<td width="<?= $width ?>">
 <?php
 			} else {
 ?>
-												<td>&nbsp;<b><?= $login->getKeywordUc('show') ?></b>&nbsp;</td>
+												<td>&nbsp;<b><?= $showKwEsc ?></b>&nbsp;</td>
 												<td>
 <?php
 			}
@@ -5574,7 +5645,7 @@ class HtmlLib
 			if ($rpagesize < 1000) {
 ?>
 
-														<select class="textbox" onchange="document.perpage_<?= $unique_name ?>.submit()" style="width:60px; border: 1px solid #888" name="frm_hpfilter[<?= $filtername ?>][pagesize]">
+														<select class="textbox" onchange="document.perpage_<?= $unique_name ?>.submit()" style="width:60px; border: 1px solid #888" name="frm_hpfilter[<?= $filternameEsc ?>][pagesize]">
 <?php
 				$list = array($rpagesize / 2, $rpagesize, $rpagesize * 2, $rpagesize * 4, $rpagesize * 8, $rpagesize * 16);
 
@@ -5597,7 +5668,7 @@ class HtmlLib
 			} else {
 ?>
 
-														<input type="text" class="textbox" style="width:25px" name="frm_hpfilter[<?= $filtername ?>][pagesize]" value="<?= $f_page ?>">
+														<input type="text" class="textbox" style="width:25px" name="frm_hpfilter[<?= $filternameEsc ?>][pagesize]" value="<?= (int) $f_page ?>">
 <?php
 			}
 				
@@ -5647,7 +5718,7 @@ class HtmlLib
 											$this->print_current_input_var_unset_filter($filtername, array('pagenum'));
 											$this->print_current_input_vars(array('frm_hpfilter'));
 ?>
-											<input class="textbox small" style="width:40px; border: 1px solid #888" name="frm_hpfilter[<?= $filtername ?>][pagenum]" type="text" value="<?= $cgi_pagenum ?>"></td>
+											<input class="textbox small" style="width:40px; border: 1px solid #888" name="frm_hpfilter[<?= $filternameEsc ?>][pagenum]" type="text" value="<?= (int) $cgi_pagenum ?>"></td>
 <?php
 				if ($skin_name === 'feather') {
 ?>
@@ -5778,13 +5849,20 @@ class HtmlLib
 		$noselect = (isset($button[1]) && $button[1]) ? 1 : 0;
 		$doconfirm = (isset($button[3]) && $button[3]) ? 1 : 0;
 		$imgbtnsep = $login->getSkinDir() . "/images/btn_sep.gif";
+		// Escaped toolbar form attrs (security MMM4).
+		$formNameEsc = preg_replace('/[^A-Za-z0-9_]/', '', (string) $form_name) ?: 'form';
+		$urlBtnEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		if (preg_match('#^\s*(javascript|data|vbscript):#i', (string) $url)) {
+			$urlBtnEsc = htmlspecialchars('/display.php', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		}
+		$btnCsrf = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 		<td width=10></td>
 		<td align="center" valign=bottom>
 
-			<form name="form<?= $form_name ?>" method="post" action="<?= $url ?>">
-				<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
+			<form name="form<?= $formNameEsc ?>" method="post" action="<?= $urlBtnEsc ?>">
+				<input type='hidden' name='frm_token' value='<?= $btnCsrf ?>'>
 <?php
 		$this->print_input_vars($post);
 
@@ -6741,8 +6819,12 @@ class HtmlLib
 		// MR -- topjumpselect must 'get' for escaping validate token
 ?>
 
+<?php
+		// Escaped switch label (security LLL4).
+		$switchEsc = htmlspecialchars((string) $login->getKeywordUc('switchtoanother'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 		<div style="background: #<?= $skin_color ?> <?= $img_url ?>" class="div_select_switch">
-			<div style="float:left; padding: 4px"><span <?= $forecolorstring ?> style='font-weight:bold;'>&nbsp;<?= $login->getKeywordUc('switchtoanother') ?>&nbsp;</span></div>
+			<div style="float:left; padding: 4px"><span <?= $forecolorstring ?> style='font-weight:bold;'>&nbsp;<?= $switchEsc ?>&nbsp;</span></div>
 			<div style="float:left;">
 				<form name="topjumpselect" method="get" action='/display.php' accept-charset="utf-8">
 <?php
@@ -7942,10 +8024,14 @@ class HtmlLib
 
 		$stylestring = "style='width: 300;' size=20";
 		$iconpath = get_image_path();
+		// Escaped fancy-select CSRF/labels (security MMM4).
+		$fancyCsrf = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$availEsc = htmlspecialchars((string) $login->getKeywordUc('available'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$selEsc = htmlspecialchars((string) $login->getKeywordUc('selected'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 		<form name="<?= $form ?>" action="/display.php" method="post" accept-charset="utf-8">
-			<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
+			<input type='hidden' name='frm_token' value='<?= $fancyCsrf ?>'>
 			<table cellpadding='0' cellspacing='0'>
 				<tr>
 					<td></td>
@@ -7953,9 +8039,9 @@ class HtmlLib
 					<td>
 						<table width='100%' cellspacing='0' cellpadding='0'>
 							<tr align='center'>
-								<td><b><?=$login->getKeywordUc('available');?></b></td>
+								<td><b><?= $availEsc ?></b></td>
 								<td></td>
-								<td><b><?=$login->getKeywordUc('selected');?></b></td>
+								<td><b><?= $selEsc ?></b></td>
 							</tr>
 							<tr height='20' valign='middle'>
 								<input type='hidden' id='frm_action' name='frm_action' value="update">
@@ -8189,9 +8275,14 @@ class HtmlLib
 
 		<table style="padding: 4px; border: 0;">
 			<tr>
-				<td><b><?=$login->getKeywordUc('available');?></b></td>
+<?php
+		// Escaped available/selected labels (security MMM4).
+		$msAvailEsc = htmlspecialchars((string) $login->getKeywordUc('available'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$msSelEsc = htmlspecialchars((string) $login->getKeywordUc('selected'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+				<td><b><?= $msAvailEsc ?></b></td>
 				<td colspan=1></td>
-				<td><b><?=$login->getKeywordUc('selected');?></b></td>
+				<td><b><?= $msSelEsc ?></b></td>
 				<td colspan=1></td>
 			</tr>
 			<tr>
@@ -8709,10 +8800,15 @@ class HtmlLib
 			$this->print_jscript_source($divpop_path);
 ?>
 
+<?php
+			// Escaped password modal keywords (security LLL3).
+			$pwBoxEsc = htmlspecialchars((string) $login->getKeywordUc('password_box'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$pwEscEsc = htmlspecialchars((string) $login->getKeywordUc('press_esc_to_close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 			<div id="showimage" class="kloxo-modal kloxo-password-box" style="visibility: hidden; display: none;">
 				<div style="background-color: #48c; border: 1px solid #ddd;">
 					<div class="kloxo-modal-bar" style="background-color:#48c; border-bottom:1px solid #ddd; color:#fff;" onmousedown="kloxoPopupDrag(event, 'showimage')">
-						<div class="kloxo-modal-title"><span style="color:#fff"><?= $login->getKeywordUc('password_box') ?>&nbsp;-&nbsp;<?= $login->getKeywordUc('press_esc_to_close') ?></span></div>
+						<div class="kloxo-modal-title"><span style="color:#fff"><?= $pwBoxEsc ?>&nbsp;-&nbsp;<?= $pwEscEsc ?></span></div>
 						<a class="kloxo-modal-close" href="javascript:void(0)" onclick="password_hidebox('showimage'); return false;" title="Close"><span style="color:#fff; padding:2px">&#215;</span></a>
 					</div>
 					<div style="background-color: #fed; padding: 10px">
@@ -10047,9 +10143,12 @@ function uploadAbort(e) { // upload abort
 	//	xprint('baselink: ' . $baselink . '; ' . 'info: ' . $info);
 
 		if ($pinfo !== '') {
+			// Escaped help banner (security LLL4).
+			$helpKwEsc = htmlspecialchars((string) $login->getKeywordUc('help'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$helpTitleEsc = htmlspecialchars((string) $this->getTitleOnly($baselink), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 		<div id="infomsg" class="kloxo-help-box" style="display: none; visibility: hidden; width: 600px; margin: 10px auto">
-			<div style="padding: 4px 0; margin: 0 10px;"><span style="background-color: #f88; padding: 4px 8px; font-weight: bold; color: #ffc"><?= $login->getKeywordUc('help') ?>: <?= $this->getTitleOnly($baselink) ?></span> <!-- <?= $info ?> --></div>
+			<div style="padding: 4px 0; margin: 0 10px;"><span style="background-color: #f88; padding: 4px 8px; font-weight: bold; color: #ffc"><?= $helpKwEsc ?>: <?= $helpTitleEsc ?></span></div>
 			<div  style="padding: 0 10px; background-color: #cff; border: 1px solid #f88">
 <?php
 		//	$this->print_curvy_table_start();
@@ -11609,6 +11708,11 @@ function uploadAbort(e) { // upload abort
 		$btnpath = $gen_image_path . "/icon/";
 
 		$filtername = $parent->getFilterVariableForThis($class);
+		// Escaped search toolbar fields (security LLL4 / MMM1).
+		$filternameEsc = htmlspecialchars((string) $filtername, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$urlEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$searchCsrf = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$showallKw = htmlspecialchars((string) $login->getKeywordUc('showall'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		$blackstyle = null;
 
 		if ($sgbl->isBlackBackground()) {
@@ -11620,17 +11724,18 @@ function uploadAbort(e) { // upload abort
 		if ($login->issetHpFilter($filtername, 'searchstring')) {
 			$value = $login->getHPFilter($filtername, 'searchstring');
 		}
+		$valueEsc = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 		if ($button_type !== 'image') {
 			$search_text = "<span title='Search' class='if16'>&#xf0c5;</span>";
-			$showall_text = "<span title=\"{$login->getKeywordUc('showall')}\" class='if16'>&#xf480;</span>";
+			$showall_text = "<span title=\"{$showallKw}\" class='if16'>&#xf480;</span>";
 		} else {
-			$showallimg = "$btnpath/showall_b.gif";
-			$searchimg = "$btnpath/search_b.gif";
+			$showallimg = htmlspecialchars("$btnpath/showall_b.gif", ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$searchimg = htmlspecialchars("$btnpath/search_b.gif", ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 			$search_text = "<img border='0' alt='Search' title='Search' name='search' src='{$searchimg}' height='15' width='15' " .
 				"onMouseOver=\"changeContent('help','search');\" onMouseOut=\"changeContent('help','helparea');\">";
-			$showall_text = "<img alt='{$login->getKeywordUc('showall')}' title=\"{$login->getKeywordUc('showall')}\" name='showall' " .
+			$showall_text = "<img alt='{$showallKw}' title=\"{$showallKw}\" name='showall' " .
 				"src='{$showallimg}' onMouseOver=\"changeContent('help','showall');\" onMouseOut=\"changeContent('help','helparea');\">";
 		}
 
@@ -11647,21 +11752,21 @@ function uploadAbort(e) { // upload abort
 									<tr>
 										<td width="10" height="22"></td>
 										<td height="22">
-											<form name="lpform_search" method="post" action="<?= $url ?>" onsubmit="return checksearch(this,1);" accept-charset="utf-8">
-												<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
+											<form name="lpform_search" method="post" action="<?= $urlEsc ?>" onsubmit="return checksearch(this,1);" accept-charset="utf-8">
+												<input type='hidden' name='frm_token' value='<?= $searchCsrf ?>'>
 												<?= $this->print_current_input_var_unset_filter($filtername, array('sortby', 'sortdir', 'pagenum')) ?>
 
 												<?= $this->print_current_input_vars(array("frm_hpfilter")) ?>
 
-												<input <?= $blackstyle ?> type="text" name="frm_hpfilter[<?= $filtername ?>][searchstring]" value="<?= $value ?>" class='searchbox' size="18">
+												<input <?= $blackstyle ?> type="text" name="frm_hpfilter[<?= $filternameEsc ?>][searchstring]" value="<?= $valueEsc ?>" class='searchbox' size="18">
 											</form>
 										</td>
 										<td width="10" height="22">&nbsp;</td>
 										<td height="22" width="20"><a href='javascript:document.lpform_search.submit()'><?=$search_text;?></a></td>
 										<td width="30" height="22">&nbsp;&nbsp;&nbsp;</td>
 										<td width="70">
-											<form name="lpform_showall" method="post" action="<?= $url ?>" accept-charset="utf-8">
-												<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
+											<form name="lpform_showall" method="post" action="<?= $urlEsc ?>" accept-charset="utf-8">
+												<input type='hidden' name='frm_token' value='<?= $searchCsrf ?>'>
 												<?= $this->print_current_input_vars(array("frm_hpfilter")) ?>
 
 												<input type="hidden" id="frm_clear_filter" name="frm_clear_filter" value="true">
@@ -11670,7 +11775,7 @@ function uploadAbort(e) { // upload abort
 														<td width="31%" align="center" nowrap>&nbsp;<a href="javascript:document.lpform_showall.submit();"><?=$showall_text;?></a></td>
 													</tr>
 													<tr>
-														<td width="69%" nowrap>&nbsp;<a href="javascript:document.lpform_showall.submit();" onMouseOver="changeContent('help','showall');" onMouseOut="changeContent('help','helparea');"><span class="small"><?= $login->getKeywordUc('showall') ?></span></a></td>
+														<td width="69%" nowrap>&nbsp;<a href="javascript:document.lpform_showall.submit();" onMouseOver="changeContent('help','showall');" onMouseOut="changeContent('help','helparea');"><span class="small"><?= $showallKw ?></span></a></td>
 													</tr>
 												</table>
 											</form>

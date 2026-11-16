@@ -3244,6 +3244,103 @@ $findings[] = finding('KKK6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $kkk6Closed,
 	$kkk6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- LLL wave ---
+$htmlLll = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$lll1Closed = contains($htmlLll, 'security LLL1')
+	&& contains($htmlLll, '$headDesc')
+	&& contains($htmlLll, '$headId')
+	&& not_contains($htmlLll, '<?= get_description($obj) ?> Info for <?= $obj->getId() ?>');
+$findings[] = finding('LLL1', 'medium', 'print_info_block raw description/id',
+	'htmllib.php print_info_block', $lll1Closed,
+	$lll1Closed ? 'escaped labels/ids/values' : 'still raw');
+
+$lll2Closed = contains($htmlLll, 'security LLL2')
+	&& contains($htmlLll, '$legParent')
+	&& contains($htmlLll, '$parentEsc')
+	&& contains($htmlLll, 'Escaped syncserver (security LLL2)');
+$findings[] = finding('LLL2', 'medium', 'list chrome / print_machine unescaped',
+	'htmllib.php list header/empty/print_machine', $lll2Closed,
+	$lll2Closed ? 'escaped list chrome' : 'still raw');
+
+$lll3Closed = contains($htmlLll, 'security LLL3')
+	&& contains($htmlLll, '$pwBoxEsc')
+	&& contains($htmlLll, '$ownCsrf')
+	&& contains($htmlLll, '$permCsrf');
+$findings[] = finding('LLL3', 'medium', 'password modal / ownership CSRF raw',
+	'htmllib.php password box + ownership/chmod CSRF', $lll3Closed,
+	$lll3Closed ? 'escaped keywords + CSRF' : 'still raw');
+
+$lll4Closed = contains($htmlLll, 'security LLL4')
+	&& contains($htmlLll, '$helpKwEsc')
+	&& contains($htmlLll, '$switchEsc')
+	&& contains($htmlLll, '$showKwEsc')
+	&& contains($htmlLll, '$filternameEsc')
+	&& contains($htmlLll, '$showallKw');
+$findings[] = finding('LLL4', 'low', 'help/switch/show/search keyword chrome raw',
+	'htmllib.php help banner / switch / show / search', $lll4Closed,
+	$lll4Closed ? 'escaped keywords + filtername' : 'still raw');
+
+$libLll = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibLll = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$lll5Closed = contains($libLll, 'KKK5 / LLL5') && contains($lxlibLll, 'KKK5 / LLL5');
+$findings[] = finding('LLL5', 'low', 'schema rawQuery residual unmarked',
+	'lib.php / lxlib.php schema helpers', $lll5Closed,
+	$lll5Closed ? 'marked LLL5' : 'unmarked');
+
+$extSecLll = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastLll = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$lll6Closed = contains($lxlibLll, 'security LLL6')
+	&& contains($extSecLll, 'security LLL6')
+	&& contains($toastLll, 'security LLL6')
+	&& contains($lxlibLll, 'gated unserialize');
+$findings[] = finding('LLL6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $lll6Closed,
+	$lll6Closed ? 'documented intentional leftovers' : 'unmarked');
+
+// --- MMM wave (follow-on list/search CSRF leftovers) ---
+$htmlMmm = $htmlLll;
+$mmm1Closed = contains($htmlMmm, 'security LLL4 / MMM1')
+	&& contains($htmlMmm, '$filternameEsc')
+	&& not_contains($htmlMmm, 'name="frm_hpfilter[<?= $filtername ?>][pagenum]"')
+	&& not_contains($htmlMmm, 'name="frm_hpfilter[<?= $filtername ?>][pagesize]"')
+	&& not_contains($htmlMmm, 'name="frm_hpfilter[<?= $filtername ?>][searchstring]"');
+$findings[] = finding('MMM1', 'medium', 'list/search frm_hpfilter filtername raw in HTML',
+	'htmllib.php pagination + search toolbar', $mmm1Closed,
+	$mmm1Closed ? 'filternameEsc in attrs' : 'still raw');
+
+$mmm2Closed = contains($htmlMmm, '$valueEsc')
+	&& contains($htmlMmm, '$searchCsrf')
+	&& contains($htmlMmm, 'action="<?= $urlEsc ?>"');
+$findings[] = finding('MMM2', 'medium', 'search toolbar url/csrf/value raw',
+	'htmllib.php list search toolbar', $mmm2Closed,
+	$mmm2Closed ? 'escaped url/csrf/value' : 'still raw');
+
+$mmm3Closed = contains($htmlMmm, 'Cannot access static variable <?= $rcEsc ?>::<?= $descEsc ?>')
+	&& contains($htmlMmm, 'Cannot access \'<?= $classEsc ?>\' class');
+$findings[] = finding('MMM3', 'low', 'Cannot access class error messages raw',
+	'htmllib.php get_class_description / descr miss', $mmm3Closed,
+	$mmm3Closed ? 'escaped class/desc' : 'still raw');
+
+$mmm4Closed = contains($htmlMmm, '$btnCsrf')
+	&& contains($htmlMmm, '$fancyCsrf')
+	&& not_contains($htmlMmm, "value='<?= getCSRFToken(); ?>'");
+$findings[] = finding('MMM4', 'low', 'remaining frm_token CSRF raw in attrs',
+	'htmllib.php toolbar/fancy forms', $mmm4Closed,
+	$mmm4Closed ? 'CSRF htmlspecialchars' : 'still raw');
+
+$mmm5Closed = contains($libLll, 'LLL5 / MMM5') && contains($lxlibLll, 'LLL5 / MMM5');
+$findings[] = finding('MMM5', 'low', 'schema rawQuery residual unmarked',
+	'lib.php / lxlib.php schema helpers', $mmm5Closed,
+	$mmm5Closed ? 'marked MMM5' : 'unmarked');
+
+$mmm6Closed = contains($lxlibLll, 'security MMM6')
+	&& contains($extSecLll, 'security MMM6')
+	&& contains($toastLll, 'security MMM6')
+	&& contains($lxlibLll, 'gated unserialize');
+$findings[] = finding('MMM6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $mmm6Closed,
+	$mmm6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
