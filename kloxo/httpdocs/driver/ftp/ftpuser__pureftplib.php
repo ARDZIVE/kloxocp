@@ -68,8 +68,13 @@ class ftpuser__pureftp extends lxDriverClass
 		$u = $this->main->__var_username;
 		$n = $this->main->nname;
 
-		$c = db_get_count("ftpuser", "nname = '{$n}' AND username = '{$u}'");
-		$d = db_get_count("web", "nname = '{$n}' AND username = '{$u}'");
+		// Quoted equality (security XX1).
+		$where = function_exists('kloxo_sql_and_eq')
+			? kloxo_sql_and_eq(array('nname' => $n, 'username' => $u))
+			: ("nname = '" . str_replace("'", "''", (string) $n) . "' AND username = '"
+				. str_replace("'", "''", (string) $u) . "'");
+		$c = db_get_count("ftpuser", $where);
+		$d = db_get_count("web", $where);
 
 		if (((int)$c !== 0) && ((int)$d !== 0)) {
 			throw new lxException($login->getThrow("no_permit_to_delete_main_ftpuser"), '', $n);

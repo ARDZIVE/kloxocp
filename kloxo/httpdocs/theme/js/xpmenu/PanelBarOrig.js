@@ -32,7 +32,7 @@ function kloxoEscHtml(s) {
 
 function MenuBand(pstrDesc, pstrTip, open)
 {
-	// Properties
+	// Properties — labels are text; drawMenu escapes (security XX4).
 	this.id        = "";		//generated at runtime.
 	this.label     = pstrDesc;	//Text to be displayed in header
 	this.microHelp = pstrTip;	//Tooltip text
@@ -284,6 +284,7 @@ function createMenu(pstrDesc, pstrTip, isOpen)
 {
 	var mnuRet;
 
+	// Plain-text labels only (HTML escaped in drawMenu; security XX4).
 	mnuRet = new MenuBand(pstrDesc, pstrTip, isOpen);
 	mnuRet.id = "mnu_" + _mnuIndex;
 	_arrMenus[_mnuIndex] = mnuRet;

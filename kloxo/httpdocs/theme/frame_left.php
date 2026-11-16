@@ -240,11 +240,13 @@ function xp_panel($object)
 */
 	$url = $ghtml->getFullUrl("a=list&c=ndskshortcut");
 	$rdesc = $ghtml->print_favorites();
-	// JSON-encode HTML for JS (security WW2).
-	$urlEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-	$favTitle = '<span style="color:#003360">Favorites<a href="' . $urlEsc . '" target="mainframe"> [edit] </a></span>';
+	// Plain-text menu title + edit submenu (security WW2 / XX4).
 	$favTitleJs = json_encode(
-		$favTitle,
+		'Favorites',
+		JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+	);
+	$editUrlJs = json_encode(
+		(string) $url,
 		JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
 	);
 	$rdescJs = json_encode(
@@ -252,7 +254,10 @@ function xp_panel($object)
 		JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
 	);
 	if (!is_string($favTitleJs) || $favTitleJs === '') {
-		$favTitleJs = '""';
+		$favTitleJs = '"Favorites"';
+	}
+	if (!is_string($editUrlJs) || $editUrlJs === '') {
+		$editUrlJs = '""';
 	}
 	if (!is_string($rdescJs) || $rdescJs === '') {
 		$rdescJs = '""';
@@ -260,13 +265,14 @@ function xp_panel($object)
 ?>
 
 			xxpFav = createMenu(<?= $favTitleJs ?>, '', true);
+			createSubMenu(xxpFav, 'Edit favorites', <?= $editUrlJs ?>, '', '', '', 'mainframe');
 			createSubMenu(xxpFav, <?= $rdescJs ?>, '', '', '', '', '');
 <?php
 
 	if ($login->isLte('reseller')) {
 ?>
 
-			xxpDescr = createMenu('<span style="color:#003360">Usage', '', true);
+			xxpDescr = createMenu('Usage', '', true);
 <?php
 						$rdesc = null;
 

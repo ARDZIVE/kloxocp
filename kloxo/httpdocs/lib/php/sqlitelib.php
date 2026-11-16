@@ -266,13 +266,41 @@ class Sqlite
 	{
 		$ret = null;
 
-		if ($list) {
-			$select = implode(",", $list);
-		} else {
-			$select = "*";
+		// Table + column allow-list (security XX3).
+		$table = (string) $this->__sqtable;
+		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table)) {
+			log_database('DbError: getRowsGeneric refused unsafe table ident');
+
+			return null;
 		}
 
-		$query = "select {$select} from {$this->__sqtable} {$string};";
+		if ($list) {
+			if (!is_array($list)) {
+				return null;
+			}
+			$cols = array();
+			foreach ($list as $col) {
+				$col = (string) $col;
+				if ($col === '*') {
+					$cols[] = '*';
+					continue;
+				}
+				if (!kloxo_sql_ident($col)) {
+					continue;
+				}
+				$cols[] = $col;
+			}
+			if ($cols === array()) {
+				log_database('DbError: getRowsGeneric refused empty/unsafe column list');
+
+				return null;
+			}
+			$select = implode(',', $cols);
+		} else {
+			$select = '*';
+		}
+
+		$query = "select {$select} from {$table} {$string};";
 		$fulresult = $this->rl_query($query);
 
 		// The ser varialbles are now handled in the setfromarray, and this saves us a lot time.

@@ -2476,6 +2476,61 @@ $findings[] = finding('WW6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo / toast', $ww6Closed,
 	$ww6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- XX wave ---
+$ftpXx = file_text($root, 'kloxo/httpdocs/driver/ftp/ftpuser__pureftplib.php');
+$xx1Closed = contains($ftpXx, 'security XX1')
+	&& contains($ftpXx, 'kloxo_sql_and_eq')
+	&& not_contains($ftpXx, "nname = '{\$n}' AND username = '{\$u}'");
+$findings[] = finding('XX1', 'medium', 'ftpuser db_get_count concatenates nname/username',
+	'ftpuser__pureftplib.php dbactionDelete', $xx1Closed,
+	$xx1Closed ? 'kloxo_sql_and_eq' : 'still raw concat');
+
+$webXx = file_text($root, 'kloxo/httpdocs/driver/web/weblib.php');
+$xx2Closed = contains($webXx, 'security XX2')
+	&& contains($webXx, 'kloxo_sql_and_eq')
+	&& not_contains($webXx, "customer_name = '{\$this->customer_name}' AND docroot = '\$this->docroot'");
+$findings[] = finding('XX2', 'medium', 'weblib db_get_count concatenates customer_name/docroot',
+	'weblib.php delete docroot check', $xx2Closed,
+	$xx2Closed ? 'kloxo_sql_and_eq' : 'still raw concat');
+
+$sqlXx = file_text($root, 'kloxo/httpdocs/lib/php/sqlitelib.php');
+$xx3Closed = contains($sqlXx, 'security XX3')
+	&& contains($sqlXx, 'getRowsGeneric refused unsafe table ident')
+	&& contains($sqlXx, 'kloxo_sql_ident($col)');
+$findings[] = finding('XX3', 'low', 'getRowsGeneric select list without column ident check',
+	'sqlitelib.php getRowsGeneric', $xx3Closed,
+	$xx3Closed ? 'table + column allow-list' : 'still raw implode');
+
+$panelXx = file_text($root, 'kloxo/httpdocs/theme/js/xpmenu/PanelBarOrig.js');
+$frameXx = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
+$xx4Closed = contains($panelXx, 'security XX4')
+	&& contains($panelXx, 'Plain-text labels only')
+	&& contains($frameXx, 'security WW2 / XX4')
+	&& contains($frameXx, "createMenu('Usage'")
+	&& not_contains($frameXx, "createMenu('<span style=\"color:#003360\">Usage'");
+$findings[] = finding('XX4', 'low', 'createMenu accepts raw HTML labels',
+	'PanelBarOrig.js / frame_left.php', $xx4Closed,
+	$xx4Closed ? 'plain-text titles + edit submenu' : 'still HTML labels');
+
+$libXx = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibXx = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$xx5Closed = contains($libXx, 'security LL3 / VV5 / WW5 / XX5')
+	&& contains($libXx, 'security MM1 / VV5 / WW5 / XX5')
+	&& contains($lxlibXx, 'security TT1 / VV5 / WW5 / XX5');
+$findings[] = finding('XX5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $xx5Closed,
+	$xx5Closed ? 'ident-gated sites marked XX5' : 'unmarked');
+
+$extSecXx = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastXx = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$xx6Closed = contains($lxlibXx, 'security XX6')
+	&& contains($extSecXx, 'security XX6')
+	&& contains($toastXx, 'security XX6')
+	&& contains($lxlibXx, 'gated unserialize');
+$findings[] = finding('XX6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $xx6Closed,
+	$xx6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

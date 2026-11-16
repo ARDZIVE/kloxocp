@@ -778,7 +778,15 @@ class Web extends Lxdb
 		$rm(array('rm', '-f', '--', "/etc/webalizer/webalizer.{$dom}.conf"));
 
 		// MR -- also delete docroot if only refer to 1 web
-		$c = db_get_count("web", "customer_name = '{$this->customer_name}' AND docroot = '$this->docroot'");
+		// Quoted equality (security XX2).
+		$where = function_exists('kloxo_sql_and_eq')
+			? kloxo_sql_and_eq(array(
+				'customer_name' => $this->customer_name,
+				'docroot' => $this->docroot,
+			))
+			: ("customer_name = '" . str_replace("'", "''", (string) $this->customer_name)
+				. "' AND docroot = '" . str_replace("'", "''", (string) $this->docroot) . "'");
+		$c = db_get_count("web", $where);
 
 		if ((int)$c === 1) {
 			$doc = (string) $this->getFullDocRoot();
