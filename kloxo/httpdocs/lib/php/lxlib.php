@@ -2372,7 +2372,7 @@ function get_image_path($path = null)
 }
 
 /**
- * Quote a value for legacy Sqlite rawQuery strings (security LL3).
+ * Quote a value for legacy Sqlite rawQuery strings (security LL3 / MM6).
  * Prefer getRowsWhere/setRow; use this only when raw SQL is unavoidable.
  */
 function kloxo_sql_quote($value): string
@@ -2385,6 +2385,12 @@ function kloxo_sql_ident($name): bool
 {
 	return is_string($name) && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) === 1;
 }
+
+/**
+ * Intentional residual surfaces (security MM6): crypt() verify-only in
+ * check_password; getShellCommand stub; SMTP/FormMail stubs. Do not mint
+ * new crypt/md5 password hashes.
+ */
 
 function randomString($length)
 {

@@ -21,7 +21,8 @@ $gl_class_array['webcache__nginx'] =  "driver/web/webcache__nginxlib.php";
 //--// $gl_class_array['webtraffic__nginx'] = "driver/web/webtraffic__nginxlib.php";
 
 
-$gl_class_array['easyinstallersnapshot__sync'] = "driver/web/easyinstallersnapshot__synclib.php";
+// EasyInstaller sync removed (security MM4).
+// $gl_class_array['easyinstallersnapshot__sync'] = "driver/web/easyinstallersnapshot__synclib.php";
 $gl_class_array['davuser__none'] = "driver/web/davuser__nonelib.php";
 
 $gl_class_array['dirprotect__nginx'] = "driver/web/dirprotect__nginxlib.php";
@@ -35,8 +36,10 @@ $gl_class_array['webmimetype__apache'] = "driver/web/mimehandler__apachelib.php"
 $gl_class_array['webhandler__apache'] = "driver/web/mimehandler__apachelib.php";
 
 
-$gl_class_array['easyinstaller__linux'] = "driver/web/easyinstaller__linuxlib.php";
-$gl_class_array['all_easyinstaller__linux'] = "driver/web/all_easyinstaller__linuxlib.php";
+// EasyInstaller linux drivers removed (security MM4).
+// $gl_class_array['easyinstaller__linux'] = "driver/web/easyinstaller__linuxlib.php";
+// $gl_class_array['all_easyinstaller__linux'] = "driver/web/all_easyinstaller__linuxlib.php";
+
 
 //--// $gl_class_array['autoresponder__mailenable'] = "driver/mmail/autoresponder__mailenable.php";
 //--// $gl_class_array['mailinglist__mailenable'] = "driver/mmail/mailinglist__mailenablelib.php";

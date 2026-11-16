@@ -167,26 +167,61 @@ function lxfile_cp_if_not_exists($src, $dst)
 	}
 }
 
+/**
+ * Safe SET/WHERE fragment: ident = 'quoted-literal' only (security MM5).
+ *
+ * @return string|null
+ */
+function kloxo_sql_assign_clause($clause)
+{
+	$clause = is_string($clause) ? trim($clause) : '';
+	if ($clause === '') {
+		return null;
+	}
+	if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*\'((?:[^\'\\\\]|\\\\.)*)\'$/', $clause, $m) !== 1) {
+		return null;
+	}
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($m[1])) {
+		return null;
+	}
+	$val = stripcslashes($m[2]);
+	$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($val) : str_replace("'", "''", $val);
+
+	return "{$m[1]} = '{$esc}'";
+}
+
 function db_set_value($table, $set, $where, $extra = null)
 {
-	// Table name allow-list (security LL3); $set/$where remain caller-owned.
+	// Table + SET/WHERE allow-list (security LL3 / MM5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table)) {
 		return;
 	}
+	$setOk = kloxo_sql_assign_clause($set);
+	$whereOk = kloxo_sql_assign_clause($where);
+	if ($setOk === null || $whereOk === null) {
+		log_log('security', 'db_set_value refused unsafe set/where (security MM5)');
+
+		return;
+	}
+	$extraOk = null;
+	if ($extra !== null && $extra !== '') {
+		$extraOk = kloxo_sql_assign_clause($extra);
+		if ($extraOk === null) {
+			log_log('security', 'db_set_value refused unsafe extra (security MM5)');
+
+			return;
+		}
+	}
 	$sq = new Sqlite(null, $table);
 
-	if ($extra) {
-		$extra = "AND $extra";
-	}
-
-	$count = db_get_count($table, $where);
+	$count = db_get_count($table, $whereOk);
 
 	if ($count < 1) {
-		$data = str_replace("AND", ",", $set . " " . $extra);
-
+		$data = $setOk . ($extraOk !== null ? ", {$extraOk}" : '');
 		$sq->rawQuery("INSERT INTO {$table} SET {$data}");
 	} else {
-		$sq->rawQuery("UPDATE {$table} SET {$set} WHERE {$where} {$extra}");
+		$extraSql = ($extraOk !== null) ? " AND {$extraOk}" : '';
+		$sq->rawQuery("UPDATE {$table} SET {$setOk} WHERE {$whereOk}{$extraSql}");
 	}
 }
 
@@ -3167,7 +3202,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111628';
+	return '10.1-2026111629';
 }
 
 function getDownloadServer()
@@ -8145,7 +8180,13 @@ function fix_mysql_name_problem()
 		if (!csa($r['nname'], "___")) {
 			return;
 		}
-		$sq->rawQuery("update mysqldb set nname = '{$r['dbname']}' where dbname = '{$r['dbname']}'");
+		$dbn = isset($r['dbname']) ? (string) $r['dbname'] : '';
+		// MariaDB name charset + quote (security MM1).
+		if ($dbn === '' || preg_match('/^[A-Za-z0-9_]{1,64}$/', $dbn) !== 1) {
+			continue;
+		}
+		$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($dbn) : str_replace("'", "''", $dbn);
+		$sq->rawQuery("update mysqldb set nname = '{$esc}' where dbname = '{$esc}'");
 	}
 }
 
@@ -8158,8 +8199,13 @@ function fix_mysql_username_problem()
 		if (!csa($r['nname'], "___")) {
 			return;
 		}
-
-		$sq->rawQuery("update mysqldbuser set nname = '{$r['username']}' where username = '{$r['username']}'");
+		$user = isset($r['username']) ? (string) $r['username'] : '';
+		// MariaDB user charset + quote (security MM1).
+		if ($user === '' || preg_match('/^[A-Za-z0-9_]{1,64}$/', $user) !== 1) {
+			continue;
+		}
+		$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($user) : str_replace("'", "''", $user);
+		$sq->rawQuery("update mysqldbuser set nname = '{$esc}' where username = '{$esc}'");
 	}
 }
 
@@ -8192,12 +8238,16 @@ function add_domain_backup_dir($nolog = null)
 
 function changeColumn($tbl_name, $changelist)
 {
+	// Table/column allow-list (security MM1).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($tbl_name) || !is_array($changelist)) {
+		return;
+	}
 	dprint("Change Column.............\n");
 	$db = new Sqlite($tbl_name);
 	$columnold = $db->getColumnTypes();
 //	$oldcolumns = array_keys($columnold);
 	$conlist = array_flip($changelist);
-	$query = "select * from" . " " . $tbl_name;
+	$query = "select * from {$tbl_name}";
 	$res = $db->rawQuery($query);
 
 	$newcollist = array();
@@ -8206,8 +8256,15 @@ function changeColumn($tbl_name, $changelist)
 		$check = array_search($l, $conlist);
 
 		if ($check) {
-			$newcollist[] = $changelist[$l];
+			$new = $changelist[$l];
+			if (!kloxo_sql_ident($new)) {
+				continue;
+			}
+			$newcollist[] = $new;
 		} else {
+			if (!kloxo_sql_ident($l)) {
+				continue;
+			}
 			$newcollist[] = $l;
 		}
 	}
@@ -8218,34 +8275,50 @@ function changeColumn($tbl_name, $changelist)
 
 function changeValues($res, $tbl_name, $db, $newfields)
 {
+	// Identified table + quoted cell values only (security MM1).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($tbl_name)) {
+		return;
+	}
+	if (!is_string($newfields) || preg_match('/^[A-Za-z0-9_,]+$/', $newfields) !== 1) {
+		return;
+	}
 	dprint("$newfields");
 	dprint("\n\n");
-	$query = "create table lxt_" . $tbl_name . "(" . $newfields . ")";
+	$tmp = 'lxt_' . $tbl_name;
+	$query = "create table {$tmp}({$newfields})";
 	$db->rawQuery($query);
 
 	foreach ($res as $r) {
-		$newtemp = "";
+		$newtemp = array();
 		foreach ($r as $r1) {
-			$newtemp[] = "'" . $r1 . "'";
+			$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($r1) : str_replace("'", "''", (string) $r1);
+			$newtemp[] = "'" . $esc . "'";
 		}
 		$t = implode(",", $newtemp);
-		$db->rawQuery("insert into lxt_" . $tbl_name . " values" . "(" . $t . ")");
+		$db->rawQuery("insert into {$tmp} values({$t})");
 	}
-	$db->rawQuery("drop table " . $tbl_name);
-	$db->rawQuery("create table " . $tbl_name . " as select * from lxt_" . "$tbl_name");
-	$db->rawQuery("drop table lxt_" . $tbl_name);
+	$db->rawQuery("drop table {$tbl_name}");
+	$db->rawQuery("create table {$tbl_name} as select * from {$tmp}");
+	$db->rawQuery("drop table {$tmp}");
 	dprint("Table Information of $tbl_name  Updated with New Fields\n\n");
 }
 
 function droptable($tbl_name)
 {
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($tbl_name)) {
+		return;
+	}
 	dprint("Drop table...............\n");
 	$db = new Sqlite($tbl_name);
-	$db->rawQuery("drop table " . $tbl_name);
+	$db->rawQuery("drop table {$tbl_name}");
 }
 
 function dropcolumn($tbl_name, $column)
 {
+	// Table/column allow-list (security MM1).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($tbl_name) || !is_array($column)) {
+		return;
+	}
 	dprint("Drop Column...............\n");
 
 	$db = new Sqlite($tbl_name);
@@ -8255,6 +8328,9 @@ function dropcolumn($tbl_name, $column)
 	$newcollist = array();
 
 	foreach ($oldcolumns as $key => $l) {
+		if (!kloxo_sql_ident($l)) {
+			continue;
+		}
 		$t = array_search(trim($l), $column);
 
 		if (!empty($t)) {
@@ -8267,16 +8343,19 @@ function dropcolumn($tbl_name, $column)
 
 	$newfields = implode(",", $newcollist);
 	dprint("New fields are \n");
-	$query = "select " . $newfields . " from" . " " . $tbl_name;
+	$query = "select {$newfields} from {$tbl_name}";
 	$res = $db->rawQuery($query);
 	changeValues($res, $tbl_name, $db, $newfields);
 }
 
 function getTabledetails($tbl_name)
 {
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($tbl_name)) {
+		return;
+	}
 	dprint("table. values are ..........\n");
 	$db = new Sqlite($tbl_name);
-	$res = $db->rawQuery("select * from " . $tbl_name);
+	$res = $db->rawQuery("select * from {$tbl_name}");
 	print_r($res);
 }
 

@@ -36,9 +36,12 @@ $gl_class_array["all_mailinglist"] = "driver/mmail/mailinglistlib.php";
 
 $gl_class_array["autoresponder"] = "driver/mmail/autoresponderlib.php";
 
-$gl_class_array["easyinstallersnapshot"] = "driver/web/easyinstallersnapshotlib.php";
-$gl_class_array["easyinstaller"] = "driver/web/easyinstallerlib.php";
-$gl_class_array["all_easyinstaller"] = "driver/web/all_easyinstallerlib.php";
+// EasyInstaller removed (security MM4 / LL1 / C5) — class map entries kept
+// commented so stale URLs fail closed instead of loading installers.
+// $gl_class_array["easyinstallersnapshot"] = "driver/web/easyinstallersnapshotlib.php";
+// $gl_class_array["easyinstaller"] = "driver/web/easyinstallerlib.php";
+// $gl_class_array["all_easyinstaller"] = "driver/web/all_easyinstallerlib.php";
+
 
 $gl_class_array["domaintraffichistory"] = "lib/domain/domaintraffichistorylib.php";
 

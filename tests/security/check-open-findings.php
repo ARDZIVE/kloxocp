@@ -1809,6 +1809,62 @@ $findings[] = finding('LL6', 'low', 'PASSWORD_DEFAULT fallback when Argon2id mis
 	'lxlib.php kloxo_password_hash', $ll6Closed,
 	$ll6Closed ? 'Argon2id only; fail closed' : 'still PASSWORD_DEFAULT fallback');
 
+// --- Wave 24 (MM1–MM6) ---
+$libMm = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$mm1Closed = contains($libMm, 'security MM1')
+	&& contains($libMm, 'kloxo_sql_ident($tbl_name)')
+	&& not_contains($libMm, "nname = '{\$r['dbname']}' where dbname = '{\$r['dbname']}'")
+	&& not_contains($libMm, '"insert into lxt_" . $tbl_name . " values" . "(" . $t . ")"');
+$findings[] = finding('MM1', 'medium', 'rawQuery schema/migrate paths unquoted',
+	'lib.php fix_mysql_* / changeValues / droptable', $mm1Closed,
+	$mm1Closed ? 'ident allow-list + quoted cells' : 'still raw migrate SQL');
+
+$extSec = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$mm2Closed = contains($extSec, 'security MM2')
+	&& is_dir($root . '/kloxo/httpdocs/theme/extjs')
+	&& is_file($root . '/kloxo/httpdocs/theme/extjs/js/ext-all.js');
+$findings[] = finding('MM2', 'medium', 'theme/extjs ExtJS 2.x unmarked EOL bundle',
+	'theme/extjs/', $mm2Closed,
+	$mm2Closed ? 'SECURITY.kloxo: retained for Kloxo-MR UI only' : 'ExtJS unmarked');
+
+$smtpMm = file_text($root, 'kloxo/httpdocs/lib/extra/class.smtp.php');
+$mm3Closed = contains($smtpMm, 'security MM3')
+	&& contains($smtpMm, 'security JJ5')
+	&& not_contains($smtpMm, 'pack(\'H*\', md5')
+	&& strlen($smtpMm) < 1200;
+$findings[] = finding('MM3', 'low', 'class.smtp.php HMAC-MD5 / EOL SMTP stack',
+	'lib/extra/class.smtp.php', $mm3Closed,
+	$mm3Closed ? 'stub refuses construction' : 'full SMTP class present');
+
+$defMm = file_text($root, 'kloxo/httpdocs/lib/define.php');
+$drvMm = file_text($root, 'kloxo/httpdocs/lib/driver_define.php');
+$cliMm = file_text($root, 'kloxo/httpdocs/lib/client/clientlib.php');
+$baseMm = file_text($root, 'kloxo/httpdocs/lib/client/clientbaselib.php');
+$mm4Closed = contains($defMm, 'security MM4')
+	&& !preg_match('/^\s*\$gl_class_array\["easyinstaller"\]/m', $defMm)
+	&& contains($drvMm, 'security MM4')
+	&& !preg_match('/^\s*\$gl_class_array\[\'easyinstaller__linux\'\]/m', $drvMm)
+	&& contains($cliMm, 'security MM4')
+	&& contains($baseMm, 'security MM4')
+	&& not_contains($baseMm, 'createDefaultApplication($this->domain_name');
+$findings[] = finding('MM4', 'low', 'EasyInstaller still registered in define/client tiles',
+	'define.php / driver_define / client*', $mm4Closed,
+	$mm4Closed ? 'class map commented; createDefault refused' : 'EasyInstaller still registered');
+
+$mm5Closed = contains($libMm, 'security MM5')
+	&& contains($libMm, 'function kloxo_sql_assign_clause')
+	&& contains($libMm, 'db_set_value refused unsafe');
+$findings[] = finding('MM5', 'low', 'db_set_value accepts free-form set/where',
+	'lib.php db_set_value', $mm5Closed,
+	$mm5Closed ? 'assign-clause allow-list only' : 'still free-form set/where');
+
+$lxlibMm = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$mm6Closed = contains($lxlibMm, 'security MM6')
+	&& contains($lxlibMm, 'crypt() verify-only');
+$findings[] = finding('MM6', 'low', 'intentional residual crypt/getShellCommand/stubs',
+	'lxlib.php', $mm6Closed,
+	$mm6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

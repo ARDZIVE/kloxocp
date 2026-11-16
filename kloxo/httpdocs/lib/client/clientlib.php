@@ -363,19 +363,9 @@ class Client extends ClientBase
 
 	function createDefaultApplication($dname, $appname)
 	{
-		$p['class'] = 'easyinstaller';
-		$p['parent-class'] = "web";
-		$p['parent-name'] = $dname;
-		$p['v-appname'] = $appname;
-		$p['v-installdir'] = null;
-		$p['v-easyinstallermisc_b_s_admin_email'] = $this->contactemail;
-		$p['v-easyinstallermisc_b_s_admin_name'] = 'admin';
-		$p['v-easyinstallermisc_b_s_admin_password'] = 'admin';
-		
-		try {
-			__cmd_desc_add($p, null);
-		} catch (exception $e) {
-		}
+		// EasyInstaller removed (security MM4 / LL1).
+		global $login;
+		throw new lxException($login ? $login->getThrow('easyinstaller_removed') : 'easyinstaller_removed', '');
 	}
 
 	function updateCron_mailto($param)

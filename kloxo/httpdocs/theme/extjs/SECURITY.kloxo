@@ -1,0 +1,9 @@
+# ExtJS 2.x (security MM2)
+
+Retained on purpose for the Kloxo-MR panel UI (left tree, dialogs, ajax
+forms). Do not delete without a UI rewrite.
+
+- Loaded only from `/theme/extjs/` on this host (no CDN).
+- Do not add new ExtJS eval of untrusted strings; prefer JSON.parse paths
+  already used for ajax (see N19 / htmllib).
+- EOL library: treat as UI dependency debt, not a mail/auth surface.

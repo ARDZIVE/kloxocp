@@ -139,8 +139,15 @@ class Domaind extends DomainBase
 	//	$f = $parent->getObject('ftpuser');
 	//	$f->setupdateSubaction('changeowner');
 
-		// MR -- all above action for ftpuser not work; so, change ftuser table directly
-		db_set_value('ftpuser', "parent_clname = 'client-{$parent->username}'", "nname = '{$this->nname}'"); 
+		// Quoted via db_set_value allow-list (security MM5).
+		$user = is_string($parent->username) ? $parent->username : '';
+		$nn = is_string($this->nname) ? $this->nname : '';
+		if (preg_match('/^[A-Za-z0-9._@-]{1,64}$/', $user) === 1
+			&& preg_match('/^[A-Za-z0-9._@-]{1,253}$/', $nn) === 1) {
+			$dbUser = str_replace("'", "''", $user);
+			$dbNn = str_replace("'", "''", $nn);
+			db_set_value('ftpuser', "parent_clname = 'client-{$dbUser}'", "nname = '{$dbNn}'");
+		} 
 
 		$mmail = $this->getObject('mmail');
 		$mmail->systemuser = $parent->username;

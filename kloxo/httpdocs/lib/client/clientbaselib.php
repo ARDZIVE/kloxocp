@@ -688,10 +688,9 @@ class ClientBase extends ClientCore
 
 		$this->contactemail = trim((string)($this->contactemail ?? ''));
 
+		// EasyInstaller removed (security MM4) — refuse leftover form values.
 		if (!empty($this->easyinstaller_app) && $this->easyinstaller_app !== '--leave--') {
-			if (!validate_email($this->contactemail)) {
-				throw new lxException($login->getThrow("easyinstaller_needs_valid_contactemail"), '', $this->contactemail);
-			}
+			throw new lxException($login->getThrow('easyinstaller_removed'), '', (string) $this->easyinstaller_app);
 		}
 
 		$mysqlNum = isset($this->priv->mysqldb_num) ? $this->priv->mysqldb_num : 0;
@@ -706,10 +705,6 @@ class ClientBase extends ClientCore
 		if ($sgbl->isKloxo() && !empty($this->domain_name)) {
 			$this->default_domain = $this->domain_name;
 			$this->createDefaultDomain($this->domain_name, $this->dnstemplate_name ?? '');
-
-			if (!empty($this->easyinstaller_app) && $this->easyinstaller_app !== '--leave--') {
-				$this->createDefaultApplication($this->domain_name, $this->easyinstaller_app);
-			}
 		}
 
 		try {
