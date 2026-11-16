@@ -327,7 +327,14 @@ class Sqlite
 
 	function getRowsWhere($string, $list = null)
 	{
-		return $this->getRowsGeneric("where {$string}", $list);
+		// Refuse stacked queries (security YY3). Prefer getRows / kloxo_sql_* fragments.
+		$q = (string) $string;
+		if ($q === '' || preg_match('/;|--|\/\*|\bunion\b/i', $q)) {
+			log_database('DbError: getRowsWhere refused unsafe where fragment');
+			return null;
+		}
+
+		return $this->getRowsGeneric("where {$q}", $list);
 	}
 
 	function getRowsOr($field1, $value1, $field2, $value2)

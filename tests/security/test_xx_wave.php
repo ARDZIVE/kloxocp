@@ -58,7 +58,9 @@ expect(
 	&& str_contains($panel, 'Plain-text labels only')
 	&& str_contains($frame, 'security WW2 / XX4')
 	&& str_contains($frame, "createMenu('Usage'")
-	&& !str_contains($frame, "createMenu('<span style=\"color:#003360\">Usage'"),
+	&& str_contains($frame, 'Edit favorites')
+	&& !str_contains($frame, "createMenu('<span style=\"color:#003360\">Usage'")
+	&& !str_contains($frame, 'print_favorites()'),
 	'XX4 createMenu plain-text labels'
 );
 

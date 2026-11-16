@@ -2435,11 +2435,13 @@ $findings[] = finding('WW1', 'medium', 'topbar_left concatenates loginas into LI
 
 $frameWw = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
 $ww2Closed = contains($frameWw, 'security WW2')
-	&& contains($frameWw, 'rdescJs')
-	&& not_contains($frameWw, "createSubMenu(xxpFav, '<?=\$rdesc?>'");
+	&& (contains($frameWw, '/ YY2') || contains($frameWw, 'rdescJs'))
+	&& contains($frameWw, 'json_encode')
+	&& not_contains($frameWw, "createSubMenu(xxpFav, '<?=\$rdesc?>'")
+	&& not_contains($frameWw, 'print_favorites()');
 $findings[] = finding('WW2', 'medium', 'frame_left Favorites embeds rdesc into JS string',
 	'frame_left.php createSubMenu favorites', $ww2Closed,
-	$ww2Closed ? 'json_encode title + rdesc' : 'still raw PHP-in-JS');
+	$ww2Closed ? 'json_encode + per-item createSubMenu (YY2)' : 'still raw PHP-in-JS');
 
 $lxclassWw = file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php');
 $ww3Closed = contains($lxclassWw, 'security WW3')
@@ -2507,10 +2509,12 @@ $xx4Closed = contains($panelXx, 'security XX4')
 	&& contains($panelXx, 'Plain-text labels only')
 	&& contains($frameXx, 'security WW2 / XX4')
 	&& contains($frameXx, "createMenu('Usage'")
-	&& not_contains($frameXx, "createMenu('<span style=\"color:#003360\">Usage'");
+	&& contains($frameXx, 'Edit favorites')
+	&& not_contains($frameXx, "createMenu('<span style=\"color:#003360\">Usage'")
+	&& not_contains($frameXx, 'print_favorites()');
 $findings[] = finding('XX4', 'low', 'createMenu accepts raw HTML labels',
 	'PanelBarOrig.js / frame_left.php', $xx4Closed,
-	$xx4Closed ? 'plain-text titles + edit submenu' : 'still HTML labels');
+	$xx4Closed ? 'plain-text titles + per-item favorites' : 'still HTML labels');
 
 $libXx = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
 $lxlibXx = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
@@ -2530,6 +2534,60 @@ $xx6Closed = contains($lxlibXx, 'security XX6')
 $findings[] = finding('XX6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
 	'lxlib.php / extjs SECURITY.kloxo / toast', $xx6Closed,
 	$xx6Closed ? 'documented intentional leftovers' : 'unmarked');
+
+// --- YY wave ---
+$htmlYy = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$coreYy = file_text($root, 'kloxo/httpdocs/theme/coredisplaylib.php');
+$yy1Closed = contains($htmlYy, 'security YY1 / YY4')
+	&& contains($htmlYy, "href=\"' . \$esc(\$url) . '\"")
+	&& contains($coreYy, 'security YY1')
+	&& contains($coreYy, "href=\"' . \$esc(\$url) . '\"")
+	&& not_contains($htmlYy, '<a href=$url target=$target>')
+	&& not_contains($coreYy, '<a href=$url target=$target>');
+$findings[] = finding('YY1', 'medium', 'print_favorites builds HTML with unescaped url/image/str',
+	'htmllib.php / coredisplaylib.php print_favorites', $yy1Closed,
+	$yy1Closed ? 'quoted attrs + htmlspecialchars' : 'still raw HTML concat');
+
+$frameYy = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
+$yy2Closed = contains($frameYy, 'security WW2 / XX4 / YY2')
+	&& contains($frameYy, "get_favorite('ndskshortcut')")
+	&& contains($frameYy, 'createSubMenu(xxpFav, <?= $labelJs ?>, <?= $urlJs ?>')
+	&& not_contains($frameYy, 'print_favorites()');
+$findings[] = finding('YY2', 'medium', 'frame_left injects favorites HTML blob as one submenu label',
+	'frame_left.php Favorites menu', $yy2Closed,
+	$yy2Closed ? 'per-item createSubMenu text+link' : 'still HTML blob');
+
+$sqlYy = file_text($root, 'kloxo/httpdocs/lib/php/sqlitelib.php');
+$yy3Closed = contains($sqlYy, 'security YY3')
+	&& contains($sqlYy, 'getRowsWhere refused unsafe where fragment');
+$findings[] = finding('YY3', 'low', 'getRowsWhere accepts free-form WHERE without stacked-query gate',
+	'sqlitelib.php getRowsWhere', $yy3Closed,
+	$yy3Closed ? 'refuses ; -- /* UNION' : 'still ungated');
+
+$yy4Closed = contains($htmlYy, 'security YY1 / YY4')
+	&& not_contains(function_body($htmlYy, 'print_favorites'), '$vvar = isset($l[$vvar])');
+$findings[] = finding('YY4', 'low', 'htmllib print_favorites assigns $vvar instead of $$vvar',
+	'htmllib.php print_favorites', $yy4Closed,
+	$yy4Closed ? 'direct field reads; $$vvar bug gone' : 'still broken assign');
+
+$libYy = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibYy = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$yy5Closed = contains($libYy, 'security LL3 / VV5 / WW5 / XX5 / YY5')
+	&& contains($libYy, 'security MM1 / VV5 / WW5 / XX5 / YY5')
+	&& contains($lxlibYy, 'security TT1 / VV5 / WW5 / XX5 / YY5');
+$findings[] = finding('YY5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $yy5Closed,
+	$yy5Closed ? 'ident-gated sites marked YY5' : 'unmarked');
+
+$extSecYy = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastYy = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$yy6Closed = contains($lxlibYy, 'security YY6')
+	&& contains($extSecYy, 'security YY6')
+	&& contains($toastYy, 'security YY6')
+	&& contains($lxlibYy, 'gated unserialize');
+$findings[] = finding('YY6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $yy6Closed,
+	$yy6Closed ? 'documented intentional leftovers' : 'unmarked');
 
 // Filter
 if ($severityFilter !== null) {

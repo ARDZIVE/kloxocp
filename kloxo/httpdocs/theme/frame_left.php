@@ -239,35 +239,60 @@ function xp_panel($object)
 	}
 */
 	$url = $ghtml->getFullUrl("a=list&c=ndskshortcut");
-	$rdesc = $ghtml->print_favorites();
-	// Plain-text menu title + edit submenu (security WW2 / XX4).
-	$favTitleJs = json_encode(
-		'Favorites',
-		JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
-	);
-	$editUrlJs = json_encode(
-		(string) $url,
-		JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
-	);
-	$rdescJs = json_encode(
-		(string) $rdesc,
-		JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
-	);
+	// Per-item plain-text createSubMenu (security WW2 / XX4 / YY2; no HTML favorites blob).
+	$jsonFlags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE;
+	$favTitleJs = json_encode('Favorites', $jsonFlags);
+	$editUrlJs = json_encode((string) $url, $jsonFlags);
 	if (!is_string($favTitleJs) || $favTitleJs === '') {
 		$favTitleJs = '"Favorites"';
 	}
 	if (!is_string($editUrlJs) || $editUrlJs === '') {
 		$editUrlJs = '""';
 	}
-	if (!is_string($rdescJs) || $rdescJs === '') {
-		$rdescJs = '""';
-	}
 ?>
 
 			xxpFav = createMenu(<?= $favTitleJs ?>, '', true);
 			createSubMenu(xxpFav, 'Edit favorites', <?= $editUrlJs ?>, '', '', '', 'mainframe');
-			createSubMenu(xxpFav, <?= $rdescJs ?>, '', '', '', '', '');
 <?php
+	$favList = $ghtml->get_favorite('ndskshortcut');
+	foreach ((array) $favList as $fav) {
+		if (!is_array($fav)) {
+			continue;
+		}
+		if (isset($fav['ttype']) && (string) $fav['ttype'] === 'separator') {
+			continue;
+		}
+		$label = isset($fav['fullstr']) ? (string) $fav['fullstr'] : '';
+		if ($label === '' && isset($fav['str'])) {
+			$label = html_entity_decode((string) $fav['str'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		}
+		if (strlen($label) > 18) {
+			$label = substr($label, 0, 18) . '..';
+		}
+		if (!empty($fav['tag'])) {
+			$label .= ' ' . (string) $fav['tag'];
+		}
+		$favUrl = isset($fav['url']) ? (string) $fav['url'] : '';
+		$favTarget = isset($fav['target']) ? (string) $fav['target'] : 'mainframe';
+		if ($favTarget !== '_blank' && $favTarget !== 'mainframe') {
+			$favTarget = 'mainframe';
+		}
+		$labelJs = json_encode($label, $jsonFlags);
+		$urlJs = json_encode($favUrl, $jsonFlags);
+		$targetJs = json_encode($favTarget, $jsonFlags);
+		if (!is_string($labelJs) || $labelJs === '') {
+			$labelJs = '""';
+		}
+		if (!is_string($urlJs) || $urlJs === '') {
+			$urlJs = '""';
+		}
+		if (!is_string($targetJs) || $targetJs === '') {
+			$targetJs = '"mainframe"';
+		}
+?>
+			createSubMenu(xxpFav, <?= $labelJs ?>, <?= $urlJs ?>, '', '', '', <?= $targetJs ?>);
+<?php
+	}
 
 	if ($login->isLte('reseller')) {
 ?>

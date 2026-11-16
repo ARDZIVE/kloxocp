@@ -11309,23 +11309,47 @@ function uploadAbort(e) { // upload abort
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		// Quoted attrs + escaped text (security YY1 / YY4). Prefer frame_left
+		// per-item createSubMenu (YY2); this HTML path stays for any other caller.
 		$back = $login->getSkinDir();
 		$list = $this->get_favorite("ndskshortcut");
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
 
-		$vvar_list = array('ttype', '_t_image', 'url', 'target', '__t_identity', 'ac_descr', 'str', 'tag');
+		$res = '';
 
-		$res = null;
-
-		foreach ((array)$list as $l) {
-			foreach ($vvar_list as $vvar) {
-				$vvar = isset($l[$vvar]) ? $l[$vvar] : '';
+		foreach ((array) $list as $l) {
+			if (!is_array($l)) {
+				continue;
+			}
+			$ttype = isset($l['ttype']) ? (string) $l['ttype'] : '';
+			if ($ttype === 'separator') {
+				$res .= '<tr valign="top" style="border-width:1px; background:url('
+					. $esc($back) . '/a.gif);"><td></td></tr>';
+				continue;
 			}
 
-			if ($ttype == 'separator') {
-				$res .= "<tr valign=top style=\"border-width:1px; background:url($back/a.gif);\"> <td ></td> </tr>";
-			} else {
-				$res .= "<tr valign=top style=\"border-width:1px; background:url($back/a.gif);\"> <td > <span title=\"$ac_descr[2] for $__t_identity\"> <img width=16 height=16 src=$_t_image> <a href=$url target=$target>  $str $tag</a></span></td> </tr>";
+			$_t_image = isset($l['_t_image']) ? (string) $l['_t_image'] : '';
+			$url = isset($l['url']) ? (string) $l['url'] : '';
+			$target = isset($l['target']) ? (string) $l['target'] : 'mainframe';
+			if ($target !== '_blank' && $target !== 'mainframe') {
+				$target = 'mainframe';
 			}
+			$__t_identity = isset($l['__t_identity']) ? (string) $l['__t_identity'] : '';
+			$ac_descr = isset($l['ac_descr']) ? $l['ac_descr'] : array();
+			$descr2 = (is_array($ac_descr) && isset($ac_descr[2])) ? (string) $ac_descr[2] : '';
+			// get_favorite already runs kloxo_html on str; keep as HTML text.
+			$str = isset($l['str']) ? (string) $l['str'] : '';
+			$tag = isset($l['tag']) ? (string) $l['tag'] : '';
+			$title = $esc($descr2 . ' for ' . $__t_identity);
+
+			$res .= '<tr valign="top" style="border-width:1px; background:url('
+				. $esc($back) . '/a.gif);"><td>'
+				. '<span title="' . $title . '">'
+				. '<img width="16" height="16" src="' . $esc($_t_image) . '"> '
+				. '<a href="' . $esc($url) . '" target="' . $esc($target) . '">'
+				. $str . ' ' . $esc($tag) . '</a></span></td></tr>';
 		}
 
 		return $res;
