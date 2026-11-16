@@ -1,5 +1,115 @@
 <?php 
 
+/**
+ * Same-host Origin/Referer check for browser callers (security U1).
+ * CLI/API clients that send neither header are allowed; a mismatched
+ * Origin/Referer from another site is refused.
+ */
+function kloxo_webcommand_same_origin_ok(): bool
+{
+	$host = isset($_SERVER['HTTP_HOST']) ? strtolower((string) $_SERVER['HTTP_HOST']) : '';
+	if ($host === '') {
+		return true;
+	}
+	$hostOnly = preg_replace('/:\d+$/', '', $host);
+	$check = static function (string $url) use ($hostOnly): bool {
+		$p = @parse_url($url);
+		if (!is_array($p) || empty($p['host'])) {
+			return false;
+		}
+		return strtolower((string) $p['host']) === $hostOnly;
+	};
+	$origin = isset($_SERVER['HTTP_ORIGIN']) ? (string) $_SERVER['HTTP_ORIGIN'] : '';
+	if ($origin !== '') {
+		return $check($origin);
+	}
+	$referer = isset($_SERVER['HTTP_REFERER']) ? (string) $_SERVER['HTTP_REFERER'] : '';
+	if ($referer !== '') {
+		return $check($referer);
+	}
+
+	return true;
+}
+
+/**
+ * Rate-limit webcommand auth failures by client IP (security U1).
+ * Returns true when the caller is currently blocked.
+ */
+function kloxo_webcommand_auth_rate_limited(string $ip): bool
+{
+	global $sgbl;
+
+	if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
+		return false;
+	}
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/log/webcommand-rl';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$file = $dir . '/' . hash('sha256', $ip) . '.rl';
+	$now = time();
+	$window = 900;
+	$max = 10;
+	$hits = array();
+	if (is_file($file)) {
+		$raw = @file_get_contents($file);
+		$decoded = is_string($raw) ? json_decode($raw, true) : null;
+		if (is_array($decoded)) {
+			foreach ($decoded as $t) {
+				if (is_int($t) || (is_string($t) && ctype_digit($t))) {
+					$ti = (int) $t;
+					if ($ti > 0 && ($now - $ti) < $window) {
+						$hits[] = $ti;
+					}
+				}
+			}
+		}
+	}
+	if (count($hits) >= $max) {
+		return true;
+	}
+
+	return false;
+}
+
+/** Record one failed webcommand auth attempt for rate limiting. */
+function kloxo_webcommand_auth_fail_hit(string $ip): void
+{
+	global $sgbl;
+
+	if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
+		return;
+	}
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/log/webcommand-rl';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$file = $dir . '/' . hash('sha256', $ip) . '.rl';
+	$now = time();
+	$hits = array($now);
+	if (is_file($file)) {
+		$raw = @file_get_contents($file);
+		$decoded = is_string($raw) ? json_decode($raw, true) : null;
+		if (is_array($decoded)) {
+			foreach ($decoded as $t) {
+				if (is_int($t) || (is_string($t) && ctype_digit($t))) {
+					$ti = (int) $t;
+					if ($ti > 0 && ($now - $ti) < 900) {
+						$hits[] = $ti;
+					}
+				}
+			}
+		}
+	}
+	@file_put_contents($file, json_encode(array_values($hits)), LOCK_EX);
+}
+
 function webcommandline_main()
 {
 	global $gbl, $sgbl, $login, $ghtml; 
@@ -7,10 +117,24 @@ function webcommandline_main()
 
 	ob_start();
 
-	// Prefer POST so passwords are not in URLs/Referer (security N7).
-	$opt = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? $_POST : $_REQUEST;
+	// POST only — passwords must not appear in URLs/Referer (security N7 / U1).
+	if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+		$opt = array();
+		json_print("error", $opt, "__error_post_required");
+		log_log("web_command", "__error_post_required");
+
+		exit;
+	}
+	$opt = $_POST;
 	if (!is_array($opt)) {
 		$opt = [];
+	}
+
+	if (!kloxo_webcommand_same_origin_ok()) {
+		json_print("error", $opt, "__error_origin_refused");
+		log_log("web_command", "__error_origin_refused");
+
+		exit;
 	}
 
 	if (($opt['login-class'] ?? '') !== 'client' && ($opt['login-class'] ?? '') !== 'auxiliary') {
@@ -24,9 +148,26 @@ function webcommandline_main()
 	unset($safeLog['login-password'], $safeLog['v-password'], $safeLog['password']);
 	log_log("web_command", var_export($safeLog, true));
 
+	$ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : '';
+	if (kloxo_webcommand_auth_rate_limited($ip)) {
+		json_print("error", $opt, "_error_login_error");
+		log_log("web_command", "__error_rate_limited");
+
+		exit;
+	}
+
 //	initProgram('admin');
 
 	if (!check_raw_password($opt['login-class'], $opt['login-name'], $opt['login-password'] ?? '')) {
+		kloxo_webcommand_auth_fail_hit($ip);
+		if (class_exists('KloxoAuthLog', false) || is_file(__DIR__ . '/../php/kloxo_authlog.php')) {
+			if (!class_exists('KloxoAuthLog', false)) {
+				include_once __DIR__ . '/../php/kloxo_authlog.php';
+			}
+			if (class_exists('KloxoAuthLog', false)) {
+				KloxoAuthLog::failed('kloxo-panel', (string) ($opt['login-name'] ?? ''), $ip);
+			}
+		}
 		json_print("error", $opt, "_error_login_error");
 		log_log("web_command", "__error_login_error");
 

@@ -75,7 +75,16 @@ function interfacetraffic_main()
 		return;
 	}
 
-	$data = unserialize(lfile_get_contents("{$sgbl->__path_program_etc}/newxeninterfacebw.data"));
+	// Arrays only — filtered unserialize (security U8).
+	$rawBw = lfile_get_contents("{$sgbl->__path_program_etc}/newxeninterfacebw.data");
+	if (function_exists('kloxo_unserialize_deny_gadgets')) {
+		$data = kloxo_unserialize_deny_gadgets((string) $rawBw, array('allowed_classes' => false));
+	} else {
+		$data = @unserialize((string) $rawBw, array('allowed_classes' => false));
+	}
+	if (!is_array($data)) {
+		$data = array();
+	}
 
 	$total = null;
 

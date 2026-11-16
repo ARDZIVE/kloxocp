@@ -1798,9 +1798,8 @@ STRIN;
 			return;
 		}
 
-		$rmt = function_exists('kloxo_load_slave_db')
-			? kloxo_load_slave_db()
-			: @unserialize(lfile_get_contents('__path_slave_db'));
+		// Filtered load only (security U2) — no bare unserialize fallback.
+		$rmt = function_exists('kloxo_load_slave_db') ? kloxo_load_slave_db() : false;
 		if (!is_object($rmt)) {
 			$rmt = new Remote();
 		}

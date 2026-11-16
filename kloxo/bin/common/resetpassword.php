@@ -33,13 +33,14 @@ if ($argv[1] === 'master') {
 
 		exit;
 	}
+	// Filtered load only (security U2 / T6) — no bare unserialize.
 	if (function_exists('kloxo_load_slave_db')) {
 		$rmt = kloxo_load_slave_db();
 	} elseif (function_exists('kloxo_unserialize_deny_gadgets')) {
 		$raw = lfile_get_contents("__path_slave_db");
 		$rmt = kloxo_unserialize_deny_gadgets((string) $raw, array('allowed_classes' => array('Remote', 'stdClass')));
 	} else {
-		$rmt = @unserialize(lfile_get_contents("__path_slave_db"), array('allowed_classes' => array('Remote', 'stdClass')));
+		$rmt = false;
 	}
 	if (!is_object($rmt)) {
 		print("Could not load slave-db\n");

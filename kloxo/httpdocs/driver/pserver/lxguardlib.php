@@ -146,9 +146,15 @@ class lxguard extends lxdb
 		$server = $this->syncserver;
 		$sq = new Sqlite(null, "lxguardhit");
 
-		foreach($param['_accountselect'] as $ip) {
-			// MR -- fix because 'ipaddress=' not work and change to 'ipaddress like %%'
-			$sq->rawQuery("delete from lxguardhit where syncserver='{$server}' and ipaddress like '%{$ip}%'");
+		foreach ($param['_accountselect'] as $ip) {
+			// Validate address before any SQL (security U3) — no raw interpolation.
+			$ip = is_string($ip) ? trim($ip) : '';
+			if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
+				continue;
+			}
+			$escIp = str_replace("'", "''", $ip);
+			$escServer = str_replace("'", "''", (string) $server);
+			$sq->rawQuery("delete from lxguardhit where syncserver='{$escServer}' and ipaddress = '{$escIp}'");
 		}
 
 		self::save_current_hitlist($server);

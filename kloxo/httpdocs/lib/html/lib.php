@@ -3089,7 +3089,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111606';
+	return '10.1-2026111607';
 }
 
 function getDownloadServer()
@@ -3257,7 +3257,7 @@ function se_submit($contact, $dom, $email)
 //	lx_mail("kloxo", $contact, "Search Submission Info", $var);
 	callInBackground("lx_mail", array(null, $contact, "Search Submission Info", $var));
 
-	lfile_put_contents("/tmp/mine", $var);
+	// Do not write crawl output to world-readable /tmp/mine (security U7).
 }
 
 function remove_if_older_than_a_day_dir($dir, $day = 1)

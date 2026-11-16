@@ -126,10 +126,16 @@ class TLDExtract {
 		}
 
 		//Load the public suffix list from the cache, if possible.
+		// Arrays only — no object gadgets (security U4).
 		$serializedTlds = @file_get_contents($this->cacheFile);
 		if ( !empty($serializedTlds) ) {
-			$this->extractor = new PublicSuffixListTLDExtractor(unserialize($serializedTlds));
-			return $this->extractor;
+			$decoded = function_exists('kloxo_unserialize_deny_gadgets')
+				? kloxo_unserialize_deny_gadgets($serializedTlds, array('allowed_classes' => false))
+				: @unserialize($serializedTlds, array('allowed_classes' => false));
+			if (is_array($decoded)) {
+				$this->extractor = new PublicSuffixListTLDExtractor($decoded);
+				return $this->extractor;
+			}
 		}
 
 		//Or attempt to download it.
@@ -143,8 +149,13 @@ class TLDExtract {
 			$snapshotFile = dirname(__FILE__) . DIRECTORY_SEPARATOR . '.tld_set_snapshot';
 			$serializedTlds = @file_get_contents($snapshotFile);
 			if ( !empty($serializedTlds) ) {
-				$this->extractor = new PublicSuffixListTLDExtractor(unserialize($serializedTlds));
-				return $this->extractor;
+				$decoded = function_exists('kloxo_unserialize_deny_gadgets')
+					? kloxo_unserialize_deny_gadgets($serializedTlds, array('allowed_classes' => false))
+					: @unserialize($serializedTlds, array('allowed_classes' => false));
+				if (is_array($decoded)) {
+					$this->extractor = new PublicSuffixListTLDExtractor($decoded);
+					return $this->extractor;
+				}
 			}
 		} else {
 			//Update the cache.

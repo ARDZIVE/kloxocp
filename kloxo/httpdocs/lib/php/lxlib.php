@@ -2677,28 +2677,20 @@ function lx_exception_handler($e)
 
 function check_raw_password($class, $client, $pass)
 {
-	//return true;
-
 	if (!$class || !$client || !$pass) {
 		return false;
 	}
-
-	// MR -- sanitize input
-	if ((stripos($class, "'") !== false) || 
-			(stripos($client, "'") !== false) || 
-			(stripos($pass, "'") !== false)) {
-		return false;
-	}
-
-	// MR -- sanitize input
-	if ((stripos($class, "\"") !== false) || 
-			(stripos($client, "\"") !== false) || 
-			(stripos($pass, "\"") !== false)) {
+	$class = (string) $class;
+	$client = (string) $client;
+	$pass = (string) $pass;
+	// Table name whitelist only (security U1) — never interpolate into raw SQL.
+	if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $class)
+		|| !preg_match('/^[A-Za-z0-9._@-]{1,64}$/', $client)) {
 		return false;
 	}
 
 	$rawdb = new Sqlite(null, $class);
-	$password = $rawdb->rawquery("select password from $class where nname = '$client'");
+	$password = $rawdb->getRows('nname', $client);
 	if (!is_array($password) || !isset($password[0]['password'])) {
 		return false;
 	}
@@ -2708,7 +2700,6 @@ function check_raw_password($class, $client, $pass)
 		return true;
 	}
 	return false;
-	//$rawdb->close();
 }
 
 /**

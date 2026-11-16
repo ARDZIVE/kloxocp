@@ -176,27 +176,30 @@ function kloxo_load_slave_db()
  */
 function kloxo_localhost_get_fallback_allowed($func)
 {
-	if (is_array($func) && isset($func[0]) && is_string($func[0])) {
-		$class = $func[0];
-		if (str_starts_with($class, 'Kloxo') || str_starts_with($class, 'Service__')) {
+	// Allow-list only (security U5). Backup/SSL/cp_fileserv and other host
+	// mutation must not run as lxlabs when kloxo-backend is down.
+	if (is_array($func) && isset($func[0]) && is_string($func[0])
+		&& isset($func[1]) && is_string($func[1])) {
+		static $allowClass = array('coreFfile');
+		if (!in_array($func[0], $allowClass, true)) {
 			return false;
 		}
-		$method = isset($func[1]) ? (string) $func[1] : '';
-		static $denyMethod = array(
-			'switchDriver', 'installMe', 'unInstallMe', 'mysqlPasswordReset',
-			'systemctlRunDetail', 'systemctlRun', 'controlUnit',
-		);
-		if ($method !== '' && in_array($method, $denyMethod, true)) {
-			return false;
-		}
-		return true;
+		return (bool) preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $func[1]);
 	}
 	if (is_string($func)) {
-		static $denyFn = array(
-			'slave_save_db', 'lfile_put_contents', 'lxfile_rm_rec_content',
-			'lxfile_rm_rec', 'lxfile_mkdir',
+		static $allowFn = array(
+			'slave_get_driver',
+			'getAllClientList',
+			'getDnsMasters',
+			'getDnsSlaves',
+			'getIpfromARecord',
+			'get_total_files_in_directory',
+			'get_best_location',
+			'remove_old_serve_file',
+			'test_remote_func',
+			'remotetestfunc',
 		);
-		return !in_array($func, $denyFn, true);
+		return in_array($func, $allowFn, true);
 	}
 	return false;
 }

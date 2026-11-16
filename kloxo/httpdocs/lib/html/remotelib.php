@@ -1241,9 +1241,8 @@ function reload_slave_password()
 	$cur = $stat['mtime'];
 
 	if ($cur > $time) {
-		$rmt = function_exists('kloxo_load_slave_db')
-			? kloxo_load_slave_db()
-			: @unserialize(lfile_get_contents("__path_slave_db"));
+		// Filtered load only (security U2) — no bare unserialize fallback.
+		$rmt = function_exists('kloxo_load_slave_db') ? kloxo_load_slave_db() : false;
 		if (is_object($rmt) && isset($rmt->password)) {
 			$login->password = $rmt->password;
 		}
@@ -1272,9 +1271,8 @@ function remote_main()
 		$login = new Client(null, null, 'slave');
 		$gbl->is_slave = true;
 		if (lxfile_exists('__path_slave_db')) {
-			$sdb = function_exists('kloxo_load_slave_db')
-				? kloxo_load_slave_db()
-				: @unserialize(lfile_get_contents("__path_slave_db"));
+			// Filtered load only (security U2).
+			$sdb = function_exists('kloxo_load_slave_db') ? kloxo_load_slave_db() : false;
 			if (is_object($sdb) && isset($sdb->password)) {
 				$login->password = $sdb->password;
 			}

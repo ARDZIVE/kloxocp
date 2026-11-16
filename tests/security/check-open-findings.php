@@ -672,6 +672,60 @@ $findings[] = finding('T6', 'low', 'CLI database.php / resetpassword.php bare un
 	'bin/database.php + bin/common/resetpassword.php', $t6Closed,
 	$t6Closed ? 'filtered unserialize + SELECT-only exec' : 'still bare');
 
+// --- Wave 6 (U1–U8) ---
+$webcmd = file_text($root, 'kloxo/httpdocs/lib/html/objectactionlib.php');
+$u1Closed = contains($webcmd, 'kloxo_webcommand_auth_rate_limited')
+	&& contains($webcmd, 'kloxo_webcommand_same_origin_ok')
+	&& contains($webcmd, '__error_post_required')
+	&& contains(function_body($lxlibR, 'check_raw_password'), 'getRows');
+$findings[] = finding('U1', 'high', 'webcommand password API without CSRF/rate limit',
+	'objectactionlib.php webcommandline_main', $u1Closed,
+	$u1Closed ? 'POST + origin check + auth rate limit + getRows' : 'still open password API');
+
+$u2Closed = not_contains($remote, "@unserialize(lfile_get_contents(\"__path_slave_db\"))")
+	&& not_contains($remote, "@unserialize(lfile_get_contents('__path_slave_db'))")
+	&& contains($remote, 'security U2')
+	&& contains(file_text($root, 'kloxo/httpdocs/lib/html/lxserverlib.php'), 'security U2');
+$findings[] = finding('U2', 'medium', 'bare __path_slave_db unserialize fallbacks',
+	'remotelib / lxserverlib / pservercorelib', $u2Closed,
+	$u2Closed ? 'kloxo_load_slave_db only' : 'bare unserialize fallback remains');
+
+$lxg = file_text($root, 'kloxo/httpdocs/driver/pserver/lxguardlib.php');
+$u3Closed = contains($lxg, 'FILTER_VALIDATE_IP') && contains($lxg, 'security U3');
+$findings[] = finding('U3', 'medium', 'LxGuard rawQuery interpolates _accountselect IP',
+	'lxguardlib.php updateRemove', $u3Closed,
+	$u3Closed ? 'IP validated before delete' : 'still interpolates $ip');
+
+$tld = file_text($root, 'kloxo/httpdocs/lib/php/tldextract.php');
+$u4Closed = contains($tld, 'allowed_classes') && (contains($tld, 'kloxo_unserialize_deny_gadgets') || contains($tld, "allowed_classes' => false"));
+$findings[] = finding('U4', 'medium', 'tldextract bare unserialize of .tld_set',
+	'tldextract.php', $u4Closed,
+	$u4Closed ? 'arrays-only unserialize' : 'still bare unserialize');
+
+$u5Closed = contains($gate, "allowClass = array('coreFfile')")
+	|| contains($gate, 'Allow-list only (security U5)');
+$findings[] = finding('U5', 'medium', 'localhost get fallback still allows backup/SSL/cp_fileserv',
+	'remote_auth_gate.php kloxo_localhost_get_fallback_allowed', $u5Closed,
+	$u5Closed ? 'coreFfile + read-only allow-list' : 'still broad deny-list');
+
+$bak = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_backup.php');
+$u6Closed = contains($bak, 'kloxo_unserialize_deny_gadgets') && contains($bak, 'security U6');
+$findings[] = finding('U6', 'medium', 'backup driver blob without gadget string scan',
+	'kloxo_backup.php', $u6Closed,
+	$u6Closed ? 'deny-gadgets on driver blob' : 'allowed_classes only');
+
+$u7Closed = not_contains($lib, 'lfile_put_contents("/tmp/mine"')
+	&& not_contains($lib, "lfile_put_contents('/tmp/mine'");
+$findings[] = finding('U7', 'low', 'se_submit writes crawl output to /tmp/mine',
+	'lib.php se_submit', $u7Closed,
+	$u7Closed ? '/tmp/mine write removed' : 'still writes /tmp/mine');
+
+$ipt = file_text($root, 'kloxo/bin/common/iptraffic.php');
+$u8Closed = contains($ipt, 'kloxo_unserialize_deny_gadgets') || contains($ipt, 'security U8');
+$findings[] = finding('U8', 'low', 'iptraffic.php bare unserialize of Xen bw data',
+	'bin/common/iptraffic.php', $u8Closed,
+	$u8Closed ? 'filtered unserialize' : 'still bare');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
