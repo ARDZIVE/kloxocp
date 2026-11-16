@@ -376,7 +376,7 @@ function createHtpasswordFile($object, $sdir, $list)
 	$fstr = null;
 
 	foreach ($list as $k => $p) {
-		$cr = crypt($p, '$1$'.randomString(8).'$');
+		$cr = function_exists('kloxo_htpasswd_hash') ? kloxo_htpasswd_hash($p) : crypt($p, '$1$'.randomString(8).'$');
 		$fstr .= "$k:$cr\n";
 	}
 
@@ -3089,7 +3089,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111608';
+	return '10.1-2026111609';
 }
 
 function getDownloadServer()

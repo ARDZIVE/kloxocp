@@ -559,14 +559,17 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 	} else {
 		// Per-install self-signed keys: verify the cert exists, allow self-signed
 		// (mutual TLS / pinned CA not built yet). Better than verify_peer off (N9).
-		// verify_peer_name on for FQDN hosts; off only for raw IPs (S5).
-		$peerName = !filter_var($rraddress, FILTER_VALIDATE_IP);
+		// For raw-IP slaves, use pserver.realhostname as peer_name when set (W5).
+		$peerHost = function_exists('kloxo_slave_tls_peer_name')
+			? kloxo_slave_tls_peer_name((string) $raddress, (string) $rraddress)
+			: ((string) (filter_var($rraddress, FILTER_VALIDATE_IP) ? '' : $raddress));
+		$peerName = $peerHost !== '' && filter_var($peerHost, FILTER_VALIDATE_IP) === false;
 		$opts = array(
 			$con => array(
 				'allow_self_signed' => true,
 				'verify_peer' => true,
 				'verify_peer_name' => $peerName,
-				'peer_name' => $peerName ? (string) $raddress : '',
+				'peer_name' => $peerName ? $peerHost : '',
 			)
 		);
 

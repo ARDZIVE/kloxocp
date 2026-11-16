@@ -75,6 +75,45 @@ function kloxo_webcommand_auth_rate_limited(string $ip): bool
 	return false;
 }
 
+/**
+ * Path to the shared webcommand API key (security W4).
+ */
+function kloxo_webcommand_api_key_path(): string
+{
+	global $sgbl;
+
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+
+	return $root . '/etc/conf/webcommand.key';
+}
+
+/**
+ * True when the request presents the installed webcommand API key.
+ *
+ * @param array<string,mixed> $opt
+ */
+function kloxo_webcommand_api_key_ok(array $opt): bool
+{
+	$path = kloxo_webcommand_api_key_path();
+	if (!is_file($path) || !is_readable($path)) {
+		return false;
+	}
+	$expected = trim((string) @file_get_contents($path));
+	if ($expected === '' || strlen($expected) < 16) {
+		return false;
+	}
+	$provided = '';
+	if (isset($opt['api-key']) && is_string($opt['api-key'])) {
+		$provided = $opt['api-key'];
+	} elseif (isset($_SERVER['HTTP_X_KLOXO_API_KEY'])) {
+		$provided = (string) $_SERVER['HTTP_X_KLOXO_API_KEY'];
+	}
+
+	return $provided !== '' && hash_equals($expected, $provided);
+}
+
 /** Record one failed webcommand auth attempt for rate limiting. */
 function kloxo_webcommand_auth_fail_hit(string $ip): void
 {
@@ -133,6 +172,17 @@ function webcommandline_main()
 	if (!kloxo_webcommand_same_origin_ok()) {
 		json_print("error", $opt, "__error_origin_refused");
 		log_log("web_command", "__error_origin_refused");
+
+		exit;
+	}
+
+	// Mutating actions require a shared API key (security W4). simplelist/getproperty
+	// still need password + U1 checks only.
+	$action = isset($opt['action']) ? (string) $opt['action'] : '';
+	if (in_array($action, array('add', 'update', 'delete'), true)
+		&& !kloxo_webcommand_api_key_ok($opt)) {
+		json_print("error", $opt, "__error_api_key_required");
+		log_log("web_command", "__error_api_key_required");
 
 		exit;
 	}

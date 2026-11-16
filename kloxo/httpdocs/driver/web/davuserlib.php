@@ -33,7 +33,7 @@ class davuser extends Lxclient
 		$web->setUpdateSubaction('create_config');
 
 		$param['realpass'] = $param['password'];
-		$param['password'] = crypt($param['password'], '$1$'.randomString(8).'$');
+		$param['password'] = function_exists('kloxo_password_hash') ? kloxo_password_hash($param['password']) : crypt($param['password'], '$1$'.randomString(8).'$');
 		$param['syncserver'] = $web->syncserver;
 		$param['directory'] = trim($param['directory'], "/ ");
 		$param['directory'] = "/{$param['directory']}";

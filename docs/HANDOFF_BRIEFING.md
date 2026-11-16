@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111608**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111609**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -836,11 +836,10 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
   Services) became "Could not connect to server". Fix: strip non-base64 from the blob and strip
   the exit char in `send_to_some_stream_server` (`tests/remote/test_auth_gate.php`). Live Fail2Ban
   after deploy still **UNVERIFIED**.
-  **Security T–V (closed through V6):** webcommand POST/origin/rate-limit; filtered
-  unserialize paths; localhost get allow-list; MySQL root reset via socket ALTER USER
-  (no shell-injected password); redirect Location validated; api/apilib no blank-password
-  probe; mysql-optimize defaults-extra-file; filterFunc no eval. Checklist 81 closed.
-  New W-wave awaits approval.
+  **Security T–W (closed through W8):** Argon2id hashing + login rehash; htpasswd bcrypt;
+  webcommand API key for mutate; slave TLS peer_name from realhostname; PHPMailer stub;
+  unserialize fail-closed; prior V/U/T waves. Checklist tracks W1–W8. New X-wave awaits
+  approval after rescan.
   **UNVERIFIED:** a real Fail2Ban (`-t`, reload, `datepattern`, the nftables action, journal matches),
   live bans, `python3-systemd` availability on 24.04/26.04, the installer on a real server, the page
   in a browser, live Whitelist IP after the Hiawatha rebuild.
@@ -1201,7 +1200,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111608**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111609**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

@@ -545,6 +545,7 @@ TXT;
         $this->seedServerftp($pdo);
         $this->seedWatchdog($pdo);
         $this->seedSpecialplay($pdo);
+        $this->seedWebcommandKey();
 
         $client = (int)$pdo->query("SELECT COUNT(*) FROM client WHERE nname = 'admin'")->fetchColumn();
         $general = (int)$pdo->query("SELECT COUNT(*) FROM general")->fetchColumn();
@@ -1700,6 +1701,28 @@ TXT;
                 throw new IpdbException('Cannot write ' . $flag);
             }
         }
+    }
+
+    /** Shared secret for webcommand add/update/delete (security W4). */
+    private function seedWebcommandKey(): void
+    {
+        $dir = $this->root . '/etc/conf';
+        if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) {
+            throw new IpdbException('Cannot create ' . $dir);
+        }
+        $file = $dir . '/webcommand.key';
+        if (is_file($file)) {
+            return;
+        }
+        $key = bin2hex(random_bytes(32));
+        if (@file_put_contents($file, $key . "\n") === false) {
+            throw new IpdbException('Cannot write ' . $file);
+        }
+        @chmod($file, 0640);
+        $hint = '/root/kloxo-webcommand-key';
+        @file_put_contents($hint, $key . "\n");
+        @chmod($hint, 0600);
+        echo "webcommand API key: {$hint} (also {$file})\n";
     }
 
     private function seedDriver(PDO $pdo): void

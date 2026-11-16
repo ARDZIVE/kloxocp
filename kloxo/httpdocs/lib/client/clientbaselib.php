@@ -1010,9 +1010,9 @@ class ClientBase extends ClientCore
 
 		$pass = (string)($param['password'] ?? '');
 		$param['realpass'] = $pass;
-		$salt = '$1$' . substr(preg_replace('/[^A-Za-z0-9]/', 'x', randomString(8)), 0, 8) . '$';
-		$hash = crypt($pass, $salt);
-		$param['password'] = is_string($hash) && $hash !== '' ? $hash : $pass;
+		$param['password'] = function_exists('kloxo_password_hash')
+			? kloxo_password_hash($pass)
+			: crypt($pass, '$1$'.randomString(8).'$');
 
 		return $param;
 	}

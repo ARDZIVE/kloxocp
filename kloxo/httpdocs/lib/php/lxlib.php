@@ -344,11 +344,12 @@ function lfile_get_unserialize($file)
 	if (!is_string($raw) || $raw === '') {
 		return null;
 	}
-	if (function_exists('kloxo_unserialize_deny_gadgets')) {
-		return kloxo_unserialize_deny_gadgets($raw);
+	// Fail closed without the gadget helper (security W8).
+	if (!function_exists('kloxo_unserialize_deny_gadgets')) {
+		return null;
 	}
 
-	return @unserialize($raw);
+	return kloxo_unserialize_deny_gadgets($raw);
 }
 
 function lfile_put_serialize($file, $var)
@@ -2626,6 +2627,45 @@ function kloxo_password_hash($plain)
 	return crypt($plain, '$1$'.randomString(8).'$');
 }
 
+/**
+ * Bcrypt for htpasswd / dir-protect files (security W1).
+ * Apache 2.4 and nginx auth_basic accept $2y$; Argon2id does not.
+ */
+function kloxo_htpasswd_hash($plain)
+{
+	if (!is_string($plain) || $plain === '') {
+		return '';
+	}
+	$h = password_hash($plain, PASSWORD_BCRYPT);
+	if (is_string($h) && $h !== '') {
+		return $h;
+	}
+
+	return kloxo_password_hash($plain);
+}
+
+/** True when a stored hash should be upgraded to Argon2id (security W2). */
+function kloxo_password_needs_rehash($enc)
+{
+	if (!is_string($enc) || $enc === '') {
+		return true;
+	}
+	if (defined('PASSWORD_ARGON2ID')) {
+		$info = function_exists('password_get_info') ? password_get_info($enc) : null;
+		if (is_array($info) && isset($info['algo']) && $info['algo'] !== 0 && $info['algo'] !== null) {
+			return password_needs_rehash($enc, PASSWORD_ARGON2ID);
+		}
+
+		return true;
+	}
+	$info = function_exists('password_get_info') ? password_get_info($enc) : null;
+	if (is_array($info) && isset($info['algo']) && $info['algo'] !== 0 && $info['algo'] !== null) {
+		return password_needs_rehash($enc, PASSWORD_DEFAULT);
+	}
+
+	return true;
+}
+
 function check_password($unenc, $enc)
 {
 	if (!is_string($unenc) || !is_string($enc) || $unenc === '' || $enc === '') {
@@ -2697,6 +2737,16 @@ function check_raw_password($class, $client, $pass)
 	$enp = $password[0]['password'];
 
 	if ($enp && check_password($pass, $enp)) {
+		// Upgrade legacy MD5-crypt / weak hashes on successful login (security W2).
+		if (function_exists('kloxo_password_needs_rehash') && kloxo_password_needs_rehash((string) $enp)) {
+			$new = kloxo_password_hash($pass);
+			if (is_string($new) && $new !== '') {
+				$escName = str_replace("'", "''", $client);
+				$escPass = str_replace("'", "''", $new);
+				$rawdb->rawQuery("update {$class} set password = '{$escPass}' where nname = '{$escName}'");
+			}
+		}
+
 		return true;
 	}
 	return false;
@@ -3982,9 +4032,10 @@ function get_savedlogin($classname, $clientname)
 
 	if (file_exists($path)) {
 		$raw = lfile_get_contents($path);
+		// Fail closed without gadget helper (security W8).
 		$login = (is_string($raw) && function_exists('kloxo_unserialize_deny_gadgets'))
 			? kloxo_unserialize_deny_gadgets($raw)
-			: (is_string($raw) ? @unserialize($raw) : false);
+			: false;
 		if (!$login || !is_object($login)) {
 			return 0;
 		}
@@ -5025,28 +5076,61 @@ function kloxo_menu_title($url)
 
 function get_class_variable($class, $var)
 {
-	//list($iclass, $mclass, $rclass) = get_composite($class);
-	$rclass = $class;
-
 	$var = fix_nname_to_be_variable($var);
-	$class = ucfirst($class);
-	/*
-	 if (csa($class, '-')) {
-		 debugBacktrace();
-		 exit;
-	 }
- */
+	$class = is_string($class) ? ucfirst($class) : '';
+	$var = is_string($var) ? $var : '';
+	// Reflection only — no eval (security W3).
+	if ($class === '' || $var === ''
+		|| !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $class)
+		|| !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $var)
+		|| !class_exists($class)) {
+		return null;
+	}
+	try {
+		$ref = new ReflectionClass($class);
+		if (!$ref->hasProperty($var)) {
+			return null;
+		}
+		$prop = $ref->getProperty($var);
+		if (!$prop->isStatic()) {
+			return null;
+		}
+		$prop->setAccessible(true);
 
-	$variable = "$class::\$" . $var;
-	return eval(" if (isset($variable)) { return $variable ; }  ");
+		return $prop->getValue();
+	} catch (Throwable $e) {
+		return null;
+	}
 }
 
 function set_class_variable($class, $var, $val)
 {
 	$var = fix_nname_to_be_variable($var);
-	$class = ucfirst($class);
-	$variable = "$class::\$" . $var;
-	return eval(" $variable = \$val ; ");
+	$class = is_string($class) ? ucfirst($class) : '';
+	$var = is_string($var) ? $var : '';
+	// Reflection only — no eval (security W3).
+	if ($class === '' || $var === ''
+		|| !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $class)
+		|| !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $var)
+		|| !class_exists($class)) {
+		return null;
+	}
+	try {
+		$ref = new ReflectionClass($class);
+		if (!$ref->hasProperty($var)) {
+			return null;
+		}
+		$prop = $ref->getProperty($var);
+		if (!$prop->isStatic()) {
+			return null;
+		}
+		$prop->setAccessible(true);
+		$prop->setValue(null, $val);
+
+		return $val;
+	} catch (Throwable $e) {
+		return null;
+	}
 }
 
 function createZeroString($n)
@@ -5241,7 +5325,9 @@ function add_superadmin($pass)
 
 	$ddb = new Sqlite(null, "superclient");
 	if (!$ddb->existInTable("nname", 'superclient')) {
-		$res['password'] = crypt($pass, '$1$'.randomString(8).'$');
+		$res['password'] = function_exists('kloxo_password_hash')
+			? kloxo_password_hash($pass)
+			: crypt($pass, '$1$'.randomString(8).'$');
 		$res['cttype'] = 'superadmin';
 		$res['cpstatus'] = 'on';
 		if (if_demo()) {
@@ -5313,9 +5399,10 @@ function remote_http_exec($server, $port, $rmt)
 	$res = send_to_some_http_server($server, "", $port, $var, $user, $pass);
 
 	$raw = base64_decode((string) $res, true);
+	// Fail closed without gadget helper (security W8).
 	$obj = (is_string($raw) && function_exists('kloxo_unserialize_deny_gadgets'))
 		? kloxo_unserialize_deny_gadgets($raw, ['allowed_classes' => ['Remote', 'lxException', 'lxexception']])
-		: (is_string($raw) ? @unserialize($raw) : false);
+		: false;
 
 	if (!is_object($obj)) {
 		throw new lxException('got_error_from_ur_end', '');

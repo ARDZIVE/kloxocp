@@ -9,7 +9,7 @@ class Node extends ClientBase
 	static function add($parent, $class, $param)
 	{
 		$param['realpass'] = $param['password'];
-		$param['password'] = crypt($param['password'], '$1$'.randomString(8).'$');
+		$param['password'] = function_exists('kloxo_password_hash') ? kloxo_password_hash($param['password']) : crypt($param['password'], '$1$'.randomString(8).'$');
 
 		return $param;
 	}

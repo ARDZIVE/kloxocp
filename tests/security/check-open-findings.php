@@ -772,6 +772,62 @@ $findings[] = finding('V6', 'low', 'lxclass filterFunc latent eval',
 	'lxclass.php filterFunc', $v6Closed,
 	$v6Closed ? 'PHP comparisons only' : 'still eval');
 
+// --- Wave 8 (W1–W8) ---
+$mailAcc = file_text($root, 'kloxo/httpdocs/driver/mmail/mailaccountlib.php');
+$ftpUser = file_text($root, 'kloxo/httpdocs/driver/ftp/ftpuserlib.php');
+$w1Closed = contains($mailAcc, 'kloxo_password_hash')
+	&& contains($ftpUser, 'kloxo_password_hash')
+	&& contains($lxlibR, 'function kloxo_htpasswd_hash');
+$findings[] = finding('W1', 'high', 'mail/FTP/etc still use MD5-crypt',
+	'mailaccountlib / ftpuserlib / htpasswd helpers', $w1Closed,
+	$w1Closed ? 'kloxo_password_hash / htpasswd bcrypt' : 'still MD5-crypt');
+
+$w2Closed = contains(function_body($lxlibR, 'check_raw_password'), 'kloxo_password_needs_rehash')
+	&& contains($lxlibR, 'function kloxo_password_needs_rehash');
+$findings[] = finding('W2', 'high', 'login never rehashes legacy MD5-crypt',
+	'lxlib.php check_raw_password', $w2Closed,
+	$w2Closed ? 'rehashes to Argon2id on success' : 'no rehash');
+
+$gcv = function_body($lxlibR, 'get_class_variable');
+$scv = function_body($lxlibR, 'set_class_variable');
+$w3Closed = contains($gcv, 'ReflectionClass') && not_contains($gcv, 'eval(')
+	&& contains($scv, 'ReflectionClass') && not_contains($scv, 'eval(');
+$findings[] = finding('W3', 'medium', 'get/set_class_variable use eval',
+	'lxlib.php', $w3Closed,
+	$w3Closed ? 'Reflection only' : 'still eval');
+
+$w4Closed = contains($webcmd, 'kloxo_webcommand_api_key_ok')
+	&& contains($webcmd, '__error_api_key_required');
+$findings[] = finding('W4', 'medium', 'webcommand mutating actions without API key',
+	'objectactionlib.php', $w4Closed,
+	$w4Closed ? 'add/update/delete require api-key' : 'still password-only mutate');
+
+$w5Closed = contains($gate, 'kloxo_slave_tls_peer_name')
+	&& contains($remote, 'kloxo_slave_tls_peer_name');
+$findings[] = finding('W5', 'medium', 'slave TLS peer_name off for raw IPs',
+	'remotelib / remote_auth_gate', $w5Closed,
+	$w5Closed ? 'uses realhostname when available' : 'IP peers still anonymous');
+
+$initLib = file_text($root, 'kloxo/httpdocs/lib/html/initlib.php');
+$w6Closed = contains($initLib, 'kloxo_password_hash');
+$findings[] = finding('W6', 'medium', 'install paths mint MD5-crypt',
+	'initlib.php', $w6Closed,
+	$w6Closed ? 'uses kloxo_password_hash' : 'still crypt $1$');
+
+$phpmailer = file_text($root, 'kloxo/httpdocs/lib/extra/class.phpmailer.php');
+$w7Closed = contains($phpmailer, 'security W7')
+	&& contains($phpmailer, 'RuntimeException')
+	&& !contains($phpmailer, 'The PHPMailer Version number');
+$findings[] = finding('W7', 'low', 'bundled EOL PHPMailer 5.2.19',
+	'lib/extra/class.phpmailer.php', $w7Closed,
+	$w7Closed ? 'stub refuses construction' : 'full EOL PHPMailer present');
+
+$w8Closed = contains(function_body($lxlibR, 'lfile_get_unserialize'), 'Fail closed')
+	&& contains(file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php'), 'Fail closed without gadget helper');
+$findings[] = finding('W8', 'low', 'bare unserialize fallback when gadget helper missing',
+	'lxlib / lxclass', $w8Closed,
+	$w8Closed ? 'fail closed' : 'bare @unserialize fallback remains');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

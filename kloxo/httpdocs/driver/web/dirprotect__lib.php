@@ -40,7 +40,7 @@ class dirprotect__ extends lxDriverClass
 		if ($this->main->status == 'on') {
 			$fstr = '';
 			foreach ($this->main->diruser_a as $v) {
-				$fstr .= $v->nname . ':' . crypt($v->param, '$1$'.randomString(8).'$') . "\n";
+				$fstr .= $v->nname . ':' . (function_exists('kloxo_htpasswd_hash') ? kloxo_htpasswd_hash($v->param) : crypt($v->param, '$1$'.randomString(8).'$')) . "\n";
 			}
 
 			lxuser_put_contents($chownug, $dirfile, $fstr);

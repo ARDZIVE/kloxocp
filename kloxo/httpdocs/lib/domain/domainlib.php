@@ -195,7 +195,7 @@ class Domaind extends DomainBase
 	/*
 		$ftpuser = $web->getFromList('ftpuser', $web->ftpusername);
 		$ftpuser->realpass = $param['password'];
-		$ftpuser->password = crypt($param['password'], '$1$'.randomString(8).'$');
+		$ftpuser->password = function_exists('kloxo_password_hash') ? kloxo_password_hash($param['password']) : crypt($param['password'], '$1$'.randomString(8).'$');
 		$ftpuser->setUpdateSubaction('password');
 	*/	
 		return parent::updatePassword($param);
@@ -681,7 +681,7 @@ class Domaind extends DomainBase
 			$web->priv->phpfcgi_flag = 'off';
 		} else {
 			$this->realpass = $parent->realpass;
-			$this->password = crypt($this->realpass);
+			$this->password = function_exists('kloxo_password_hash') ? kloxo_password_hash($this->realpass) : crypt($this->realpass, '$1$'.randomString(8).'$');
 
 			if ($this->isOn('use_resourceplan_f')) {
 				$template = getFromAny(array($login, $parent), 'resourceplan', $this->resourceplan_f);
@@ -860,7 +860,7 @@ class Domaind extends DomainBase
 		$dns->createSyncClass();
 
 		$ftpuser->realpass = $this->realpass;
-		$ftpuser->password = crypt($this->realpass, '$1$'.randomString(8).'$');
+		$ftpuser->password = function_exists('kloxo_password_hash') ? kloxo_password_hash($this->realpass) : crypt($this->realpass, '$1$'.randomString(8).'$');
 		$mmail->remotelocalflag = 'local';
 
 		$web->stats_username = $this->nname;

@@ -168,6 +168,48 @@ function kloxo_load_slave_db()
 }
 
 /**
+ * TLS peer name for a slave connection (security W5).
+ * When connecting to a raw IP, use pserver.realhostname if it is a dotted FQDN.
+ *
+ * @param string $machine panel machine name (may be hostname or IP)
+ * @param string $connectAddr address used for the TCP/TLS connect
+ */
+function kloxo_slave_tls_peer_name($machine, $connectAddr)
+{
+	$machine = is_string($machine) ? trim($machine) : '';
+	$connectAddr = is_string($connectAddr) ? trim($connectAddr) : '';
+	if ($machine !== '' && filter_var($machine, FILTER_VALIDATE_IP) === false
+		&& preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/', $machine)) {
+		return strtolower($machine);
+	}
+	if ($connectAddr !== '' && filter_var($connectAddr, FILTER_VALIDATE_IP) === false
+		&& preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/', $connectAddr)) {
+		return strtolower($connectAddr);
+	}
+	$key = ($machine !== '' && preg_match('/^[A-Za-z0-9._:-]{1,128}$/', $machine))
+		? $machine
+		: '';
+	if ($key === '' || !class_exists('Sqlite', false)) {
+		return '';
+	}
+	try {
+		$sq = new Sqlite(null, 'pserver');
+		$rows = $sq->getRows('nname', $key);
+		if (is_array($rows) && isset($rows[0]['realhostname'])) {
+			$hn = trim((string) $rows[0]['realhostname']);
+			if ($hn !== '' && filter_var($hn, FILTER_VALIDATE_IP) === false
+				&& preg_match('/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/', $hn)) {
+				return strtolower($hn);
+			}
+		}
+	} catch (Throwable $e) {
+		return '';
+	}
+
+	return '';
+}
+
+/**
  * Whether localhost action=get may fall back in-process as the panel user when
  * kloxo-backend is down (security T5). Privileged Kloxo… / Service__… and host
  * mutation drivers must not run as lxlabs; File Manager (coreFfile) still may.
