@@ -828,6 +828,86 @@ $findings[] = finding('W8', 'low', 'bare unserialize fallback when gadget helper
 	'lxlib / lxclass', $w8Closed,
 	$w8Closed ? 'fail closed' : 'bare @unserialize fallback remains');
 
+// --- Wave 9 (X1–X9) ---
+$sqliteLib = file_text($root, 'kloxo/httpdocs/lib/php/sqlitelib.php');
+$initPanelDb = file_text($root, 'kloxo/bin/install/init-panel-db');
+$x1Closed = contains($lxlibR, 'function kloxo_realpass_seal')
+	&& contains($lxlibR, '__lxen2:')
+	&& contains($sqliteLib, 'kloxo_realpass_seal')
+	&& contains($sqliteLib, 'kloxo_realpass_open')
+	&& contains($initPanelDb, 'seedRealpassKey');
+$findings[] = finding('X1', 'high', 'realpass stored as reversible __lxen: base64',
+	'sqlitelib.php / lxlib.php / init-panel-db', $x1Closed,
+	$x1Closed ? 'AES-GCM __lxen2: + realpass.key' : 'still plain __lxen: base64 only');
+
+$x2Closed = contains($gate, 'function kloxo_unserialize_panel_class_ok')
+	&& contains($gate, 'security X2');
+$findings[] = finding('X2', 'high', 'deny_gadgets default still full unserialize',
+	'remote_auth_gate.php kloxo_unserialize_deny_gadgets', $x2Closed,
+	$x2Closed ? 'panel-safe class allow-list on default path' : 'still bare unserialize($raw)');
+
+$createDbPass = function_body(
+	file_text($root, 'kloxo/httpdocs/lib/client/clientbaselib.php'),
+	'createDbPass'
+);
+$x3Closed = contains($createDbPass, 'hash_hmac')
+	&& not_contains($createDbPass, 'md5(');
+$findings[] = finding('X3', 'medium', 'createDbPass still uses md5',
+	'clientbaselib.php createDbPass', $x3Closed,
+	$x3Closed ? 'HMAC-SHA256 derived secret' : 'still md5');
+
+$cronLinux = file_text($root, 'kloxo/httpdocs/driver/pserver/cron__linuxlib.php');
+$pserverCore = file_text($root, 'kloxo/httpdocs/driver/pserver/pservercorelib.php');
+$clientBase = file_text($root, 'kloxo/httpdocs/lib/client/clientbaselib.php');
+$x4Closed = contains($lib, 'security X4')
+	&& contains($cronLinux, 'security X4')
+	&& contains($pserverCore, 'security X4')
+	&& contains($clientBase, 'security X4')
+	&& not_contains($cronLinux, '@unserialize(base64_decode')
+	&& not_contains($pserverCore, '@unserialize(base64_decode');
+$findings[] = finding('X4', 'medium', 'bare unserialize fallbacks on DB blobs',
+	'lib.php / clientbaselib / cron__linuxlib / pservercorelib', $x4Closed,
+	$x4Closed ? 'fail closed without kloxo_b64_unserialize' : 'bare unserialize fallback remains');
+
+$x5Closed = contains($remote, 'security X5')
+	&& not_contains(function_body($remote, 'do_remote_exec'), '@unserialize(base64_decode')
+	&& (contains($remote, ': false;') || contains($remote, "security X5"));
+$findings[] = finding('X5', 'medium', 'slave RPC response bare unserialize fallback',
+	'remotelib.php do_remote_exec / send_to_master', $x5Closed,
+	$x5Closed ? 'fail closed without helper' : 'bare unserialize fallback remains');
+
+$createSsl = function_body($remote, 'createSslStream');
+$x6Closed = contains($createSsl, 'security X6')
+	&& contains($createSsl, "'verify_peer' => false");
+$findings[] = finding('X6', 'low', 'createSslStream peer_name off without docs',
+	'remotelib.php createSslStream', $x6Closed,
+	$x6Closed ? 'server listener; envelope auth documented' : 'still opaque verify_peer_name false');
+
+$loginInc = file_text($root, 'kloxo/httpdocs/login/inc.php');
+$loginIncTpl = file_text($root, 'kloxo/file/pages/login_inc.php');
+$x7Closed = contains($loginInc, 'random_bytes')
+	&& contains($loginIncTpl, 'random_bytes')
+	&& not_contains($loginInc, 'mt_rand()')
+	&& not_contains($loginIncTpl, 'mt_rand()');
+$findings[] = finding('X7', 'low', 'login CSRF token uses mt_rand',
+	'login/inc.php / file/pages/login_inc.php', $x7Closed,
+	$x7Closed ? 'bin2hex(random_bytes(16))' : 'still mt_rand()');
+
+$csrfFn = function_body($lib, 'isCSRFTokenMatch');
+$x8Closed = contains($csrfFn, 'security X8')
+	&& not_contains($csrfFn, 'token_get');
+$findings[] = finding('X8', 'low', 'CSRF accepts GET frm_token for mutating actions',
+	'lib.php isCSRFTokenMatch', $x8Closed,
+	$x8Closed ? 'mutating GET refused (POST required)' : 'still accepts query frm_token');
+
+$dbschemaConv = file_text($root, 'kloxo/file/sql/dbschema-convert.php');
+$x9Closed = contains($dbschemaConv, 'security X9')
+	&& (contains($dbschemaConv, 'allowed_classes') || contains($dbschemaConv, 'kloxo_unserialize_deny_gadgets'))
+	&& not_contains($dbschemaConv, '$u = unserialize($c);');
+$findings[] = finding('X9', 'low', 'dbschema-convert bare unserialize',
+	'file/sql/dbschema-convert.php', $x9Closed,
+	$x9Closed ? 'arrays-only unserialize' : 'still bare unserialize($c)');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

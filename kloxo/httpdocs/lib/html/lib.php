@@ -3089,7 +3089,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111609';
+	return '10.1-2026111610';
 }
 
 function getDownloadServer()
@@ -7168,9 +7168,11 @@ function getIpfromARecord($servername, $nobase = null)
 	$base = null;
 
 	foreach ($d as $dk => $dv) {
-		$w = function_exists('kloxo_b64_unserialize')
-			? kloxo_b64_unserialize((string) ($dv['ser_dns_record_a'] ?? ''))
-			: @unserialize(base64_decode((string) ($dv['ser_dns_record_a'] ?? '')));
+		// Fail closed without gadget helper (security X4).
+		if (!function_exists('kloxo_b64_unserialize')) {
+			continue;
+		}
+		$w = kloxo_b64_unserialize((string) ($dv['ser_dns_record_a'] ?? ''));
 		if (!is_array($w) && !is_object($w)) {
 			continue;
 		}
@@ -9023,22 +9025,11 @@ function isCSRFTokenMatch()
 			$ret = false;
 		}
 	} else {
-		// State-changing actions must not run over bare GET (CSRF F8),
-		// including service start/stop/restart and boot toggles.
-		// A matching frm_token in the query is accepted (same-origin JS may
-		// still POST; tokenised GET is for gradual callers).
+		// State-changing actions must not run over GET (CSRF F8 / security X8).
+		// Token in the query leaks via Referer; service icons POST via fetch.
 		$action = isset($_GET['frm_action']) ? (string) $_GET['frm_action'] : '';
 		if ($action === 'add' || $action === 'update' || $action === 'delete') {
-			$token_get = isset($_GET['frm_token']) ? (string) $_GET['frm_token'] : '';
-			$token_session = '';
-			if (isset($gbl->c_session) && is_object($gbl->c_session)
-				&& isset($gbl->c_session->ssession_vars['__tmp_csrf_token'])) {
-				$token_session = (string) $gbl->c_session->ssession_vars['__tmp_csrf_token'];
-			}
-			if ($token_get === '' || $token_session === ''
-				|| !hash_equals($token_session, $token_get)) {
-				$ret = false;
-			}
+			$ret = false;
 		}
 	}
 

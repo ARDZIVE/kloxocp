@@ -292,9 +292,10 @@ function do_remote_exec($machine, $rmt, $cmdtype, $nname, $dbaction)
 
 	$totalout = send_to_some_server($machine, $var);
 
+	// Fail closed without gadget helper (security X5).
 	$res = function_exists('kloxo_b64_unserialize')
 		? kloxo_b64_unserialize((string) $totalout)
-		: @unserialize(base64_decode((string) $totalout));
+		: false;
 
 	if (!$res || !is_object($res)) {
 		exec_with_all_closed("sh /script/load-wrapper >/dev/null 2>&1 &");
@@ -494,9 +495,10 @@ function send_to_master($object)
 	// Auth envelope before the serialized payload (same shape as do_remote_exec).
 	$var = "__master::" . $remotechar . "\n" . $user . "\n" . $pass . "\n" . $payload;
 	$out = send_to_some_stream_server("cmd", null, $raddress, $var, null);
+	// Fail closed without gadget helper (security X5).
 	$rmt = function_exists('kloxo_b64_unserialize')
 		? kloxo_b64_unserialize((string) $out)
-		: @unserialize(base64_decode((string) $out));
+		: false;
 	if (!is_object($rmt)) {
 		return null;
 	}
@@ -722,10 +724,14 @@ function createSslStream()
 		$crypto |= STREAM_CRYPTO_METHOD_TLSv1_3_SERVER;
 	}
 
+	// security X6: this is the *server* TLS listener for kloxo-backend.
+	// Client identity is the auth envelope (password), not a TLS CN; do not
+	// require or pin a client certificate hostname here. Outbound slave
+	// peer_name pinning is kloxo_slave_tls_peer_name() (W5).
 	$opts = array(
 		'ssl' => array(
 			'local_cert' => $pem,
-			'verify_peer' => true,
+			'verify_peer' => false,
 			'verify_peer_name' => false,
 			'allow_self_signed' => true,
 		),

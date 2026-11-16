@@ -70,9 +70,10 @@ class cron__Linux extends lxDriverClass
 			}
 			foreach ($list as $l) {
 				$raw = isset($__r["ser_$l"]) ? $__r["ser_$l"] : '';
+				// Fail closed without gadget helper (security X4).
 				$decoded = function_exists('kloxo_b64_unserialize')
 					? kloxo_b64_unserialize((string) $raw)
-					: @unserialize(base64_decode((string) $raw));
+					: false;
 				$__r[$l] = ($decoded !== false && $decoded !== null) ? $decoded : (isset($__r[$l]) ? $__r[$l] : '*');
 			}
 		}

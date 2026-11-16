@@ -226,17 +226,18 @@ class ClientBase extends ClientCore
 				if (is_object($sp) && isset($sp->skin_name) && $sp->skin_name === 'simplicity') {
 					$server = $this->syncserver ?: 'localhost';
 					$raw = db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b");
-					$server_phpini = is_string($raw) && function_exists('kloxo_b64_unserialize')
+					// Fail closed without gadget helper (security X4).
+					$server_phpini = (is_string($raw) && function_exists('kloxo_b64_unserialize'))
 						? kloxo_b64_unserialize($raw)
-						: (is_string($raw) ? @unserialize(base64_decode($raw)) : false);
+						: false;
 					if (!is_object($server_phpini) || empty($server_phpini->session_save_path_flag)) {
 						$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_pserver";
 					}
 
 					$raw = db_get_value("phpini", "client-" . $this->nname, "ser_phpini_flag_b");
-					$server_phpini = is_string($raw) && function_exists('kloxo_b64_unserialize')
+					$server_phpini = (is_string($raw) && function_exists('kloxo_b64_unserialize'))
 						? kloxo_b64_unserialize($raw)
-						: (is_string($raw) ? @unserialize(base64_decode($raw)) : false);
+						: false;
 					if (!is_object($server_phpini) || empty($server_phpini->session_save_path_flag)) {
 						$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_client";
 					}
@@ -251,10 +252,19 @@ class ClientBase extends ClientCore
 
 	static function createDbPass($pass)
 	{
-		$newp = md5($pass);
-		$newp = substr($newp, 0, 10);
-		
-		return $newp;
+		// HMAC-SHA256 material for MariaDB sync passwords (security X3).
+		// Not a login hash — derived secret for CREATE/ALTER USER.
+		$pass = is_string($pass) ? $pass : '';
+		$key = '';
+		if (function_exists('kloxo_realpass_key_bytes')) {
+			$key = (string) kloxo_realpass_key_bytes();
+		}
+		if ($key === '') {
+			$key = 'kloxo-dbpass-v1';
+		}
+		$newp = hash_hmac('sha256', $pass, $key);
+
+		return substr($newp, 0, 16);
 	}
 
 	function createShowNote()

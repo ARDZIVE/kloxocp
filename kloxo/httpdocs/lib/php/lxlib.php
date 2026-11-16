@@ -2609,6 +2609,111 @@ function createEncName($name)
 	return $name;
 }
 
+/**
+ * Path to the AES key used to seal realpass at rest (security X1).
+ */
+function kloxo_realpass_key_path()
+{
+	global $sgbl;
+
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+
+	return $root . '/etc/conf/realpass.key';
+}
+
+/** 32-byte key material, or '' if missing. */
+function kloxo_realpass_key_bytes()
+{
+	static $cached = null;
+	if ($cached !== null) {
+		return $cached;
+	}
+	$path = kloxo_realpass_key_path();
+	if (!is_file($path) || !is_readable($path)) {
+		$cached = '';
+
+		return $cached;
+	}
+	$raw = trim((string) @file_get_contents($path));
+	if ($raw === '') {
+		$cached = '';
+
+		return $cached;
+	}
+	// Accept hex (64 chars) or raw/base64.
+	if (preg_match('/^[0-9a-fA-F]{64}$/', $raw)) {
+		$cached = hex2bin($raw);
+
+		return is_string($cached) ? $cached : '';
+	}
+	$bin = base64_decode($raw, true);
+	if (is_string($bin) && strlen($bin) === 32) {
+		$cached = $bin;
+
+		return $cached;
+	}
+	if (strlen($raw) === 32) {
+		$cached = $raw;
+
+		return $cached;
+	}
+	$cached = hash('sha256', $raw, true);
+
+	return $cached;
+}
+
+/**
+ * Seal plaintext realpass for DB storage. Prefer AES-256-GCM (__lxen2:);
+ * fall back to legacy __lxen: base64 only when no key exists yet.
+ */
+function kloxo_realpass_seal($plain)
+{
+	$plain = is_string($plain) ? $plain : '';
+	$key = kloxo_realpass_key_bytes();
+	if ($key === '' || !function_exists('openssl_encrypt')) {
+		return '__lxen:' . base64_encode($plain);
+	}
+	$iv = random_bytes(12);
+	$tag = '';
+	$ct = openssl_encrypt($plain, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag, '', 16);
+	if (!is_string($ct) || $ct === '' || !is_string($tag) || strlen($tag) !== 16) {
+		return '__lxen:' . base64_encode($plain);
+	}
+
+	return '__lxen2:' . base64_encode($iv . $tag . $ct);
+}
+
+/** Open a sealed or legacy realpass value to plaintext. */
+function kloxo_realpass_open($stored)
+{
+	$stored = is_string($stored) ? $stored : '';
+	if ($stored === '') {
+		return '';
+	}
+	if (str_starts_with($stored, '__lxen2:')) {
+		$key = kloxo_realpass_key_bytes();
+		$raw = base64_decode(substr($stored, 8), true);
+		if ($key === '' || !is_string($raw) || strlen($raw) < 28 || !function_exists('openssl_decrypt')) {
+			return '';
+		}
+		$iv = substr($raw, 0, 12);
+		$tag = substr($raw, 12, 16);
+		$ct = substr($raw, 28);
+		$pt = openssl_decrypt($ct, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+		return is_string($pt) ? $pt : '';
+	}
+	if (str_starts_with($stored, '__lxen:')) {
+		$pt = base64_decode(substr($stored, 7), true);
+
+		return is_string($pt) ? $pt : '';
+	}
+
+	return $stored;
+}
+
 function kloxo_password_hash($plain)
 {
 	if (!is_string($plain) || $plain === '') {

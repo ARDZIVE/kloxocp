@@ -295,9 +295,10 @@ class pservercore extends Lxclient
 			? $login->sp_specialplay_o->specialplay_b : null;
 		if (is_object($sp) && isset($sp->skin_name) && $sp->skin_name === 'simplicity') {
 			$raw = db_get_value("phpini", "pserver-" . $server, "ser_phpini_flag_b");
-			$server_phpini = is_string($raw) && function_exists('kloxo_b64_unserialize')
+			// Fail closed without gadget helper (security X4).
+			$server_phpini = (is_string($raw) && function_exists('kloxo_b64_unserialize'))
 				? kloxo_b64_unserialize($raw)
-				: (is_string($raw) ? @unserialize(base64_decode($raw)) : false);
+				: false;
 			if (!is_object($server_phpini) || empty($server_phpini->session_save_path_flag)) {
 				$ghtml->__http_vars['frm_emessage'] = "phpini_not_set_pserver";
 			}

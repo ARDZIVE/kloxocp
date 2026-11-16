@@ -73,7 +73,7 @@ if (!$cgi_forgotpwd) {
 		}
 	}
 
-	$_SESSION['frm_token'] = mt_rand();
+	$_SESSION['frm_token'] = bin2hex(random_bytes(16)); // security X7: CSPRNG
 ?>
 <!--- include start --->
 

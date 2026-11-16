@@ -325,6 +325,43 @@ function kloxo_backend_callable_allowed($func)
  * @param array|bool $options passed to unserialize (PHP 7+)
  * @return mixed|false
  */
+/**
+ * Panel-safe class name for unserialize allow-list (security X2).
+ * Flat lowercase panel classes, *_a/*_b/*_o blobs, Remote / lxException / stdClass.
+ */
+function kloxo_unserialize_panel_class_ok($c)
+{
+	if (!is_string($c) || $c === '' || strpos($c, '\\') !== false) {
+		return false;
+	}
+	static $bad = array(
+		'PDO' => true, 'PDOStatement' => true, 'Phar' => true, 'PharData' => true,
+		'SimpleXMLElement' => true, 'SplFileObject' => true, 'SplFileInfo' => true,
+		'DirectoryIterator' => true, 'FilesystemIterator' => true,
+		'CallbackFilterIterator' => true, 'SQLite3' => true, 'mysqli' => true,
+		'CurlHandle' => true, 'ReflectionFunction' => true, 'ReflectionMethod' => true,
+		'ReflectionClass' => true, 'ReflectionObject' => true, 'ArrayIterator' => true,
+		'ArrayObject' => true, 'Generator' => true, 'Closure' => true, 'Error' => true,
+		'TypeError' => true, 'ParseError' => true, 'SoapClient' => true, 'XMLWriter' => true,
+	);
+	if (isset($bad[$c])) {
+		return false;
+	}
+	if ($c === 'Remote' || $c === 'stdClass' || $c === 'lxException' || $c === 'lxexception') {
+		return true;
+	}
+	if (preg_match('/_[abo]$/', $c)) {
+		return true;
+	}
+	global $gl_class_array;
+	if (is_array($gl_class_array)
+		&& (isset($gl_class_array[$c]) || isset($gl_class_array[strtolower($c)]))) {
+		return true;
+	}
+	// Legacy first-party object names are flat lowercase (client, priv, used, …).
+	return (bool) preg_match('/^[a-z][a-z0-9_]{0,63}$/', $c);
+}
+
 function kloxo_unserialize_deny_gadgets($raw, $options = true)
 {
 	if (!is_string($raw) || $raw === '') {
@@ -360,7 +397,21 @@ function kloxo_unserialize_deny_gadgets($raw, $options = true)
 	if ($options === false) {
 		return @unserialize($raw, array('allowed_classes' => false));
 	}
-	return @unserialize($raw);
+	// Default (security X2): only instantiate panel-safe class names from the blob.
+	$allowed = array();
+	if (preg_match_all('/O:\\d+:"([^"]+)"/', $raw, $m)) {
+		foreach (array_unique($m[1]) as $c) {
+			if (!kloxo_unserialize_panel_class_ok($c)) {
+				return false;
+			}
+			$allowed[] = $c;
+		}
+	}
+	if ($allowed === array()) {
+		return @unserialize($raw, array('allowed_classes' => false));
+	}
+
+	return @unserialize($raw, array('allowed_classes' => $allowed));
 }
 
 /**

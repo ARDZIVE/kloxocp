@@ -105,6 +105,13 @@ else
   bad "copyCertificate fails closed without keys"
 fi
 
+echo "== X-wave unit checks"
+if php "$HERE/test_x_wave.php" >/tmp/kloxo-xwave.out 2>&1; then
+  ok "test_x_wave.php"
+else
+  bad "test_x_wave.php" "$(tail -n 5 /tmp/kloxo-xwave.out 2>/dev/null)"
+fi
+
 echo "== open findings checklist (informational; does not fail this suite)"
 if php "$HERE/check-open-findings.php" >/tmp/kloxo-open-findings.out 2>&1; then
   ok "all tracked open findings CLOSED"

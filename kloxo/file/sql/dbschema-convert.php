@@ -1,6 +1,5 @@
 <?php
 
-
 dbschema_to_phpvar();
 
 function dbschema_to_phpvar()
@@ -8,7 +7,16 @@ function dbschema_to_phpvar()
 	$p = "/opt/kloxo/file/sql/";
 
 	$c = file_get_contents("$p/.db_schema");
-	$u = unserialize($c);
+	// Arrays-only (security X9): .db_schema is a local dump, never objects.
+	if (function_exists('kloxo_unserialize_deny_gadgets')) {
+		$u = kloxo_unserialize_deny_gadgets($c, false);
+	} else {
+		$u = @unserialize($c, array('allowed_classes' => false));
+	}
+	if (!is_array($u)) {
+		fwrite(STDERR, "dbschema-convert: refused or empty .db_schema\n");
+		exit(1);
+	}
 /*
 	$s = '<' . '?php' . "\n";
 
@@ -34,7 +42,3 @@ function dbschema_to_phpvar()
 
 	file_put_contents("$p/db_schema.php", '<' . '?php' . "\n" . "\$var = " . $v . ';');
 }
-
-
-
-

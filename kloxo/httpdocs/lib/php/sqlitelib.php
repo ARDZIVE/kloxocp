@@ -211,11 +211,14 @@ class Sqlite
 
 			if (isset($result['realpass'])) {
 				$value = $result['realpass'];
-
-				if (csb($value, '__lxen:')) {
-					$value = base64_decode(strfrom($value, "__lxen:"));
+				// AES-GCM (__lxen2:) or legacy base64 (__lxen:) (security X1).
+				if (function_exists('kloxo_realpass_open')) {
+					$value = kloxo_realpass_open((string) $value);
+				} elseif (csb($value, '__lxen2:')) {
+					$value = '';
+				} elseif (csb($value, '__lxen:')) {
+					$value = base64_decode(strfrom($value, '__lxen:'));
 				}
-
 				$result['realpass'] = $value;
 			}
 
@@ -369,8 +372,10 @@ class Sqlite
 		foreach ($result as $key => $val) {
 			if ($key === 'realpass') {
 				$rp = $array[$key] ?? '';
-				$rp = base64_encode($rp);
-				$rp = "__lxen:{$rp}";
+				$rp = function_exists('kloxo_realpass_seal')
+					? kloxo_realpass_seal((string) $rp)
+					: ('__lxen:' . base64_encode((string) $rp));
+				$rp = str_replace("'", "''", $rp);
 				$string .= " '{$rp}',";
 
 				continue;
@@ -402,12 +407,14 @@ class Sqlite
 			}
 
 			if ($key === 'realpass') {
-				$rp = $array[$key];
-
-				if (!csb($rp, "__lxen:")) {
-					$rp = base64_encode($rp);
-					$rp = "__lxen:{$rp}";
+				$rp = (string) ($array[$key] ?? '');
+				// Re-seal plaintext; leave already-sealed values alone.
+				if (!str_starts_with($rp, '__lxen2:') && !str_starts_with($rp, '__lxen:')) {
+					$rp = function_exists('kloxo_realpass_seal')
+						? kloxo_realpass_seal($rp)
+						: ('__lxen:' . base64_encode($rp));
 				}
+				$rp = str_replace("'", "''", $rp);
 				$strarray[] = "{$key} = '{$rp}'";
 
 				continue;
