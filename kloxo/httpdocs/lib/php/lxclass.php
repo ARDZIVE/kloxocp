@@ -417,9 +417,12 @@ abstract class Lxclass
 
 			if (isset($acto->$var) && $acto->$var) {
 				$action = $acto->$var;
-				$action = str_replace('%contactemail%', $this->contactemail, $action);
-				$action = str_replace('%nname%', $this->nname, $action);
-				lxshell_direct($action);
+				// Argv arrays only — string shell lines refused (security VV4).
+				if (is_array($action)) {
+					lxshell_direct($action);
+				} else {
+					log_log('security', 'customaction general string exec refused (security VV4)');
+				}
 			}
 
 			if (!$this->isClass('vps')) {
@@ -455,11 +458,12 @@ abstract class Lxclass
 			dprintr($list . "\n");
 
 			foreach ($list as $k => $l) {
-				$ex = $l['exec'];
-				$ex = str_replace('%contactemail%', $this->contactemail, $ex);
-				$ex = str_replace('%nname%', $this->nname, $ex);
-				$ex = str_replace('%hostname%', $this->hostname, $ex);
-				$ex = str_replace('%vpsid%', $this->vpsid, $ex);
+				$ex = $l['exec'] ?? null;
+				// Argv arrays only — string shell lines refused (security VV4).
+				if (!is_array($ex)) {
+					log_log('security', 'customaction row string exec refused (security VV4)');
+					continue;
+				}
 				if ($l['where_to_exec'] === 'master') {
 					lxshell_direct($ex);
 				} else {
@@ -1163,17 +1167,29 @@ abstract class Lxclass
 
 	function getDbOrderLimit($filter, $count)
 	{
-		$skiprows = $filter['pagesize'] * ($filter['pagenum'] - 1);
+		// Integer pages + sort allow-list (security VV2).
+		$pagesize = isset($filter['pagesize']) ? (int) $filter['pagesize'] : 20;
+		$pagenum = isset($filter['pagenum']) ? (int) $filter['pagenum'] : 1;
+		if ($pagesize < 1) {
+			$pagesize = 20;
+		}
+		if ($pagenum < 1) {
+			$pagenum = 1;
+		}
+		$skiprows = $pagesize * ($pagenum - 1);
 
 		if ($skiprows >= $count) {
 			$skiprows = 0;
 		}
 
-	//	$sortstr = "order by {$filter['sortby']} {$filter['sortdir']}";
-		$sortby = $filter['sortby'];
-		$sortdir = $filter['sortdir'];
-		$pagesize = $filter['pagesize'];
-	//	$orderstr = "{$sortstr} limit {$skiprows},{$filter['pagesize']} ";
+		$sortby = isset($filter['sortby']) ? (string) $filter['sortby'] : 'nname';
+		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($sortby)) {
+			$sortby = 'nname';
+		}
+		$sortdir = isset($filter['sortdir']) ? strtolower((string) $filter['sortdir']) : 'asc';
+		if ($sortdir !== 'asc' && $sortdir !== 'desc') {
+			$sortdir = 'asc';
+		}
 
 		$ret['sortby'] = $sortby;
 		$ret['sortdir'] = $sortdir;
@@ -1186,7 +1202,7 @@ abstract class Lxclass
 
 	static function getdbFilter($filter = null, $class = null)
 	{
-		static $oplist = array('gt' => '>', 'lt' => '<', 'eq' => '===', 'ne' => '!=', 'cont' => 'LIKE');
+		static $oplist = array('gt' => '>', 'lt' => '<', 'eq' => '=', 'ne' => '!=', 'cont' => 'LIKE');
 		$total = null;
 
 		foreach ((array)$filter as $key => $val) {
@@ -1199,36 +1215,59 @@ abstract class Lxclass
 			if (char_search_a($key, "_o_")) {
 				$var = substr($key, 0, strpos($key, "_o_"));
 				$op = substr($key, strpos($key, "_o_") + 3);
-			//	$op = $oplist[$op];
-				$var = str_replace(array("\"", "'", ";"), "", $var);
-				$val = str_replace(array("\"", "'", ";"), "", $val);
+				$var = (string) $var;
+				$val = (string) $val;
+				if (!isset($oplist[$op])) {
+					continue;
+				}
+				// Ident + quote (security VV1).
+				if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($var)) {
+					continue;
+				}
 
-				if ($val) {
+				if ($val !== '') {
 					if ($val === '--any--') {
 						continue;
 					}
 
 					if (cse($var, "_q")) {
-						$var = strtil($var, "_q");
+						$qbase = strtil($var, "_q");
+						if (!kloxo_sql_ident((string) $qbase)) {
+							continue;
+						}
 
 						if ($val === 'overquota') {
-							$total[] = "(priv_q_$var != 'Unlimited' AND (used_q_$var + 0) > (priv_q_$var + 0))";
+							$total[] = "(priv_q_{$qbase} != 'Unlimited' AND (used_q_{$qbase} + 0) > (priv_q_{$qbase} + 0))";
 						} else {
-							$total[] = "(priv_q_$var = 'Unlimited' OR (used_q_$var + 0) <= (priv_q_$var + 0))";
+							$total[] = "(priv_q_{$qbase} = 'Unlimited' OR (used_q_{$qbase} + 0) <= (priv_q_{$qbase} + 0))";
 						}
 
 						continue;
 					}
-					if ($op == 'cont') {
-						if ($val[0] === '^') {
-							$val = substr($val, 1);
-							$val = "$val%";
-						} else {
-							$val = "%{$val}%";
+					if ($op === 'cont') {
+						$raw = $val;
+						$prefix = false;
+						if ($raw !== '' && $raw[0] === '^') {
+							$raw = substr($raw, 1);
+							$prefix = true;
 						}
+						if (function_exists('kloxo_sql_like')) {
+							$total[] = kloxo_sql_like($var, $raw, $prefix ? 'prefix' : 'contains');
+						} else {
+							$esc = function_exists('kloxo_sql_quote')
+								? kloxo_sql_quote($raw)
+								: str_replace("'", "''", $raw);
+							$total[] = $prefix
+								? "{$var} LIKE '{$esc}%'"
+								: "{$var} LIKE '%{$esc}%'";
+						}
+						continue;
 					}
 
-					$total[] = "{$var} {$oplist[$op]} '{$val}'";
+					$esc = function_exists('kloxo_sql_quote')
+						? kloxo_sql_quote($val)
+						: str_replace("'", "''", $val);
+					$total[] = "{$var} {$oplist[$op]} '{$esc}'";
 				}
 			} else {
 				$f = "__hpfilter_{$key}_{$val}";
@@ -1241,8 +1280,19 @@ abstract class Lxclass
 		}
 
 		if (isset($filter['searchstring']) && $filter['searchstring']) {
-			$var = exec_class_method($class, 'searchVar');
-			$total[] = "$var LIKE '%{$filter['searchstring']}%'";
+			$svar = exec_class_method($class, 'searchVar');
+			$svar = is_string($svar) ? $svar : '';
+			if ($svar !== '' && function_exists('kloxo_sql_ident') && kloxo_sql_ident($svar)) {
+				// Quoted LIKE (security VV1).
+				if (function_exists('kloxo_sql_like')) {
+					$total[] = kloxo_sql_like($svar, $filter['searchstring'], 'contains');
+				} else {
+					$esc = function_exists('kloxo_sql_quote')
+						? kloxo_sql_quote($filter['searchstring'])
+						: str_replace("'", "''", (string) $filter['searchstring']);
+					$total[] = "{$svar} LIKE '%{$esc}%'";
+				}
+			}
 		}
 
 		$andstr = null;
@@ -1706,28 +1756,32 @@ abstract class Lxclass
 			$f = $this->getDbOrderLimit($filter, $countres, $class);
 
 			$table = $this->getTheTable($rclass);
+			// sortby/sortdir already allow-listed in getDbOrderLimit (security VV2).
 			$sortby = $f['sortby'];
 			$sortdir = $f['sortdir'];
-			$skiprows = $f['skiprows'];
-			$pagesize = $f['pagesize'];
+			$skiprows = (int) $f['skiprows'];
+			$pagesize = (int) $f['pagesize'];
 			$revsortdir = $f['revsortdir'];
+			if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $table)) {
+				$res = array();
+			} else {
+				if ($sgbl->__var_database_type === 'mysql') {
+					$desc = get_classvar_description($class, $sortby);
 
-			if ($sgbl->__var_database_type === 'mysql') {
-				$desc = get_classvar_description($class, $sortby);
+					if (is_array($desc) && isset($desc[0]) && csa($desc[0], "q") && kloxo_sql_ident((string) $sortby)) {
+						$sortby = "(used_q_{$sortby} + 0)";
+					}
 
-				if (csa($desc[0], "q")) {
-					$sortby = "(used_q_{$sortby} + 0)";
+					$query = "select * from {$table} {$countquery} order by {$sortby} {$sortdir} limit {$skiprows}, {$pagesize}";
+				} else if ($sgbl->__var_database_type === 'mssql') {
+					$tot = $pagesize + $skiprows;
+					$query = "select * from (select top {$pagesize} * from ( select top {$tot} * from {$table} {$countquery} order by {$sortby} {$sortdir} ) as t_{$table} order by {$sortby} {$revsortdir}) as t2_{$table} order by {$sortby} {$sortdir}";
+				} else {
+					$query = "select * from {$table} {$countquery} order by {$sortby} {$sortdir} limit {$skiprows}, {$pagesize}";
 				}
 
-				$query = "select * from {$table} {$countquery} order by {$sortby} {$sortdir} limit {$skiprows}, {$pagesize}";
-			} else if ($sgbl->__var_database_type === 'mssql') {
-				$tot = $pagesize + $skiprows;
-				$query = "select * from (select top {$pagesize} * from ( select top {$tot} * from {$table} {$countquery} order by {$sortby} {$sortdir} ) as t_{$table} order by {$sortby} {$revsortdir}) as t2_{$table} order by {$sortby} {$sortdir}";
-			} else {
-				$query = "select * from {$table} {$countquery} order by {$sortby} {$sortdir} limit {$skiprows}, {$pagesize}";
+				$res = $db->rawQuery($query);
 			}
-
-			$res = $db->rawQuery($query);
 		//	$db->rawquery("commit;");
 		//	print_time('getdb', 'GetResult');
 

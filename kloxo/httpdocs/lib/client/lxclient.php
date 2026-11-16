@@ -595,6 +595,15 @@ abstract class Lxclient extends Lxdb
 		}
 		$name = (is_object($sp) && !empty($sp->skin_name)) ? (string) $sp->skin_name : 'simplicity';
 		$color = (is_object($sp) && !empty($sp->skin_color)) ? (string) $sp->skin_color : 'default';
+		// Path-segment allow-list (security VV3).
+		$name = preg_replace('/[^A-Za-z0-9_-]/', '', $name);
+		$color = preg_replace('/[^A-Za-z0-9_-]/', '', $color);
+		if ($name === '' || $name === null) {
+			$name = 'simplicity';
+		}
+		if ($color === '' || $color === null) {
+			$color = 'default';
+		}
 		$dir = "/theme/skin/{$name}/{$color}/";
 		if (!lxfile_exists("__path_program_htmlbase{$dir}")) {
 			$dir = "/theme/skin/simplicity/default/";

@@ -92,12 +92,14 @@ function drawMenu()
 		image = '/plus.gif';
 	}
 	
+	// Quote image src (security VV3).
+	var safeImage = kloxoEscHtml(image);
 	document.write("<table  border=\"0\" cellspacing=\"0\"" +
 					" cellpadding=\"0\" style=\"padding:0 0 0 0;\" width=\"100%\">");
 	document.write("<tr style=\"background:url('/background1.gif')\" onMouseover=\"this.style.background='url(/onexpand.gif)'\" onMouseout=\"this.style.background='url(/background1.gif)'\"><td style=\"width:180px;vertical-align: center; \"><font style='font-weight:bold'>&nbsp;" + safeLabel +
-					"</font></td><td class=" + menuclass + " id=\"" + safeId + "\"" + 
+					"</font></td><td class=\"" + menuclass + "\" id=\"" + safeId + "\"" + 
 					"onclick=\"toggle(this)\">");
-	document.write("&nbsp;<img id="+ safeId +"_image src="+ image +"></td></tr>");
+	document.write("&nbsp;<img id=\""+ safeId +"_image\" src=\""+ safeImage +"\"></td></tr>");
 	document.write("</table>");
 	document.write("<div style=\"display: " + disp + "; visibility: " + visib + ";\"" +
 			" class=\"menuItems\" id=\"" + safeId + "_child" + "\">");

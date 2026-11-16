@@ -2368,6 +2368,60 @@ $findings[] = finding('UU6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo / toast', $uu6Closed,
 	$uu6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- VV wave ---
+$lxclassVv = file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php');
+$vv1Closed = contains($lxclassVv, 'security VV1')
+	&& contains($lxclassVv, 'kloxo_sql_like')
+	&& not_contains($lxclassVv, "LIKE '%{\$filter['searchstring']}%'");
+$findings[] = finding('VV1', 'medium', 'getdbFilter LIKE/searchstring poorly escaped',
+	'lxclass.php getdbFilter', $vv1Closed,
+	$vv1Closed ? 'kloxo_sql_like + quote/ident' : 'still raw LIKE concat');
+
+$vv2Closed = contains($lxclassVv, 'security VV2')
+	&& contains($lxclassVv, "sortdir !== 'asc' && \$sortdir !== 'desc'")
+	&& contains($lxclassVv, 'kloxo_sql_ident($sortby)');
+$findings[] = finding('VV2', 'medium', 'list ORDER BY sortby/sortdir unsanitized',
+	'lxclass.php getDbOrderLimit', $vv2Closed,
+	$vv2Closed ? 'ident + asc|desc allow-list' : 'still raw ORDER BY');
+
+$frameVv = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
+$panelVv = file_text($root, 'kloxo/httpdocs/theme/js/xpmenu/PanelBarOrig.js');
+$lxclientVv = file_text($root, 'kloxo/httpdocs/lib/client/lxclient.php');
+$vv3Closed = contains($frameVv, 'security VV3')
+	&& contains($frameVv, 'kloxoSkinDir')
+	&& not_contains($frameVv, "image = '<?=\$skinget?>/images/")
+	&& contains($panelVv, 'security VV3')
+	&& contains($lxclientVv, 'security VV3');
+$findings[] = finding('VV3', 'low', 'frame_left/PanelBar embed skinget/image unsafely',
+	'frame_left.php / PanelBarOrig.js / getSkinDir', $vv3Closed,
+	$vv3Closed ? 'json skinDir + kloxoEscHtml + path allow-list' : 'still raw embed');
+
+$vv4Closed = contains($lxclassVv, 'security VV4')
+	&& contains($lxclassVv, 'customaction general string exec refused')
+	&& contains($lxclassVv, 'customaction row string exec refused');
+$findings[] = finding('VV4', 'low', 'customaction still runs string shell via lxshell_direct',
+	'lxclass.php customaction', $vv4Closed,
+	$vv4Closed ? 'argv-only; strings refused' : 'still string exec');
+
+$libVv = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibVv = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$vv5Closed = contains($libVv, 'security LL3 / VV5')
+	&& contains($libVv, 'security MM1 / VV5')
+	&& contains($lxlibVv, 'security TT1 / VV5');
+$findings[] = finding('VV5', 'low', 'schema/migrate rawQuery sites unaudited',
+	'lib.php / lxlib.php schema helpers', $vv5Closed,
+	$vv5Closed ? 'ident-gated sites marked VV5' : 'unmarked');
+
+$extSecVv = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastVv = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$vv6Closed = contains($lxlibVv, 'security VV6')
+	&& contains($extSecVv, 'security VV6')
+	&& contains($toastVv, 'security VV6')
+	&& contains($lxlibVv, 'gated unserialize');
+$findings[] = finding('VV6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $vv6Closed,
+	$vv6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

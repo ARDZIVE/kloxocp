@@ -134,12 +134,20 @@ function xp_panel($object)
 	$cl = $login->getResourceChildList();
 	$qlist = $object->getList('resource');
 	$skinget = $login->getSkinDir();
+	// JSON for JS path constant (security VV3).
+	$skinJs = json_encode(
+		(string) $skinget,
+		JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+	);
+	if (!is_string($skinJs) || $skinJs === '') {
+		$skinJs = '"/theme/skin/simplicity/default/"';
+	}
 ?>
 
 		<script src="/theme/js/xpmenu/ua.js"></script>
 		<script src="/theme/js/xpmenu/PanelBarOrig.js"></script>
 		<script>
-			// Escape labels before document.write (security QQ4).
+			// Escape labels before document.write (security QQ4 / VV3).
 			function kloxoEscHtml(s) {
 				return String(s == null ? '' : s)
 					.replace(/&/g, '&amp;')
@@ -148,30 +156,33 @@ function xp_panel($object)
 					.replace(/"/g, '&quot;')
 					.replace(/'/g, '&#39;');
 			}
+			var kloxoSkinDir = <?= $skinJs ?>;
 			function drawMenu() {
 				var iCntr = 0;
 				var objMenu;
 				var strId, strLbl;
 				var safeLabel = kloxoEscHtml(this.label);
 				var safeId = kloxoEscHtml(this.id);
+				var safeImage;
 
 				if (this.open) {
 					visib = 'visibile';
 					disp = 'block';
 					menuclass = "menuHeaderExpanded";
-					image = '<?=$skinget?>/images/minus.gif';
+					image = kloxoSkinDir + 'images/minus.gif';
 					text = '-';
 				} else {
 					visib = 'hidden';
 					disp = 'none';
 					menuclass = "menuHeaderCollapsed";
-					image = '<?=$skinget?>/images/plus.gif';
+					image = kloxoSkinDir + 'images/plus.gif';
 					text = '+';
 				}
+				safeImage = kloxoEscHtml(image);
 
 				document.write("<table  border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:0 0 0 0;\" width=\"100%\">");
-				document.write("<tr style=\"background:#efe8e0 url(<?=$skinget?>/images/expand.gif)\" onMouseover=\"this.style.background='#efe8e0 url(<?=$skinget?>/images/onexpand.gif)'\" onMouseout=\"this.style.background='#efe8e0 url(<?=$skinget?>/images/expand.gif)'\"><td style=\"width:180px;vertical-align: center; \"><span style='font-weight:bold'>&nbsp;" + safeLabel + "</span></td><td class=" + menuclass + " id=\"" + safeId + "\"" + "onclick=\"toggle(this)\">");
-				document.write("&nbsp;<img id=" + safeId + "_image src=" + image + "></td></tr>");
+				document.write("<tr style=\"background:#efe8e0 url(" + kloxoEscHtml(kloxoSkinDir + "images/expand.gif") + ")\" onMouseover=\"this.style.background='#efe8e0 url(" + kloxoEscHtml(kloxoSkinDir + "images/onexpand.gif") + ")'\" onMouseout=\"this.style.background='#efe8e0 url(" + kloxoEscHtml(kloxoSkinDir + "images/expand.gif") + ")'\"><td style=\"width:180px;vertical-align: center; \"><span style='font-weight:bold'>&nbsp;" + safeLabel + "</span></td><td class=\"" + menuclass + "\" id=\"" + safeId + "\"" + "onclick=\"toggle(this)\">");
+				document.write("&nbsp;<img id=\"" + safeId + "_image\" src=\"" + safeImage + "\"></td></tr>");
 				document.write("</table>");
 				document.write("<div style=\"display: " + disp + "; visibility: " + visib + ";\"" + " class=\"menuItems\" id=\"" + safeId + "_child" + "\">");
 				document.write("<table border='0' style='background:white' border='0' cellspacing='1' cellpadding='0' width='100%'>");
@@ -199,12 +210,12 @@ function xp_panel($object)
 					pobjSrc.className = "menuHeaderExpanded";
 					child.style.visibility = "visible";
 					child.style.display = "block";
-					ichild.src = "<?=$skinget?>/images/minus.gif";
+					ichild.src = kloxoSkinDir + "images/minus.gif";
 				} else {
 					pobjSrc.className = "menuHeaderCollapsed";
 					child.style.visibility = "hidden";
 					child.style.display = "none";
-					ichild.src = "<?=$skinget?>/images/plus.gif";
+					ichild.src = kloxoSkinDir + "images/plus.gif";
 				}
 
 				_currMenu = pobjSrc.id;
@@ -254,7 +265,7 @@ function xp_panel($object)
 							if (is_unlimited($or->resourcepriv)) {
 								$limit = "&#8734;";
 							} else {
-								$limit = $or->display('resourcepriv');
+								$limit = htmlspecialchars((string) $or->display('resourcepriv'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 							}
 
 							$array = array("traffic_usage", "totaldisk_usage", "client_num", "maindomain_num", "vps_num");
@@ -263,14 +274,19 @@ function xp_panel($object)
 								continue;
 							}
 
-							$rdesc .= "<tr align=left style=\"border-width:1 ;background:#efe8e0 url($skinget/images/a.gif)\"> <td> " .
-								"<img width=15 height=15 src=\"$icondir/state_v_{$or->display('state')}.gif\"> {$or->shortdescr} </td> " .
-								"<td nowrap> {$or->display('resourceused')} </td> <td align=left> $limit&nbsp;</td> </tr>";
+							$skinEsc = htmlspecialchars((string) $skinget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+							$iconEsc = htmlspecialchars((string) $icondir, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+							$stateEsc = htmlspecialchars((string) $or->display('state'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+							$descEsc = htmlspecialchars((string) $or->shortdescr, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+							$usedEsc = htmlspecialchars((string) $or->display('resourceused'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+							$rdesc .= "<tr align=left style=\"border-width:1 ;background:#efe8e0 url({$skinEsc}/images/a.gif)\"> <td> " .
+								"<img width=15 height=15 src=\"{$iconEsc}/state_v_{$stateEsc}.gif\"> {$descEsc} </td> " .
+								"<td nowrap> {$usedEsc} </td> <td align=left> {$limit}&nbsp;</td> </tr>";
 						}
 
 ?>
 
-			createSubMenu(xxpDescr, '<?=$rdesc?>', '', '', '', '', '');
+			createSubMenu(xxpDescr, <?= json_encode((string) $rdesc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>, '', '', '', '', '');
 <?php
 	}
 

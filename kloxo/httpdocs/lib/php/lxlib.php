@@ -2444,10 +2444,10 @@ function kloxo_sql_like($field, $value, string $mode = 'contains'): string
 /**
  * Intentional residual surfaces (security MM6; security NN6; security OO6;
  * security PP6; security QQ6; security RR6; security SS6; security TT6;
- * security UU6): crypt() verify-only in check_password; getShellCommand stub;
- * SMTP/FormMail stubs; ExtJS retained for UI; gated unserialize / allow-listed
- * eeval; toast icon SVG via allow-listed innerHTML. Do not mint new crypt/md5
- * password hashes.
+ * security UU6; security VV6): crypt() verify-only in check_password;
+ * getShellCommand stub; SMTP/FormMail stubs; ExtJS retained for UI;
+ * gated unserialize / allow-listed eeval; toast icon SVG via allow-listed
+ * innerHTML. Do not mint new crypt/md5 password hashes.
  */
 
 function randomString($length)
@@ -6018,7 +6018,7 @@ function get_default_fields()
 function create_table_with_drop($tbl_name, $list)
 {
 	global $gbl, $sgbl, $login, $ghtml;
-	// Identifier allow-list (security TT1).
+	// Identifier allow-list (security TT1 / VV5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $tbl_name)) {
 		return;
 	}
