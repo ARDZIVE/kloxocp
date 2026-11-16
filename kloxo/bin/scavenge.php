@@ -55,12 +55,8 @@ function scavenge_main() {
 	checkClusterDiskQuota();
 
 	$driverapp = $gbl->getSyncClass(null, 'localhost', 'web');
-/*
-	if ($driverapp === 'lighttpd') {
-	    log_shell("Scavenge: Restarting lighttpd");
-	    system("service lighttpd restart");
-	}
-*/
+	// Lighttpd removed; never restart via system() (security FF6).
+	// was: system("service lighttpd restart");
 	log_shell("Scavenge: Fix log dir");
 	passthru("$sgbl->__path_php_path ../bin/common/fixlogdir.php");
 

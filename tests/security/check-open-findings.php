@@ -1335,6 +1335,67 @@ $findings[] = finding('EE6', 'low', 'quotacheck/mysql-convert/sysinfo shell left
 	'linuxlib / mysql-convert / sysinfo', $ee6Closed,
 	$ee6Closed ? 'argv / file edits' : 'still system/sed/rm shells');
 
+// --- Wave 17 (FF1–FF6) ---
+$libFf = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$ff1Closed = contains($libFf, 'security FF1')
+	&& contains($libFf, 'kloxo_exec_argv')
+	&& not_contains($libFf, 'exec("sh /script/setdriver --server=localhost --class={$key}')
+	&& not_contains($libFf, "exec(\"'rm' -f {\$path}/redirect-to-*.php\")")
+	&& not_contains($libFf, 'exec("sh /script/enable-service pure-ftpd');
+$findings[] = finding('FF1', 'medium', 'lib.php setdriver/rm/enable-service shell leftovers',
+	'lib.php cleanup helpers', $ff1Closed,
+	$ff1Closed ? 'kloxo_exec_argv + PHP unlink' : 'still exec setdriver/rm/enable-service');
+
+$sw = file_text($root, 'kloxo/httpdocs/driver/web/serverweb__lib.php');
+$ff2Closed = contains($sw, 'security FF2')
+	&& not_contains($sw, 'exec("sh /script/enable-php-fpm; sh /script/add-start-queue')
+	&& not_contains($sw, "exec(\"'rm' -rf {\$ehcdpath}/swtune.conf\")")
+	&& not_contains($sw, 'exec("sh /script/clearcache-pagespeed")');
+$findings[] = finding('FF2', 'medium', 'serverweb__lib chained enable-php-fpm shell',
+	'serverweb__lib.php', $ff2Closed,
+	$ff2Closed ? 'separate kloxo_exec_argv + unlink' : 'still chained exec');
+
+$mt = file_text($root, 'kloxo/httpdocs/driver/mmail/mailtrafficlib.php');
+$ff3Closed = contains($mt, 'security FF3')
+	&& contains($mt, 'proc_open')
+	&& not_contains($mt, 'system("perl');
+$findings[] = finding('FF3', 'medium', 'mailtrafficlib perl shell redirect',
+	'mailtrafficlib.php', $ff3Closed,
+	$ff3Closed ? 'proc_open perl with file descriptors' : 'still system(perl < >)');
+
+$webLib = file_text($root, 'kloxo/httpdocs/driver/web/web__lib.php');
+$ff4Closed = contains($webLib, 'security FF4')
+	&& not_contains($webLib, "exec(\"'rm' -rf /etc/php-fpm.d/*.conf\")")
+	&& contains($webLib, "glob('/etc/php-fpm.d/*.conf')");
+$findings[] = finding('FF4', 'medium', 'web__lib php-fpm.d shell glob rm',
+	'web__lib.php', $ff4Closed,
+	$ff4Closed ? 'PHP glob unlink' : 'still exec rm *.conf');
+
+$lxFf = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$appFf = file_text($root, 'kloxo/httpdocs/lib/client/appearancelib.php');
+$ff5Closed = contains($lxFf, 'security FF5')
+	&& not_contains($lxFf, 'eval(debug_print')
+	&& contains($appFf, 'security FF5')
+	&& not_contains($appFf, 'exec("sh /script/fix-userlogo")');
+$findings[] = finding('FF5', 'low', 'get_debug_print eval + appearancelib fix-userlogo',
+	'lxlib.php / appearancelib.php', $ff5Closed,
+	$ff5Closed ? 'debug_print capture + kloxo_exec_argv' : 'still eval/exec');
+
+$scav = file_text($root, 'kloxo/bin/scavenge.php');
+$iwdb = file_text($root, 'kloxo/bin/misc/installWebmailDb.php');
+$fcb = file_text($root, 'kloxo/bin/fix/fix-cron-backup.php');
+$lprog = file_text($root, 'kloxo/httpdocs/lib/linuxproglib.php');
+$ff6Closed = contains($scav, 'security FF6')
+	&& contains($iwdb, 'security FF6')
+	&& contains($fcb, 'security FF6')
+	&& contains($lprog, 'security FF6')
+	&& not_contains($iwdb, 'system("sh /script/setup-roundcube")')
+	&& not_contains($fcb, "exec(\"'rm' -f /etc/cron.d/backup*\")")
+	&& not_contains($lprog, 'system("echo > /etc/hosts.deny")');
+$findings[] = finding('FF6', 'low', 'scavenge/installWebmail/fix-cron/hosts.deny leftovers',
+	'scavenge / installWebmailDb / fix-cron-backup / linuxproglib', $ff6Closed,
+	$ff6Closed ? 'argv / glob unlink / file_put_contents' : 'still system/exec leftovers');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

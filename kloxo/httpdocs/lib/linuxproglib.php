@@ -109,5 +109,6 @@ function remove_ssh_self_host_key()
 
 function remove_host_deny()
 {
-	system("echo > /etc/hosts.deny");
+	// Truncate via PHP — never system echo (security FF6).
+	@file_put_contents('/etc/hosts.deny', '');
 }

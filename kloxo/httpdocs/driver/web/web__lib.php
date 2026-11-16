@@ -56,10 +56,17 @@ class web__ extends lxDriverClass
 	static function setInstallPhpfpm()
 	{
 		if (!file_exists("/opt/configs/php-fpm")) {
-			exec("mkdir -p /opt/configs/php-fpm");
+			// argv / mkdir — no shell (security FF4).
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('mkdir', '-p', '--', '/opt/configs/php-fpm'));
+			} else {
+				@mkdir('/opt/configs/php-fpm', 0755, true);
+			}
 		}
 
-		exec("'cp' -rf ../file/php-fpm/* /opt/configs/php-fpm");
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('cp', '-rf', '--', '../file/php-fpm/.', '/opt/configs/php-fpm'));
+		}
 
 		if (version_compare(getPhpVersion(), "5.3.2", ">")) {
 			lxfile_cp(getLinkCustomfile("/opt/configs/php-fpm/etc", "php53-fpm.conf"), "/etc/php-fpm.conf");
@@ -79,12 +86,16 @@ class web__ extends lxDriverClass
 			// MR -- php 5.2 from centalt not create this pid but php-fpm installed!
 			if (!file_exists("/var/run/php-fpm/php-fpm.pid")) {
 				lxfile_mkdir("/var/run/php-fpm");
-				exec("echo '2265' > /var/run/php-fpm/php-fpm.pid");
+				@file_put_contents('/var/run/php-fpm/php-fpm.pid', "2265\n");
 			}
 		}
 
 	//	lxshell_return("chkconfig", "php-fpm", "on");
-		if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl enable php-fpm >/dev/null 2>&1"); }
+		if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) {
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('systemctl', 'enable', 'php-fpm'));
+			}
+		}
 	}
 
 	function createConfFile()
@@ -543,8 +554,10 @@ class web__ extends lxDriverClass
 				return;
 			}
 
-			// MR -- make simple, delete all .conf files first
-			exec("'rm' -rf /etc/php-fpm.d/*.conf");
+			// MR -- make simple, delete all .conf files first (no shell glob; security FF4).
+			foreach (glob('/etc/php-fpm.d/*.conf') ?: array() as $oldConf) {
+				@unlink($oldConf);
+			}
 			// MR -- that mean 'ini' type config
 			$cfgmain = getLinkCustomfile("/opt/configs/php-fpm/etc", "php53-fpm.conf");
 			lxfile_cp($cfgmain, "/etc/php-fpm.conf");

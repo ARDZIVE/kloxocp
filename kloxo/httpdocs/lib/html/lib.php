@@ -3115,7 +3115,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111618';
+	return '10.1-2026111619';
 }
 
 function getDownloadServer()
@@ -4175,7 +4175,11 @@ function copy_script($nolog = null)
 {
 	log_cleanup("Initialize /script/ dir", $nolog);
 	log_cleanup("- Initialize processes", $nolog);
-	exec("'rm' -rf /script; ln -sf /opt/kloxo/pscript /script");
+	// argv only (security FF1).
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('rm', '-rf', '--', '/script'));
+		kloxo_exec_argv(array('ln', '-sf', '/opt/kloxo/pscript', '/script'));
+	}
 }
 
 function kloxo_admin_db_pass_exception($previous = null)
@@ -5866,7 +5870,9 @@ function lxguard_main($clearflag = false, $since = false)
 	$hl_file = "{$lxgpath}/hitlist.info";
 
 	if ((file_exists($hl_file)) && (strpos(file_get_contents($hl_file), "\n\"") !== false)) {
-		exec("sh /script/fix-lxguardhit-db");
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fix-lxguardhit-db'));
+		}
 
 	}
 
@@ -7555,8 +7561,11 @@ function setInitialPureftpConfig($nolog = null)
 
 	if (getServiceType('pure-ftpd') === 'init') {
 		lxfile_cp("../file/pure-ftpd/etc/init.d/pure-ftpd.init", "/etc/rc.d/init.d/pure-ftpd");
-	//	exec("chkconfig pure-ftpd on >/dev/null 2>&1; chmod 0755 /etc/rc.d/init.d/pure-ftpd");
-		exec("sh /script/enable-service pure-ftpd >/dev/null 2>&1; chmod 0755 /etc/rc.d/init.d/pure-ftpd");
+		// Separate argv runs — never chained shell (security FF1).
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/enable-service', 'pure-ftpd'));
+			kloxo_exec_argv(array('chmod', '0755', '/etc/rc.d/init.d/pure-ftpd'));
+		}
 	}
 
 	log_cleanup("- Restart pure-ftpd service", $nolog);
@@ -7695,7 +7704,9 @@ function setInitialServer($nolog = null)
 
 	// CentOS RPM webmail/hiawatha packages are gone; Hiawatha is built by install-hiawatha.
 
-	exec("sh /script/fixlxphpexe");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/fixlxphpexe'));
+	}
 
 	fix_hiawatha();
 }
@@ -7893,13 +7904,18 @@ function installChooser($nolog = null)
 	$path = "/home/kloxo/httpd/webmail/";
 	lxfile_mkdir("/home/kloxo/httpd/webmail/img");
 
-	// MR -- make webmail redirect to 'universal'
-	exec("'rm' -f {$path}/redirect-to-*.php");
+	// MR -- make webmail redirect to 'universal' (no shell glob; security FF1).
+	foreach (glob("{$path}/redirect-to-*.php") ?: array() as $old) {
+		@unlink($old);
+	}
 	$dirs = glob("{$path}/*");
 
 	foreach ($dirs as $dir) {
 		$name = str_replace("{$path}/", "", $dir);
 		if ($name != "img" && $name != "images" && $name != "disabled" && is_dir($dir)) {
+			if (!preg_match('/^[A-Za-z0-9._-]+$/', $name)) {
+				continue;
+			}
 			lfile_put_contents("{$path}/redirect-to-{$name}.php", "<?php\nheader(\"Location: /{$name}\");\n");
 
 		}
@@ -7914,7 +7930,9 @@ function fix_suexec($nolog = null)
 	log_cleanup("- Fix process", $nolog);
 
 	// MR -- because no need lxsuexec (also lxrestart) so remove if exist
-	exec("'rm' -rf /usr/bin/lxsuexec");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('rm', '-rf', '--', '/usr/bin/lxsuexec'));
+	}
 }
 
 function enable_xinetd($nolog = null)
@@ -8815,7 +8833,9 @@ function setCopyWebConfFiles($webdriver, $nolog = null)
 	}
 	
 	// MR -- make sure init.conf is right (especially for apache)
-	exec("sh /script/fixweb --target=defaults");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/fixweb', '--target=defaults'));
+	}
 }
 
 function setCopyOpenSSLConfFiles($nolog = null)
@@ -9082,7 +9102,9 @@ function setHostsFile($nolog = null)
 	file_put_between_comments("root:root", $begincomment, $endcomment,
 		$begincomment[0], $endcomment[0], $hnfile, $content, $nowarning = true);
 */
-	exec("sh /script/set-hosts");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/set-hosts'));
+	}
 }
 
 // MR -- taken http://stackoverflow.com/questions/6875913/simple-how-to-replace-all-between-with-php
@@ -9508,7 +9530,19 @@ function setSyncDrivers($nolog = null)
 			log_cleanup("- No need synchronize for '{$key}' - already using '{$realval[$key]}'", $nolog);
 		}
 
-		exec("sh /script/setdriver --server=localhost --class={$key} --driver={$realval[$key]}");
+		// Validated class/driver + argv (security FF1).
+		$class = (string) $key;
+		$drv = isset($realval[$key]) ? (string) $realval[$key] : '';
+		if (preg_match('/^[A-Za-z0-9_-]+$/', $class) === 1
+			&& preg_match('/^[A-Za-z0-9_-]+$/', $drv) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array(
+				'sh', '/script/setdriver',
+				'--server=localhost',
+				"--class={$class}",
+				"--driver={$drv}",
+			));
+		}
 	}
 
 	slave_save_db('driver', $realval);
@@ -9542,7 +9576,9 @@ function setRemoveHttpdocsSymlink($nolog)
 	log_cleanup("- Remove process\n", $nolog);
 
 	// MR -- script also remove /home/httpd/*/conf
-	exec("sh /script/remove-httpdocs-symlink");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/remove-httpdocs-symlink'));
+	}
 }
 
 function ipv6_expand($ip)
@@ -9616,46 +9652,62 @@ function replace_to_space($text)
 
 function setFixSSLPath($nolog = null)
 {
-	exec("sh /script/fixsslpath");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/fixsslpath'));
+	}
 }
 
 function setInstallLetsencrypt($nolog = null)
 {
 	if (!file_exists("/usr/bin/letsencrypt-auto")) {
-		exec("sh /script/letsencrypt-installer");
+		if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/letsencrypt-installer'));
+	}
 	}
 }
 
 function setRemoveLetsencrypt($nolog = null)
 {
-	exec("sh /script/letsencrypt-remover");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/letsencrypt-remover'));
+	}
 }
 
 function setInstallAcmesh($nolog = null)
 {
-	exec("sh /script/acme.sh-installer");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/acme.sh-installer'));
+	}
 }
 
 function setRemoveAcmesh($nolog = null)
 {
-	exec("sh /script/acme.sh-remover");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/acme.sh-remover'));
+	}
 }
 
 function setInstallStartapish($nolog = null)
 {
 	if (!file_exists("/root/.startapi.sh/startapi.sh")) {
-		exec("sh /script/startapi.sh-installer");
+		if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/startapi.sh-installer'));
+	}
 	}
 }
 
 function setRemoveStartapish($nolog = null)
 {
-	exec("sh /script/startapi.sh-remover");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/startapi.sh-remover'));
+	}
 }
 
 function setInstallHttpry($nolog = null)
 {
-	exec("sh /script/httpry-installer");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/httpry-installer'));
+	}
 }
 
 function setAllSSLPortions($nolog = null)
@@ -9704,7 +9756,9 @@ function setHttpry($nolog = null)
 function setCronBackup($nolog = null)
 {
 	log_cleanup("- Fix 'Cron Backup' Files", $nolog);
-	exec("sh /script/fix-cron-backup");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/fix-cron-backup'));
+	}
 }
 
 function getListOnList($pname)

@@ -1255,7 +1255,8 @@ function debug_print($var, $note = null)
 function get_debug_print($var, $note = null)
 {
 	ob_start();
-	eval(debug_print($var));
+	// Capture debug_print output — never eval (security FF5).
+	debug_print($var, $note);
 	$x = ob_get_contents();
 	ob_end_clean();
 

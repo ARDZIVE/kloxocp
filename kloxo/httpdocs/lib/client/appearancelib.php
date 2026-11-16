@@ -267,7 +267,10 @@ class sp_basespecialplay extends LxspecialClass
 		$tsp->setUpdateSubaction('upload_logo');
 		$this->setUpdateSubaction('upload_logo');
 
-		exec("sh /script/fix-userlogo");
+		// argv only (security FF5).
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fix-userlogo'));
+		}
 
 		return $param;
 	}

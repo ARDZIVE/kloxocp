@@ -8,7 +8,10 @@ $list = $login->getList('client');
 
 $cron = '';
 
-exec("'rm' -f /etc/cron.d/backup*");
+// PHP glob unlink — never shell rm backup* (security FF6).
+foreach (glob('/etc/cron.d/backup*') ?: array() as $old) {
+	@unlink($old);
+}
 
 log_log('cron_backup', "*** Fixing Cron Backup *** \n");
 echo("*** Fixing Cron Backup *** \n");
@@ -18,7 +21,10 @@ foreach($list as $c) {
 
 	if ($user === 'rpms') { continue; }
 	if ($user === 'backuper') { continue; }
-	
+	if (preg_match('/^[A-Za-z0-9._-]+$/', (string) $user) !== 1) {
+		continue;
+	}
+
 	$input = db_get_value('lxbackup', "client-{$user}", array('backupschedule_type', 'backupschedule_time'));
 
 	if (!$input) { continue; }
@@ -52,6 +58,8 @@ foreach($list as $c) {
 		case 'daily' :
 			$schedule = "0 {$time} * * *";
 			break;
+		default:
+			continue 2;
 	}
 
 	$cron = $schedule . " root " . $command . " >> /dev/null 2>&1\n";

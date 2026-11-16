@@ -431,7 +431,11 @@ class serverweb__ extends lxDriverClass
 
 		if (isWebProxyOrApache()) {
 			//--- some vps include /etc/httpd/conf.d/swtune.conf
-			exec("'rm' -rf {$ehcdpath}/swtune.conf");
+			// Fixed path unlink — no shell (security FF2).
+			$swtune = rtrim((string) $ehcdpath, '/') . '/swtune.conf';
+			if (is_file($swtune) || is_link($swtune)) {
+				@unlink($swtune);
+			}
 
 			lxshell_return("'cp' -rf {$ullkfapath} /opt/configs");
 
@@ -1011,7 +1015,11 @@ class serverweb__ extends lxDriverClass
 			@unlink('../etc/flag/enablemultiplephp.flg');
 		}
 
-		exec("sh /script/enable-php-fpm; sh /script/add-start-queue restart-php-fpm");
+		// Separate argv runs — never chained shell (security FF2).
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/enable-php-fpm'));
+			kloxo_exec_argv(array('sh', '/script/add-start-queue', 'restart-php-fpm'));
+		}
 	}
 
 	function set_php52m_fpm()
@@ -1026,7 +1034,11 @@ class serverweb__ extends lxDriverClass
 			@unlink('../etc/flag/enable_php52m-fpm.flg');
 		}
 
-		exec("sh /script/enable-php-fpm; sh /script/add-start-queue restart-php-fpm");
+		// Separate argv runs — never chained shell (security FF2).
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/enable-php-fpm'));
+			kloxo_exec_argv(array('sh', '/script/add-start-queue', 'restart-php-fpm'));
+		}
 	}
 
 	function set_pagespeed_clear_cache()
@@ -1038,7 +1050,10 @@ class serverweb__ extends lxDriverClass
 		if ($rem === '') {
 			throw new lxException($login->getThrow('no_options_selected'), '', 'blank');
 		} else {
-			exec("sh /script/clearcache-pagespeed");
+			// argv only (security FF2).
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sh', '/script/clearcache-pagespeed'));
+			}
 		}
 	}
 }

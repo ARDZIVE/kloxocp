@@ -59,7 +59,20 @@ static function convertfile($oldtime, $newtime)
 	$convertfile = tempnam("/tmp/", "mail_log");
 	$convertfile_source = tempnam("/tmp/", "mail_log_source");
 	lfile_put_contents($convertfile_source, $totstring);
-	system("perl {$sgbl->__path_kloxo_httpd_root}/awstats/tools/maillogconvert.pl standard < $convertfile_source > $convertfile");
+	// proc_open with file descriptors — never shell redirect (security FF3).
+	$script = (string) ($sgbl->__path_kloxo_httpd_root ?? '') . '/awstats/tools/maillogconvert.pl';
+	if (is_file($script) && is_string($convertfile_source) && is_string($convertfile)
+		&& $convertfile_source !== '' && $convertfile !== '') {
+		$desc = array(
+			0 => array('file', $convertfile_source, 'r'),
+			1 => array('file', $convertfile, 'w'),
+			2 => array('file', '/dev/null', 'w'),
+		);
+		$p = @proc_open(array('perl', $script, 'standard'), $desc, $pipes);
+		if (is_resource($p)) {
+			proc_close($p);
+		}
+	}
 	lunlink($convertfile_source);
 	return $convertfile;
 }
