@@ -93,10 +93,13 @@ class ftpuser__pureftp extends lxDriverClass
 		if ($this->main->ftp_disk_usage > 0) {
 			lxshell_return("pure-pw", "usermod", $this->main->nname, "-N", $this->main->ftp_disk_usage, "-m");
 		} else {
-			// This is because the shell_return cannot send '' to the program.
-			$cmd = "pure-pw usermod {$this->main->nname} -N '' -m";
-			log_log("shell_exec", $cmd);
-			exec($cmd);
+			// Empty -N via argv (empty string is a real arg) — never shell exec (security GG6).
+			$nname = (string) $this->main->nname;
+			if (preg_match('/^[A-Za-z0-9._@+-]+$/', $nname) === 1
+				&& function_exists('kloxo_exec_argv')) {
+				log_log("shell_exec", "pure-pw usermod {$nname} -N '' -m");
+				kloxo_exec_argv(array('pure-pw', 'usermod', $nname, '-N', '', '-m'));
+			}
 		}
 	}
 

@@ -53,7 +53,11 @@ class sshconfig__linux extends lxDriverClass
 			case "ssh_password":
 				validate_password($this->main->password);
 
-				exec("echo -e \"{$this->main->password}\n{$this->main->password}\n\" | passwd root");
+				// stdin to passwd — never echo|passwd shell (security GG2).
+				$pass = (string) $this->main->password;
+				if ($pass !== '' && !str_contains($pass, "\0") && function_exists('lxshell_input')) {
+					lxshell_input("{$pass}\n{$pass}\n", 'passwd', 'root');
+				}
 
 				break;
 		}

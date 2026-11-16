@@ -5577,80 +5577,70 @@ abstract class Lxclass
 		$this->ccenter_command = isset($param['ccenter_command'])
 			? $param['ccenter_command'] : null;
 
+		// Presets as argv arrays for execCommand (security GG3) — never chained shell strings.
+		$ccenterArgv = null;
 		if ($this->ccenter_standard !== '--- Not Selected ---') {
+			$restart = ($this->ccenter_restart === 'on');
 			if ($this->ccenter_standard === 'Fix - DNS') {
-				$this->ccenter_command = 'sh /script/fixdns --server=all;';
-
-				if ($this->ccenter_restart === 'on') {
-					$this->ccenter_command .= 'sh /script/restart-dns --server=all --force;';
+				$ccenterArgv = array(array('sh', '/script/fixdns', '--server=all'));
+				if ($restart) {
+					$ccenterArgv[] = array('sh', '/script/restart-dns', '--server=all', '--force');
 				}
-			}
-
-			if ($this->ccenter_standard === 'Fix - Web') {
-				$this->ccenter_command = 'sh /script/fixweb --server=all;';
-
-				if ($this->ccenter_restart === 'on') {
-					$this->ccenter_command .= 'sh /script/restart-web --server=all --force;';
+				$this->ccenter_command = 'sh /script/fixdns --server=all';
+			} elseif ($this->ccenter_standard === 'Fix - Web') {
+				$ccenterArgv = array(array('sh', '/script/fixweb', '--server=all'));
+				if ($restart) {
+					$ccenterArgv[] = array('sh', '/script/restart-web', '--server=all', '--force');
 				}
-			}
-
-			if ($this->ccenter_standard === 'Fix - PHP') {
-				$this->ccenter_command = 'sh /script/fixphp --server=all;';
-
-				if ($this->ccenter_restart === 'on') {
-					$this->ccenter_command .= 'sh /script/restart-web --server=all --force;';
+				$this->ccenter_command = 'sh /script/fixweb --server=all';
+			} elseif ($this->ccenter_standard === 'Fix - PHP') {
+				$ccenterArgv = array(array('sh', '/script/fixphp', '--server=all'));
+				if ($restart) {
+					$ccenterArgv[] = array('sh', '/script/restart-web', '--server=all', '--force');
 				}
-			}
-
-			if ($this->ccenter_standard === 'Fix - Mail') {
-				$this->ccenter_command = 'sh /script/fixmail --server=all;';
-
-				if ($this->ccenter_restart === 'on') {
-					$this->ccenter_command .= 'sh /script/restart-mail --server=all --force;';
+				$this->ccenter_command = 'sh /script/fixphp --server=all';
+			} elseif ($this->ccenter_standard === 'Fix - Mail') {
+				$ccenterArgv = array(array('sh', '/script/fixmail', '--server=all'));
+				if ($restart) {
+					$ccenterArgv[] = array('sh', '/script/restart-mail', '--server=all', '--force');
 				}
-			}
-
-			if ($this->ccenter_standard === 'Fix - FTP') {
-				$this->ccenter_command = 'sh /script/fixftp-all --server=all;';
-
-				if ($this->ccenter_restart === 'on') {
-					$this->ccenter_command .= 'sh /script/restart-ftp --server=all --force;';
+				$this->ccenter_command = 'sh /script/fixmail --server=all';
+			} elseif ($this->ccenter_standard === 'Fix - FTP') {
+				$ccenterArgv = array(array('sh', '/script/fixftp-all', '--server=all'));
+				if ($restart) {
+					$ccenterArgv[] = array('sh', '/script/restart-ftp', '--server=all', '--force');
 				}
-			}
-
-			if ($this->ccenter_standard === 'Fix - ALL') {
-				$this->ccenter_command = 'sh /script/fix-all --server=all;';
-
-				if ($this->ccenter_restart === 'on') {
-					$this->ccenter_command .= 'sh /script/restart-all --server=all --force;';
+				$this->ccenter_command = 'sh /script/fixftp-all --server=all';
+			} elseif ($this->ccenter_standard === 'Fix - ALL') {
+				$ccenterArgv = array(array('sh', '/script/fix-all', '--server=all'));
+				if ($restart) {
+					$ccenterArgv[] = array('sh', '/script/restart-all', '--server=all', '--force');
 				}
-			}
-
-			if ($this->ccenter_standard === 'Fix - Traffic') {
-				$this->ccenter_command = 'sh /script/fixtraffic --day=1 --server=all;';
-			}
-
-			if ($this->ccenter_standard === 'List - Fix') {
-				$this->ccenter_command = 'find /script/fix* -maxdepth 1 -type f;';
-			}
-
-			if ($this->ccenter_standard === 'List - Restart') {
-				$this->ccenter_command = 'find /script/restart* -maxdepth 1 -type f;';
-			}
-
-			if ($this->ccenter_standard === 'List - ALL') {
-				$this->ccenter_command = 'find /script -maxdepth 1 -type f;';
+				$this->ccenter_command = 'sh /script/fix-all --server=all';
+			} elseif ($this->ccenter_standard === 'Fix - Traffic') {
+				$ccenterArgv = array(array('sh', '/script/fixtraffic', '--day=1', '--server=all'));
+				$this->ccenter_command = 'sh /script/fixtraffic --day=1 --server=all';
+			} elseif ($this->ccenter_standard === 'List - Fix') {
+				$ccenterArgv = array(array('find', '/script', '-maxdepth', '1', '-type', 'f', '-name', 'fix*'));
+				$this->ccenter_command = 'find /script -maxdepth 1 -type f -name fix*';
+			} elseif ($this->ccenter_standard === 'List - Restart') {
+				$ccenterArgv = array(array('find', '/script', '-maxdepth', '1', '-type', 'f', '-name', 'restart*'));
+				$this->ccenter_command = 'find /script -maxdepth 1 -type f -name restart*';
+			} elseif ($this->ccenter_standard === 'List - ALL') {
+				$ccenterArgv = array(array('find', '/script', '-maxdepth', '1', '-type', 'f'));
+				$this->ccenter_command = 'find /script -maxdepth 1 -type f';
 			}
 		}
 
-		if ($this->ccenter_command) {
+		$toRun = ($ccenterArgv !== null) ? $ccenterArgv : $this->ccenter_command;
+		if ($toRun) {
 			// This is needed, otherwise if a command gets stuck it will keep tyring to execute the same command.
 			// We are not at all using session now. We are just passing it to the next ccenter.
 		//	if ($gbl) { $gbl->c_session->write(); }
 
 			$driverapp = $gbl->getSyncClass(null, $this->syncserver, $this->get__table());
 			$res = kloxo_rl_driver($this->__masterserver, $this->syncserver, $this->get__table(), $driverapp,
-				"execCommand", array($this->iid, $this->ccenter_command));
+				"execCommand", array($this->iid, $toRun));
 
 			$this->ccenter_output = is_array($res) && isset($res['output']) ? $res['output'] : '';
 			$this->ccenter_error = is_array($res) && isset($res['error']) ? $res['error'] : '';

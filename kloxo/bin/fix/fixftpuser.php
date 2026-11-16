@@ -23,7 +23,8 @@ if (file_exists("{$basefile}.passwd")) {
 		lunlink("{$basefile}.passwd.tmp");
 	}
 
-	exec("echo '' > {$basefile}.passwd");
+	// Truncate via PHP — never echo shell (security GG6).
+	@file_put_contents("{$basefile}.passwd", '');
 }
 
 $login->loadAllObjects('client');
@@ -55,5 +56,8 @@ foreach($list as $c) {
 	}
 }
 
-exec("pure-pw mkdb");
+// argv only (security GG6).
+if (function_exists('kloxo_exec_argv')) {
+	kloxo_exec_argv(array('pure-pw', 'mkdb'));
+}
 

@@ -35,21 +35,38 @@ function scavenge_main() {
 	$starttime = date('Y/m/d H:i:s', time());
 
 	log_shell("Scavenge: Start");
+	// argv PHP runs — never passthru("$php …") shell string (security GG6).
+	$php = isset($sgbl->__path_php_path) ? (string) $sgbl->__path_php_path : '';
+	$runPhp = static function (string $script) use ($php): void {
+		if ($php === '' || !is_file($php) || str_contains($php, "\0")
+			|| str_contains($script, "\0") || !is_file($script)) {
+			return;
+		}
+		$desc = array(
+			0 => array('file', '/dev/null', 'r'),
+			1 => array('file', 'php://stdout', 'w'),
+			2 => array('file', 'php://stderr', 'w'),
+		);
+		$p = @proc_open(array($php, $script), $desc, $pipes);
+		if (is_resource($p)) {
+			proc_close($p);
+		}
+	};
 	log_shell("Scavenge: Collect Traffic");
-	passthru("$sgbl->__path_php_path ../bin/gettraffic.php");
+	$runPhp('../bin/gettraffic.php');
 	log_shell("Scavenge: Collect Quota");
-	passthru("$sgbl->__path_php_path ../bin/collectquota.php");
+	$runPhp('../bin/collectquota.php');
 
 /*
 	// MR -- moving scavenge for backup to cron setting in /etc/cron.d/backup
 
 	log_shell("Scavenge: Schedule backups");
-	passthru("$sgbl->__path_php_path ../bin/common/schedulebackup.php");
+	// $runPhp('../bin/common/schedulebackup.php');
 	log_shell("Scavenge: Self backup");
-	passthru("$sgbl->__path_php_path ../bin/common/mebackup.php");
+	// $runPhp('../bin/common/mebackup.php');
 */
 	log_shell("Scavenge: Clear Sessions");
-	passthru("$sgbl->__path_php_path ../bin/common/clearsession.php");
+	$runPhp('../bin/common/clearsession.php');
 
 	log_shell("Scavenge: Check Cluster Disk Quota");
 	checkClusterDiskQuota();
@@ -58,10 +75,10 @@ function scavenge_main() {
 	// Lighttpd removed; never restart via system() (security FF6).
 	// was: system("service lighttpd restart");
 	log_shell("Scavenge: Fix log dir");
-	passthru("$sgbl->__path_php_path ../bin/common/fixlogdir.php");
+	$runPhp('../bin/common/fixlogdir.php');
 
 	log_shell("Scavenge: 'Easy Installer' update");
-//	passthru("$sgbl->__path_php_path ../bin/easyinstaller-update.php");
+//	$runPhp('../bin/easyinstaller-update.php');
 
 	log_shell("Scavenge: Watchdog checks");
 	$rs = get_all_pserver();

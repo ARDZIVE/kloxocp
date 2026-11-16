@@ -52,34 +52,47 @@ class ffile__linux extends lxDriverClass
 
 			case "perm":
 				$path = $this->main->getFullpath();
-
-				$perm = $this->main->newperm;
-				$perm = 0 . $perm;
-
+				$perm = '0' . (string) $this->main->newperm;
+				// Validated octal + argv only — never shell chmod/find (security GG1).
+				if (!is_string($path) || $path === '' || str_contains($path, "\0")
+					|| preg_match('/^[0-7]{3,4}$/', $perm) !== 1
+					|| !function_exists('kloxo_exec_argv')) {
+					break;
+				}
 				if ($this->main->isOn('recursive_f')) {
 					if ($this->main->target_f === 'all') {
-						exec("chmod -R {$perm} {$path}");
+						kloxo_exec_argv(array('chmod', '-R', $perm, '--', $path));
 					} elseif ($this->main->target_f === 'dir') {
-						exec("find {$path} -type d -exec chmod {$perm} \{\} \\;");
+						kloxo_exec_argv(array(
+							'find', $path, '-type', 'd', '-exec', 'chmod', $perm, '{}', '+',
+						));
 					} elseif ($this->main->target_f === 'file') {
-						exec("find {$path} -type f -name \"*.*\" -exec chmod {$perm} \{\} \\;");
+						kloxo_exec_argv(array(
+							'find', $path, '-type', 'f', '-name', '*.*',
+							'-exec', 'chmod', $perm, '{}', '+',
+						));
 					}
 				} else {
-					exec("chmod {$perm} {$path}");
+					kloxo_exec_argv(array('chmod', $perm, '--', $path));
 				}
 
 				break;
 
 			case "own":
 				$path = $this->main->getFullpath();
-
-				$user = $this->main->user_f;
-				$group = $this->main->group_f;
-
+				$user = (string) $this->main->user_f;
+				$group = (string) $this->main->group_f;
+				// Validated names + argv only — never shell chown (security GG1).
+				$ugOk = preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $user) === 1
+					&& preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $group) === 1;
+				if (!is_string($path) || $path === '' || str_contains($path, "\0")
+					|| !$ugOk || !function_exists('kloxo_exec_argv')) {
+					break;
+				}
 				if ($this->main->isOn('recursive_f')) {
-					exec("chown -R {$user}:{$group} {$path}");
+					kloxo_exec_argv(array('chown', '-R', "{$user}:{$group}", '--', $path));
 				} else {
-					exec("chown {$user}:{$group} {$path}");
+					kloxo_exec_argv(array('chown', "{$user}:{$group}", '--', $path));
 				}
 
 				break;

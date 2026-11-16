@@ -510,9 +510,15 @@ class SslCert extends Lxdb
 
 			$list = array('key', 'crt', 'ca', 'pem');
 			
+			// Validated domain + argv ln/mv (security GG5).
+			$domOk = is_string($dom) && preg_match('/^[A-Za-z0-9.-]+$/', $dom) === 1;
 			foreach ($list as $k => $v) {
-				if (file_exists("{$spath}/{$dom}.{$v}")) {
-					exec("ln -sf {$spath}/{$dom}.{$v} {$tpath}/program.{$v}");
+				if ($domOk && preg_match('/^(key|crt|ca|pem)$/', $v) === 1
+					&& file_exists("{$spath}/{$dom}.{$v}")
+					&& function_exists('kloxo_exec_argv')) {
+					kloxo_exec_argv(array(
+						'ln', '-sf', '--', "{$spath}/{$dom}.{$v}", "{$tpath}/program.{$v}",
+					));
 				}
 			}
 
@@ -520,11 +526,15 @@ class SslCert extends Lxdb
 
 			$ppath = "/etc/pki/pure-ftpd";
 
-			if (!is_link("{$ppath}/pure-ftpd.pem")) {
+			if (!is_link("{$ppath}/pure-ftpd.pem") && function_exists('kloxo_exec_argv')) {
 				if (file_exists("{$ppath}/pure-ftpd.pem")) {
-					exec("'mv' -f {$ppath}/pure-ftpd.pem {$ppath}/pure-ftpd.pem.old");
+					kloxo_exec_argv(array(
+						'mv', '-f', '--', "{$ppath}/pure-ftpd.pem", "{$ppath}/pure-ftpd.pem.old",
+					));
 				}
-				exec("'ln' -sf {$tpath}/program.pem {$ppath}/pure-ftpd.pem");
+				kloxo_exec_argv(array(
+					'ln', '-sf', '--', "{$tpath}/program.pem", "{$ppath}/pure-ftpd.pem",
+				));
 			}
 		} else {
 			$this->updateSetProgramSSL($param);
@@ -1157,7 +1167,27 @@ class SslCert extends Lxdb
 			lfile_put_contents($tpltarget, $tplparse);
 		}
 
-		exec("cd {$shpath}; sh {$name}_startapi.sh", $out, $ret);
+		// cwd via proc_open — never "cd …; sh" shell (security GG5).
+		$out = array();
+		$ret = 1;
+		$script = "{$name}_startapi.sh";
+		if (is_string($name) && preg_match('/^[A-Za-z0-9.-]+$/', $name) === 1
+			&& is_dir($shpath) && is_file("{$shpath}/{$script}")) {
+			$desc = array(
+				0 => array('file', '/dev/null', 'r'),
+				1 => array('pipe', 'w'),
+				2 => array('pipe', 'w'),
+			);
+			$p = @proc_open(array('sh', $script), $desc, $pipes, $shpath);
+			if (is_resource($p)) {
+				$stdout = (string) stream_get_contents($pipes[1]);
+				$stderr = (string) stream_get_contents($pipes[2]);
+				fclose($pipes[1]);
+				fclose($pipes[2]);
+				$ret = proc_close($p);
+				$out = preg_split("/\r\n|\n|\r/", trim($stdout . "\n" . $stderr));
+			}
+		}
 
 		if ($ret !== 0) {
 			throw new lxException($login->getThrow("create_certificate_failed"), '', $parent->nname);
@@ -1207,9 +1237,14 @@ class SslCert extends Lxdb
 		$list = array('key', 'crt', 'ca', 'pem');
 		$dom = self::sslParentNname($parent);
 
+		// Validated names + argv ln (security GG5).
+		$domOk = is_string($dom) && preg_match('/^[A-Za-z0-9.-]+$/', $dom) === 1;
 		foreach ($list as $k => $v) {
-			if ($sslparent !== '' && $dom !== '' && file_exists("{$sslparent}.{$v}")) {
-				exec("ln -sf {$sslparent}.{$v} {$targetpath}/{$dom}.{$v}");
+			if ($domOk && $sslparent !== '' && preg_match('/^(key|crt|ca|pem)$/', $v) === 1
+				&& file_exists("{$sslparent}.{$v}") && function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array(
+					'ln', '-sf', '--', "{$sslparent}.{$v}", "{$targetpath}/{$dom}.{$v}",
+				));
 			}
 		}
 	

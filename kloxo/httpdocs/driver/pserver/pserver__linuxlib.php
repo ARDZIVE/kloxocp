@@ -154,7 +154,53 @@ class pserver__Linux extends lxDriverClass
 		global $login, $global_shell_error, $global_shell_ret;
 		$global_shell_error = null;
 
-		$out = shell_exec("$command 2>&1");
+		// argv arrays or bash -c with stderr via pipes — never shell_exec("$cmd 2>&1") (security GG3).
+		$runs = array();
+		if (is_array($command)) {
+			if ($command === array()) {
+				return array('output' => '', 'error' => $global_shell_error);
+			}
+			if (isset($command[0]) && is_array($command[0])) {
+				$runs = $command;
+			} else {
+				$runs = array($command);
+			}
+		} elseif (is_string($command) && $command !== '' && !str_contains($command, "\0")) {
+			$runs = array(array('/bin/bash', '-c', $command));
+		} else {
+			return array('output' => '', 'error' => 'refused unsafe command');
+		}
+
+		$out = '';
+		$err = '';
+		foreach ($runs as $argv) {
+			if (!is_array($argv) || $argv === array() || !is_string($argv[0]) || $argv[0] === '') {
+				continue;
+			}
+			foreach ($argv as $a) {
+				if (!is_string($a) || str_contains($a, "\0")) {
+					continue 2;
+				}
+			}
+			$desc = array(
+				0 => array('file', '/dev/null', 'r'),
+				1 => array('pipe', 'w'),
+				2 => array('pipe', 'w'),
+			);
+			$p = @proc_open($argv, $desc, $pipes);
+			if (!is_resource($p)) {
+				$err .= "proc_open failed\n";
+				continue;
+			}
+			$out .= (string) stream_get_contents($pipes[1]);
+			$err .= (string) stream_get_contents($pipes[2]);
+			fclose($pipes[1]);
+			fclose($pipes[2]);
+			proc_close($p);
+		}
+		if ($err !== '') {
+			$global_shell_error = $err;
+		}
 
 		return array('output' => $out, 'error' => $global_shell_error);
 	}

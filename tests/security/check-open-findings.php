@@ -1396,6 +1396,71 @@ $findings[] = finding('FF6', 'low', 'scavenge/installWebmail/fix-cron/hosts.deny
 	'scavenge / installWebmailDb / fix-cron-backup / linuxproglib', $ff6Closed,
 	$ff6Closed ? 'argv / glob unlink / file_put_contents' : 'still system/exec leftovers');
 
+// --- Wave 18 (GG1–GG6) ---
+$ffile = file_text($root, 'kloxo/httpdocs/driver/pserver/ffile__linuxlib.php');
+$gg1Closed = contains($ffile, 'security GG1')
+	&& contains($ffile, 'kloxo_exec_argv')
+	&& not_contains($ffile, 'exec("chmod -R {$perm}')
+	&& not_contains($ffile, 'exec("chown -R {$user}');
+$findings[] = finding('GG1', 'high', 'ffile__linuxlib chmod/chown/find shell vars',
+	'ffile__linuxlib.php', $gg1Closed,
+	$gg1Closed ? 'validated + kloxo_exec_argv' : 'still exec chmod/chown/find');
+
+$sshCfg = file_text($root, 'kloxo/httpdocs/driver/pserver/sshconfig__linuxlib.php');
+$gg2Closed = contains($sshCfg, 'security GG2')
+	&& contains($sshCfg, 'lxshell_input')
+	&& not_contains($sshCfg, 'exec("echo -e');
+$findings[] = finding('GG2', 'high', 'sshconfig echo password | passwd root',
+	'sshconfig__linuxlib.php', $gg2Closed,
+	$gg2Closed ? 'lxshell_input to passwd' : 'still echo|passwd shell');
+
+$psL = file_text($root, 'kloxo/httpdocs/driver/pserver/pserver__linuxlib.php');
+$lxGg = file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php');
+$gg3Closed = contains($psL, 'security GG3')
+	&& contains($psL, 'proc_open')
+	&& not_contains($psL, 'shell_exec("$command')
+	&& contains($lxGg, 'security GG3')
+	&& contains($lxGg, '$ccenterArgv');
+$findings[] = finding('GG3', 'medium', 'pserver execCommand shell_exec + ccenter shell strings',
+	'pserver__linuxlib / lxclass commandCenter', $gg3Closed,
+	$gg3Closed ? 'proc_open argv presets' : 'still shell_exec / chained shell');
+
+$phpiniSync = file_text($root, 'kloxo/httpdocs/driver/pserver/phpini__synclib.php');
+$gg4Closed = contains($phpiniSync, 'security GG4')
+	&& not_contains($phpiniSync, 'exec("cat {$phpfpm_target_global_pre}')
+	&& not_contains($phpiniSync, 'exec("mkdir -p {$path}/php-fpm.d")');
+$findings[] = finding('GG4', 'medium', 'phpini__synclib mkdir/cat shell with $path',
+	'phpini__synclib.php', $gg4Closed,
+	$gg4Closed ? 'mkdir argv + PHP concat' : 'still exec mkdir/cat');
+
+$sslGg = file_text($root, 'kloxo/httpdocs/driver/pserver/sslcertlib.php');
+$gg5Closed = contains($sslGg, 'security GG5')
+	&& not_contains($sslGg, 'exec("cd {$shpath}; sh')
+	&& not_contains($sslGg, 'exec("ln -sf {$spath}/{$dom}')
+	&& not_contains($sslGg, 'exec("ln -sf {$sslparent}');
+$findings[] = finding('GG5', 'medium', 'sslcertlib cd/sh and ln/mv shell vars',
+	'sslcertlib.php', $gg5Closed,
+	$gg5Closed ? 'proc_open cwd + kloxo_exec_argv ln/mv' : 'still exec cd/ln/mv');
+
+$ftpPu = file_text($root, 'kloxo/httpdocs/driver/ftp/ftpuser__pureftplib.php');
+$fixFtp = file_text($root, 'kloxo/bin/fix/fixftpuser.php');
+$scavGg = file_text($root, 'kloxo/bin/scavenge.php');
+$libGg = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$dnsGg = file_text($root, 'kloxo/httpdocs/lib/php/dnsslavelib.php');
+$gg6Closed = contains($ftpPu, 'security GG6')
+	&& not_contains($ftpPu, 'exec($cmd)')
+	&& contains($fixFtp, 'security GG6')
+	&& not_contains($fixFtp, "exec(\"echo '' > {\$basefile}.passwd\")")
+	&& contains($scavGg, 'security GG6')
+	&& not_contains($scavGg, 'passthru("$sgbl->__path_php_path')
+	&& contains($libGg, 'security GG6')
+	&& not_contains($libGg, 'exec($fixstr)')
+	&& not_contains($libGg, 'mustafa.lia.armando')
+	&& contains($dnsGg, 'security GG6');
+$findings[] = finding('GG6', 'medium', 'ftpuser/lib/scavenge/fixftp/dnsslav leftovers',
+	'ftpuser / lib.php / scavenge / fixftpuser / dnsslavelib', $gg6Closed,
+	$gg6Closed ? 'argv / file_put / proc_open' : 'still exec/passthru leftovers');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

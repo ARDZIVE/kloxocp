@@ -53,7 +53,12 @@ class phpini__sync extends Lxdriverclass
 		}
 
 		if (!file_exists("/opt/configs/php-fpm/sock")) {
-			exec("mkdir -p /opt/configs/php-fpm/sock");
+			// argv / mkdir — no shell (security GG4).
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('mkdir', '-p', '--', '/opt/configs/php-fpm/sock'));
+			} else {
+				@mkdir('/opt/configs/php-fpm/sock', 0755, true);
+			}
 		}
 
 		$stlist[] = "###Start Kloxo CP PHP config Area";
@@ -126,7 +131,12 @@ class phpini__sync extends Lxdriverclass
 				$path = "/opt/configs/php-fpm/conf/{$v}";
 
 				if (!file_exists("{$path}/php-fpm.d")) {
-					exec("mkdir -p {$path}/php-fpm.d");
+					// argv / mkdir — no shell (security GG4).
+					if (function_exists('kloxo_exec_argv')) {
+						kloxo_exec_argv(array('mkdir', '-p', '--', "{$path}/php-fpm.d"));
+					} else {
+						@mkdir("{$path}/php-fpm.d", 0755, true);
+					}
 				}
 
 				$phpfpm_target_default = "{$path}/php-fpm.d/default.conf";
@@ -149,7 +159,13 @@ class phpini__sync extends Lxdriverclass
 					$phpfpm_parse_default = getParseInlinePhp($phpfpm_default, $input);
 					file_put_contents($phpfpm_target_default, $phpfpm_parse_default);
 
-					exec("cat {$phpfpm_target_global_pre} {$path}/php-fpm.d/*.conf {$phpfpm_target_global_post} > {$path}/php-fpm.conf");
+					// PHP concat — never shell cat with globs (security GG4).
+					$merged = (string) @file_get_contents($phpfpm_target_global_pre);
+					foreach (glob("{$path}/php-fpm.d/*.conf") ?: array() as $poolConf) {
+						$merged .= (string) @file_get_contents($poolConf);
+					}
+					$merged .= (string) @file_get_contents($phpfpm_target_global_post);
+					file_put_contents("{$path}/php-fpm.conf", $merged);
 				} else {
 					$phpfpm_global = file_get_contents(getLinkCustomfile($phpfpm_path, "php53-fpm-global.conf.tpl"));
 					$phpfpm_default = file_get_contents(getLinkCustomfile($phpfpm_path, "php53-fpm-default.conf.tpl"));
@@ -212,7 +228,12 @@ class phpini__sync extends Lxdriverclass
 					$path = "/opt/configs/php-fpm/conf/{$v}";
 
 					if (!file_exists("{$path}/php-fpm.d")) {
-						exec("mkdir -p {$path}/php-fpm.d");
+						// argv / mkdir — no shell (security GG4).
+						if (function_exists('kloxo_exec_argv')) {
+							kloxo_exec_argv(array('mkdir', '-p', '--', "{$path}/php-fpm.d"));
+						} else {
+							@mkdir("{$path}/php-fpm.d", 0755, true);
+						}
 					}
 
 					$phpfpm_target = "{$path}/php-fpm.d/{$user}.conf";

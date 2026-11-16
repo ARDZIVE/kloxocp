@@ -3115,7 +3115,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111619';
+	return '10.1-2026111620';
 }
 
 function getDownloadServer()
@@ -6357,7 +6357,7 @@ function installEasyinstaller($nolog = null)
 
 	log_cleanup("Initialize 'Easy Installer'", $nolog);
 	log_cleanup("- Easy Installer is removed (will not download software)", $nolog);
-	exec("echo 1 > ../etc/flag/disableeasyinstaller.flg");
+	@file_put_contents('../etc/flag/disableeasyinstaller.flg', "1\n"); // security GG6
 	return;
 
 	// Install/Update easyinstaller if needed or remove easyinstaller when easyinstaller is disabled.
@@ -6366,7 +6366,7 @@ function installEasyinstaller($nolog = null)
 	//--- trick for no install on kloxo install process
 	if (lxfile_exists("/var/cache/kloxo/kloxo-install-disableeasyinstaller.flg")) {
 		log_cleanup("- 'Easy Installer' is disabled by Flag", $nolog);
-		exec("echo 1 > ../etc/flag/disableeasyinstaller.flg");
+		@file_put_contents('../etc/flag/disableeasyinstaller.flg', "1\n"); // security GG6
 
 		return;
 	}
@@ -6375,7 +6375,7 @@ function installEasyinstaller($nolog = null)
 	//	$gen = $login->getObject('general')->generalmisc_b;
 	//	$diflag = $gen->isOn('disableeasyinstaller');
 		log_cleanup("- 'Easy Installer' is disabled by Flag", $nolog);
-		exec("echo 1 > ../etc/flag/disableeasyinstaller.flg");
+		@file_put_contents('../etc/flag/disableeasyinstaller.flg', "1\n"); // security GG6
 	} else {
 	//	$diflag = false;
 		log_cleanup("- 'Easy Installer' is not disabled by Flag", $nolog);
@@ -6386,7 +6386,7 @@ function installEasyinstaller($nolog = null)
 		log_cleanup("- 'Easy Installer' is disabled, removing 'Easy Installer'", $nolog);
 		lxfile_rm_rec("/home/kloxo/httpd/easyinstaller/");
 		lxfile_rm_rec("/home/kloxo/httpd/easyinstallerdata/");
-		exec("cd /var/cache/kloxo/ ; rm -f easyinstaller*.tar.gz;");
+		foreach (glob('/var/cache/kloxo/easyinstaller*.tar.gz') ?: array() as $_ez) { @unlink($_ez); } // security GG6
 
 		return;
 	} else {
@@ -6398,7 +6398,7 @@ function installEasyinstaller($nolog = null)
 		if (lfile_exists("../etc/remote_easyinstaller")) {
 			log_cleanup("- Remote 'Easy Installer' detected, removing 'Easy Installer'", $nolog);
 			lxfile_rm_rec("/home/kloxo/httpd/easyinstaller/");
-			exec("cd /var/cache/kloxo/ ; rm -f easyinstaller*.tar.gz;");
+			foreach (glob('/var/cache/kloxo/easyinstaller*.tar.gz') ?: array() as $_ez) { @unlink($_ez); } // security GG6
 
 			return;
 		}
@@ -8192,10 +8192,12 @@ function setUpdateConfigWithVersionCheck($list, $servertype = null, $nolog = nul
 	foreach ($list as $k => $v) {
 		log_cleanup("- Fix {$v} services", $nolog);
 
-		$fixstr = "sh /script/fix{$v} --server=all";
-
-		if ($servertype !== 'slave') {
-			exec($fixstr);
+		// Validated name + argv — never shell-string fix runner (security GG6).
+		$v = (string) $v;
+		if ($servertype !== 'slave'
+			&& preg_match('/^[A-Za-z0-9_-]+$/', $v) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', "/script/fix{$v}", '--server=all'));
 		}
 	}
 }
@@ -9409,11 +9411,23 @@ function trimming($data)
 
 function getFSBlockSizeInKb()
 {
-	exec("echo ''>/tmp/mustafa.lia.armando;" .
-		"du -k /tmp/mustafa.lia.armando|awk '{print $1}';" .
-		"'rm' -f /tmp/mustafa.lia.armando", $out);
+	// temp file + du argv — never chained shell (security GG6).
+	$t = tempnam('/tmp', 'kloxofs');
+	if ($t === false) {
+		return 4;
+	}
+	@file_put_contents($t, '');
+	$kb = 4;
+	if (function_exists('lxshell_output')) {
+		$line = trim((string) lxshell_output('du', '-k', $t));
+		$parts = preg_split('/\s+/', $line);
+		if (isset($parts[0]) && ctype_digit($parts[0])) {
+			$kb = (int) $parts[0];
+		}
+	}
+	@unlink($t);
 
-	return $out[0];
+	return $kb;
 }
 
 // shexec helpers: argv-only to ../sbin/shexec (security CC4).
@@ -9819,7 +9833,7 @@ function setAllWebServerInstall($nolog = null)
 	} else {
 		if (version_compare(getRpmVersion('httpd'), '2.4.0', '>')) {
 			$use_apache24 = true;
-			exec("echo '' > ../etc/flag/use_apache24.flg");
+			@file_put_contents('../etc/flag/use_apache24.flg', ''); // security GG6
 		} else {
 			$use_apache24 = false;
 		}

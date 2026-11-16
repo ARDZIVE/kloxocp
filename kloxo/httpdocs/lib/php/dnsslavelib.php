@@ -58,6 +58,7 @@ class DnsSlave extends Lxdb
 
 		exec("echo '{$ip}' > {$path}/{$domain}");
 	*/
+		// echo-to-file path removed (security GG6); tmp dir deleted below.
 		// MR -- deleted
 		if (file_exists($path)) {
 			lxshell_return("rm", "-rf", $path);
