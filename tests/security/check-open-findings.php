@@ -1209,6 +1209,72 @@ $findings[] = finding('CC6', 'medium', 'Roundcube ensureDatabase password on mys
 	'kloxo_roundcube.php ensureDatabase', $cc6Closed,
 	$cc6Closed ? 'mysqli prepared / sqlExec' : 'still mysql -e with IDENTIFIED BY');
 
+// --- Wave 15 (DD1–DD6) ---
+$csync = file_text($root, 'kloxo/bin/common/csyncdb.sh');
+$dd1Closed = contains($csync, 'defaults-extra-file')
+	&& contains($csync, 'security DD1')
+	&& not_contains($csync, 'pass`');
+$findings[] = finding('DD1', 'high', 'csyncdb.sh mysql password via shell backtick',
+	'bin/common/csyncdb.sh', $dd1Closed,
+	$dd1Closed ? 'defaults-extra-file' : 'still shell password');
+
+$multi = function_body($lib, 'createMultipLeVps');
+$dd2Closed = contains($multi, 'security DD2')
+	&& contains($multi, 'KLOXO_ADMIN_PASSWORD')
+	&& not_contains($multi, '--admin-password={$adminpass}');
+$findings[] = finding('DD2', 'high', 'createMultipLeVps admin-password on argv',
+	'lib.php createMultipLeVps', $dd2Closed,
+	$dd2Closed ? 'password via env / refuse' : 'still --admin-password= on argv');
+
+$lfs = file_text($root, 'kloxo/httpdocs/lib/html/linuxfslib.php');
+$dd3Closed = contains($lfs, 'security DD3')
+	&& contains($lfs, 'function kloxo_archive_extract_argv')
+	&& not_contains($lfs, 'nice -n +10 ionice -c3 $fcmd')
+	&& not_contains($lfs, 'nice -n +10 ionice -c3 $command');
+$findings[] = finding('DD3', 'medium', 'linuxfslib archive extract shells paths',
+	'linuxfslib.php unzip/zip', $dd3Closed,
+	$dd3Closed ? 'argv extract/zip' : 'still shell string fcmd');
+
+$weblib = file_text($root, 'kloxo/httpdocs/driver/web/weblib.php');
+$weblib2 = file_text($root, 'kloxo/httpdocs/driver/web/web__lib.php');
+$sslcert = file_text($root, 'kloxo/httpdocs/driver/pserver/sslcertlib.php');
+$dd4Closed = contains($weblib, 'security DD4')
+	&& contains($weblib2, 'security DD4')
+	&& contains($sslcert, 'security DD4')
+	&& not_contains($weblib, "exec(\"'rm' -rf {\$sgbl->__path_customer_root}")
+	&& not_contains($weblib, 'exec("sh /script/fixphp --domain=');
+$findings[] = finding('DD4', 'medium', 'web/ssl drivers exec rm/fixphp with vars',
+	'weblib / web__lib / sslcertlib', $dd4Closed,
+	$dd4Closed ? 'kloxo_exec_argv + validated names' : 'still exec with {$domain}');
+
+$lxsrv = file_text($root, 'kloxo/httpdocs/lib/html/lxserverlib.php');
+$linuxlibDd = file_text($root, 'kloxo/httpdocs/lib/html/linuxlib.php');
+$dd5Closed = contains($lxsrv, 'security DD5')
+	&& contains($lxsrv, 'systemctl')
+	&& not_contains($lxsrv, 'exec("service $cmd')
+	&& contains($linuxlibDd, 'security DD5')
+	&& not_contains($linuxlibDd, 'exec("systemctl enable {$pgm}');
+$findings[] = finding('DD5', 'medium', 'special_bind_restart / os_create_program_service shell units',
+	'lxserverlib / linuxlib', $dd5Closed,
+	$dd5Closed ? 'argv systemctl' : 'still service/systemctl shell');
+
+$cleanup = file_text($root, 'kloxo/bin/common/cleanup.php');
+$fixlog = file_text($root, 'kloxo/bin/common/fixlogdir.php');
+$fixtraf = file_text($root, 'kloxo/bin/common/fixtraffic.php');
+$genlib = file_text($root, 'kloxo/httpdocs/lib/php/generallib.php');
+$dd6Closed = contains($cleanup, 'security DD6')
+	&& contains($fixlog, 'security DD6')
+	&& contains($fixtraf, 'security DD6')
+	&& contains($lib, 'security DD6')
+	&& contains($genlib, 'security DD6')
+	&& not_contains($cleanup, 'system("lxphp.exe')
+	&& not_contains($fixtraf, 'system("lxphp.exe')
+	&& not_contains($lib, "system(\"echo '{\$patch}'")
+	&& not_contains($genlib, "exec(\"echo '\$sslport'");
+$findings[] = finding('DD6', 'low', 'cleanup/fixlogdir/fixtraffic/sysctl/generallib system leftovers',
+	'bin/common + lib.php + generallib', $dd6Closed,
+	$dd6Closed ? 'proc_open / file_put_contents' : 'still system/echo exec');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

@@ -303,23 +303,26 @@ class General extends Lxdb
 
 		$kloxowrapper = $this->portconfig_b->kloxowrapper = $param['portconfig_b-kloxowrapper'];
 
-		exec("echo '$sslport' > /home/kloxo/httpd/cp/.ssl.port");
-		exec("echo '$nonsslport' > /home/kloxo/httpd/cp/.nonssl.port");
+		// Direct file writes — never shell echo (security DD6).
+		$sslport = preg_match('/^[0-9]{1,5}$/', (string) $sslport) ? (string) $sslport : '';
+		$nonsslport = preg_match('/^[0-9]{1,5}$/', (string) $nonsslport) ? (string) $nonsslport : '';
+		@file_put_contents('/home/kloxo/httpd/cp/.ssl.port', $sslport . "\n");
+		@file_put_contents('/home/kloxo/httpd/cp/.nonssl.port', $nonsslport . "\n");
 
 		$loginpath = "../httpdocs/login";
 
 		if ($redirect_to_ssl === 'on') {
 			touch("{$loginpath}/redirect-to-ssl");
 		} else {
-			unlink("{$loginpath}/redirect-to-ssl");
+			@unlink("{$loginpath}/redirect-to-ssl");
 		}
 
 		if ($redirect_to_domain !== '') {
 			validate_domain_name($redirect_to_domain);
 
-			exec("echo '$redirect_to_domain' > {$loginpath}/redirect-to-domain");
+			@file_put_contents("{$loginpath}/redirect-to-domain", $redirect_to_domain . "\n");
 		} else {
-			exec("rm -f {$loginpath}/redirect-to-domain");
+			@unlink("{$loginpath}/redirect-to-domain");
 		}
 
 		if ($randomimage_flag === 'off') {
@@ -329,9 +332,9 @@ class General extends Lxdb
 				$c = '';
 			}
 
-			exec("echo '{$c}' > {$loginpath}/.norandomimage");
+			@file_put_contents("{$loginpath}/.norandomimage", $c . "\n");
 		} else {
-			exec("'rm' -f {$loginpath}/.norandomimage");
+			@unlink("{$loginpath}/.norandomimage");
 		}
 
 		return $param;

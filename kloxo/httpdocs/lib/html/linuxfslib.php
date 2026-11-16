@@ -271,60 +271,58 @@ function lxshell_zip_core($updateflag, $dir, $zipname, $filelist)
 {
 	$dir = expand_real_root($dir);
 
-	foreach($filelist as &$__f) {
-		$__f = expand_real_root($__f);
+	$members = array();
+	if (is_array($filelist)) {
+		foreach ($filelist as $__f) {
+			$__f = expand_real_root($__f);
+			if (!is_string($__f) || $__f === '' || str_contains($__f, "\0")) {
+				continue;
+			}
+			$members[] = $__f;
+		}
 	}
 
 	$zipname = expand_real_root($zipname);
 
-	$files = null;
-
-	if ($filelist) {
-		foreach($filelist as &$__nf) {
-			$__nf = "'$__nf'";
-		}
-
-		$files = implode(" ", $filelist);
-	}
-
 	// MR -- Use `--ignore-failed-read' to prevents tar from exitting with non-zero status on unreadable files
 	// http://fvue.nl/wiki/Tar:_file_changed_as_we_read_it
+	// Argument arrays only (security DD3).
 	switch ($updateflag) {
 		case 'zipadd':
-			$command = "zip -y -rq -u";
-			$command2 = '';
+			$base = array('zip', '-y', '-rq', '-u');
+			$extra = array();
 			break;
 		case 'zip':
-			$command = "zip -y -rq";
-			$command2 = '';
+			$base = array('zip', '-y', '-rq');
+			$extra = array();
 			break;
 		case 'tar':
-			$command = "tar -cf";
-			$command2 = '--ignore-failed-read';
+			$base = array('tar', '-cf');
+			$extra = array('--ignore-failed-read');
 			break;
 		case 'p7z':
-			$command = "7za a -y";
-			$command2 = '';
+			$base = array('7za', 'a', '-y');
+			$extra = array();
 			break;
 		case 'rar':
-			$command = "rar a -y";
-			$command2 = '';
+			$base = array('rar', 'a', '-y');
+			$extra = array();
 			break;
 		case 'tbz2':
 		case 'tar.bz2':
-			$command = "tar -cjf";
-			$command2 = '--ignore-failed-read';
+			$base = array('tar', '-cjf');
+			$extra = array('--ignore-failed-read');
 			break;
 		case 'txz':
 		case 'tar.xz':
-			$command = "tar -cJf";
-			$command2 = '--ignore-failed-read';
+			$base = array('tar', '-cJf');
+			$extra = array('--ignore-failed-read');
 			break;
 		case 'tgz':
 		case 'tar.gz':
 		default:
-			$command = "tar -czf";
-			$command2 = '--ignore-failed-read';
+			$base = array('tar', '-czf');
+			$extra = array('--ignore-failed-read');
 			break;
 	}
 
@@ -334,20 +332,73 @@ function lxshell_zip_core($updateflag, $dir, $zipname, $filelist)
 		$fullpath = $zipname;
 	}
 
-	if (!$files) {
+	if ($members === array()) {
 		lxfile_touch("$dir/lxblank_file");
-		$files = "'lxblank_file'";
+		$members = array('lxblank_file');
 	}
 
-	print_time("zipfile");
-	$fcmd = "$command $fullpath $files $command2";
-	$fcmd = str_replace(";", "", $fcmd);
+	$argv = array_merge(
+		array('nice', '-n', '+10', 'ionice', '-c3'),
+		$base,
+		array($fullpath),
+		$members,
+		$extra
+	);
 
-//	do_exec_system("__system__", $dir, "ionice -c 2 -n 7 $fcmd", $out, $err, $ret, null);
-	do_exec_system("__system__", $dir, "nice -n +10 ionice -c3 $fcmd", $out, $err, $ret, null);
+	print_time("zipfile");
+	$out = null;
+	$err = null;
+	$ret = null;
+	do_exec_system("__system__", $dir, $argv, $out, $err, $ret, null);
 	print_time("zipfile", "Ziptook");
 
 	return $ret;
+}
+
+/**
+ * Build argv for archive extract (security DD3) — never a shell string.
+ *
+ * @param list<string>|null $filelist
+ * @return list<string>
+ */
+function kloxo_archive_extract_argv(string $fullpath, $filelist = null): array
+{
+	$ztype = os_getZipType($fullpath);
+	switch ($ztype) {
+		case 'tgz':
+			$base = array('tar', '-xzf', $fullpath);
+			break;
+		case 'tbz2':
+			$base = array('tar', '-xjf', $fullpath);
+			break;
+		case 'txz':
+			$base = array('tar', '-xJf', $fullpath);
+			break;
+		case 'tar':
+			$base = array('tar', '-xf', $fullpath);
+			break;
+		case 'p7z':
+			$base = array('7za', 'e', '-y', $fullpath);
+			break;
+		case 'rar':
+			$base = array('unrar', 'e', '-y', $fullpath);
+			break;
+		case 'zip':
+		default:
+			$base = array('unzip', '-oq', $fullpath);
+			break;
+	}
+	$argv = array_merge(array('nice', '-n', '+10', 'ionice', '-c3'), $base);
+	if (is_array($filelist)) {
+		foreach ($filelist as $f) {
+			if (!is_string($f) || $f === '' || str_contains($f, "\0") || str_contains($f, '..')) {
+				continue;
+			}
+			$argv[] = $f;
+		}
+	}
+
+	return $argv;
 }
 
 function lxshell_unzip($username, $dir, $file, $filelist = null)
@@ -355,54 +406,14 @@ function lxshell_unzip($username, $dir, $file, $filelist = null)
 	$dir = expand_real_root($dir);
 	$file = expand_real_root($file);
 
-	$files = null;
-
-	if ($filelist) {
-		foreach($filelist as &$__nf) {
-			$__nf = "'$__nf'";
-		}
-		$files = implode(" ", $filelist);
-	}
-
 	if ($file[0] !== '/') {
 		$fullpath = getcwd() . "/$file";
 	} else {
 		$fullpath = $file;
 	}
 
-	$ztype = os_getZipType($fullpath);
-
-	switch ($ztype) {
-		case 'tgz':
-			$command = "tar -xzf";
-			break;
-		case 'tbz2':
-			$command = "tar -xjf";
-			break;
-		case 'txz':
-			$command = "tar -xJf";
-			break;
-		case 'tar':
-			$command = "tar -xf";
-			break;
-		case 'p7z':
-			$command = "7za e -y";
-			break;
-		case 'rar':
-			$command = "unrar e -y";
-			break;
-		case 'zip':
-		default:
-			$command = "unzip -oq";
-			break;
-	}
-
-	$fcmd = "$command $fullpath $files";
-	$fcmd = str_replace(";", "", $fcmd);
-//	$ret = new_process_cmd($username, $dir, "ionice -c 2 -n 7 $fcmd");
-	$ret = new_process_cmd($username, $dir, "nice -n +10 ionice -c3 $fcmd");
-
-	return $ret;
+	// Argument array only (security DD3).
+	return new_process_cmd($username, $dir, kloxo_archive_extract_argv($fullpath, $filelist));
 }
 
 function lxshell_unzip_numeric($dir, $file, $filelist = null)
@@ -410,50 +421,17 @@ function lxshell_unzip_numeric($dir, $file, $filelist = null)
 	$dir = expand_real_root($dir);
 	$file = expand_real_root($file);
 
-	$files = null;
-
-	if ($filelist) {
-		foreach($filelist as &$__nf) {
-			$__nf = "'$__nf'";
-		}
-		$files = implode(" ", $filelist);
-	}
-
 	if ($file[0] !== '/') {
 		$fullpath = getcwd() . "/$file";
 	} else {
 		$fullpath = $file;
 	}
 
-	$ztype = os_getZipType($fullpath);
-
-	switch ($ztype) {
-		case 'tgz':
-			$command = "tar -xzf";
-			break;
-		case 'tbz2':
-			$command = "tar -xjf";
-			break;
-		case 'txz':
-			$command = "tar -xJf";
-			break;
-		case 'tar':
-			$command = "tar -xf";
-			break;
-		case 'p7z':
-			$command = "7za e -y";
-			break;
-		case 'rar':
-			$command = "unrar e -y";
-			break;
-		case 'zip':
-		default:
-			$command = "unzip -oq";
-			break;
-	}
-
-//	do_exec_system("__system__", $dir, "ionice -c 2 -n 7 $command $fullpath $files", $out, $err, $ret, null);
-	do_exec_system("__system__", $dir, "nice -n +10 ionice -c3 $command $fullpath $files", $out, $err, $ret, null);
+	// Argument array only (security DD3).
+	$out = null;
+	$err = null;
+	$ret = null;
+	do_exec_system("__system__", $dir, kloxo_archive_extract_argv($fullpath, $filelist), $out, $err, $ret, null);
 
 	return $ret;
 }
@@ -863,9 +841,9 @@ function lxshell_background($cmd)
 	return true;
 }
 
-function do_exec_system($username, $dir, $cmd, &$out, &$err, &$ret, $input) 
+function do_exec_system($username, $dir, $cmd, &$out, &$err, &$ret, $input)
 {
-	global $gbl, $sgbl, $login, $ghtml; 
+	global $gbl, $sgbl, $login, $ghtml;
 	global $global_shell_out, $global_shell_error, $global_shell_ret;
 	global $global_dontlogshell;
 
@@ -883,7 +861,24 @@ function do_exec_system($username, $dir, $cmd, &$out, &$err, &$ret, $input)
 	$descriptorspec = array( 0 => array("pipe", "r"), 1 => array("pipe", "w"), 2 => array("file", $fename, "a"));
 
 	os_set_path();
-	$process = proc_open("$cmd", $descriptorspec, $pipes);
+	// Prefer argv array (security DD3); legacy string still accepted for callers.
+	if (is_array($cmd)) {
+		foreach ($cmd as $a) {
+			if (!is_string($a) || str_contains($a, "\0")) {
+				$ret = 127;
+				$out = '';
+				$err = 'refused unsafe argv';
+				if ($oldpath) {
+					chdir($oldpath);
+				}
+
+				return;
+			}
+		}
+		$process = @proc_open($cmd, $descriptorspec, $pipes);
+	} else {
+		$process = proc_open((string) $cmd, $descriptorspec, $pipes);
+	}
 	$out = null;
 
 	if (is_resource($process)) {

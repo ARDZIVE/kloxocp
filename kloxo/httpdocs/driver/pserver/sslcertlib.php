@@ -550,9 +550,20 @@ class SslCert extends Lxdb
 			$lepath = "/etc/letsencrypt";
 			$stpath = "/root/.startapi.sh";
 
-			exec("'rm' -rf {$acpath}/{$name}*");
-			exec("'rm' -rf {$lepath}/{live,archive,renewal}/{$name}* {$spath}/{$name}*");
-			exec("'rm' -rf {$stpath}/{$name}*");
+			// Validated name + argv rm (security DD4). No shell globs.
+			if (is_string($name) && preg_match('/^[A-Za-z0-9.-]+$/', $name) === 1
+				&& function_exists('kloxo_exec_argv')) {
+				foreach (array(
+					"{$acpath}/{$name}",
+					"{$spath}/{$name}",
+					"{$stpath}/{$name}",
+					"{$lepath}/live/{$name}",
+					"{$lepath}/archive/{$name}",
+					"{$lepath}/renewal/{$name}",
+				) as $p) {
+					kloxo_exec_argv(array('rm', '-rf', '--', $p));
+				}
+			}
 
 			lxshell_return("sh", "/script/fixweb", "--domain={$name}");
 			createRestartFile("restart-web");
@@ -1158,7 +1169,10 @@ class SslCert extends Lxdb
 		$this->text_crt_content = lfile_get_contents("{$stpath}/{$name}.cer");
 		$this->text_ca_content = lfile_get_contents("{$stpath}/ca.cer");
 
-		exec("sh /script/fixweb --domain={$name}");
+		if (is_string($name) && preg_match('/^[A-Za-z0-9.-]+$/', $name) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fixweb', "--domain={$name}"));
+		}
 		createRestartFile("restart-web");
 	}
 
@@ -1199,7 +1213,10 @@ class SslCert extends Lxdb
 			}
 		}
 	
-		exec("sh /script/fixweb --domain={$this->parent_domain}");
+		$parentDom = isset($this->parent_domain) ? (string) $this->parent_domain : '';
+		if (preg_match('/^[A-Za-z0-9.-]+$/', $parentDom) === 1 && function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fixweb', "--domain={$parentDom}"));
+		}
 	//	createRestartFile($gbl->getSyncClass(null, $this->syncserver, 'web'));
 		createRestartFile("restart-web");
 	}

@@ -357,10 +357,17 @@ function os_create_program_service()
 			}
 			lxfile_cp($src, $dst);
 			lxfile_unix_chmod($dst, "0644");
-			exec("systemctl enable {$pgm}-{$v} >/dev/null 2>&1");
+			// argv systemctl — never shell-interpolate unit name (security DD5).
+			if (preg_match('/^[A-Za-z0-9_-]+$/', (string) $pgm) === 1
+				&& preg_match('/^[A-Za-z0-9_-]+$/', (string) $v) === 1
+				&& function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('systemctl', '--system', 'enable', "{$pgm}-{$v}"));
+			}
 		}
 
-		exec("systemctl daemon-reload");
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('systemctl', '--system', 'daemon-reload'));
+		}
 
 	} else {
 		// SysV/chkconfig path removed; Ubuntu uses systemd units under /etc/systemd/system.

@@ -259,9 +259,34 @@ function special_bind_restart($cmd)
 {
 	global $gbl, $sgbl, $login, $ghtml;
 
+	// argv-only systemctl — never shell-interpolate $cmd (security DD5).
+	$cmd = is_string($cmd) ? $cmd : '';
+	if ($cmd === '' || preg_match('/^[A-Za-z0-9_.:@+-]+$/', $cmd) !== 1) {
+		return;
+	}
+	$bin = is_executable('/bin/systemctl') ? '/bin/systemctl'
+		: (is_executable('/usr/bin/systemctl') ? '/usr/bin/systemctl' : '');
+	if ($bin === '') {
+		return;
+	}
+
 	if (myPcntl_fork() === 0) {
-		socket_close($sgbl->__local_socket);
-		exec("service $cmd restart  </dev/null >/dev/null 2>&1 &");
+		if (isset($sgbl->__local_socket) && is_resource($sgbl->__local_socket)) {
+			socket_close($sgbl->__local_socket);
+		}
+		$desc = array(
+			0 => array('file', '/dev/null', 'r'),
+			1 => array('file', '/dev/null', 'w'),
+			2 => array('file', '/dev/null', 'w'),
+		);
+		$p = @proc_open(
+			array($bin, '--system', '--no-block', 'restart', $cmd),
+			$desc,
+			$pipes
+		);
+		if (is_resource($p)) {
+			proc_close($p);
+		}
 		exit;
 	} else {
 		myPcntl_wait();

@@ -56,6 +56,18 @@ if ($laccess->timestamp > $oldtime) {
 	$laccess->write();
 }
 
-system("lxphp.exe ../bin/gettraffic.php");
-system("lxphp.exe ../bin/collectquota.php");
+// argv only (security DD6).
+$php = is_executable('/usr/bin/lxphp.exe') ? '/usr/bin/lxphp.exe'
+	: (isset($sgbl->__path_php_path) ? (string) $sgbl->__path_php_path : 'php');
+foreach (array('../bin/gettraffic.php', '../bin/collectquota.php') as $script) {
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => STDOUT,
+		2 => STDERR,
+	);
+	$p = @proc_open(array($php, $script), $desc, $pipes);
+	if (is_resource($p)) {
+		proc_close($p);
+	}
+}
 

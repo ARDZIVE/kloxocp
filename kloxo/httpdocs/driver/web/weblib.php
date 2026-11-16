@@ -752,24 +752,36 @@ class Web extends Lxdb
 			return;
 		}
 
-		exec("'rm' -rf {$sgbl->__path_customer_root}/{$this->customer_name}/__processed_stats/{$this->nname}");
-
-		exec("'rm' -rf {$sgbl->__path_httpd_root}/{$this->nname}");
-
-		exec("'rm' -rf {$sgbl->__path_kloxo_httpd_root}/awstats/dirdata/{$this->nname}");
-		exec("'rm' -f /etc/awstats/awstats.{$this->nname}.conf");
-
-		exec("'rm' -rf /var/lib/webalizer/{$this->nname}");
-		exec("'rm' -f /etc/webalizer/webalizer.{$this->nname}.conf");
+		// Validated names + argv rm (security DD4).
+		$cust = (string) $this->customer_name;
+		$dom = (string) $this->nname;
+		if (preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $cust) !== 1
+			|| preg_match('/^[A-Za-z0-9.-]+$/', $dom) !== 1) {
+			return;
+		}
+		$rm = function (array $argv): void {
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv($argv);
+			}
+		};
+		$rm(array('rm', '-rf', '--', "{$sgbl->__path_customer_root}/{$cust}/__processed_stats/{$dom}"));
+		$rm(array('rm', '-rf', '--', "{$sgbl->__path_httpd_root}/{$dom}"));
+		$rm(array('rm', '-rf', '--', "{$sgbl->__path_kloxo_httpd_root}/awstats/dirdata/{$dom}"));
+		$rm(array('rm', '-f', '--', "/etc/awstats/awstats.{$dom}.conf"));
+		$rm(array('rm', '-rf', '--', "/var/lib/webalizer/{$dom}"));
+		$rm(array('rm', '-f', '--', "/etc/webalizer/webalizer.{$dom}.conf"));
 
 		// MR -- also delete docroot if only refer to 1 web
 		$c = db_get_count("web", "customer_name = '{$this->customer_name}' AND docroot = '$this->docroot'");
 
 		if ((int)$c === 1) {
-			exec("'rm' -rf {$this->getFullDocRoot()}");
+			$doc = (string) $this->getFullDocRoot();
+			if ($doc !== '' && !str_contains($doc, "\0") && !str_contains($doc, '..')) {
+				$rm(array('rm', '-rf', '--', $doc));
+			}
 		}
 
-		exec("'rm' -f /home/kloxo/httpd/default/{$this->nname}");
+		$rm(array('rm', '-f', '--', "/home/kloxo/httpd/default/{$dom}"));
 	}
 
 	// MR -- web__xxxlib call this function but no exists
@@ -993,10 +1005,16 @@ class Web extends Lxdb
 	//	$this->getAndUnzipSkeleton($this->__var_skelmachine, $this->__var_skelfile, "{$user_home}/");
 		$this->getAndUnzipSkeleton("{$user_home}/", $this->__var_skelfile, $this->__var_skelmachine);
 
+		// argv fixphp (security DD4).
 		if (file_exists("/etc/php-fpm/{$this->customer_name}.conf")) {
-			exec("sh /script/fixphp --domain={$domname}");
-		} else {
-			exec("sh /script/fixphp --client={$this->customer_name}");
+			if (is_string($domname) && preg_match('/^[A-Za-z0-9.-]+$/', $domname) === 1
+				&& function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sh', '/script/fixphp', "--domain={$domname}"));
+			}
+		} elseif (is_string($this->customer_name)
+			&& preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', (string) $this->customer_name) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fixphp', "--client={$this->customer_name}"));
 		}
 
 	}

@@ -3115,7 +3115,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111616';
+	return '10.1-2026111617';
 }
 
 function getDownloadServer()
@@ -5705,13 +5705,38 @@ function createMultipLeVps($param)
 {
 	global $sgbl;
 
-	$adminpass = $param['vps_admin_password_f'];
-	$template = $param['vps_template_name_f'];
-	$one_ip = $param['vps_one_ipaddress_f'];
-	$base = $param['vps_basename_f'];
-	$count = $param['vps_count_f'];
+	// Password via env — never --admin-password= on argv (security DD2).
+	// multicreate.php is HyperVM-era and is not shipped; refuse rather than shell a secret.
+	$adminpass = isset($param['vps_admin_password_f']) ? (string) $param['vps_admin_password_f'] : '';
+	$template = isset($param['vps_template_name_f']) ? (string) $param['vps_template_name_f'] : '';
+	$one_ip = isset($param['vps_one_ipaddress_f']) ? (string) $param['vps_one_ipaddress_f'] : '';
+	$base = isset($param['vps_basename_f']) ? (string) $param['vps_basename_f'] : '';
+	$count = isset($param['vps_count_f']) ? (string) $param['vps_count_f'] : '';
+	$script = '../bin/multicreate.php';
+	if (!is_file($script)) {
+		log_log('security', 'createMultipLeVps refused: multicreate.php missing');
 
-	lxshell_background($sgbl->__path_php_path, "../bin/multicreate.php", "--admin-password={$adminpass}", "--v-template_name={$template}", "--count=$count", "--basename=$base", "--v-one_ipaddress=$one_ip");
+		return;
+	}
+	if ($adminpass === '' || str_contains($adminpass, "\0")) {
+		log_log('security', 'createMultipLeVps refused: empty password');
+
+		return;
+	}
+	putenv('KLOXO_ADMIN_PASSWORD=' . $adminpass);
+	try {
+		lxshell_background(
+			$sgbl->__path_php_path,
+			$script,
+			'--admin-password-env=KLOXO_ADMIN_PASSWORD',
+			'--v-template_name=' . $template,
+			'--count=' . $count,
+			'--basename=' . $base,
+			'--v-one_ipaddress=' . $one_ip
+		);
+	} finally {
+		putenv('KLOXO_ADMIN_PASSWORD');
+	}
 }
 
 function collect_quota_later()
@@ -7652,7 +7677,11 @@ function setInitialServer($nolog = null)
 		if ($ret === 0) {
 			// no action
 		} else {
-			system("echo '{$patch}' >> /etc/sysctl.conf; sysctl -e -p");
+			// File append + argv sysctl — never shell echo (security DD6).
+			@file_put_contents('/etc/sysctl.conf', $patch, FILE_APPEND | LOCK_EX);
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sysctl', '-e', '-p'));
+			}
 		}
 	}
 

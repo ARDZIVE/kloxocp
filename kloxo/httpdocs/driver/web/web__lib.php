@@ -23,12 +23,16 @@ class web__ extends lxDriverClass
 
 		if (!is_file('/etc/debian_version')) {
 			self::setInstallPhpfpm();
-			@exec("sh /script/fixweb --target=defaults");
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sh', '/script/fixweb', '--target=defaults'));
+			}
 		} elseif ((string)$drivertype === 'nginx') {
 			// Ubuntu: wire conf.d includes + drop sites-enabled/default, then
 			// render domain vhosts (installMe alone used to leave /var/www/html).
-			@exec("sh /script/fixweb --target=defaults --server=localhost");
-			@exec("sh /script/fixweb --target=domains --server=localhost");
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sh', '/script/fixweb', '--target=defaults', '--server=localhost'));
+				kloxo_exec_argv(array('sh', '/script/fixweb', '--target=domains', '--server=localhost'));
+			}
 		}
 
 		createRestartFile("restart-web");
@@ -496,10 +500,14 @@ class web__ extends lxDriverClass
 
 	static function delPhpFpmConfig($user)
 	{
+		$user = (string) $user;
+		if (preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $user) !== 1) {
+			return;
+		}
 		$tpltarget = "/etc/php-fpm.d/{$user}.conf";
 
-		if (file_exists($tpltarget)) {
-			exec("'rm' -rf {$tpltarget}");
+		if (file_exists($tpltarget) && function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('rm', '-f', '--', $tpltarget));
 		}
 	}
 
@@ -753,11 +761,18 @@ class web__ extends lxDriverClass
 		$list = getAllWebDriverList();
 
 		foreach ($list as &$l) {
-			// MR -- lxshell_return not work for rm; then use exec
-		//	lxshell_return("rm", "-rf", "/opt/configs/{$l}/conf/domains/*.conf");
-		//	lxshell_return("rm", "-rf", "/opt/configs/{$l}/conf/proxies/*.conf");
-			exec("'rm' -rf /opt/configs/{$l}/conf/domains/*.conf");
-			exec("'rm' -rf /opt/configs/{$l}/conf/proxies/*.conf");
+			// argv find+rm — no shell globs (security DD4).
+			$l = (string) $l;
+			if (preg_match('/^[A-Za-z0-9_-]+$/', $l) !== 1 || !function_exists('kloxo_exec_argv')) {
+				continue;
+			}
+			foreach (array('domains', 'proxies') as $sub) {
+				kloxo_exec_argv(array(
+					'find', "/opt/configs/{$l}/conf/{$sub}",
+					'-maxdepth', '1', '-type', 'f', '-name', '*.conf',
+					'-exec', 'rm', '-f', '--', '{}', ';',
+				));
+			}
 		}
 	}
 
@@ -1592,7 +1607,11 @@ class web__ extends lxDriverClass
 		// MR -- no need for it except .htaccess per-domain!
 		$uname = $this->getUser();
 
-		exec("sh /script/fixphp --client={$uname}");
+		// argv fixphp (security DD4).
+		if (is_string($uname) && preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $uname) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fixphp', "--client={$uname}"));
+		}
 	}
 
 	function htaccessUpdate()
@@ -1601,7 +1620,10 @@ class web__ extends lxDriverClass
 		$domain = $this->getDomainname();
 	//	$uname = $this->getUser();
 
-		exec("sh /script/fixphp --domain={$domain}");
+		if (is_string($domain) && preg_match('/^[A-Za-z0-9.-]+$/', $domain) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fixphp', "--domain={$domain}"));
+		}
 
 	}
 
