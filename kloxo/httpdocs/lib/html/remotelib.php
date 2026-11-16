@@ -1062,6 +1062,24 @@ function process_server_input($total)
 	} else {
 		$res = new Remote();
 		$res->message = "Got Error From Your End";
+		// Payload failed the panel class allow-list (or was empty). Log the
+		// rejected class names so Add Domain is not a blind toast.
+		if (is_string($payloadRaw) && $payloadRaw !== ''
+			&& function_exists('log_log')
+			&& preg_match_all('/O:\\d+:"([^"]+)"/', $payloadRaw, $cm)) {
+			$rej = array();
+			foreach (array_unique($cm[1]) as $cn) {
+				if (!function_exists('kloxo_unserialize_panel_class_ok')
+					|| !kloxo_unserialize_panel_class_ok($cn)) {
+					$rej[] = $cn;
+				}
+			}
+			if ($rej !== array()) {
+				log_log('error', 'backend sync payload rejected classes: ' . implode(',', $rej));
+			} else {
+				log_log('error', 'backend sync payload unserialize failed (no rejected class names)');
+			}
+		}
 		$res->exception = new lxException("got_error_from_ur_end", '');
 		$res->ddata = null;
 	}

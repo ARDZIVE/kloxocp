@@ -32,6 +32,7 @@ require_once $root . '/kloxo/httpdocs/lib/html/remote_auth_gate.php';
 expect(kloxo_unserialize_panel_class_ok('priv'), 'Z6 priv allowed');
 expect(kloxo_unserialize_panel_class_ok('dns_record_a'), 'Z6 dns_record_a allowed');
 expect(kloxo_unserialize_panel_class_ok('LxaClass'), 'Z6 LxaClass allowed (Add Domain sync)');
+expect(kloxo_unserialize_panel_class_ok('Used'), 'Z6 Used allowed (quota declared casing)');
 expect(!kloxo_unserialize_panel_class_ok('notarealclass'), 'Z6 unknown lowercase refused');
 
 $lib = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/lib.php');

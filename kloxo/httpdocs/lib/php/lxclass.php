@@ -248,27 +248,43 @@ abstract class Lxclass
 			$class = $this->get__table();
 		}
 
-		$switch = null;
+		if (!isset($obj->__driverappclass) || (string) $obj->__driverappclass === '') {
+			try {
+				$obj->createSyncClass();
+			} catch (Throwable $e) {
+				// title only
+			}
+		}
 
+		$switch = '';
 		if (isset($obj->olddeleteflag) && $obj->olddeleteflag === 'on') {
-			$switch = "(Switching)";
+			$switch = '(Switching)';
 		}
 
-		$desc = get_description($class);
-		$path = get_image_path();
-		$img = $ghtml->get_image($path, null, $obj->__driverappclass, '.gif');
-		$descr = null;
-		$str = null;
-
-		if (check_if_many_server()) {
-			$descr = "on {$obj->syncserver}";
-		//	$str = ":{$obj->syncserver}";
+		$desc = function_exists('get_description') ? (string) get_description($class) : (string) $class;
+		$desc = trim($desc);
+		if ($desc === '') {
+			$desc = (string) $class;
 		}
 
-		// Don't need this. Ruins the appearance <b> [</b>{$obj->getShowInfo()}<b>] </b>
-		return "{$desc}  <span title=\"{$desc} is Configured {$descr} on {$obj->__driverappclass}\"> ".
-			"{$str} {$switch} &#x00bb; <span style='font-weight: normal'>{$obj->__driverappclass}<span> </span>";
+		$driver = isset($obj->__driverappclass) ? trim((string) $obj->__driverappclass) : '';
+		// Plain text only: section headers are htmlspecialchars()'d in
+		// print_action_block. The old <span>… markup (and a mistyped </span>)
+		// showed up as literal "Server <span title=…> » linux" on admin.
+		$out = $desc;
+		if ($switch !== '') {
+			$out .= ' ' . $switch;
+		}
+		if ($driver !== '') {
+			$where = '';
+			if (function_exists('check_if_many_server') && check_if_many_server()
+				&& isset($obj->syncserver) && (string) $obj->syncserver !== '') {
+				$where = ' on ' . trim((string) $obj->syncserver);
+			}
+			$out .= ' » ' . $driver . $where;
+		}
 
+		return $out;
 	}
 
 	function substr($var, $a, $b) { return substr($this->$var, $a, $b); }

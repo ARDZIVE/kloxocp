@@ -75,6 +75,7 @@ expect(kloxo_unserialize_panel_class_ok('dns_record_a'), 'X2 allows dns_record_a
 expect(kloxo_unserialize_panel_class_ok('priv'), 'X2 allows priv');
 expect(kloxo_unserialize_panel_class_ok('Remote'), 'X2 allows Remote');
 expect(kloxo_unserialize_panel_class_ok('LxaClass'), 'X2 allows LxaClass (domain/mmail sync)');
+expect(kloxo_unserialize_panel_class_ok('Used'), 'X2 allows Used (declared quota class casing)');
 $GLOBALS['gl_class_array'] = array('mmail' => 'lib/domain/mmail.php');
 expect(kloxo_unserialize_panel_class_ok('mmail__exim'), 'X2 allows Class__driver when base in gl');
 expect(!kloxo_unserialize_panel_class_ok('orphan__driver'), 'X2 rejects Class__driver without base in gl');

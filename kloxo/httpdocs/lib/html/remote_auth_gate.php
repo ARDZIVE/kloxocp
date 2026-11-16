@@ -357,7 +357,16 @@ function kloxo_unserialize_panel_class_ok($c)
 		'LxaClass' => true, 'Lxaclass' => true,
 		'Lxdriverclass' => true, 'lxDriverClass' => true,
 	);
-	if (isset($known[$c])) {
+	// PHP serialize uses the declared class name (Used, not used). Match
+	// known entries case-insensitively so Add Client Domain is not rejected.
+	static $knownLc = null;
+	if ($knownLc === null) {
+		$knownLc = array();
+		foreach ($known as $k => $_v) {
+			$knownLc[strtolower((string) $k)] = true;
+		}
+	}
+	if (isset($known[$c]) || isset($knownLc[strtolower($c)])) {
 		return true;
 	}
 	if (preg_match('/_[abo]$/', $c)) {

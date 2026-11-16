@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111665. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111666. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -50,8 +50,11 @@ Update/delete redirects use `updated_successfully` / `deleted_successfully` /
 `update_failed`. Status peek does not consume the message; content does not
 print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have_unread_ticket`
 (no Status toast or inline text); a red dot sits on the top-left Ticket pill
-(`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. The Update
-screen shows **10.1-2026111665** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+(`#div_ticket .kloxo-unread-dot`) when `unread_flag` is on. Admin Servers list seeds `localhost`. Server show section titles use plain
+text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
+htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
+The Update
+screen shows **10.1-2026111666** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -301,9 +304,10 @@ themselves still cannot set their own tripwire. `collectquota` uses
 collectquota / admin Disable Policy form after deploy is UNVERIFIED.
 The rest of the domain-add path (DB writes,
 web/DNS/mail sync). Add Domain used to toast `got_error_from_ur_end` with no
-row: domain/mmail sync payloads carry `LxaClass` (no Class__driver yet) and the
-backend allow-list rejected it (`kloxo_unserialize_panel_class_ok` now allows
-`LxaClass` and `Class__driver` when the base table is in `gl_class_array`;
+row: domain/mmail sync payloads carry `LxaClass` (no Class__driver yet) and
+`Used` (declared casing; allow-list had only `used`) and the backend rejected
+them (`kloxo_unserialize_panel_class_ok` now allows `LxaClass`, case-insensitive
+known names, and `Class__driver` when the base table is in `gl_class_array`;
 `tests/p2/test_domain_sync_unserialize.php`). Live Add Domain after deploy is UNVERIFIED. Mail Account > Set Auto Responder with no autoresponders shows "First add some autoresponders" as a green info message, not an error (`lxInfoException` in `lib/php/lxlib.php`, caught in `theme/coredisplaylib.php` and printed with `print_inline_alert(..., 'info')`; the Set / Enable / Disable Auto Responder pages show the same five beige tabs as the Auto Responders list (`Mailaccount::createShowPropertyList`; which tab is highlighted in the browser is UNVERIFIED); other `lxException` text from `do_updateform` is printed plain instead of "The requested form could not be loaded."; `tests/p2/test_autoresponder_form.php`; live UNVERIFIED). Mail Account dashboard tiles (Password, Limit, Mail Forwards, Filter Configure, Configure, Spam Training, Auto Responders, Webmail) use local Font Awesome Free SVGs (`HtmlLib::mailTileFaName`/`faTileIcon`, `theme/fontawesome/svgs/solid/`; `tests/p2/test_mail_tile_icons.php`; browser look UNVERIFIED). Adding a client does
 not implode() a string (contact email / coma_* lists), does not TypeError
 on a missing plan priv/listpriv or parent quota, and chowns the home to

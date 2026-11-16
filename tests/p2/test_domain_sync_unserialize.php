@@ -32,6 +32,8 @@ function check(bool $ok, string $msg): void
 check(function_exists('kloxo_unserialize_panel_class_ok'), 'panel class helper loaded');
 check(kloxo_unserialize_panel_class_ok('LxaClass'), 'LxaClass allowed (domain/mmail sync fallback)');
 check(kloxo_unserialize_panel_class_ok('Lxdriverclass'), 'Lxdriverclass allowed');
+check(kloxo_unserialize_panel_class_ok('Used'), 'Used allowed (declared casing; Add Domain quota)');
+check(kloxo_unserialize_panel_class_ok('used'), 'used allowed case-insensitively');
 check(kloxo_unserialize_panel_class_ok('mmail__exim'), 'mmail__exim allowed via Class__driver + mmail in gl');
 check(kloxo_unserialize_panel_class_ok('web__nginx'), 'web__nginx still allowed');
 check(!kloxo_unserialize_panel_class_ok('Phar'), 'Phar still refused');
@@ -55,6 +57,13 @@ foreach ($cases as $label => $obj) {
 	$obj->dbaction = 'add';
 	$obj->syncserver = 'localhost';
 	$obj->__masterserver = 'localhost';
+	// Real Add Domain always carries quota objects; Used was the second reject.
+	if (class_exists('priv', false) || class_exists('priv', true)) {
+		$obj->priv = new priv(null, null, $obj->nname);
+	}
+	if (class_exists('Used', false) || class_exists('Used', true)) {
+		$obj->used = new Used(null, null, $obj->nname);
+	}
 	$obj->createSyncClass();
 	$clo = myclone($obj);
 	lxclass::clearChildrenAndParent($clo);
@@ -66,7 +75,7 @@ foreach ($cases as $label => $obj) {
 	$ser = serialize($rmt);
 	$back = kloxo_unserialize_deny_gadgets($ser);
 	check(is_object($back) && $back instanceof Remote,
-		"{$label} Remote with driverApp unserializes (Add Domain sync)");
+		"{$label} Remote with priv/Used/driverApp unserializes (Add Domain sync)");
 }
 
 echo $fail === 0 ? "{$pass} passed, 0 failed\n" : "{$pass} passed, {$fail} failed\n";
