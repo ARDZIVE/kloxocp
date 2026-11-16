@@ -2697,6 +2697,60 @@ $findings[] = finding('AAA6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $aaa6Closed,
 	$aaa6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- BBB wave ---
+$htmlBbb = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$bbb1Closed = contains($htmlBbb, 'security BBB1')
+	&& contains($htmlBbb, 'preg_replace_callback')
+	&& not_contains($htmlBbb, "<img title='{\$variable}\$1' src='\$1'")
+	&& not_contains($htmlBbb, "<a title='{\$variable}\$2' class='insidelist' target='_blank' href='//\$1'>");
+$findings[] = finding('BBB1', 'medium', '_lximg/_lxurl/_lxinurl preg_replace injects unescaped captures',
+	'htmllib.php list _lx* builders', $bbb1Closed,
+	$bbb1Closed ? 'escaped _lx* markup' : 'still raw');
+
+$bbb2Closed = contains($htmlBbb, 'security BBB2')
+	&& substr_count($htmlBbb, 'security BBB2') >= 2
+	&& not_contains($htmlBbb, "href='\$fullurl'> \$matches[2] </a>")
+	&& not_contains($htmlBbb, "href='\$fullurl'><span style='font-weight:bold'>\$matches[2]</span></a>");
+$findings[] = finding('BBB2', 'medium', 'replace_url / help <url:> inject unescaped href/text',
+	'htmllib.php replace_url + help pinfo', $bbb2Closed,
+	$bbb2Closed ? 'escaped href/text' : 'still raw');
+
+$bbb3Closed = contains($htmlBbb, 'security BBB3')
+	&& contains($htmlBbb, '$labelEsc')
+	&& not_contains($htmlBbb, "href=\"javascript:document.form_\$formname.submit()\"");
+$findings[] = finding('BBB3', 'low', 'icon text link unescaped descr/formname in JS href',
+	'htmllib.php icon text link', $bbb3Closed,
+	$bbb3Closed ? 'allow-listed formname + escaped label' : 'still raw');
+
+$tabBbb = file_text($root, 'kloxo/httpdocs/theme/tab_feather.php');
+$tabSimpBbb = file_text($root, 'kloxo/httpdocs/theme/tab_simplicity.php');
+$bbb4Closed = contains($tabBbb, 'security BBB4')
+	&& contains($tabSimpBbb, 'security BBB4')
+	&& not_contains($tabBbb, "\t\$targetstring = \$target;")
+	&& not_contains($tabSimpBbb, "\t\$targetstring = \$target;");
+$findings[] = finding('BBB4', 'low', 'tab_feather/simplicity echo raw targetstring into <a>',
+	'tab_feather.php / tab_simplicity.php', $bbb4Closed,
+	$bbb4Closed ? 'allow-listed target attr' : 'still raw');
+
+$libBbb = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibBbb = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$bbb5Closed = contains($libBbb, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5')
+	&& contains($libBbb, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5')
+	&& contains($lxlibBbb, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5');
+$findings[] = finding('BBB5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $bbb5Closed,
+	$bbb5Closed ? 'ident-gated sites marked BBB5' : 'unmarked');
+
+$extSecBbb = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastBbb = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$bbb6Closed = contains($lxlibBbb, 'security BBB6')
+	&& contains($extSecBbb, 'security BBB6')
+	&& contains($toastBbb, 'security BBB6')
+	&& contains($lxlibBbb, 'gated unserialize');
+$findings[] = finding('BBB6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $bbb6Closed,
+	$bbb6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

@@ -3934,52 +3934,58 @@ class HtmlLib
 
 				$pname = Htmllib::fix_lt_gt($pname);
 
-				if (csa($pname, "_lximg:")) {
-					$pname = preg_replace("/_lximg:([^:]*):([^:]*):([^:]*):/", "<img title='{$variable}$1' src='$1' width='$2' height='$3'>", $pname);
-				} elseif (csa($pname, "_lxspan:")) {
-					if (strtolower($classdesc[2]) !== 'information') {
-						$pname = preg_replace("/_lxspan:([^:]*):([^:]*):/", "<span title='{$variable}$2'> $1 </span>", $pname);
-					} else {
-						$x1 = preg_replace("/_lxspan:([^:]*):([^:]*):/", "$1", $pname);
-						$x2 = preg_replace("/_lxspan:([^:]*):([^:]*):/", "$2", $pname);
+				// Escaped _lx* markup (security BBB1).
+				$esc = static function ($s): string {
+					return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				};
+				$varEsc = $esc($variable);
+				$isInfo = strtolower((string) $classdesc[2]) === 'information';
 
-						if (strlen($x1) > 20) {
-							$x1 = substr($x1, 0, 20) . '...';
+				if (csa($pname, '_lximg:')) {
+					$pname = preg_replace_callback(
+						'/_lximg:([^:]*):([^:]*):([^:]*):/',
+						static function (array $m) use ($esc, $varEsc): string {
+							$src = $esc($m[1]);
+							$w = preg_match('/^[0-9]{1,4}$/', $m[2]) ? $m[2] : '16';
+							$h = preg_match('/^[0-9]{1,4}$/', $m[3]) ? $m[3] : '16';
+
+							return '<img title="' . $varEsc . $src . '" src="' . $src
+								. '" width="' . $w . '" height="' . $h . '" alt="">';
+						},
+						$pname
+					);
+				} elseif (csa($pname, '_lxspan:')) {
+					if (preg_match('/_lxspan:([^:]*):([^:]*):/', $pname, $m)) {
+						$t1 = (string) $m[1];
+						$t2 = (string) $m[2];
+						if ($isInfo && strlen($t1) > 20) {
+							$t1 = substr($t1, 0, 20) . '...';
 						}
-
-						$pname = "<span title='{$variable}{$x2}'> {$x1} </span>";
+						$pname = '<span title="' . $varEsc . $esc($t2) . '"> ' . $esc($t1) . ' </span>';
 					}
-				} elseif (csa($pname, "_lxurl:")) {
-					if (strtolower($classdesc[2]) !== 'information') {
-						$pname = preg_replace("/_lxurl:([^:]*):([^:]*):/", "<a title='{$variable}$2' class='insidelist' target='_blank' href='//$1'> $2 </a>", $pname);
-					} else {
-						$x1 = preg_replace("/_lxurl:([^:]*):([^:]*):/", "$1", $pname);
-						$x2 = preg_replace("/_lxurl:([^:]*):([^:]*):/", "$2", $pname);
-
-						if (strlen($x2) > 20) {
-							$x3 = substr($x2, 0, 20) . '...';
-						} else {
-							$x3 = $x2;
+				} elseif (csa($pname, '_lxurl:')) {
+					if (preg_match('/_lxurl:([^:]*):([^:]*):/', $pname, $m)) {
+						$host = preg_replace('/[^A-Za-z0-9._:-]/', '', (string) $m[1]);
+						$label = (string) $m[2];
+						$show = $label;
+						if ($isInfo && strlen($show) > 20) {
+							$show = substr($show, 0, 20) . '...';
 						}
-
-						$pname = "<a title='{$variable}{$x2}' class='insidelist' target='_blank' href='//{$x1}'> {$x3} </a>";
+						$pname = '<a title="' . $varEsc . $esc($label)
+							. '" class="insidelist" target="_blank" href="//'
+							. $esc($host) . '"> ' . $esc($show) . ' </a>';
 					}
-				} elseif (csa($pname, "_lxinurl:")) {
-					$url = preg_replace("/_lxinurl:([^:]*):([^:]*):/", "$1", $pname);
-					$url = $this->getFullUrl($url);
-
-					if (strtolower($classdesc[2]) !== 'information') {
-						$pname = preg_replace("/_lxinurl:([^:]*):([^:]*):/", "<a title='{$variable}$2' class='insidelist' href='$url'> $2 </a>", $pname);
-					} else {
-						$x2 = preg_replace("/_lxinurl:([^:]*):([^:]*):/", "$2", $pname);
-
-						if (strlen($x2) > 20) {
-							$x3 = substr($x2, 0, 20) . '...';
-						} else {
-							$x3 = $x2;
+				} elseif (csa($pname, '_lxinurl:')) {
+					if (preg_match('/_lxinurl:([^:]*):([^:]*):/', $pname, $m)) {
+						$url = $this->getFullUrl((string) $m[1]);
+						$label = (string) $m[2];
+						$show = $label;
+						if ($isInfo && strlen($show) > 20) {
+							$show = substr($show, 0, 20) . '...';
 						}
-
-						$pname = "<a title='{$variable}{$x2}' class='insidelist' href='{$url}'> {$x3} </a>";
+						$pname = '<a title="' . $varEsc . $esc($label)
+							. '" class="insidelist" href="' . $esc($url) . '"> '
+							. $esc($show) . ' </a>';
 					}
 				}
 
@@ -7047,15 +7053,25 @@ class HtmlLib
 			$imgflag = false;
 		}
 
+		// Allow-listed form id + escaped label (security BBB3).
+		$formname = preg_replace('/[^A-Za-z0-9_]/', '', (string) $formname);
+		if ($formname === '') {
+			$formname = 'kloxoform';
+		}
+		$labelEsc = htmlspecialchars((string) ($descr[2] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$imgEsc = htmlspecialchars((string) $imagesrc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$foreEsc = htmlspecialchars((string) $forecolorstring, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
 		if ($linkflag) {
-			$displayvar = "<span style='$forecolorstring' class='icontextlink' id='aaid_$formname' " .
-				"href=\"javascript:document.form_$formname.submit()\" onmouseover=\"style.textDecoration='underline';\" " .
-				"onmouseout=\"style.textDecoration='none'\"> $descr[2] </span>";
-		//	$onclickvar = "onClick=\"document.form_$formname.submit()\"";
+			$displayvar = '<span style="' . $foreEsc . '" class="icontextlink" id="aaid_' . $formname . '" '
+				. 'href="javascript:document.form_' . $formname . '.submit()" '
+				. 'onmouseover="style.textDecoration=\'underline\';" '
+				. 'onmouseout="style.textDecoration=\'none\'"> ' . $labelEsc . ' </span>';
 			$onclickvar = null;
 			$alt = $help;
 		} else {
-			$displayvar = "<span title=\"You don't have permission\" class='icontextlink'>{$descr[2]} (disabled)</span>";
+			$displayvar = '<span title="You don\'t have permission" class="icontextlink">'
+				. $labelEsc . ' (disabled)</span>';
 			$alt = "You dont have permission";
 			$onclickvar = null;
 		}
@@ -7070,11 +7086,12 @@ class HtmlLib
 		if ($imgflag) {
 			if ($button_type === 'image') {
 				if ($linkflag) {
-					$imgvar = "<img width='32' height='32' class='icontextlink' " .
-						"onMouseOver=\"getElementById('aaid_$formname').style.textDecoration='underline'; \" " .
-						"onMouseOut=\"getElementById('aaid_$formname').style.textDecoration='none'; \" src=\"$imagesrc\">";
+					$imgvar = '<img width="32" height="32" class="icontextlink" '
+						. 'onMouseOver="getElementById(\'aaid_' . $formname . '\').style.textDecoration=\'underline\';" '
+						. 'onMouseOut="getElementById(\'aaid_' . $formname . '\').style.textDecoration=\'none\';" '
+						. 'src="' . $imgEsc . '" alt="">';
 				} else {
-					$imgvar = "<img width='32' height='32' class='icontextlink' src=\"$imagesrc\">";
+					$imgvar = '<img width="32" height="32" class="icontextlink" src="' . $imgEsc . '" alt="">';
 				}
 
 			//	$txtalign = "text-align: center;";
@@ -9633,11 +9650,19 @@ function uploadAbort(e) { // upload abort
 		$pinfo = str_replace("<b>", "<span style='font-weight: bold'>", $pinfo);
 		$pinfo = str_replace("</b>", "</span>", $pinfo);
 
-		$ret = preg_match("/<url:([^>]*)>([^<]*)<\/url>/", $pinfo, $matches);
-
-		if ($ret) {
+		// Escaped help <url:> (security BBB2).
+		if (preg_match('/<url:([^>]*)>([^<]*)<\/url>/', $pinfo, $matches)) {
 			$fullurl = $this->url_tag_href($matches[1]);
-			$pinfo = preg_replace("/<url:([^>]*)>([^<]*)<\/url>/", "<a class='insidelist' href='$fullurl'><span style='font-weight:bold'>$matches[2]</span></a>", $pinfo);
+			$pinfo = preg_replace(
+				'/<url:([^>]*)>([^<]*)<\/url>/',
+				'<a class="insidelist" href="'
+					. htmlspecialchars((string) $fullurl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+					. '"><span style="font-weight:bold">'
+					. htmlspecialchars((string) $matches[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+					. '</span></a>',
+				$pinfo,
+				1
+			);
 		}
 
 		if ($sgbl->isBlackBackground()) {
@@ -10033,23 +10058,30 @@ function uploadAbort(e) { // upload abort
 
 	function replace_url($mess, $mainframeflag)
 	{
-		$tstring = null;
+		// Escaped href/text (security BBB2).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+		$tstring = $mainframeflag ? ' target="mainframe"' : '';
 
-		if ($mainframeflag) {
-			$tstring = "target=mainframe";
-		}
-
-		$ret = preg_match("/<url:([^>]*)>([^<]*)<\/url>/", $mess, $matches);
-
-		if ($ret) {
+		if (preg_match('/<url:([^>]*)>([^<]*)<\/url>/', (string) $mess, $matches)) {
 			$fullurl = $this->url_tag_href($matches[1]);
-			$mess = preg_replace("/<url:([^>]*)>([^<]*)<\/url>/", "<a class='insidelist' $tstring href='$fullurl'> $matches[2] </a>", $mess);
-		} else {
-			$ret = preg_match("/<burl:([^>]*)>([^<]*)<\/burl>/", $mess, $matches);
-			if ($ret) {
-				$fullurl = $this->getFullUrl(trim($matches[1]), null);
-				$mess = preg_replace("/<burl:([^>]*)>([^<]*)<\/burl>/", "<a class='insidelist' $tstring href='$fullurl'> $matches[2] </a>", $mess);
-			}
+			$mess = preg_replace(
+				'/<url:([^>]*)>([^<]*)<\/url>/',
+				'<a class="insidelist"' . $tstring . ' href="' . $esc($fullurl) . '"> '
+					. $esc($matches[2]) . ' </a>',
+				(string) $mess,
+				1
+			);
+		} elseif (preg_match('/<burl:([^>]*)>([^<]*)<\/burl>/', (string) $mess, $matches)) {
+			$fullurl = $this->getFullUrl(trim($matches[1]), null);
+			$mess = preg_replace(
+				'/<burl:([^>]*)>([^<]*)<\/burl>/',
+				'<a class="insidelist"' . $tstring . ' href="' . $esc($fullurl) . '"> '
+					. $esc($matches[2]) . ' </a>',
+				(string) $mess,
+				1
+			);
 		}
 
 		return $mess;

@@ -115,7 +115,16 @@ function print_tab_button($key, $url, $list)
 		$descr = array();
 	}
 
-	$targetstring = $target;
+	// Allow-listed target attr only (security BBB4).
+	$targetstring = '';
+	$t = is_string($target) ? trim($target) : '';
+	if ($t === 'target=_blank' || $t === 'target="_blank"' || strcasecmp($t, '_blank') === 0) {
+		$targetstring = 'target="_blank"';
+	} elseif ($t === 'target=mainframe' || $t === 'target="mainframe"' || strcasecmp($t, 'mainframe') === 0) {
+		$targetstring = 'target="mainframe"';
+	} elseif (preg_match('/^target=["\']?(mainframe|_blank|_self|_top|_parent)["\']?$/i', $t)) {
+		$targetstring = 'target="' . preg_replace('/^target=["\']?|["\']$/i', '', $t) . '"';
+	}
 
 	$form_name = $ghtml->createEncForm_name((string) $file . "_" . (string) $name);
 
