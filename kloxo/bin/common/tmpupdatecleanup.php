@@ -61,13 +61,18 @@ function updatecleanup_main()
 
 	if (isServiceExists('mysqld')) {
 		log_cleanup("- MySQL activated");
-		@exec("systemctl disable --now mysql >/dev/null 2>&1");
-		@exec("systemctl enable mariadb >/dev/null 2>&1");
+		// argv only (security HH5).
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('systemctl', 'disable', '--now', 'mysql'));
+			kloxo_exec_argv(array('systemctl', 'enable', 'mariadb'));
+		}
 	
 	} else {
 		log_cleanup("- MariaDB activated");
-		@exec("systemctl disable --now mysqld >/dev/null 2>&1");
-		@exec("systemctl enable mariadb >/dev/null 2>&1");
+		if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('systemctl', 'disable', '--now', 'mysqld'));
+			kloxo_exec_argv(array('systemctl', 'enable', 'mariadb'));
+		}
 	}
 
 	log_cleanup("- Updating Main services");

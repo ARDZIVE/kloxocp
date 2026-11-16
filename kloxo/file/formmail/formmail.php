@@ -5762,18 +5762,38 @@ function Filter($filter,$m_data)
 			// OK on Windows too, even with the Unix shell syntax.
 			//
 		$temp_file = GetTempName("FMF");
-		$cmd = "$cmd > $temp_file 2>&1";
 			//
-			// start the filter
+			// start the filter via argv + file descriptors — never popen shell (security HH6).
 			//
-		$pipe = popen($cmd,"w");
+		$argv = $a_words;
+		$pipe = false;
+		$safe = true;
+		foreach ($argv as $_a) {
+			if (!is_string($_a) || strpos($_a, "\0") !== false
+				|| preg_match('/[;&|`$<>\\\\\n\r]/', $_a)) {
+				$safe = false;
+				break;
+			}
+		}
+		$desc = array(
+			0 => array('pipe', 'w'),
+			1 => array('file', $temp_file, 'w'),
+			2 => array('file', $temp_file, 'a'),
+		);
+		$proc = ($safe && $argv !== array())
+			? @proc_open($argv, $desc, $pipes, $dirname)
+			: false;
+		if (is_resource($proc) && isset($pipes[0])) {
+			$pipe = $pipes[0];
+			$GLOBALS['__kloxo_formmail_filter_proc'] = $proc;
+		}
 		if ($pipe === false)
 		{
 			$s_sv_err = CheckString($php_errormsg);
 			$err = join('',file($temp_file));
 			unlink($temp_file);
 			Error("filter_not_found",GetMessage(MSG_FILTER_NOTFOUND,
-						array("CMD"=>$cmd,"FILTER"=>$filter,
+						array("CMD"=>implode(' ', $a_words),"FILTER"=>$filter,
 							  "ERROR"=>$s_sv_err)),false,false,$err);
 			exit;
 		}
@@ -5784,7 +5804,14 @@ function Filter($filter,$m_data)
 			fwrite($pipe,implode(BODY_LF,$m_data));
 		else
 			fwrite($pipe,$m_data);
-		if (($i_st = pclose($pipe)) != 0)
+		fclose($pipe);
+		$i_st = 0;
+		if (isset($GLOBALS['__kloxo_formmail_filter_proc'])
+			&& is_resource($GLOBALS['__kloxo_formmail_filter_proc'])) {
+			$i_st = proc_close($GLOBALS['__kloxo_formmail_filter_proc']);
+			unset($GLOBALS['__kloxo_formmail_filter_proc']);
+		}
+		if ($i_st != 0)
 		{
 			$s_sv_err = CheckString($php_errormsg);
 			$err = join('',file($temp_file));

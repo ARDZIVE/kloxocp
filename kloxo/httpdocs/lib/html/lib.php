@@ -3115,7 +3115,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111620';
+	return '10.1-2026111621';
 }
 
 function getDownloadServer()
@@ -4383,9 +4383,18 @@ function exit_program()
 
 function install_general($value)
 {
-	$value = implode(" ", $value);
-	print("Install $value ....\n");
-	exec("up2date-nox --nosig $value");
+	// Validated package names + argv — never shell up2date (security HH2).
+	$pkgs = array();
+	foreach ((array) $value as $p) {
+		$p = (string) $p;
+		if (preg_match('/^[A-Za-z0-9._+-]+$/', $p) === 1) {
+			$pkgs[] = $p;
+		}
+	}
+	print('Install ' . implode(' ', $pkgs) . " ....\n");
+	if ($pkgs !== array() && function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array_merge(array('up2date-nox', '--nosig'), $pkgs));
+	}
 }
 
 function readlastline($fp, $pos, $size)
@@ -6439,7 +6448,10 @@ function setDefaultPages($nolog = null)
 		if (!checkIdenticalFile($sourcezip, $targetzip)) {
 		//	log_cleanup("- Copy $sourcezip to $targetzip", $nolog);
 			log_cleanup("- Copy $sourcezip to $httpdpath", $nolog);
-			exec("'cp' -rf $sourcezip $targetzip");
+			// argv cp (security HH2).
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('cp', '-rf', '--', $sourcezip, $targetzip));
+			}
 		//	$newer = true;
 		}
 	}
@@ -6498,7 +6510,9 @@ function setDefaultPages($nolog = null)
 	lxshell_unzip("__system__", "{$hdocspath}/error", $sourcezip);
 
 	log_cleanup("- Copy error web pages to '{$httpdpath}/error'", $nolog);
-	exec("cp -rf {$hdocspath}/error $httpdpath");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', "{$hdocspath}/error", $httpdpath));
+	}
 
 	$usersourcezip = "{$basefilepath}/user-skeleton.zip";
 	$usertargetzip = "{$httpdpath}/user-skeleton.zip";
@@ -6506,7 +6520,9 @@ function setDefaultPages($nolog = null)
 	if (lxfile_exists($usersourcezip)) {
 		if (!checkIdenticalFile($usersourcezip, $usertargetzip)) {
 			log_cleanup("- Copy $usersourcezip to $usertargetzip", $nolog);
-			exec("'cp' -rf $usersourcezip $usertargetzip");
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('cp', '-rf', '--', $usersourcezip, $usertargetzip));
+			}
 		} else {
 			log_cleanup("- No new user-skeleton", $nolog);
 		}
@@ -6906,7 +6922,14 @@ function setInitialDnsConfig($type, $nolog = null)
 			$logf = '/var/log/named';
 
 			if (!file_exists($logf)) {
-				exec("mkdir -p {$logf}; chown named:named {$logf}; chmod 0755 {$logf}");
+				// Separate argv / PHP — never chained shell (security HH2).
+				if (function_exists('kloxo_exec_argv')) {
+					kloxo_exec_argv(array('mkdir', '-p', '--', $logf));
+					kloxo_exec_argv(array('chown', 'named:named', '--', $logf));
+					kloxo_exec_argv(array('chmod', '0755', '--', $logf));
+				} else {
+					@mkdir($logf, 0755, true);
+				}
 			}
 		}
 	}
@@ -6972,7 +6995,8 @@ function setInitialWebConfig($type, $nolog = null)
 		}
 	}
 
-	exec("echo '## MR -- blank only' > {$htcpath}/domains/__blank__.conf");
+	// file_put — never echo shell (security HH2).
+	@file_put_contents("{$htcpath}/domains/__blank__.conf", "## MR -- blank only\n");
 
 	$oldlist = array("{$htcpath}/redirects", "{$htcpath}/exclusive", "{$htcpath}/wildcards",
 		"{$htcpath}/webmails", "{$htpath}/sock", "{$htpath}/socks", "{$eatpath}/conf/kloxo",
@@ -8646,7 +8670,9 @@ function setCopyDnsConfFiles($dnsdriver, $nolog = null)
 	log_cleanup("Copy all contents from {$pathsrc}", $nolog);
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
-	exec("'cp' -rf {$pathsrc} /opt/configs");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', $pathsrc, '/opt/configs')); // security HH2
+	}
 
 	if ($aliasdriver === 'djbdns') {
 		if (file_exists("/home/djbdns/tinydns")) {
@@ -8678,7 +8704,11 @@ function setCopyDnsConfFiles($dnsdriver, $nolog = null)
 		$pathtarget = "{$pathetc}/{$aliasdriver}";
 
 		if (!file_exists($pathtarget)) {
-			exec("mkdir -p {$pathtarget}");
+			if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('mkdir', '-p', '--', $pathtarget)); // security HH2
+		} else {
+			@mkdir($pathtarget, 0755, true);
+		}
 		}
 
 		if (file_exists("/usr/sbin/nsd-control")) {
@@ -8696,7 +8726,11 @@ function setCopyDnsConfFiles($dnsdriver, $nolog = null)
 		$pathtarget = "{$pathetc}/{$aliasdriver}";
 
 		if (!file_exists($pathtarget)) {
-			exec("mkdir -p {$pathtarget}");
+			if (function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('mkdir', '-p', '--', $pathtarget)); // security HH2
+		} else {
+			@mkdir($pathtarget, 0755, true);
+		}
 		}
 
 		$s = "{$aliasdriver}.conf";
@@ -8720,12 +8754,18 @@ function setCopyWebCacheConfFiles($webcachedriver, $nolog = null)
 	log_cleanup("Copy all contents from {$pathsrc}", $nolog);
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
-	exec("'cp' -rf {$pathsrc} /opt/configs");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', $pathsrc, '/opt/configs')); // security HH2
+	}
 
 	$pathconf = "{$pathetc}/{$webcachedriver}";
 
 	if (!file_exists($pathconf)) {
-		exec("mkdir -p {$pathconf}");
+		if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('mkdir', '-p', '--', $pathconf)); // security HH2
+	} else {
+		@mkdir($pathconf, 0755, true);
+	}
 	}
 
 
@@ -8765,7 +8805,9 @@ function setCopyWebConfFiles($webdriver, $nolog = null)
 	log_cleanup("Copy all contents from {$pathsrc}", $nolog);
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
-	exec("'cp' -rf {$pathsrc} /opt/configs");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', $pathsrc, '/opt/configs')); // security HH2
+	}
 
 	if ($webdriver === 'apache') {
 		log_cleanup("- Apache templates at {$pathdrv}; Ubuntu apache2 include via install-apache (not /etc/httpd overwrite)", $nolog);
@@ -8795,7 +8837,11 @@ function setCopyWebConfFiles($webdriver, $nolog = null)
 
 		foreach ($dirs as &$d) {
 			if (!file_exists($d)) {
-				exec("mkdir -p {$d}");
+				if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('mkdir', '-p', '--', $d)); // security HH2
+			} else {
+				@mkdir($d, 0755, true);
+			}
 			}
 		}
 
@@ -8848,7 +8894,9 @@ function setCopyOpenSSLConfFiles($nolog = null)
 	log_cleanup("Copy all contents from {$pathsrc}", $nolog);
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
-	exec("'cp' -rf {$pathsrc} /opt/configs");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', $pathsrc, '/opt/configs')); // security HH2
+	}
 
 	if (file_exists("/home/openssl")) {
 		lxfile_rm_rec("/home/openssl");
@@ -8863,7 +8911,9 @@ function setCopyLetsEncryptConfFiles($nolog = null)
 	log_cleanup("Copy all contents from {$pathsrc}", $nolog);
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
-	exec("'cp' -rf {$pathsrc} /opt/configs");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', $pathsrc, '/opt/configs')); // security HH2
+	}
 
 	if (file_exists("/home/letsencrypt")) {
 		lxfile_rm_rec("/home/letsencrypt");
@@ -8878,7 +8928,9 @@ function setCopyAcmeshConfFiles($nolog = null)
 	log_cleanup("Copy all contents from {$pathsrc}", $nolog);
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
-	exec("'cp' -rf {$pathsrc} /opt/configs");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', $pathsrc, '/opt/configs')); // security HH2
+	}
 
 	if (file_exists("/home/acme.sh")) {
 		lxfile_rm_rec("/home/acme.sh");
@@ -8893,7 +8945,9 @@ function setCopyStartapishConfFiles($nolog = null)
 	log_cleanup("Copy all contents from {$pathsrc}", $nolog);
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
-	exec("'cp' -rf {$pathsrc} /opt/configs");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', $pathsrc, '/opt/configs')); // security HH2
+	}
 
 	if (file_exists("/home/startapi.sh")) {
 		lxfile_rm_rec("/home/startapi.sh");
@@ -8908,7 +8962,9 @@ function setCopyHttpryConfFiles($nolog = null)
 	log_cleanup("Copy all contents from {$pathsrc}", $nolog);
 
 	log_cleanup("- Copy to {$pathdrv}", $nolog);
-	exec("'cp' -rf {$pathsrc} /opt/configs");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('cp', '-rf', '--', $pathsrc, '/opt/configs')); // security HH2
+	}
 
 	if (file_exists("/home/httpry")) {
 		lxfile_rm_rec("/home/httpry");

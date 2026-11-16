@@ -1,7 +1,8 @@
 <?php
 
 if (!file_exists("/var/run/acme/acme-challenge")) {
-	exec("mkdir -p /var/run/acme/acme-challenge");
+	// PHP mkdir — never shell (security HH6).
+	@mkdir('/var/run/acme/acme-challenge', 0755, true);
 }
 
 $kpath = "/opt/kloxo";

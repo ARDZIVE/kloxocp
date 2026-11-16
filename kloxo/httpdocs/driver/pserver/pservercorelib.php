@@ -1481,23 +1481,28 @@ STRIN;
 				$vlist['web_driver'] = array('s', $driver['web']);
 
 				$out = array();
+				// PHP read / file_put / unlink — never cat|grep/echo/rm shell (security HH5).
 				if (($os !== 'debian' && $os !== 'ubuntu') && is_file('../etc/list/httpd.lst')) {
-					exec("cat ../etc/list/httpd.lst|grep httpd24", $out);
+					foreach (preg_split('/\r\n|\n|\r/', (string) file_get_contents('../etc/list/httpd.lst')) ?: array() as $_ln) {
+						if (str_contains($_ln, 'httpd24')) {
+							$out[] = $_ln;
+						}
+					}
 				}
 
 				if (is_array($out) && count($out) > 0) {
 					if (version_compare(getRpmVersionFromYum('httpd'), '2.4.0', '>')) {
-						exec("echo '' > ../etc/flag/use_apache24.flg");
+						@file_put_contents('../etc/flag/use_apache24.flg', '');
 						$this->use_apache24 = 'on';
 						$vlist['use_apache24'] = array('h', 'on', 'off');
 						$vlist['use_apache24_message'] = array('M', array('on'));
 					} else {
 						if (version_compare(getRpmVersionFromYum('httpd24u'), '2.4.0', '>')) {
-							exec("echo '' > ../etc/flag/use_apache24.flg");
+							@file_put_contents('../etc/flag/use_apache24.flg', '');
 							$this->use_apache24 = 'on';
 							$vlist['use_apache24'] = array('f', 'on', 'off');
 						} else{
-							exec("'rm' -f ../etc/flag/use_apache24.flg");
+							@unlink('../etc/flag/use_apache24.flg');
 							$this->use_apache24 = 'off';
 							$vlist['use_apache24'] = array('h', 'on', 'off');
 							$vlist['use_apache24_message'] = array('M', array('off'));

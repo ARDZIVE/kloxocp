@@ -419,8 +419,15 @@ class Ipaddress extends Lxdb
 
 		// MR -- add for missing (lighttpd error when select because need .pem file
 		if (!lxfile_exists("{$spath}/$name.pem")) {
-			exec("cat {$ppath}/file/ssl/default.key {$ppath}/file/ssl/default.crt > {$ppath}/file/ssl/default.pem");
-			lxfile_cp("{$ppath}/file/ssl/default.pem", "{$spath}/$name.pem");
+			// PHP concat — never shell cat redirect (security HH4).
+			$keyf = "{$ppath}/file/ssl/default.key";
+			$crtf = "{$ppath}/file/ssl/default.crt";
+			$pemf = "{$ppath}/file/ssl/default.pem";
+			@file_put_contents(
+				$pemf,
+				(string) @file_get_contents($keyf) . (string) @file_get_contents($crtf)
+			);
+			lxfile_cp($pemf, "{$spath}/$name.pem");
 		}
 
 		// MR -- nginx for Kloxo CP using .crt and key; lxlighttpd using .ca and .pem

@@ -93,9 +93,16 @@ function lxfile_dirsize($path, $byteflag = false)
 	$t = $ret[2];
 */
 
-//	exec("du -sc {$path} | grep -i '{$path}'", $out);
-//	exec("ionice -c 2 -n 7 du -s {$path}", $out);
-	exec("nice -n +10 ionice -c3 du -s {$path}", $out);
+	// argv du — never shell with {$path} (security HH1).
+	$out = array();
+	$line = '';
+	if (function_exists('lxshell_output')) {
+		$line = trim((string) lxshell_output('nice', '-n', '+10', 'ionice', '-c3', 'du', '-s', '--', $path));
+		if ($line === '') {
+			$line = trim((string) lxshell_output('du', '-s', '--', $path));
+		}
+	}
+	$out[0] = $line;
 
 	$os  = preg_replace("/\s+/", ":", $out[0]);
 	$t = str_replace(":{$path}", "", $os);
@@ -760,9 +767,16 @@ function lxfile_size($file)
 	}
 
 	$file = expand_real_root($file);
-	$size = (float) exec('stat -c %s '. escapeshellarg($file));
+	// PHP filesize / argv stat — never shell string (security HH1).
+	$sz = @filesize($file);
+	if ($sz !== false) {
+		return (float) $sz;
+	}
+	if (function_exists('lxshell_output')) {
+		return (float) trim((string) lxshell_output('stat', '-c', '%s', $file));
+	}
 
-	return $size;
+	return 0.0;
 }
 
 function lxfile_unix_chmod($file, $mod) 
@@ -845,12 +859,37 @@ function lxshell_background($cmd)
 		$arglist[] = func_get_arg($i);
 	}
 
-	$cmd = getShellCommand($cmd, $arglist);
-	// Fully detach: new session, closed stdio, shell returns at once.
+	// Build argv then escapeshellarg + background only (security HH1).
 	// Do not wrap with ionice — a missing/privileged ionice left FPM waiting
 	// on the worker (Add Client busy spinner) while useradd/mail ran.
-	$setsid = is_executable('/usr/bin/setsid') ? '/usr/bin/setsid ' : '';
-	$full = $setsid . $cmd . ' </dev/null >/dev/null 2>&1 &';
+	$bin = expand_real_root((string) $cmd);
+	$argv = array($bin);
+	foreach ($arglist as $a) {
+		if ($a === '' || $a === null) {
+			continue;
+		}
+		if (is_array($a)) {
+			foreach ($a as $aa) {
+				if ($aa === '' || $aa === null) {
+					continue;
+				}
+				$argv[] = expand_real_root((string) $aa);
+			}
+		} else {
+			$argv[] = expand_real_root((string) $a);
+		}
+	}
+	foreach ($argv as $a) {
+		if (!is_string($a) || str_contains($a, "\0")) {
+			return false;
+		}
+	}
+	$esc = array_map('escapeshellarg', $argv);
+	$full = implode(' ', $esc);
+	if (is_executable('/usr/bin/setsid')) {
+		$full = escapeshellarg('/usr/bin/setsid') . ' ' . $full;
+	}
+	$full .= ' </dev/null >/dev/null 2>&1 &';
 	$pwd = '';
 
 	if (!$global_dontlogshell) {

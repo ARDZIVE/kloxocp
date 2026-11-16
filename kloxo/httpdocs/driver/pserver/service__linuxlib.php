@@ -16,7 +16,27 @@ class Service__Linux extends Lxlclass
 		$val1 = array();
 		$val2 = array();
 		if (getServiceType() === 'systemd') {
-			exec("systemctl list-unit-files --type=service|awk '{print $1}'|sed 's/\.service//g'", $val2);
+			// argv + PHP parse — never awk|sed shell (security HH6).
+			$raw = '';
+			if (function_exists('lxshell_output')) {
+				$raw = (string) lxshell_output(
+					'systemctl', 'list-unit-files', '--type=service', '--no-legend', '--no-pager'
+				);
+			}
+			foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $line) {
+				$line = trim($line);
+				if ($line === '') {
+					continue;
+				}
+				$parts = preg_split('/\s+/', $line);
+				$name = isset($parts[0]) ? (string) $parts[0] : '';
+				if (str_ends_with($name, '.service')) {
+					$name = substr($name, 0, -8);
+				}
+				if ($name !== '') {
+					$val2[] = $name;
+				}
+			}
 		}
 		$val = lx_array_merge($val1, $val2);
 

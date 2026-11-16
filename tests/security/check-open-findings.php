@@ -1461,6 +1461,79 @@ $findings[] = finding('GG6', 'medium', 'ftpuser/lib/scavenge/fixftp/dnsslav left
 	'ftpuser / lib.php / scavenge / fixftpuser / dnsslavelib', $gg6Closed,
 	$gg6Closed ? 'argv / file_put / proc_open' : 'still exec/passthru leftovers');
 
+// --- Wave 19 (HH1–HH6) ---
+$lfsHh = file_text($root, 'kloxo/httpdocs/lib/html/linuxfslib.php');
+$hh1Closed = contains($lfsHh, 'security HH1')
+	&& not_contains($lfsHh, 'exec("nice -n +10 ionice -c3 du -s {$path}")')
+	&& not_contains($lfsHh, "exec('stat -c %s '. escapeshellarg")
+	&& contains($lfsHh, 'escapeshellarg');
+$findings[] = finding('HH1', 'medium', 'linuxfslib du/stat/background shell leftovers',
+	'linuxfslib.php', $hh1Closed,
+	$hh1Closed ? 'lxshell_output / filesize / escaped argv background' : 'still exec du/stat/full');
+
+$libHh = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$hh2Closed = contains($libHh, 'security HH2')
+	&& not_contains($libHh, 'exec("up2date-nox --nosig $value")')
+	&& not_contains($libHh, 'exec("mkdir -p {$logf}; chown named:named')
+	&& not_contains($libHh, "exec(\"echo '## MR -- blank only'");
+$findings[] = finding('HH2', 'medium', 'lib.php cleanup var shells (cp/mkdir/echo/up2date)',
+	'lib.php', $hh2Closed,
+	$hh2Closed ? 'kloxo_exec_argv / file_put' : 'still exec with vars');
+
+$sysHh = file_text($root, 'kloxo/bin/fix/sysinfo.php');
+$hh3Closed = contains($sysHh, 'security HH3')
+	&& contains($sysHh, 'kloxo_sysinfo_dpkg')
+	&& not_contains($sysHh, 'cat /opt/kloxo/etc/list/web.lst|')
+	&& not_contains($sysHh, 'sed -e \'" . $seddata');
+$findings[] = finding('HH3', 'medium', 'sysinfo.php pipelines and sed $seddata',
+	'bin/fix/sysinfo.php', $hh3Closed,
+	$hh3Closed ? 'proc_open helpers + PHP parse' : 'still pipe/sed exec');
+
+$ipHh = file_text($root, 'kloxo/httpdocs/driver/pserver/ipaddresslib.php');
+$webHh = file_text($root, 'kloxo/httpdocs/driver/web/web__lib.php');
+$hh4Closed = contains($ipHh, 'security HH4')
+	&& not_contains($ipHh, 'exec("cat {$ppath}/file/ssl/default.key')
+	&& contains($webHh, 'security HH4')
+	&& not_contains($webHh, "exec(\"'mv' -f {\$spath} {\$dpath}\")");
+$findings[] = finding('HH4', 'medium', 'ipaddresslib cat pem + web__lib mv shell',
+	'ipaddresslib / web__lib', $hh4Closed,
+	$hh4Closed ? 'file_put + kloxo_exec_argv mv' : 'still cat/mv exec');
+
+$swHh = file_text($root, 'kloxo/httpdocs/driver/web/serverweb__lib.php');
+$pscHh = file_text($root, 'kloxo/httpdocs/driver/pserver/pservercorelib.php');
+$tmpHh = file_text($root, 'kloxo/bin/common/tmpupdatecleanup.php');
+$hh5Closed = contains($swHh, 'security HH5')
+	&& not_contains($swHh, '@exec("systemctl enable php-fpm')
+	&& contains($pscHh, 'security HH5')
+	&& not_contains($pscHh, 'exec("echo \'\' > ../etc/flag/use_apache24.flg")')
+	&& contains($tmpHh, 'security HH5')
+	&& not_contains($tmpHh, '@exec("systemctl disable --now mysql');
+$findings[] = finding('HH5', 'low', 'serverweb/pservercore/tmpupdatecleanup systemctl/echo',
+	'serverweb / pservercorelib / tmpupdatecleanup', $hh5Closed,
+	$hh5Closed ? 'runArgv / file_put / kloxo_exec_argv' : 'still systemctl/echo exec');
+
+$fmHh = file_text($root, 'kloxo/file/formmail/formmail.php');
+$lxiHh = file_text($root, 'kloxo/bin/install/lxinstall.php');
+$lxetcHh = file_text($root, 'kloxo/bin/common/misc/lxetc.php');
+$linHh = file_text($root, 'kloxo/httpdocs/lib/html/linuxlib.php');
+$svcHh = file_text($root, 'kloxo/httpdocs/driver/pserver/service__linuxlib.php');
+$chpHh = file_text($root, 'kloxo/init/changeport.php');
+$hh6Closed = contains($fmHh, 'security HH6')
+	&& not_contains($fmHh, 'popen($cmd')
+	&& contains($lxiHh, 'security HH6')
+	&& not_contains($lxiHh, 'system($cmd)')
+	&& contains($lxetcHh, 'security HH6')
+	&& not_contains($lxetcHh, 'system("cd ~/.etc/bin')
+	&& contains($linHh, 'security HH6')
+	&& not_contains($linHh, "exec(\"ip addr|grep")
+	&& contains($svcHh, 'security HH6')
+	&& not_contains($svcHh, 'systemctl list-unit-files --type=service|awk')
+	&& contains($chpHh, 'security HH6')
+	&& not_contains($chpHh, 'exec("mkdir -p /var/run/acme');
+$findings[] = finding('HH6', 'low', 'formmail/lxinstall/lxetc/linuxlib/service/changeport leftovers',
+	'formmail / lxinstall / lxetc / linuxlib / service__linuxlib / changeport', $hh6Closed,
+	$hh6Closed ? 'proc_open / argv / PHP parse / mkdir' : 'still popen/system/pipeline');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

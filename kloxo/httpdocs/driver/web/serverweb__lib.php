@@ -462,9 +462,10 @@ class serverweb__ extends lxDriverClass
 			}
 
 			if (stripos($t, 'php-fpm') !== false) {
-				if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl enable php-fpm >/dev/null 2>&1"); }
+				// argv only (security HH5).
+				$this->runArgv(array('systemctl', 'enable', 'php-fpm'));
 			} else {
-				if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl disable php-fpm >/dev/null 2>&1"); }
+				$this->runArgv(array('systemctl', 'disable', 'php-fpm'));
 			}
 
 		//	$this->set_mpm($t);
@@ -516,7 +517,8 @@ class serverweb__ extends lxDriverClass
 			lxfile_rm("{$ehcdpath}/ruid2.nonconf");
 		} elseif ($type === 'mod_php_itk') {
 			lxfile_cp(getLinkCustomfile($haecdpath, "itk.conf"), $ehcdpath . "/itk.conf");
-			exec("echo 'HTTPD=/usr/sbin/httpd.itk' >/etc/sysconfig/httpd");
+			// file_put — never echo shell (security HH5).
+			@file_put_contents('/etc/sysconfig/httpd', "HTTPD=/usr/sbin/httpd.itk\n");
 		}
 
 		lxfile_cp(getLinkCustomfile($haecdpath, "php.conf"), $ehcdpath . "/php.conf");
@@ -558,7 +560,8 @@ class serverweb__ extends lxDriverClass
 		lxfile_cp(getLinkCustomfile($haecdpath, "fastcgi.conf"), $ehcdpath . "/fastcgi.conf");
 
 	//	lxshell_return("chkconfig", "php-fpm", "on");
-		if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl enable php-fpm >/dev/null 2>&1"); }
+		// argv only (security HH5).
+		$this->runArgv(array('systemctl', 'enable', 'php-fpm'));
 	}
 
 	function set_fcgid()
@@ -589,8 +592,8 @@ class serverweb__ extends lxDriverClass
 
 	function remove_phpfpm()
 	{
-		// MR -- no remove and just off/disable
-		if (is_executable("/bin/systemctl") || is_executable("/usr/bin/systemctl")) { @exec("systemctl disable --now php-fpm >/dev/null 2>&1"); }
+		// MR -- no remove and just off/disable (argv; security HH5).
+		$this->runArgv(array('systemctl', 'disable', '--now', 'php-fpm'));
 	}
 
 	function rename_to_nonconf()

@@ -5,19 +5,107 @@
 include_once "lib/html/include.php";
 initProgram('admin');
 
+// Helpers — argv / PHP parse only (security HH3).
+function kloxo_sysinfo_dpkg(string $pkg): string
+{
+	if ($pkg === '' || preg_match('/^[A-Za-z0-9._+-]+$/', $pkg) !== 1) {
+		return '';
+	}
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$proc = @proc_open(
+		array('dpkg-query', '-W', '-f=${Package} ${Version}
+', $pkg),
+		$desc,
+		$pipes
+	);
+	if (!is_resource($proc)) {
+		return '';
+	}
+	$out = trim((string) stream_get_contents($pipes[1]));
+	fclose($pipes[1]);
+	if (isset($pipes[2]) && is_resource($pipes[2])) {
+		fclose($pipes[2]);
+	}
+	proc_close($proc);
+
+	return $out;
+}
+
+function kloxo_sysinfo_web_bases(): array
+{
+	$file = '/opt/kloxo/etc/list/web.lst';
+	if (!is_file($file)) {
+		return array();
+	}
+	$bases = array();
+	foreach (explode(',', (string) file_get_contents($file)) as $part) {
+		$base = explode('_', trim($part), 2)[0];
+		if ($base !== '') {
+			$bases[] = $base;
+		}
+	}
+
+	return array_values(array_unique($bases));
+}
+
+function kloxo_sysinfo_run(array $argv): array
+{
+	$lines = array();
+	foreach ($argv as $a) {
+		if (!is_string($a) || str_contains($a, chr(0))) {
+			return array();
+		}
+	}
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('pipe', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$proc = @proc_open($argv, $desc, $pipes);
+	if (!is_resource($proc)) {
+		return array();
+	}
+	$raw = (string) stream_get_contents($pipes[1]);
+	fclose($pipes[1]);
+	if (isset($pipes[2]) && is_resource($pipes[2])) {
+		fclose($pipes[2]);
+	}
+	proc_close($proc);
+	foreach (preg_split('/
+|
+|
+/', $raw) as $line) {
+		if ($line !== '') {
+			$lines[] = $line;
+		}
+	}
+
+	return $lines;
+}
+
 $kloxopath="/opt/kloxo";
 
-exec("sh /script/version --vertype=full", $kloxover);
-$kloxover = $kloxover[0];
+$kloxover = kloxo_sysinfo_run(array('sh', '/script/version', '--vertype=full'));
+$kloxover = isset($kloxover[0]) ? $kloxover[0] : '';
 
-exec("cat /etc/*release", $osrelease);
-exec("uname -m", $osplateform);
+$osrelease = array();
+foreach (glob('/etc/*release') ?: array() as $_rel) {
+	$osrelease = array_merge($osrelease, preg_split('/
+|
+|
+/', (string) file_get_contents($_rel)) ?: array());
+}
+$osplateform = kloxo_sysinfo_run(array('uname', '-m'));
 
 $out = null;
 
 $mysqlbranch = getRpmBranchInstalled('mysql');
 if ($mysqlbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($mysqlbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($mysqlbranch); if ($_q !== '') { $out[] = $_q; }
 	$appmysql = trim($out[0]);
 } else {
 	$appmysql = '--uninstalled--';
@@ -27,7 +115,7 @@ $out = null;
 
 $phpbranch = getRpmBranchInstalled('php');
 if ($phpbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($phpbranch . '-cli') . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($phpbranch . '-cli'); if ($_q !== '') { $out[] = $_q; }
 	$appphp = trim($out[0]);
 } else {
 	$appphp = '--uninstalled--';
@@ -47,57 +135,73 @@ if (file_exists("{$kloxopath}/init/kloxo_use_php-cgi")) {
 }
 
 $appApache = '--uninstalled--';
-exec("cat /opt/kloxo/etc/list/web.lst|tr ',' '\n'|awk -F\"_\" '{print $1}'|" .
-	"grep httpd|grep -v 'nginx\|tengine'|grep -v lighttpd|grep -v hiawatha", $apachelist);
+$apachelist = array();
+foreach (kloxo_sysinfo_web_bases() as $_b) {
+	if (str_contains($_b, 'httpd') && !str_contains($_b, 'nginx') && !str_contains($_b, 'tengine') && !str_contains($_b, 'lighttpd') && !str_contains($_b, 'hiawatha')) {
+		$apachelist[] = $_b;
+	}
+}
 
 $out = null;
 foreach ($apachelist as $k => $v) {
 	$apachebranch = getRpmBranchInstalled($v);
 
 	if ($apachebranch) {
-		exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($apachebranch) . ' 2>/dev/null', $out);
+		$out = array(); $_q = kloxo_sysinfo_dpkg($apachebranch); if ($_q !== '') { $out[] = $_q; }
 		$appApache = trim($out[0]);
 	}
 }
 
 $appLighttpd = '--uninstalled--';
-exec("cat /opt/kloxo/etc/list/web.lst|tr ',' '\n'|awk -F\"_\" '{print $1}'|" .
-	"grep lighttpd|grep -v 'nginx\|tengine'|grep -v hiawatha", $lighttpdlist);
+$lighttpdlist = array();
+foreach (kloxo_sysinfo_web_bases() as $_b) {
+	if (str_contains($_b, 'lighttpd') && !str_contains($_b, 'nginx') && !str_contains($_b, 'tengine') && !str_contains($_b, 'hiawatha')) {
+		$lighttpdlist[] = $_b;
+	}
+}
 
 $out = null;
 foreach ($lighttpdlist as $k => $v) {
 	$lighttpdbranch = getRpmBranchInstalled($v);
 
 	if ($lighttpdbranch) {
-		exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($lighttpdbranch) . ' 2>/dev/null', $out);
+		$out = array(); $_q = kloxo_sysinfo_dpkg($lighttpdbranch); if ($_q !== '') { $out[] = $_q; }
 		$appLighttpd = trim($out[0]);
 	}
 }
 
 $appNginx = '--uninstalled--';
-exec("cat /opt/kloxo/etc/list/web.lst|tr ',' '\n'|awk -F\"_\" '{print $1}'|" .
-	"grep 'nginx\|tengine'|grep -v httpd|grep -v lighttpd|grep -v hiawatha", $nginxlist);
+$nginxlist = array();
+foreach (kloxo_sysinfo_web_bases() as $_b) {
+	if ((str_contains($_b, 'nginx') || str_contains($_b, 'tengine')) && !str_contains($_b, 'httpd') && !str_contains($_b, 'lighttpd') && !str_contains($_b, 'hiawatha')) {
+		$nginxlist[] = $_b;
+	}
+}
 
 $out = null;
 foreach ($nginxlist as $k => $v) {
 	$nginxbranch = getRpmBranchInstalled($v);
 
 	if ($nginxbranch) {
-		exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($nginxbranch) . ' 2>/dev/null', $out);
+		$out = array(); $_q = kloxo_sysinfo_dpkg($nginxbranch); if ($_q !== '') { $out[] = $_q; }
 		$appNginx = trim($out[0]);
 	}
 }
 
 $appHiawatha = '--uninstalled--';
-exec("cat /opt/kloxo/etc/list/web.lst|tr ',' '\n'|awk -F\"_\" '{print $1}'|" .
-	"grep hiawatha|grep -v httpd|grep -v lighttpd|grep -v nginx", $hiawathalist);
+$hiawathalist = array();
+foreach (kloxo_sysinfo_web_bases() as $_b) {
+	if (str_contains($_b, 'hiawatha') && !str_contains($_b, 'httpd') && !str_contains($_b, 'lighttpd') && !str_contains($_b, 'nginx')) {
+		$hiawathalist[] = $_b;
+	}
+}
 
 $out = null;
 foreach ($hiawathalist as $k => $v) {
 	$hiawathabranch = getRpmBranchInstalled($v);
 
 	if ($hiawathabranch) {
-		exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($hiawathabranch) . ' 2>/dev/null', $out);
+		$out = array(); $_q = kloxo_sysinfo_dpkg($hiawathabranch); if ($_q !== '') { $out[] = $_q; }
 		$appHiawatha = trim($out[0]);
 	}
 }
@@ -106,7 +210,7 @@ $out = null;
 
 $atsbranch = getRpmBranchInstalled('trafficserver');
 if ($atsbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($atsbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($atsbranch); if ($_q !== '') { $out[] = $_q; }
 	$appats = trim($out[0]);
 } else {
 	$appats = '--uninstalled--';
@@ -116,7 +220,7 @@ $out = null;
 
 $squidbranch = getRpmBranchInstalled('squid');
 if ($squidbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($squidbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($squidbranch); if ($_q !== '') { $out[] = $_q; }
 	$appsquid = trim($out[0]);
 } else {
 	$appsquid = '--uninstalled--';
@@ -126,7 +230,7 @@ $out = null;
 
 $varnishbranch = getRpmBranchInstalled('varnish');
 if ($varnishbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($varnishbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($varnishbranch); if ($_q !== '') { $out[] = $_q; }
 	$appvarnish = trim($out[0]);
 } else {
 	$appvarnish = '--uninstalled--';
@@ -136,7 +240,7 @@ $out = null;
 
 $bindbranch = getRpmBranchInstalled('bind');
 if ($bindbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($bindbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($bindbranch); if ($_q !== '') { $out[] = $_q; }
 	$appbind = trim($out[0]);
 } else {
 	$appbind = '--uninstalled--';
@@ -146,7 +250,7 @@ $out = null;
 
 $djbdnsbranch = getRpmBranchInstalled('djbdns');
 if ($djbdnsbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($djbdnsbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($djbdnsbranch); if ($_q !== '') { $out[] = $_q; }
 	$appdjbdns = trim($out[0]);
 } else {
 	$appdjbdns = '--uninstalled--';
@@ -156,7 +260,7 @@ $out = null;
 
 $nsdbranch = getRpmBranchInstalled('nsd');
 if ($nsdbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($nsdbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($nsdbranch); if ($_q !== '') { $out[] = $_q; }
 	$appnsd = trim($out[0]);
 } else {
 	$appnsd = '--uninstalled--';
@@ -166,7 +270,7 @@ $out = null;
 
 $pdnsbranch = getRpmBranchInstalled('pdns');
 if ($pdnsbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($pdnsbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($pdnsbranch); if ($_q !== '') { $out[] = $_q; }
 	$apppdns = trim($out[0]);
 } else {
 	$apppdns = '--uninstalled--';
@@ -176,7 +280,7 @@ $out = null;
 
 $yadifabranch = getRpmBranchInstalled('yadifa');
 if ($yadifabranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($yadifabranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($yadifabranch); if ($_q !== '') { $out[] = $_q; }
 	$appyadifa = trim($out[0]);
 } else {
 	$appyadifa = '--uninstalled--';
@@ -186,7 +290,7 @@ $out = null;
 
 $dovecotbranch = getRpmBranchInstalled('dovecot');
 if ($dovecotbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($dovecotbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($dovecotbranch); if ($_q !== '') { $out[] = $_q; }
 	$appdovecot = trim($out[0]);
 } else {
 	$appdovecot = '--uninstalled--';
@@ -202,11 +306,31 @@ $phptype = db_get_value('serverweb', "pserver-{$b}", 'php_type');
 if (!isset($phptype)) { $phptype = 'php-fpm_event (default)'; }
 
 if (getServiceType('php-fpm') === 'systemd') {
-	$seddata = 's:^ExecStart=/usr/sbin/\(.*\) -y \(.*\):\1:';
-	exec("cat /usr/lib/systemd/system/php-fpm.service|grep 'ExecStart='|sed -e '" . $seddata . "'", $out);
+$out = array();
+	$_svc = '/usr/lib/systemd/system/php-fpm.service';
+	if (is_file($_svc)) {
+		foreach (preg_split('/\r\n|\n|\r/', (string) file_get_contents($_svc)) ?: array() as $_ln) {
+			if (str_starts_with($_ln, 'ExecStart=')) {
+				if (preg_match('#^ExecStart=/usr/sbin/(\S+)#', $_ln, $_m)) {
+					$out[] = $_m[1];
+				}
+				break;
+			}
+		}
+	}
 } else {
-	$seddata = 's:^prog=\"\(.*\)\":\1:';
-	exec("cat /etc/rc.d/init.d/php-fpm|grep 'prog='|sed -e '" . $seddata . "'", $out);
+$out = array();
+	$_init = '/etc/rc.d/init.d/php-fpm';
+	if (is_file($_init)) {
+		foreach (preg_split('/\r\n|\n|\r/', (string) file_get_contents($_init)) ?: array() as $_ln) {
+			if (str_starts_with($_ln, 'prog=')) {
+				if (preg_match('/^prog="?(.*?)"?$/', $_ln, $_m)) {
+					$out[] = $_m[1];
+				}
+				break;
+			}
+		}
+	}
 }
 if (count($out) > 0) {
 	$phpused = $out[0];
@@ -250,7 +374,7 @@ if ($spamapp === 'spamassassin' || $spamapp === 'bogofilter' || $spamapp === 'sp
 	$spamapp = 'rspamd';
 }
 
-exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($spamapp) . ' 2>/dev/null', $out);
+$out = array(); $_q = kloxo_sysinfo_dpkg($spamapp); if ($_q !== '') { $out[] = $_q; }
 
 if (count($out) > 0) {
 	$spamapp = $out[0];
@@ -270,15 +394,15 @@ $out = null;
 
 $ftpbranch = getRpmBranchInstalled('pure-ftpd');
 if ($ftpbranch) {
-	exec('dpkg-query -W -f=\'${Package} ${Version}\n\' ' . escapeshellarg($ftpbranch) . ' 2>/dev/null', $out);
+	$out = array(); $_q = kloxo_sysinfo_dpkg($ftpbranch); if ($_q !== '') { $out[] = $_q; }
 	$appftp = trim($out[0]);
 } else {
 	$appftp = '--uninstalled--';
 }
 
-exec("free -m", $meminfo);
+$meminfo = kloxo_sysinfo_run(array('free', '-m'));
 
-exec("df -h /", $diskinfo);
+$diskinfo = kloxo_sysinfo_run(array('df', '-h', '/'));
 
 $gen = $login->getObject('general')->generalmisc_b;
 $webstatsprog = ($gen->webstatisticsprogram) ? $gen->webstatisticsprogram : 'awstats';

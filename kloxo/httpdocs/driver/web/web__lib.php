@@ -1572,8 +1572,11 @@ class web__ extends lxDriverClass
 		$spath="/home/{$uname}/ssl";
 		$dpath="/home/kloxo/ssl";
 
-		if (file_exists($spath)) {
-			exec("'mv' -f {$spath} {$dpath}");
+		// Validated paths + argv mv (security HH4).
+		if (file_exists($spath) && is_string($uname)
+			&& preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $uname) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('mv', '-f', '--', $spath, $dpath));
 		}
 	}
 

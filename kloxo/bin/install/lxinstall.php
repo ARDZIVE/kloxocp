@@ -87,8 +87,21 @@ function lxinstall_package($package)
 	}
 	
 	dprintr($gl_execute_cmd);
-	if ($gl_execute_cmd) foreach($gl_execute_cmd as $cmd) {
-		system($cmd);
+	// argv / refused metacharacters — never bare system() on a shell string (security HH6).
+	if ($gl_execute_cmd) foreach ($gl_execute_cmd as $cmd) {
+		if (is_array($cmd) && function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv($cmd);
+			continue;
+		}
+		if (!is_string($cmd) || $cmd === '' || str_contains($cmd, chr(0))
+			|| preg_match('/[;&|`$<>\\\\\n\r]/', $cmd)) {
+			log_shell('lxinstall refused unsafe command');
+			continue;
+		}
+		$parts = preg_split('/\s+/', trim($cmd));
+		if ($parts && function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv($parts);
+		}
 	}
 	
 	$post_func = "{$package}_lxconfigure_post";

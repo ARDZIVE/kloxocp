@@ -188,12 +188,25 @@ function os_get_allips()
 
 function getIPs_from_ipaddr($withV6 = true)
 {
-	exec("ip addr|grep 'inet'|grep 'scope global'|awk '{print $2}'|awk -F '/' '{print $1}'" . ($withV6 ? "" : "|grep -v ':'"), $a);
-
-	foreach($a as $k => $v) {
-		if (($v === '127.0.0.1') || ($v === '::1')) {
-			unset($a[$k]);
+	// Parse `ip -o addr` argv output — never shell pipeline (security HH6).
+	$a = array();
+	$raw = '';
+	if (function_exists('lxshell_output')) {
+		$raw = (string) lxshell_output('ip', '-o', 'addr', 'show', 'scope', 'global');
+	}
+	foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $line) {
+		// e.g. "2: eth0    inet 1.2.3.4/24 ..."
+		if (!preg_match('/\binet6?\s+([0-9a-fA-F:.]+)\//', $line, $m)) {
+			continue;
 		}
+		$ip = $m[1];
+		if ($ip === '127.0.0.1' || $ip === '::1') {
+			continue;
+		}
+		if (!$withV6 && str_contains($ip, ':')) {
+			continue;
+		}
+		$a[] = $ip;
 	}
 
 	return array_values(array_unique($a));
