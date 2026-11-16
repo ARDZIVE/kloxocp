@@ -3432,6 +3432,19 @@ function kloxo_is_long_backend_update(): bool
 	return in_array($sub, array('backup', 'restore_confirm_confirm', 'restore_confirm', 'restore'), true);
 }
 
+/** Switch Program (web/dns/mail apt + unit swap) needs a longer RPC window than page loads. */
+function kloxo_is_switchprogram_update(): bool
+{
+	global $ghtml;
+	if (!is_object($ghtml)) {
+		return false;
+	}
+	$action = strtolower((string) ($ghtml->frm_action ?? ''));
+	$sub = strtolower((string) ($ghtml->frm_subaction ?? ''));
+
+	return $action === 'update' && $sub === 'switchprogram';
+}
+
 /**
  * Connect and read timeouts (seconds) for kloxo-backend / slave RPC.
  * Normal page loads must not wait a day when the backend is wedged.
@@ -3454,6 +3467,12 @@ function kloxo_backend_io_timeouts(string $raddress = 'localhost'): array
 	if ($long) {
 		// Backup/Restore: keep a long read window; still bound connect.
 		return array($local ? 10 : 30, 86400);
+	}
+
+	// Switch Program: installMe + fixweb/apt often exceeds the normal 5s local
+	// read window; the UI then toasted a timeout while the backend still finished.
+	if (function_exists('kloxo_is_switchprogram_update') && kloxo_is_switchprogram_update()) {
+		return array($local ? 10 : 30, $local ? 300 : 600);
 	}
 
 	// Keep short: a wedged sync must not leave the busy modal up after

@@ -200,11 +200,20 @@ $r = child($tmp, 'bad');
 // 11. source invariants
 $src = (string) file_get_contents($repo . '/kloxo/httpdocs/driver/pserver/pserverlib.php');
 $i = strpos($src, 'function updateSwitchProgram');
-$body = substr($src, (int) $i, 6000);
+$body = substr($src, (int) $i, 8000);
 (str_contains($body, 'foreach ($driverClasses as $class)') && !str_contains($body, 'foreach($param as $k => $v)')
-	&& !str_contains($body, 'chkconfig') && str_contains($body, '$fixc = "mail";') && !str_contains($body, '$fixc = "mmail";'))
-	? ok('only driver keys reach switchDriver; no chkconfig; mail fix script name is fixmail')
-	: bad('only driver keys reach switchDriver; no chkconfig; mail fix script name is fixmail');
+	&& !str_contains($body, 'chkconfig') && str_contains($body, '$fixc = "mail";') && !str_contains($body, '$fixc = "mmail";')
+	&& str_contains($body, 'return $param')
+	&& str_contains($body, 'kloxo_skip_was_now')
+	&& str_contains($body, 'updated_successfully'))
+	? ok('only driver keys reach switchDriver; no chkconfig; mail fix script name is fixmail; success return + skip was')
+	: bad('only driver keys reach switchDriver; no chkconfig; mail fix script name is fixmail; success return + skip was');
+$lx = (string) file_get_contents($repo . '/kloxo/httpdocs/lib/php/lxlib.php');
+(str_contains($lx, 'function kloxo_is_switchprogram_update')
+	&& str_contains($lx, 'kloxo_is_switchprogram_update()')
+	&& str_contains($lx, '? 300 : 600'))
+	? ok('Switch Program RPC read timeout is 300s local / 600s remote')
+	: bad('Switch Program RPC read timeout is 300s local / 600s remote');
 is_file($repo . '/kloxo/pscript/fixmail') && !is_file($repo . '/kloxo/pscript/fixmmail')
 	? ok('/script/fixmail exists (the script called after spam/pop3/smtp switches)')
 	: bad('/script/fixmail exists (the script called after spam/pop3/smtp switches)');

@@ -333,6 +333,25 @@ class pserver extends pservercore {
 			throw new lxException(implode('; ', $policyErrors), '', 'smtp');
 		}
 
+		// Switch already applied via kloxo-backend (units + slavedb + driver).
+		// Do not fall through to login->was() — that re-sync can time out or
+		// toast got_error_from_ur_end after a successful switch.
+		if (function_exists('kloxo_skip_was_now')) {
+			kloxo_skip_was_now();
+		}
+		if (is_object($gbl)) {
+			$retUrl = function_exists('get_return_url') ? (string) get_return_url('update') : '';
+			if ($retUrl === '') {
+				$retUrl = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
+					? (string) $ghtml->getFullUrl('a=updateform&sa=switchprogram')
+					: '/display.php?frm_action=updateform&frm_subaction=switchprogram';
+			}
+			$name = isset($this->nname) ? (string) $this->nname : 'localhost';
+			$gbl->__this_redirect = $retUrl
+				. '&frm_smessage=updated_successfully'
+				. '&frm_m_smessage_data=' . rawurlencode($name);
+		}
+
 		// do_desc_update treats a falsy return as failure (update_failed toast)
 		// even when switchDriver already ran. Always return the param on success.
 		return $param;
