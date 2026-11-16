@@ -8698,7 +8698,22 @@ class HtmlLib
 				$value = self::fix_lt_gt($value);
 
 			//	if ($sgbl->isLxlabsClient()) {
-					$value = preg_replace("+(https://[^ \n]*)+", "<a href='$1' target='_blank' style='text-decoration:underline'> " . $login->getKeywordUc('click_here') . " </a>", $value);
+					// Escaped https auto-link (security CCC1).
+					$clickHere = htmlspecialchars((string) $login->getKeywordUc('click_here'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$value = preg_replace_callback(
+						'+(https://[^ \n]*)+',
+						static function (array $m) use ($clickHere): string {
+							$url = (string) $m[1];
+							if (!preg_match('#^https://[A-Za-z0-9._~:/?#\\[\\]@!$&\'()*+,;=%-]+$#', $url)) {
+								return htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+							}
+							$href = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+							return '<a href="' . $href . '" target="_blank" rel="noopener noreferrer" '
+								. 'style="text-decoration:underline"> ' . $clickHere . ' </a>';
+						},
+						(string) $value
+					);
 			//	}
 
 				if ($value !== "") {
@@ -8722,7 +8737,22 @@ class HtmlLib
 				$value = self::fix_lt_gt($value);
 
 			//	if ($sgbl->isLxlabsClient()) {
-					$value = preg_replace("+(https://[^ \n]*)+", "<a href='$1' target='_blank' style='text-decoration:underline'> " . $login->getKeywordUc('click_here') . " </a>", $value);
+					// Escaped https auto-link (security CCC1).
+					$clickHere = htmlspecialchars((string) $login->getKeywordUc('click_here'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$value = preg_replace_callback(
+						'+(https://[^ \n]*)+',
+						static function (array $m) use ($clickHere): string {
+							$url = (string) $m[1];
+							if (!preg_match('#^https://[A-Za-z0-9._~:/?#\\[\\]@!$&\'()*+,;=%-]+$#', $url)) {
+								return htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+							}
+							$href = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+							return '<a href="' . $href . '" target="_blank" rel="noopener noreferrer" '
+								. 'style="text-decoration:underline"> ' . $clickHere . ' </a>';
+						},
+						(string) $value
+					);
 			//	}
 
 				if ($value !== "") {
@@ -8978,7 +9008,7 @@ function fileSelected(e) {
 	}
 	$__upload_csrf = function_exists('getCSRFToken') ? (string) getCSRFToken() : '';
 ?>
-var uploadRedirectUrl = '/display.php?<?php echo $__upload_redir_qs; ?>';
+var uploadRedirectUrl = <?= json_encode('/display.php?' . $__upload_redir_qs, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>; // security CCC3
 var uploadRedirectTimer = 0;
 var uploadDidRedirect = false;
 var uploadPollTimer = 0;
@@ -9423,10 +9453,18 @@ function uploadAbort(e) { // upload abort
 					$jsconfig = str_replace('../httpdocs', '', $jsconfig);
 ?>
 
+<?php
+					// Escaped name/value/config (security CCC4).
+					$ckeName = htmlspecialchars((string) $variable->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$ckeValue = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$ckeConfig = htmlspecialchars((string) $jsconfig, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$ckeNameJs = json_encode((string) $variable->name, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+					$ckeConfigJs = json_encode((string) $jsconfig, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+?>
 <script type="text/javascript" src="/editor/ckeditor/ckeditor.js"></script>
-<textarea class="ckeditor" name="<?=$variable->name;?>"><?php echo $value; ?></textarea>
+<textarea class="ckeditor" name="<?= $ckeName ?>"><?= $ckeValue ?></textarea>
 <script>
-	CKEDITOR.replace( '<?=$variable->name;?>' , { customConfig: '<?=$jsconfig;?>' } );
+	CKEDITOR.replace( <?= $ckeNameJs ?> , { customConfig: <?= $ckeConfigJs ?> } );
 </script>
 <style>
 	.cke_button__source_label { display: none; }

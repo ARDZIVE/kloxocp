@@ -2751,6 +2751,58 @@ $findings[] = finding('BBB6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $bbb6Closed,
 	$bbb6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- CCC wave ---
+$htmlCcc = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$ccc1Closed = contains($htmlCcc, 'security CCC1')
+	&& substr_count($htmlCcc, 'security CCC1') >= 2
+	&& not_contains($htmlCcc, "<a href='\$1' target='_blank' style='text-decoration:underline'>");
+$findings[] = finding('CCC1', 'medium', 'nomodify/warning https preg_replace injects unescaped href',
+	'htmllib.php nomodify/warning auto-link', $ccc1Closed,
+	$ccc1Closed ? 'escaped https auto-link' : 'still raw');
+
+$frameCcc = file_text($root, 'kloxo/httpdocs/theme/frame_top.php');
+$ccc2Closed = contains($frameCcc, 'security CCC2')
+	&& contains($frameCcc, 'basename')
+	&& not_contains($frameCcc, "title='<?= \$desc ?>'")
+	&& not_contains($frameCcc, "top.mainframe.location='\$url'");
+$findings[] = finding('CCC2', 'medium', 'frame_top print_one_link unescaped desc/url/img',
+	'frame_top.php print_one_link', $ccc2Closed,
+	$ccc2Closed ? 'escaped title/url + basename img' : 'still raw');
+
+$ccc3Closed = contains($htmlCcc, 'security CCC3')
+	&& contains($htmlCcc, 'json_encode(\'/display.php?\' . $__upload_redir_qs')
+	&& not_contains($htmlCcc, "echo \$__upload_redir_qs;");
+$findings[] = finding('CCC3', 'low', 'uploadRedirectUrl echoes raw query string into JS',
+	'htmllib.php upload progress JS', $ccc3Closed,
+	$ccc3Closed ? 'json_encode uploadRedirectUrl' : 'still raw');
+
+$ccc4Closed = contains($htmlCcc, 'security CCC4')
+	&& contains($htmlCcc, '$ckeName')
+	&& contains($htmlCcc, '$ckeValue')
+	&& not_contains($htmlCcc, 'name="<?=$variable->name;?>"');
+$findings[] = finding('CCC4', 'low', 'CKEditor textarea name/value/config unescaped',
+	'htmllib.php CKEditor block', $ccc4Closed,
+	$ccc4Closed ? 'escaped name/value + json_encode config' : 'still raw');
+
+$libCcc = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibCcc = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$ccc5Closed = contains($libCcc, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5')
+	&& contains($libCcc, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5')
+	&& contains($lxlibCcc, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5');
+$findings[] = finding('CCC5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $ccc5Closed,
+	$ccc5Closed ? 'ident-gated sites marked CCC5' : 'unmarked');
+
+$extSecCcc = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastCcc = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$ccc6Closed = contains($lxlibCcc, 'security CCC6')
+	&& contains($extSecCcc, 'security CCC6')
+	&& contains($toastCcc, 'security CCC6')
+	&& contains($lxlibCcc, 'gated unserialize');
+$findings[] = finding('CCC6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $ccc6Closed,
+	$ccc6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

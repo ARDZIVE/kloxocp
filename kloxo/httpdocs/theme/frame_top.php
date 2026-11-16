@@ -24,18 +24,37 @@ function print_one_link($name)
 	global $gdata;
 
 	$s = $gdata[$name];
-	$desc = $s[0];
-	$url = $s[1];
-	$img = $s[2];
-	$target = null;
+	$desc = htmlspecialchars((string) $s[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$url = (string) $s[1];
+	// Basename-only image under skin images (security CCC2).
+	$img = basename((string) $s[2]);
+	$img = preg_replace('/[^A-Za-z0-9._-]/', '', $img) ?? '';
+	if ($img === '') {
+		$img = 'blank.gif';
+	}
+	$imgEsc = htmlspecialchars($img, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-	if (!csa($url, "javascript")) {
-		$onclickstring = "onClick=\"top.mainframe.location='$url';\";";
+	if (!csa($url, 'javascript')) {
+		$onclickstring = 'onClick="top.mainframe.location='
+			. htmlspecialchars(json_encode($url, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+			. ';"';
+	} elseif (preg_match('/^javascript:top\.mainframe\.logOut\(\);?\s*$/i', $url)) {
+		$onclickstring = 'onClick="top.mainframe.logOut();"';
+	} elseif (preg_match('/^javascript:window\.open\((.*)\)\s*$/i', $url, $m)) {
+		$inner = trim((string) $m[1]);
+		if ((str_starts_with($inner, "'") && str_ends_with($inner, "'"))
+			|| (str_starts_with($inner, '"') && str_ends_with($inner, '"'))) {
+			$inner = substr($inner, 1, -1);
+		}
+		$onclickstring = 'onClick="window.open('
+			. htmlspecialchars(json_encode($inner, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+			. ');"';
 	} else {
-		$onclickstring = "onClick=\"$url\"";
+		// Refuse unknown javascript: payloads in header links.
+		$onclickstring = '';
 	}
 ?>
-	<td ><span title='<?= $desc ?>' <?= $onclickstring ?> OnMouseOver="style.cursor='pointer'"><img src="/theme/skin/feather/default/images/<?= $img ?>"></span> </td>
+	<td ><span title="<?= $desc ?>" <?= $onclickstring ?> OnMouseOver="style.cursor='pointer'"><img src="/theme/skin/feather/default/images/<?= $imgEsc ?>" alt=""></span> </td>
 <?php
 }
 
