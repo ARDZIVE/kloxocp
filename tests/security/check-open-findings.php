@@ -2911,6 +2911,56 @@ $findings[] = finding('EEE6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $eee6Closed,
 	$eee6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- FFF wave ---
+$htmlFff = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$fff1Closed = contains($htmlFff, 'security FFF1')
+	&& substr_count($htmlFff, 'security FFF1') >= 2
+	&& contains($htmlFff, '$clickAddEsc')
+	&& not_contains($htmlFff, "\$cdesc .= \" for \$parent->nname\";");
+$findings[] = finding('FFF1', 'medium', 'list add/search raw skin/unique_name/cdesc',
+	'htmllib.php listaddform / advanced search', $fff1Closed,
+	$fff1Closed ? 'hex skin + allow-listed id + escaped labels' : 'still raw');
+
+$fff2Closed = contains($htmlFff, 'security FFF2')
+	&& contains($htmlFff, "preg_replace('/[^A-Za-z0-9_]/', '', (string) \$unique_name) ?: 'list'");
+$findings[] = finding('FFF2', 'medium', 'pagination raw unique_name in form/JS names',
+	'htmllib.php page/perpage forms', $fff2Closed,
+	$fff2Closed ? 'allow-listed unique_name for pagination' : 'still raw');
+
+$fff3Closed = contains($htmlFff, 'security FFF3')
+	&& contains($htmlFff, '$nameJs')
+	&& contains($htmlFff, 'new Menu(<?= json_encode($nameJs')
+	&& not_contains($htmlFff, "new Menu('<?= \$name ?>',130)");
+$findings[] = finding('FFF3', 'low', 'print_menulist new Menu raw name/mnu',
+	'htmllib.php print_menulist', $fff3Closed,
+	$fff3Closed ? 'allow-listed name + json_encode label' : 'still raw');
+
+$fff4Closed = contains($htmlFff, 'security FFF4')
+	&& contains($htmlFff, 'htmlspecialchars((string) $obj->nname')
+	&& not_contains($htmlFff, 'value="<?= $obj->nname ?>"');
+$findings[] = finding('FFF4', 'low', 'checkbox value/hiliteRowColor raw nname/unique_name',
+	'htmllib.php list checkboxes', $fff4Closed,
+	$fff4Closed ? 'escaped nname + allow-listed unique_name' : 'still raw');
+
+$libFff = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibFff = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$fff5Closed = contains($libFff, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5')
+	&& contains($libFff, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5')
+	&& contains($lxlibFff, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5 / EEE5 / FFF5');
+$findings[] = finding('FFF5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $fff5Closed,
+	$fff5Closed ? 'ident-gated sites marked FFF5' : 'unmarked');
+
+$extSecFff = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastFff = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$fff6Closed = contains($lxlibFff, 'security FFF6')
+	&& contains($extSecFff, 'security FFF6')
+	&& contains($toastFff, 'security FFF6')
+	&& contains($lxlibFff, 'gated unserialize');
+$findings[] = finding('FFF6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $fff6Closed,
+	$fff6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

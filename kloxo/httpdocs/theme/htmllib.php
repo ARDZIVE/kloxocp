@@ -4486,11 +4486,17 @@ class HtmlLib
 			return;
 		}
 	*/
-		$skin_color = $login->getSkinColor();
+		// Hex skin + allow-listed id (security FFF1).
+		$skin_color = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($skin_color === '' || (strlen($skin_color) !== 3 && strlen($skin_color) !== 6 && strlen($skin_color) !== 8)) {
+			$skin_color = 'aaa';
+		}
 
-		$unique_name = "{$parent->getClName()}_$class";
-		$showstring = $login->getKeywordUc('showhide');
+		$unique_name = fix_nname_to_be_variable("{$parent->getClName()}_$class");
+		$unique_name = preg_replace('/[^A-Za-z0-9_]/', '', (string) $unique_name) ?: 'listadd';
+		$showstring = htmlspecialchars((string) $login->getKeywordUc('showhide'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		$show_all_string = null;
+		$clickAddEsc = htmlspecialchars((string) $login->getKeywordUc('clickheretoadd'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 		if ($login->getSpecialObject('sp_specialplay')->isOn('close_add_form')) {
 			$visiblity = "visibility:hidden;display:none";
@@ -4498,8 +4504,7 @@ class HtmlLib
 			$visiblity = "visibility:visible;display:block";
 		}
 
-		$cdesc = get_description($class);
-		$cdesc .= " for $parent->nname";
+		$cdesc = htmlspecialchars((string) get_description($class) . " for " . $parent->nname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 		$backgroundstring = "background:#fff;";
 		$fontcolor = "black";
@@ -4512,7 +4517,7 @@ class HtmlLib
 		}
 ?>
 
-		<div style="background: #<?= $skin_color ?>; padding: 4px; margin: 0 25px; text-align: center">&nbsp;>>>> <a href="javascript:toggleVisibilityById('listaddform_<?= $unique_name ?>');"> <?= $login->getKeywordUc('clickheretoadd') ?> <?= $cdesc ?> (<?= $showstring ?>)</a><?= $show_all_string ?> <<<<&nbsp;</div>
+		<div style="background: #<?= $skin_color ?>; padding: 4px; margin: 0 25px; text-align: center">&nbsp;>>>> <a href="javascript:toggleVisibilityById('listaddform_<?= $unique_name ?>');"> <?= $clickAddEsc ?> <?= $cdesc ?> (<?= $showstring ?>)</a><?= $show_all_string ?> <<<<&nbsp;</div>
 		<br/>
 
 		<div id="listaddform_<?= $unique_name ?>" style="<?= $visiblity ?>;" class="div_showhide">
@@ -4539,6 +4544,12 @@ class HtmlLib
 
 		$unique_name = trim(kloxo_string($parent->nname)) . trim(kloxo_string($class)) . trim($classdesc2);
 		$unique_name = fix_nname_to_be_variable($unique_name);
+		// Allow-listed search id (security FFF1).
+		$unique_name = preg_replace('/[^A-Za-z0-9_]/', '', (string) $unique_name) ?: 'search';
+		$col = preg_replace('/[^0-9a-fA-F]/', '', (string) $col) ?? '';
+		if ($col === '' || (strlen($col) !== 3 && strlen($col) !== 6 && strlen($col) !== 8)) {
+			$col = 'aaa';
+		}
 
 		$imgpath = $login->getSkinDir();
 		$buttonpath = get_image_path();
@@ -4567,9 +4578,9 @@ class HtmlLib
 			$visiblity = "visibility:visible;display:block";
 			$showstring = null;
 		//	$show_all_string = "(Click on show-all to hide)";
-			$show_all_string = $login->getKeywordUc('click_on_showall_to_hide');
+			$show_all_string = htmlspecialchars((string) $login->getKeywordUc('click_on_showall_to_hide'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		} else {
-			$showstring = $login->getKeywordUc('showhide');
+			$showstring = htmlspecialchars((string) $login->getKeywordUc('showhide'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 			$show_all_string = null;
 			$visiblity = "visibility:hidden;display:none";
 		}
@@ -4583,6 +4594,8 @@ class HtmlLib
 			$backgroundnullstring = "background:gray;";
 			$bordertop = "#333";
 		}
+		$urlEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$imgEsc = htmlspecialchars((string) $img, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 		<div class="div_showhide">
@@ -4592,10 +4605,10 @@ class HtmlLib
 		</div>
 
 		<div id=search_<?= $unique_name ?> style="<?= $visiblity ?>;" class="div_showhide">
-			<form name="lpfform_rsearch" method="get" action="<?= $url ?>" onsubmit="return true;" accept-charset="utf-8">
+			<form name="lpfform_rsearch" method="get" action="<?= $urlEsc ?>" onsubmit="return true;" accept-charset="utf-8">
 				<table width='100%' border='0' align="center" cellpadding='0' style='<?= $backgroundstring ?> border: 1px solid #<?= $col ?>'>
 					<tr>
-						<td><img width=26 height=26 src="<?= $img ?>"></td>
+						<td><img width=26 height=26 src="<?= $imgEsc ?>"></td>
 					</tr>
 					<tr>
 						<td width=10> &nbsp; </td>
@@ -4841,6 +4854,8 @@ class HtmlLib
 		$unique_name = trim(kloxo_string($parent->nname)) . trim(kloxo_string($class)) . trim(kloxo_string($display)) . trim($classdesc2);
 
 		$unique_name = fix_nname_to_be_variable($unique_name);
+		// Allow-listed list/pagination id (security FFF2 / FFF4).
+		$unique_name = preg_replace('/[^A-Za-z0-9_]/', '', (string) $unique_name) ?: 'list';
 ?>
 
 		<script>
@@ -5278,7 +5293,8 @@ class HtmlLib
 <?php
 			//	if ($checked !== 'disabled') {
 ?>
-							<input <?= $filteropacitystring ?> id="ckbox<?= $unique_name ?><?= $rowcount ?>" class="ch1" type="checkbox" <?= $checked ?> name="frm_accountselect" onclick="hiliteRowColor('tr<?= $unique_name ?><?= $rowcount ?>','tablerow<?= $count ?>',document.formselectall<?= $unique_name ?>.selectall<?= $unique_name ?>)" value="<?= $obj->nname ?>"> <?= $filteropacitystringspanend ?>
+							<?php /* Escaped nname; unique_name allow-listed above (security FFF4). */ ?>
+							<input <?= $filteropacitystring ?> id="ckbox<?= $unique_name ?><?= $rowcount ?>" class="ch1" type="checkbox" <?= $checked ?> name="frm_accountselect" onclick="hiliteRowColor('tr<?= $unique_name ?><?= $rowcount ?>','tablerow<?= $count ?>',document.formselectall<?= $unique_name ?>.selectall<?= $unique_name ?>)" value="<?= htmlspecialchars((string) $obj->nname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"> <?= $filteropacitystringspanend ?>
 <?php
 			//	}
 ?>
@@ -6539,7 +6555,11 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$skin_color = $login->getSkinColor();
+		// Hex-only skin colour (security FFF1).
+		$skin_color = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($skin_color === '' || (strlen($skin_color) !== 3 && strlen($skin_color) !== 6 && strlen($skin_color) !== 8)) {
+			$skin_color = 'aaa';
+		}
 
 		if (!$list) {
 			return;
@@ -10777,6 +10797,10 @@ function uploadAbort(e) { // upload abort
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		// Allow-listed menu var name (security FFF3).
+		$nameJs = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', (string) $name) ? (string) $name : 'navig';
+		$name = $nameJs;
+
 		$skindir = $login->getSkinDir();
 
 		foreach ((array)$alist as $k => $a) {
@@ -10801,10 +10825,11 @@ function uploadAbort(e) { // upload abort
 
 				$desc = "<span style=font-weight:bold>$desc</span>";
 				$mnu = $this->getMenuDescrString($menuimg, $desc, $endimg);
+				$kJs = preg_replace('/[^A-Za-z0-9_]/', '', (string) $k) ?: 'k';
 
 ?>
 
-			window.<?= $name ?><?= $k ?> = new Menu("<?= $mnu ?>", 100);
+			window.<?= $nameJs ?><?= $kJs ?> = new Menu(<?= json_encode($mnu, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>, 100);
 <?php
 
 				foreach ($a as $nk => $nv) {
@@ -10816,7 +10841,7 @@ function uploadAbort(e) { // upload abort
 
 ?>
 
-			window.<?= $name ?> = new Menu('<?= $name ?>',130);
+			window.<?= $nameJs ?> = new Menu(<?= json_encode($nameJs, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,130);
 <?php
 
 		if ($type === 'slist') {
@@ -10936,7 +10961,11 @@ function uploadAbort(e) { // upload abort
 
 		$as_simple_skin = $login->getSpecialObject('sp_specialplay')->isOn('simple_skin');
 
-		$skin_color = $login->getSkinColor();
+		// Hex-only skin colour (security FFF1).
+		$skin_color = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		if ($skin_color === '' || (strlen($skin_color) !== 3 && strlen($skin_color) !== 6 && strlen($skin_color) !== 8)) {
+			$skin_color = 'aaa';
+		}
 
 		$skin_dir = $login->getSkinDir();
 
