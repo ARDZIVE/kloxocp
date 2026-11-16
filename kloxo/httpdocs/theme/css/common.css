@@ -1156,30 +1156,356 @@ html>body #quotausagebar span.last {
 		border: 1px solid #ddd;
 	}
 
-	/* UFW Firewall page: reuse theme form/table/button classes */
+	/* UFW Firewall page */
 	.kloxo-ufw {
-		padding: 8px 12px 20px;
+		--kloxo-ufw-skin: #edc;
+		padding: 10px 16px 28px;
 		text-align: left;
+		color: #222;
 	}
 
-	.kloxo-ufw .textbox {
+	.kloxo-ufw .textbox,
+	.kloxo-ufw .searchbox {
 		font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
 		font-size: 9pt;
 		font-weight: normal;
-		color: #000000;
-		background-color: #FFFFFF;
+		color: #000;
+		background-color: #fff;
+		border: 1px solid #aaa;
+		padding: 4px 6px;
+		border-radius: 2px;
 	}
 
 	.kloxo-ufw .submitbutton {
 		font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
 		font-size: 9pt;
 		font-weight: bold;
-		color: #000000;
-		background-color: #FFFFFF;
+		color: #222;
+		background: linear-gradient(#fff, #f0f0f0);
+		border: 1px solid #888;
+		padding: 5px 14px;
+		border-radius: 2px;
+		cursor: pointer;
+	}
+
+	.kloxo-ufw .submitbutton:hover {
+		background: #fff;
+		border-color: #555;
 	}
 
 	.kloxo-ufw table.tableheader {
 		margin-bottom: 10px;
+	}
+
+	.kloxo-ufw-status {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px 16px;
+		margin: 0 0 14px;
+		padding: 12px 14px;
+		background: #fafafa;
+		border: 1px solid #ddd;
+		border-left: 4px solid var(--kloxo-ufw-skin, #edc);
+	}
+
+	.kloxo-ufw-status-main {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px 12px;
+		min-width: 0;
+	}
+
+	.kloxo-ufw-status-title {
+		font-size: 14px;
+		font-weight: bold;
+		color: #222;
+		letter-spacing: 0.01em;
+	}
+
+	.kloxo-ufw-status-meta {
+		color: #666;
+		font-size: 12px;
+	}
+
+	.kloxo-ufw-badge {
+		display: inline-block;
+		padding: 2px 9px;
+		border-radius: 999px;
+		font-size: 11px;
+		font-weight: bold;
+		letter-spacing: 0.04em;
+		line-height: 1.5;
+		border: 1px solid transparent;
+		vertical-align: middle;
+		white-space: nowrap;
+	}
+
+	.kloxo-ufw-badge-on {
+		color: #1a5c2a;
+		background: #e8f6ec;
+		border-color: #9dcfab;
+	}
+
+	.kloxo-ufw-badge-off {
+		color: #8a1f1f;
+		background: #fceaea;
+		border-color: #e0a0a0;
+	}
+
+	.kloxo-ufw-badge-allow {
+		color: #1a5c2a;
+		background: #e8f6ec;
+		border-color: #9dcfab;
+	}
+
+	.kloxo-ufw-badge-deny {
+		color: #8a1f1f;
+		background: #fceaea;
+		border-color: #e0a0a0;
+	}
+
+	.kloxo-ufw-badge-reject {
+		color: #8a4b00;
+		background: #fff4e5;
+		border-color: #e0b87a;
+	}
+
+	.kloxo-ufw-badge-limit,
+	.kloxo-ufw-badge-other {
+		color: #334;
+		background: #eef1f6;
+		border-color: #b8c0d0;
+	}
+
+	.kloxo-ufw-alert {
+		margin: 0 0 12px;
+		padding: 10px 12px;
+		border: 1px solid #e0a0a0;
+		background: #fff7f7;
+		color: #7a1f1f;
+		text-align: left;
+	}
+
+	.kloxo-ufw-alert p {
+		margin: 0 0 10px;
+	}
+
+	.kloxo-ufw-alert p:last-child {
+		margin-bottom: 0;
+	}
+
+	.kloxo-ufw-hint {
+		margin: 0 0 12px;
+		padding: 8px 12px;
+		border: 1px solid #ddd;
+		background: #f7f7f7;
+		color: #555;
+		font-size: 12px;
+	}
+
+	.kloxo-ufw-section {
+		margin: 16px 0 8px;
+		padding: 0;
+		border: 0;
+		border-top: 1px solid #ddd;
+		text-align: center;
+	}
+
+	.kloxo-ufw-section legend {
+		padding: 0 10px;
+		font-weight: bold;
+		color: #333;
+	}
+
+	.kloxo-ufw-section-note {
+		color: #c00;
+		font-weight: normal;
+	}
+
+	.kloxo-ufw-toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px 16px;
+		margin: 8px 0 0;
+		padding: 10px 12px;
+		background: #fee;
+		border: 1px solid var(--kloxo-ufw-skin, #edc);
+	}
+
+	.kloxo-ufw-toolbar-actions,
+	.kloxo-ufw-toolbar-search {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 4px 12px;
+	}
+
+	.kloxo-ufw-tool {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		min-width: 52px;
+		padding: 2px 4px;
+		text-decoration: none;
+		color: #333;
+		border: 0;
+		background: transparent;
+		cursor: pointer;
+		font: inherit;
+		line-height: 1.2;
+	}
+
+	.kloxo-ufw-tool:hover {
+		color: #000;
+		opacity: 0.85;
+	}
+
+	.kloxo-ufw-tool .small {
+		margin-top: 2px;
+		font-size: 10px;
+		white-space: nowrap;
+	}
+
+	.kloxo-ufw-search-form {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin: 0;
+	}
+
+	.kloxo-ufw-adv {
+		margin-top: 8px;
+		padding: 10px 12px;
+		background: #fee;
+		border: 1px solid var(--kloxo-ufw-skin, #edc);
+	}
+
+	.kloxo-ufw-adv-grid {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: 10px 14px;
+		width: 100%;
+	}
+
+	.kloxo-ufw-adv-field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.kloxo-ufw-adv-field label {
+		font-weight: bold;
+		font-size: 11px;
+		color: #444;
+	}
+
+	.kloxo-ufw-table-wrap {
+		margin-top: 12px;
+		overflow-x: auto;
+		border: 1px solid #e5e5e5;
+		background: #fff;
+	}
+
+	.kloxo-ufw-table {
+		width: 100%;
+		border-collapse: separate;
+		border-spacing: 1px;
+		margin: 0;
+	}
+
+	.kloxo-ufw-table .collist {
+		background: var(--kloxo-ufw-skin, #edc);
+		padding: 7px 8px;
+		font-weight: bold;
+		white-space: nowrap;
+		color: #222;
+	}
+
+	.kloxo-ufw-table .col {
+		padding: 7px 8px;
+		vertical-align: middle;
+	}
+
+	.kloxo-ufw-table tr.tablerow0:hover td,
+	.kloxo-ufw-table tr.tablerow1:hover td {
+		background: #f5f8ff;
+	}
+
+	.kloxo-ufw-empty {
+		text-align: center;
+		padding: 22px 12px !important;
+		color: #666;
+	}
+
+	.kloxo-ufw-action-cell {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		white-space: nowrap;
+	}
+
+	.kloxo-ufw-suspended-dot {
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #c00;
+		vertical-align: middle;
+	}
+
+	.kloxo-ufw-row-actions {
+		white-space: nowrap;
+		width: 72px;
+		max-width: 72px;
+		text-align: center;
+		padding: 2px 4px !important;
+	}
+
+	.kloxo-ufw-row-suspended td {
+		opacity: 0.92;
+	}
+
+	.kloxo-ufw-row-actions a,
+	.kloxo-ufw-row-actions button,
+	.kloxo-ufw-row-actions span {
+		margin: 0 2px;
+		vertical-align: middle;
+		text-decoration: none;
+	}
+
+	.kloxo-ufw-row-actions button {
+		border: 0;
+		background: transparent;
+		cursor: pointer;
+		padding: 0;
+		line-height: 1;
+	}
+
+	.kloxo-ufw-proto {
+		font-family: Consolas, "Liberation Mono", Menlo, monospace;
+		font-size: 11px;
+		color: #444;
+		text-transform: uppercase;
+	}
+
+	.kloxo-ufw-port {
+		font-family: Consolas, "Liberation Mono", Menlo, monospace;
+		font-size: 12px;
+		font-weight: bold;
+		color: #222;
+	}
+
+	.kloxo-ufw-comment {
+		color: #555;
+		font-size: 12px;
 	}
 
 	.kloxo-llog-toolbar {

@@ -82,9 +82,13 @@ if (count($dualRules) === 3
 }
 
 $ufwUi = (string) file_get_contents($root . '/kloxo/httpdocs/driver/pserver/ufwfirewalllib.php');
+$ufwCss = (string) file_get_contents($root . '/kloxo/httpdocs/theme/css/common.css');
 if (!str_contains($ufwUi, 'listaddform_ufwfirewall')
 	&& !str_contains($ufwUi, 'Click Here to Add')
-	&& str_contains($ufwUi, 'background:#fee')
+	&& str_contains($ufwCss, 'background: #fee')
+	&& str_contains($ufwUi, 'kloxo-ufw-toolbar')
+	&& str_contains($ufwUi, 'kloxo-ufw-status')
+	&& str_contains($ufwUi, 'actionBadgeHtml')
 	&& str_contains($ufwUi, 'Advanced Search')
 	&& str_contains($ufwUi, 'Port Rules')
 	&& !str_contains($ufwUi, "'Family'")
@@ -106,8 +110,8 @@ if (!str_contains($ufwUi, 'listaddform_ufwfirewall')
 	&& str_contains($ufwUi, "faIcon('play'")
 	&& str_contains($ufwUi, "faIcon('pen-to-square'")
 	&& str_contains($ufwUi, "faIcon('trash'")
-	&& str_contains($ufwUi, 'text-align:center;width:28px')
-	&& str_contains($ufwUi, 'width:72px;max-width:72px')
+	&& str_contains($ufwUi, 'width:28px;text-align:center')
+	&& str_contains($ufwUi, 'kloxo-ufw-row-actions')
 	&& !str_contains($ufwUi, 'updateform_edit.gif')
 	&& !str_contains($ufwUi, 'delete.gif')
 	&& str_contains($ufwUi, 'function updateEditrule')

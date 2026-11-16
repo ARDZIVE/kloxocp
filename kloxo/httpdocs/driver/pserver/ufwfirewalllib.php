@@ -163,6 +163,26 @@ class ufwfirewall extends lxclass
 		return isset($map[$u]) ? $map[$u] : $u;
 	}
 
+	/** Colored action badge for the rules table. */
+	static function actionBadgeHtml($label)
+	{
+		$disp = self::actionDisplay($label);
+		$key = strtolower($disp);
+		$class = 'kloxo-ufw-badge-other';
+		if ($key === 'allow') {
+			$class = 'kloxo-ufw-badge-allow';
+		} elseif ($key === 'deny') {
+			$class = 'kloxo-ufw-badge-deny';
+		} elseif ($key === 'reject') {
+			$class = 'kloxo-ufw-badge-reject';
+		} elseif ($key === 'limit') {
+			$class = 'kloxo-ufw-badge-limit';
+		}
+
+		return '<span class="kloxo-ufw-badge ' . $class . '">'
+			. htmlspecialchars($disp, ENT_QUOTES) . '</span>';
+	}
+
 	/** True on the Add Rule / Edit pages, which must not render the rule list. */
 	static function isFormPage()
 	{
@@ -245,72 +265,83 @@ class ufwfirewall extends lxclass
 		$deleteTbIcon = self::faIcon('trash', '#333', 'Delete');
 		$addUrl = $this->addRuleUrl();
 		$token = function_exists('getCSRFToken') ? getCSRFToken() : '';
+		$h = static function ($v) {
+			return htmlspecialchars((string) $v, ENT_QUOTES);
+		};
+		$skinCss = '#' . preg_replace('/[^0-9a-fA-F]/', '', (string) $skin);
+		if (strlen($skinCss) < 4) {
+			$skinCss = '#edc';
+		}
 
-		echo '<div class="kloxo-ufw">';
+		echo '<div class="kloxo-ufw" style="--kloxo-ufw-skin:' . $h($skinCss) . '">';
 
 		if ($err !== '' && $err !== 'ufw_not_installed') {
-			echo '<p class="messagetext formtablerow2">Error: '
-				. htmlspecialchars($err, ENT_QUOTES) . '</p>';
+			echo '<div class="kloxo-ufw-alert">Error: ' . $h($err) . '</div>';
 		}
 		if (!$installed) {
-			echo '<p class="messagetext" style="text-align:center;margin:12px 25px">'
-				. 'Install the <code>ufw</code> package on this Ubuntu host '
-				. '(install enables UFW by default), then reopen this page.</p>';
+			echo '<div class="kloxo-ufw-hint">Install the <code>ufw</code> package on this Ubuntu host '
+				. '(install enables UFW by default), then reopen this page.</div>';
 			echo '</div>';
 
 			return;
 		}
+
+		$statusBadge = $active
+			? '<span class="kloxo-ufw-badge kloxo-ufw-badge-on">Active</span>'
+			: '<span class="kloxo-ufw-badge kloxo-ufw-badge-off">Inactive</span>';
+		echo '<div class="kloxo-ufw-status">';
+		echo '<div class="kloxo-ufw-status-main">';
+		echo '<span class="kloxo-ufw-status-title">UFW Firewall</span>';
+		echo $statusBadge;
+		echo '<span class="kloxo-ufw-status-meta">' . $h($host)
+			. ' · ' . (int) $nTotal . ' rule' . ($nTotal === 1 ? '' : 's');
+		if ($filterActive) {
+			echo ' · showing ' . (int) $nShown;
+		}
+		echo '</span></div>';
 		if (!$active) {
 			$enableIcon = self::faIcon('shield-halved', '#a00', 'Enable UFW');
-			echo '<div class="messagetext" style="color:#a00;margin:8px 25px;text-align:center">'
-				. '<p style="margin:0 0 10px">UFW is inactive on this host '
-				. '(install normally enables it). Enable now to apply the default '
-				. 'panel ports (SSH, HTTP/S, FTP, DNS, mail, 7777/7778) and turn the firewall on.</p>';
 			echo '<form method="post" action="/display.php" accept-charset="utf-8"'
-				. ' style="display:inline;margin:0" onsubmit="return confirm('
-				. htmlspecialchars(json_encode(
+				. ' style="margin:0" onsubmit="return confirm('
+				. $h(json_encode(
 					'Enable UFW? Panel ports 7777/7778 plus SSH, HTTP/S, FTP, DNS and mail are allowed first.'
-				), ENT_QUOTES) . ')">';
-			echo '<input type="hidden" name="frm_token" value="'
-				. htmlspecialchars((string) $token, ENT_QUOTES) . '">';
+				)) . ')">';
+			echo '<input type="hidden" name="frm_token" value="' . $h((string) $token) . '">';
 			echo '<input type="hidden" name="frm_action" value="update">';
 			echo '<input type="hidden" name="frm_subaction" value="ufwenable">';
 			$this->printObjectPathInputs();
-			echo '<button type="submit" class="submitbutton" title="Enable UFW"'
-				. ' style="cursor:pointer;padding:6px 14px;vertical-align:middle">'
+			echo '<button type="submit" class="submitbutton" title="Enable UFW">'
 				. ($enableIcon !== '' ? $enableIcon . ' ' : '')
 				. 'Enable UFW</button>';
-			echo '</form></div>';
+			echo '</form>';
+		}
+		echo '</div>';
+
+		if (!$active) {
+			echo '<div class="kloxo-ufw-alert"><p>UFW is inactive on this host '
+				. '(install normally enables it). Enable to apply the default panel ports '
+				. '(SSH, HTTP/S, FTP, DNS, mail, 7777/7778) and turn the firewall on.</p></div>';
 		}
 		if ($conflictNote !== '') {
-			echo '<p class="messagetext" style="color:#a00;margin:8px 25px;text-align:center">'
-				. htmlspecialchars($conflictNote, ENT_QUOTES) . '</p>';
+			echo '<div class="kloxo-ufw-alert">' . $h($conflictNote) . '</div>';
 		}
 
-		echo '<div class="div_showhide">';
-		echo '<fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">';
-		echo '<legend><span style="font-weight:bold">Port Rules ' . htmlspecialchars($under, ENT_QUOTES)
-			. ' ' . htmlspecialchars($host, ENT_QUOTES);
+		echo '<fieldset class="kloxo-ufw-section"><legend>Port Rules '
+			. $h($under) . ' ' . $h($host);
 		if ($filterActive) {
-			echo ' <span style="color:red">(filtered)</span>';
+			echo ' <span class="kloxo-ufw-section-note">(filtered)</span>';
 		}
-		echo ' (' . htmlspecialchars($perpageof . (string) $nTotal, ENT_QUOTES) . ')</span></legend>';
-		echo '</fieldset></div>';
+		echo ' (' . $h($perpageof . (string) $nTotal) . ')</legend></fieldset>';
 
-		echo '<div class="div_showhide">';
-		echo '<table width="100%" cellpadding="0" cellspacing="0" border="0"'
-			. ' style="background:#fee;border:1px solid #' . htmlspecialchars($skin, ENT_QUOTES)
-			. ';padding:10px">';
-		echo '<tr><td valign="middle">';
-		echo '<a href="' . htmlspecialchars($this->showUrl(), ENT_QUOTES)
-			. '" title="Refresh" style="text-decoration:none;margin-right:14px;display:inline-block;text-align:center">'
-			. $refreshIcon . '<br><span class="small">Refresh</span></a>';
-		echo '<a href="' . htmlspecialchars($addUrl, ENT_QUOTES)
-			. '" title="Add Rule" style="text-decoration:none;margin-right:14px;display:inline-block;text-align:center">'
-			. $addIcon . '<br><span class="small">Add Rule</span></a>';
-		echo '<a href="javascript:void(0)" title="Delete" style="text-decoration:none;display:inline-block;text-align:center"'
+		echo '<div class="kloxo-ufw-toolbar">';
+		echo '<div class="kloxo-ufw-toolbar-actions">';
+		echo '<a class="kloxo-ufw-tool" href="' . $h($this->showUrl()) . '" title="Refresh">'
+			. $refreshIcon . '<span class="small">Refresh</span></a>';
+		echo '<a class="kloxo-ufw-tool" href="' . $h($addUrl) . '" title="Add Rule">'
+			. $addIcon . '<span class="small">Add Rule</span></a>';
+		echo '<a class="kloxo-ufw-tool" href="javascript:void(0)" title="Delete"'
 			. ' onclick="return kloxoUfwDeleteSelected();">'
-			. $deleteTbIcon . '<br><span class="small">Delete</span></a>';
+			. $deleteTbIcon . '<span class="small">Delete</span></a>';
 		echo '<script type="text/javascript">function kloxoUfwDeleteSelected(){'
 			. 'var c=document.querySelectorAll("input.ufw-row-check:checked");'
 			. 'if(!c.length){alert("Select one or more rules to delete.");return false;}'
@@ -319,49 +350,45 @@ class ufwfirewall extends lxclass
 			. 'if(!f){return false;}'
 			. 'var old=f.querySelectorAll("input[name=\'frm_ufwfirewall_c_ufw_rules[]\']");'
 			. 'for(var i=0;i<old.length;i++){old[i].parentNode.removeChild(old[i]);}'
-			. 'for(var j=0;j<c.length;j++){var h=document.createElement("input");'
-			. 'h.type="hidden";h.name="frm_ufwfirewall_c_ufw_rules[]";h.value=c[j].value;f.appendChild(h);}'
+			. 'for(var j=0;j<c.length;j++){var inp=document.createElement("input");'
+			. 'inp.type="hidden";inp.name="frm_ufwfirewall_c_ufw_rules[]";inp.value=c[j].value;f.appendChild(inp);}'
 			. 'f.submit();return false;}</script>';
 		echo '<form id="ufw_multi_delete_form" method="post" action="/display.php" accept-charset="utf-8" style="display:none">';
-		echo '<input type="hidden" name="frm_token" value="' . htmlspecialchars((string) $token, ENT_QUOTES) . '">';
+		echo '<input type="hidden" name="frm_token" value="' . $h((string) $token) . '">';
 		echo '<input type="hidden" name="frm_action" value="update">';
 		echo '<input type="hidden" name="frm_subaction" value="deleterules">';
 		$this->printObjectPathInputs();
 		echo '</form>';
-		echo '</td><td align="right" valign="middle">';
-		echo '<form name="ufw_lpform_search" method="get" action="/display.php" accept-charset="utf-8"'
-			. ' style="display:inline" onsubmit="return true;">';
+		echo '</div>';
+		echo '<div class="kloxo-ufw-toolbar-search">';
+		echo '<form class="kloxo-ufw-search-form" name="ufw_lpform_search" method="get" action="/display.php" accept-charset="utf-8">';
 		$this->printShowHiddenGets();
 		foreach (array('number', 'action', 'proto', 'port', 'from', 'comment') as $fk) {
 			if (isset($filter[$fk]) && $filter[$fk] !== '') {
 				echo '<input type="hidden" name="frm_ufw_filter[' . $fk . ']" value="'
-					. htmlspecialchars((string) $filter[$fk], ENT_QUOTES) . '">';
+					. $h((string) $filter[$fk]) . '">';
 			}
 		}
-		echo '<input type="text" class="searchbox" name="frm_ufw_filter[q]" size="18" value="'
-			. htmlspecialchars($qVal, ENT_QUOTES) . '"> ';
-		echo '<a href="javascript:document.ufw_lpform_search.submit();">' . $searchIcon . '</a>';
-		echo '</form>&nbsp;&nbsp;';
-		echo '<a href="' . htmlspecialchars($this->showUrl(), ENT_QUOTES) . '" title="'
-			. htmlspecialchars($showAll, ENT_QUOTES) . '" style="text-decoration:none">'
-			. $showallIcon . '<br><span class="small">' . htmlspecialchars($showAll, ENT_QUOTES)
-			. '</span></a>';
-		echo '</td></tr></table></div>';
+		echo '<input type="text" class="searchbox" name="frm_ufw_filter[q]" size="20" placeholder="Search rules…" value="'
+			. $h($qVal) . '">';
+		echo '<a class="kloxo-ufw-tool" href="javascript:document.ufw_lpform_search.submit();" title="Search">'
+			. $searchIcon . '<span class="small">Search</span></a>';
+		echo '</form>';
+		echo '<a class="kloxo-ufw-tool" href="' . $h($this->showUrl()) . '" title="' . $h($showAll) . '">'
+			. $showallIcon . '<span class="small">' . $h($showAll) . '</span></a>';
+		echo '</div></div>';
 
-		echo '<div class="div_showhide" style="margin-top:6px">';
-		echo '<fieldset style="padding:0;text-align:center;margin:0;border:0;border-top:1px solid #ddd">';
-		echo '<legend><span style="font-weight:bold">Advanced Search '
+		echo '<fieldset class="kloxo-ufw-section"><legend>Advanced Search '
 			. '<a href="javascript:toggleVisibilityById(\'' . $advId . '\');">'
-			. htmlspecialchars($showHide, ENT_QUOTES) . '</a></span></legend></fieldset></div>';
+			. $h($showHide) . '</a></legend></fieldset>';
 		echo '<div id="' . $advId . '" style="' . $advVisible . ';" class="div_showhide">';
 		echo '<form method="get" action="/display.php" accept-charset="utf-8">';
 		$this->printShowHiddenGets();
 		if ($qVal !== '') {
-			echo '<input type="hidden" name="frm_ufw_filter[q]" value="'
-				. htmlspecialchars($qVal, ENT_QUOTES) . '">';
+			echo '<input type="hidden" name="frm_ufw_filter[q]" value="' . $h($qVal) . '">';
 		}
-		echo '<table width="100%" cellpadding="4" cellspacing="0" border="0" style="background:#fee;border:1px solid #'
-			. htmlspecialchars($skin, ENT_QUOTES) . '"><tr>';
+		echo '<div class="kloxo-ufw-adv">';
+		echo '<div class="kloxo-ufw-adv-grid">';
 		$cols = array(
 			'number' => array('label' => '#', 'type' => 'text'),
 			'action' => array('label' => 'Action', 'type' => 'action'),
@@ -372,8 +399,7 @@ class ufwfirewall extends lxclass
 		);
 		foreach ($cols as $key => $meta) {
 			$val = isset($filter[$key]) ? (string) $filter[$key] : '';
-			echo '<td nowrap><span style="font-weight:bold">'
-				. htmlspecialchars($meta['label'], ENT_QUOTES) . '</span><br>';
+			echo '<div class="kloxo-ufw-adv-field"><label>' . $h($meta['label']) . '</label>';
 			if ($meta['type'] === 'action') {
 				echo '<select class="searchbox" name="frm_ufw_filter[action]"><option value="">—</option>';
 				foreach (array('ALLOW', 'DENY', 'REJECT', 'LIMIT') as $a) {
@@ -389,41 +415,35 @@ class ufwfirewall extends lxclass
 				}
 				echo '</select>';
 			} else {
-				echo '<input type="text" class="searchbox" size="11" name="frm_ufw_filter['
-					. htmlspecialchars($key, ENT_QUOTES) . ']" value="'
-					. htmlspecialchars($val, ENT_QUOTES) . '">';
+				echo '<input type="text" class="searchbox" size="12" name="frm_ufw_filter['
+					. $h($key) . ']" value="' . $h($val) . '">';
 			}
-			echo '</td>';
+			echo '</div>';
 		}
-		echo '<td valign="bottom"><input type="submit" class="submitbutton" value="&nbsp;&nbsp;Search&nbsp;&nbsp;"></td>';
-		echo '</tr></table></form></div>';
+		echo '<div class="kloxo-ufw-adv-field"><label>&nbsp;</label>'
+			. '<input type="submit" class="submitbutton" value="Search"></div>';
+		echo '</div></div></form></div>';
 
-		echo '<br/>';
-		echo '<table cellspacing="1" cellpadding="3" width="100%" align="center" border="0" id="ufw_rules_table">';
-		echo '<tr height="25" valign="middle">';
-		echo '<td class="collist" nowrap align="center" style="background:#'
-			. htmlspecialchars($skin, ENT_QUOTES)
-			. ';text-align:center;width:28px"><input type="checkbox" title="Select all"'
+		echo '<div class="kloxo-ufw-table-wrap">';
+		echo '<table class="kloxo-ufw-table" cellspacing="1" cellpadding="3" border="0" id="ufw_rules_table">';
+		echo '<tr>';
+		echo '<td class="collist" align="center" style="width:28px;text-align:center">'
+			. '<input type="checkbox" title="Select all"'
 			. ' onclick="var b=this.checked;'
 			. 'var n=document.querySelectorAll(\'#ufw_rules_table input.ufw-row-check\');'
 			. 'for(var i=0;i<n.length;i++){n[i].checked=b;}"></td>';
-		foreach (array('#', 'Action', 'Protocol', 'Port', 'From', 'Comment') as $h) {
-			echo '<td class="collist" nowrap style="background:#'
-				. htmlspecialchars($skin, ENT_QUOTES) . '"><b>'
-				. htmlspecialchars($h, ENT_QUOTES) . '</b></td>';
+		foreach (array('#', 'Action', 'Protocol', 'Port', 'From', 'Comment') as $head) {
+			echo '<td class="collist">' . $h($head) . '</td>';
 		}
-		// Last column: icons only — no header title, narrow width.
-		echo '<td class="collist" nowrap align="center" style="background:#'
-			. htmlspecialchars($skin, ENT_QUOTES)
-			. ';text-align:center;width:72px;max-width:72px;padding:2px 4px">&nbsp;</td>';
+		echo '<td class="collist kloxo-ufw-row-actions">&nbsp;</td>';
 		echo '</tr>';
 
 		if ($displayRules === array()) {
 			$emptyMsg = $filterActive
 				? 'No matches found'
 				: ('No Port Rules ' . $under . ' ' . $host);
-			echo '<tr class="tablerow0"><td class="col" colspan="8" style="text-align:center;padding:12px">'
-				. '<b>' . htmlspecialchars($emptyMsg, ENT_QUOTES) . '</b></td></tr>';
+			echo '<tr class="tablerow0"><td class="col kloxo-ufw-empty" colspan="8">'
+				. '<b>' . $h($emptyMsg) . '</b></td></tr>';
 		} else {
 			$i = 0;
 			foreach ($displayRules as $r) {
@@ -447,27 +467,26 @@ class ufwfirewall extends lxclass
 				}
 				$editUrl = $this->editRuleUrl($isSusp ? $selId : (int) $rowN['number']);
 				$numLabel = $isSusp ? '—' : (string) $rowN['number'];
-				$actHtml = '';
+				$actHtml = '<span class="kloxo-ufw-action-cell">';
 				if ($isSusp) {
-					$actHtml .= '<span style="color:#c00;font-weight:bold;margin-right:4px" title="Suspended">&#9679;</span>';
+					$actHtml .= '<span class="kloxo-ufw-suspended-dot" title="Suspended"></span>';
 				}
-				$actHtml .= htmlspecialchars(self::actionDisplay($rowN['action_label']), ENT_QUOTES);
+				$actHtml .= self::actionBadgeHtml($rowN['action_label']) . '</span>';
 
-				echo '<tr height="22" class="tablerow' . $count . '">';
+				echo '<tr class="tablerow' . $count . ($isSusp ? ' kloxo-ufw-row-suspended' : '') . '">';
 				echo '<td class="col" align="center"><input type="checkbox" class="ufw-row-check" value="'
-					. htmlspecialchars($selId, ENT_QUOTES) . '"'
+					. $h($selId) . '"'
 					. ($canDel || $isSusp ? '' : ' disabled title="Protected panel port"') . '></td>';
-				echo '<td class="col">' . htmlspecialchars($numLabel, ENT_QUOTES) . '</td>';
+				echo '<td class="col">' . $h($numLabel) . '</td>';
 				echo '<td class="col">' . $actHtml . '</td>';
-				echo '<td class="col">' . htmlspecialchars($rowN['proto'], ENT_QUOTES) . '</td>';
-				echo '<td class="col">' . htmlspecialchars($rowN['port'] !== '' ? $rowN['port'] : '—', ENT_QUOTES) . '</td>';
-				echo '<td class="col">' . htmlspecialchars($rowN['from_label'], ENT_QUOTES) . '</td>';
-				echo '<td class="col">' . htmlspecialchars($rowN['comment'], ENT_QUOTES) . '</td>';
-				echo '<td class="col" align="center" style="white-space:nowrap;width:72px;max-width:72px;padding:2px 4px">';
+				echo '<td class="col"><span class="kloxo-ufw-proto">' . $h($rowN['proto']) . '</span></td>';
+				echo '<td class="col"><span class="kloxo-ufw-port">'
+					. $h($rowN['port'] !== '' ? $rowN['port'] : '—') . '</span></td>';
+				echo '<td class="col">' . $h($rowN['from_label']) . '</td>';
+				echo '<td class="col"><span class="kloxo-ufw-comment">' . $h($rowN['comment']) . '</span></td>';
+				echo '<td class="col kloxo-ufw-row-actions">';
 
-				echo '<a href="' . htmlspecialchars($editUrl, ENT_QUOTES)
-					. '" title="Edit" style="text-decoration:none;margin:0 2px;vertical-align:middle">'
-					. $editIconHtml . '</a>';
+				echo '<a href="' . $h($editUrl) . '" title="Edit">' . $editIconHtml . '</a>';
 
 				if ($isSusp) {
 					$this->printInlineAction('unsuspendrule', $selId, $unsuspendIconHtml, 'Unsuspend',
@@ -476,7 +495,7 @@ class ufwfirewall extends lxclass
 					$this->printInlineAction('suspendrule', (string) $rowN['number'], $suspendIconHtml, 'Suspend',
 						'Suspend rule #' . $rowN['number'] . '?');
 				} else {
-					echo '<span style="margin:0 2px;vertical-align:middle">' . $suspendIconMuted . '</span>';
+					echo '<span>' . $suspendIconMuted . '</span>';
 				}
 
 				if ($canDel || $isSusp) {
@@ -488,12 +507,12 @@ class ufwfirewall extends lxclass
 						$isSusp ? 'Delete suspended rule?' : ('Delete rule #' . $rowN['number'] . '?')
 					);
 				} else {
-					echo '<span style="margin:0 2px;vertical-align:middle">' . $delIconMuted . '</span>';
+					echo '<span>' . $delIconMuted . '</span>';
 				}
 				echo '</td></tr>';
 			}
 		}
-		echo '</table>';
+		echo '</table></div>';
 
 		echo '</div>';
 	}
