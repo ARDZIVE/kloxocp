@@ -57,6 +57,11 @@ function print_ext_tree($object)
 
 	$icondir = get_image_path();
 	$icon = "$icondir/{$object->getClass()}_list.gif";
+	// JSON for Ext tree root (security KKK3).
+	$je = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE;
+	$treeText = json_encode((string) $object->getId(), $je);
+	$treeHref = json_encode((string) $ghtml->getFullUrl('a=show'), $je);
+	$treeIcon = json_encode((string) $icon, $je);
 
 ?>
 	<script>
@@ -76,10 +81,10 @@ function print_ext_tree($object)
 
 			// set the root node
 			var root = new Tree.AsyncTreeNode({
-				text: '<?=$object->getId()?>',
-				href: '<?=$ghtml->getFullUrl('a=show')?>',
+				text: <?= $treeText ?>,
+				href: <?= $treeHref ?>,
 				hrefTarget: 'mainframe',
-				icon: '<?=$icon?>',
+				icon: <?= $treeIcon ?>,
 				draggable: false,
 				id: '/'
 			});

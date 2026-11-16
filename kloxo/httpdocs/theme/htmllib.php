@@ -1046,10 +1046,12 @@ class HtmlLib
 		}
 
 		$buttonpath = get_image_path();
+		// Escaped comments dlg header (security KKK3).
+		$dlgIdEsc = htmlspecialchars((string) $obj->getId(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 		<div id="comments-dlg" style="visibility:hidden;">
-			<div class="x-dlg-hd"><?= $obj->getId() ?></div>
+			<div class="x-dlg-hd"><?= $dlgIdEsc ?></div>
 			<div class="x-dlg-bd">
 <?php
 
@@ -2313,6 +2315,14 @@ class HtmlLib
 		$user = ($perm[0] === '') ? 0 : $perm[0];
 		$group = ($perm[1] === '') ? 0 : $perm[1];
 		$other = ($perm[2] === '') ? 0 : $perm[2];
+		// Digit-only chmod totals (security KKK4).
+		$user = preg_match('/^[0-7]$/', (string) $user) ? (string) $user : '0';
+		$group = preg_match('/^[0-7]$/', (string) $group) ? (string) $group : '0';
+		$other = preg_match('/^[0-7]$/', (string) $other) ? (string) $other : '0';
+		$confirmJs = json_encode(
+			(string) $login->getKeywordUC('permissions_confirm'),
+			JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+		);
 
 		$imgheadleft = $login->getSkinDir() . '/images/top_lt.gif';
 		$imgheadright = $login->getSkinDir() . '/images/top_rt.gif';
@@ -2335,9 +2345,8 @@ class HtmlLib
 
 				if (typeof a.frm_ffile_c_recursive_f != 'undefined') {
 			//	if (a.frm_ffile_c_recursive_f.checked) {
-					if (confirm("<?=$login->getKeywordUC('permissions_confirm');?>")) {
-						b.frm_ffile_c_recursive_f.value = 'on';
-					} else {
+					if (confirm(<?= $confirmJs ?>)) {
+						b.frm_ffile_c_recursive_f.value = 'on';					} else {
 						b.frm_ffile_c_recursive_f.value = 'off';
 					}
 				} else {
@@ -2450,9 +2459,9 @@ class HtmlLib
 		document.chmod.group.disabled = true;
 		document.chmod.other.disabled = true;
 
-		setpermission(document.chmod, 'user', <?=$user;?>);
-		setpermission(document.chmod, 'group', <?=$group?>);
-		setpermission(document.chmod, 'other', <?=$other?>);
+		setpermission(document.chmod, 'user', <?= (int) $user ?>);
+		setpermission(document.chmod, 'group', <?= (int) $group ?>);
+		setpermission(document.chmod, 'other', <?= (int) $other ?>);
 	</script>
 
 </div>
@@ -4309,8 +4318,21 @@ class HtmlLib
 					? ' download="' . htmlspecialchars($dn, ENT_QUOTES) . '"'
 					: ' download';
 			}
+			// Escaped list href/target (security KKK5).
+			$urlHref = (string) $url;
+			if (preg_match('#^\s*(javascript|data|vbscript):#i', $urlHref)) {
+				$urlHref = '#';
+			}
+			$urlHrefEsc = htmlspecialchars($urlHref, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$tgtRaw = trim((string) $target);
+			$tgtAttr = '';
+			if ($tgtRaw !== '' && preg_match('/^target=["\']?(mainframe|_blank|_self|_parent|_top|[A-Za-z0-9_-]+)["\']?$/i', $tgtRaw, $tm)) {
+				$tgtAttr = 'target="' . htmlspecialchars($tm[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+			} elseif ($tgtRaw !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $tgtRaw)) {
+				$tgtAttr = 'target="' . htmlspecialchars($tgtRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+			}
 ?>
-				<a class="insidelist" <?= $target ?> <?= $urlhelp ?> <?= $downloadAttr ?> href="<?= $url ?>"> <?= $pname ?> </a></span>
+				<a class="insidelist" <?= $tgtAttr ?> <?= $urlhelp ?> <?= $downloadAttr ?> href="<?= $urlHrefEsc ?>"> <?= $pname ?> </a></span>
 			</td>
 <?php
 
@@ -8118,11 +8140,15 @@ class HtmlLib
 		$rclass = "frmtextarea";
 		$url = $this->getFullUrl("a=updateform&sa=information");
 		$variable = "frm_{$object->getClass()}_c_text_comment";
+		// Escaped comments note link (security KKK3).
+		$urlEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$commentsEsc = htmlspecialchars((string) $login->getDescriptionUc('comments'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$editEsc = htmlspecialchars((string) $login->getDescriptionUc('edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 		<div class="div_note">
 			<div class="div_note_title">
-				<span style='font-weight:bold'>&nbsp;<?= $login->getDescriptionUc('comments') ?>&nbsp;[<a href="<?= $url ?>"><?= $login->getDescriptionUc('edit') ?></a>]
+				<span style='font-weight:bold'>&nbsp;<?= $commentsEsc ?>&nbsp;[<a href="<?= $urlEsc ?>"><?= $editEsc ?></a>]
 			</div>
 		</div>
 		<br/>
@@ -8153,7 +8179,11 @@ class HtmlLib
 		}
 ?>
 
-		<?= $variable->desc ?>
+<?php
+		// Escaped field labels (security KKK2).
+		$msDescEsc = htmlspecialchars((string) $variable->desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+		<?= $msDescEsc ?>
 
 		<br />
 
@@ -8260,7 +8290,8 @@ class HtmlLib
 		}
 
 		$blockcount = "bdd";
-		$variable_description = "$variable->desc";
+		// Escaped field labels (security KKK2).
+		$variable_description = htmlspecialchars((string) $variable->desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 		if ($variable->mode === "depend") {
 			$txtval = "false";
@@ -8392,11 +8423,24 @@ class HtmlLib
 			return;
 		}
 
+		// Escaped form open attrs (security KKK1).
+		$formName = preg_replace('/[^A-Za-z0-9_]/', '', (string) ($block->form ?? '')) ?: 'form';
+		$formUrl = htmlspecialchars((string) ($block->url ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		if (preg_match('#^\s*(javascript|data|vbscript):#i', (string) ($block->url ?? ''))) {
+			$formUrl = htmlspecialchars((string) ($_SERVER['PHP_SELF'] ?? '/display.php'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		}
+		$formEnc = '';
+		$ft = trim((string) ($block->formtype ?? ''));
+		if ($ft === 'enctype="multipart/form-data"' || stripos($ft, 'multipart/form-data') !== false) {
+			$formEnc = 'enctype="multipart/form-data"';
+		}
+		$csrfEsc = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
 		if ($gbl->__inside_ajax) {
 			$onsubmit = "onsubmit='{$wait_text}return false;'";
-			$gbl->__ajax_form_name = $block->form;
+			$gbl->__ajax_form_name = $formName;
 		} else {
-			$onsubmit = "onsubmit=\"{$wait_text}return check_for_needed_variables('$block->form');\"";
+			$onsubmit = "onsubmit=\"{$wait_text}return check_for_needed_variables('{$formName}');\"";
 ?>
 
 			<script>
@@ -8414,8 +8458,8 @@ class HtmlLib
 ?>
 
 			<div style="margin: 0 auto">
-				<form name="<?= $block->form ?>" id="<?= $block->form ?>" action="<?= $block->url ?>" <?= $block->formtype ?> method="<?= $method ?>" <?= $onsubmit ?> accept-charset="utf-8">
-				<input type='hidden' name='frm_token' value='<?= getCSRFToken(); ?>'>
+				<form name="<?= $formName ?>" id="<?= $formName ?>" action="<?= $formUrl ?>" <?= $formEnc ?> method="<?= $method ?>" <?= $onsubmit ?> accept-charset="utf-8">
+				<input type='hidden' name='frm_token' value='<?= $csrfEsc ?>'>
 <?php
 	//	dprint($block->form);
 
@@ -8475,10 +8519,12 @@ class HtmlLib
 				continue;
 			}
 			if ($variable->type == "subtitle") {
+				// Escaped field labels (security KKK2).
+				$subDescEsc = htmlspecialchars((string) $variable->desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 
 						</div>
-						<div style='padding: 10px'><span style='font-weight:bold'><?= $variable->desc ?></span></div>
+						<div style='padding: 10px'><span style='font-weight:bold'><?= $subDescEsc ?></span></div>
 						<div align=left style='display:hidden; width:<?= $totalwidth ?>; border: 1px solid #<?= $skincolor ?>'>
 <?php
 				$count = 0;
@@ -8578,7 +8624,8 @@ class HtmlLib
 			$myneedstring = "<span style='color:red'><sup>*</sup></span>";
 		}
 
-		$variable_description = "$variable->desc";
+		// Escaped field labels (security KKK2).
+		$variable_description = htmlspecialchars((string) $variable->desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		$blackstyle = null;
 
 		if ($sgbl->isBlackBackground()) {
@@ -8773,7 +8820,8 @@ class HtmlLib
 			$myneedstring = "<span style='color:red'><sup>*</sup></span>";
 		}
 
-		$variable_description = "$variable->desc";
+		// Escaped field labels (security KKK2).
+		$variable_description = htmlspecialchars((string) $variable->desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 		$vname = $variable->name;
 

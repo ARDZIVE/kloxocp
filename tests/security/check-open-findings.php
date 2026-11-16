@@ -3186,6 +3186,64 @@ $findings[] = finding('JJJ6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $jjj6Closed,
 	$jjj6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- KKK wave ---
+$htmlKkk = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$frameKkk = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
+$kkk1Closed = contains($htmlKkk, 'security KKK1')
+	&& contains($htmlKkk, '$formName')
+	&& contains($htmlKkk, '$formUrl')
+	&& contains($htmlKkk, "check_for_needed_variables('{\$formName}')")
+	&& not_contains($htmlKkk, 'name="<?= $block->form ?>" id="<?= $block->form ?>" action="<?= $block->url ?>"');
+$findings[] = finding('KKK1', 'medium', 'form open raw name/url/formtype/onsubmit',
+	'htmllib.php xml_print_page form', $kkk1Closed,
+	$kkk1Closed ? 'allow-listed form + escaped url' : 'still raw');
+
+$kkk2Closed = contains($htmlKkk, 'security KKK2')
+	&& substr_count($htmlKkk, 'security KKK2') >= 3
+	&& contains($htmlKkk, '$msDescEsc')
+	&& contains($htmlKkk, '$subDescEsc')
+	&& not_contains($htmlKkk, "\$variable_description = \"\$variable->desc\";");
+$findings[] = finding('KKK2', 'medium', 'unescaped variable desc/labels',
+	'htmllib.php print_variable / print_modify / subtitle', $kkk2Closed,
+	$kkk2Closed ? 'htmlspecialchars on labels' : 'still raw');
+
+$kkk3Closed = contains($htmlKkk, 'security KKK3')
+	&& contains($htmlKkk, '$dlgIdEsc')
+	&& contains($frameKkk, 'security KKK3')
+	&& contains($frameKkk, 'text: <?= $treeText ?>')
+	&& not_contains($frameKkk, "text: '<?=\$object->getId()?>'");
+$findings[] = finding('KKK3', 'medium', 'comments dlg / Ext tree raw id/href/icon',
+	'htmllib.php comments; frame_left.php Ext tree', $kkk3Closed,
+	$kkk3Closed ? 'escaped dlg + json_encode tree' : 'still raw');
+
+$kkk4Closed = contains($htmlKkk, 'security KKK4')
+	&& contains($htmlKkk, "preg_match('/^[0-7]$/'")
+	&& contains($htmlKkk, 'confirm(<?= $confirmJs ?>)')
+	&& contains($htmlKkk, 'setpermission(document.chmod, \'user\', <?= (int) $user ?>)');
+$findings[] = finding('KKK4', 'low', 'chmod totals unsanitized in attrs/JS',
+	'htmllib.php print_file_permissions', $kkk4Closed,
+	$kkk4Closed ? 'digit allow-list + json confirm' : 'still raw');
+
+$kkk5Closed = contains($htmlKkk, 'security KKK5')
+	&& contains($htmlKkk, '$urlHrefEsc')
+	&& not_contains($htmlKkk, 'href="<?= $url ?>"> <?= $pname ?> </a>');
+$libKkk = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$kkk5Closed = $kkk5Closed && contains($libKkk, 'JJJ5 / KKK5');
+$findings[] = finding('KKK5', 'low', 'list href raw / schema residual unmarked',
+	'htmllib.php list links; lib.php schema', $kkk5Closed,
+	$kkk5Closed ? 'escaped href + schema marked KKK5' : 'still raw/unmarked');
+
+$lxlibKkk = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$extSecKkk = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastKkk = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$kkk6Closed = contains($lxlibKkk, 'security KKK6')
+	&& contains($extSecKkk, 'security KKK6')
+	&& contains($toastKkk, 'security KKK6')
+	&& contains($lxlibKkk, 'gated unserialize');
+$findings[] = finding('KKK6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $kkk6Closed,
+	$kkk6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
