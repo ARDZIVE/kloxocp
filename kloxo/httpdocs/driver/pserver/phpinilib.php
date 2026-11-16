@@ -308,11 +308,14 @@ class phpini extends lxdb
 		}
 		if (is_object($parent) && method_exists($parent, 'getClass') && $parent->getClass() === 'pserver') {
 			$server = isset($parent->nname) ? (string) $parent->nname : '';
-			if ($server !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $server)) {
-				exec("sh /script/fixphp --server={$server}");
+			// argv fixphp / enable (security EE4).
+			if ($server !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $server) && function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sh', '/script/fixphp', "--server={$server}"));
 			}
 
-			exec("sh /script/enable-php-fpm");
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sh', '/script/enable-php-fpm'));
+			}
 		}
 	}
 

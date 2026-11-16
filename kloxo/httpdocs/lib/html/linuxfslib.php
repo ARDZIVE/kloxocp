@@ -2,15 +2,38 @@
 
 function lxshell_expect($strtype, $cmd)
 {
-	global $gbl, $sgbl, $login, $ghtml; 
+	global $gbl, $sgbl, $login, $ghtml;
 
-	$a = array("ntfsresize" => "expect \"Are you sure you want to proceed (y/[n])? \"\nsend \"y\\r\"\n\n");
-	$t = lx_tmp_file("expect");
-	$string = $a['ntfsresize'];
-	lfile_put_contents($t, "spawn $cmd\n$string");
-	log_shell("expect $t $cmd");
-	system("expect $t");
-//	lunlink($t);
+	// Fixed expect script + argv expect — never shell-string expect (security EE1).
+	$cmd = is_string($cmd) ? $cmd : '';
+	if ($cmd === '' || str_contains($cmd, "\0") || preg_match('/[\r\n]/', $cmd)) {
+		log_shell('expect refused unsafe command');
+
+		return;
+	}
+	// Quote for Tcl spawn: wrap in {...} so metacharacters are literal.
+	if (str_contains($cmd, '}')) {
+		log_shell('expect refused command with }');
+
+		return;
+	}
+	$a = array('ntfsresize' => "expect \"Are you sure you want to proceed (y/[n])? \"\nsend \"y\\r\"\n\n");
+	$t = lx_tmp_file('expect');
+	$string = isset($a[$strtype]) ? $a[$strtype] : $a['ntfsresize'];
+	lfile_put_contents($t, "spawn {{$cmd}}\n{$string}");
+	log_shell("expect {$t}");
+	$expect = is_executable('/usr/bin/expect') ? '/usr/bin/expect'
+		: (is_executable('/bin/expect') ? '/bin/expect' : 'expect');
+	$desc = array(
+		0 => array('file', '/dev/null', 'r'),
+		1 => array('file', '/dev/null', 'w'),
+		2 => array('file', '/dev/null', 'w'),
+	);
+	$p = @proc_open(array($expect, '-f', $t), $desc, $pipes);
+	if (is_resource($p)) {
+		proc_close($p);
+	}
+	@unlink($t);
 }
 
 function lxshell_getzipcontent($path)

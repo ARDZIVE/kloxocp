@@ -1275,6 +1275,66 @@ $findings[] = finding('DD6', 'low', 'cleanup/fixlogdir/fixtraffic/sysctl/general
 	'bin/common + lib.php + generallib', $dd6Closed,
 	$dd6Closed ? 'proc_open / file_put_contents' : 'still system/echo exec');
 
+// --- Wave 16 (EE1–EE6) ---
+$lfsEe = file_text($root, 'kloxo/httpdocs/lib/html/linuxfslib.php');
+// function_body() mis-parses this function (a '}' inside a string literal).
+$ee1Closed = contains($lfsEe, 'security EE1')
+	&& contains($lfsEe, "array(\$expect, '-f', \$t)")
+	&& not_contains($lfsEe, 'system("expect');
+$findings[] = finding('EE1', 'medium', 'lxshell_expect shells expect script path',
+	'linuxfslib.php lxshell_expect', $ee1Closed,
+	$ee1Closed ? 'proc_open expect -f' : 'still system expect');
+
+$csyncLib = file_text($root, 'kloxo/httpdocs/lib/client/client__synclib.php');
+$ee2Closed = contains($csyncLib, 'security EE2')
+	&& contains($csyncLib, 'kloxo_exec_argv')
+	&& not_contains($csyncLib, "exec(\"'rm' -f /opt/configs/php-fpm");
+$findings[] = finding('EE2', 'medium', 'client__synclib rm with username glob',
+	'client__synclib.php', $ee2Closed,
+	$ee2Closed ? 'find/rm argv' : 'still exec rm php*/username');
+
+$dnss = file_text($root, 'kloxo/httpdocs/lib/php/dnsslavelib.php');
+$ee3Closed = contains($dnss, 'security EE3')
+	&& not_contains($dnss, "exec(\"'rm' -rf {\$path}/{\$domain}\")")
+	&& not_contains($dnss, 'exec("sh /script/fixdns --server=');
+$findings[] = finding('EE3', 'medium', 'dnsslavelib rm/fixdns shell vars',
+	'dnsslavelib.php', $ee3Closed,
+	$ee3Closed ? 'kloxo_exec_argv' : 'still exec with {$domain}');
+
+$pserv = file_text($root, 'kloxo/httpdocs/driver/pserver/pserverlib.php');
+$phpini = file_text($root, 'kloxo/httpdocs/driver/pserver/phpinilib.php');
+$ee4Closed = contains($pserv, 'security EE4')
+	&& contains($phpini, 'security EE4')
+	&& not_contains($pserv, 'exec("sh /script/fixweb --server=')
+	&& not_contains($phpini, 'exec("sh /script/fixphp --server=');
+$findings[] = finding('EE4', 'medium', 'pserverlib/phpinilib fixweb/fixphp shell',
+	'pserverlib / phpinilib', $ee4Closed,
+	$ee4Closed ? 'kloxo_exec_argv' : 'still exec fix* --server=');
+
+$upd = file_text($root, 'kloxo/httpdocs/lib/html/updatelib.php');
+$genEe = file_text($root, 'kloxo/httpdocs/lib/php/generallib.php');
+$ee5Closed = contains($upd, 'security EE5')
+	&& contains($genEe, 'security EE5')
+	&& not_contains($upd, 'system("cd /opt/kloxo')
+	&& not_contains($genEe, 'exec("sh /script/fixphp --server=all')
+	&& not_contains($genEe, 'exec("sh /script/select-kloxo-wrapper');
+$findings[] = finding('EE5', 'medium', 'updatelib/generallib system/exec leftovers',
+	'updatelib / generallib', $ee5Closed,
+	$ee5Closed ? 'proc_open / kloxo_exec_argv' : 'still system/exec shells');
+
+$linuxEe = file_text($root, 'kloxo/httpdocs/lib/html/linuxlib.php');
+$myc = file_text($root, 'kloxo/bin/fix/mysql-convert.php');
+$sysinfo = file_text($root, 'kloxo/bin/fix/sysinfo.php');
+$ee6Closed = contains($linuxEe, 'security EE6')
+	&& contains($myc, 'security EE6')
+	&& contains($sysinfo, 'security EE6')
+	&& not_contains($linuxEe, 'system("quotacheck')
+	&& not_contains($myc, "@exec(\"sed -i")
+	&& not_contains($sysinfo, "exec(\"'rm' -rf {\$v}\")");
+$findings[] = finding('EE6', 'low', 'quotacheck/mysql-convert/sysinfo shell leftovers',
+	'linuxlib / mysql-convert / sysinfo', $ee6Closed,
+	$ee6Closed ? 'argv / file edits' : 'still system/sed/rm shells');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

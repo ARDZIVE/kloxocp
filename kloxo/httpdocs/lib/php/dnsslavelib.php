@@ -63,7 +63,12 @@ class DnsSlave extends Lxdb
 			lxshell_return("rm", "-rf", $path);
 		}
 
-		exec("sh /script/fixdns --server={$syncserver}");
+		// argv fixdns (security EE3).
+		$syncserver = is_string($syncserver) ? $syncserver : '';
+		if (preg_match('/^[A-Za-z0-9._-]+$/', $syncserver) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fixdns', "--server={$syncserver}"));
+		}
 	}
 
 	function deleteSpecific()
@@ -82,8 +87,15 @@ class DnsSlave extends Lxdb
 			lxshell_return("mkdir", "-p", $path);
 		}
 
-		exec("'rm' -rf {$path}/{$domain}");
-		exec("sh /script/fixdns --server={$syncserver}");
+		// Validated domain/server + argv (security EE3).
+		$domain = is_string($domain) ? $domain : '';
+		$syncserver = is_string($syncserver) ? $syncserver : '';
+		if (preg_match('/^[A-Za-z0-9.-]+$/', $domain) === 1 && function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('rm', '-rf', '--', "{$path}/{$domain}"));
+		}
+		if (preg_match('/^[A-Za-z0-9._-]+$/', $syncserver) === 1 && function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array('sh', '/script/fixdns', "--server={$syncserver}"));
+		}
 	}
 
 	static function AddListForm($parent, $class)

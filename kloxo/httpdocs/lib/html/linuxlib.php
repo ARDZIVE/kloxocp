@@ -139,8 +139,11 @@ function os_set_quota($username, $disk, $inode = null)
 function os_createUserQuota()
 {
 	os_fix_fstab();
-	system("quotacheck -afmuvg");
-	system("quotaon -auvg");
+	// argv only (security EE6).
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('quotacheck', '-afmuvg'));
+		kloxo_exec_argv(array('quotaon', '-auvg'));
+	}
 }
 
 function os_get_home_dir($user)

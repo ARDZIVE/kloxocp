@@ -319,8 +319,12 @@ if ($phpmdirs) {
 			$v2  = file_get_contents("{$v}/version");
 			echo "          * {$v1} - " . str_replace("\n", "", $v2) . "\n";
 		} else {
-			// MR - remove if not version file not exists
-			exec("'rm' -rf {$v}");
+			// MR - remove if not version file not exists (argv; security EE6).
+			$v = (string) $v;
+			if (str_starts_with($v, '/opt/') && !str_contains($v, '..') && !str_contains($v, "\0")
+				&& function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('rm', '-rf', '--', $v));
+			}
 		}
 	}
 }

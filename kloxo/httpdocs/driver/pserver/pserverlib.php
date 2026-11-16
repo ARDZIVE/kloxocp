@@ -224,15 +224,15 @@ class pserver extends pservercore {
 			$next_useapache24 = (isset($param['use_apache24']) && $param['use_apache24'] === 'on') ? 'on' : 'off';
 
 			if ($next_useapache24 === 'on') {
-				exec("echo '' > {$httpd24flag}");
-			} else {
-				exec("'rm' -f {$httpd24flag}");
+				@file_put_contents($httpd24flag, '');
+			} elseif (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('rm', '-f', '--', $httpd24flag));
 			}
 		} else {
 			$next_useapache24 = 'off';
 
-			if (file_exists($httpd24flag)) {
-				exec("'rm' -f {$httpd24flag}");
+			if (file_exists($httpd24flag) && function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('rm', '-f', '--', $httpd24flag));
 			}
 		}
 
@@ -293,14 +293,20 @@ class pserver extends pservercore {
 					// ports first, then let install-webcache move the cache onto 80/443.
 					// On failure put the old driver back and regenerate, so sites keep serving.
 					$oldcache = $current;
-					exec("sh /script/fixweb --server={$this->nname} --nolog");
+					// argv fixweb (security EE4).
+					$srv = isset($this->nname) ? (string) $this->nname : '';
+					if (preg_match('/^[A-Za-z0-9._-]+$/', $srv) === 1 && function_exists('kloxo_exec_argv')) {
+						kloxo_exec_argv(array('sh', '/script/fixweb', "--server={$srv}", '--nolog'));
+					}
 					$res = rl_exec_get(null, $this->nname, array('KloxoWebcache', 'apply'), array($v));
 					if (!is_array($res) || empty($res['ok'])) {
 						$why = (is_array($res) && isset($res['error']) && $res['error'] !== '') ? $res['error'] : 'no answer from the backend';
 						changeDriver($this->nname, $class, $oldcache);
 						$a[$class] = $oldcache;
 						rl_exec_get(null, $this->nname, 'slave_save_db', array('driver', $a));
-						exec("sh /script/fixweb --server={$this->nname} --nolog");
+						if (preg_match('/^[A-Za-z0-9._-]+$/', $srv) === 1 && function_exists('kloxo_exec_argv')) {
+							kloxo_exec_argv(array('sh', '/script/fixweb', "--server={$srv}", '--nolog'));
+						}
 						$back = rl_exec_get(null, $this->nname, array('KloxoWebcache', 'apply'), array($oldcache));
 						$backok = (is_array($back) && !empty($back['ok'])) ? 'the previous web cache setting was restored' : 'RESTORING the previous setting also failed, check the web server';
 						throw new lxException("Web cache switch to {$v} failed ({$why}); {$backok}", '', 'webcache');
@@ -309,8 +315,17 @@ class pserver extends pservercore {
 					continue;
 				}
 
-			//	lxshell_return("sh", "/script/fix{$fixc}", "--target=defaults", "--server={$this->nname}", "--nolog");
-				exec("sh /script/fix{$fixc} --target=defaults --server={$this->nname} --nolog");
+				// argv fix* (security EE4) — only allow known script suffixes.
+				$srv = isset($this->nname) ? (string) $this->nname : '';
+				$fixc = is_string($fixc) ? $fixc : '';
+				if (preg_match('/^[A-Za-z0-9_-]+$/', $fixc) === 1
+					&& preg_match('/^[A-Za-z0-9._-]+$/', $srv) === 1
+					&& function_exists('kloxo_exec_argv')) {
+					kloxo_exec_argv(array(
+						'sh', "/script/fix{$fixc}",
+						'--target=defaults', "--server={$srv}", '--nolog',
+					));
+				}
 			}
 		}
 

@@ -9,7 +9,17 @@ class client__sync extends lxDriverClass {
 		lxfile_rm_rec("__path_client_root/{$this->main->nname}");
 		lxfile_rm_rec("__path_customer_root/{$this->main->getPathFromName()}");
 
-		exec("'rm' -f /opt/configs/php-fpm/conf/php*/php-fpm.d/{$this->main->username}.conf");
+		// Validated username + find/rm argv — no shell glob (security EE2).
+		$user = isset($this->main->username) ? (string) $this->main->username : '';
+		if (preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $user) === 1
+			&& function_exists('kloxo_exec_argv')) {
+			kloxo_exec_argv(array(
+				'find', '/opt/configs/php-fpm/conf',
+				'-path', '*/php-fpm.d/' . $user . '.conf',
+				'-type', 'f',
+				'-exec', 'rm', '-f', '--', '{}', ';',
+			));
+		}
 		createRestartFile("php-fpm");
 	}
 

@@ -33,7 +33,28 @@ function update_main()
 	if ( $DoUpdate === false ) {
 		log_cleanup("- Run 'sh /script/cleanup' if you want to fix/restore non-working components.");
 	} else {
-		system("cd /opt/kloxo/httpdocs; lxphp.exe ../bin/common/tmpupdatecleanup.php --type={$type}");
+		// argv only — never system() with --type= (security EE5).
+		$type = is_string($type) ? $type : '';
+		if (preg_match('/^[A-Za-z0-9_-]+$/', $type) !== 1) {
+			log_cleanup("- refused invalid update type");
+		} else {
+			$php = is_executable('/usr/bin/lxphp.exe') ? '/usr/bin/lxphp.exe'
+				: (isset($sgbl->__path_php_path) ? (string) $sgbl->__path_php_path : 'php');
+			$desc = array(
+				0 => array('file', '/dev/null', 'r'),
+				1 => STDOUT,
+				2 => STDERR,
+			);
+			$p = @proc_open(
+				array($php, '../bin/common/tmpupdatecleanup.php', "--type={$type}"),
+				$desc,
+				$pipes,
+				'/opt/kloxo/httpdocs'
+			);
+			if (is_resource($p)) {
+				proc_close($p);
+			}
+		}
 	}
 
 	log_cleanup("*** Executing Install/Update (upcp) - END ***");

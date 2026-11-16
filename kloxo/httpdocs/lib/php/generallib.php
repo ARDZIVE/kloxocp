@@ -348,13 +348,21 @@ class General extends Lxdb
 		$this->write();
 
 		if ($this->subaction === 'generalsetting') {
-			exec("sh /script/fixphp --server=all; sh /script/fixweb --server=all");
+			// Separate argv runs — never chained shell (security EE5).
+			if (function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sh', '/script/fixphp', '--server=all'));
+				kloxo_exec_argv(array('sh', '/script/fixweb', '--server=all'));
+			}
 
 			$this->generalmisc_b->disableeasyinstaller = 'on';
 
 			touch("../etc/flag/disableeasyinstaller.flg");
 		} elseif ($this->subaction === 'portconfig') {
-			exec("sh /script/select-kloxo-wrapper {$this->portconfig_b->kloxowrapper}");
+			$wrap = isset($this->portconfig_b->kloxowrapper)
+				? (string) $this->portconfig_b->kloxowrapper : '';
+			if (preg_match('/^[A-Za-z0-9_-]+$/', $wrap) === 1 && function_exists('kloxo_exec_argv')) {
+				kloxo_exec_argv(array('sh', '/script/select-kloxo-wrapper', $wrap));
+			}
 
 			$host = $_SERVER["HTTP_HOST"];
 			$splitter = explode(":", $host);

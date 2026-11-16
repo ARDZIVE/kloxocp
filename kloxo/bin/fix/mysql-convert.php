@@ -40,13 +40,18 @@ function setMysqlConvert($engine, $database, $table, $config, $utf8)
 
 	$mycnfs = array('/etc/my.cnf.d/my.cnf', '/etc/my.cnf.d/server.cnf', '/etc/my.cnf');
 	
+	// File edits + argv restart — never sed/shell with path vars (security EE6).
 	foreach ($mycnfs as &$mycnf) {
-		if (file_exists($mycnf)) {
-			@exec("sed -i 's/^skip/\;###123###skip/g' {$mycnf}");
+		if (is_string($mycnf) && file_exists($mycnf) && preg_match('#^/etc/my\.cnf#', $mycnf)) {
+			$body = (string) file_get_contents($mycnf);
+			$body = preg_replace('/^skip/m', ';###123###skip', $body);
+			@file_put_contents($mycnf, $body);
 		}
 	}
 
-	exec("sh /script/restart-mysql");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/restart-mysql'));
+	}
 
 	$conn = new mysqli('localhost', 'root', $pass);
 
@@ -128,12 +133,16 @@ function setMysqlConvert($engine, $database, $table, $config, $utf8)
 
 	//--- the second - back to 'original' config and restart mysql
 	foreach ($mycnfs as &$mycnf) {
-		if (file_exists($mycnf)) {
-			@exec("sed -i 's/^\;###123###skip/skip/g' {$mycnf}");
+		if (is_string($mycnf) && file_exists($mycnf) && preg_match('#^/etc/my\.cnf#', $mycnf)) {
+			$body = (string) file_get_contents($mycnf);
+			$body = preg_replace('/^;###123###skip/m', 'skip', $body);
+			@file_put_contents($mycnf, $body);
 		}
 	}
 
-	exec("sh /script/restart-mysql");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/restart-mysql'));
+	}
 
 	if ($config === 'yes') {
 		if ($database === '_all_') {
@@ -160,7 +169,9 @@ function setMysqlConvert($engine, $database, $table, $config, $utf8)
 
 				if ($engine === 'innodb')  {
 					if (file_exists("/etc/my.cnf.d/tokudb.cnf")) {
-						@exec("sed -i 's/^plugin-load-add/#plugin-load-add/g' /etc/my.cnf.d/tokudb.cnf");
+						$tb = (string) file_get_contents('/etc/my.cnf.d/tokudb.cnf');
+						$tb = preg_replace('/^plugin-load-add/m', '#plugin-load-add', $tb);
+						@file_put_contents('/etc/my.cnf.d/tokudb.cnf', $tb);
 					}
 
 					$string_source = "[mysqld]\n";
@@ -169,23 +180,27 @@ function setMysqlConvert($engine, $database, $table, $config, $utf8)
 				} else {
 					if ($engine === 'myisam') {
 						if (file_exists("/etc/my.cnf.d/tokudb.cnf")) {
-							@exec("sed -i 's/^plugin-load-add/#plugin-load-add/g' /etc/my.cnf.d/tokudb.cnf");
+							$tb = (string) file_get_contents('/etc/my.cnf.d/tokudb.cnf');
+							$tb = preg_replace('/^plugin-load-add/m', '#plugin-load-add', $tb);
+							@file_put_contents('/etc/my.cnf.d/tokudb.cnf', $tb);
 						}
 					} elseif ($engine === 'tokudb')  {
 						if (file_exists("/etc/my.cnf.d/tokudb.cnf")) {
 							$tdir = "/sys/kernel/mm/transparent_hugepage";
 
 							if (file_exists($tdir)) {
-								@exec("echo never > {$tdir}/enabled");
-								@exec("grep -q -F 'echo never > {$tdir}/enabled' /etc/rc.d/rc.local || ".
-										"echo 'echo never > {$tdir}/enabled\n".
-										"if [ -f /etc/rc.d/init.d/mysql ] || [ -f /usr/lib/systemd/system/mysql.service ] ; then\n".
-										"\tservice mysql restart".
-										"fi".
-										"' >>  /etc/rc.d/rc.local");
+								@file_put_contents("{$tdir}/enabled", "never\n");
+								$rcLocal = '/etc/rc.d/rc.local';
+								$line = "echo never > {$tdir}/enabled";
+								$cur = is_file($rcLocal) ? (string) file_get_contents($rcLocal) : '';
+								if (!str_contains($cur, $line)) {
+									@file_put_contents($rcLocal, $cur . "\n{$line}\n", FILE_APPEND);
+								}
 							}
 
-							@exec("sed -i 's/^#plugin-load-add/plugin-load-add/g' /etc/my.cnf.d/tokudb.cnf");
+							$tb = (string) file_get_contents('/etc/my.cnf.d/tokudb.cnf');
+							$tb = preg_replace('/^#plugin-load-add/m', 'plugin-load-add', $tb);
+							@file_put_contents('/etc/my.cnf.d/tokudb.cnf', $tb);
 						}
 					}
 
@@ -207,7 +222,9 @@ function setMysqlConvert($engine, $database, $table, $config, $utf8)
 
 	log_cleanup("- MySQL Service restarted");
 
-	exec("sh /script/restart-mysql");
+	if (function_exists('kloxo_exec_argv')) {
+		kloxo_exec_argv(array('sh', '/script/restart-mysql'));
+	}
 	
 	print("\n* Note: Better reboot after first running this script and then run again\n");
 }
