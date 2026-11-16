@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111664**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111665**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1154,6 +1154,15 @@ Work in this order. Keep every change small, tested and committed separately. Do
    sync stays on `client-sync.request`. Tests: `tests/p2/test_client_unix.php`
    (php-cli; no live useradd). Live Add Client → Add Domain confirmed on
    Ubuntu after this path (Unix user exists before `php-fpm -t`).
+   **Add Domain `got_error_from_ur_end` (no row):** domain/mmail sync
+   payloads include `driverApp = LxaClass` (no `Class__driver` yet). The
+   backend `kloxo_unserialize_panel_class_ok` allow-list rejected
+   `LxaClass`, so the C daemon returned `got_error_from_ur_end` and
+   `was()` aborted before `writeEntireObject`. Fix: allow `LxaClass` /
+   `Lxdriverclass` and `Class__driver` when the base table is in
+   `gl_class_array` (`remote_auth_gate.php`). Tests:
+   `tests/p2/test_domain_sync_unserialize.php`, security X2/Z6. Live Add
+   Domain after this fix is **UNVERIFIED** (needs tree on the host).
    **Add Domain / Add Subdomain nginx -t `*.pem`:** empty IP/SSL list used
    to set `certnamelist = ['*' => '*']`, so Nginx templates wrote
    `ssl_certificate /home/kloxo/ssl/*.pem` and `nginx -t` aborted the add
@@ -1209,7 +1218,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111664**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111665**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
@@ -1217,11 +1226,13 @@ Work in this order. Keep every change small, tested and committed separately. Do
    and skips the panel UI. Default login is admin/admin with a forced password
    change after first login, then a forced **Mail Setup** modal for any
    missing admin contact email and dotted mail FQDN (so welcome/notify and
-   watchdog mail work). One-liner in `README.md` downloads `install.sh`
-   from GitHub `main` to `/tmp` then runs that file (not `curl | bash`).
-   **UNVERIFIED on a
-   real Ubuntu VM.** Does not add a signed apt repo. Live two-host add is
-   **UNVERIFIED**.
+   watchdog mail work). Password + Mail Setup skip `login->was()` /
+   kloxo-backend (SQLite-only write + local redirect) so a backend RPC
+   failure does not toast `got_error_from_ur_end` after a successful save
+   (`tests/p2/test_panel_mail.php`). One-liner in `README.md` downloads
+   `install.sh` from GitHub `main` to `/tmp` then runs that file (not
+   `curl | bash`). **UNVERIFIED on a real Ubuntu VM.** Does not add a
+   signed apt repo. Live two-host add is **UNVERIFIED**.
 3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →
    snapshot → apt → migrate → validate → health-check → auto-rollback), LVM/ZFS snapshots,
    panel-DB dump in the snapshot. `init-panel-db` / `install-hiawatha` exist

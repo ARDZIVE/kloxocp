@@ -38,6 +38,7 @@ $__emessage['you_have_unread_message'] = 'You have [%s] unread message(s).';
 $__emessage['you_have_unread_ticket'] = 'You have [%s] unread ticket(s).';
 $__emessage['security_warning'] = 'Change the default admin password now.';
 $__emessage['mail_setup_required'] = 'Set admin email and a dotted mail hostname.';
+$__emessage['got_error_from_ur_end'] = 'Could not reach the panel backend. Try again.';
 $__information['client_updateform_mailsetup_title'] = "Mail Setup";
 $__information['client_updateform_mailsetup_pre'] = "<p>These fields are required for panel mail (welcome messages, tickets, watchdog alerts).</p>" .
 	"<ul><li><b>Email Address</b> — your real inbox; used as the From address when notifying customers and as the destination for system alerts.</li>" .

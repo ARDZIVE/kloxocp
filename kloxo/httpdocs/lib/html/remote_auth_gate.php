@@ -351,6 +351,11 @@ function kloxo_unserialize_panel_class_ok($c)
 	static $known = array(
 		'Remote' => true, 'stdClass' => true, 'lxException' => true, 'lxexception' => true,
 		'priv' => true, 'used' => true, 'listpriv' => true,
+		// createSyncClass falls back to LxaClass when no Class__driver exists
+		// (domain, mmail before Exim UI drivers). Rejecting it made every
+		// Add Domain / mail sync reply "got_error_from_ur_end" and left no row.
+		'LxaClass' => true, 'Lxaclass' => true,
+		'Lxdriverclass' => true, 'lxDriverClass' => true,
 	);
 	if (isset($known[$c])) {
 		return true;
@@ -361,6 +366,13 @@ function kloxo_unserialize_panel_class_ok($c)
 	global $gl_class_array;
 	if (is_array($gl_class_array)
 		&& (isset($gl_class_array[$c]) || isset($gl_class_array[strtolower($c)]))) {
+		return true;
+	}
+	// Class__driver (web__nginx, mmail__exim, …): allow when the base class is
+	// a known panel table, even if that driver file is not in gl_class_array yet.
+	if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)__([A-Za-z0-9_]+)$/', $c, $m) === 1
+		&& is_array($gl_class_array)
+		&& (isset($gl_class_array[$m[1]]) || isset($gl_class_array[strtolower($m[1])]))) {
 		return true;
 	}
 

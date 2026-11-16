@@ -1270,10 +1270,11 @@ abstract class Lxclient extends Lxdb
 	{
 		global $gbl, $ghtml;
 
-		// Password: write SQLite only (no kloxo-backend). Other updates keep
-		// the normal metadbaction so was() can sync shell/quota/etc.
+		// Password / first-login Mail Setup: write SQLite only (no kloxo-backend).
+		// Other updates keep the normal metadbaction so was() can sync shell/quota/etc.
 		$isPassword = ($this->subaction === 'password');
-		if ($isPassword) {
+		$isMailsetup = ($this->subaction === 'mailsetup');
+		if ($isPassword || $isMailsetup) {
 			$this->metadbaction = 'writeonly';
 		}
 		$this->write();
@@ -1298,9 +1299,10 @@ abstract class Lxclient extends Lxdb
 			}
 		}
 
-		// First-login / Change Password: SQLite already has the hash. Do not
-		// wait on login->was() / kloxo-backend (20s hang with the busy modal).
-		if ($isPassword && ($this->isLogin() || $this->nname === 'admin')) {
+		// First-login password / Mail Setup: SQLite (and soft mailname) already
+		// done. Do not wait on login->was() / kloxo-backend — that RPC failure
+		// was the false "Got error from ur end" toast after a successful save.
+		if (($isPassword || $isMailsetup) && ($this->isLogin() || $this->nname === 'admin')) {
 			$this->dbaction = 'clean';
 			if (function_exists('kloxo_skip_was_now')) {
 				kloxo_skip_was_now();

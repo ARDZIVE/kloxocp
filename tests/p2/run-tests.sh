@@ -150,6 +150,11 @@ if php "$HERE/test_quota_math.php"; then
 else
   bad "test_quota_math.php"
 fi
+if php "$HERE/test_domain_sync_unserialize.php"; then
+  ok "test_domain_sync_unserialize.php"
+else
+  bad "test_domain_sync_unserialize.php"
+fi
 if php "$HERE/test_disable_policy.php"; then
   ok "test_disable_policy.php"
 else

@@ -734,6 +734,8 @@ abstract class ClientCore extends Resourcecore
 				$ps->get();
 				$ps->realhostname = $fqdn;
 				$ps->setUpdateSubaction('information');
+				// Panel DB only — do not queue a pserver sync for login->was().
+				$ps->metadbaction = 'writeonly';
 				$ps->write();
 			} catch (Throwable $e) {
 				log_log('mail_send', 'mailsetup realhostname: ' . $e->getMessage());
@@ -745,8 +747,17 @@ abstract class ClientCore extends Resourcecore
 		}
 		unset($param['mail_hostname_f']);
 
+		// contactemail + realhostname are panel-DB (and best-effort /etc/mailname).
+		// Skip login->was() / kloxo-backend: a failed RPC still toasted
+		// "Got error from ur end" after a successful save.
+		if (function_exists('kloxo_skip_was_now')) {
+			kloxo_skip_was_now();
+		}
+		$this->metadbaction = 'writeonly';
+
 		if ($this->isLogin()) {
-			$gbl->__this_redirect = '/display.php?frm_action=show';
+			$gbl->__this_redirect = '/display.php?frm_action=show'
+				. '&frm_smessage=updated_successfully';
 		}
 
 		return $param;

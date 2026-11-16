@@ -162,6 +162,22 @@ check(str_contains($core, 'function updateMailsetup')
 	&& str_contains($disp, "kloxo_force_modal_updateform(\$login, 'mailsetup'"),
 	'mail setup updateform + required modal after password change');
 
+// First-login Mail Setup must not call login->was()/kloxo-backend (that RPC
+// failure was the false "Got error from ur end" toast after a successful save).
+$lxclient = (string) file_get_contents($doc . '/lib/client/lxclient.php');
+check(str_contains($core, "kloxo_skip_was_now")
+	&& str_contains($core, "metadbaction = 'writeonly'")
+	&& str_contains($core, 'frm_smessage=updated_successfully'),
+	'updateMailsetup skips was and redirects with success toast');
+check(str_contains($lxclient, "\$isMailsetup = (\$this->subaction === 'mailsetup')")
+	&& str_contains($lxclient, '$isPassword || $isMailsetup')
+	&& str_contains($lxclient, 'kloxo_finish_local_redirect'),
+	'postUpdate treats mailsetup like password (local write + finish redirect)');
+$mes = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+check(str_contains($mes, "\$__emessage['got_error_from_ur_end']")
+	&& str_contains($mes, 'Could not reach the panel backend'),
+	'got_error_from_ur_end has a clear toast string');
+
 check(str_contains($bg, 'dirname(__DIR__, 2)')
 	&& str_contains($bg, '/httpdocs')
 	&& str_contains($bg, 'declare(strict_types=1)')
