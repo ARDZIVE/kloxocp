@@ -1245,7 +1245,7 @@ class Domaind extends DomainBase
 
 		$vlist['ssl_flag'] = array();
 		$vlist['awstats_flag'] = array();
-		$vlist['easyinstaller_flag'] = array();
+		// EasyInstaller privilege removed from Add Domain (security OO1).
 		$vlist['cgi_flag'] = array();
 		$vlist['php_flag'] = array();
 
@@ -1571,9 +1571,7 @@ class Domaind extends DomainBase
 		}
 	*/
 
-		if (!$gen->isOn('disableeasyinstaller') && $this->getClientParentO()->priv->isOn('easyinstaller_flag')) {
-		//	$alist[] = "n=web&a=show&k[class]=all_easyinstaller&k[nname]=easyinstaller";
-		}
+		// EasyInstaller menu removed (security OO1 / MM4).
 	/*
 		$alist['action'][] = "a=update&sa=backup";
 		$alist['action'][] = "a=updateform&sa=restore";

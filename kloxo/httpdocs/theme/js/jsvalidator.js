@@ -44,7 +44,9 @@ var validChars = '.0123456789';
     if (!what)
         return false;
 
-    dots = 0;
+    // Dot positions via array — no eval (security OO3).
+    var dots = 0;
+    var dotPos = [];
 
     for (var i = 0; i < what.length; i++) {
        var chr = what.substring(i,i+1);
@@ -52,7 +54,7 @@ var validChars = '.0123456789';
            return false;
        if (chr == '.') {
            dots++;
-           eval('dot' + dots + ' = ' + i);
+           dotPos[dots] = i;
        }
     }
 
@@ -62,19 +64,19 @@ var validChars = '.0123456789';
     if (what.substring(0,1) == '.' || what.substring(what.length,what.length+1) == '.')
         return false;
 
-    ip1 = what.substring(0,dot1);
+    var ip1 = what.substring(0,dotPos[1]);
 
     if (!ip1 || ip1 >255)
         return false;
-    ip2 = what.substring(dot1+1,dot2);
+    var ip2 = what.substring(dotPos[1]+1,dotPos[2]);
 
     if (!ip2 || ip2 >255)
         return false;
-    ip3 = what.substring(dot2+1,dot3);
+    var ip3 = what.substring(dotPos[2]+1,dotPos[3]);
 
     if (!ip3 || ip3 >255)
         return false;
-    ip4 = what.substring(dot3+1,what.length+1);
+    var ip4 = what.substring(dotPos[3]+1,what.length+1);
 
     if (!ip4 || ip4 >255)
         return false;

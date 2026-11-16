@@ -1926,6 +1926,80 @@ $findings[] = finding('NN6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo', $nn6Closed,
 	$nn6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- OO wave ---
+$domOo = file_text($root, 'kloxo/httpdocs/lib/domain/domainlib.php');
+$webOo = file_text($root, 'kloxo/httpdocs/driver/web/weblib.php');
+$resOo = file_text($root, 'kloxo/httpdocs/lib/resourcecorelib.php');
+$dcoreOo = file_text($root, 'kloxo/httpdocs/lib/domain/domaincorelib.php');
+$baseOo = file_text($root, 'kloxo/httpdocs/lib/client/clientbaselib.php');
+$updOo = file_text($root, 'kloxo/httpdocs/lib/html/updatelib.php');
+$ddbOo = file_text($root, 'kloxo/httpdocs/driver/pserver/ddatabaselib.php');
+$oo1Closed = contains($domOo, 'security OO1')
+	&& not_contains($domOo, "\$vlist['easyinstaller_flag']")
+	&& contains($webOo, 'security OO1')
+	&& !preg_match('/^\s*static \$__desc_easyinstaller_flag/m', $webOo)
+	&& !preg_match('/^\s*static \$__desc_easyinstaller_flag/m', $resOo)
+	&& !preg_match('/^\s*static \$__desc_easyinstaller_flag/m', $dcoreOo)
+	&& !preg_match('/^\s*static \$__desc_easyinstaller_app/m', $baseOo)
+	&& contains($updOo, 'security OO1')
+	&& contains($updOo, "priv_q_easyinstaller_flag', 'off'")
+	&& contains($ddbOo, 'security OO1')
+	&& not_contains($ddbOo, "\$nlist['easyinstaller_flag']");
+$findings[] = finding('OO1', 'medium', 'EasyInstaller privilege/flag still in Add Domain / weblib UI',
+	'domainlib / weblib / resourcecore / updatelib / ddatabase', $oo1Closed,
+	$oo1Closed ? 'UI descs removed; defaults forced off' : 'EasyInstaller privilege UI remains');
+
+$lxaOo = file_text($root, 'kloxo/httpdocs/theme/js/lxa.js');
+$lxaToggleOo = '';
+if (preg_match('/function checkBoxTextToggle\s*\([^)]*\)\s*\{/', $lxaOo, $mOo, PREG_OFFSET_CAPTURE)) {
+	$lxaToggleOo = substr($lxaOo, $mOo[0][1], 700);
+	$endOo = strpos($lxaToggleOo, "\nfunction ");
+	if ($endOo !== false) {
+		$lxaToggleOo = substr($lxaToggleOo, 0, $endOo);
+	}
+}
+$oo2Closed = contains($lxaOo, 'security OO2')
+	&& $lxaToggleOo !== ''
+	&& not_contains($lxaToggleOo, 'eval(')
+	&& contains($lxaToggleOo, 'frm[cname].checked');
+$findings[] = finding('OO2', 'medium', 'lxa.js checkBoxTextToggle uses eval on form field names',
+	'theme/js/lxa.js', $oo2Closed,
+	$oo2Closed ? 'property access only' : 'still eval');
+
+$jsvOo = file_text($root, 'kloxo/httpdocs/theme/js/jsvalidator.js');
+$oo3Closed = contains($jsvOo, 'security OO3')
+	&& contains($jsvOo, 'dotPos')
+	&& not_contains($jsvOo, "eval('dot'");
+$findings[] = finding('OO3', 'low', 'jsvalidator.js IP check uses eval for dot positions',
+	'theme/js/jsvalidator.js', $oo3Closed,
+	$oo3Closed ? 'array positions only' : 'still eval');
+
+$lxlibOo = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$oo4Closed = contains($lxlibOo, 'security OO4')
+	&& contains($lxlibOo, "setRow('nname', \$client")
+	&& not_contains($lxlibOo, "update {\$class} set password = '{\$escPass}'");
+$findings[] = finding('OO4', 'low', 'login rehash updates password via escaped rawQuery',
+	'lxlib.php check_raw_password', $oo4Closed,
+	$oo4Closed ? 'setRow like Y8' : 'still rawQuery string');
+
+$aspOo = file_text($root, 'kloxo/httpdocs/driver/pserver/aspnetlib.php');
+$oo5Closed = contains($aspOo, 'security OO5')
+	&& not_contains($aspOo, 'cscript')
+	&& not_contains($aspOo, 'regASPVer')
+	&& contains($aspOo, 'aspnet_not_available')
+	&& strlen($aspOo) < 1200;
+$findings[] = finding('OO5', 'low', 'aspnetlib.php still runs Windows cscript path',
+	'driver/pserver/aspnetlib.php', $oo5Closed,
+	$oo5Closed ? 'stubbed; no cscript' : 'cscript still present');
+
+$extSecOo = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$oo6Closed = contains($lxlibOo, 'security OO6')
+	&& contains($extSecOo, 'security OO6')
+	&& contains($lxlibOo, 'gated unserialize');
+$findings[] = finding('OO6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo', $oo6Closed,
+	$oo6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

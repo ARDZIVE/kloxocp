@@ -48,7 +48,8 @@ class ClientBase extends ClientCore
 	static $__desc_wall_subject_f = array("n", "", "subject");
 	static $__desc_resourceplan_used_f = array("n", "", "Plan");
 	static $__desc_wall_message_f = array("t", "", "message");
-	static $__desc_easyinstaller_app = array("", "", "install_easyinstaller");
+	// EasyInstaller app tile removed (security OO1 / MM4).
+	// static $__desc_easyinstaller_app = array("", "", "install_easyinstaller");
 
 	// Objects
 	static $__acdesc_update_information = array("", "", "information");

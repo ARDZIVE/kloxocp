@@ -279,25 +279,28 @@ function setFormVariableVlue(frm, varname, value)
 
 function checkBoxTextToggle(frmname, cname, tname,  cvalue, tvalue)
 {
-
+	// Property access — no eval (security OO2).
 	frm = document.getElementById(frmname);
-
-	if(eval("frm." + cname + ".checked === true")) { 
-		eval('frm. ' + tname + '.disabled= true');
-		eval("frm. " + tname + ".className= 'textdisable'");
-		eval("frm. " + cname + ".value = cvalue"); 
-	} else { 
-		eval("frm." + tname + ".value = tvalue"); 
-		eval("frm." + tname + ".className = 'textenable'");
-		eval("frm." + tname + ".disabled = false");
-		eval("frm." + cname + ".value = cvalue");
+	if (!frm || !frm[cname] || !frm[tname]) {
+		return;
 	}
 
-	if(eval("frm." + tname + ".name.disabled===true")) { 
-		eval("frm." + tname + ".value = '-' ; ");
-	} else { 
-		eval("frm." + tname + ".value = tvalue"); 
-	} 
+	if (frm[cname].checked === true) {
+		frm[tname].disabled = true;
+		frm[tname].className = 'textdisable';
+		frm[cname].value = cvalue;
+	} else {
+		frm[tname].value = tvalue;
+		frm[tname].className = 'textenable';
+		frm[tname].disabled = false;
+		frm[cname].value = cvalue;
+	}
+
+	if (frm[tname].disabled === true) {
+		frm[tname].value = '-';
+	} else {
+		frm[tname].value = tvalue;
+	}
 }
 
 

@@ -78,7 +78,8 @@ function fixDataBaseIssues()
 	$sq->rawQuery("update client set priv_q_subdomain_num = 'Unlimited' where nname = 'admin'");
 	$sq->rawQuery("update client set priv_q_totaldisk_usage = 'Unlimited' where nname = 'admin'");
 	$sq->rawQuery("update client set priv_q_php_manage_flag = 'on' where nname = 'admin'");
-	$sq->rawQuery("update client set priv_q_easyinstaller_flag = 'on' where nname = 'admin'");
+	// EasyInstaller privilege forced off (security OO1).
+	$sq->rawQuery("update client set priv_q_easyinstaller_flag = 'off' where nname = 'admin'");
 	$sq->rawQuery("update client set priv_q_cron_minute_flag = 'on' where nname = 'admin'");
 	$sq->rawQuery("update client set priv_q_document_root_flag = 'on' where nname = 'admin'");
 	$sq->rawQuery("update client set priv_q_runstats_flag = 'on' where nname = 'admin'");
@@ -96,14 +97,14 @@ function fixDataBaseIssues()
 	db_set_default('client', 'syncserver', 'localhost');
 	db_set_default('addondomain', 'mail_flag', 'on');
 	db_set_default('client', 'priv_q_can_change_limit_flag', 'on');
-	db_set_default('web', 'priv_q_easyinstaller_flag', 'on');
-	db_set_default('client', 'priv_q_easyinstaller_flag', 'on');
+	db_set_default('web', 'priv_q_easyinstaller_flag', 'off');
+	db_set_default('client', 'priv_q_easyinstaller_flag', 'off');
 	db_set_default('client', 'websyncserver', 'localhost');
 	db_set_default('client', 'mmailsyncserver', 'localhost');
 	db_set_default('client', 'mysqldbsyncserver', 'localhost');
 	db_set_default('client', 'priv_q_can_change_password_flag', 'on');
 	db_set_default('client', 'coma_dnssyncserver_list', ',localhost,');
-	db_set_default('domain', 'priv_q_easyinstaller_flag', 'on');
+	db_set_default('domain', 'priv_q_easyinstaller_flag', 'off');
 	db_set_default('domain', 'dtype', 'domain');
 	db_set_default('domain', 'priv_q_php_manage_flag', 'on');
 	db_set_default('web', 'priv_q_php_manage_flag', 'on');

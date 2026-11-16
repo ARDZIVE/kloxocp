@@ -1,40 +1,30 @@
 <?php
 
-class globalization_b extends LxaClass {
+/**
+ * ASP.NET helpers — Windows-only; stubbed on Ubuntu (security OO5).
+ * Former path ran a Windows script host against a VBS under Program Files.
+ */
+class globalization_b extends LxaClass
+{
 }
 
-class aspnetmisc_b extends LxaClass {
+class aspnetmisc_b extends LxaClass
+{
 }
 
-class aspnet extends Lxdb {
-
-	static $__desc = array("", "",  "aspnet_version");
-	static $__desc_nname = array("", "",  "aspnet_version");
-	static $__desc_version = array("", "",  "aspnet_version");
-	static $__desc_encoding = array("", "",  "aspnet_version");
-	static $__acdesc_update_update = array("", "",  "aspnet_configuration");
+class aspnet extends Lxdb
+{
+	static $__desc = array("", "", "aspnet_version");
+	static $__desc_nname = array("", "", "aspnet_version");
+	static $__desc_version = array("", "", "aspnet_version");
+	static $__desc_encoding = array("", "", "aspnet_version");
+	static $__acdesc_update_update = array("", "", "aspnet_configuration");
 
 	function updateform($subaction, $param)
 	{
-		$domain = $this->getParentO();
-		$resout = rl_exec_get(null, $domain->syncserver, array('aspnet', 'getAspnetVersion'), null);
-		$res = explode("*", $resout);
+		global $login;
 
-		foreach($res as $r) {
-			$r = trim($r);
-			if (!$r) {
-				continue;
-			}
-
-			if (strtolower($r) === 'machineaccounts') {
-				continue;
-			}
-			$rr[] = $r;
-		}
-
-		$vlist['version'] =  array('s', $rr);
-	//	$vlist['encoding'] = null;
-		return $vlist;
+		throw new lxException($login ? $login->getThrow('aspnet_not_available') : 'aspnet_not_available', '');
 	}
 
 	static function createListAlist($parent, $class)
@@ -46,26 +36,6 @@ class aspnet extends Lxdb {
 
 	static function getAspnetVersion()
 	{
-		//print("\nI am here\n");
-		//$r=exec("c:\regASPVer.vbs");
-		//$cm="cmd /K CD C:\Dir";
-
-		//print("\n INASP VER \n");
-		$stout = lxshell_output("cscript", "-b", "C:\\Program Files\\lxlabs\\kloxo\\bin\\regASPVer.vbs");
-
-		//print("\n".$strOut."\n");
-		//print($r."\n");
-		//$r = system('cscript.exe c:\regASPVer.vbs.vbs', $a);
-
-		//cscript.exe regASPVer.vbs
-		//regASPVer.vbs
-		/*foreach($a as $b) {
-			$res['version'] = "aab";
-			$res['sss'] = 'ab';
-			$ret[] = $res;
-		}*/
-
-		return $stout;
-
+		return '';
 	}
 }

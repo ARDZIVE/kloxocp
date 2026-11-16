@@ -2387,10 +2387,10 @@ function kloxo_sql_ident($name): bool
 }
 
 /**
- * Intentional residual surfaces (security MM6; security NN6): crypt() verify-only
- * in check_password; getShellCommand stub; SMTP/FormMail stubs; ExtJS retained
- * for UI; gated unserialize / allow-listed eeval. Do not mint new crypt/md5
- * password hashes.
+ * Intentional residual surfaces (security MM6; security NN6; security OO6):
+ * crypt() verify-only in check_password; getShellCommand stub; SMTP/FormMail
+ * stubs; ExtJS retained for UI; gated unserialize / allow-listed eeval. Do not
+ * mint new crypt/md5 password hashes.
  */
 
 function randomString($length)
@@ -2951,9 +2951,11 @@ function check_raw_password($class, $client, $pass)
 		if (function_exists('kloxo_password_needs_rehash') && kloxo_password_needs_rehash((string) $enp)) {
 			$new = kloxo_password_hash($pass);
 			if (is_string($new) && $new !== '') {
-				$escName = str_replace("'", "''", $client);
-				$escPass = str_replace("'", "''", $new);
-				$rawdb->rawQuery("update {$class} set password = '{$escPass}' where nname = '{$escName}'");
+				// setRow path (security OO4) — same as forgot-password Y8; nname validated above.
+				$rawdb->setRow('nname', $client, array(
+					'nname' => $client,
+					'password' => $new,
+				));
 			}
 		}
 
