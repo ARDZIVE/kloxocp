@@ -41,7 +41,12 @@ class dirlocation__linux extends lxDriverClass
 
 		$dirlocation = fix_vgname($dirlocation);
 
-		$ret = exec_with_all_closed_output("vgdisplay -c $dirlocation");
+		$dirlocation = (string) $dirlocation;
+		if ($dirlocation === '' || preg_match('/^[A-Za-z0-9._+-]+$/', $dirlocation) !== 1) {
+			throw new lxException($login->getThrow("lvm_does_not_exist"), '', $dirlocation);
+		}
+		// argv (security JJ2).
+		$ret = exec_with_all_closed_output(array('vgdisplay', '-c', $dirlocation));
 
 		if (!csa($ret, ":")) {
 			throw new lxException($login->getThrow("lvm_does_not_exist"), '', $dirlocation);

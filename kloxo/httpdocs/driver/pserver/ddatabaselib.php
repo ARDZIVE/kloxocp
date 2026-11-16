@@ -65,8 +65,9 @@ class databasecore extends Lxdb
 				$this->__var_dbpassword = $cred['pass'] ?? '';
 			}
 		}
+		// No md5 of DB password — MariaDB uses the plain via KloxoMariadb (security JJ3).
 		if (!isset($this->__var_enc_pass)) {
-			$this->__var_enc_pass = md5((string) $this->dbpassword);
+			$this->__var_enc_pass = '';
 		}
 	}
 

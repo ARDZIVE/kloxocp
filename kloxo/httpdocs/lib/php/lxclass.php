@@ -1283,37 +1283,7 @@ abstract class Lxclass
 
 		return true;
 
-	/*
-		if (!$filter) {
-			return 1;
-		}
-
-		$class = lget_class($this);
-
-		$res = 1;
-
-		foreach ($filter as $key => $val) {
-			if (char_search_a($key, "_o_")) {
-				$var = substr($key, 0, strpos($key, "_o_"));
-				$op = substr($key, strpos($key, "_o_") + 3);
-			//	$op = $oplist[$op];
-
-				if (!isset($this->$var)) {
-					$oval = $a->display($var);
-				} else {
-					$oval = $this->$var;
-				}
-
-				$res &= self::filterFunc($op, $oval, $val);
-			} else {
-				$f = "__filter_{$key}_{$val}";
-				$string = get_real_class_variable($class, $f);
-				$res &= eval("return {$string};");
-			}
-		}
-
-		return $res;
-	*/
+	// Dead filter/eval path removed (security JJ5).
 	}
 
 	static function isTreeForDelete()

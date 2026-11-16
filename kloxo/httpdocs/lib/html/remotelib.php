@@ -65,8 +65,14 @@ function update_from_master($rmt)
 //	lxfile_rm("lib/gbl.php");
 //	lxshell_return("cvs", "up");
 	if (!lx_core_lock_check_only('update.php')) {
-		exec_with_all_closed("$sgbl->__path_php_path ../bin/update.php --till-version=$ver");
-	//	sleep(1);
+		// argv PHP path + validated version (security JJ2).
+		$php = (string) $sgbl->__path_php_path;
+		$ver = (string) $ver;
+		if ($php === '' || str_contains($php, chr(0))
+			|| preg_match('/^[A-Za-z0-9._+-]+$/', $ver) !== 1) {
+			return;
+		}
+		exec_with_all_closed(array($php, '../bin/update.php', "--till-version={$ver}"));
 	}
 
 }

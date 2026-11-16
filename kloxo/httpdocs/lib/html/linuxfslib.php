@@ -550,10 +550,12 @@ function lxfile_tmp_rm_rec($file)
 //	exec("'rm' -rf {$file}");
 
 	$username = "__system__";
-	$arglist = array("-rf", $file);
-	$cmd = getShellCommand("'rm'", $arglist);
+	// Argv only (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv('rm', array('-rf', '--', $file))
+		: array('rm', '-rf', '--', $file);
 
-	return do_exec_system($username, null, $cmd, $out, $err, $ret, null);
+	return do_exec_system($username, null, $argv, $out, $err, $ret, null);
 }
 
 function lxfile_rm_content($dir)
@@ -596,10 +598,12 @@ function lxfile_rm_rec_content($file)
 	//	exec("'rm' -rf {$file}/{$l}");
 
 		$username = "__system__";
-		$arglist = array("-rf", "{$file}/{$l}");
-		$cmd = getShellCommand("'rm'", $arglist);
+		// Argv only (security JJ1).
+		$argv = function_exists('kloxo_shell_argv')
+			? kloxo_shell_argv('rm', array('-rf', '--', "{$file}/{$l}"))
+			: array('rm', '-rf', '--', "{$file}/{$l}");
 
-		do_exec_system($username, null, $cmd, $out, $err, $ret, null);
+		do_exec_system($username, null, $argv, $out, $err, $ret, null);
 	}
 }
 
@@ -625,10 +629,12 @@ function lxfile_rm_rec($file)
 //	exec("su; 'rm' -rf {$file}");
 
 	$username = "__system__";
-	$arglist = array("-rf", $file);
-	$cmd = getShellCommand("'rm'", $arglist);
+	// Argv only (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv('rm', array('-rf', '--', $file))
+		: array('rm', '-rf', '--', $file);
 
-	return do_exec_system($username, null, $cmd, $out, $err, $ret, null);
+	return do_exec_system($username, null, $argv, $out, $err, $ret, null);
 }
 
 function lxfile_generic_chmod($file, $mod)
@@ -691,10 +697,12 @@ function lxfile_mv_rec($dirsource, $dirdest)
 	$username = "__system__";
 	$dirdest = expand_real_root($dirdest);
 	$dirsource = expand_real_root($dirsource);
-	$arglist = array("-f", $dirsource, $dirdest);
-	$cmd = getShellCommand("'mv'", $arglist);
+	// Argv only (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv('mv', array('-f', '--', $dirsource, $dirdest))
+		: array('mv', '-f', '--', $dirsource, $dirdest);
 
-	return do_exec_system($username, null, $cmd, $out, $err, $ret, null);
+	return do_exec_system($username, null, $argv, $out, $err, $ret, null);
 }
 
 function lxfile_cp_content_file($dirsource, $dirdest)
@@ -754,11 +762,14 @@ function lxfile_cp_rec($dirsource, $dirdest)
 	$username = "__system__";
 	$dirdest = expand_real_root($dirdest);
 	$dirsource = expand_real_root($dirsource);
-	$arglist = array("-a", $dirsource, $dirdest);
-	$cmd = getShellCommand("cp", $arglist);
+	// Argv only (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv('cp', array('-a', '--', $dirsource, $dirdest))
+		: array('cp', '-a', '--', $dirsource, $dirdest);
 
-	return do_exec_system($username, null, $cmd, $out, $err, $ret, null);
+	return do_exec_system($username, null, $argv, $out, $err, $ret, null);
 } 
+
 
 function lxfile_size($file)
 {
@@ -954,10 +965,10 @@ function do_exec_system($username, $dir, $cmd, &$out, &$err, &$ret, $input)
 	$descriptorspec = array( 0 => array("pipe", "r"), 1 => array("pipe", "w"), 2 => array("file", $fename, "a"));
 
 	os_set_path();
-	// Prefer argv array (security DD3); legacy string still accepted for callers.
+	// Prefer argv array (security DD3 / JJ1); refuse legacy shell strings.
 	if (is_array($cmd)) {
 		foreach ($cmd as $a) {
-			if (!is_string($a) || str_contains($a, "\0")) {
+			if (!is_string($a) || str_contains($a, chr(0))) {
 				$ret = 127;
 				$out = '';
 				$err = 'refused unsafe argv';
@@ -970,7 +981,14 @@ function do_exec_system($username, $dir, $cmd, &$out, &$err, &$ret, $input)
 		}
 		$process = @proc_open($cmd, $descriptorspec, $pipes);
 	} else {
-		$process = proc_open((string) $cmd, $descriptorspec, $pipes);
+		$ret = 127;
+		$out = '';
+		$err = 'refused shell-string cmd (use argv)';
+		if ($oldpath) {
+			chdir($oldpath);
+		}
+
+		return;
 	}
 	$out = null;
 

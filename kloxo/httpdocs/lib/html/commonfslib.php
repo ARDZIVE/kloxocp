@@ -25,6 +25,10 @@ function shell_recurse_dir($dir, $func, $arglist = null)
 function lxshell_direct($cmd)
 {
 	$username = '__system__';
+	// Argv only (security JJ1).
+	if (!is_array($cmd)) {
+		return;
+	}
 	do_exec_system($username, null, $cmd, $out, $err, $ret, null);
 }
 
@@ -113,11 +117,14 @@ function lxshell_directory($dir, $cmd)
 			$arglist[] = func_get_arg($i);
 		}
 
-	
-
-	$cmd = getShellCommand($cmd, $arglist);
-
-	do_exec_system($username, $dir, $cmd, $out, $err, $ret, null);
+	// Argv to do_exec_system — never getShellCommand string (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv($cmd, $arglist)
+		: array();
+	if ($argv === array()) {
+		return null;
+	}
+	do_exec_system($username, $dir, $argv, $out, $err, $ret, null);
 
 	return $out;
 
@@ -140,10 +147,14 @@ function lxshell_output($cmd)
 			$arglist[] = func_get_arg($i);
 		}
 
-	
-
-	$cmd = getShellCommand($cmd, $arglist);
-	do_exec_system($username, null, $cmd, $out, $err, $ret, null);
+	// Argv only (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv($cmd, $arglist)
+		: array();
+	if ($argv === array()) {
+		return null;
+	}
+	do_exec_system($username, null, $argv, $out, $err, $ret, null);
 	return $out;
 }
 
@@ -163,11 +174,14 @@ function lxshell_return($cmd)
 			$arglist[] = func_get_arg($i);
 		}
 
-	
-
-	$cmd = getShellCommand($cmd, $arglist);
-
-	do_exec_system($username, null, $cmd, $out, $err, $ret, null);
+	// Argv only (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv($cmd, $arglist)
+		: array();
+	if ($argv === array()) {
+		return 127;
+	}
+	do_exec_system($username, null, $argv, $out, $err, $ret, null);
 	
 	return $ret;
 }
@@ -193,10 +207,14 @@ function lxshell_input($input, $cmd)
 			$arglist[] = func_get_arg($i);
 		}
 
-	
-
-	$cmd = getShellCommand($cmd, $arglist);
-	do_exec_system($username, null, $cmd, $out, $err, $ret, $input);
+	// Argv only (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv($cmd, $arglist)
+		: array();
+	if ($argv === array()) {
+		return 127;
+	}
+	do_exec_system($username, null, $argv, $out, $err, $ret, $input);
 	
 	return $ret;
 }
@@ -364,11 +382,14 @@ function lxuser_return($username, $cmd) {
 			$arglist[] = func_get_arg($i);
 		}
 
-	
-	
-	$cmd = getShellCommand($cmd, $arglist);
-	
-	$ret = new_process_cmd($username, null, $cmd);
+	// Argv only (security JJ1).
+	$argv = function_exists('kloxo_shell_argv')
+		? kloxo_shell_argv($cmd, $arglist)
+		: array();
+	if ($argv === array()) {
+		return 127;
+	}
+	$ret = new_process_cmd($username, null, $argv);
 	
 	return $ret;
 }

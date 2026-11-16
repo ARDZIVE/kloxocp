@@ -1984,7 +1984,8 @@ function GetTempName($s_prefix)
 			//
 		do
 		{
-			$i_rand = mt_rand(0,16777215);	// 16777215 is FFFFFF in hex
+			// Third-party FormMail scratch name (not panel auth; security JJ5). Prefer CSPRNG.
+			$i_rand = function_exists('random_int') ? random_int(0, 16777215) : mt_rand(0, 16777215);
 			$s_name = $SCRATCH_PAD."/".$s_prefix.sprintf("%06X",$i_rand);
 		}
 		while (file_exists($s_name));
@@ -3279,6 +3280,7 @@ function OnExit()
 			if (isset($SERVER) && !empty($SERVER))
 				$s_id = $SERVER;
 			$s_dir = GetTempDir();
+			// Third-party FormMail update-check id (not panel auth; security JJ5).
 			$s_md5 = md5($TARGET_EMAIL[0]);
 			$s_uniq = substr($s_md5,0,6);
 			$s_chk_file = "fm"."$s_uniq".".txt";
@@ -6244,6 +6246,7 @@ function MakeMimeMail(&$s_body,&$a_headers,$a_raw_fields,$s_template = "",
 	if (isset($a_attach_spec["Data"]))
 		$b_att = true;
 
+	// Third-party MIME boundary id (not panel auth; security JJ5).
 	$s_uniq = md5($s_body);
 	$s_body_boundary = "BODY$s_uniq";
 	$s_att_boundary = "PART$s_uniq";

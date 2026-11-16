@@ -7281,7 +7281,8 @@ class HtmlLib
 			'#f39c12', '#d35400', '#c0392b', '#bdc3c7', '#7f8c8d');
 
 		$i = count($c) - 1;
-		$r = rand(0, $i);
+		// CSPRNG (security JJ4).
+		$r = random_int(0, $i);
 		$b = $c[$r];
 
 		$ret[0] = $b;

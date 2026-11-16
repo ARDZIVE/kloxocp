@@ -174,7 +174,11 @@ function exec_scavenge()
 	$olddir = getcwd();
 	lchdir("__path_program_htmlbase");
 
-	exec_with_all_closed("$sgbl->__path_php_path ../bin/scavenge.php");
+	// argv PHP path (security JJ2).
+	$php = (string) $sgbl->__path_php_path;
+	if ($php !== '' && !str_contains($php, chr(0))) {
+		exec_with_all_closed(array($php, '../bin/scavenge.php'));
+	}
 
 	lchdir($olddir);
 }
@@ -231,16 +235,17 @@ function checkRestart()
 					}
 
 					if ($c) {
+						// Process file must be allowlisted argv form (security JJ2).
 						exec_with_all_closed($c);
-					//	exec($c);
 					} else {
-						if (strpos($cmd, 'restart-') !== false) {
-							exec_with_all_closed("sh /script/{$cmd} -y");
-						} elseif ($cmd === 'restart') {
-							exec_with_all_closed("sh /script/{$cmd} -y");
+						$cmd = (string) $cmd;
+						if (preg_match('/^[A-Za-z0-9._-]+$/', $cmd) !== 1) {
+							continue;
+						}
+						if (strpos($cmd, 'restart-') !== false || $cmd === 'restart') {
+							exec_with_all_closed(array('sh', "/script/{$cmd}", '-y'));
 						} else {
-						//	exec("service {$cmd} restart");
-							exec_with_all_closed("service {$cmd} restart");
+							exec_with_all_closed(array('systemctl', 'restart', $cmd));
 						}
 					}
 				}

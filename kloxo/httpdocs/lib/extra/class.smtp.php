@@ -563,9 +563,7 @@ class SMTP
         // The following borrowed from
         // http://php.net/manual/en/function.mhash.php#27225
 
-        // RFC 2104 HMAC implementation for php.
-        // Creates an md5 HMAC.
-        // Eliminates the need to install mhash to compute a HMAC
+        // RFC 2104 HMAC-MD5 for SMTP AUTH (protocol requirement; not panel password storage — security JJ5).
         // by Lance Rushing
 
         $bytelen = 64; // byte length for md5

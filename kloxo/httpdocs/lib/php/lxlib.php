@@ -1042,31 +1042,66 @@ function remove_unnecessary_stat(&$stat)
 	}
 }
 
-function getShellCommand($cmd, $arglist)
+/**
+ * Build a proc_open argv array (security JJ1). Prefer this over getShellCommand.
+ *
+ * @param string|mixed $cmd
+ * @param array $arglist
+ * @return array<int, string>
+ */
+function kloxo_shell_argv($cmd, array $arglist = array())
 {
-	global $gbl, $sgbl, $login, $ghtml;
-	$args = null;
-	$q = $sgbl->__var_quote_char;
-	$cmd = expand_real_root($cmd);
-	$cmd = str_replace(";", "", $cmd);
-	$cmd = "{$q}$cmd{$q}";
-
+	$bin = expand_real_root((string) $cmd);
+	$bin = trim($bin, "'\"");
+	if ($bin === '' || str_contains($bin, chr(0))) {
+		return array();
+	}
+	$argv = array($bin);
 	foreach ($arglist as $a) {
-		if ($a === "") {
+		if ($a === '' || $a === null) {
 			continue;
 		}
 		if (is_array($a)) {
 			foreach ($a as $aa) {
-				$aa = str_replace(";", "", $aa);
-				$args .= " $q" . expand_real_root($aa) . "$q";
+				if ($aa === '' || $aa === null) {
+					continue;
+				}
+				$s = expand_real_root((string) $aa);
+				if ($s === '' || str_contains($s, chr(0))) {
+					return array();
+				}
+				$argv[] = $s;
 			}
 		} else {
-			$a = str_replace(";", "", $a);
-			$args .= " $q" . expand_real_root($a) . "$q";
+			$s = expand_real_root((string) $a);
+			if ($s === '' || str_contains($s, chr(0))) {
+				return array();
+			}
+			$argv[] = $s;
 		}
 	}
-	$cmd .= " " . $args;
-	return $cmd;
+
+	return $argv;
+}
+
+/**
+ * @deprecated Prefer kloxo_shell_argv + do_exec_system argv (security JJ1).
+ */
+function getShellCommand($cmd, $arglist)
+{
+	global $gbl, $sgbl, $login, $ghtml;
+	$argv = kloxo_shell_argv($cmd, is_array($arglist) ? $arglist : array());
+	if ($argv === array()) {
+		return '';
+	}
+	$q = isset($sgbl->__var_quote_char) ? $sgbl->__var_quote_char : "'";
+	$parts = array();
+	foreach ($argv as $a) {
+		$a = str_replace(';', '', $a);
+		$parts[] = $q . $a . $q;
+	}
+
+	return implode(' ', $parts);
 }
 
 #[AllowDynamicProperties]

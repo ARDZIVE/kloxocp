@@ -28,8 +28,9 @@ class databaseusercorelib extends lxdb
 	{
 		$parent = $this->getParentO();
 		
+		// No md5 of DB password — MariaDB uses the plain via KloxoMariadb (security JJ3).
 		if (!isset($this->__var_enc_pass)) {
-			$this->__var_enc_pass = md5($this->dbpassword);
+			$this->__var_enc_pass = '';
 		}
 	}
 

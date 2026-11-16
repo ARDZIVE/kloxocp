@@ -1593,6 +1593,90 @@ $findings[] = finding('II6', 'low', 'dead commented openssl/cp/echo leftovers',
 	'fixssl / phpini__synclib / dnsslavelib / lib.php', $ii6Closed,
 	$ii6Closed ? 'dead code cleared / marked' : 'still active or unmarked dead shells');
 
+// --- Wave 21 (JJ1–JJ6) ---
+$lxlibJj = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$commonJj = file_text($root, 'kloxo/httpdocs/lib/html/commonfslib.php');
+$lfsJj = file_text($root, 'kloxo/httpdocs/lib/html/linuxfslib.php');
+$jj1Closed = contains($lxlibJj, 'security JJ1')
+	&& contains($lxlibJj, 'function kloxo_shell_argv')
+	&& contains($commonJj, 'security JJ1')
+	&& not_contains($commonJj, 'getShellCommand(')
+	&& contains($lfsJj, 'security JJ1')
+	&& not_contains($lfsJj, 'getShellCommand(')
+	&& contains($lfsJj, 'refuse legacy shell strings');
+$findings[] = finding('JJ1', 'medium', 'getShellCommand/do_exec_system still rebuild shell strings',
+	'lxlib / commonfslib / linuxfslib', $jj1Closed,
+	$jj1Closed ? 'kloxo_shell_argv + argv-only do_exec_system' : 'still getShellCommand string path');
+
+$libJj = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$linuxJj = file_text($root, 'kloxo/httpdocs/lib/html/linuxlib.php');
+$lxservJj = file_text($root, 'kloxo/httpdocs/lib/html/lxserverlib.php');
+$remoteJj = file_text($root, 'kloxo/httpdocs/lib/html/remotelib.php');
+$sshJj = file_text($root, 'kloxo/httpdocs/driver/pserver/sshconfig__linuxlib.php');
+$jj2Closed = contains($libJj, 'security JJ2')
+	&& contains($libJj, 'function kloxo_exec_closed_argv')
+	&& contains($libJj, 'function kloxo_closed_exec_parse')
+	&& contains($linuxJj, 'security JJ2')
+	&& not_contains($linuxJj, 'exec_with_all_closed("service {$serv}')
+	&& contains($lxservJj, 'security JJ2')
+	&& contains($remoteJj, 'security JJ2')
+	&& contains($sshJj, "array('systemctl', 'restart', 'ssh')")
+	&& not_contains($libJj, 'exec_with_all_closed("fetchmail')
+	&& not_contains($libJj, 'exec_with_all_closed("service ');
+$findings[] = finding('JJ2', 'medium', 'exec_with_all_closed sh -c + interpolated callers',
+	'lib.php / linuxlib / lxserverlib / remotelib / sshconfig', $jj2Closed,
+	$jj2Closed ? 'argv + allowlisted parse' : 'still shell-string closed exec');
+
+$demoJj = file_text($root, 'kloxo/bin/install/demoinit.php');
+$checkpwJj = file_text($root, 'kloxo/bin/common/misc/checkpassword.php');
+$dbuJj = file_text($root, 'kloxo/httpdocs/driver/pserver/ddatabaseuserlib.php');
+$dbJj = file_text($root, 'kloxo/httpdocs/driver/pserver/ddatabaselib.php');
+$jj3Closed = contains($demoJj, 'security JJ3')
+	&& not_contains($demoJj, "crypt('admin'")
+	&& contains($checkpwJj, 'security JJ3')
+	&& !preg_match('/^\s*\$c\s*=\s*crypt\(/m', $checkpwJj)
+	&& contains($dbuJj, 'security JJ3')
+	&& not_contains($dbuJj, 'md5($this->dbpassword)')
+	&& contains($dbJj, 'security JJ3')
+	&& not_contains($dbJj, 'md5((string) $this->dbpassword)')
+	&& contains($libJj, 'bin2hex(random_bytes(16))');
+$findings[] = finding('JJ3', 'medium', 'weak crypt/md5 password leftovers',
+	'demoinit / checkpassword / ddatabase* / fileserv token', $jj3Closed,
+	$jj3Closed ? 'Argon2id / password_verify / no md5 db pass' : 'still crypt/md5 password paths');
+
+$urlrwJj = file_text($root, 'kloxo/httpdocs/lib/urlrewrite/hn_urlrewrite.class.php');
+$rdnsJj = file_text($root, 'kloxo/httpdocs/driver/pserver/reversedns__bindlib.php');
+$htmlJj = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$loginJj = file_text($root, 'kloxo/httpdocs/login/index.php');
+$jj4Closed = contains($urlrwJj, 'security JJ4') && not_contains($urlrwJj, 'mt_rand(')
+	&& contains($rdnsJj, 'security JJ4') && not_contains($rdnsJj, 'rand(0, 99)')
+	&& contains($htmlJj, 'security JJ4')
+	&& contains($libJj, 'security JJ4') && not_contains($libJj, 'rand(0, 100)')
+	&& contains($loginJj, 'security JJ4') && not_contains($loginJj, 'rand(0, ($count');
+$findings[] = finding('JJ4', 'low', 'weak mt_rand/rand leftovers',
+	'urlrewrite / reversedns / htmllib / lib.php / login', $jj4Closed,
+	$jj4Closed ? 'random_int / random_bytes' : 'still mt_rand/rand');
+
+$lxclassJj = file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php');
+$smtpJj = file_text($root, 'kloxo/httpdocs/lib/extra/class.smtp.php');
+$formmailJj = file_text($root, 'kloxo/file/formmail/formmail.php');
+$jj5Closed = contains($lxclassJj, 'security JJ5')
+	&& not_contains($lxclassJj, 'eval("return {$string}')
+	&& contains($smtpJj, 'security JJ5')
+	&& contains($formmailJj, 'security JJ5')
+	&& contains($libJj, 'security JJ5');
+$findings[] = finding('JJ5', 'low', 'dead eval + third-party md5 markers',
+	'lxclass / class.smtp / formmail / EasyInstaller md5 token', $jj5Closed,
+	$jj5Closed ? 'dead eval cleared; third-party md5 marked' : 'still unmarked');
+
+$parseJj = function_body($libJj, 'getParseInlinePhp');
+$jj6Closed = contains($libJj, 'security JJ6')
+	&& not_contains($parseJj, 'extract($__vars')
+	&& contains($parseJj, '$$__k = $__v');
+$findings[] = finding('JJ6', 'low', 'getParseInlinePhp still extract() in include sandbox',
+	'lib.php getParseInlinePhp', $jj6Closed,
+	$jj6Closed ? 'foreach assign of filtered scalars' : 'still extract');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

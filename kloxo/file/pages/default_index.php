@@ -66,7 +66,8 @@
 
 					if ($dirs) {
 						$count = count($dirs);
-						$selnum = rand(0, ($count - 1));
+						// CSPRNG (security JJ4).
+						$selnum = random_int(0, ($count - 1));
 
 						if ((isset($_SESSION['last_login_time'])) && (isset($_SESSION['num_login_fail']))) {
 							if ($_SESSION['num_login_fail'] == 5) {

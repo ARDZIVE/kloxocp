@@ -999,7 +999,8 @@ class hn_urlRewrite
 		// strong_encoding with $alpha_array found at php-manual
 		$alpha_array = $this->CodingKey;
 		$sesencoded = $ses;
-		$num = mt_rand(3,9);
+		// CSPRNG (security JJ4).
+		$num = random_int(3, 9);
 		for($i=1;$i<=$num;$i++)
 		{
 			$sesencoded = base64_encode($sesencoded);

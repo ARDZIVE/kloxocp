@@ -29,7 +29,8 @@ function auto_update()
 		dprint("Auto Updating\n");
 
 		if (!checkIfLatest()) {
-			exec_with_all_closed("lxphp.exe ../bin/update.php");
+			// argv (security JJ2).
+			exec_with_all_closed(array('lxphp.exe', '../bin/update.php'));
 		}
 	} else {
 		// Remove timezone warning
@@ -587,11 +588,12 @@ FTC;
 	lxfile_generic_chown($tmp, "root:root");
 	lxfile_generic_chmod($tmp, "0710");
 
-//	exec("pkill -f fetchmail");
-//	sleep(10);
-	exec_with_all_closed("fetchmail -d0 -e 15 -f $tmp; rm -rf $tmp");
-//	sleep(20);
-//	lunlink($tmp);
+// Fetchmail config path only; no shell string (security JJ2).
+	if (!is_string($tmp) || $tmp === '' || str_contains($tmp, chr(0))) {
+		return;
+	}
+	exec_with_all_closed(array('fetchmail', '-d0', '-e', '15', '-f', $tmp));
+	@unlink($tmp);
 }
 
 function send_system_monitor_message_to_admin($prog)
@@ -884,7 +886,8 @@ function execEasyinstallerPhp($domain, $appname, $cmd)
 
 function update_self()
 {
-	exec_with_all_closed("lxphp.exe ../bin/update.php");
+	// argv (security JJ2).
+	exec_with_all_closed(array('lxphp.exe', '../bin/update.php'));
 }
 
 function get_name_without_template($name)
@@ -1161,16 +1164,21 @@ function fix_vgname($vgname)
 
 function restart_mysql()
 {
+	// argv systemctl (security JJ2).
 	if (isServiceExists('mysqld')) {
-		exec_with_all_closed("service mysqld restart >/dev/null 2>&1");
+		exec_with_all_closed(array('systemctl', 'restart', 'mysqld'));
 	} else {
-		exec_with_all_closed("service mysql restart >/dev/null 2>&1");
+		exec_with_all_closed(array('systemctl', 'restart', 'mysql'));
 	}
 }
 
 function restart_service($service)
 {
-	exec_with_all_closed("service $service restart >/dev/null 2>&1");
+	$service = (string) $service;
+	if (preg_match('/^[A-Za-z0-9@._-]+$/', $service) !== 1) {
+		return;
+	}
+	exec_with_all_closed(array('systemctl', 'restart', $service));
 }
 
 function remove_old_serve_file()
@@ -1278,65 +1286,175 @@ function testAllServers()
 }
 
 /**
- * Background spawn of a fixed script path only (security BB4).
- * Refuses shell metacharacters; prefer argv helpers for new code.
+ * Closed stdio spawn — argv preferred (security BB4 / JJ2).
+ * Accepts an argv array, or a legacy string that is parsed into argv
+ * (no sh -c for new paths).
  */
-function exec_with_all_closed($cmd)
+function kloxo_exec_closed_argv(array $argv, bool $capture = false)
 {
-	$cmd = is_string($cmd) ? trim($cmd) : '';
-	log_shell("Closed Exec {$cmd}");
-	// closeallinput was a setuid helper that ran system(argv) (audit C4). Removed.
-	if ($cmd === '' || preg_match('/[;&|`$<>\\\\\n\r]/', $cmd) || str_contains($cmd, "\0")) {
-		log_shell("Closed Exec refused unsafe command");
-
-		return;
+	if ($argv === array() || !is_string($argv[0]) || $argv[0] === '') {
+		return $capture ? '' : null;
 	}
-	// Only allow known panel script prefixes.
-	if (!preg_match('#^(sh\s+)?(/script/|/opt/kloxo/pscript/|lxphp\.exe\s+)#', $cmd)) {
-		log_shell("Closed Exec refused non-script command");
+	foreach ($argv as $a) {
+		if (!is_string($a) || str_contains($a, chr(0))) {
+			log_shell('Closed Exec refused unsafe argv');
 
-		return;
+			return $capture ? '' : null;
+		}
 	}
 	$desc = array(
 		0 => array('file', '/dev/null', 'r'),
-		1 => array('file', '/dev/null', 'w'),
+		1 => $capture ? array('pipe', 'w') : array('file', '/dev/null', 'w'),
 		2 => array('file', '/dev/null', 'w'),
 	);
-	$p = @proc_open(array('sh', '-c', $cmd . ' >/dev/null 2>&1'), $desc, $pipes);
-	if (is_resource($p)) {
-		proc_close($p);
+	$p = @proc_open($argv, $desc, $pipes);
+	if (!is_resource($p)) {
+		return $capture ? '' : null;
 	}
+	$res = '';
+	if ($capture && isset($pipes[1])) {
+		$res = (string) stream_get_contents($pipes[1]);
+		fclose($pipes[1]);
+	}
+	proc_close($p);
+
+	return $capture ? trim($res) : null;
+}
+
+/**
+ * Parse legacy closed-exec strings into argv, or refuse (security JJ2).
+ *
+ * @return array<int, string>|null
+ */
+function kloxo_closed_exec_parse(string $cmd): ?array
+{
+	$cmd = trim($cmd);
+	if ($cmd === '' || str_contains($cmd, chr(0))) {
+		return null;
+	}
+	// Strip trailing redirects used by callers.
+	$cmd = preg_replace('#\s*(>/dev/null|2>&1|&)+\s*$#', '', $cmd);
+	$cmd = is_string($cmd) ? trim($cmd) : '';
+
+	if (preg_match('#^sh\s+(/script/[A-Za-z0-9._-]+)(?:\s+(.*))?$#', $cmd, $m)) {
+		$argv = array('sh', $m[1]);
+		if (!empty($m[2])) {
+			foreach (preg_split('/\s+/', trim($m[2])) ?: array() as $a) {
+				if ($a === '') {
+					continue;
+				}
+				if (preg_match('/^[A-Za-z0-9._=-]+$/', $a) !== 1) {
+					return null;
+				}
+				$argv[] = $a;
+			}
+		}
+
+		return $argv;
+	}
+	if (preg_match('#^(/opt/kloxo/pscript/[A-Za-z0-9._-]+)(?:\s+(.*))?$#', $cmd, $m)) {
+		$argv = array('sh', $m[1]);
+		if (!empty($m[2])) {
+			foreach (preg_split('/\s+/', trim($m[2])) ?: array() as $a) {
+				if ($a === '' || preg_match('/^[A-Za-z0-9._=-]+$/', $a) !== 1) {
+					return null;
+				}
+				$argv[] = $a;
+			}
+		}
+
+		return $argv;
+	}
+	if (preg_match('#^lxphp\.exe\s+(\.\./bin/[A-Za-z0-9._/-]+\.php)(?:\s+(.*))?$#', $cmd, $m)) {
+		global $sgbl;
+		$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
+			? (string) $sgbl->__path_php_path
+			: 'php';
+		$argv = array($php, $m[1]);
+		if (!empty($m[2])) {
+			foreach (preg_split('/\s+/', trim($m[2])) ?: array() as $a) {
+				if ($a === '' || preg_match('/^[A-Za-z0-9._=-]+$/', $a) !== 1) {
+					return null;
+				}
+				$argv[] = $a;
+			}
+		}
+
+		return $argv;
+	}
+	if (preg_match('#^(\S+/php(?:\d[\d.]*)?(?:\s)?)\s+(\.\./bin/[A-Za-z0-9._/-]+\.php)(?:\s+(.*))?$#', $cmd, $m)
+		|| preg_match('#^(\S+)\s+(\.\./bin/[A-Za-z0-9._/-]+\.php)(?:\s+(.*))?$#', $cmd, $m)) {
+		$php = $m[1];
+		if (preg_match('/[;&|`$<>\\\\\n\r]/', $php)) {
+			return null;
+		}
+		$argv = array($php, $m[2]);
+		if (!empty($m[3])) {
+			foreach (preg_split('/\s+/', trim($m[3])) ?: array() as $a) {
+				if ($a === '' || preg_match('/^[A-Za-z0-9._=-]+$/', $a) !== 1) {
+					return null;
+				}
+				$argv[] = $a;
+			}
+		}
+
+		return $argv;
+	}
+	if (preg_match('#^systemctl\s+(disable|enable|restart|stop|start)(?:\s+--now)?\s+([A-Za-z0-9@._:-]+)$#', $cmd, $m)) {
+		$argv = array('systemctl', $m[1]);
+		if (str_contains($cmd, '--now')) {
+			$argv[] = '--now';
+		}
+		$argv[] = $m[2];
+
+		return $argv;
+	}
+	if (preg_match('#^service\s+([A-Za-z0-9@._-]+)\s+(start|stop|restart|reload)$#', $cmd, $m)) {
+		return array('systemctl', $m[2], $m[1]);
+	}
+
+	return null;
+}
+
+function exec_with_all_closed($cmd)
+{
+	if (is_array($cmd)) {
+		log_shell('Closed Exec argv ' . implode(' ', $cmd));
+		kloxo_exec_closed_argv($cmd, false);
+
+		return;
+	}
+	$cmd = is_string($cmd) ? trim($cmd) : '';
+	log_shell("Closed Exec {$cmd}");
+	$argv = kloxo_closed_exec_parse($cmd);
+	if ($argv === null) {
+		log_shell('Closed Exec refused unsafe/non-allowlisted command');
+
+		return;
+	}
+	kloxo_exec_closed_argv($argv, false);
 }
 
 function exec_with_all_closed_output($cmd)
 {
+	if (is_array($cmd)) {
+		$res = kloxo_exec_closed_argv($cmd, true);
+		log_shell('Closed Exec output: ' . $res);
+
+		return is_string($res) ? $res : '';
+	}
 	$cmd = is_string($cmd) ? trim($cmd) : '';
-	if ($cmd === '' || preg_match('/[;&|`$<>\\\\\n\r]/', $cmd) || str_contains($cmd, "\0")) {
-		log_shell("Closed Exec output refused unsafe command");
+	$argv = kloxo_closed_exec_parse($cmd);
+	if ($argv === null) {
+		log_shell('Closed Exec output refused unsafe command');
 
 		return '';
 	}
-	if (!preg_match('#^(sh\s+)?(/script/|/opt/kloxo/pscript/|lxphp\.exe\s+)#', $cmd)) {
-		log_shell("Closed Exec output refused non-script command");
-
-		return '';
-	}
-	$desc = array(
-		0 => array('file', '/dev/null', 'r'),
-		1 => array('pipe', 'w'),
-		2 => array('file', '/dev/null', 'w'),
-	);
-	$p = @proc_open(array('sh', '-c', $cmd), $desc, $pipes);
-	if (!is_resource($p)) {
-		return '';
-	}
-	$res = stream_get_contents($pipes[1]);
-	fclose($pipes[1]);
-	proc_close($p);
+	$res = kloxo_exec_closed_argv($argv, true);
 	$res = is_string($res) ? $res : '';
-	log_shell("Closed Exec output: {$res} : {$cmd}");
+	log_shell("Closed Exec output: {$res}");
 
-	return trim($res);
+	return $res;
 }
 
 /**
@@ -1722,7 +1840,8 @@ function cp_fileserv($file)
 		lxfile_generic_chown($shared, "lxlabs");
 		@chmod($shared, 0600);
 	}
-	$pass = md5($stored . time());
+	// One-time fileserv token — CSPRNG, not md5 (security JJ3).
+	$pass = bin2hex(random_bytes(16));
 	$ar = array('filename' => $stored, 'password' => $pass);
 	lfile_put_serialize("{$path}/$base", $ar);
 	lxfile_generic_chown("{$path}/$base", "lxlabs");
@@ -2700,6 +2819,7 @@ function appvault_dbfilter($inputfile, $outputfile, $cont)
 	$val = str_replace("__lx_client_path", "/home/{$cont['customer_name']}", $val);
 	$val = str_replace("__lx_adminemail_login", $cont['admin_email_login'], $val);
 	$val = str_replace("__lx_admin_pass", $cont['adminpass'], $val);
+	// Legacy EasyInstaller template token only (not panel auth; security JJ5).
 	$val = str_replace("__lx_md5_adminpass", md5($cont['adminpass']), $val);
 	$val = str_replace("__lx_db_host", $cont['realhost'], $val);
 	$val = str_replace("__lx_db_name", $cont['dbname'], $val);
@@ -2842,7 +2962,8 @@ function vg_complete()
 		return;
 	}
 
-	$out = exec_with_all_closed_output("vgdisplay -c");
+	// argv (security JJ2).
+	$out = exec_with_all_closed_output(array('vgdisplay', '-c'));
 	$list = explode("\n", $out);
 	$ret = null;
 
@@ -2874,8 +2995,12 @@ function vg_diskfree($vgname)
 		return;
 	}
 
-	$vgname = fix_vgname($vgname);
-	$out = exec_with_all_closed_output("vgdisplay -c $vgname");
+	$vgname = (string) fix_vgname($vgname);
+	if ($vgname === '' || preg_match('/^[A-Za-z0-9._+-]+$/', $vgname) !== 1) {
+		return;
+	}
+	// argv (security JJ2).
+	$out = exec_with_all_closed_output(array('vgdisplay', '-c', $vgname));
 	$out = trim($out);
 
 	$list = explode(":", $out);
@@ -2892,7 +3017,14 @@ function lvm_disksize($lvmpath)
 //	$out = explode(":", $out);
 //	return $out[6] / 1024;
 
-	$out = exec_with_all_closed_output("/usr/sbin/lvs --nosuffix --units b --noheadings -o lv_size $lvmpath");
+	$lvmpath = (string) $lvmpath;
+	if ($lvmpath === '' || str_contains($lvmpath, chr(0)) || preg_match('#^[A-Za-z0-9/._+-]+$#', $lvmpath) !== 1) {
+		return 0;
+	}
+	// argv (security JJ2).
+	$out = exec_with_all_closed_output(array(
+		'/usr/sbin/lvs', '--nosuffix', '--units', 'b', '--noheadings', '-o', 'lv_size', $lvmpath,
+	));
 	$out = trim($out);
 
 	return $out / (1024 * 1024);
@@ -3071,7 +3203,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111622';
+	return '10.1-2026111623';
 }
 
 function getDownloadServer()
@@ -4417,8 +4549,13 @@ function manage_service($service, $state)
 	$servicename = "__var_programname_$service";
 	$program = $gbl->$servicename;
 
+	$program = (string) $program;
+	if (preg_match('/^[A-Za-z0-9@._-]+$/', $program) !== 1) {
+		return;
+	}
 	if (isServiceExists($program)) {
-		exec_with_all_closed("service {$program} restart >/dev/null 2>&1");
+		// argv systemctl (security JJ2).
+		exec_with_all_closed(array('systemctl', 'restart', $program));
 	}
 }
 
@@ -7851,7 +7988,8 @@ function removeOtherDrivers($class = null, $nolog = null)
 
 				if (class_exists("{$k}__{$o}")) {
 					if ($o === 'hiawatha') {
-						exec_with_all_closed("systemctl disable --now hiawatha >/dev/null 2>&1 || true");
+						// argv systemctl (security JJ2).
+						exec_with_all_closed(array('systemctl', 'disable', '--now', 'hiawatha'));
 						log_cleanup("- Deactivated {$k}__{$o}", $nolog);
 					} else {
 						log_cleanup("- Uninstall {$k}__{$o}", $nolog);
@@ -8645,8 +8783,20 @@ function getParseInlinePhp($template, $input)
 
 	ob_start();
 	try {
+		// No extract() — assign only pre-filtered scalar keys (security JJ6).
 		(static function (string $__file, array $__vars): void {
-			extract($__vars, EXTR_SKIP);
+			static $deny = array(
+				'GLOBALS' => true, '_SERVER' => true, '_GET' => true, '_POST' => true,
+				'_FILES' => true, '_COOKIE' => true, '_SESSION' => true, '_REQUEST' => true,
+				'_ENV' => true, 'this' => true, '__file' => true, '__vars' => true,
+			);
+			foreach ($__vars as $__k => $__v) {
+				if (!is_string($__k) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $__k)
+					|| isset($deny[$__k]) || isset($deny[strtoupper($__k)])) {
+					continue;
+				}
+				$$__k = $__v;
+			}
 			include $__file;
 		})($tmp, $safe);
 		$ret = ob_get_contents();
@@ -10221,7 +10371,8 @@ function safefilerewrite($fileName, $dataToSave)
 
 			if (!$canWrite) {
 				// If lock not obtained sleep for 0 - 100 milliseconds, to avoid collision and CPU load
-				usleep(round(rand(0, 100)*1000));
+				// CSPRNG jitter (security JJ4).
+				usleep(random_int(0, 100) * 1000);
 			}
 		} while ((!$canWrite)and((microtime(TRUE)-$startTime) < 5));
 

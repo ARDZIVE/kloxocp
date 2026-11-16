@@ -347,7 +347,14 @@ function os_create_system_user($basename, $password, $id, $shell, $dir = "/tmp")
 
 function os_service_manage($serv, $act)
 {
-	exec_with_all_closed("service {$serv} {$act}");
+	// Validated unit + argv (security JJ2).
+	$serv = (string) $serv;
+	$act = (string) $act;
+	if (preg_match('/^[A-Za-z0-9@._-]+$/', $serv) !== 1
+		|| !in_array($act, array('start', 'stop', 'restart', 'reload'), true)) {
+		return;
+	}
+	exec_with_all_closed(array('systemctl', $act, $serv));
 }
 
 function os_create_program_service()
@@ -412,7 +419,7 @@ function os_restart_program()
 	
 	$pgm = $sgbl->__var_program_name;
 	// We just need to kill the main server, and leave the wrapper alone.
-	exec_with_all_closed("sh /script/restart --force");
+	exec_with_all_closed(array('sh', '/script/restart', '--force'));
 }
 
 function os_get_network_gateway()
