@@ -2418,9 +2418,33 @@ function kloxo_sql_and_eq(array $pairs): string
 }
 
 /**
+ * LIKE clause with quoted value (security SS5 / SS1).
+ * $mode: contains → %v%, csv → %,v,%, prefix → v%, suffix → %v
+ */
+function kloxo_sql_like($field, $value, string $mode = 'contains'): string
+{
+	if (!kloxo_sql_ident((string) $field)) {
+		return '0 = 1';
+	}
+	$raw = str_replace(array('\\', '%', '_'), array('\\\\', '\\%', '\\_'), (string) $value);
+	$q = kloxo_sql_quote($raw);
+	switch ($mode) {
+		case 'csv':
+			return $field . " LIKE '%," . $q . ",%'";
+		case 'prefix':
+			return $field . " LIKE '" . $q . "%'";
+		case 'suffix':
+			return $field . " LIKE '%" . $q . "'";
+		case 'contains':
+		default:
+			return $field . " LIKE '%" . $q . "%'";
+	}
+}
+
+/**
  * Intentional residual surfaces (security MM6; security NN6; security OO6;
- * security PP6; security QQ6; security RR6): crypt() verify-only in
- * check_password; getShellCommand stub; SMTP/FormMail stubs; ExtJS retained
+ * security PP6; security QQ6; security RR6; security SS6): crypt() verify-only
+ * in check_password; getShellCommand stub; SMTP/FormMail stubs; ExtJS retained
  * for UI; gated unserialize / allow-listed eeval. Do not mint new crypt/md5
  * password hashes.
  */

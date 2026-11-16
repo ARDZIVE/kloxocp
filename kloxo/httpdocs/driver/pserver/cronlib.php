@@ -179,11 +179,11 @@ class Cron extends Lxdb
 
 		try {
 			$mydb = new Sqlite($this->__masterserver, "cron");
-			$rows = $mydb->getRowsWhere("username = '{$username}'");
+			$rows = $mydb->getRows('username', $username);
 			$this->__var_cron_list = is_array($rows) ? $rows : array();
 
 			$mydb = new Sqlite($this->__masterserver, "uuser");
-			$userlist = $mydb->getRowsWhere("nname = '{$username}'");
+			$userlist = $mydb->getRows('nname', $username);
 			$this->__var_user_list = (is_array($userlist) && isset($userlist[0]) && is_array($userlist[0]))
 				? $userlist[0] : array();
 
@@ -192,8 +192,7 @@ class Cron extends Lxdb
 			// pool for the Unix user.
 			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpfpm.php';
 			$wdb = new Sqlite($this->__masterserver, 'web');
-			$uEsc = str_replace("'", "''", $username);
-			$webs = $wdb->getRowsWhere("username = '{$uEsc}'");
+			$webs = $wdb->getRows('username', $username);
 			if (is_array($webs)) {
 				foreach ($webs as $w) {
 					if (!is_array($w) || !isset($w['nname']) || !is_string($w['nname']) || $w['nname'] === '') {

@@ -102,7 +102,7 @@ class Dnstemplate extends DnsBase
 		}
 
 		$db = new Sqlite($this->__masterserver, 'domaintemplate');
-		$res = $db->getRowsWhere("dnstemplate = '$this->nname'");
+		$res = $db->getRows('dnstemplate', $this->nname);
 		
 		if ($res) {
 			$this->used_f = 'on';

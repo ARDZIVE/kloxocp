@@ -679,7 +679,10 @@ abstract class Lxclient extends Lxdb
 	function checkTicketUnread()
 	{
 		$sql = new Sqlite($this->__masterserver, 'ticket');
-		$res = $sql->getRowsWhere("sent_to = '{$this->getClName()}' AND unread_flag = 'on'");
+		$res = $sql->getRowsWhere(kloxo_sql_and_eq(array(
+			'sent_to' => $this->getClName(),
+			'unread_flag' => 'on',
+		)));
 		
 		return kcount($res);
 	}
@@ -687,7 +690,11 @@ abstract class Lxclient extends Lxdb
 	function checkMessageUnread()
 	{
 		$sql = new Sqlite($this->__masterserver, 'smessage');
-		$res = $sql->getRowsWhere("text_sent_to_cmlist LIKE '%,{$this->getClName()},%' AND text_readby_cmlist NOT LIKE '%,{$this->getClName()},%'");
+		$cl = $this->getClName();
+		$res = $sql->getRowsWhere(
+			kloxo_sql_like('text_sent_to_cmlist', $cl, 'csv')
+			. ' AND NOT (' . kloxo_sql_like('text_readby_cmlist', $cl, 'csv') . ')'
+		);
 
 		return kcount($res);
 	}

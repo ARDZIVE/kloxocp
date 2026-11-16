@@ -464,7 +464,7 @@ class Service extends Lxdb
 
 		try {
 			$sql = new Sqlite($master, 'service');
-			$res = $sql->getRowsWhere("nname = '" . addslashes($nname) . "'");
+			$res = $sql->getRows('nname', $nname);
 			if (is_array($res) && isset($res[0]) && is_array($res[0])) {
 				$row = $res[0];
 			}

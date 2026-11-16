@@ -13,7 +13,7 @@ class mimetype extends lxdb
 	function createExtraVariables()
 	{
 		$mydb = new Sqlite(null, "mimetype");
-		$this->__var_mime_list = $mydb->getRowsWhere("syncserver = '{$this->syncserver}'");
+		$this->__var_mime_list = $mydb->getRows('syncserver', $this->syncserver);
 	}
 
 	static function add($parent, $class, $param)
@@ -34,7 +34,7 @@ class mimetype extends lxdb
 	static function initThisList($parent, $class)
 	{
 		$sq = new Sqlite(null, 'mimetype');
-		$list = $sq->getRowsWhere("domainname = '$parent->nname'");
+		$list = $sq->getRows('domainname', $parent->nname);
 		$parent->setListFromArray($parent->__masterserver, $parent->__readserver, 'mimetype', is_array($list) ? $list : array(), true);
 	}
 }

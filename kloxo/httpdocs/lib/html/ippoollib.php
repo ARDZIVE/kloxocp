@@ -290,8 +290,7 @@ class ippool extends Lxdb
 			if ($l === '' || filter_var($l, FILTER_VALIDATE_IP) === false) {
 				continue;
 			}
-			$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($l) : str_replace("'", "''", $l);
-			$p = $sq->getRowsWhere("nname = '{$esc}'");
+			$p = $sq->getRows('nname', $l);
 
 			if ($p) { continue; }
 
@@ -397,13 +396,14 @@ class ippool extends Lxdb
 
 	static function checkIfAlreadyAssigned($class, $ipaddr)
 	{
+		// Quoted equality / LIKE (security SS5 / SS1).
 		$sq = new Sqlite(null, 'ipaddress');
-		$res = $sq->getRowsWhere("ipaddr = '$ipaddr'", array('nname'));
+		$res = $sq->getRows('ipaddr', $ipaddr, array('nname'));
 
 		if ($res) { return $res[0]['nname']; }
 
 		$sq = new Sqlite(null, 'vps');
-		$res = $sq->getRowsWhere("coma_vmipaddress_a LIKE '%,$ipaddr,%'", array('nname'));
+		$res = $sq->getRowsWhere(kloxo_sql_like('coma_vmipaddress_a', $ipaddr, 'csv'), array('nname'));
 
 		if ($res) { return $res[0]['nname']; }
 		

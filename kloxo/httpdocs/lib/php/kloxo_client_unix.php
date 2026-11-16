@@ -137,7 +137,7 @@ final class KloxoClientUnix
 		}
 		try {
 			$db = new Sqlite(null, 'client');
-			$rows = $db->getRowsWhere("username = '" . str_replace("'", "''", $unix) . "'", array('nname'));
+			$rows = $db->getRows('username', $unix, array('nname'));
 			if (is_array($rows) && isset($rows[0]['nname'])) {
 				return self::ensure((string) $rows[0]['nname']);
 			}

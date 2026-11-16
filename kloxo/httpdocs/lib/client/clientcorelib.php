@@ -906,7 +906,7 @@ abstract class ClientCore extends Resourcecore
 
 		if (isset($this->listpriv) && is_object($this->listpriv) && !empty($this->listpriv->ipaddress_list))  {
 			foreach($this->listpriv->ipaddress_list as $ip) {
-				$res = $sql->getRowsWhere("ipaddr = '$ip'", array('syncserver'));
+				$res = $sql->getRows('ipaddr', $ip, array('syncserver'));
 
 				foreach($res as $a) {
 					$serv[] = $a['syncserver']? $a['syncserver']: 'localhost';

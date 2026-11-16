@@ -22,7 +22,7 @@ class mimehandler extends lxdb
 		$this->__var_htp = "$path/.htaccess";
 
 		$sq = new Sqlite(null, $this->get__table());
-		$res = $sq->getRowsWhere("parent_clname = '$this->parent_clname'");
+		$res = $sq->getRows('parent_clname', $this->parent_clname);
 
 		$result = merge_array_object_not_deleted($res, $this);
 

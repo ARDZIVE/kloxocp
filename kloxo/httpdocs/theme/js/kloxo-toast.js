@@ -100,9 +100,15 @@
 		el.id = LIVE_ID;
 		el.className = 'kloxo-toast kloxo-toast-' + k + ' kloxo-status-toast-open';
 		el.setAttribute('role', (k === 'error' || k === 'warning') ? 'alert' : 'status');
-		el.innerHTML = '<span class="kloxo-toast-icon">' + iconSvg(k) + '</span>'
-			+ '<div class="kloxo-toast-body"></div>';
-		el.querySelector('.kloxo-toast-body').textContent = msg;
+		// Icon SVG is allow-listed by kind; message is textContent (security SS3).
+		var icon = doc.createElement('span');
+		icon.className = 'kloxo-toast-icon';
+		icon.innerHTML = iconSvg(k);
+		var body = doc.createElement('div');
+		body.className = 'kloxo-toast-body';
+		body.textContent = msg == null ? '' : String(msg);
+		el.appendChild(icon);
+		el.appendChild(body);
 		(doc.body || doc.documentElement).appendChild(el);
 		arm(el, (typeof ms === 'number' && ms > 0) ? ms : 20000);
 		return el;

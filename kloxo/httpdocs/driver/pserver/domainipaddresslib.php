@@ -18,7 +18,7 @@ class DomainIpaddress extends Lxdb
 	{
 		if ($var === 'ipaddr') {
 			$db = new Sqlite($this->__masterserver, 'ipaddress');
-			$res = $db->getRowsWhere("nname = '$this->nname'");
+			$res = $db->getRows('nname', $this->nname);
 			return $res[0]['ipaddr'];
 		}
 
@@ -30,13 +30,13 @@ class DomainIpaddress extends Lxdb
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$sq = new Sqlite(null, 'web');
-		$list = $sq->getRowsWhere("syncserver = '$this->syncserver'", array('nname'));
+		$list = $sq->getRows('syncserver', $this->syncserver, array('nname'));
 		$dlist = get_namelist_from_arraylist($list, 'nname');
 
 
 		if (!$login->isAdmin()) {
 			$sq = new Sqlite(null, 'domain');
-			$nlist = $sq->getRowsWhere("parent_clname = '{$login->getClName()}'", array('nname'));
+			$nlist = $sq->getRows('parent_clname', $login->getClName(), array('nname'));
 			$ndlist = get_namelist_from_arraylist($nlist);
 			foreach ($dlist as $k => $v) {
 				if (!array_search_bool($v, $ndlist)) {

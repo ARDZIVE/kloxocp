@@ -126,13 +126,15 @@ function security_blanket_main(): void
 	}
 
 	$sq = new Sqlite(null, $table);
-	$esc = str_replace("'", "''", $nname);
-	$res = $sq->getRowsWhere("nname = '{$esc}'", [$flag]);
+	$res = $sq->getRows('nname', $nname, [$flag]);
 	if (!is_array($res) || !isset($res[0][$flag]) || $res[0][$flag] !== 'doing') {
 		return;
 	}
 
-	$msg = str_replace("'", "''", 'Program Got aborted in the midst. Please try again.');
+	$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($nname) : str_replace("'", "''", $nname);
+	$msg = function_exists('kloxo_sql_quote')
+		? kloxo_sql_quote('Program Got aborted in the midst. Please try again.')
+		: str_replace("'", "''", 'Program Got aborted in the midst. Please try again.');
 	// Identifiers validated above; values single-quote escaped (no raw user SQL).
 	$sq->rawQuery("update {$table} set {$flag} = '{$msg}' where nname = '{$esc}'");
 }

@@ -233,7 +233,10 @@ class TicketHistory extends Lxdb
 
 		if ($obj->isClient() && !$obj->isAdmin()) {
 			$sq = new Sqlite(null, "ticket");
-			$tlist = $sq->getRowsWhere("made_by = 'client-$obj->nname' AND category LIKE '%TechnicalSupport%'");
+			$tlist = $sq->getRowsWhere(
+				kloxo_sql_eq('made_by', 'client-' . $obj->nname)
+				. ' AND ' . kloxo_sql_like('category', 'TechnicalSupport', 'contains')
+			);
 			$nticket = is_array($tlist) ? count($tlist) : 0;
 		}
 

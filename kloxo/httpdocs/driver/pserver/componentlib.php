@@ -159,7 +159,7 @@ class Component extends Lxclass
 		global $gbl, $sgbl, $login, $ghtml;
 
 		$db = new Sqlite($parent->__masterserver, "component");
-		$res = $db->getRowsWhere("syncserver = '$parent->syncserver'");
+		$res = $db->getRows('syncserver', $parent->syncserver);
 
 		if ($res) {
 			foreach($res as &$__r) {

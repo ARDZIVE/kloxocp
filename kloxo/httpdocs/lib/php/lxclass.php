@@ -4180,7 +4180,7 @@ abstract class Lxclass
 	{
 		$table = get_table_from_class($class);
 		$sq = new Sqlite(null, $table);
-		$count = $sq->getCountWhere("parent_clname = '{$this->getClName()}'");
+		$count = $sq->getCountWhere(kloxo_sql_eq('parent_clname', $this->getClName()));
 
 		if ($count == 1 && $this->isGte('customer')) {
 			$dlist = $this->getList($class);

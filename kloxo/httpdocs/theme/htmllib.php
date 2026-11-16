@@ -9236,8 +9236,9 @@ function doInnerUpdates() { // we will use this function to display upload speed
 		iSpeed =  (Math.round(iDiff * 100/1024)/100).toString() + ' KB/s';
 	}
 
-	document.getElementById('progress_speed').innerHTML = iSpeed;
-	document.getElementById('progress_remaining').innerHTML = secondsToTime(secondsRemaining);		
+	// textContent for progress numbers (security SS3).
+	document.getElementById('progress_speed').textContent = iSpeed;
+	document.getElementById('progress_remaining').textContent = secondsToTime(secondsRemaining);
 }
 
 function uploadProgress(e) { // upload process in progress
@@ -9249,14 +9250,14 @@ function uploadProgress(e) { // upload process in progress
 		var iBytesiBytesTotal = bytesToSize(iBytesTotal);
 
 		document.getElementById('progress').style.width = (iPercentComplete * 4).toString() + 'px';
-		document.getElementById('progress').innerHTML = iPercentComplete.toString() + '%';
-		document.getElementById('progress_percent').innerHTML = document.getElementById('progress').innerHTML;
-		document.getElementById('transfered').innerHTML = iBytesTransfered + ' / ' + iBytesiBytesTotal;
+		document.getElementById('progress').textContent = iPercentComplete.toString() + '%';
+		document.getElementById('progress_percent').textContent = document.getElementById('progress').textContent;
+		document.getElementById('transfered').textContent = iBytesTransfered + ' / ' + iBytesiBytesTotal;
 
 		if (iPercentComplete == 100) {
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
-			document.getElementById('progress_info').innerHTML = 'Wait for redirecting...';
+			document.getElementById('progress_info').textContent = 'Wait for redirecting...';
 			// Bytes reached the panel. Stream-to-disk may still run; poll __backup
 			// and remind — never navigate early (that aborts the write).
 			uploadStartPoll();
@@ -9269,7 +9270,7 @@ function uploadProgress(e) { // upload process in progress
 			}
 		}
 	} else {
-		document.getElementById('progress').innerHTML = 'unable to compute';
+		document.getElementById('progress').textContent = 'unable to compute';
 	}
 }
 
@@ -9277,7 +9278,7 @@ function uploadFinish(e, xhr) { // upload finished (or timed out waiting for the
 	document.getElementById('progress_percent').innerHTML = '100%';
 	document.getElementById('progress').style.width = '400px';
 	if (document.getElementById('filesize')) {
-		document.getElementById('filesize').innerHTML = sResultFileSize;
+		document.getElementById('filesize').textContent = sResultFileSize;
 	}
 	document.getElementById('progress_remaining').innerHTML = '00:00:00';
 	var next = '';

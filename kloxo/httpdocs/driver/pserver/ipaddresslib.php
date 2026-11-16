@@ -631,7 +631,7 @@ class Ipaddress extends Lxdb
 
 		$sq = new Sqlite($parent->__masterserver, "ipaddress");
 
-		$res = $sq->getRowsWhere("syncserver = '$parent->nname'");
+		$res = $sq->getRows('syncserver', $parent->nname);
 
 		$list = get_namelist_from_arraylist($res, "ipaddr");
 

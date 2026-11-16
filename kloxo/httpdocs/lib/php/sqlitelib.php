@@ -506,7 +506,17 @@ class Sqlite
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$countres = $this->rawquery("select count(*) from {$this->__sqtable} where {$query}");
+		// Table ident + refuse stacked queries (security SS4). Prefer kloxo_sql_eq fragments.
+		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $this->__sqtable)) {
+			return 0;
+		}
+		$q = (string) $query;
+		if ($q === '' || preg_match('/;|--|\/\*|\bunion\b/i', $q)) {
+			log_database('DbError: getCountWhere refused unsafe where fragment');
+			return 0;
+		}
+
+		$countres = $this->rawquery("select count(*) from {$this->__sqtable} where {$q}");
 	
 		if ($sgbl->__var_database_type === 'mysql') {
 			$countres = $countres[0]['count(*)'];

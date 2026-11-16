@@ -147,12 +147,11 @@ final class KloxoSitepreview
 			throw new KloxoSitepreviewException('domain not found');
 		}
 		$sq = new Sqlite(null, 'web');
-		// Domain was charset-validated; quote for legacy Sqlite API.
-		$q = str_replace(array("'", '\\'), '', $domain);
-		$res = $sq->getRowsWhere("nname = '{$q}'");
+		// Domain was charset-validated; getRows quotes (security SS1).
+		$res = $sq->getRows('nname', $domain);
 		if (!is_array($res) || $res === array() || !isset($res[0])) {
 			$sqd = new Sqlite(null, 'domain');
-			$res = $sqd->getRowsWhere("nname = '{$q}'");
+			$res = $sqd->getRows('nname', $domain);
 		}
 		if (!is_array($res) || $res === array() || !isset($res[0])) {
 			throw new KloxoSitepreviewException('domain not found');

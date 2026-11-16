@@ -12,7 +12,7 @@ class lxguardwhitelist extends lxdb
 	{
 		$parent = $this->getParentO();
 		$sq = new Sqlite(null, "lxguardwhitelist");
-		$res = $sq->getRowsWhere("syncserver = '$parent->syncserver'", array('nname', 'ipaddress'));
+		$res = $sq->getRows('syncserver', $parent->syncserver, array('nname', 'ipaddress'));
 		$this->__var_whitelist = $res;
 	}
 

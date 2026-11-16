@@ -118,6 +118,29 @@ class mysqldbuser extends databaseusercorelib {
 
 }
 
-class mssqldbuser extends databaseusercorelib {
+/**
+ * MSSQL user removed on Ubuntu (security SS2 / RR3). Stub refuses if loaded.
+ */
+class mssqldbuser extends databaseusercorelib
+{
+	function dbactionAdd()
+	{
+		global $login;
 
+		throw new lxException($login ? $login->getThrow('mssql_not_available') : 'mssql_not_available', '');
+	}
+
+	function dbactionUpdate($subaction)
+	{
+		global $login;
+
+		throw new lxException($login ? $login->getThrow('mssql_not_available') : 'mssql_not_available', '');
+	}
+
+	function dbactionDelete()
+	{
+		global $login;
+
+		throw new lxException($login ? $login->getThrow('mssql_not_available') : 'mssql_not_available', '');
+	}
 }

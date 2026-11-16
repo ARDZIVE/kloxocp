@@ -25,7 +25,7 @@ class watchdog extends lxdb
 		}
 		try {
 			$sq = new Sqlite(null, 'watchdog');
-			$rows = $sq->getRowsWhere("syncserver = '{$sync}'");
+			$rows = $sq->getRows('syncserver', $sync);
 			$this->__var_watchlist = is_array($rows) ? $rows : array();
 		} catch (Throwable $e) {
 			$this->__var_watchlist = array();

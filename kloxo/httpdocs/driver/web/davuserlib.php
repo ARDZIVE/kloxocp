@@ -19,11 +19,11 @@ class davuser extends Lxclient
 		$this->__var_system_username = $this->getParentO()->username;
 
 		$sq = new Sqlite(null, 'davuser');
-		$list = $sq->getRowsWhere("parent_clname = '$this->parent_clname'", array("username", "realpass"));
+		$list = $sq->getRows('parent_clname', $this->parent_clname, array("username", "realpass"));
 		$this->__var_davuser = $list;
 		
 		$sq = new Sqlite(null, 'web');
-		$list = $sq->getRowsWhere("syncserver = '{$this->getParentO()->syncserver}'", array('nname'));
+		$list = $sq->getRows('syncserver', $this->getParentO()->syncserver, array('nname'));
 		$this->__var_domlist = get_namelist_from_arraylist($list);
 	}
 

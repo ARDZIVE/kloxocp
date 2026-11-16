@@ -52,7 +52,7 @@ class Dns extends DnsBase
 				if ($server === '') {
 					continue;
 				}
-				$nlist = $db->getRowsWhere("syncserver LIKE '%$server%'", array('nname'));
+				$nlist = $db->getRowsWhere(kloxo_sql_like('syncserver', $server, 'contains'), array('nname'));
 				$dlistv = "__var_domainlist_$server";
 				$this->$dlistv = is_array($nlist) ? $nlist : array();
 			}
@@ -94,8 +94,8 @@ class Dns extends DnsBase
 
 		try {
 			$mydb = new Sqlite(null, "ipaddress");
-			$sync = str_replace("'", '', (string)($this->syncserver ?? ''));
-			$got = $mydb->getRowsWhere("syncserver = '$sync'", array('ipaddr', 'nname'));
+			$sync = (string) ($this->syncserver ?? '');
+			$got = $mydb->getRows('syncserver', $sync, array('ipaddr', 'nname'));
 			$this->__var_ipssllist = is_array($got) ? $got : array();
 		} catch (Throwable $e) {
 			$this->__var_ipssllist = array();

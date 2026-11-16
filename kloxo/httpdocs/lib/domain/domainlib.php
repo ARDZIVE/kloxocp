@@ -435,7 +435,10 @@ class Domaind extends DomainBase
 		global $gbl, $sgbl, $login;
 
 		$db = new Sqlite($this->__masterserver, "domain");
-		$result = $db->getRowsWhere("parent_name = '$this->nname' and parent_class = 'domain'");
+		$result = $db->getRowsWhere(kloxo_sql_and_eq(array(
+			'parent_name' => $this->nname,
+			'parent_class' => 'domain',
+		)));
 
 		if ($result) {
 			$this->setListFromArray("ddatabase", $result );
@@ -451,7 +454,10 @@ class Domaind extends DomainBase
 
 		$db = new Sqlite($parent->__masterserver, "domain");
 		$class = $parent->getClass();
-		$result = $db->getRowsWhere("parent_name = '$parent->nname' and parent_class = '$class'");
+		$result = $db->getRowsWhere(kloxo_sql_and_eq(array(
+			'parent_name' => $parent->nname,
+			'parent_class' => $class,
+		)));
 
 	//	dprintr($result);
 

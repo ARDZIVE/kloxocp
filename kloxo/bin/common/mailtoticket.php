@@ -39,7 +39,7 @@ if (!$matches) {
 	$param['category'] = 'complaint';
 	$param['priority'] = 'medium';
 	$csq = new Sqlite(null, 'client');
-	$c = $csq->getRowsWhere("contactemail = '$smallfrom'", array('nname'));
+	$c = $csq->getRows('contactemail', $smallfrom, array('nname'));
 	
 	if ($c) {
 		$clientname = $c[0]['nname'];

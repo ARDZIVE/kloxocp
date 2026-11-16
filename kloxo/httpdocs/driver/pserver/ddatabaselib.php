@@ -425,10 +425,10 @@ class databasecore extends Lxdb
 			? $this->dbtype : 'mysql';
 		$sync = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
 			? $this->syncserver : 'localhost';
-		$dbtypeSql = addslashes($dbtype);
-		$syncSql = addslashes($sync);
-
-		$res = $db->getRowsWhere("dbtype = '$dbtypeSql' AND syncserver = '$syncSql'");
+		$res = $db->getRowsWhere(kloxo_sql_and_eq(array(
+			'dbtype' => $dbtype,
+			'syncserver' => $sync,
+		)));
 
 		if (!$res) {
 			dprintr("NO database admin entries... <br> ");
@@ -449,15 +449,34 @@ class databasecore extends Lxdb
 	}
 }
 
+/**
+ * MSSQL removed on Ubuntu (security SS2 / RR3). Stub refuses if loaded.
+ */
 class mssqldb extends databasecore
 {
+	static $__table = 'mssqldb';
+	static $__desc = array("", "", "mssql_database");
 
-	static $__table =  'mssqldb';
-	static $__desc = array("", "",  "mssql_database");
-	static $__desc_nname = array("n", "",  "Db Name", URL_SHOW);
-	static $__desc_dbname = array("n", "",  "mssql_database_name", URL_SHOW);
+	function dbactionAdd()
+	{
+		global $login;
 
-//	static $__desc_mssqldbuser_l = array("db", "", "");
+		throw new lxException($login ? $login->getThrow('mssql_not_available') : 'mssql_not_available', '');
+	}
+
+	function dbactionUpdate($subaction)
+	{
+		global $login;
+
+		throw new lxException($login ? $login->getThrow('mssql_not_available') : 'mssql_not_available', '');
+	}
+
+	function dbactionDelete()
+	{
+		global $login;
+
+		throw new lxException($login ? $login->getThrow('mssql_not_available') : 'mssql_not_available', '');
+	}
 }
 
 class mysqldb extends databasecore

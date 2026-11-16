@@ -85,7 +85,7 @@ class ExclusiveIp extends Lxclass
 		if ($parent->isAdmin()) {
 			$result = $db->getTable();
 		} else {
-			$result = $db->getRowsWhere("clientname = '" . $parent->nname . "'");
+			$result = $db->getRows('clientname', $parent->nname);
 		}
 
 		return is_array($result) ? $result : array();

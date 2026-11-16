@@ -2181,6 +2181,71 @@ $findings[] = finding('RR6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo', $rr6Closed,
 	$rr6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- SS wave ---
+$lxlibSs = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$davSs = file_text($root, 'kloxo/httpdocs/driver/web/davuserlib.php');
+$cronSs = file_text($root, 'kloxo/httpdocs/driver/pserver/cronlib.php');
+$dnsSs = file_text($root, 'kloxo/httpdocs/driver/dns/dnslib.php');
+$siteSs = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_sitepreview.php');
+$ss1Closed = contains($lxlibSs, 'function kloxo_sql_like')
+	&& not_contains($davSs, "parent_clname = '\$this->parent_clname'")
+	&& not_contains($cronSs, "username = '{\$username}'")
+	&& not_contains($dnsSs, "LIKE '%\$server%'")
+	&& not_contains($siteSs, "nname = '{\$q}'");
+$findings[] = finding('SS1', 'medium', 'remaining getRowsWhere string-concat call sites',
+	'davuser/cron/dns/sitepreview + helpers', $ss1Closed,
+	$ss1Closed ? 'converted to getRows / kloxo_sql_*' : 'still raw concat');
+
+$mssqlSs = file_text($root, 'kloxo/httpdocs/driver/pserver/ddatabaselib.php');
+$mssqluSs = file_text($root, 'kloxo/httpdocs/driver/pserver/ddatabaseuserlib.php');
+$ss2Closed = contains($mssqlSs, 'security SS2')
+	&& contains($mssqlSs, 'mssql_not_available')
+	&& contains($mssqluSs, 'security SS2')
+	&& contains($mssqluSs, 'mssql_not_available');
+$findings[] = finding('SS2', 'low', 'mssqldb class bodies still live',
+	'ddatabaselib / ddatabaseuserlib', $ss2Closed,
+	$ss2Closed ? 'stubs refuse' : 'full MSSQL classes remain');
+
+$toastSs = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$htmlSs = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$ss3Closed = contains($toastSs, 'security SS3')
+	&& contains($toastSs, 'body.textContent')
+	&& contains($htmlSs, 'security SS3')
+	&& contains($htmlSs, "progress_speed').textContent")
+	&& not_contains($htmlSs, "progress_speed').innerHTML = iSpeed");
+$findings[] = finding('SS3', 'low', 'toast/upload progress still assign into innerHTML',
+	'kloxo-toast.js / htmllib progress', $ss3Closed,
+	$ss3Closed ? 'toast DOM + progress textContent' : 'still innerHTML');
+
+$sqlSs = file_text($root, 'kloxo/httpdocs/lib/php/sqlitelib.php');
+$lxclassSs = file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php');
+$ss4Closed = contains($sqlSs, 'security SS4')
+	&& contains($sqlSs, 'getCountWhere refused unsafe')
+	&& contains($lxclassSs, 'kloxo_sql_eq')
+	&& not_contains($lxclassSs, "getCountWhere(\"parent_clname = '{\$this->getClName()}'\")");
+$findings[] = finding('SS4', 'low', 'getCountWhere takes free-form WHERE fragment',
+	'sqlitelib getCountWhere', $ss4Closed,
+	$ss4Closed ? 'refuse ;/--/UNION; caller uses kloxo_sql_eq' : 'still free-form');
+
+$ipSs = file_text($root, 'kloxo/httpdocs/lib/html/ippoollib.php');
+$ss5Closed = contains($lxlibSs, 'security SS5')
+	&& contains($lxlibSs, 'function kloxo_sql_like')
+	&& contains($ipSs, 'kloxo_sql_like')
+	&& contains($dnsSs, 'kloxo_sql_like')
+	&& not_contains($ipSs, "LIKE '%,\$ipaddr,%'")
+	&& not_contains($dnsSs, "LIKE '%\$server%'");
+$findings[] = finding('SS5', 'low', 'ippool/dns LIKE concatenates values',
+	'ippoollib / dnslib', $ss5Closed,
+	$ss5Closed ? 'kloxo_sql_like' : 'still raw LIKE concat');
+
+$extSecSs = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$ss6Closed = contains($lxlibSs, 'security SS6')
+	&& contains($extSecSs, 'security SS6')
+	&& contains($lxlibSs, 'gated unserialize');
+$findings[] = finding('SS6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo', $ss6Closed,
+	$ss6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(
