@@ -2803,6 +2803,59 @@ $findings[] = finding('CCC6', 'low', 'intentional residual ExtJS/unserialize/eev
 	'lxlib.php / extjs SECURITY.kloxo / toast', $ccc6Closed,
 	$ccc6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- DDD wave ---
+$htmlDdd = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$ddd1Closed = contains($htmlDdd, 'security DDD1')
+	&& contains($htmlDdd, '$cssSafe($style)')
+	&& contains($htmlDdd, '$esc($this->convert_message($mess))');
+$findings[] = finding('DDD1', 'medium', 'show_error_message echoes raw style/message/mess',
+	'htmllib.php show_error_message', $ddd1Closed,
+	$ddd1Closed ? 'CSS-safe style + escaped mess' : 'still raw');
+
+$frameDdd = file_text($root, 'kloxo/httpdocs/theme/frame_top.php');
+$ddd2Closed = contains($frameDdd, 'security DDD2')
+	&& substr_count($frameDdd, 'security DDD2') >= 2
+	&& not_contains($frameDdd, "javascript:window.open('\$url')")
+	&& not_contains($frameDdd, "javascript:window.open('\$helpurl/')");
+$findings[] = finding('DDD2', 'medium', 'frame_top ticket_url/help/skin colour unescaped',
+	'frame_top.php createHeaderData / print_header', $ddd2Closed,
+	$ddd2Closed ? 'json_encode open URL + hex skin' : 'still raw');
+
+$ddd3Closed = contains($htmlDdd, 'security DDD3')
+	&& contains($htmlDdd, '$menuJs')
+	&& not_contains($htmlDdd, "window.location='<?= \$url ?>';")
+	&& not_contains($htmlDdd, "frame1+\"'<?= \$url ?>'\"");
+$findings[] = finding('DDD3', 'low', 'print_pmenu addMenuItem raw menu/url/help into JS',
+	'htmllib.php print_pmenu', $ddd3Closed,
+	$ddd3Closed ? 'allow-listed menu id + json_encode args' : 'still raw');
+
+$ddd4Closed = contains($htmlDdd, 'security DDD4')
+	&& not_contains($htmlDdd, "onClick=\"top.mainframe.window.location='\$url'\"")
+	&& not_contains($htmlDdd, "onClick=\"top.window.open('\$url')\"")
+	&& not_contains($htmlDdd, "onClick=\"\$formname\"");
+$findings[] = finding('DDD4', 'low', 'icon onClick embeds raw formname/url',
+	'htmllib.php icon link onClick', $ddd4Closed,
+	$ddd4Closed ? 'json_encode url + allow-listed js' : 'still raw');
+
+$libDdd = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibDdd = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$ddd5Closed = contains($libDdd, 'security LL3 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5')
+	&& contains($libDdd, 'security MM1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5')
+	&& contains($lxlibDdd, 'security TT1 / VV5 / WW5 / XX5 / YY5 / ZZ5 / AAA5 / BBB5 / CCC5 / DDD5');
+$findings[] = finding('DDD5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $ddd5Closed,
+	$ddd5Closed ? 'ident-gated sites marked DDD5' : 'unmarked');
+
+$extSecDdd = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastDdd = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$ddd6Closed = contains($lxlibDdd, 'security DDD6')
+	&& contains($extSecDdd, 'security DDD6')
+	&& contains($toastDdd, 'security DDD6')
+	&& contains($lxlibDdd, 'gated unserialize');
+$findings[] = finding('DDD6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $ddd6Closed,
+	$ddd6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

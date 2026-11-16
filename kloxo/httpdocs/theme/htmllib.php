@@ -7532,24 +7532,36 @@ class HtmlLib
 
 		$help = $descr['desc'];
 
-		if ($linkflag) {
-			$displayvar = "<span style='color:#024' class='icontextlink' id='aaid_$name' " .
-				"onmouseover=\"style.textDecoration='underline';\" onmouseout=\"style.textDecoration='none'\">" .
-				"</span>";
+		// Escaped onClick location/open (security DDD4).
+		$nameId = preg_replace('/[^A-Za-z0-9_]/', '', (string) $name);
+		if ($nameId === '') {
+			$nameId = 'kloxolink';
+		}
+		$urlJs = json_encode((string) $url, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		$labelEsc = htmlspecialchars((string) ($descr[2] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$imgEsc = htmlspecialchars((string) $imagesrc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-			if (csa($formname, "javascript")) {
-				$onclickvar = "onClick=\"$formname\"";
-			} else {
-				if ($target == 'mainframe') {
-					$onclickvar = "onClick=\"top.mainframe.window.location='$url'\"";
+		if ($linkflag) {
+			$displayvar = '<span style="color:#024" class="icontextlink" id="aaid_' . $nameId . '" '
+				. 'onmouseover="style.textDecoration=\'underline\';" onmouseout="style.textDecoration=\'none\'">'
+				. '</span>';
+
+			if (csa((string) $formname, 'javascript')) {
+				if (preg_match('/^javascript:top\.mainframe\.logOut\(\);?\s*$/i', (string) $formname)) {
+					$onclickvar = 'onClick="top.mainframe.logOut();"';
 				} else {
-					$onclickvar = "onClick=\"top.window.open('$url')\"";
+					$onclickvar = '';
 				}
+			} elseif ($target == 'mainframe') {
+				$onclickvar = 'onClick="top.mainframe.window.location=' . htmlspecialchars($urlJs, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+			} else {
+				$onclickvar = 'onClick="top.window.open(' . htmlspecialchars($urlJs, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ')"';
 			}
 
 			$alt = $help;
 		} else {
-			$displayvar = "<span title=\"You don't have permission\" class=icontextlink>{$descr[2]} (disabled)</span>";
+			$displayvar = '<span title="You don\'t have permission" class="icontextlink">'
+				. $labelEsc . ' (disabled)</span>';
 			$alt = "You dont have permission";
 			$onclickvar = null;
 		}
@@ -7558,11 +7570,12 @@ class HtmlLib
 
 		if ($imgflag) {
 			if ($linkflag) {
-				$imgvar = "<img width='15' height='15' class='icontextlink' $onclickvar" .
-					"onMouseOver=\"getElementById('aaid_$name').style.textDecoration='underline';\" " .
-					"onMouseOut=\"getElementById('aaid_$name').style.textDecoration='none';\" src=\"$imagesrc\">";
+				$imgvar = '<img width="15" height="15" class="icontextlink" ' . $onclickvar
+					. ' onMouseOver="getElementById(\'aaid_' . $nameId . '\').style.textDecoration=\'underline\';" '
+					. 'onMouseOut="getElementById(\'aaid_' . $nameId . '\').style.textDecoration=\'none\';" '
+					. 'src="' . $imgEsc . '" alt="">';
 			} else {
-				$imgvar = "<img width='15' height='15' class='icontextlink' src=\"$imagesrc\">";
+				$imgvar = '<img width="15" height="15" class="icontextlink" src="' . $imgEsc . '" alt="">';
 			}
 
 		} else {
@@ -10049,28 +10062,43 @@ function uploadAbort(e) { // upload abort
 	{
 		global $gbl, $sgbl, $login;
 
+		// Escaped modal attrs/body (security DDD1).
+		$esc = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
+		$cssSafe = static function ($s): string {
+			return preg_replace('/[^a-zA-Z0-9#%:;,.() _\\/-]/', '', (string) $s) ?? '';
+		};
+
 		if(!$login) {
-			$error_box = "Error Box";
-			$press_esc_to_close = "";
+			$error_box = 'Error Box';
+			$press_esc_to_close = '';
 		} else {
-			$error_box = $login->getKeywordUc('error_box');
-			$press_esc_to_close = "&nbsp;-&nbsp;" . $login->getKeywordUc('press_esc_to_close');
+			$error_box = (string) $login->getKeywordUc('error_box');
+			$press_esc_to_close = '&nbsp;-&nbsp;' . $esc($login->getKeywordUc('press_esc_to_close'));
 		}
 
 		if (!$imgfile) {
 			$img_path = get_general_image_path();
 			$imgfile = $img_path . "/button/warningpic.gif";
 			$color = 'brown';
-			$message = "<span style='color:red'><b> Error: </b></span>";
+			$message = '<span style="color:red"><b> Error: </b></span>';
 			$style = 'border: 1px solid #f00; background:#fdd;';
 			$fontstyle = 'color: #000';
+		} else {
+			$message = $esc($message);
 		}
+
+		$style = $cssSafe($style);
+		$fontstyle = $cssSafe($fontstyle);
+		$imgfile = $esc($imgfile);
 
 		// MR -- impossible for login page with get_image_path()
 	//	$icondir = get_image_path();
 		$icondir = "/theme/icon/collage";
 
-		$mess = $this->convert_message($mess);
+		$mess = $esc($this->convert_message($mess));
+		$error_box = $esc($error_box);
 
 		$divpop_path = str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "divpop.js"));
 
@@ -10088,7 +10116,7 @@ function uploadAbort(e) { // upload abort
 					<div class="kloxo-modal-title" id="<?= $error_id ?>-title"><?= $error_box ?><?= $press_esc_to_close ?></div>
 					<a class="kloxo-modal-close" href="javascript:void(0)" onclick="kloxoHidePopup('<?= $error_id ?>'); return false;" title="Close">&#215;</a>
 				</div>
-				<div class="kloxo-modal-body" style='<?= $fontstyle ?>'><!-- <img src="<?= $imgfile ?>"> --><?= $message ?> <?= $mess ?></div>
+				<div class="kloxo-modal-body" style="<?= $fontstyle ?>"><!-- <img src="<?= $imgfile ?>"> --><?= $message ?> <?= $mess ?></div>
 			</div>
 		</div>
 <?php
@@ -10802,6 +10830,9 @@ function uploadAbort(e) { // upload abort
 	{
 		global $gbl, $sgbl, $login;
 
+		// Allow-listed menu id + json-encoded args (security DDD3).
+		$menuJs = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', (string) $menu) ? (string) $menu : 'navig';
+
 		$img_path = get_image_path();
 		$buttonpath = $iconpath = $img_path;
 
@@ -10811,7 +10842,7 @@ function uploadAbort(e) { // upload abort
 			$string = $this->getMenuDescrString($image, $url);
 ?>
 
-			<?= $menu ?>.addMenuItem("<?= $string ?>", "", "0", "There is No History at this Point.", "0");
+			<?= $menuJs ?>.addMenuItem(<?= json_encode($string, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>, "", "0", "There is No History at this Point.", "0");
 <?php
 
 			return;
@@ -10835,16 +10866,20 @@ function uploadAbort(e) { // upload abort
 		//THis is not the way to do it. a flag should be passed... is the correct way...
 		$frame = null;
 		$string = $this->getMenuDescrString($image, $desc);
+		$stringJs = json_encode($string, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		$urlJs = json_encode((string) $url, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		$helpJs = json_encode((string) $help, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
 		if (csb($menu, 'navig') || csb($menu, 'hist')) {
+			$action = 'window.location=' . json_encode((string) $url, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';';
 ?>
 
-			<?= $menu ?>.addMenuItem("<?= $string ?>", "window.location='<?= $url ?>';", "0", "<?= $help ?>", "0");
+			<?= $menuJs ?>.addMenuItem(<?= $stringJs ?>, <?= json_encode($action, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>, "0", <?= $helpJs ?>, "0");
 <?php
 		} else {
 ?>
 
-			<?= $menu ?>.addMenuItem("<?= $string ?>", frame1+"'<?= $url ?>';", "0", "<?= $help ?>", "0");
+			<?= $menuJs ?>.addMenuItem(<?= $stringJs ?>, frame1+<?= $urlJs ?>, "0", <?= $helpJs ?>, "0");
 <?php
 		}
 	}

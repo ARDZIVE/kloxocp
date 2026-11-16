@@ -68,7 +68,11 @@ function print_logout()
 function print_header()
 {
 	global $gbl, $sgbl, $login, $ghtml; 
-	$lightskincolor = $login->getLightSkinColor();
+	// Hex-only skin colour (security DDD2).
+	$lightskincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getLightSkinColor()) ?? '';
+	if ($lightskincolor === '' || (strlen($lightskincolor) !== 3 && strlen($lightskincolor) !== 6 && strlen($lightskincolor) !== 8)) {
+		$lightskincolor = 'ddddff';
+	}
 	createHeaderData();
 ?>
 <body topmargin="0" leftmargin="0" bottommargin="0" rightmargin="0">
@@ -203,16 +207,20 @@ function createHeaderData()
 		$ffileurl = $ghtml->getFullUrl('n=web&k[class]=ffile&k[nname]=/&a=show');
 	}
 	$gob = $login->getObject('general')->generalmisc_b;
+	// Safe ticket/help open URLs (security DDD2).
 	if (isset($gob->ticket_url) && $gob->ticket_url) {
-		$url = $gob->ticket_url;
-		$url = add_http_if_not_exist($url);
-		$ticket_url = "javascript:window.open('$url')";
+		$url = add_http_if_not_exist((string) $gob->ticket_url);
+		if (preg_match('#^https?://[A-Za-z0-9._~:/?#\\[\\]@!$&\'()*+,;=%-]+$#', $url)) {
+			$ticket_url = 'javascript:window.open(' . json_encode($url, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ')';
+		} else {
+			$ticket_url = '/display.php?frm_action=list&frm_o_cname=ticket';
+		}
 	} else {
-		$ticket_url = "/display.php?frm_action=list&frm_o_cname=ticket";
+		$ticket_url = '/display.php?frm_action=list&frm_o_cname=ticket';
 	}
 
-//	$helpurl = "https://kloxocp.invalid";
-	$helpurl = "https://kloxocp.invalid";
+	$helpurl = 'https://kloxocp.invalid';
+	$helpOpen = 'javascript:window.open(' . json_encode($helpurl . '/', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ')';
 
 	$gdata = array(
 		"desktop" => array($deskdesc, "/display.php?frm_action=desktop", "client_list.gif"),
@@ -226,7 +234,7 @@ function createHeaderData()
 		"ticket" => array($ticketdesc, $ticket_url, "ticket.png"),
 		"ssession" => array($ssessiondesc, "/display.php?frm_action=list&frm_o_cname=ssessionlist", "session.png"),
 		"about" => array($aboutdesc, "/display.php?frm_action=about", "ssession_list.gif"),
-		"help" => array($helpdesc, "javascript:window.open('$helpurl/')", "help.png"),
+		"help" => array($helpdesc, $helpOpen, "help.png"),
 		"logout" => array("$logoutdesc", "javascript:top.mainframe.logOut();", "logout.png")
 	);
 }
