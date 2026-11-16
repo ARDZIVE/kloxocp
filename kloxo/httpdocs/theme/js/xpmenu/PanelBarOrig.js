@@ -254,13 +254,21 @@ function detectContext()
 function initialize(pintWidth)
 {
 	var iCntr = 0;
+	// Escape theme paths / width / bg (security WW4).
+	var safeHref = kloxoEscHtml(_themeFolder) + "/" + kloxoEscHtml(_themeFile);
+	var safeBg = String(document.bgColor == null ? '' : document.bgColor)
+		.replace(/[^#A-Za-z0-9(),.% -]/g, '');
+	var w = parseInt(pintWidth, 10);
+	if (!isFinite(w) || w < 1) {
+		w = 180;
+	}
 
-	document.write("<link href=\"" + _themeFolder + "/" + _themeFile + "\"" + 
+	document.write("<link href=\"" + safeHref + "\"" + 
 					" rel=\"stylesheet\" type=\"text/css\">");
 
-	document.write("<center><font style=\"color: " + document.bgColor + 
+	document.write("<center><font style=\"color: " + safeBg + 
 					";font-size: 4pt;\">" + "</font>");
-	document.write("<div id=\"panelBar\" style=\"width: " + pintWidth + "\">");
+	document.write("<div id=\"panelBar\" style=\"width: " + w + "\">");
 	for (iCntr = 0; iCntr < _mnuIndex; iCntr++)
 	{
 		_arrMenus[iCntr].render();
@@ -294,11 +302,15 @@ function createSubMenu(pMenu, pstrDesc, pstrLink, pstrLinkData, pstrTip,
 
 function setTheme(pstrTheme, pstrThemeFolder, pstrImgFolder)
 {
+	// Path-ish allow-list (security WW4).
+	function kloxoSafePath(s) {
+		return String(s == null ? '' : s).replace(/[^A-Za-z0-9._\/-]/g, '');
+	}
 	if (pstrTheme != null)
-		_themeFile =  pstrTheme;
+		_themeFile = kloxoSafePath(pstrTheme);
 	if (pstrThemeFolder != null)
-		_themeFolder = pstrThemeFolder;
+		_themeFolder = kloxoSafePath(pstrThemeFolder);
 	if (pstrImgFolder != null)
-		_imageFolder = pstrImgFolder;
+		_imageFolder = kloxoSafePath(pstrImgFolder);
 }
 

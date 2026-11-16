@@ -46,7 +46,7 @@ function auto_update()
 
 function getIncrementedValueFromTable($table, $column)
 {
-	// Identifier allow-list (security LL3 / VV5).
+	// Identifier allow-list (security LL3 / VV5 / WW5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($column)) {
 		return 1;
 	}
@@ -1242,7 +1242,7 @@ function remove_old_serve_file()
 
 function fix_flag_variable($table, $flagvariable)
 {
-	// Identifier allow-list (security LL3 / VV5).
+	// Identifier allow-list (security LL3 / VV5 / WW5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($flagvariable)) {
 		return;
 	}
@@ -3201,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111639';
+	return '10.1-2026111640';
 }
 
 function getDownloadServer()
@@ -8244,7 +8244,7 @@ function changeColumn($tbl_name, $changelist)
 
 function changeValues($res, $tbl_name, $db, $newfields)
 {
-	// Identified table + quoted cell values only (security MM1 / VV5).
+	// Identified table + quoted cell values only (security MM1 / VV5 / WW5).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($tbl_name)) {
 		return;
 	}

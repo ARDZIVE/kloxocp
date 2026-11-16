@@ -2422,6 +2422,60 @@ $findings[] = finding('VV6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo / toast', $vv6Closed,
 	$vv6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- WW wave ---
+$topWw = file_text($root, 'kloxo/httpdocs/theme/skin/simplicity/default/topbar_left.php');
+$ww1Closed = contains($topWw, 'security WW1')
+	&& contains($topWw, 'kloxo_sql_like')
+	&& contains($topWw, 'kloxo_sql_eq')
+	&& not_contains($topWw, "LIKE '%client-{\$loginas}%'")
+	&& not_contains($topWw, "sent_to='client-{\$loginas}'");
+$findings[] = finding('WW1', 'medium', 'topbar_left concatenates loginas into LIKE/sent_to',
+	'topbar_left.php message/ticket counts', $ww1Closed,
+	$ww1Closed ? 'kloxo_sql_like / kloxo_sql_eq' : 'still raw concat');
+
+$frameWw = file_text($root, 'kloxo/httpdocs/theme/frame_left.php');
+$ww2Closed = contains($frameWw, 'security WW2')
+	&& contains($frameWw, 'rdescJs')
+	&& not_contains($frameWw, "createSubMenu(xxpFav, '<?=\$rdesc?>'");
+$findings[] = finding('WW2', 'medium', 'frame_left Favorites embeds rdesc into JS string',
+	'frame_left.php createSubMenu favorites', $ww2Closed,
+	$ww2Closed ? 'json_encode title + rdesc' : 'still raw PHP-in-JS');
+
+$lxclassWw = file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php');
+$ww3Closed = contains($lxclassWw, 'security WW3')
+	&& contains($lxclassWw, 'Named hpfilter')
+	&& not_contains($lxclassWw, 'implode(" ", $res)');
+$findings[] = finding('WW3', 'low', 'getdbFilter __hpfilter injects free-form fragments',
+	'lxclass.php getdbFilter', $ww3Closed,
+	$ww3Closed ? 'key/val allow-list + rebuilt clause' : 'still implode raw');
+
+$panelWw = file_text($root, 'kloxo/httpdocs/theme/js/xpmenu/PanelBarOrig.js');
+$ww4Closed = contains($panelWw, 'security WW4')
+	&& contains($panelWw, 'safeHref')
+	&& contains($panelWw, 'kloxoSafePath');
+$findings[] = finding('WW4', 'low', 'PanelBar writes theme folder/file/bg unsafely',
+	'PanelBarOrig.js initialize/setTheme', $ww4Closed,
+	$ww4Closed ? 'escaped href + path allow-list' : 'still raw theme paths');
+
+$libWw = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxlibWw = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$ww5Closed = contains($libWw, 'security LL3 / VV5 / WW5')
+	&& contains($libWw, 'security MM1 / VV5 / WW5')
+	&& contains($lxlibWw, 'security TT1 / VV5 / WW5');
+$findings[] = finding('WW5', 'low', 'schema rawQuery residual surface unmarked',
+	'lib.php / lxlib.php schema helpers', $ww5Closed,
+	$ww5Closed ? 'ident-gated sites marked WW5' : 'unmarked');
+
+$extSecWw = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastWw = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$ww6Closed = contains($lxlibWw, 'security WW6')
+	&& contains($extSecWw, 'security WW6')
+	&& contains($toastWw, 'security WW6')
+	&& contains($lxlibWw, 'gated unserialize');
+$findings[] = finding('WW6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $ww6Closed,
+	$ww6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

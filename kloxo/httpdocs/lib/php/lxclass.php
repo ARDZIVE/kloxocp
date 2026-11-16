@@ -1270,12 +1270,30 @@ abstract class Lxclass
 					$total[] = "{$var} {$oplist[$op]} '{$esc}'";
 				}
 			} else {
-				$f = "__hpfilter_{$key}_{$val}";
+				// Named hpfilter: allow-list key/val + rebuild clause (security WW3).
+				$keyS = (string) $key;
+				$valS = (string) $val;
+				if (preg_match('/^[A-Za-z0-9_]+$/', $keyS) !== 1
+					|| preg_match('/^[A-Za-z0-9_]+$/', $valS) !== 1) {
+					continue;
+				}
+				$f = "__hpfilter_{$keyS}_{$valS}";
 				$res = get_real_class_variable($class, $f);
 
-				if (is_array($res)) {
-					$total[] = implode(" ", $res);
+				if (!is_array($res) || count($res) < 3) {
+					continue;
 				}
+				$hf = (string) $res[0];
+				$hop = (string) $res[1];
+				$hval = trim((string) $res[2], "\"'");
+				static $hpOps = array('=' => true, '!=' => true, '>' => true, '<' => true, 'LIKE' => true);
+				if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($hf) || !isset($hpOps[$hop])) {
+					continue;
+				}
+				$esc = function_exists('kloxo_sql_quote')
+					? kloxo_sql_quote($hval)
+					: str_replace("'", "''", $hval);
+				$total[] = "{$hf} {$hop} '{$esc}'";
 			}
 		}
 
