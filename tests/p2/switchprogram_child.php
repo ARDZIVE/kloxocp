@@ -77,6 +77,23 @@ switch ($scenario) {
 	case 'same':
 		sp_run('same', $base, array());
 		break;
+	case 'return_param':
+		// Success must return $param so do_desc_update does not toast update_failed.
+		$err = '';
+		$ret = null;
+		try {
+			$ret = sp_make($base)->updateSwitchProgram(sp_params($base, array('web_driver' => 'nginx')));
+		} catch (Throwable $e) {
+			$err = get_class($e) . ': ' . $e->getMessage();
+		}
+		echo json_encode(array(
+			'scenario' => 'return_param',
+			'error' => $err,
+			'truthy' => (bool) $ret,
+			'is_array' => is_array($ret),
+			'has_web' => is_array($ret) && isset($ret['web_driver']),
+		)), "\n";
+		break;
 	case 'smtp':
 		sp_run('smtp', $base, array('smtp_driver' => 'postfix'));
 		break;

@@ -90,6 +90,12 @@ $r = child($tmp, 'same');
 ($r['error'] === '' && $r['calls'] === '') ? ok('unchanged Update installs and restarts nothing')
 	: bad('unchanged Update installs and restarts nothing', ($r['error'] ?? '') . ' calls=' . $r['calls']);
 
+// 3b. success must return a truthy $param (else UI toasts update_failed after a good switch)
+$r = child($tmp, 'return_param');
+(!empty($r['truthy']) && !empty($r['is_array']) && !empty($r['has_web']) && ($r['error'] ?? '') === '')
+	? ok('updateSwitchProgram returns $param on success (no false update_failed)')
+	: bad('updateSwitchProgram returns $param on success (no false update_failed)', json_encode($r));
+
 // 4. smtp exim -> postfix
 $r = child($tmp, 'smtp');
 ($r['error'] === '' && ($r['slave']['smtp'] ?? '') === 'postfix'

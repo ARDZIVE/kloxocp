@@ -332,6 +332,10 @@ class pserver extends pservercore {
 		if ($policyErrors !== array()) {
 			throw new lxException(implode('; ', $policyErrors), '', 'smtp');
 		}
+
+		// do_desc_update treats a falsy return as failure (update_failed toast)
+		// even when switchDriver already ran. Always return the param on success.
+		return $param;
 	}
 
 	function updatemailQueueFlush($param)

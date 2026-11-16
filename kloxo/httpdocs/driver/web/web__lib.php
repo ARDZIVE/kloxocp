@@ -26,13 +26,13 @@ class web__ extends lxDriverClass
 			if (function_exists('kloxo_exec_argv')) {
 				kloxo_exec_argv(array('sh', '/script/fixweb', '--target=defaults'));
 			}
-		} elseif ((string)$drivertype === 'nginx') {
-			// Ubuntu: wire conf.d includes + drop sites-enabled/default, then
-			// render domain vhosts (installMe alone used to leave /var/www/html).
-			if (function_exists('kloxo_exec_argv')) {
-				kloxo_exec_argv(array('sh', '/script/fixweb', '--target=defaults', '--server=localhost'));
-				kloxo_exec_argv(array('sh', '/script/fixweb', '--target=domains', '--server=localhost'));
-			}
+		} elseif (function_exists('kloxo_exec_argv')
+			&& ((string) $drivertype === 'nginx' || (string) $drivertype === 'apache')) {
+			// Ubuntu: regenerate defaults + domain vhosts after Switch Program
+			// (nginx: conf.d includes; apache: install-apache templates). Runs
+			// on kloxo-backend as root — panel FPM cannot write /etc or reload.
+			kloxo_exec_argv(array('sh', '/script/fixweb', '--target=defaults', '--server=localhost'));
+			kloxo_exec_argv(array('sh', '/script/fixweb', '--target=domains', '--server=localhost'));
 		}
 
 		createRestartFile("restart-web");
