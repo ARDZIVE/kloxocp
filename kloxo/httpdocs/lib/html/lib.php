@@ -3201,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111636';
+	return '10.1-2026111637';
 }
 
 function getDownloadServer()
@@ -5024,19 +5024,27 @@ function is_default_quota_flag_on($v)
 
 function db_set_default($table, $variable, $default, $extra = null)
 {
-	// Identifier allow-list + quoted default (security LL3).
+	// Identifier allow-list + quoted default (security LL3 / TT1).
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($variable)) {
 		return;
 	}
 	$sq = new Sqlite(null, $table);
 	$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($default) : str_replace("'", "''", (string) $default);
 
-	if ($extra) {
-		$extra = "AND $extra";
+	$extraSql = '';
+	if ($extra !== null && $extra !== '') {
+		$clause = preg_replace('/^\s*AND\s+/i', '', trim((string) $extra));
+		$extraOk = kloxo_sql_assign_clause($clause);
+		if ($extraOk === null) {
+			log_log('security', 'db_set_default refused unsafe extra (security TT1)');
+
+			return;
+		}
+		$extraSql = " AND {$extraOk}";
 	}
 
-	$sq->rawQuery("update {$table} set {$variable} = '{$esc}' where {$variable} = '' {$extra}");
-	$sq->rawQuery("update {$table} set {$variable} = '{$esc}' where {$variable} is null {$extra}");
+	$sq->rawQuery("update {$table} set {$variable} = '{$esc}' where {$variable} = ''{$extraSql}");
+	$sq->rawQuery("update {$table} set {$variable} = '{$esc}' where {$variable} is null{$extraSql}");
 }
 
 function db_set_default_variable_diskusage($table, $variable, $default, $extra = null)
@@ -5044,20 +5052,28 @@ function db_set_default_variable_diskusage($table, $variable, $default, $extra =
 	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($table) || !kloxo_sql_ident($variable)) {
 		return;
 	}
-	// Numeric default only (security LL3).
+	// Numeric default only (security LL3 / TT1).
 	if (!is_numeric($default)) {
 		return;
 	}
 	$sq = new Sqlite(null, $table);
 	$num = 0 + $default;
 
-	if ($extra) {
-		$extra = "AND $extra";
+	$extraSql = '';
+	if ($extra !== null && $extra !== '') {
+		$clause = preg_replace('/^\s*AND\s+/i', '', trim((string) $extra));
+		$extraOk = kloxo_sql_assign_clause($clause);
+		if ($extraOk === null) {
+			log_log('security', 'db_set_default_variable_diskusage refused unsafe extra (security TT1)');
+
+			return;
+		}
+		$extraSql = " AND {$extraOk}";
 	}
 
-	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = '' {$extra}");
-	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} is null {$extra}");
-	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = '-' {$extra}");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = ''{$extraSql}");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} is null{$extraSql}");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = '-'{$extraSql}");
 }
 
 function db_set_default_variable($table, $variable, $default, $extra = null)
@@ -5071,12 +5087,20 @@ function db_set_default_variable($table, $variable, $default, $extra = null)
 	$sq = new Sqlite(null, $table);
 	$num = 0 + $default;
 
-	if ($extra) {
-		$extra = "AND $extra";
+	$extraSql = '';
+	if ($extra !== null && $extra !== '') {
+		$clause = preg_replace('/^\s*AND\s+/i', '', trim((string) $extra));
+		$extraOk = kloxo_sql_assign_clause($clause);
+		if ($extraOk === null) {
+			log_log('security', 'db_set_default_variable refused unsafe extra (security TT1)');
+
+			return;
+		}
+		$extraSql = " AND {$extraOk}";
 	}
 
-	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = '' {$extra}");
-	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} is null {$extra}");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} = ''{$extraSql}");
+	$sq->rawQuery("update {$table} set {$variable} = {$num} where {$variable} is null{$extraSql}");
 }
 
 function updateTableProperly($__db, $table, $rr, $content)
@@ -5188,9 +5212,15 @@ function migrateResourceplan($class)
 	$cres = $sq->getTable();
 
 	if ($class) {
-		$nsq = new Sqlite(null, "{$class}template");
-		$dres = $nsq->getTable();
-		$total = lx_array_merge(array($cres, $dres));
+		// Table name allow-list (security TT1).
+		$tpl = (string) $class . 'template';
+		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident($tpl)) {
+			$total = $cres;
+		} else {
+			$nsq = new Sqlite(null, $tpl);
+			$dres = $nsq->getTable();
+			$total = lx_array_merge(array($cres, $dres));
+		}
 	} else {
 		$total = $cres;
 	}

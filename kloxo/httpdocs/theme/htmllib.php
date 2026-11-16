@@ -10064,9 +10064,16 @@ function uploadAbort(e) { // upload abort
 		$desc = trim($desc);
 		$open = 'false';
 		$name = $file . "_" . $name;
+		// JS identifier only (security TT5).
+		if (!is_string($treename) || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $treename) !== 1) {
+			$treename = '_kloxo_tree';
+		}
+		$descJs = self::jsString('<span style="text-decoration: underline;">' . htmlspecialchars((string) $desc, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span>');
+		$urlJs = self::jsString((string) $url);
+		$imageJs = self::jsString((string) $image);
 ?>
 
-		createSubMenu(<?= $treename ?>, '<span style="text-decoration: underline;"><?= $desc ?></span>', '<?= $url ?>', '', '', '<?= $image ?>', 'mainframe');
+		createSubMenu(<?= $treename ?>, <?= $descJs ?>, <?= $urlJs ?>, '', '', <?= $imageJs ?>, 'mainframe');
 <?php
 	}
 
@@ -10092,7 +10099,11 @@ function uploadAbort(e) { // upload abort
 			$scriptdone = true;
 		}
 
+		// JS identifier only (security TT5).
 		$treename = "_" . fix_nname_to_be_variable($object->nname);
+		if (!is_string($treename) || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $treename) !== 1) {
+			$treename = '_kloxo_tree';
+		}
 ?>
 		<div style="width: 600px; margin: 0 auto">
 <?php
@@ -10101,7 +10112,7 @@ function uploadAbort(e) { // upload abort
 
 			<div class='dtree'>
 				<script>
-					<?=$treename?> = new dTree('<?=$treename?>');
+					<?=$treename?> = new dTree(<?= self::jsString($treename) ?>);
 				</script>
 <?php
 		}
@@ -10132,7 +10143,7 @@ function uploadAbort(e) { // upload abort
 		if ($complex) {
 ?>
 
-					document.write(<?=$treename?>);
+					document.write(<?=$treename?>); // security TT5: treename is JS-ident allow-listed
 				</script>
 
 			</div>
@@ -10180,13 +10191,23 @@ function uploadAbort(e) { // upload abort
 		$open = $tree->open ? $tree->open : 'false';
 		$open = 'false';
 
+		// JS identifier only (security TT5).
+		if (!is_string($treename) || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $treename) !== 1) {
+			$treename = '_kloxo_tree';
+		}
+
 		if ($tree->imgstr) {
 			$total++;
 
 			if ($complex) {
+				$imgstrJs = self::jsString((string) $tree->imgstr);
+				$urlJs = self::jsString((string) $tree->url);
+				$imgJs = self::jsString((string) $tree->img);
+				$helpJs = self::jsString((string) $tree->help);
+				$altJs = self::jsString((string) $tree->alt);
 ?>
 
-			<?= $treename ?>.add(<?= $total ?>, <?= $level ?>, '<?= $tree->imgstr ?>', '<?= $tree->url ?>', '', 'mainframe', '<?= $tree->img ?>', '<?= $tree->img ?>', <?= $open ?>, '<?= $tree->help ?>', '<?= $tree->alt ?>');
+			<?= $treename ?>.add(<?= (int) $total ?>, <?= (int) $level ?>, <?= $imgstrJs ?>, <?= $urlJs ?>, '', 'mainframe', <?= $imgJs ?>, <?= $imgJs ?>, <?= $open ?>, <?= $helpJs ?>, <?= $altJs ?>);
 <?php
 			} else {
 				for ($i = 0; $i < $level; $i++) {

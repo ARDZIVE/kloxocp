@@ -103,7 +103,7 @@
 		// Icon SVG is allow-listed by kind; message is textContent (security SS3).
 		var icon = doc.createElement('span');
 		icon.className = 'kloxo-toast-icon';
-		icon.innerHTML = iconSvg(k);
+		icon.innerHTML = iconSvg(k); // allow-listed SVG only (security TT6)
 		var body = doc.createElement('div');
 		body.className = 'kloxo-toast-body';
 		body.textContent = msg == null ? '' : String(msg);

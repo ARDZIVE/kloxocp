@@ -2246,6 +2246,65 @@ $findings[] = finding('SS6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs SECURITY.kloxo', $ss6Closed,
 	$ss6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- TT wave ---
+$libTt = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$lxclientTt = file_text($root, 'kloxo/httpdocs/lib/client/lxclient.php');
+$ipTt = file_text($root, 'kloxo/httpdocs/lib/html/ippoollib.php');
+$lxguardTt = file_text($root, 'kloxo/httpdocs/driver/pserver/lxguardlib.php');
+$webTt = file_text($root, 'kloxo/httpdocs/driver/web/weblib.php');
+$lxlibTt = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$tt1Closed = contains($libTt, 'db_set_default refused unsafe extra (security TT1)')
+	&& contains($lxclientTt, 'Quoted parent_clname (security TT1)')
+	&& contains($ipTt, 'security LL3 / TT1')
+	&& contains($lxguardTt, 'security LL3 / TT1')
+	&& contains($webTt, 'Quoted syncserver (security TT1)')
+	&& contains($lxlibTt, 'Identifier allow-list (security TT1)');
+$findings[] = finding('TT1', 'medium', 'remaining rawQuery interpolations',
+	'lib.php / ippool / lxguard / lxclient / weblib', $tt1Closed,
+	$tt1Closed ? 'defaults/extra + utmp/syncserver quoted; int cutoffs' : 'still raw concat');
+
+$svcTt = file_text($root, 'kloxo/httpdocs/driver/pserver/servicelib.php');
+$tt2Closed = contains($svcTt, 'security TT2')
+	&& contains($svcTt, 'kloxo_sql_eq')
+	&& not_contains($svcTt, 'addslashes($server)')
+	&& not_contains($svcTt, 'addslashes($parentCl)');
+$findings[] = finding('TT2', 'medium', 'servicelib WHERE still uses addslashes',
+	'servicelib.php initThisList', $tt2Closed,
+	$tt2Closed ? 'kloxo_sql_eq OR parts' : 'still addslashes');
+
+$tt3Closed = contains($lxclientTt, 'security TT3')
+	&& contains($lxclientTt, "getRows('nname', \$this->nname)")
+	&& not_contains($lxclientTt, "where nname = '\$this->nname'");
+$findings[] = finding('TT3', 'low', 'lxclient rawQuery nname interpolate',
+	'lxclient.php already_exists check', $tt3Closed,
+	$tt3Closed ? 'getRows nname' : 'still rawQuery nname');
+
+$lxaTt = file_text($root, 'kloxo/httpdocs/theme/js/lxa.js');
+$tt4Closed = contains($lxaTt, 'security TT4')
+	&& contains($lxaTt, 'el.textContent')
+	&& not_contains($lxaTt, 'el.innerHTML');
+$findings[] = finding('TT4', 'low', 'lxa.js textarea gutter assigns innerHTML',
+	'theme/js/lxa.js createTextAreaWithLines', $tt4Closed,
+	$tt4Closed ? 'textContent' : 'still innerHTML');
+
+$htmlTt = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$tt5Closed = contains($htmlTt, 'security TT5')
+	&& contains($htmlTt, "preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/'")
+	&& contains($htmlTt, 'self::jsString');
+$findings[] = finding('TT5', 'low', 'htmllib document.write(treename) unsanitized',
+	'htmllib.php do_resource / print_tree', $tt5Closed,
+	$tt5Closed ? 'JS-ident allow-list + jsString args' : 'still raw treename');
+
+$extSecTt = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$toastTt = file_text($root, 'kloxo/httpdocs/theme/js/kloxo-toast.js');
+$tt6Closed = contains($lxlibTt, 'security TT6')
+	&& contains($extSecTt, 'security TT6')
+	&& contains($toastTt, 'security TT6')
+	&& contains($lxlibTt, 'gated unserialize');
+$findings[] = finding('TT6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo / toast', $tt6Closed,
+	$tt6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

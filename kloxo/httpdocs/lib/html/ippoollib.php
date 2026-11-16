@@ -280,7 +280,7 @@ class ippool extends Lxdb
 		$sq = new Sqlite(null, 'tmpipassign');
 
 		$ctime = (int) time() - 100;
-		// Integer cutoff only (security LL3).
+		// Integer cutoff only (security LL3 / TT1).
 		$sq->rawQuery("delete from tmpipassign where (ddate + 0) < {$ctime}");
 
 		$pingip = null;

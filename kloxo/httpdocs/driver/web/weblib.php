@@ -492,7 +492,10 @@ class Web extends Lxdb
 
 		$syncserver = ($this->syncserver) ? $this->syncserver : 'localhost';
 		$this->__syncserver = $syncserver;
-		$string = "syncserver = '{$syncserver}'";
+		// Quoted syncserver (security TT1).
+		$string = function_exists('kloxo_sql_eq')
+			? kloxo_sql_eq('syncserver', $syncserver)
+			: ("syncserver = '" . str_replace("'", "''", (string) $syncserver) . "'");
 
 	//	$mydb = new Sqlite($this->__masterserver, 'ipaddress');
 		$mydb = new Sqlite(null, 'ipaddress');

@@ -592,12 +592,13 @@ class Service extends Lxdb
 		$list = array();
 		try {
 			$sql = new Sqlite(is_object($parent) ? $parent->__masterserver : null, 'service');
-			$where = "syncserver = '" . addslashes($server) . "'";
+			// Quoted equality via kloxo_sql_eq (security TT2).
+			$parts = array(kloxo_sql_eq('syncserver', $server));
 			if ($parentCl !== '' && $parentCl !== $pcl) {
-				$where .= " OR parent_clname = '" . addslashes($parentCl) . "'";
+				$parts[] = kloxo_sql_eq('parent_clname', $parentCl);
 			}
-			$where .= " OR parent_clname = '" . addslashes($pcl) . "'";
-			$got = $sql->getRowsWhere($where);
+			$parts[] = kloxo_sql_eq('parent_clname', $pcl);
+			$got = $sql->getRowsWhere(implode(' OR ', $parts));
 			if (is_array($got)) {
 				$list = $got;
 			}

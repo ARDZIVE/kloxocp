@@ -843,9 +843,10 @@ abstract class Lxclient extends Lxdb
 
 		}
 
+		// Quoted nname via getRows (security TT3).
 		$sq = new Sqlite(null, $this->get__table());
-		$res = $sq->rawQuery("select * from {$this->get__table()} where nname = '$this->nname'");
-		
+		$res = $sq->getRows('nname', $this->nname);
+
 		if ($res) {
 			throw new lxException($login->getThrow('already_exists'), '', $this->nname);
 		}
@@ -1026,19 +1027,22 @@ abstract class Lxclient extends Lxdb
 	function fetchUtmpLoginRows()
 	{
 		$cl = (string) $this->getClName();
-		$cl = str_replace(array("'", '\\', "\0"), '', $cl);
 		if ($cl === '' || !class_exists('Sqlite', false)) {
 			return array();
 		}
 		try {
 			$sq = new Sqlite(null, 'utmp');
+			// Quoted parent_clname (security TT1).
+			$where = function_exists('kloxo_sql_eq')
+				? kloxo_sql_eq('parent_clname', $cl)
+				: ("parent_clname = '" . str_replace("'", "''", $cl) . "'");
 			$res = $sq->rawQuery(
-				"select ip_address, logintime from utmp where parent_clname = '{$cl}' "
+				"select ip_address, logintime from utmp where {$where} "
 				. "order by cast(logintime as integer) DESC limit 2"
 			);
 			if (!is_array($res)) {
 				$res = $sq->rawQuery(
-					"select ip_address, logintime from utmp where parent_clname = '{$cl}' "
+					"select ip_address, logintime from utmp where {$where} "
 					. "order by (logintime + 0) DESC limit 2"
 				);
 			}

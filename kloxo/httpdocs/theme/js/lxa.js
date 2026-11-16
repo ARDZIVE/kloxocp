@@ -215,8 +215,8 @@ function createTextAreaWithLines(id)
 	el.style.overflow = 'hidden';
 	el.style.textAlign = 'right';
 	el.style.paddingRight = '0.2em';
-	el.innerHTML      = string;  //Firefox renders \n linebreak
-	el.innerText      = string; //IE6 renders \n line break
+	// Line numbers only — textContent (security TT4).
+	el.textContent    = string;
 	el.style.zIndex   = 0;
 	ta.style.zIndex   = 1;
 	ta.style.position = "relative";

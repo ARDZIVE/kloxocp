@@ -2443,10 +2443,10 @@ function kloxo_sql_like($field, $value, string $mode = 'contains'): string
 
 /**
  * Intentional residual surfaces (security MM6; security NN6; security OO6;
- * security PP6; security QQ6; security RR6; security SS6): crypt() verify-only
- * in check_password; getShellCommand stub; SMTP/FormMail stubs; ExtJS retained
- * for UI; gated unserialize / allow-listed eeval. Do not mint new crypt/md5
- * password hashes.
+ * security PP6; security QQ6; security RR6; security SS6; security TT6):
+ * crypt() verify-only in check_password; getShellCommand stub; SMTP/FormMail
+ * stubs; ExtJS retained for UI; gated unserialize / allow-listed eeval; toast
+ * icon SVG via allow-listed innerHTML. Do not mint new crypt/md5 password hashes.
  */
 
 function randomString($length)
@@ -6017,14 +6017,22 @@ function get_default_fields()
 function create_table_with_drop($tbl_name, $list)
 {
 	global $gbl, $sgbl, $login, $ghtml;
+	// Identifier allow-list (security TT1).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $tbl_name)) {
+		return;
+	}
 	$__db = new Sqlite(null, 'sqlite');
-	$__db->rawQuery("drop table $tbl_name");
+	$__db->rawQuery("drop table {$tbl_name}");
 	create_table($__db, $tbl_name, $list);
 }
 
 function create_table($__db, $tbl_name, $list)
 {
 	global $gbl, $sgbl, $login, $ghtml;
+	// Identifier allow-list (security TT1).
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $tbl_name) || !is_array($list)) {
+		return;
+	}
 	$__db = new Sqlite(null, 'sqlite');
 
 	// For mssql you can talk of primary key initially itself nad not wait till the end of the fields.
@@ -6035,20 +6043,32 @@ function create_table($__db, $tbl_name, $list)
 	}
 
 	foreach ($list as &$__tl) {
-		if (csb($__tl, "nname")) {
-			$__tl = "$__tl varchar(255) $primary_key";
-		} else if (csb($__tl, "ser_")) {
-			$__tl = "$__tl longtext";
-		} else if (csb($__tl, "coma_")) {
-			$__tl = "$__tl text";
-		} else if (csb($__tl, "text_")) {
-			$__tl = "$__tl longtext";
-		} else if (csb($__tl, "parent_cmlist")) {
-			$__tl = "$__tl text";
+		$col = (string) $__tl;
+		if (!kloxo_sql_ident($col)) {
+			$__tl = null;
+			continue;
+		}
+		if (csb($col, "nname")) {
+			$__tl = "$col varchar(255) $primary_key";
+		} else if (csb($col, "ser_")) {
+			$__tl = "$col longtext";
+		} else if (csb($col, "coma_")) {
+			$__tl = "$col text";
+		} else if (csb($col, "text_")) {
+			$__tl = "$col longtext";
+		} else if (csb($col, "parent_cmlist")) {
+			$__tl = "$col text";
 		} else {
 			// Why this madness... How can the general type be varchar. What will happen to all the text messages?
-			$__tl = "$__tl varchar(255)";
+			$__tl = "$col varchar(255)";
 		}
+	}
+	unset($__tl);
+	$list = array_values(array_filter($list, static function ($v) {
+		return is_string($v) && $v !== '';
+	}));
+	if ($list === array()) {
+		return;
 	}
 
 	if ($sgbl->__var_database_type === 'mysql') {
@@ -6060,20 +6080,26 @@ function create_table($__db, $tbl_name, $list)
 
 function sqlite_do_create_table($__db, $tbl_name, $fields)
 {
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $tbl_name)) {
+		return;
+	}
 	$fields = implode(', ', $fields);
 
-	$query = "create table $tbl_name ($fields);";
+	$query = "create table {$tbl_name} ({$fields});";
 	print("Creating table $tbl_name....\n");
 	$ret = $__db->rawQuery($query);
 
-	$query = "insert into $tbl_name (nname) values ('__dummy__dummy__')";
+	$query = "insert into {$tbl_name} (nname) values ('__dummy__dummy__')";
 	$__db->rawQuery($query);
 }
 
 function mysql_do_create_table($__db, $tbl_name, $fields)
 {
+	if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $tbl_name)) {
+		return;
+	}
 	$fields = implode(', ', $fields);
-	$query = "create table $tbl_name ($fields, primary key (nname (255)));";
+	$query = "create table {$tbl_name} ({$fields}, primary key (nname (255)));";
 	print("Creating table $tbl_name....\n");
 	$ret = $__db->rawQuery($query);
 
@@ -6081,7 +6107,7 @@ function mysql_do_create_table($__db, $tbl_name, $fields)
 		//print("\nerror: " . mysql_error() . "\n\n");
 	}
 
-	$query = "create index parent_clname_$tbl_name on $tbl_name (parent_clname (255));";
+	$query = "create index parent_clname_{$tbl_name} on {$tbl_name} (parent_clname (255));";
 	$__db->rawQuery($query);
 }
 
