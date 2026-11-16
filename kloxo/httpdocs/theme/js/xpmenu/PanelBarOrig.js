@@ -129,9 +129,13 @@ function getLink(pTarget, pstrLink, pstrLinkData)
 	var strRet = "";
 	var strTmp;
 
-	strTmp = pstrLink;
-	if (pstrLinkData != null)
-		strTmp = pstrLink;
+	// Refuse javascript:/data: and escape quotes (security RR5).
+	strTmp = String(pstrLink == null ? '' : pstrLink);
+	if (/^\s*javascript:/i.test(strTmp) || /^\s*data:/i.test(strTmp) || /^\s*vbscript:/i.test(strTmp)) {
+		strTmp = '#';
+	}
+	strTmp = strTmp.replace(/\\/g, '\\\\').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	var safeTarget = pTarget == null ? null : String(pTarget).replace(/"/g, '').replace(/</g, '').replace(/>/g, '');
 
 	if (pTarget == TARGET_BLANK) 
 		strRet = "\"" + strTmp + "\" TARGET=\"_blank\"";
@@ -141,8 +145,8 @@ function getLink(pTarget, pstrLink, pstrLinkData)
 		strRet = "\"" + strTmp + "\" TARGET=\"_parent\"";
 	else if (pTarget == TARGET_TOP)
 		strRet = "\"" + strTmp + "\" TARGET=\"_top\"";
-	else if (pTarget != null)
-		strRet = "\"" + strTmp + "\" TARGET=\"" + pTarget + "\"";
+	else if (safeTarget != null)
+		strRet = "\"" + strTmp + "\" TARGET=\"" + safeTarget + "\"";
 	else
 		strRet = "\"" + strTmp + "\"";
 	return strRet;

@@ -231,15 +231,15 @@ function db_get_value($table, $nname, $var)
 		return is_array($var) ? array() : '';
 	}
 	$sql = new Sqlite(null, $table);
-	$esc = function_exists('kloxo_sql_quote') ? kloxo_sql_quote($nname) : str_replace("'", "''", (string) $nname);
 
+	// getRows quotes nname (security RR2).
 	if (is_array($var)) {
-		$row = $sql->getRowsWhere("nname = '{$esc}'", $var);
+		$row = $sql->getRows('nname', $nname, $var);
 
 		return (isset($row[0]) && is_array($row[0])) ? $row[0] : array();
 	}
 
-	$row = $sql->getRowsWhere("nname = '{$esc}'", array($var));
+	$row = $sql->getRows('nname', $nname, array($var));
 	if (!isset($row[0]) || !is_array($row[0]) || !array_key_exists($var, $row[0])) {
 		return '';
 	}
@@ -1629,7 +1629,7 @@ function getRealhostName($name)
 	}
 
 	$sq = new Sqlite(null, 'pserver');
-	$res = $sq->getRowsWhere("nname = '$name'", array('realhostname'));
+	$res = $sq->getRows('nname', $name, array('realhostname'));
 
 	if (!$res[0]['realhostname']) {
 		return 'localhost';
@@ -3201,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111633';
+	return '10.1-2026111635';
 }
 
 function getDownloadServer()
@@ -4323,7 +4323,7 @@ function getIpaddressList($master, $servername)
 		$servername = 'localhost';
 	}
 
-	$list = $sql->getRowsWhere("syncserver = '$servername'");
+	$list = $sql->getRows('syncserver', $servername);
 
 	foreach ($list as $l) {
 		$ret[] = $l['ipaddr'];
@@ -5235,7 +5235,7 @@ function getOsForServer($servername)
 
 	$sq = new Sqlite(null, 'pserver');
 
-	$res = $sq->getRowsWhere("nname = '$servername'", array('ostype'));
+	$res = $sq->getRows('nname', $servername, array('ostype'));
 
 	if (is_array($res) && isset($res[0]['ostype']) && is_string($res[0]['ostype']) && $res[0]['ostype'] !== '') {
 		return $res[0]['ostype'];
@@ -5817,7 +5817,7 @@ function findServerTraffic()
 	$list = $login->getList('pserver');
 
 	foreach ($list as $l) {
-		$res = $sq->getRowsWhere("syncserver = '$l->nname'",
+		$res = $sq->getRows('syncserver', $l->nname,
 			array('used_q_traffic_usage', 'used_q_traffic_last_usage'));
 		$tusage = 0;
 		$tlastusage = 0;

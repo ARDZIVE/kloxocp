@@ -32,6 +32,19 @@ class HtmlLib
 		}
 	}
 
+	/**
+	 * JSON-encode a string for safe use inside a JS call in an HTML attribute (security RR4).
+	 */
+	static function jsString($value): string
+	{
+		$j = json_encode(
+			(string) $value,
+			JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+		);
+
+		return is_string($j) && $j !== '' ? $j : '""';
+	}
+
 	function __construct()
 	{
 		global $gbl, $sgbl;
@@ -4079,7 +4092,8 @@ class HtmlLib
 			// MR -- need this process to fix title
 			$alt = preg_replace("/_lxspan:([^:]*):([^:]*):/", "$2", $alt);
 
-			$align = "center onmouseover=\"changeContent('help',' $help')\" onmouseout=\"changeContent('help','helparea')\"";
+			$helpJs = self::jsString(' ' . (string) $help);
+			$align = "center onmouseover=\"changeContent('help',{$helpJs})\" onmouseout=\"changeContent('help','helparea')\"";
 
 			if (!$sgbl->isBlackBackground()) {
 				if ($button_type === 'image') {
@@ -4148,7 +4162,8 @@ class HtmlLib
 
 				$alt = lx_strip_tags($help);
 				$help = $this->get_action_or_display_help($help, "action");
-				$urlhelp = "onmouseover=\"changeContent('help',' $help')\" onmouseout=\"changeContent('help','helparea')\"";
+				$helpJs = self::jsString(' ' . (string) $help);
+				$urlhelp = "onmouseover=\"changeContent('help',{$helpJs})\" onmouseout=\"changeContent('help','helparea')\"";
 
 				if (strstr($descr[$name][0], "b") != null || csb($name, "abutton")) {
 					if ($obj->isButton($name)) {
@@ -4305,7 +4320,8 @@ class HtmlLib
 			$help .= "Go To " . ucfirst($name) . " Page.";
 		}
 
-		$link = "<a onmouseover=\"changeContent('help','$help')\" " .
+		$helpJs = self::jsString((string) $help);
+		$link = "<a onmouseover=\"changeContent('help',{$helpJs})\" " .
 			"onmouseout=\"changeContent('help','helparea')\" href=javascript:document.form{$name}_page_$place.submit()>" .
 			"<img src=$iconpath/{$name}_page.gif align=absbottom></a> ";
 
@@ -7642,7 +7658,8 @@ class HtmlLib
 			$help = "<br /> <br /> <span style=color:blue>$name </span> uses $val $unit ($realval%) of $maxval";
 			$alt = lx_strip_tags($help);
 			$help = "<b> Message: </b>" . $help;
-			$help = "onmouseover=\"changeContent('help',' $help')\" onmouseout=\"changeContent('help','helparea')\"";
+			$helpJs = self::jsString(' ' . (string) $help);
+			$help = "onmouseover=\"changeContent('help',{$helpJs})\" onmouseout=\"changeContent('help','helparea')\"";
 		} else {
 			$text = "<span class=last> <span size=1>$realval%</span></span>";
 		}
@@ -11035,7 +11052,7 @@ function uploadAbort(e) { // upload abort
 			}
 ?>
 
-			<span class="tableheadtext" onmouseover="changeContent('help','<b>Message </b>: <br /> <br /> <?= $help ?>')" onmouseout="changeContent('help','helparea')"> <?= $d ?> </span>
+			<span class="tableheadtext" onmouseover="changeContent('help',<?= self::jsString('<b>Message </b>: <br /> <br /> ' . (string) $help) ?>)" onmouseout="changeContent('help','helparea')"> <?= $d ?> </span>
 <?php
 			return;
 		}

@@ -91,11 +91,12 @@ $gl_class_array["package"] = "driver/pserver/packagelib.php";
 $gl_class_array["databasecore"] = "driver/pserver/ddatabaselib.php";
 $gl_class_array["databaseusercore"] = "driver/pserver/ddatabaseuserlib.php";
 $gl_class_array["mysqldb"] = "driver/pserver/ddatabaselib.php";
-$gl_class_array["mssqldb"] = "driver/pserver/ddatabaselib.php";
+// MSSQL removed on Ubuntu (security RR3).
+// $gl_class_array["mssqldb"] = "driver/pserver/ddatabaselib.php";
 $gl_class_array["mysqldbuser"] = "driver/pserver/ddatabaseuserlib.php";
 $gl_class_array["resourceplan"] = "lib/html/resourceplanlib.php";
 $gl_class_array["ippool"] = "lib/html/ippoollib.php";
-$gl_class_array["mssqldbuser"] = "driver/pserver/ddatabaseuserlib.php";
+// $gl_class_array["mssqldbuser"] = "driver/pserver/ddatabaseuserlib.php";
 $gl_class_array["exclusiveip"] = "driver/pserver/exclusiveiplib.php";
 $gl_class_array["servermail"] = "driver/mmail/servermaillib.php";
 $gl_class_array["serverftp"] = "driver/ftp/serverftplib.php";

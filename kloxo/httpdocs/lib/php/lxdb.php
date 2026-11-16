@@ -94,7 +94,7 @@ abstract class Lxdb extends Lxclass
 	static function initThisOutOfBand($parent, $iclass, $mclass, $rclass)
 	{
 		$sq = new Sqlite(null, $iclass);
-		$res = $sq->getRowsWhere("parent_clname = '{$parent->getClName()}'", array("nname"));
+		$res = $sq->getRows('parent_clname', $parent->getClName(), array("nname"));
 		$res = get_namelist_from_arraylist($res);
 		$ret = null;
 

@@ -92,7 +92,8 @@ class pservercore extends Lxclient
 	static $__desc_used_domainlist_dns_f = array("", "", "domains_as_dns");
 	static $__desc_used_domainlist_secdns_f = array("", "", "domains_as_secondary_dns");
 	static $__desc_used_domainlist_mysqldb_f = array("", "", "mysql_databases");
-	static $__desc_used_domainlist_mssqldb_f = array("", "", "mssql_databases");
+	// MSSQL removed on Ubuntu (security RR3).
+	// static $__desc_used_domainlist_mssqldb_f = array("", "", "mssql_databases");
 	static $__desc_newpassword_f = array("", "", "new_mysql_root_password");
 	static $__desc_osversion = array("", "", "version");
 	static $__desc_used_f = array("e", "", "used");

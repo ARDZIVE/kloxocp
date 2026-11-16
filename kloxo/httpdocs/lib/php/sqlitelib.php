@@ -287,7 +287,8 @@ class Sqlite
 
 	function existInTable($var, $value)
 	{
-		$result = $this->getRowsWhere("{$var} = '{$value}'");
+		// Quoted equality via getRows (security RR1; security QQ1).
+		$result = $this->getRows($var, $value);
 
 		if ($result) {
 			return true;
@@ -338,15 +339,15 @@ class Sqlite
 		return $this->getRowsWhere("{$field} != '{$v}'");
 	}
 
-	function getRows($field, $value)
+	function getRows($field, $value, $list = null)
 	{
-		// Quote values + ident check (security QQ1).
+		// Quote values + ident check (security QQ1 / RR2).
 		if (!function_exists('kloxo_sql_ident') || !kloxo_sql_ident((string) $field)) {
 			return null;
 		}
 		$v = $this->escapeBack($field, $value);
 
-		return $this->getRowsWhere("{$field} = '{$v}'");
+		return $this->getRowsWhere("{$field} = '{$v}'", $list);
 	}
 
 	function getTable($list = null)

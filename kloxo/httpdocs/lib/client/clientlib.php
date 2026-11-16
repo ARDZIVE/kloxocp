@@ -108,7 +108,7 @@ class Client extends ClientBase
 	{
 		$this->__var_defdocroot = $this->default_domain;
 		$sq = new Sqlite(null, 'web');
-		$res = $sq->getRowsWhere("nname = '$this->default_domain'", array('docroot'));
+		$res = $sq->getRows('nname', $this->default_domain, array('docroot'));
 		
 		if ($res) {
 			$this->__var_defdocroot = $res[0]['docroot'];
@@ -729,7 +729,7 @@ class Client extends ClientBase
 
 		if (!$rd) {
 			$sq = new Sqlite(null, 'domain');
-			$list = $sq->getRowsWhere("parent_clname = '{$this->getClName()}'", array('nname'));
+			$list = $sq->getRows('parent_clname', $this->getClName(), array('nname'));
 			
 			if ($list) {
 				$list = get_namelist_from_arraylist($list);

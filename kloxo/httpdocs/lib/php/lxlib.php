@@ -2387,11 +2387,42 @@ function kloxo_sql_ident($name): bool
 }
 
 /**
+ * Build col = 'quoted' for legacy getRowsWhere (security RR2).
+ * Prefer Sqlite::getRows($field, $value) for simple equality.
+ */
+function kloxo_sql_eq($field, $value): string
+{
+	if (!kloxo_sql_ident((string) $field)) {
+		return '0 = 1';
+	}
+
+	return $field . " = '" . kloxo_sql_quote($value) . "'";
+}
+
+/**
+ * AND of kloxo_sql_eq pairs (security RR2).
+ *
+ * @param array<string, mixed> $pairs
+ */
+function kloxo_sql_and_eq(array $pairs): string
+{
+	if ($pairs === array()) {
+		return '0 = 1';
+	}
+	$parts = array();
+	foreach ($pairs as $field => $value) {
+		$parts[] = kloxo_sql_eq((string) $field, $value);
+	}
+
+	return implode(' AND ', $parts);
+}
+
+/**
  * Intentional residual surfaces (security MM6; security NN6; security OO6;
- * security PP6; security QQ6): crypt() verify-only in check_password;
- * getShellCommand stub; SMTP/FormMail stubs; ExtJS retained for UI;
- * gated unserialize / allow-listed eeval. Do not mint new crypt/md5 password
- * hashes.
+ * security PP6; security QQ6; security RR6): crypt() verify-only in
+ * check_password; getShellCommand stub; SMTP/FormMail stubs; ExtJS retained
+ * for UI; gated unserialize / allow-listed eeval. Do not mint new crypt/md5
+ * password hashes.
  */
 
 function randomString($length)

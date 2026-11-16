@@ -2120,6 +2120,67 @@ $findings[] = finding('QQ6', 'low', 'intentional residual ExtJS/unserialize/eeva
 	'lxlib.php / extjs / lxa.js', $qq6Closed,
 	$qq6Closed ? 'documented intentional leftovers' : 'unmarked');
 
+// --- RR wave ---
+$sqlRr = file_text($root, 'kloxo/httpdocs/lib/php/sqlitelib.php');
+$lxlibRr = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$rr1Closed = contains($sqlRr, 'security RR1')
+	&& preg_match('/function existInTable[\s\S]{0,200}getRows\s*\(/', $sqlRr)
+	&& not_contains($sqlRr, "getRowsWhere(\"{\$var} = '{\$value}'\")");
+$findings[] = finding('RR1', 'medium', 'sqlitelib existInTable interpolates WHERE unquoted',
+	'lib/php/sqlitelib.php existInTable', $rr1Closed,
+	$rr1Closed ? 'via getRows' : 'still unquoted');
+
+$resRr = file_text($root, 'kloxo/httpdocs/lib/html/resourceplanlib.php');
+$invRr = file_text($root, 'kloxo/httpdocs/lib/html/invoicelib.php');
+$payRr = file_text($root, 'kloxo/httpdocs/lib/html/paymentdetaillib.php');
+$libRr = file_text($root, 'kloxo/httpdocs/lib/html/lib.php');
+$rr2Closed = contains($lxlibRr, 'security RR2')
+	&& contains($lxlibRr, 'function kloxo_sql_eq')
+	&& contains($lxlibRr, 'function kloxo_sql_and_eq')
+	&& contains($sqlRr, 'function getRows($field, $value, $list = null)')
+	&& not_contains($resRr, "resourceplan_used = '\$this->nname'")
+	&& contains($invRr, 'kloxo_sql_and_eq')
+	&& not_contains($payRr, "transactionid = '\$transactionid'")
+	&& not_contains($libRr, "nname = '\$name'");
+$findings[] = finding('RR2', 'medium', 'callers build getRowsWhere with unquoted string concat',
+	'kloxo_sql_eq + getRows call sites', $rr2Closed,
+	$rr2Closed ? 'helpers + key sites converted' : 'still raw concat');
+
+$defRr = file_text($root, 'kloxo/httpdocs/lib/html/definecore.php');
+$rr3Closed = contains($defRr, 'security RR3')
+	&& !preg_match('/^\s*\$gl_class_array\["mssqldb"\]/m', $defRr)
+	&& !preg_match('/^\s*\$gl_class_array\["mssqldbuser"\]/m', $defRr);
+$findings[] = finding('RR3', 'low', 'mssqldb/mssqldbuser still registered in definecore',
+	'definecore.php', $rr3Closed,
+	$rr3Closed ? 'MSSQL classes unregistered' : 'still registered');
+
+$htmlRr = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$rr4Closed = contains($htmlRr, 'security RR4')
+	&& contains($htmlRr, 'function jsString')
+	&& contains($htmlRr, 'self::jsString')
+	&& not_contains($htmlRr, "changeContent('help',' \$help')")
+	&& not_contains($htmlRr, "changeContent('help','\$help')");
+$findings[] = finding('RR4', 'low', 'htmllib embeds $help into changeContent JS attribute',
+	'theme/htmllib.php', $rr4Closed,
+	$rr4Closed ? 'jsString / json_encode' : 'still raw interpolate');
+
+$panelRr = file_text($root, 'kloxo/httpdocs/theme/js/xpmenu/PanelBarOrig.js');
+$rr5Closed = contains($panelRr, 'security RR5')
+	&& contains($panelRr, 'javascript:')
+	&& contains($panelRr, 'function getLink')
+	&& preg_match('/function getLink[\s\S]{0,500}javascript:/', $panelRr);
+$findings[] = finding('RR5', 'low', 'PanelBarOrig getLink concatenates hlink without URL escape',
+	'theme/js/xpmenu/PanelBarOrig.js', $rr5Closed,
+	$rr5Closed ? 'refuse javascript:/data:; escape quotes' : 'still raw href');
+
+$extSecRr = file_text($root, 'kloxo/httpdocs/theme/extjs/SECURITY.kloxo');
+$rr6Closed = contains($lxlibRr, 'security RR6')
+	&& contains($extSecRr, 'security RR6')
+	&& contains($lxlibRr, 'gated unserialize');
+$findings[] = finding('RR6', 'low', 'intentional residual ExtJS/unserialize/eeval unmarked',
+	'lxlib.php / extjs SECURITY.kloxo', $rr6Closed,
+	$rr6Closed ? 'documented intentional leftovers' : 'unmarked');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

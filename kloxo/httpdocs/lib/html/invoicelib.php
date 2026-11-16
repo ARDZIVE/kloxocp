@@ -68,7 +68,11 @@ function display($var)
 function getTotalPaid()
 {
 	$sq = new Sqlite(null, "paymentdetail");
-	$res = $sq->getRowsWhere("month = '$this->month' AND client = '$this->client'");
+	// Quoted AND (security RR2).
+	$res = $sq->getRowsWhere(kloxo_sql_and_eq(array(
+		'month' => $this->month,
+		'client' => $this->client,
+	)));
 	$total = 0;
 	if ($res) {
 		foreach($res as $r) {

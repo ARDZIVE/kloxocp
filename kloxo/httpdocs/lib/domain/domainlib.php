@@ -1158,7 +1158,7 @@ class Domaind extends DomainBase
 			$dname = substr($dname, 0, 15);
 		}
 		$sq = new Sqlite(null, 'uuser');
-		if (!$sq->getRowsWhere("nname = '$dname'")) {
+		if (!$sq->getRows('nname', $dname)) {
 			return $dname;
 		}
 
@@ -1167,7 +1167,7 @@ class Domaind extends DomainBase
 		
 		while (true) {
 			$i++;
-			if ($sq->getRowsWhere("nname = '$dname'")) {
+			if ($sq->getRows('nname', $dname)) {
 				$dname = $dnamebase . "$i";
 			} else {
 				break;
