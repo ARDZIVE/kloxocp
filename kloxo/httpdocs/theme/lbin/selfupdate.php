@@ -1,26 +1,10 @@
-<?php 
-
-chdir("../../");
-
-include_once "lib/html/include.php"; 
-
-
-if ($ghtml->frm_clientname !== 'admin') {
-	print("__error_clientname_has_to_be_admin\n");
-	exit;
-}
-
-if (!check_raw_password('client', 'admin', $ghtml->frm_password)) {
-	print("__error_wrong_password\n");
-	exit;
-}
-
-try {
-	rl_exec_get(null, 'localhost', 'update_self', null);
-} catch (Exception $e) {
-	print("__error_{$e->getMessage()}\n");
-	exit;
-}
-
-print("__success_upgrade\n");
-
+<?php
+/**
+ * Legacy self-update HTTP endpoint — disabled (security N10).
+ * Use `kloxocp upcp` / panel Update with a logged-in session instead.
+ */
+http_response_code(403);
+header('Content-Type: text/plain; charset=UTF-8');
+header('Cache-Control: no-store');
+print("disabled: use kloxocp upcp\n");
+exit;

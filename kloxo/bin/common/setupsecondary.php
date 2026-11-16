@@ -23,8 +23,14 @@ function setupsecondary_main()
 		exit;
 	}
 
-	$master = $list['primary-master'];
-	$sshport = $list['sshport'];
+	$master = (string) $list['primary-master'];
+	$sshport = (string) $list['sshport'];
+	if (!preg_match('/^[A-Za-z0-9.-]{1,253}$/', $master)
+		|| !preg_match('/^[0-9]{1,5}$/', $sshport)
+		|| (int) $sshport < 1 || (int) $sshport > 65535) {
+		print("invalid --primary-master or --sshport\n");
+		exit(1);
+	}
 
 	print("Taking backup of the current database anyway...\n");
 	lxshell_php("../bin/common/mebackup.php");
@@ -40,10 +46,41 @@ function setupsecondary_main()
 	mysqli_query($conn, "stop slave");
 
 	print("Getting initial data from the master\n");
-	system("ssh -p $sshport $master \"(cd /opt/kloxo/$prgm/httpdocs ; lxphp.exe ../bin/common/setupprimarymaster.php --slavepass=$slavepass)\" | mysql -u root -p$pass $dbf");
+	// Argument arrays only (security N28) — no interpolated shell string.
+	$sshCmd = [
+		'/usr/bin/ssh', '-p', $sshport, $master,
+		'(cd /opt/kloxo/' . $prgm . '/httpdocs ; lxphp.exe ../bin/common/setupprimarymaster.php --slavepass=' . escapeshellarg($slavepass) . ')',
+	];
+	$mysqlCmd = ['/usr/bin/mysql', '-u', 'root', '-p' . $pass, $dbf];
+	$desc = [
+		0 => ['pipe', 'r'],
+		1 => ['pipe', 'w'],
+		2 => ['pipe', 'w'],
+	];
+	$ssh = @proc_open($sshCmd, $desc, $sshPipes, null, null, ['bypass_shell' => true]);
+	$my = @proc_open($mysqlCmd, [
+		0 => ['pipe', 'r'],
+		1 => ['pipe', 'w'],
+		2 => ['pipe', 'w'],
+	], $myPipes, null, null, ['bypass_shell' => true]);
+	if (is_resource($ssh) && is_resource($my) && isset($sshPipes[1], $myPipes[0])) {
+		stream_copy_to_stream($sshPipes[1], $myPipes[0]);
+		foreach (array_merge($sshPipes, $myPipes) as $p) {
+			if (is_resource($p)) {
+				fclose($p);
+			}
+		}
+		proc_close($ssh);
+		proc_close($my);
+	}
 	print("starting mysql data getting process\n");
 
-	mysqli_query($conn, "change master to master_host='$master', master_password='$slavepass'");
+	$stmt = mysqli_prepare($conn, 'CHANGE MASTER TO MASTER_HOST=?, MASTER_PASSWORD=?');
+	if ($stmt) {
+		mysqli_stmt_bind_param($stmt, 'ss', $master, $slavepass);
+		mysqli_stmt_execute($stmt);
+		mysqli_stmt_close($stmt);
+	}
 	mysqli_query($conn, "start slave");
 
 	lxfile_touch("../etc/secondary_master");

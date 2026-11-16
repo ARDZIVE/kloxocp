@@ -250,10 +250,14 @@ function do_remote_exec($machine, $rmt, $cmdtype, $nname, $dbaction)
 		if (isset($gbl->$var) && $gbl->$var) {
 			$password = $gbl->$var;
 		} else {
+			if (!is_string($machine) || !preg_match('/^[A-Za-z0-9._:-]{1,128}$/', $machine)
+				|| !preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+				throw new lxException($login->getThrow("machine_does_not_exist_in_db"), '', $machine);
+			}
 			$ssm = new Sqlite(null, $table);
-			$res = $ssm->rawQuery("select realpass from $table where nname = '$machine'");
+			$res = $ssm->getRows('nname', $machine);
 
-			if ($res) {
+			if ($res && isset($res[0]['realpass'])) {
 				$password = $res[0]['realpass'];
 			} else {
 				throw new lxException($login->getThrow("machine_does_not_exist_in_db"), '', $machine);
@@ -540,11 +544,13 @@ function send_to_some_stream_server($type, $size, $raddress, $var, $fd, $reexec 
 	if ($raddress === "localhost") {
 		$socket = stream_socket_client("{$con}://{$rraddress}:{$port}", $errno, $errstr, $connectTimeout);
 	} else {
+		// Per-install self-signed keys: verify the cert exists, allow self-signed
+		// (mutual TLS / pinned CA not built yet). Better than verify_peer off (N9).
 		$opts = array(
 			$con => array(
 				'allow_self_signed' => true,
-				'verify_peer' => false,
-				'verify_peer_name' => false
+				'verify_peer' => true,
+				'verify_peer_name' => false,
 			)
 		);
 
@@ -696,7 +702,8 @@ function createSslStream()
 	$opts = array(
 		'ssl' => array(
 			'local_cert' => $pem,
-			'verify_peer' => false,
+			'verify_peer' => true,
+			'verify_peer_name' => false,
 			'allow_self_signed' => true,
 		),
 	);
@@ -995,7 +1002,10 @@ function process_server_input($total)
 		return process_server_auth_fail('remote_authentication_failed');
 	}
 
-	$rmt = unserialize(base64_decode($env['payload_b64']));
+	$payloadRaw = base64_decode($env['payload_b64'], true);
+	$rmt = (is_string($payloadRaw) && function_exists('kloxo_unserialize_deny_gadgets'))
+		? kloxo_unserialize_deny_gadgets($payloadRaw)
+		: (is_string($payloadRaw) ? @unserialize($payloadRaw) : false);
 	if ($rmt) {
 		$rmt->authenticated = true;
 		save_slave_name($rmt);

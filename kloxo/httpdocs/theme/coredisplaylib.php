@@ -3393,10 +3393,10 @@ function lx_frm_inc()
 //		display_die('Remote post not permit');
 //	}
 
-	if(!file_exists("{$sgbl->__path_program_etc}/flag/not_use_token.flg")) {
-		if (!isCSRFTokenMatch()) {
-			display_die('Post token not match or using get instead post');
-		}
+	// CSRF is always enforced (security N12). The legacy not_use_token.flg
+	// kill-switch is ignored so a single flag cannot disable protection.
+	if (!isCSRFTokenMatch()) {
+		display_die('Post token not match or using get instead post');
 	}
 
 	$caction = $ghtml->frm_action;

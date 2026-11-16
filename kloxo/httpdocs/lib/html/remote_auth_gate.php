@@ -151,3 +151,44 @@ function kloxo_remote_verify_network_pass($user, $pass)
 
 	return false;
 }
+
+/**
+ * Unserialize with a deny-list of known PHP object-injection gadgets (N6/N22).
+ * Prefer this over bare unserialize() for network/DB blobs when a full class
+ * allow-list is not yet available.
+ *
+ * @param string $raw
+ * @param array|bool $options passed to unserialize (PHP 7+)
+ * @return mixed|false
+ */
+function kloxo_unserialize_deny_gadgets($raw, $options = true)
+{
+	if (!is_string($raw) || $raw === '') {
+		return false;
+	}
+	static $bad = array(
+		'PDO', 'PDOStatement', 'Phar', 'PharData', 'SimpleXMLElement',
+		'SplFileObject', 'SplFileInfo', 'DirectoryIterator', 'FilesystemIterator',
+		'CallbackFilterIterator', 'SQLite3', 'mysqli', 'CurlHandle',
+		'GuzzleHttp\\Psr7\\FnStream', 'Monolog\\Handler\\SyslogUdpHandler',
+		'Swift_KeyCache_DiskKeyCache', 'Swift_KeyCache_SimpleKeyCacheInputStream',
+	);
+	foreach ($bad as $c) {
+		$needle = ':"' . $c . '"';
+		$needle2 = ":'" . $c . "'";
+		if (strpos($raw, $needle) !== false || strpos($raw, $needle2) !== false) {
+			return false;
+		}
+		// Also match short class names without namespace escapes in ser strings.
+		if (strpos($raw, 'O:') !== false && preg_match('/O:\\d+:"' . preg_quote($c, '/') . '"/', $raw)) {
+			return false;
+		}
+	}
+	if (is_array($options)) {
+		return @unserialize($raw, $options);
+	}
+	if ($options === false) {
+		return @unserialize($raw, array('allowed_classes' => false));
+	}
+	return @unserialize($raw);
+}

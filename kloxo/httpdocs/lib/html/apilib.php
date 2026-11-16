@@ -4,7 +4,8 @@ function send_to_some_http_server($raddress, $port, $url)
 {
 	global $gbl, $sgbl, $login, $ghtml; 
 
-	$url = "login-class=client&login-name=admin&login-password=hell&output-type=json&$url";
+	// Never embed a default password (security N13). Caller must supply auth.
+	$url = "login-class=client&login-name=admin&login-password=&output-type=json&$url";
 
 	$ch = curl_init("http://$raddress:$port/bin/webcommand.php");
 

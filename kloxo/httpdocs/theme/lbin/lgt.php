@@ -1,15 +1,9 @@
-<?php 
-if (!file_exists("lib/html/displayinclude.php")) {
-	chdir("../..");
-}
-
-include_once "lib/html/displayinclude.php";
-
-if (!os_isSelfSystemOrLxlabsUser()) {
-	exit;
-}
-
-initProgram('admin');
-
-license::doupdateLicense();
-print("License Successfully updated\n");
+<?php
+/**
+ * Legacy license update via web — disabled (security N27).
+ */
+http_response_code(403);
+header('Content-Type: text/plain; charset=UTF-8');
+header('Cache-Control: no-store');
+print("disabled\n");
+exit;

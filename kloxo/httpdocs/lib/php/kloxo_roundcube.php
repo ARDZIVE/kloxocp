@@ -231,10 +231,10 @@ final class KloxoRoundcube
 			. "\$config['product_name'] = 'Kloxo Webmail';\n"
 			. "\$config['des_key'] = '{$des}';\n"
 			. "\$config['imap_conn_options'] = array(\n"
-			. "  'ssl' => array('verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true),\n"
+			. "  'ssl' => array('verify_peer' => true, 'verify_peer_name' => false, 'allow_self_signed' => true),\n"
 			. ");\n"
 			. "\$config['smtp_conn_options'] = array(\n"
-			. "  'ssl' => array('verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true),\n"
+			. "  'ssl' => array('verify_peer' => true, 'verify_peer_name' => false, 'allow_self_signed' => true),\n"
 			. ");\n";
 		$file = self::p(self::$configOverride);
 		if (@file_put_contents($file, $body) === false) {

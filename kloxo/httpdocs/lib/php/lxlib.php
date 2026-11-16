@@ -2858,28 +2858,10 @@ function initProgramlib($ctype = null)
 	}
 
 	if (!$sessobj || $sessobj->dbaction === 'add') {
-		if ($ghtml->frm_ssl) {
-			$ssl = unserialize(base64_decode($ghtml->frm_ssl));
-			$string = $ssl['string'];
-			$ssl_param = $ssl['ssl_param'];
-			$encrypted_string = base64_decode($ssl['encrypted_string']);
-			if (!$string || !checkPublicKey($string, $encrypted_string)) {
-				print("SSL Connection Failed <br> \n");
-				exit;
-			}
-			$class = 'client';
-			$clientname = 'admin';
-			try {
-				get_login($class, $clientname);
-			} catch (Throwable $e) {
-				$login = null;
-			}
-			if (is_object($login)) {
-				do_login($class, $clientname, $ssl_param);
-				$sessobj = $gbl->c_session;
-				$sessobj->write();
-				$sessobj->dbaction = 'clean';
-			}
+		// Legacy frm_ssl unserialize login removed (security N5).
+		if (isset($ghtml->frm_ssl) && $ghtml->frm_ssl) {
+			print("SSL Connection Failed <br> \n");
+			exit;
 		}
 	}
 
@@ -3073,9 +3055,9 @@ function do_login($classname, $cgi_clientname, $ssl_param = null)
 	$login->createSessionProperties();
 	addToUtmp($sessobj, 'add');
 
-	if ($ghtml->frm_extra_var) {
-		$extra = unserialize(base64_decode($ghtml->frm_extra_var));
-		$gbl->setSessionV('extra_var', $extra);
+	// frm_extra_var unserialize removed (security N5) — refuse client blobs.
+	if (isset($ghtml->frm_extra_var) && $ghtml->frm_extra_var) {
+		$gbl->setSessionV('extra_var', null);
 	}
 	//This is not the way. You have to periodically scan the utmp and delete eveyrthing that had expired.
 	delete_expired_ssessions();

@@ -50,8 +50,18 @@ same auth envelope as `process_server_input()`; `theme/lbin/monitordata.php`,
 `filedownload.php`, `serverfile.php`, and `signup.php` are 403 stubs;
 File Manager download streams in-session only. Re-check:
 `php tests/security/check-open-findings.php`.
-*Still open:* other unserialize-on-untrusted-input sites outside these paths (DB
-serialized columns, etc.).
+*Also closed (2026-11 scan N1–N28):* `__file::` auth envelope; ajax CSRF;
+`child.php`/`sudo_action` hardened or disabled; login `frm_ssl`/`frm_extra_var`
+unserialize removed; gadget deny-list helper; API POST; sitepreview HTML
+sanitize + CSP; slave TLS `verify_peer`; selfupdate/paypal/sesubmit/webdisk/
+getlicense stubs; `getParseInlinePhp` guards; CSRF kill-switch ignored;
+`load_database_file` argv; `do_serve_file` path checks; reset rate-limit;
+JSON.parse; Roundcube/`setupsecondary` hardening. Re-check:
+`php tests/security/check-open-findings.php` (F1–F18 + N1–N28).
+*Residual risk:* PHP object model still uses serialization for DB `ser_*`
+columns and backend payloads (gadget deny-list only); mutual TLS for slaves
+not built; template `eval` remains for first-party config snippets with
+pattern guards.
 *JSON replacement (planned, not built):* drop PHP serialization from the backend protocol.
 Payload becomes a versioned JSON object with a schema (action, class, nname, argument list);
 validate before dispatch. Transport: Unix socket for same-host (P0.5); slave TLS 7779 uses per-install

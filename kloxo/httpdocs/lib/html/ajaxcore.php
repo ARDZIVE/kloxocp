@@ -9,6 +9,20 @@ check_if_disabled_and_exit();
 
 $gbl->__inside_ajax = true;
 
+// CSRF for mutating ajax actions (security N2). Read-only tree/list/show stay open.
+$ajaxAction = isset($ghtml->frm_action) ? (string) $ghtml->frm_action : '';
+if (in_array($ajaxAction, ['add', 'update', 'delete'], true)) {
+	if (function_exists('isCSRFTokenMatch') && !isCSRFTokenMatch()) {
+		while (@ob_end_clean()) {
+			;
+		}
+		header('Content-Type: application/json; charset=UTF-8');
+		print(json_encode(['returnvalue' => 'error', 'message' => 'csrf_token_mismatch']));
+		flush();
+		exit;
+	}
+}
+
 // We need to convert the tree format to frm_o_o.
 if ($ghtml->frm_action === 'tree') {
 	convert_tree_to_frm_o();

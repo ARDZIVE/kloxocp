@@ -52,7 +52,10 @@ class Gbllib  extends Lxclass
 			foreach($row as $key => $value) {
 				if (csb($key, "ser_")) {
 					$key = strfrom($key, "ser_");
-					$value = unserialize(base64_decode($value));
+					$decoded = base64_decode((string) $value, true);
+					$value = (is_string($decoded) && function_exists('kloxo_unserialize_deny_gadgets'))
+						? kloxo_unserialize_deny_gadgets($decoded)
+						: (is_string($decoded) ? @unserialize($decoded) : false);
 				}
 
 				if (cse($key, "_b") && !is_object($value)) {

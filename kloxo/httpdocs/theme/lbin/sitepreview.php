@@ -88,10 +88,26 @@ if ($code < 100 || $code > 599) {
 http_response_code($code);
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: no-store');
+header("Content-Security-Policy: default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline' https: http:; font-src https: http: data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
 
 if (KloxoSitepreview::isRewritableHtml($ctype, $path)) {
 	header('Content-Type: text/html; charset=UTF-8');
 	echo KloxoSitepreview::rewriteHtml($domain, $body);
+	exit;
+}
+
+// Non-HTML: only allow a safe subset of types (no JS/SVG script).
+$safeType = preg_match('#^(image/(png|jpe?g|gif|webp|svg\+xml)|text/css|application/(json|javascript)|font/)#i', $ctype) === 1;
+if (!$safeType && !str_starts_with(strtolower($ctype), 'text/plain')
+	&& !str_starts_with(strtolower($ctype), 'image/')) {
+	header('Content-Type: application/octet-stream');
+	header('Content-Disposition: attachment');
+	echo $body;
+	exit;
+}
+if (stripos($ctype, 'javascript') !== false || stripos($ctype, 'svg') !== false) {
+	header('Content-Type: text/plain; charset=UTF-8');
+	echo "Blocked content type in preview\n";
 	exit;
 }
 

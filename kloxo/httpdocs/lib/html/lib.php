@@ -1509,11 +1509,15 @@ function getOneIPForLocalhost($v)
 
 function getInternalNetworkIp($v)
 {
+	if (!is_string($v) || $v === '' || !preg_match('/^[A-Za-z0-9._:-]{1,128}$/', $v)) {
+		return getFQDNforServer($v);
+	}
 	$sql = new Sqlite(null, "pserver");
+	$server = $sql->getRows('nname', $v);
 
-	$server = $sql->rawQuery("select * from pserver where nname = '$v'");
-
-	$servername = trim($server[0]['internalnetworkip']);
+	$servername = (is_array($server) && isset($server[0]['internalnetworkip']))
+		? trim((string) $server[0]['internalnetworkip'])
+		: '';
 
 	if ($servername) {
 		return $servername;
@@ -1549,9 +1553,12 @@ function getFQDNforServer($v)
 		return null;
 	}
 
+	if (!preg_match('/^[A-Za-z0-9._:-]{1,128}$/', $v)) {
+		return null;
+	}
 	try {
 		$sql = new Sqlite(null, "pserver");
-		$server = $sql->rawQuery("select * from pserver where nname = '$v'");
+		$server = $sql->getRows('nname', $v);
 	} catch (Throwable $e) {
 		return null;
 	}
@@ -1570,9 +1577,12 @@ function getOneIPForServer($v)
 	if (!class_exists('Sqlite')) {
 		return null;
 	}
+	if (!preg_match('/^[A-Za-z0-9._:-]{1,128}$/', $v)) {
+		return null;
+	}
 	try {
 		$sql = new Sqlite(null, "ipaddress");
-		$ipaddr = $sql->rawQuery("select * from ipaddress where syncserver = '$v'");
+		$ipaddr = $sql->getRows('syncserver', $v);
 	} catch (Throwable $e) {
 		$ipaddr = array();
 	}
@@ -1967,8 +1977,26 @@ function doGetOrPrintFromFileServ($serv, $filepass, $type, $fd)
 	$info->filename = $file;
 	log_log("servfile", "Start Get $serv $type $file $size");
 
-	$val = base64_encode(serialize($info));
-	$string = "__file::$val";
+	$payload = base64_encode(serialize($info));
+	// Auth envelope before the serialized blob (security N1), same shape as __master::.
+	$remotechar = (isset($GLOBALS['sgbl']) && is_object($GLOBALS['sgbl'])
+		&& isset($GLOBALS['sgbl']->__var_remote_char))
+		? (string) $GLOBALS['sgbl']->__var_remote_char
+		: '_._';
+	$user = base64_encode('slave');
+	$passPlain = '';
+	try {
+		if (function_exists('getAdminDbPass')) {
+			$passPlain = (string) getAdminDbPass();
+		}
+	} catch (Throwable $e) {
+		$passPlain = is_string($pass) ? $pass : '';
+	}
+	if ($passPlain === '' && is_string($pass)) {
+		$passPlain = $pass;
+	}
+	$passB64 = base64_encode($passPlain);
+	$string = "__file::" . $remotechar . "\n" . $user . "\n" . $passB64 . "\n" . $payload;
 
 	$totalsize = send_to_some_stream_server($type, $size, $serv, $string, $fd);
 
@@ -3053,7 +3081,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111601';
+	return '10.1-2026111602';
 }
 
 function getDownloadServer()
@@ -3858,15 +3886,41 @@ function callInChild($func, $arglist)
 {
 	global $sgbl;
 
+	if (!is_string($func) || $func === '') {
+		return null;
+	}
+	$allowed = ['send_mail_to_admin', 'lx_mail'];
+	if (!in_array($func, $allowed, true)) {
+		log_log('security', "callInChild refused function {$func}");
+
+		return null;
+	}
+
 	$res = new Remote();
 	$res->__type = 'function';
 	$res->func = $func;
-	$res->arglist = $arglist;
-	$name = tempnam("/tmp", "lxchild");
+	$res->arglist = is_array($arglist) ? $arglist : [];
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: dirname(__DIR__, 3);
+	$jobDir = $root . '/pid';
+	if (!is_dir($jobDir)) {
+		@mkdir($jobDir, 0750, true);
+	}
+	$name = @tempnam($jobDir, 'lxchild');
+	if ($name === false) {
+		$name = $jobDir . '/lxchild.' . getmypid() . '.' . mt_rand(1000, 9999);
+	}
 	lxfile_generic_chmod($name, "700");
 	lfile_put_contents($name, serialize($res));
-	$var = lxshell_output($sgbl->__path_php_path, "../bin/common/child.php", $name);
-	$rmt = unserialize(base64_decode($var));
+	$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
+		? (string) $sgbl->__path_php_path
+		: (function_exists('kloxo_php_binary') ? (string) kloxo_php_binary() : '/usr/bin/php');
+	$child = $root . '/bin/common/child.php';
+	$var = lxshell_output($php, $child, $name);
+	$rmt = function_exists('kloxo_unserialize_deny_gadgets')
+		? kloxo_unserialize_deny_gadgets(base64_decode((string) $var))
+		: @unserialize(base64_decode((string) $var), ['allowed_classes' => false]);
 
 	return $rmt;
 }
@@ -5254,11 +5308,36 @@ function find_hop($l)
 
 function file_server($fd, $string)
 {
-	$string = strfrom($string, "__file::");
-	$rem = unserialize(base64_decode($string));
+	global $sgbl;
 
-	if (!$rem) {
-		return;
+	$string = strfrom($string, "__file::");
+	$remotechar = (isset($sgbl) && is_object($sgbl) && isset($sgbl->__var_remote_char))
+		? (string) $sgbl->__var_remote_char
+		: '_._';
+
+	if (function_exists('kloxo_remote_parse_envelope')) {
+		$env = kloxo_remote_parse_envelope($string, $remotechar);
+		if (empty($env['ok'])) {
+			print_or_write($fd, "fAuthentication required\n\n");
+
+			return false;
+		}
+		if (!function_exists('kloxo_remote_verify_network_pass')
+			|| !kloxo_remote_verify_network_pass($env['user'], $env['pass'])) {
+			print_or_write($fd, "fAuthentication failed\n\n");
+
+			return false;
+		}
+		$rem = @unserialize(base64_decode($env['payload_b64']), ['allowed_classes' => ['Remote']]);
+	} else {
+		// Fail closed if the auth gate is missing.
+		print_or_write($fd, "fAuthentication required\n\n");
+
+		return false;
+	}
+
+	if (!$rem || !is_object($rem)) {
+		return false;
 	}
 
 	return do_serve_file($fd, $rem);
@@ -5290,40 +5369,110 @@ function get_warning_for_server_info($o, $psi)
 
 function load_database_file($dbtype, $dbhost, $dbname, $dbuser, $dbpass, $dbfile)
 {
-	exec("$dbtype -h $dbhost -u $dbuser -p$dbpass $dbname < $dbfile");
+	// Argument-array only (security N14) — never interpolate $dbpass into a shell string.
+	$dbtype = (string) $dbtype;
+	$dbhost = (string) $dbhost;
+	$dbname = (string) $dbname;
+	$dbuser = (string) $dbuser;
+	$dbpass = (string) $dbpass;
+	$dbfile = (string) $dbfile;
+	if ($dbtype === '' || $dbname === '' || $dbfile === '' || !is_readable($dbfile)) {
+		return;
+	}
+	if (!preg_match('/^[A-Za-z0-9_.\/+-]+$/', $dbtype) || basename($dbtype) !== $dbtype) {
+		return;
+	}
+	$bin = $dbtype;
+	if ($bin === 'mysql' || $bin === 'mariadb') {
+		foreach (['/usr/bin/' . $bin, '/bin/' . $bin] as $cand) {
+			if (is_executable($cand)) {
+				$bin = $cand;
+				break;
+			}
+		}
+	}
+	$cmd = [$bin, '-h', $dbhost, '-u', $dbuser, '-p' . $dbpass, $dbname];
+	$desc = [
+		0 => ['file', $dbfile, 'r'],
+		1 => ['pipe', 'w'],
+		2 => ['pipe', 'w'],
+	];
+	$proc = @proc_open($cmd, $desc, $pipes, null, null, ['bypass_shell' => true]);
+	if (!is_resource($proc)) {
+		return;
+	}
+	if (isset($pipes[1]) && is_resource($pipes[1])) {
+		stream_get_contents($pipes[1]);
+		fclose($pipes[1]);
+	}
+	if (isset($pipes[2]) && is_resource($pipes[2])) {
+		stream_get_contents($pipes[2]);
+		fclose($pipes[2]);
+	}
+	proc_close($proc);
 }
 
 function do_serve_file($fd, $rem)
 {
 	global $sgbl;
 
-	$file = $rem->filename;
-
+	$file = isset($rem->filename) ? (string) $rem->filename : '';
 	$file = basename($file);
-	$file = "{$sgbl->__path_serverfile}/{$file}";
+	if ($file === '' || $file === '.' || $file === '..'
+		|| !preg_match('/^[A-Za-z0-9._-]{1,200}$/', $file)) {
+		print_or_write($fd, "fInvalid file token\n\n");
+
+		return false;
+	}
+	$base = rtrim((string) $sgbl->__path_serverfile, '/');
+	$file = "{$base}/{$file}";
+	$realToken = realpath($file);
+	$realBase = realpath($base);
+	if ($realToken === false || $realBase === false
+		|| !str_starts_with($realToken, $realBase . DIRECTORY_SEPARATOR)) {
+		log_log("servfile", "datafile $file doesn't exist or escapes serverfile");
+		print_or_write($fd, "fFile Doesn't Exist...\n\n\n\n");
+
+		return false;
+	}
+	$file = $realToken;
 
 	if (!lxfile_exists($file)) {
 		log_log("servfile", "datafile $file dosn't exist, exiting");
-		print_or_write($fd, "fFile Doesn't $file Exist...\n\n\n\n");
+		print_or_write($fd, "fFile Doesn't Exist...\n\n\n\n");
 
 		return false;
 	}
 
 	$array = lfile_get_unserialize($file);
 	lunlink($file);
-	$realfile = $array['filename'];
-	$pass = $array['password'];
+	if (!is_array($array) || !isset($array['filename'], $array['password'])) {
+		print_or_write($fd, "fInvalid metadata\n\n");
+
+		return false;
+	}
+	$realfile = (string) $array['filename'];
+	$pass = (string) $array['password'];
 
 	if ($fd) {
 		dprint("Got request for $file, realfile: $realfile\n");
 	}
 
 	log_log("servfile", "Got request for $file realfile $realfile");
-	if (!($pass && $pass === $rem->password)) {
+	$want = isset($rem->password) ? (string) $rem->password : '';
+	if (!($pass !== '' && $want !== '' && hash_equals($pass, $want))) {
 		print_or_write($fd, "fPassword doesn't match\n\n");
 
 		return false;
 	}
+	// Refuse path traversal / unexpected roots outside known trees (N15).
+	$rf = realpath($realfile);
+	if ($rf === false || !is_readable($rf)) {
+		print_or_write($fd, "fCouldn't open file\n\n");
+
+		return false;
+	}
+	$realfile = $rf;
 
 	if (is_dir($realfile)) {
 		// This should neverhappen. The directories are zipped at cp-fileserv and tar_to_filserved then itself.
@@ -8087,19 +8236,47 @@ function getLinkCustomfile($path, $file)
 
 function getParseInlinePhp($template, $input)
 {
-	extract($input, EXTR_OVERWRITE);
+	// Templates are first-party config/mail snippets. Refuse obvious RCE
+	// payloads and only extract scalar input keys (security N11).
+	$template = (string) $template;
+	if ($template === '') {
+		return '';
+	}
+	if (preg_match('/\b(system|exec|passthru|shell_exec|proc_open|popen|pcntl_exec|assert|create_function)\s*\(/i', $template)
+		|| preg_match('/`[^`]+`/', $template)
+		|| preg_match('/\b(include|require|include_once|require_once)\s*\(/i', $template)) {
+		log_log('security', 'getParseInlinePhp refused dangerous template construct');
 
-	$ret = null;
+		return '';
+	}
 
-//	if (!ob_get_status()) {
-		ob_start();
-//	}
+	$safe = [];
+	if (is_array($input)) {
+		foreach ($input as $k => $v) {
+			if (!is_string($k) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $k)) {
+				continue;
+			}
+			if (is_scalar($v) || $v === null) {
+				$safe[$k] = $v;
+			}
+		}
+	}
+	extract($safe, EXTR_SKIP);
 
-	eval('?>' . $template);
+	ob_start();
+	try {
+		eval('?>' . $template);
+	} catch (Throwable $e) {
+		ob_end_clean();
+		log_log('security', 'getParseInlinePhp eval failed: ' . $e->getMessage());
 
+		return '';
+	}
 	$ret = ob_get_contents();
-
 	ob_end_clean();
+	if (!is_string($ret)) {
+		$ret = '';
+	}
 
 	// MR -- important because process on panel include html code!
 	$splitter = explode('### begin', $ret);
@@ -9202,22 +9379,10 @@ function getListOnList($pname)
 
 function callWithSudo($res, $username = null)
 {
-	if (!isset($username)) {
-		$username = $res->arglist[0];
-	}
+	// Disabled (security N4): sudo_action.php no longer runs arbitrary jobs.
+	log_log('security', 'callWithSudo refused');
 
-	if (isset($res->func)) {
-		log_log("sudo_action", "Running: " . serialize($res->func) . " as $username ");
-	} else if (isset($res->robject)) {
-		log_log("sudo_action", "Running: " . serialize($res->robject) . " as $username ");
-	}
-
-	$var = lxshell_output("sudo", "-u", $username, "__path_php_path", "../bin/common/sudo_action.php",
-		escapeshellarg(base64_encode(serialize($res))));
-
-	$rmt = unserialize(base64_decode($var));
-
-	return $rmt;
+	return null;
 }
 
 function setAllWebServerInstall($nolog = null)

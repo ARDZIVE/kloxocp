@@ -7,20 +7,26 @@ function webcommandline_main()
 
 	ob_start();
 
-	$opt = $_REQUEST;
+	// Prefer POST so passwords are not in URLs/Referer (security N7).
+	$opt = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? $_POST : $_REQUEST;
+	if (!is_array($opt)) {
+		$opt = [];
+	}
 
-	if ($opt['login-class'] !== 'client' && $opt['login-class'] !== 'auxiliary') {
+	if (($opt['login-class'] ?? '') !== 'client' && ($opt['login-class'] ?? '') !== 'auxiliary') {
 		json_print("error", $opt, "__error_only_clients_and_auxiliary_allowed_to_login");
 		log_log("web_command", "__error_only_clients_and_auxiliary_allowed_to_login");
 
 		exit;
 	}
 
-	log_log("web_command", var_export($opt, true));
+	$safeLog = $opt;
+	unset($safeLog['login-password'], $safeLog['v-password'], $safeLog['password']);
+	log_log("web_command", var_export($safeLog, true));
 
 //	initProgram('admin');
 
-	if (!check_raw_password($opt['login-class'], $opt['login-name'], $opt['login-password'])) {
+	if (!check_raw_password($opt['login-class'], $opt['login-name'], $opt['login-password'] ?? '')) {
 		json_print("error", $opt, "_error_login_error");
 		log_log("web_command", "__error_login_error");
 

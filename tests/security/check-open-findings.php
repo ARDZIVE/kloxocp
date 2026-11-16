@@ -332,6 +332,181 @@ $findings[] = finding(
 		: 'only blocks leading http; //evil.com / javascript: style targets may still pass'
 );
 
+// --- Wave 2 (N1–N28) ---
+$lib = $csrf; // lib.php already loaded as $csrf earlier for F8/F15
+$fileServerBody = function_body($lib, 'file_server');
+$n1Closed = contains($fileServerBody, 'kloxo_remote_parse_envelope')
+	|| contains($fileServerBody, 'kloxo_remote_verify_network_pass');
+$findings[] = finding('N1', 'critical', '__file:: auth envelope before unserialize',
+	'kloxo/httpdocs/lib/html/lib.php file_server', $n1Closed,
+	$n1Closed ? 'file_server authenticates before unserialize' : '__file:: still unserializes without envelope');
+
+$ajaxCore = file_text($root, 'kloxo/httpdocs/lib/html/ajaxcore.php');
+$n2Closed = contains($ajaxCore, 'isCSRFTokenMatch');
+$findings[] = finding('N2', 'critical', 'ajax.php CSRF on add/update/delete',
+	'kloxo/httpdocs/lib/html/ajaxcore.php', $n2Closed,
+	$n2Closed ? 'ajax mutating actions check CSRF' : 'ajax has no isCSRFTokenMatch');
+
+$child = file_text($root, 'kloxo/bin/common/child.php');
+$n3Closed = contains($child, 'kloxo_child_allowed_functions')
+	&& not_contains($child, "'allowed_classes' => true");
+$findings[] = finding('N3', 'high', 'child.php unrestricted unserialize/dispatch',
+	'kloxo/bin/common/child.php', $n3Closed,
+	$n3Closed ? 'child.php allow-lists callables' : 'child.php still unrestricted');
+
+$sudo = file_text($root, 'kloxo/bin/common/sudo_action.php');
+$n4Closed = contains($sudo, 'disabled') || not_contains($sudo, 'call_user_func_array');
+$findings[] = finding('N4', 'high', 'sudo_action.php unrestricted dispatch',
+	'kloxo/bin/common/sudo_action.php', $n4Closed,
+	$n4Closed ? 'sudo_action disabled or hardened' : 'sudo_action still unrestricted');
+
+$lxlib = file_text($root, 'kloxo/httpdocs/lib/php/lxlib.php');
+$n5Closed = not_contains($lxlib, 'unserialize(base64_decode($ghtml->frm_ssl))')
+	&& not_contains($lxlib, 'unserialize(base64_decode($ghtml->frm_extra_var))');
+$findings[] = finding('N5', 'high', 'login frm_ssl / frm_extra_var unserialize',
+	'kloxo/httpdocs/lib/php/lxlib.php', $n5Closed,
+	$n5Closed ? 'frm_ssl/frm_extra_var unserialize removed' : 'still unserializes login form blobs');
+
+$gate = file_text($root, 'kloxo/httpdocs/lib/html/remote_auth_gate.php');
+$n6Closed = contains($gate, 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('N6', 'high', 'gadget-deny unserialize helper for IPC/DB',
+	'kloxo/httpdocs/lib/html/remote_auth_gate.php', $n6Closed,
+	$n6Closed ? 'kloxo_unserialize_deny_gadgets present' : 'no gadget deny-list helper');
+
+$apiPhp = file_text($root, 'kloxo/httpdocs/api/api.php');
+$n7Closed = contains($apiPhp, 'method="post"') || contains($apiPhp, "method='post'");
+$findings[] = finding('N7', 'high', 'webcommand/API password in GET URLs',
+	'kloxo/httpdocs/api/api.php', $n7Closed,
+	$n7Closed ? 'api example uses POST' : 'api still uses GET with password');
+
+$previewLib = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_sitepreview.php');
+$n8Closed = contains($previewLib, 'sanitizePreviewHtml');
+$findings[] = finding('N8', 'high', 'site preview XSS (script not stripped)',
+	'kloxo/httpdocs/lib/php/kloxo_sitepreview.php', $n8Closed,
+	$n8Closed ? 'sanitizePreviewHtml present' : 'preview HTML not sanitized');
+
+$n9Closed = contains($remote, "'verify_peer' => true") || contains($remote, '"verify_peer" => true');
+$findings[] = finding('N9', 'high', 'slave TLS verify_peer off',
+	'kloxo/httpdocs/lib/html/remotelib.php', $n9Closed,
+	$n9Closed ? 'verify_peer enabled (self-signed allowed)' : 'verify_peer still false');
+
+$selfup = file_text($root, 'kloxo/httpdocs/theme/lbin/selfupdate.php');
+$n10Closed = contains($selfup, 'disabled') || not_contains($selfup, 'update_self');
+$findings[] = finding('N10', 'high', 'selfupdate.php no CSRF',
+	'kloxo/httpdocs/theme/lbin/selfupdate.php', $n10Closed,
+	$n10Closed ? 'selfupdate disabled' : 'selfupdate still live');
+
+$parseBody = function_body($lib, 'getParseInlinePhp');
+$n11Closed = contains($parseBody, 'system|exec|passthru') || contains($parseBody, 'refused dangerous');
+$findings[] = finding('N11', 'high', 'getParseInlinePhp eval without guards',
+	'kloxo/httpdocs/lib/html/lib.php getParseInlinePhp', $n11Closed,
+	$n11Closed ? 'dangerous constructs refused' : 'getParseInlinePhp unguarded');
+
+$coreDisp = file_text($root, 'kloxo/httpdocs/theme/coredisplaylib.php');
+$n12Closed = !preg_match('/not_use_token\.flg[\s\S]{0,80}isCSRFTokenMatch/', $coreDisp)
+	|| (contains($coreDisp, 'not_use_token.flg') && contains($coreDisp, 'ignored'));
+// Better: CSRF call is unconditional (no if file_exists around it)
+$n12Closed = contains($coreDisp, 'isCSRFTokenMatch')
+	&& !preg_match('/if\s*\(\s*!?\s*file_exists\s*\([^)]*not_use_token/', $coreDisp);
+$findings[] = finding('N12', 'medium', 'not_use_token.flg CSRF kill-switch',
+	'kloxo/httpdocs/theme/coredisplaylib.php', $n12Closed,
+	$n12Closed ? 'CSRF always enforced' : 'not_use_token.flg still disables CSRF');
+
+$apilib = file_text($root, 'kloxo/httpdocs/lib/html/apilib.php');
+$n13Closed = not_contains($apilib, 'login-password=hell');
+$findings[] = finding('N13', 'medium', 'apilib hardcoded login-password=hell',
+	'kloxo/httpdocs/lib/html/apilib.php', $n13Closed,
+	$n13Closed ? 'hell password removed' : 'still embeds login-password=hell');
+
+$loadDb = function_body($lib, 'load_database_file');
+$n14Closed = contains($loadDb, 'proc_open') && not_contains($loadDb, 'exec("$dbtype');
+$findings[] = finding('N14', 'medium', 'load_database_file shell-string dbpass',
+	'kloxo/httpdocs/lib/html/lib.php', $n14Closed,
+	$n14Closed ? 'uses proc_open argv' : 'still shell-interpolates dbpass');
+
+$serveBody = function_body($lib, 'do_serve_file');
+$n15Closed = contains($serveBody, 'realpath') && contains($serveBody, 'hash_equals');
+$findings[] = finding('N15', 'medium', 'do_serve_file weak path/password checks',
+	'kloxo/httpdocs/lib/html/lib.php do_serve_file', $n15Closed,
+	$n15Closed ? 'realpath + hash_equals guards present' : 'do_serve_file still weak');
+
+$n16Closed = contains($previewLib, 'CURLOPT_SSL_VERIFYPEER => true')
+	|| contains($previewLib, 'CURLOPT_SSL_VERIFYPEER=>true');
+$findings[] = finding('N16', 'medium', 'sitepreview curl SSL verify off',
+	'kloxo/httpdocs/lib/php/kloxo_sitepreview.php', $n16Closed,
+	$n16Closed ? 'verify_peer true (loopback exception ok)' : 'preview curl verify still off');
+
+$loginInc2 = file_text($root, 'kloxo/httpdocs/login/inc.php');
+$n17Closed = contains($loginInc2, 'pwreset') || contains($loginInc2, 'Rate-limit');
+$findings[] = finding('N17', 'medium', 'password reset rate limit',
+	'kloxo/httpdocs/login/inc.php', $n17Closed,
+	$n17Closed ? 'forgot-password rate-limited' : 'no rate limit on reset');
+
+$ajaxPhp = file_text($root, 'kloxo/httpdocs/ajax.php');
+$n18Closed = not_contains($ajaxPhp, 'var_export($_REQUEST');
+$findings[] = finding('N18', 'medium', 'ajax.php logs raw $_REQUEST',
+	'kloxo/httpdocs/ajax.php', $n18Closed,
+	$n18Closed ? 'no raw REQUEST logging' : 'still var_exports REQUEST');
+
+$htmllib = file_text($root, 'kloxo/httpdocs/theme/htmllib.php');
+$n19Closed = not_contains($htmllib, "eval('(' +") && not_contains($htmllib, 'eval(\'(\' +');
+$findings[] = finding('N19', 'medium', 'htmllib JS eval of ajax JSON',
+	'kloxo/httpdocs/theme/htmllib.php', $n19Closed,
+	$n19Closed ? 'uses JSON.parse' : 'still eval()s ajax responses');
+
+$paypal = file_text($root, 'kloxo/httpdocs/theme/lbin/paypalipn.php');
+$n20Closed = contains($paypal, 'disabled') || not_contains($paypal, 'process_paypal');
+$findings[] = finding('N20', 'medium', 'paypalipn.php fake payment surface',
+	'kloxo/httpdocs/theme/lbin/paypalipn.php', $n20Closed,
+	$n20Closed ? 'paypal IPN disabled' : 'paypal IPN still live');
+
+$n21Closed = not_contains($lib, "where nname = '\$v'")
+	&& not_contains($remote, "where nname = '\$machine'");
+$findings[] = finding('N21', 'medium', 'rawQuery nname interpolation in helpers',
+	'lib.php / remotelib.php', $n21Closed,
+	$n21Closed ? 'helpers use getRows / validated names' : 'rawQuery still interpolates nname');
+
+$n22Closed = contains(file_text($root, 'kloxo/httpdocs/lib/php/lxclass.php'), 'kloxo_unserialize_deny_gadgets');
+$findings[] = finding('N22', 'medium', 'DB ser_* unserialize without gadget filter',
+	'kloxo/httpdocs/lib/php/lxclass.php', $n22Closed,
+	$n22Closed ? 'ser_* uses gadget deny-list' : 'ser_* bare unserialize');
+
+$bup = file_text($root, 'kloxo/httpdocs/theme/lbin/backup-upload.php');
+$n23Closed = contains($bup, 'frm_action=(?:add|update|delete)') || contains($bup, 'fixed success landing');
+$findings[] = finding('N23', 'medium', 'backup-upload open display.php redirect',
+	'kloxo/httpdocs/theme/lbin/backup-upload.php', $n23Closed,
+	$n23Closed ? 'redirect restricted' : 'caller-controlled display.php redirect');
+
+$sesu = file_text($root, 'kloxo/httpdocs/sesubmit/phpsubmit.php');
+$n24Closed = contains($sesu, 'disabled') || contains($sesu, '403');
+$findings[] = finding('N24', 'medium', 'sesubmit unauthenticated UI',
+	'kloxo/httpdocs/sesubmit/phpsubmit.php', $n24Closed,
+	$n24Closed ? 'sesubmit disabled' : 'sesubmit still live');
+
+$webdisk = file_text($root, 'kloxo/httpdocs/webdisk/index.php');
+$n25Closed = contains($webdisk, 'disabled') || not_contains($webdisk, '$DBPWD');
+$findings[] = finding('N25', 'medium', 'webdisk mysql_query / hardcoded creds',
+	'kloxo/httpdocs/webdisk/index.php', $n25Closed,
+	$n25Closed ? 'webdisk entry disabled' : 'webdisk still exposes legacy stack');
+
+$rc = file_text($root, 'kloxo/httpdocs/lib/php/kloxo_roundcube.php');
+$n26Closed = contains($rc, "'verify_peer' => true") || contains($rc, '"verify_peer" => true');
+$findings[] = finding('N26', 'low', 'Roundcube generate verify_peer false',
+	'kloxo/httpdocs/lib/php/kloxo_roundcube.php', $n26Closed,
+	$n26Closed ? 'Roundcube config verify_peer true' : 'still false');
+
+$gl = file_text($root, 'kloxo/httpdocs/theme/lbin/getlicense.php');
+$n27Closed = contains($gl, 'disabled');
+$findings[] = finding('N27', 'low', 'getlicense/lgt web forced admin',
+	'kloxo/httpdocs/theme/lbin/getlicense.php', $n27Closed,
+	$n27Closed ? 'getlicense disabled' : 'getlicense still live');
+
+$sec = file_text($root, 'kloxo/bin/common/setupsecondary.php');
+$n28Closed = contains($sec, 'mysqli_prepare') || contains($sec, 'proc_open');
+$findings[] = finding('N28', 'low', 'setupsecondary shell/SQLi',
+	'kloxo/bin/common/setupsecondary.php', $n28Closed,
+	$n28Closed ? 'setupsecondary uses prepared/argv' : 'still shell/string SQL');
+
 // Filter
 if ($severityFilter !== null) {
 	$findings = array_values(array_filter(

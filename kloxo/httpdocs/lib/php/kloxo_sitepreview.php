@@ -252,6 +252,28 @@ final class KloxoSitepreview
 			$html
 		) ?? $html;
 
+		// Strip active content so a malicious site cannot run script in the
+		// panel origin (security N8). Preview is informational only.
+		$html = self::sanitizePreviewHtml($html);
+
+		return $html;
+	}
+
+	/** Remove scripts, event handlers, and dangerous URLs from preview HTML. */
+	public static function sanitizePreviewHtml(string $html): string
+	{
+		$html = preg_replace('#<script\b[^>]*>.*?</script>#is', '', $html) ?? $html;
+		$html = preg_replace('#<iframe\b[^>]*>.*?</iframe>#is', '', $html) ?? $html;
+		$html = preg_replace('#<object\b[^>]*>.*?</object>#is', '', $html) ?? $html;
+		$html = preg_replace('#<embed\b[^>]*/?>#is', '', $html) ?? $html;
+		$html = preg_replace('#<link\b[^>]*rel\s*=\s*([\'"])?import\1[^>]*>#is', '', $html) ?? $html;
+		$html = preg_replace('#\son[a-z]+\s*=\s*([\'"]).*?\1#is', '', $html) ?? $html;
+		$html = preg_replace('#\son[a-z]+\s*=\s*[^\s>]+#is', '', $html) ?? $html;
+		$html = preg_replace('#\b(href|src|action|xlink:href)\s*=\s*([\'"])\s*javascript:[^\'"]*\2#is', '$1=$2#$2', $html) ?? $html;
+		$html = preg_replace('#\b(href|src|action)\s*=\s*javascript:[^\s>]+#is', '$1="#"', $html) ?? $html;
+		$html = preg_replace('#<meta\b[^>]*http-equiv\s*=\s*([\'"])?refresh\1[^>]*>#is', '', $html) ?? $html;
+		$html = preg_replace('#<base\b[^>]*>#is', '', $html) ?? $html;
+
 		return $html;
 	}
 
@@ -616,9 +638,17 @@ final class KloxoSitepreview
 				CURLOPT_CONNECTTIMEOUT => 5,
 				CURLOPT_TIMEOUT => 45,
 				CURLOPT_FOLLOWLOCATION => false,
-				CURLOPT_SSL_VERIFYPEER => false,
+				// Loopback self-signed site certs: verify_peer with allow self-signed (N16).
+				CURLOPT_SSL_VERIFYPEER => true,
 				CURLOPT_SSL_VERIFYHOST => 0,
+				CURLOPT_SSL_OPTIONS => defined('CURLSSLOPT_ALLOW_BEAST') ? 0 : 0,
 			));
+			// PHP curl has no CURLOPT_SSL_ALLOW_SELF_SIGNED; for 127.0.0.1 we
+			// still need peer false when the site uses a panel self-signed cert.
+			$host = (string) (parse_url($url, PHP_URL_HOST) ?: '');
+			if ($host === '127.0.0.1' || $host === 'localhost' || $host === '::1') {
+				curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+			}
 			$raw = curl_exec($ch);
 			$code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
 			$headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);

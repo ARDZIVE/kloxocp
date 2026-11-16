@@ -203,8 +203,12 @@ if ($final < 1 || ($expect > 0 && $final !== $expect)) {
 	kloxo_backup_upload_json(['ok' => false, 'error' => 'size_check_failed', 'size' => $final], 500);
 }
 
+// Only allow a fixed success landing (security N23) — no caller-controlled
+// display.php actions that could chain CSRF.
 $redirect = '/display.php?frm_action=show&frm_smessage=file_uploaded';
-if (is_string($next) && str_starts_with($next, '/display.php')) {
+if (is_string($next) && preg_match('#^/display\.php\?(?:[A-Za-z0-9_.=&%-]*frm_action=show(?:&|$))#', $next) === 1
+	&& !preg_match('#frm_action=(?:add|update|delete)#i', $next)
+	&& !str_contains($next, "\n") && !str_contains($next, "\r")) {
 	$redirect = $next;
 	if (!str_contains($redirect, 'frm_smessage=')) {
 		$redirect .= (str_contains($redirect, '?') ? '&' : '?') . 'frm_smessage=file_uploaded';

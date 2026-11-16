@@ -90,6 +90,15 @@ check(str_contains($out, 'href="/sitepreview/example.com/about"')
 	&& !str_contains($out, 'http://example.com'),
 	'rewriteHtml maps domain and root-relative URLs under /sitepreview/');
 
+$dirty = '<html><script>alert(1)</script><a href="javascript:alert(2)">x</a>'
+	. '<img src=/x onerror="alert(3)"><p onclick=evil()>y</p></html>';
+$clean = KloxoSitepreview::rewriteHtml('example.com', $dirty);
+check(!str_contains($clean, '<script')
+	&& !str_contains($clean, 'javascript:')
+	&& !str_contains($clean, 'onerror')
+	&& !str_contains($clean, 'onclick'),
+	'rewriteHtml/sanitizePreviewHtml strips script and handlers');
+
 echo "== fetch via Host header (fake HTTP)\n";
 KloxoSitepreview::$webDriver = 'nginx';
 KloxoSitepreview::$webcacheDriver = 'none';

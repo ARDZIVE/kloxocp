@@ -1143,7 +1143,11 @@ class HtmlLib
 
 							var data = renderer.parse(o.responseText);
 							//alert(o.responseText);
-							data = eval('(' + o.responseText + ')');
+							try {
+								data = JSON.parse(o.responseText);
+							} catch (eParse) {
+								data = null;
+							}
 							// if we got a comment back
 							if (data) {
 								if (data.returnvalue == 'success') {
@@ -1269,7 +1273,7 @@ class HtmlLib
 
 				this.parse = function (json) {
 					try {
-						return eval('(' + json + ')');
+						return JSON.parse(json);
 					} catch (e) {
 					}
 					return null;

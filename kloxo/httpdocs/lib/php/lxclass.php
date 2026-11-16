@@ -3666,7 +3666,10 @@ abstract class Lxclass
 
 			if ($key === 'ser_listpriv') {
 				$key = strfrom($key, "ser_");
-				$vv = @ unserialize(base64_decode($value));
+				$decoded = base64_decode((string) $value, true);
+				$vv = (is_string($decoded) && function_exists('kloxo_unserialize_deny_gadgets'))
+					? kloxo_unserialize_deny_gadgets($decoded)
+					: (is_string($decoded) ? @unserialize($decoded) : false);
 
 				if (!$vv) {
 					dprint("{$this->getClName()} $key\n");
@@ -3701,7 +3704,10 @@ abstract class Lxclass
 
 			if (csb($key, "ser_")) {
 				$key = strfrom($key, "ser_");
-				$value = unserialize(base64_decode($value));
+				$decoded = base64_decode((string) $value, true);
+				$value = (is_string($decoded) && function_exists('kloxo_unserialize_deny_gadgets'))
+					? kloxo_unserialize_deny_gadgets($decoded)
+					: (is_string($decoded) ? @unserialize($decoded) : false);
 
 				if ($value === false) {
 					dprint("Unserialize failed: {$this->get__table()}: {$key}\n", 3);

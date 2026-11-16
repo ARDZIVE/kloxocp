@@ -244,6 +244,25 @@ if (!$cgi_forgotpwd) {
 	}
 
 	if ($cgi_clientname != "" && $cgi_email != "") {
+		// Rate-limit forgot-password by client IP (security N17).
+		$ip = isset($_SERVER['REMOTE_ADDR']) ? preg_replace('/[^0-9a-fA-F.:]/', '', (string) $_SERVER['REMOTE_ADDR']) : '';
+		$rlDir = (isset($sgbl->__path_program_root) ? rtrim((string) $sgbl->__path_program_root, '/') : '/opt/kloxo')
+			. '/log/pwreset';
+		if ($ip !== '' && !is_dir($rlDir)) {
+			@mkdir($rlDir, 0750, true);
+		}
+		$rlFile = ($ip !== '' && is_dir($rlDir)) ? ($rlDir . '/' . hash('sha256', $ip) . '.rl') : '';
+		if ($rlFile !== '' && is_file($rlFile)) {
+			$last = (int) @file_get_contents($rlFile);
+			if ($last > 0 && (time() - $last) < 300) {
+				$ghtml->print_redirect("/login/?frm_emessage=nouser_email");
+				return;
+			}
+		}
+		if ($rlFile !== '') {
+			@file_put_contents($rlFile, (string) time());
+		}
+
 		// Whitelist table name (class) and bind nname via getRows — no string SQL.
 		$tablename = preg_replace('/[^a-zA-Z0-9_]/', '', (string) $classname);
 		$cgi_clientname = (string) $cgi_clientname;
