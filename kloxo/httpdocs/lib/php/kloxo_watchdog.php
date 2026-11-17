@@ -432,14 +432,16 @@ final class KloxoWatchdog
     }
 
     /**
-     * Root: run Add Client drop-files (background.queue + client-sync.request)
-     * via a one-shot PHP include — panel FPM must not spawn these itself.
+     * Root: run Add Client / Domain drop-files (background.queue,
+     * client-sync.request, domain-sync.request) via a one-shot PHP include —
+     * panel FPM must not spawn these itself.
      */
     private function runClientAddJobs(): void
     {
         $queue = $this->root . '/log/background.queue';
         $req = $this->root . '/log/client-sync.request';
-        if (!is_file($queue) && !is_file($req)) {
+        $dom = $this->root . '/log/domain-sync.request';
+        if (!is_file($queue) && !is_file($req) && !is_file($dom)) {
             return;
         }
         $php = '/usr/bin/php';

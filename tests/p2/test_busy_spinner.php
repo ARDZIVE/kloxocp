@@ -97,6 +97,34 @@ if (str_contains($core, 'kloxo_finish_client_add')
 	bad('Add Client defers continue chrome, returns 200 stub, drop-queues sync');
 }
 
+// Add Domain / Subdomain: same fast path — SQLite write + 200 stub, then
+// domain-sync.request for nginx/DNS/mail (never hold Please wait... on was()).
+$domFin = '';
+if (preg_match('/function kloxo_finish_domain_add\(.*?^function /sm', $lxlib, $mDom) === 1) {
+	$domFin = $mDom[0];
+}
+if ($domFin !== ''
+	&& str_contains($domFin, 'kloxo_skip_was_now')
+	&& str_contains($domFin, 'kloxo_queue_domain_system_sync')
+	&& str_contains($domFin, 'kloxo_emit_local_redirect')
+	&& str_contains($domFin, 'kloxo_kick_dropped_client_jobs')
+	&& !str_contains($domFin, 'kloxo_flush_held_background_jobs')
+	&& str_contains($lxlib, 'function kloxo_queue_domain_system_sync')
+	&& str_contains($lxlib, 'domain-sync.request')
+	&& str_contains($lxlib, 'function kloxo_domain_system_sync')
+	&& str_contains($core, 'kloxo_finish_domain_add')
+	&& str_contains($core, "\$class === 'domain' || \$class === 'subdomain'")
+	&& str_contains($wd, 'domain-sync.request')
+	&& str_contains($js, 'function hasToastQuery')
+	&& str_contains($js, 'frm_smessage=')
+	&& str_contains($js, 'hasToastQuery()')
+	&& str_contains($html, 'kloxo-busy.js')
+	&& str_contains($html, "'?v=8'")) {
+	ok('Add Domain returns 200 stub, drop-queues domain sync; toast URL clears busy');
+} else {
+	bad('Add Domain returns 200 stub, drop-queues domain sync; toast URL clears busy');
+}
+
 // Domain add must not treat every deferred was() failure as Backup success
 // ("Domain was added successfully" with an empty Domains list).
 $lxFrm = '';

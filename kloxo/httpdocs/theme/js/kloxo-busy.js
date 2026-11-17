@@ -122,6 +122,16 @@
 		return refreshTarget() !== '';
 	}
 
+	/** Destination pages with a Status toast are already finished work. */
+	function hasToastQuery() {
+		try {
+			var q = win.location.search || '';
+			return /[?&]frm_smessage=/.test(q) || /[?&]frm_emessage=/.test(q);
+		} catch (e) {
+			return false;
+		}
+	}
+
 	/** Meta-refresh / Continue stubs: clear busy and navigate (do not wait). */
 	function followRedirectStub() {
 		var u = refreshTarget();
@@ -287,8 +297,18 @@
 		api.hide();
 	}
 
+	// Toast on the URL (Domain added / errors) means the action finished —
+	// never keep Please wait... over that page.
+	if (hasToastQuery()) {
+		settled = true;
+		cancelPending();
+		cancelMaxWait();
+		flagClear();
+		api.hide();
+	}
+
 	var arrived = flagGet();
-	if (arrived) {
+	if (arrived && !hasToastQuery()) {
 		if (isImmediateRefresh()) {
 			followRedirectStub();
 		} else if (doc.readyState === 'loading') {

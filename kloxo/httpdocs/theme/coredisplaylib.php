@@ -2019,9 +2019,9 @@ function __ac_desc_add($object, $param = null)
 		$param = $ghtml->createCurrentParam($class);
 	}
 
-	// Add Client: hold welcome-mail / sync spawns and skip kloxo-backend until
-	// after the redirect is flushed (busy spinner used to wait on useradd).
-	if ($class === 'client') {
+	// Add Client / Domain: hold sync spawns and skip kloxo-backend until after
+	// the redirect is flushed (busy spinner used to wait on useradd / nginx -t).
+	if ($class === 'client' || $class === 'domain' || $class === 'subdomain') {
 		if (function_exists('kloxo_hold_background_spawn')) {
 			kloxo_hold_background_spawn(true);
 		}
@@ -2048,7 +2048,7 @@ function __ac_desc_add($object, $param = null)
 	$descr = get_description($class);
 	$gbl->__this_redirect .= "&frm_smessage=added_successfully&frm_m_smessage_data=$descr";
 
-	if ($class === 'domain' || $class === 'client' || $class === 'vps') {
+	if ($class === 'domain' || $class === 'subdomain' || $class === 'client' || $class === 'vps') {
 		$gbl->setSessionV('__refresh_lpanel', 'true');
 	}
 	// DNS templates already wrote in postAdd; redirect now so the browser
@@ -2070,6 +2070,20 @@ function __ac_desc_add($object, $param = null)
 			$nname = trim((string) $ghtml->__http_vars['frm_client_c_nname']);
 		}
 		kloxo_finish_client_add($nname);
+	}
+	// Add Domain / Subdomain: same pattern — do not wait on nginx/DNS/mail sync.
+	if (($class === 'domain' || $class === 'subdomain') && function_exists('kloxo_finish_domain_add')) {
+		$nname = '';
+		if (is_array($param) && isset($param['nname'])) {
+			$nname = trim((string) $param['nname']);
+		}
+		if ($nname === '' && is_object($ghtml)) {
+			$key = 'frm_' . $class . '_c_nname';
+			if (isset($ghtml->__http_vars[$key])) {
+				$nname = trim((string) $ghtml->__http_vars[$key]);
+			}
+		}
+		kloxo_finish_domain_add($nname, $object);
 	}
 }
 

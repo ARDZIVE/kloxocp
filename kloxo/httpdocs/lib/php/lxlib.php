@@ -4058,7 +4058,33 @@ function kloxo_release_held_background_to_queue(): void
 }
 
 /**
- * Root / backend: run dropped background.php jobs and client-sync requests.
+ * Append a domain nname for kloxo-backend / watchdog to sync web/DNS/mail
+ * after Add Domain redirected (never block the busy spinner on nginx -t).
+ */
+function kloxo_queue_domain_system_sync(string $nname): void
+{
+	$nname = strtolower(trim($nname));
+	if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,253}$/', $nname) !== 1) {
+		return;
+	}
+	global $sgbl;
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/log';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$path = $dir . '/domain-sync.request';
+	@file_put_contents($path, $nname . "\n", FILE_APPEND | LOCK_EX);
+	@chmod($path, 0640);
+	if (function_exists('log_log')) {
+		log_log('info', "domain add: queued system sync drop for {$nname}");
+	}
+}
+
+/**
+ * Root / backend: run dropped background.php jobs, client-sync, and domain-sync.
  */
 function kloxo_run_dropped_client_jobs(): void
 {
@@ -4089,7 +4115,35 @@ function kloxo_run_dropped_client_jobs(): void
 		}
 	}
 
-	$req = $root . '/log/client-sync.request';
+	kloxo_drain_sync_request_file(
+		$root . '/log/client-sync.request',
+		$root,
+		$php,
+		$bg,
+		'kloxo_client_system_sync',
+		'/^[A-Za-z0-9._-]{1,64}$/'
+	);
+	kloxo_drain_sync_request_file(
+		$root . '/log/domain-sync.request',
+		$root,
+		$php,
+		$bg,
+		'kloxo_domain_system_sync',
+		'/^[A-Za-z0-9._-]{1,253}$/'
+	);
+}
+
+/**
+ * Drain one *.request drop file into background.php jobs.
+ */
+function kloxo_drain_sync_request_file(
+	string $req,
+	string $root,
+	string $php,
+	string $bg,
+	string $func,
+	string $nameRe
+): void {
 	if (!is_file($req) || !is_readable($req)) {
 		return;
 	}
@@ -4102,8 +4156,7 @@ function kloxo_run_dropped_client_jobs(): void
 	$seen = array();
 	foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $nname) {
 		$nname = trim($nname);
-		if ($nname === '' || isset($seen[$nname])
-			|| preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1) {
+		if ($nname === '' || isset($seen[$nname]) || preg_match($nameRe, $nname) !== 1) {
 			continue;
 		}
 		$seen[$nname] = true;
@@ -4120,7 +4173,7 @@ function kloxo_run_dropped_client_jobs(): void
 		}
 		$res = new Remote();
 		$res->__type = 'function';
-		$res->func = 'kloxo_client_system_sync';
+		$res->func = $func;
 		$res->arglist = array($nname);
 		if (function_exists('lxfile_generic_chmod')) {
 			lxfile_generic_chmod($name, '700');
@@ -4313,6 +4366,134 @@ function kloxo_client_system_sync(string $nname): void
 	} catch (Throwable $e) {
 		if (function_exists('log_log')) {
 			log_log('error', "client system sync {$nname}: " . $e->getMessage());
+		}
+	}
+}
+
+/**
+ * After Add Domain: write SQLite only, return a 200 stub (clears busy), and
+ * queue web/DNS/mail sync for kloxo-backend/watchdog. Waiting on login->was()
+ * (nginx -t / fixdns) held Please wait... for a long time after the row existed.
+ *
+ * @param object|null $parent Client (or other) that owns the new domain_l entry
+ */
+function kloxo_finish_domain_add(string $nname, $parent = null): void
+{
+	global $login;
+
+	if (function_exists('kloxo_hold_background_spawn')) {
+		kloxo_hold_background_spawn(true);
+	}
+	kloxo_skip_was_now();
+
+	$nname = strtolower(trim($nname));
+	$writer = null;
+	if (is_object($parent) && method_exists($parent, 'was')) {
+		$writer = $parent;
+	} elseif (is_object($login) && method_exists($login, 'was')) {
+		$writer = $login;
+	}
+	if (is_object($writer)) {
+		try {
+			// skip_was → writeEntireObject only (no kloxo-backend / nginx -t).
+			$writer->was();
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'domain add local write: ' . $e->getMessage());
+			}
+		}
+	}
+
+	if ($nname !== '' && preg_match('/^[A-Za-z0-9._-]{1,253}$/', $nname) === 1) {
+		kloxo_queue_domain_system_sync($nname);
+	}
+	if (function_exists('kloxo_release_held_background_to_queue')) {
+		kloxo_release_held_background_to_queue();
+	}
+
+	kloxo_emit_local_redirect();
+	if (function_exists('kloxo_close_client_connection')) {
+		kloxo_close_client_connection();
+	}
+	if (function_exists('kloxo_kick_dropped_client_jobs')) {
+		kloxo_kick_dropped_client_jobs();
+	}
+	exit(0);
+}
+
+/**
+ * Background worker: sync web / DNS / mail for a domain already in panel.sqlite.
+ */
+function kloxo_domain_system_sync(string $nname): void
+{
+	$nname = strtolower(trim($nname));
+	if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,253}$/', $nname) !== 1) {
+		return;
+	}
+	if (!class_exists('domain') && !class_exists('Domain')) {
+		if (function_exists('log_log')) {
+			log_log('error', 'domain system sync: domain class missing');
+		}
+
+		return;
+	}
+
+	$GLOBALS['kloxo_skip_was'] = false;
+	global $gbl;
+	if (is_object($gbl)) {
+		$gbl->__kloxo_skip_was = false;
+	}
+
+	$class = class_exists('domain') ? 'domain' : 'Domain';
+	try {
+		$dom = new $class(null, null, $nname);
+		$dom->get();
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('error', "domain system sync get {$nname}: " . $e->getMessage());
+		}
+
+		return;
+	}
+
+	$dom->dbaction = 'syncadd';
+	if (method_exists($dom, 'createSyncClass')) {
+		try {
+			$dom->createSyncClass();
+		} catch (Throwable $e) {
+			// keep going
+		}
+	}
+	foreach (array('web', 'dns', 'mmail') as $childClass) {
+		if (!method_exists($dom, 'getObject')) {
+			break;
+		}
+		try {
+			$child = $dom->getObject($childClass);
+		} catch (Throwable $e) {
+			continue;
+		}
+		if (!is_object($child)) {
+			continue;
+		}
+		$child->dbaction = 'syncadd';
+		if (method_exists($child, 'createSyncClass')) {
+			try {
+				$child->createSyncClass();
+			} catch (Throwable $e) {
+				// keep going
+			}
+		}
+	}
+
+	try {
+		$dom->was();
+		if (function_exists('log_log')) {
+			log_log('info', "domain system sync ok for {$nname}");
+		}
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('error', "domain system sync {$nname}: " . $e->getMessage());
 		}
 	}
 }

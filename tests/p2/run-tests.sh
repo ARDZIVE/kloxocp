@@ -155,6 +155,11 @@ if php "$HERE/test_domain_sync_unserialize.php"; then
 else
   bad "test_domain_sync_unserialize.php"
 fi
+if php "$HERE/test_domain_fast_add.php"; then
+  ok "test_domain_fast_add.php"
+else
+  bad "test_domain_fast_add.php"
+fi
 if php "$HERE/test_title_with_sync.php"; then
   ok "test_title_with_sync.php"
 else
