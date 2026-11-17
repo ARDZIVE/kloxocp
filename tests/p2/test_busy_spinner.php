@@ -175,10 +175,20 @@ $beforeFn = '';
 if (preg_match("/addEventListener\\('beforeunload',\\s*function\\s*\\([^)]*\\)\\s*\\{.*?\\}\\);/s", $js, $mBu) === 1) {
 	$beforeFn = $mBu[0];
 }
-if ($beforeFn !== '' && str_contains($beforeFn, 'if (settled)') && str_contains($beforeFn, 'flagClear()')) {
+if ($beforeFn !== '' && str_contains($beforeFn, 'if (settled)') && str_contains($beforeFn, 'flagClear()')
+	&& str_contains($js, 'kloxo-busy-suppress') && str_contains($js, 'function isSuppressed')
+	&& str_contains($beforeFn, 'isSuppressed()')) {
 	ok('beforeunload does not re-arm busy after the page has settled');
 } else {
 	bad('beforeunload does not re-arm busy after the page has settled');
+}
+$coreDisp = (string) @file_get_contents($doc . '/theme/coredisplaylib.php');
+if (str_contains($coreDisp, 'kloxo-busy-suppress')
+	&& str_contains($coreDisp, '__refresh_lpanel')
+	&& str_contains($coreDisp, 'KloxoBusy.hide')) {
+	ok('lpanel frame refresh suppresses busy so Domain Home is not hyper-busy');
+} else {
+	bad('lpanel frame refresh suppresses busy so Domain Home is not hyper-busy');
 }
 if (str_contains($js, "addEventListener('pageshow'")
 	&& str_contains($js, "doc.readyState === 'complete'")

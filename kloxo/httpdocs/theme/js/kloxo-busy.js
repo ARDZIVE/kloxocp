@@ -33,6 +33,7 @@
 	}
 
 	var KEY = 'kloxo-busy';
+	var SUPPRESS_KEY = 'kloxo-busy-suppress';
 	// Stale flags must die quickly: sessionStorage is shared across frames, and
 	// a leftframe reload / browser Refresh used to resurrect Please wait... forever.
 	var MAX_AGE = 8 * 1000;
@@ -96,6 +97,26 @@
 				// ignore
 			}
 		}
+	}
+
+	/** Frame refresh after Add Domain sets this so reloads do not re-arm Please wait... */
+	function isSuppressed() {
+		var s = store();
+		if (!s) {
+			return false;
+		}
+		try {
+			var until = parseInt(s.getItem(SUPPRESS_KEY) || '0', 10);
+			if (until > Date.now()) {
+				return true;
+			}
+			if (until) {
+				s.removeItem(SUPPRESS_KEY);
+			}
+		} catch (e) {
+			// ignore
+		}
+		return false;
 	}
 
 	function refreshTarget() {
@@ -232,6 +253,10 @@
 
 	/** Leaving this page: allow showSoon again (settled was true after DCL). */
 	function beginNavigation(text, shown) {
+		if (isSuppressed()) {
+			flagClear();
+			return;
+		}
 		settled = false;
 		navToken += 1;
 		flagSet(text || DEFAULT_TEXT, !!shown);
@@ -313,8 +338,12 @@
 		clearBusyNow();
 	}
 
+	if (isSuppressed()) {
+		clearBusyNow();
+	}
+
 	var arrived = flagGet();
-	if (arrived && !hasToastQuery()) {
+	if (arrived && !hasToastQuery() && !isSuppressed()) {
 		if (isImmediateRefresh()) {
 			followRedirectStub();
 		} else if (doc.readyState === 'loading' && (Date.now() - arrived.t) < (DELAY * 4)) {
@@ -511,7 +540,8 @@
 	}, true);
 
 	win.addEventListener('beforeunload', function () {
-		if (Date.now() < suppressUntil) {
+		if (Date.now() < suppressUntil || isSuppressed()) {
+			flagClear();
 			return;
 		}
 		// Page already finished (toast/list visible) but overlay stuck: a refresh

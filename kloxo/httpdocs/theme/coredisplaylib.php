@@ -455,7 +455,13 @@ function __ac_desc_show($object)
 			}
 
 			if (!is_array($a)) {
-				$nalist[$k] = $ghtml->getFullUrl($a);
+				try {
+					$nalist[$k] = $ghtml->getFullUrl($a);
+				} catch (Throwable $e) {
+					if (function_exists('log_log')) {
+						log_log('error', 'getFullUrl show tile: ' . $e->getMessage());
+					}
+				}
 			}
 		}
 	}
@@ -3184,7 +3190,10 @@ function do_display_init()
 		// Defer until this page finishes: an immediate leftframe.reload() races
 		// the Domains list for the PHP session lock and FPM workers, so the
 		// browser tab keeps spinning and the domain row never paints.
-		print("<script>(function(){function kloxoRefreshLpanel(){try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
+		// Suppress kloxo-busy across the frame reloads (shared sessionStorage
+		// otherwise keeps Please wait... flashing = "hyper busy").
+		print("<script>(function(){function kloxoRefreshLpanel(){try{sessionStorage.setItem('kloxo-busy-suppress',String(Date.now()+5000));sessionStorage.removeItem('kloxo-busy');}catch(e0){}try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}"
+			. "try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
 			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}}"
 			. "if(window.addEventListener){window.addEventListener('load',kloxoRefreshLpanel);}else{setTimeout(kloxoRefreshLpanel,0);}})();</script>");
 		$gbl->unsetSessionV('__refresh_lpanel');
@@ -3192,7 +3201,8 @@ function do_display_init()
 
 	if ($ghtml->frm_refresh_lpanel === 'true') {
 		unset($ghtml->__http_vars['frm_refresh_lpanel']);
-		print("<script>(function(){function kloxoRefreshLpanel(){try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
+		print("<script>(function(){function kloxoRefreshLpanel(){try{sessionStorage.setItem('kloxo-busy-suppress',String(Date.now()+5000));sessionStorage.removeItem('kloxo-busy');}catch(e0){}try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}"
+			. "try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
 			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}}"
 			. "if(window.addEventListener){window.addEventListener('load',kloxoRefreshLpanel);}else{setTimeout(kloxoRefreshLpanel,0);}})();</script>");
 	}

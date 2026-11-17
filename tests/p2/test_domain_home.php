@@ -103,6 +103,85 @@ if ($alistErr === '' && count($alist) >= 10 && $titles >= 2) {
 		$alistErr !== '' ? $alistErr : ('count=' . count($alist) . ' titles=' . $titles));
 }
 
+// Live bug: parent has a priv object but webhosting_flag was never set —
+// checkButton/isOn treats that as false and used to hide every web tile.
+$parent2 = new Client(null, 'localhost', 'mesrob');
+$parent2->nname = 'mesrob';
+$parent2->cttype = 'customer';
+$parent2->syncserver = 'localhost';
+$parent2->priv = new priv(null, null, 'mesrob');
+// deliberately no webhosting_flag
+$dom2 = new domain(null, 'localhost', 'mesrob.com');
+$dom2->nname = 'mesrob.com';
+$dom2->syncserver = 'localhost';
+$dom2->ttype = 'virtual';
+$dom2->dtype = 'domain';
+$dom2->docroot = 'mesrob.com';
+$dom2->status = 'on';
+$dom2->priv = new priv(null, null, 'mesrob.com');
+$dom2->priv->awstats_flag = 'on';
+$dom2->used = new Used(null, null, 'mesrob.com');
+$dom2->__parent_o = $parent2;
+$dom2->web_o = $web;
+$dom2->mmail_o = $mmail;
+$dom2->dns_o = $dns;
+$alist2 = array();
+$alist2Err = '';
+try {
+	$dom2->createShowAlist($alist2);
+} catch (Throwable $e) {
+	$alist2Err = $e->getMessage();
+}
+$titles2 = 0;
+$hasWebTitle = false;
+foreach ($alist2 as $k => $v) {
+	if (is_string($k) && str_starts_with($k, '__title')) {
+		$titles2++;
+		if (str_contains($k, 'classweb') || str_contains($k, 'domain_log')) {
+			$hasWebTitle = true;
+		}
+	}
+}
+if ($alist2Err === '' && count($alist2) >= 10 && $titles2 >= 2 && $hasWebTitle) {
+	ok('createShowAlist keeps web tiles when parent priv has unset webhosting_flag');
+} else {
+	bad('createShowAlist keeps web tiles when parent priv has unset webhosting_flag',
+		$alist2Err !== '' ? $alist2Err : ('count=' . count($alist2) . ' titles=' . $titles2));
+}
+
+$parentOff = new Client(null, 'localhost', 'mesrob');
+$parentOff->nname = 'mesrob';
+$parentOff->priv = new priv(null, null, 'mesrob');
+$parentOff->priv->webhosting_flag = 'off';
+$domOff = new domain(null, 'localhost', 'mesrob.com');
+$domOff->nname = 'mesrob.com';
+$domOff->syncserver = 'localhost';
+$domOff->ttype = 'virtual';
+$domOff->dtype = 'domain';
+$domOff->docroot = 'mesrob.com';
+$domOff->status = 'on';
+$domOff->priv = new priv(null, null, 'mesrob.com');
+$domOff->__parent_o = $parentOff;
+$domOff->web_o = $web;
+$domOff->mmail_o = $mmail;
+$alistOff = array();
+try {
+	$domOff->createShowAlist($alistOff);
+} catch (Throwable $e) {
+	$alistOff = array('__err' => $e->getMessage());
+}
+$hasWebOff = false;
+foreach ($alistOff as $k => $v) {
+	if (is_string($k) && (str_contains($k, 'classweb') || str_contains($k, 'domain_log'))) {
+		$hasWebOff = true;
+	}
+}
+if (!$hasWebOff) {
+	ok('createShowAlist hides web tiles when webhosting_flag is explicitly off');
+} else {
+	bad('createShowAlist hides web tiles when webhosting_flag is explicitly off');
+}
+
 $ilist = null;
 $ilistErr = '';
 try {
@@ -141,8 +220,10 @@ if (preg_match('/function kloxo_finish_domain_add\(.*?^function /sm', $lxlib, $m
 	$fin = $m[0];
 }
 if ($showFn !== ''
-	&& str_contains($showFn, 'checkButton(\'webhosting_flag\')')
+	&& str_contains($showFn, 'webhosting_flag')
+	&& str_contains($showFn, "strtolower((string) \$parent->priv->webhosting_flag) === 'on'")
 	&& !str_contains($showFn, 'getParentO()->priv->isOn')
+	&& !str_contains($showFn, "checkButton('webhosting_flag')")
 	&& $infoFn !== ''
 	&& str_contains($infoFn, 'substr($this->nname, 0, 31)')
 	&& $gsa !== ''
@@ -151,9 +232,9 @@ if ($showFn !== ''
 	&& $fin !== ''
 	&& str_contains($fin, 'ftpusername')
 	&& str_contains($fin, 'docroot')) {
-	ok('source: checkButton gate, info fallbacks, getShowActions/$ghtml, finish backfills web');
+	ok('source: explicit-off webhosting gate, info fallbacks, getShowActions/$ghtml, finish backfills web');
 } else {
-	bad('source: checkButton gate, info fallbacks, getShowActions/$ghtml, finish backfills web');
+	bad('source: explicit-off webhosting gate, info fallbacks, getShowActions/$ghtml, finish backfills web');
 }
 
 printf("\n%d passed, %d failed\n", $pass, $fail);

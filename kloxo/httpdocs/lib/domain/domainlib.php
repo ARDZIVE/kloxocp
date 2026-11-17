@@ -1469,13 +1469,18 @@ class Domaind extends DomainBase
 			$alist = array();
 		}
 
-		// checkButton treats missing priv as allowed — never call ->priv->isOn
-		// on a null parent priv (that blanked Domain Home after fast Add Domain).
+		// Web tiles unless the parent explicitly turned webhosting off.
+		// checkButton/isOn treat an unset flag as false — after fast Add Domain
+		// the client often has a priv object with no webhosting_flag, which
+		// blanked Domain Home (mmail-only path with nothing to show).
 		$webhosting = true;
 		try {
 			$parent = $this->getParentO();
-			if (is_object($parent) && method_exists($parent, 'checkButton')) {
-				$webhosting = (bool) $parent->checkButton('webhosting_flag');
+			if (is_object($parent) && isset($parent->priv) && is_object($parent->priv)
+				&& isset($parent->priv->webhosting_flag)
+				&& $parent->priv->webhosting_flag !== ''
+				&& $parent->priv->webhosting_flag !== null) {
+				$webhosting = (strtolower((string) $parent->priv->webhosting_flag) === 'on');
 			}
 		} catch (Throwable $e) {
 			$webhosting = true;
@@ -1655,7 +1660,13 @@ class Domaind extends DomainBase
 		$alist['__v_dialog_dirin'] = "n=web&a=updateform&sa=dirindex";
 	*/
 		$alist[] = "n=web&a=show&l[class]=ffile&l[nname]=/";
-		$driverapp = $gbl->getSyncClass($this->__masterserver, $this->syncserver, 'ftpuser');
+		try {
+			if (is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
+				$gbl->getSyncClass($this->__masterserver, $this->syncserver, 'ftpuser');
+			}
+		} catch (Throwable $e) {
+			// Driver lookup must not blank Domain Home tiles.
+		}
 	//	$alist[] = "n=web&a=list&c=ftpuser";
 	//	$alist[] = 'n=web&a=list&c=ftpsession';
 	//	$alist[] = "n=web&a=list&c=davuser";
@@ -1912,8 +1923,12 @@ class Domaind extends DomainBase
 			return null;
 		}
 		
-		if (!$login->priv->isOn('dns_manage_flag')) {
-			unset($list['dns_o']);
+		try {
+			if (is_object($login) && isset($login->priv) && is_object($login->priv)
+				&& method_exists($login->priv, 'isOn') && !$login->priv->isOn('dns_manage_flag')) {
+				unset($list['dns_o']);
+			}
+		} catch (Throwable $e) {
 		}
 		
 		return $list;

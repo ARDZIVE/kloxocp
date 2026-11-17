@@ -1743,9 +1743,29 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login;
 
-		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
-		$show_direction = $login->getSpecialObject('sp_specialplay')->show_direction;
-		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
+		$skin_name = 'simplicity';
+		$show_direction = 'vertical';
+		$button_type = 'font';
+		$ajax_on = false;
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp)) {
+					if (!empty($sp->skin_name)) {
+						$skin_name = (string) $sp->skin_name;
+					}
+					if (!empty($sp->show_direction)) {
+						$show_direction = (string) $sp->show_direction;
+					}
+					if (!empty($sp->button_type)) {
+						$button_type = (string) $sp->button_type;
+					}
+					$ajax_on = method_exists($sp, 'isOn') && $sp->isOn('enable_ajax');
+				}
+			}
+		} catch (Throwable $e) {
+			// Keep defaults — never blank Domain Home / dashboard tiles.
+		}
 		if ($show_direction === null || $show_direction === '') {
 			$show_direction = 'vertical';
 		}
@@ -1776,9 +1796,15 @@ class HtmlLib
 			$outputdisplay = 'none';
 		}
 
-		if ($login->getSpecialObject('sp_specialplay')->isOn('enable_ajax')) {
-			$this->print_dialog($talist, $obj);
-			$this->print_drag_drop($obj, $ret, $class);
+		if ($ajax_on) {
+			try {
+				$this->print_dialog($talist, $obj);
+				$this->print_drag_drop($obj, $ret, $class);
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'print_action_block ajax: ' . $e->getMessage());
+				}
+			}
 		}
 
 		if ($sgbl->isBlackBackground()) {
@@ -1899,7 +1925,7 @@ class HtmlLib
 <?php
 		}
 
-		if (!$login->getSpecialObject('sp_specialplay')->isOn('enable_ajax')) {
+		if (!$ajax_on) {
 			$dragstring = "Enable Ajax to Drag";
 		} else {
 			$dragstring = "Drag";

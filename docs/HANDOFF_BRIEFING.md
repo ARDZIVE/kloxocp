@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111708**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111709**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1203,15 +1203,16 @@ Work in this order. Keep every change small, tested and committed separately. Do
    (single-flight); watchdog skips a second drain while busy. Tests:
    `tests/p2/test_dropped_jobs_kick.php`, `test_domain_fast_add.php`.
    Live after upcp **UNVERIFIED**.
-   **Domain Home empty tiles after Add Domain:** left Info/Resources showed
-   but the dashboard tile area was blank. `createShowAlist` called
-   `getParentO()->priv->isOn('webhosting_flag')`; a missing client `priv`
-   threw and the show path swallowed it as an empty alist. Info also showed
-   blank FTP / DocRoot `/` when the web row was incomplete. Fix: use
-   `checkButton` (missing priv ⇒ allowed); Info falls back to domain
-   nname/docroot; `getShowActions` initialises `$onl` and guards `$ghtml`;
-   finish backfills web ftpusername/docroot. Test:
-   `tests/p2/test_domain_home.php`. Live **UNVERIFIED**.
+   **Domain Home empty tiles + hyper-busy browser:** left Info/Resources
+   showed but the tile area was blank and Please wait... / frame reloads
+   kept the tab spinning. Causes: (1) client `priv` often exists after
+   fast-add with **unset** `webhosting_flag` — `checkButton`/`isOn` treat
+   that as false → mmail-only path → empty right column; (2)
+   `__refresh_lpanel` reloads left/top frames and shared `sessionStorage`
+   re-armed `kloxo-busy`. Fix: show web tiles unless webhosting is
+   **explicitly** `off`; harden `print_action_block` specialplay; frame
+   refresh sets `kloxo-busy-suppress`. Tests: `test_domain_home.php`,
+   `test_busy_spinner.php`. Live **UNVERIFIED**.
    **Add Domain / Add Subdomain nginx -t `*.pem`:** empty IP/SSL list used
    to set `certnamelist = ['*' => '*']`, so Nginx templates wrote
    `ssl_certificate /home/kloxo/ssl/*.pem` and `nginx -t` aborted the add
@@ -1267,7 +1268,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111708**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111709**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
