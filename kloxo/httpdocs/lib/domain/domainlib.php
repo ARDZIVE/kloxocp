@@ -1470,9 +1470,8 @@ class Domaind extends DomainBase
 		}
 
 		// Web tiles unless the parent explicitly turned webhosting off.
-		// checkButton/isOn treat an unset flag as false — after fast Add Domain
-		// the client often has a priv object with no webhosting_flag, which
-		// blanked Domain Home (mmail-only path with nothing to show).
+		// checkButton/isOn treat unset/'0'/true as false — after fast Add Domain
+		// and quota priv rows that is common and blanked Domain Home.
 		$webhosting = true;
 		try {
 			$parent = $this->getParentO();
@@ -1480,7 +1479,7 @@ class Domaind extends DomainBase
 				&& isset($parent->priv->webhosting_flag)
 				&& $parent->priv->webhosting_flag !== ''
 				&& $parent->priv->webhosting_flag !== null) {
-				$webhosting = (strtolower((string) $parent->priv->webhosting_flag) === 'on');
+				$webhosting = (strtolower((string) $parent->priv->webhosting_flag) !== 'off');
 			}
 		} catch (Throwable $e) {
 			$webhosting = true;

@@ -1544,7 +1544,7 @@ class HtmlLib
 	{
 		global $gbl, $sgbl, $login;
 
-		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
+		$button_type = $this->kloxo_button_type();
 
 		$icondir = get_image_path();
 
@@ -1696,7 +1696,8 @@ class HtmlLib
 				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
 			</a>
 <?php
-		} elseif (is_string($path) && strpos($path, '/display.php') !== false) {
+		} elseif (is_string($path) && (strpos($path, '/display.php') !== false || $path === 'display.php'
+			|| str_ends_with($path, '/display.php') || basename($path) === 'display.php')) {
 			$pathEsc = htmlspecialchars((string) $path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 			$qsEsc = htmlspecialchars((string) $this->get_get_from_post(null, $post), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
@@ -1844,7 +1845,12 @@ class HtmlLib
 
 		$wrapstyle = "width: 100%; margin: 0 0 8px 0";
 
-		$img_url = $this->get_expand_url();
+		$img_url = '';
+		try {
+			$img_url = (string) $this->get_expand_url();
+		} catch (Throwable $e) {
+			$img_url = '';
+		}
 ?>
 
 		<style>
@@ -7284,15 +7290,29 @@ class HtmlLib
 			$descr['help'] = $descr[2];
 		}
 
-		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
+		$button_type = $this->kloxo_button_type();
 		$cssclass = 'div_icons_text';
 
 		// Hex-only skin colour (security III5).
-		$skincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+		$skincolor = 'aaa';
+		$skindir = '/theme/skin/simplicity/default/';
+		try {
+			if (is_object($login) && method_exists($login, 'getSkinColor')) {
+				$skincolor = preg_replace('/[^0-9a-fA-F]/', '', (string) $login->getSkinColor()) ?? '';
+			}
+			if (is_object($login) && method_exists($login, 'getSkinDir')) {
+				$got = (string) $login->getSkinDir();
+				if ($got !== '') {
+					$skindir = $got;
+				}
+			}
+		} catch (Throwable $e) {
+			$skincolor = 'aaa';
+		}
 		if ($skincolor === '' || (strlen($skincolor) !== 3 && strlen($skincolor) !== 6 && strlen($skincolor) !== 8)) {
 			$skincolor = 'aaa';
 		}
-		$shevron = "{$login->getSkinDir()}/images/shevron_line.gif";
+		$shevron = "{$skindir}/images/shevron_line.gif";
 
 		$help = $this->get_full_help($descr[2]);
 		$help = $this->get_action_or_display_help($help, "action");
@@ -7350,7 +7370,7 @@ class HtmlLib
 
 		$idvar = null;
 
-		if ($login->getSpecialObject('sp_specialplay')->isOn('enable_ajax') && csb($key, "__v_dialog")) {
+		if ($this->kloxo_ajax_enabled() && csb($key, "__v_dialog")) {
 			$onclickvar = null;
 			$idvar = "id=$key-comment";
 		}
@@ -12162,13 +12182,75 @@ function uploadAbort(e) { // upload abort
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$skindir = $login->getSkinDir();
-
-		if ($login->getSpecialObject('sp_specialplay')->skin_name !== 'simplicity') {
-			return "url({$skindir}/images/expand.gif)";
-		} else {
-			return "";
+		// Never throw from here: print_action_block calls this before any
+		// Domain Home / dashboard section HTML. A failed sp_specialplay load
+		// (security-wave get()/unserialize hardenings) used to blank every tile.
+		$skindir = '/theme/skin/simplicity/default/';
+		$skin_name = 'simplicity';
+		try {
+			if (is_object($login) && method_exists($login, 'getSkinDir')) {
+				$got = (string) $login->getSkinDir();
+				if ($got !== '') {
+					$skindir = $got;
+				}
+			}
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && !empty($sp->skin_name)) {
+					$skin_name = (string) $sp->skin_name;
+				}
+			}
+		} catch (Throwable $e) {
+			$skin_name = 'simplicity';
 		}
+
+		if ($skin_name !== 'simplicity') {
+			$skindirEsc = htmlspecialchars($skindir, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+			return "url({$skindirEsc}/images/expand.gif)";
+		}
+
+		return '';
+	}
+
+	/**
+	 * Safe skin button_type for tile rendering. Defaults to font — never throws.
+	 */
+	function kloxo_button_type(): string
+	{
+		global $login;
+
+		$button_type = 'font';
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && !empty($sp->button_type)) {
+					$button_type = (string) $sp->button_type;
+				}
+			}
+		} catch (Throwable $e) {
+			$button_type = 'font';
+		}
+
+		return $button_type !== '' ? $button_type : 'font';
+	}
+
+	/** Safe enable_ajax flag — never throws. */
+	function kloxo_ajax_enabled(): bool
+	{
+		global $login;
+
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp) && method_exists($sp, 'isOn')) {
+					return $sp->isOn('enable_ajax');
+				}
+			}
+		} catch (Throwable $e) {
+		}
+
+		return false;
 	}
 }
 

@@ -221,7 +221,7 @@ if (preg_match('/function kloxo_finish_domain_add\(.*?^function /sm', $lxlib, $m
 }
 if ($showFn !== ''
 	&& str_contains($showFn, 'webhosting_flag')
-	&& str_contains($showFn, "strtolower((string) \$parent->priv->webhosting_flag) === 'on'")
+	&& str_contains($showFn, "strtolower((string) \$parent->priv->webhosting_flag) !== 'off'")
 	&& !str_contains($showFn, 'getParentO()->priv->isOn')
 	&& !str_contains($showFn, "checkButton('webhosting_flag')")
 	&& $infoFn !== ''
@@ -235,6 +235,86 @@ if ($showFn !== ''
 	ok('source: explicit-off webhosting gate, info fallbacks, getShowActions/$ghtml, finish backfills web');
 } else {
 	bad('source: explicit-off webhosting gate, info fallbacks, getShowActions/$ghtml, finish backfills web');
+}
+
+$htmlLib = (string) file_get_contents($doc . '/theme/htmllib.php');
+$expandFn = '';
+if (preg_match('/function get_expand_url\(\)\s*\{.*?\n\t\}/s', $htmlLib, $m) === 1) {
+	$expandFn = $m[0];
+}
+$printDivFn = '';
+if (preg_match('/function print_div_button\(.*?^[\t ]*function print_action_block/sm', $htmlLib, $m) === 1) {
+	$printDivFn = $m[0];
+}
+$divButtonFn = '';
+if (preg_match('/function print_div_for_divbutton\(.*?^[\t ]*static function mailTileFaName/sm', $htmlLib, $m) === 1) {
+	$divButtonFn = $m[0];
+}
+if ($expandFn !== ''
+	&& str_contains($expandFn, 'catch (Throwable')
+	&& str_contains($expandFn, "getSpecialObject('sp_specialplay')")
+	&& str_contains($htmlLib, 'function kloxo_button_type')
+	&& str_contains($htmlLib, 'function kloxo_ajax_enabled')
+	&& $printDivFn !== ''
+	&& str_contains($printDivFn, 'kloxo_button_type()')
+	&& !str_contains($printDivFn, "getSpecialObject('sp_specialplay')->button_type")
+	&& $divButtonFn !== ''
+	&& str_contains($divButtonFn, 'kloxo_button_type()')
+	&& str_contains($divButtonFn, 'kloxo_ajax_enabled()')
+	&& !str_contains($divButtonFn, "getSpecialObject('sp_specialplay')->button_type")) {
+	ok('source: get_expand_url and tile buttons never throw on specialplay failure');
+} else {
+	bad('source: get_expand_url and tile buttons never throw on specialplay failure');
+}
+
+// Behaviour: specialplay boom must not blank Domain Home sections (security-wave regression).
+class KloxoDomainHomeBoomClient extends Client
+{
+	function getSpecialObject($class)
+	{
+		throw new Exception('specialplay boom');
+	}
+
+	function getSkinDir()
+	{
+		return '/theme/skin/simplicity/default/';
+	}
+
+	function getSkinColor()
+	{
+		return 'EFE8E0';
+	}
+}
+$boomLogin = new KloxoDomainHomeBoomClient(null, 'localhost', 'admin');
+$boomLogin->nname = 'admin';
+$boomLogin->cttype = 'admin';
+$boomLogin->syncserver = 'localhost';
+$boomLogin->priv = new priv(null, null, 'admin');
+$GLOBALS['login'] = $boomLogin;
+$gbl->__c_object = $dom;
+$nalistBoom = array(
+	'__title_domain_log' => 'Traffic',
+	0 => $ghtml->getFullUrl('a=list&c=domaintraffichistory'),
+	'__title_domain_classweb' => 'web',
+	1 => $ghtml->getFullUrl('n=web&a=show&l[class]=ffile&l[nname]=/'),
+);
+$boomErr = '';
+ob_start();
+try {
+	$ghtml->print_object_action_block($dom, $nalistBoom, 6);
+	$boomOut = ob_get_clean();
+} catch (Throwable $e) {
+	ob_end_clean();
+	$boomOut = '';
+	$boomErr = $e->getMessage() . ' @' . basename($e->getFile()) . ':' . $e->getLine();
+}
+$boomSections = preg_match_all('/class="section"/', $boomOut);
+$boomButtons = preg_match_all('/class="div_container"/', $boomOut);
+if ($boomErr === '' && $boomSections >= 2 && $boomButtons >= 2) {
+	ok('print_object_action_block still paints tiles when sp_specialplay throws');
+} else {
+	bad('print_object_action_block still paints tiles when sp_specialplay throws',
+		$boomErr !== '' ? $boomErr : ("sections={$boomSections} buttons={$boomButtons}"));
 }
 
 printf("\n%d passed, %d failed\n", $pass, $fail);
