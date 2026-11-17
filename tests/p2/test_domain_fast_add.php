@@ -46,6 +46,14 @@ $fin = '';
 if (preg_match('/function kloxo_finish_domain_add\(.*?^function /sm', $lxlib, $m) === 1) {
 	$fin = $m[0];
 }
+// Client::$__desc_domain_l is "RqdtB" — parent->was() skips domain children.
+// Must write the domain object itself (domain_l / subdomain_l), like Add Client.
+$clientLib = (string) file_get_contents($doc . '/lib/client/clientlib.php');
+$lxclass = (string) file_get_contents($doc . '/lib/php/lxclass.php');
+$writeChild = '';
+if (preg_match('/function writeAChildList\(.*?^[\t ]*(?:final )?function /sm', $lxclass, $mWc) === 1) {
+	$writeChild = $mWc[0];
+}
 if ($fin !== ''
 	&& str_contains($fin, 'kloxo_skip_was_now')
 	&& str_contains($fin, 'kloxo_queue_domain_system_sync')
@@ -53,11 +61,18 @@ if ($fin !== ''
 	&& str_contains($fin, 'kloxo_close_client_connection')
 	&& str_contains($fin, 'kloxo_kick_dropped_client_jobs')
 	&& str_contains($fin, 'exit(0)')
+	&& str_contains($fin, "domain_l")
+	&& str_contains($fin, 'subdomain_l')
+	&& str_contains($fin, '$dom->was()')
+	&& str_contains($fin, 'readonly')
 	&& !str_contains($fin, 'kloxo_flush_held_background_jobs')
-	&& !str_contains($fin, "callInBackground('kloxo_domain_system_sync'")) {
-	ok('kloxo_finish_domain_add writes locally, queues sync, emits 200 stub');
+	&& !str_contains($fin, "callInBackground('kloxo_domain_system_sync'")
+	&& preg_match('/\$__desc_domain_l\s*=\s*array\s*\(\s*"R/', $clientLib) === 1
+	&& $writeChild !== ''
+	&& str_contains($writeChild, 'csa($desc[0], "r")')) {
+	ok('kloxo_finish_domain_add writes the domain child (client domain_l is readonly)');
 } else {
-	bad('kloxo_finish_domain_add writes locally, queues sync, emits 200 stub');
+	bad('kloxo_finish_domain_add writes the domain child (client domain_l is readonly)');
 }
 
 $queue = '';

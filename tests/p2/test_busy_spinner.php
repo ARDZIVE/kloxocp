@@ -108,6 +108,8 @@ if ($domFin !== ''
 	&& str_contains($domFin, 'kloxo_queue_domain_system_sync')
 	&& str_contains($domFin, 'kloxo_emit_local_redirect')
 	&& str_contains($domFin, 'kloxo_kick_dropped_client_jobs')
+	&& str_contains($domFin, '$dom->was()')
+	&& str_contains($domFin, 'domain_l')
 	&& !str_contains($domFin, 'kloxo_flush_held_background_jobs')
 	&& str_contains($lxlib, 'function kloxo_queue_domain_system_sync')
 	&& str_contains($lxlib, 'domain-sync.request')
@@ -120,9 +122,9 @@ if ($domFin !== ''
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
 	&& str_contains($html, "'?v=8'")) {
-	ok('Add Domain returns 200 stub, drop-queues domain sync; toast URL clears busy');
+	ok('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
 } else {
-	bad('Add Domain returns 200 stub, drop-queues domain sync; toast URL clears busy');
+	bad('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
 }
 
 // Domain add must not treat every deferred was() failure as Backup success

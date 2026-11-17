@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111702. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111703. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -55,7 +55,7 @@ print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have
 text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
 htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
 The Update
-screen shows **10.1-2026111702** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111703** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -307,8 +307,11 @@ The rest of the domain-add path (DB writes,
 web/DNS/mail sync). Add Domain / Subdomain now matches Add Client: SQLite write
 + HTTP 200 stub (`kloxo_finish_domain_add`), then `log/domain-sync.request` for
 kloxo-backend/watchdog (`kloxo_domain_system_sync`); the busy spinner no longer
-waits on nginx -t / fixdns. A destination URL with `frm_smessage` / `frm_emessage`
-clears busy immediately (`hasToastQuery` in `kloxo-busy.js?v=8`). Tests:
+waits on nginx -t / fixdns. `kloxo_finish_domain_add` must call `was()` on the
+new domain child — `Client::$__desc_domain_l` is readonly (`RqdtB`), so
+`parent->was()` never persists domains (toast “Domain added” with an empty
+list). A destination URL with `frm_smessage` / `frm_emessage` clears busy
+immediately (`hasToastQuery` in `kloxo-busy.js?v=8`). Tests:
 `tests/p2/test_domain_fast_add.php`, `test_busy_spinner.php`. Live Add Domain
 after this path is UNVERIFIED (site may appear in the list before web/DNS/mail
 finish). Add Domain used to toast `got_error_from_ur_end` with no

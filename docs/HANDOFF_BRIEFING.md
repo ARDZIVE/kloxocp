@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111702**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111703**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1172,10 +1172,13 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `kloxo_finish_domain_add` (SQLite-only write + 200 stub +
    `log/domain-sync.request`); backend/watchdog drain via
    `kloxo_domain_system_sync`; `kloxo-busy.js` `hasToastQuery` clears the
-   spinner on `frm_smessage` / `frm_emessage` (`?v=8`). Tests:
-   `tests/p2/test_domain_fast_add.php`, `test_busy_spinner.php`. Live Add
-   Domain after this path is **UNVERIFIED** (list may show the domain before
-   web/DNS/mail finish).
+   spinner on `frm_smessage` / `frm_emessage` (`?v=8`). Follow-up: first
+   version called `parent->was()`, but `Client::$__desc_domain_l` is
+   `RqdtB` (readonly) so `writeAndSyncChildren` skipped the domain — toast
+   with empty Domains list. Now writes `$dom->was()` on the new child.
+   Tests: `tests/p2/test_domain_fast_add.php`, `test_busy_spinner.php`. Live
+   Add Domain after this path is **UNVERIFIED** (list may show the domain
+   before web/DNS/mail finish).
    **Add Domain / Add Subdomain nginx -t `*.pem`:** empty IP/SSL list used
    to set `certnamelist = ['*' => '*']`, so Nginx templates wrote
    `ssl_certificate /home/kloxo/ssl/*.pem` and `nginx -t` aborted the add
@@ -1231,7 +1234,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111702**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111703**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

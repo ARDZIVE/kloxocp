@@ -4375,7 +4375,11 @@ function kloxo_client_system_sync(string $nname): void
  * queue web/DNS/mail sync for kloxo-backend/watchdog. Waiting on login->was()
  * (nginx -t / fixdns) held Please wait... for a long time after the row existed.
  *
- * @param object|null $parent Client (or other) that owns the new domain_l entry
+ * Important: Client::$__desc_domain_l is "RqdtB" (readonly). parent->was() →
+ * writeAndSyncChildren skips domain children, so the toast fired with an empty
+ * Domains list. Write the new domain/subdomain object itself (like Add Client).
+ *
+ * @param object|null $parent Client (or domain) that owns the new list entry
  */
 function kloxo_finish_domain_add(string $nname, $parent = null): void
 {
@@ -4387,19 +4391,54 @@ function kloxo_finish_domain_add(string $nname, $parent = null): void
 	kloxo_skip_was_now();
 
 	$nname = strtolower(trim($nname));
-	$writer = null;
-	if (is_object($parent) && method_exists($parent, 'was')) {
-		$writer = $parent;
-	} elseif (is_object($login) && method_exists($login, 'was')) {
-		$writer = $login;
+	$wrote = false;
+	// Client domain_l is readonly (RqdtB): parent->was() never persists domains.
+	$owners = array();
+	if (is_object($parent)) {
+		$owners[] = $parent;
 	}
-	if (is_object($writer)) {
-		try {
-			// skip_was → writeEntireObject only (no kloxo-backend / nginx -t).
-			$writer->was();
-		} catch (Throwable $e) {
-			if (function_exists('log_log')) {
-				log_log('error', 'domain add local write: ' . $e->getMessage());
+	if (is_object($login) && (!is_object($parent) || $login !== $parent)) {
+		$owners[] = $login;
+	}
+	foreach ($owners as $owner) {
+		foreach (array('domain_l', 'subdomain_l', 'domaina_l', 'maindomain_l') as $listKey) {
+			if (!isset($owner->$listKey) || !is_array($owner->$listKey)) {
+				continue;
+			}
+			foreach ($owner->$listKey as $dom) {
+				if (!is_object($dom) || !isset($dom->nname) || !method_exists($dom, 'was')) {
+					continue;
+				}
+				if (strtolower((string) $dom->nname) !== $nname) {
+					continue;
+				}
+				try {
+					// skip_was → writeEntireObject only (no kloxo-backend / nginx -t).
+					$dom->was();
+					$wrote = true;
+				} catch (Throwable $e) {
+					if (function_exists('log_log')) {
+						log_log('error', 'domain add local write (child): ' . $e->getMessage());
+					}
+				}
+				break 2;
+			}
+		}
+	}
+	if (!$wrote) {
+		$writer = null;
+		if (is_object($parent) && method_exists($parent, 'was')) {
+			$writer = $parent;
+		} elseif (is_object($login) && method_exists($login, 'was')) {
+			$writer = $login;
+		}
+		if (is_object($writer)) {
+			try {
+				$writer->was();
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'domain add local write: ' . $e->getMessage());
+				}
 			}
 		}
 	}
