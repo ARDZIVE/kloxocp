@@ -33,8 +33,10 @@
 	}
 
 	var KEY = 'kloxo-busy';
-	var MAX_AGE = 2 * 60 * 1000;
-	var MAX_WAIT = 90 * 1000;
+	// Stale flags must die quickly: sessionStorage is shared across frames, and
+	// a leftframe reload / browser Refresh used to resurrect Please wait... forever.
+	var MAX_AGE = 8 * 1000;
+	var MAX_WAIT = 20 * 1000;
 	var DEFAULT_TEXT = 'Please wait...';
 	var DELAY = 500;
 
@@ -297,9 +299,7 @@
 		api.hide();
 	}
 
-	// Toast on the URL (Domain added / errors) means the action finished —
-	// never keep Please wait... over that page.
-	if (hasToastQuery()) {
+	function clearBusyNow() {
 		settled = true;
 		cancelPending();
 		cancelMaxWait();
@@ -307,14 +307,22 @@
 		api.hide();
 	}
 
+	// Toast on the URL (Domain added / errors) means the action finished —
+	// never keep Please wait... over that page.
+	if (hasToastQuery()) {
+		clearBusyNow();
+	}
+
 	var arrived = flagGet();
 	if (arrived && !hasToastQuery()) {
 		if (isImmediateRefresh()) {
 			followRedirectStub();
-		} else if (doc.readyState === 'loading') {
+		} else if (doc.readyState === 'loading' && (Date.now() - arrived.t) < (DELAY * 4)) {
+			// Only continue a spinner that just crossed a page boundary.
 			showSoon(arrived.text, arrived.t, !!arrived.shown);
 		} else {
-			flagClear();
+			// Browser Refresh / stale frame flag: destination is already here.
+			clearBusyNow();
 		}
 	} else if (isImmediateRefresh()) {
 		followRedirectStub();
@@ -334,15 +342,24 @@
 	// Clear stuck spinner on bfcache restore and on ordinary show of a
 	// finished page (Add Domain used to leave Please wait... after 303).
 	win.addEventListener('pageshow', function (ev) {
-		if (ev.persisted || (doc.readyState === 'complete' && !isImmediateRefresh())) {
-			settled = true;
+		if (isImmediateRefresh()) {
+			return;
+		}
+		if (ev.persisted || doc.readyState === 'interactive' || doc.readyState === 'complete') {
+			clearBusyNow();
 			navToken += 1;
-			cancelPending();
-			cancelMaxWait();
-			flagClear();
-			api.hide();
 		}
 	});
+
+	// Failsafe: if the page has painted and a spinner is still up with no
+	// navigation in flight, drop it (Refresh / frame race).
+	win.setTimeout(function () {
+		if (!isImmediateRefresh() && (doc.readyState === 'interactive' || doc.readyState === 'complete')) {
+			if (overlayOn() || flagGet()) {
+				clearBusyNow();
+			}
+		}
+	}, DELAY + 250);
 
 	// ---- Services icons ---------------------------------------------------------------
 
@@ -500,6 +517,12 @@
 		// Page already finished (toast/list visible) but overlay stuck: a refresh
 		// must not re-arm the flag or Please wait... comes back forever.
 		if (settled) {
+			flagClear();
+			return;
+		}
+		// Stuck overlay on a fully loaded page (no in-flight nav we started):
+		// clear instead of poisoning sessionStorage for the next document/frame.
+		if (overlayOn() && doc.readyState === 'complete' && !flagGet()) {
 			flagClear();
 			return;
 		}

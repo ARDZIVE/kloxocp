@@ -6139,7 +6139,7 @@ class HtmlLib
 		$this->print_jscript_source($preop_path);
 		$busyJs = str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js"));
 		if (is_string($busyJs) && $busyJs !== '' && !str_contains($busyJs, '?')) {
-			$busyJs .= '?v=8';
+			$busyJs .= '?v=9';
 		}
 		$this->print_jscript_source($busyJs);
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-toast.js")));

@@ -314,6 +314,16 @@ class Domaind extends DomainBase
 		}
 	*/
 		if ($var === 'docroot') {
+			// Prefer local data — getObject('web') after a fast Add Domain can
+			// hang the Domains list (FPM waits on backend) and leave Please wait...
+			if (isset($this->docroot) && is_string($this->docroot) && $this->docroot !== '') {
+				return $this->docroot;
+			}
+			if (isset($this->web_o) && is_object($this->web_o)
+				&& isset($this->web_o->docroot) && is_string($this->web_o->docroot)
+				&& $this->web_o->docroot !== '') {
+				return $this->web_o->docroot;
+			}
 			try {
 				$web = $this->getObject('web');
 				if (is_object($web) && isset($web->docroot) && is_string($web->docroot) && $web->docroot !== '') {
@@ -322,7 +332,7 @@ class Domaind extends DomainBase
 			} catch (Throwable $e) {
 			}
 
-			return (isset($this->docroot) && is_string($this->docroot)) ? $this->docroot : '';
+			return isset($this->nname) ? (string) $this->nname : '';
 		}
 
 		return parent::display($var);

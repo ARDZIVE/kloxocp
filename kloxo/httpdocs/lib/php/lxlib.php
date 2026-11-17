@@ -4477,6 +4477,21 @@ function kloxo_finish_domain_add(string $nname, $parent = null): void
 				}
 				try {
 					// skip_was → writeEntireObject only (no kloxo-backend / nginx -t).
+					// Also force web/dns/mmail so the Domains list has docroot etc.
+					foreach (array('web_o', 'dns_o', 'mmail_o') as $objKey) {
+						if (!isset($dom->$objKey) || !is_object($dom->$objKey)
+							|| !method_exists($dom->$objKey, 'was')) {
+							continue;
+						}
+						try {
+							$dom->$objKey->metadbaction = 'writeonly';
+							$dom->$objKey->was();
+						} catch (Throwable $eChild) {
+							if (function_exists('log_log')) {
+								log_log('error', "domain add local write ({$objKey}): " . $eChild->getMessage());
+							}
+						}
+					}
 					$dom->was();
 					$wrote = true;
 				} catch (Throwable $e) {

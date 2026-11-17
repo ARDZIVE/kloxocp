@@ -121,7 +121,10 @@ if ($domFin !== ''
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
-	&& str_contains($html, "'?v=8'")) {
+	&& str_contains($html, "'?v=9'")
+	&& str_contains($js, 'MAX_AGE = 8')
+	&& str_contains($js, 'function clearBusyNow')
+	&& str_contains($js, 'DELAY * 4')) {
 	ok('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
 } else {
 	bad('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
@@ -215,7 +218,7 @@ if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait
 	&& str_contains($code, 'function followRedirectStub')
 	&& str_contains($code, 'location.replace')
 	&& !str_contains($code, 'animation')
-	&& $setTimeouts === 2) {
+	&& $setTimeouts >= 2 && $setTimeouts <= 3) {
 	ok('modal appears after DELAY ms; MAX_WAIT failsafe; redirect stubs navigate');
 } else {
 	bad('modal appears after DELAY ms; MAX_WAIT failsafe; redirect stubs navigate', 'setTimeouts=' . $setTimeouts);

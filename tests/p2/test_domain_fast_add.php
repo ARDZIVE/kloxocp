@@ -123,12 +123,27 @@ if ($drain !== ''
 if (str_contains($js, 'function hasToastQuery')
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'frm_emessage=')
-	&& preg_match('/if \(hasToastQuery\(\)\) \{\s*settled = true;/s', $js) === 1
+	&& str_contains($js, 'function clearBusyNow')
+	&& str_contains($js, 'MAX_AGE = 8')
 	&& str_contains($js, 'arrived && !hasToastQuery()')
-	&& str_contains($html, '?v=8')) {
-	ok('busy.js clears spinner when the destination URL carries a toast');
+	&& str_contains($html, '?v=9')) {
+	ok('busy.js clears spinner on toast URL and drops stale flags on refresh');
 } else {
-	bad('busy.js clears spinner when the destination URL carries a toast');
+	bad('busy.js clears spinner on toast URL and drops stale flags on refresh');
+}
+
+$domSrc = (string) file_get_contents($doc . '/lib/domain/domainlib.php');
+$dispDoc = '';
+if (preg_match('/function display\(\$var\).*?^[\t ]*function /sm', $domSrc, $mDisp) === 1) {
+	$dispDoc = $mDisp[0];
+}
+if ($dispDoc !== ''
+	&& str_contains($dispDoc, "\$var === 'docroot'")
+	&& str_contains($dispDoc, 'Prefer local data')
+	&& str_contains($fin, 'web_o')) {
+	ok('Domains list docroot prefers local data; finish writes web_o');
+} else {
+	bad('Domains list docroot prefers local data; finish writes web_o');
 }
 
 printf("\n%d passed, %d failed\n", $pass, $fail);
