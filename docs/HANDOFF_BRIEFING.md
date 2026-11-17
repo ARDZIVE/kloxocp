@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111705**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111706**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1179,6 +1179,18 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Tests: `tests/p2/test_domain_fast_add.php`, `test_busy_spinner.php`. Live
    Add Domain after this path is **UNVERIFIED** (list may show the domain
    before web/DNS/mail finish).
+   **Add Domain toast + blank Domains row + tab spinner:** after fast-add the
+   list showed `(1 to 1 of 1)` with no row while the browser tab kept loading.
+   Causes: (1) `__refresh_lpanel` reloaded left/top frames immediately and
+   raced the Domains list for the PHP session lock / FPM workers; (2)
+   `display('docroot')` still called `getObject('web')`; (3) `printObjectElement`
+   assumed `used`/`priv` objects; (4) `background.php` allow-list omitted
+   `kloxo_domain_system_sync` / `kloxo_client_system_sync` so sync never ran,
+   and backend `do_server_stuff` drained sync inline (would stall `rl_exec`).
+   Fix: defer lpanel refresh to `window.load`; docroot never calls
+   `getObject('web')`; guard used/priv; flush each list row; allow-list the
+   sync functions; root CLI drain calls them directly; backend only
+   `kloxo_kick_dropped_client_jobs`. Live after upcp **UNVERIFIED**.
    **Add Domain / Add Subdomain nginx -t `*.pem`:** empty IP/SSL list used
    to set `certnamelist = ['*' => '*']`, so Nginx templates wrote
    `ssl_certificate /home/kloxo/ssl/*.pem` and `nginx -t` aborted the add
@@ -1234,7 +1246,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111705**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111706**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

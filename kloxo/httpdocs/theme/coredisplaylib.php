@@ -3181,17 +3181,20 @@ function do_display_init()
 	check_if_disabled_and_exit();
 
 	if ($gbl->getSessionV('__refresh_lpanel') == 'true') {
-		// Guard missing frames (direct /display.php) so a throw cannot break
-		// later kloxo-busy.js; never leave Please wait... stuck after Add Domain.
-		print("<script>(function(){try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
-			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}})();</script>");
+		// Defer until this page finishes: an immediate leftframe.reload() races
+		// the Domains list for the PHP session lock and FPM workers, so the
+		// browser tab keeps spinning and the domain row never paints.
+		print("<script>(function(){function kloxoRefreshLpanel(){try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
+			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}}"
+			. "if(window.addEventListener){window.addEventListener('load',kloxoRefreshLpanel);}else{setTimeout(kloxoRefreshLpanel,0);}})();</script>");
 		$gbl->unsetSessionV('__refresh_lpanel');
 	}
 
 	if ($ghtml->frm_refresh_lpanel === 'true') {
 		unset($ghtml->__http_vars['frm_refresh_lpanel']);
-		print("<script>(function(){try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
-			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}})();</script>");
+		print("<script>(function(){function kloxoRefreshLpanel(){try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
+			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}}"
+			. "if(window.addEventListener){window.addEventListener('load',kloxoRefreshLpanel);}else{setTimeout(kloxoRefreshLpanel,0);}})();</script>");
 	}
 
 	createPrincipleObject();

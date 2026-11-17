@@ -4197,7 +4197,9 @@ function kloxo_run_dropped_client_jobs(): void
 }
 
 /**
- * Drain one *.request drop file into background.php jobs.
+ * Drain one *.request drop file. Prefer an in-process call when this runner
+ * is already a detached CLI (watchdog / run-dropped-client-jobs); fall back to
+ * background.php so an allow-listed worker can still run the sync.
  */
 function kloxo_drain_sync_request_file(
 	string $req,
@@ -4217,12 +4219,26 @@ function kloxo_drain_sync_request_file(
 	$raw = (string) @file_get_contents($running);
 	@unlink($running);
 	$seen = array();
+	$direct = function_exists($func)
+		&& (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg')
+		&& function_exists('posix_geteuid')
+		&& posix_geteuid() === 0;
 	foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $nname) {
 		$nname = trim($nname);
 		if ($nname === '' || isset($seen[$nname]) || preg_match($nameRe, $nname) !== 1) {
 			continue;
 		}
 		$seen[$nname] = true;
+		if ($direct) {
+			try {
+				$func($nname);
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', "{$func} {$nname}: " . $e->getMessage());
+				}
+			}
+			continue;
+		}
 		if (!is_file($bg)) {
 			continue;
 		}

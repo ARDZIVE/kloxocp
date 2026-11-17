@@ -107,17 +107,30 @@ $drain = '';
 if (preg_match('/function kloxo_run_dropped_client_jobs\(.*?^function /sm', $lxlib, $m) === 1) {
 	$drain = $m[0];
 }
+$drainFile = '';
+if (preg_match('/function kloxo_drain_sync_request_file\(.*?^function /sm', $lxlib, $m) === 1) {
+	$drainFile = $m[0];
+}
+$bgPhp = (string) file_get_contents($root . '/kloxo/bin/common/background.php');
+$coreDisp = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+$htmlLib = (string) file_get_contents($doc . '/theme/htmllib.php');
 if ($drain !== ''
 	&& str_contains($drain, 'domain-sync.request')
 	&& str_contains($drain, 'kloxo_domain_system_sync')
 	&& str_contains($drain, 'kloxo_drain_sync_request_file')
-	&& str_contains($serverLib, 'kloxo_run_dropped_client_jobs')
+	&& $drainFile !== ''
+	&& str_contains($drainFile, 'posix_geteuid')
+	&& str_contains($drainFile, "PHP_SAPI === 'cli'")
+	&& str_contains($serverLib, 'kloxo_kick_dropped_client_jobs')
+	&& !str_contains($serverLib, 'kloxo_run_dropped_client_jobs()')
 	&& str_contains($runner, 'kloxo_run_dropped_client_jobs')
 	&& str_contains($wd, 'domain-sync.request')
-	&& str_contains($wd, 'runClientAddJobs')) {
-	ok('backend/watchdog drain domain-sync.request via run-dropped-client-jobs');
+	&& str_contains($wd, 'runClientAddJobs')
+	&& str_contains($bgPhp, 'kloxo_domain_system_sync')
+	&& str_contains($bgPhp, 'kloxo_client_system_sync')) {
+	ok('backend kicks detached runner; drain allow-lists sync; root CLI runs direct');
 } else {
-	bad('backend/watchdog drain domain-sync.request via run-dropped-client-jobs');
+	bad('backend kicks detached runner; drain allow-lists sync; root CLI runs direct');
 }
 
 if (str_contains($js, 'function hasToastQuery')
@@ -133,17 +146,21 @@ if (str_contains($js, 'function hasToastQuery')
 }
 
 $domSrc = (string) file_get_contents($doc . '/lib/domain/domainlib.php');
-$dispDoc = '';
-if (preg_match('/function display\(\$var\).*?^[\t ]*function /sm', $domSrc, $mDisp) === 1) {
-	$dispDoc = $mDisp[0];
+$docrootOk = false;
+if (preg_match('/if \(\$var === \'docroot\'\) \{.*?\n\t\treturn parent::display/s', $domSrc, $mDoc) === 1) {
+	// Active docroot branch ends before return parent::display; must not load web.
+	$docrootOk = str_contains($mDoc[0], 'web_o')
+		&& !preg_match('/^\s*\$web = \$this->getObject\(/m', $mDoc[0]);
 }
-if ($dispDoc !== ''
-	&& str_contains($dispDoc, "\$var === 'docroot'")
-	&& str_contains($dispDoc, 'Prefer local data')
-	&& str_contains($fin, 'web_o')) {
-	ok('Domains list docroot prefers local data; finish writes web_o');
+if ($docrootOk
+	&& str_contains($fin, 'web_o')
+	&& str_contains($coreDisp, "addEventListener('load'")
+	&& str_contains($coreDisp, 'kloxoRefreshLpanel')
+	&& str_contains($htmlLib, 'isset($obj->used) && is_object($obj->used)')
+	&& str_contains($htmlLib, '@ob_flush()')) {
+	ok('Domains list: no getObject(web), deferred lpanel, safe used/priv, row flush');
 } else {
-	bad('Domains list docroot prefers local data; finish writes web_o');
+	bad('Domains list: no getObject(web), deferred lpanel, safe used/priv, row flush');
 }
 
 printf("\n%d passed, %d failed\n", $pass, $fail);

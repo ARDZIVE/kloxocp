@@ -314,8 +314,8 @@ class Domaind extends DomainBase
 		}
 	*/
 		if ($var === 'docroot') {
-			// Prefer local data — getObject('web') after a fast Add Domain can
-			// hang the Domains list (FPM waits on backend) and leave Please wait...
+			// Domains list must never call getObject('web'): after fast Add Domain
+			// that hits SQLite/backend while domain-sync runs and freezes the row.
 			if (isset($this->docroot) && is_string($this->docroot) && $this->docroot !== '') {
 				return $this->docroot;
 			}
@@ -323,13 +323,6 @@ class Domaind extends DomainBase
 				&& isset($this->web_o->docroot) && is_string($this->web_o->docroot)
 				&& $this->web_o->docroot !== '') {
 				return $this->web_o->docroot;
-			}
-			try {
-				$web = $this->getObject('web');
-				if (is_object($web) && isset($web->docroot) && is_string($web->docroot) && $web->docroot !== '') {
-					return $web->docroot;
-				}
-			} catch (Throwable $e) {
 			}
 
 			return isset($this->nname) ? (string) $this->nname : '';

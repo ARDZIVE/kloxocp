@@ -36,6 +36,9 @@ function kloxo_background_allowed_functions(): array
 	return [
 		'lx_mail',
 		'se_submit',
+		// Add Client / Add Domain system sync (drain → background.php jobs).
+		'kloxo_client_system_sync',
+		'kloxo_domain_system_sync',
 	];
 }
 

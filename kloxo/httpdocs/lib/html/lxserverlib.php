@@ -73,11 +73,13 @@ function do_server_stuff()
 		}
 	}
 
-	// Add Client: welcome-mail / useradd jobs dropped so panel FPM never spawns.
+	// Add Client / Domain / mailname drop-files: never run sync inline in the
+	// backend accept loop (nginx -t would stall every rl_exec). Detach the
+	// same runner watchdog uses.
 	if (function_exists('posix_geteuid') && posix_geteuid() === 0
-		&& function_exists('kloxo_run_dropped_client_jobs')) {
+		&& function_exists('kloxo_kick_dropped_client_jobs')) {
 		try {
-			kloxo_run_dropped_client_jobs();
+			kloxo_kick_dropped_client_jobs();
 		} catch (Throwable $e) {
 			if (function_exists('log_log')) {
 				log_log('error', 'client-sync job: ' . $e->getMessage());

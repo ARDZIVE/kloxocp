@@ -3977,8 +3977,22 @@ class HtmlLib
 			$variable = "";
 		}
 
-		$skin_name = $login->getSpecialObject('sp_specialplay')->skin_name;
-		$button_type = $login->getSpecialObject('sp_specialplay')->button_type;
+		$skin_name = 'simplicity';
+		$button_type = 'font';
+		try {
+			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
+				$sp = $login->getSpecialObject('sp_specialplay');
+				if (is_object($sp)) {
+					if (isset($sp->skin_name) && $sp->skin_name !== '') {
+						$skin_name = $sp->skin_name;
+					}
+					if (isset($sp->button_type) && $sp->button_type !== '') {
+						$button_type = $sp->button_type;
+					}
+				}
+			}
+		} catch (Throwable $e) {
+		}
 
 		$rclass = $class;
 
@@ -3994,22 +4008,25 @@ class HtmlLib
 
 		if (isset($descr[$name]) && (csa($descr[$name][0], 'q') || csa($descr[$name][0], "D"))) {
 			// For hard quota you need priv. For soft quota, you use used.
+			// Missing used/priv after fast Add Domain must not TypeError the row.
 			if (csa($descr[$name][0], 'h')) {
-				$pname = $obj->priv->display($name);
+				$pname = (isset($obj->priv) && is_object($obj->priv) && method_exists($obj->priv, 'display'))
+					? $obj->priv->display($name) : '-';
 			} else {
-				$pname = $obj->used->display($name);
+				$pname = (isset($obj->used) && is_object($obj->used) && method_exists($obj->used, 'display'))
+					? $obj->used->display($name) : '-';
 			}
 		} else {
 			if (isset($descr[$name]) && csa($descr[$name][0], 'p')) {
 				if (cse($name, "_per_f")) {
 					$qrname = strtil($name, "_per_f");
 
-					$priv = (isset($obj->priv->$qrname)) ? $obj->priv->$qrname : 0;
-					$used = (isset($obj->used->$qrname)) ? $obj->used->$qrname : 0;
+					$priv = (isset($obj->priv) && is_object($obj->priv) && isset($obj->priv->$qrname)) ? $obj->priv->$qrname : 0;
+					$used = (isset($obj->used) && is_object($obj->used) && isset($obj->used->$qrname)) ? $obj->used->$qrname : 0;
 
 					$pname = array($priv, $used, null);
 				} else {
-					$pname = $obj->perDisplay($name);
+					$pname = method_exists($obj, 'perDisplay') ? $obj->perDisplay($name) : array(0, 0, '');
 				}
 				if (!is_array($pname) || !isset($pname[0], $pname[1])) {
 					$pname = array(0, 0, '');
@@ -5471,6 +5488,13 @@ class HtmlLib
 			}
 
 			$rowcount++;
+
+			// Stream each row so a slow cell cannot blank the whole Domains list
+			// behind an output buffer while the browser tab keeps spinning.
+			if (function_exists('ob_get_level') && ob_get_level() > 0) {
+				@ob_flush();
+			}
+			@flush();
 
 			if (!$sellist) {
 				if ($n === ($pagesize * $cgi_pagenum)) {
