@@ -4493,7 +4493,22 @@ function kloxo_finish_domain_add(string $nname, $parent = null): void
 				}
 				try {
 					// skip_was → writeEntireObject only (no kloxo-backend / nginx -t).
-					// Also force web/dns/mmail so the Domains list has docroot etc.
+					// Also force web/dns/mmail so the Domains list / Domain Home have
+					// docroot and ftpusername even when sync is still queued.
+					if (isset($dom->web_o) && is_object($dom->web_o)) {
+						if ((!isset($dom->web_o->docroot) || $dom->web_o->docroot === '' || $dom->web_o->docroot === null)
+							&& isset($dom->docroot) && is_string($dom->docroot) && $dom->docroot !== '') {
+							$dom->web_o->docroot = $dom->docroot;
+						}
+						if ((!isset($dom->web_o->docroot) || $dom->web_o->docroot === '' || $dom->web_o->docroot === null)
+							&& isset($dom->nname)) {
+							$dom->web_o->docroot = (string) $dom->nname;
+						}
+						if ((!isset($dom->web_o->ftpusername) || $dom->web_o->ftpusername === '' || $dom->web_o->ftpusername === null)
+							&& isset($dom->nname)) {
+							$dom->web_o->ftpusername = substr((string) $dom->nname, 0, 31);
+						}
+					}
 					foreach (array('web_o', 'dns_o', 'mmail_o') as $objKey) {
 						if (!isset($dom->$objKey) || !is_object($dom->$objKey)
 							|| !method_exists($dom->$objKey, 'was')) {

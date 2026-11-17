@@ -1300,21 +1300,84 @@ class Domaind extends DomainBase
 		if ($subaction) {
 			return;
 		}
-		
-		$web = $this->getObject('web');
-		$mmail = $this->getObject('mmail');
-		$dns = $this->getObject('dns');
-		$ilist['FTP User'] = "$web->ftpusername";
-		$ilist['Home'] = "/home/{$this->getRealClientParentO()->getPathFromName()}/";
+
+		$web = null;
+		$mmail = null;
+		$dns = null;
+		try {
+			$web = $this->getObject('web');
+		} catch (Throwable $e) {
+			$web = null;
+		}
+		try {
+			$mmail = $this->getObject('mmail');
+		} catch (Throwable $e) {
+			$mmail = null;
+		}
+		try {
+			$dns = $this->getObject('dns');
+		} catch (Throwable $e) {
+			$dns = null;
+		}
+
+		$ftp = '';
+		if (is_object($web) && isset($web->ftpusername) && is_string($web->ftpusername)
+			&& $web->ftpusername !== '') {
+			$ftp = $web->ftpusername;
+		} elseif (isset($this->nname) && is_string($this->nname) && $this->nname !== '') {
+			$ftp = substr($this->nname, 0, 31);
+		}
+
+		$doc = '';
+		if (is_object($web) && method_exists($web, 'substr')) {
+			$got = $web->substr('docroot', 0, 32);
+			if (is_string($got) && $got !== '') {
+				$doc = $got;
+			}
+		}
+		if ($doc === '' && isset($this->docroot) && is_string($this->docroot) && $this->docroot !== '') {
+			$doc = substr($this->docroot, 0, 32);
+		}
+		if ($doc === '' && isset($this->nname) && is_string($this->nname)) {
+			$doc = substr($this->nname, 0, 32);
+		}
+
+		$homeUser = '';
+		try {
+			$rp = $this->getRealClientParentO();
+			if (is_object($rp) && method_exists($rp, 'getPathFromName')) {
+				$homeUser = (string) $rp->getPathFromName();
+			}
+		} catch (Throwable $e) {
+			$homeUser = '';
+		}
+		if ($homeUser === '') {
+			try {
+				$po = $this->getParentO();
+				if (is_object($po) && isset($po->nname) && is_string($po->nname) && $po->nname !== '') {
+					$homeUser = $po->nname;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+
+		$ilist['FTP User'] = $ftp;
+		$ilist['Home'] = $homeUser !== '' ? "/home/{$homeUser}/" : '/home/';
 		$url = "a=show&o=web&l[class]=ffile&l[nname]=/";
-		$ilist['DocRoot'] = "_lxinurl:$url:/{$web->substr('docroot', 0, 32)}:";
+		$ilist['DocRoot'] = "_lxinurl:$url:/{$doc}:";
 		$resource = strtil($this->resourceplan_used, "___");
 		
-		if (check_if_many_server() && $login->isLte("reseller")) {
-			$ilist['Web'] = $web->syncserver;
-			$ilist['Mail'] = $mmail->syncserver;
-		//	$ilist['Mysql'] = $this->mysqldbsyncserver;
-			$ilist['Dns'] = $dns->syncserver;
+		if (check_if_many_server() && is_object($login) && method_exists($login, 'isLte')
+			&& $login->isLte("reseller")) {
+			if (is_object($web) && isset($web->syncserver)) {
+				$ilist['Web'] = $web->syncserver;
+			}
+			if (is_object($mmail) && isset($mmail->syncserver)) {
+				$ilist['Mail'] = $mmail->syncserver;
+			}
+			if (is_object($dns) && isset($dns->syncserver)) {
+				$ilist['Dns'] = $dns->syncserver;
+			}
 		}
 		
 		return $ilist;
@@ -1402,16 +1465,43 @@ class Domaind extends DomainBase
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		if (!$this->getParentO()->priv->isOn('webhosting_flag')) {
-			$this->getShowActions($alist, 'mmail');
+		if (!is_array($alist)) {
+			$alist = array();
+		}
+
+		// checkButton treats missing priv as allowed — never call ->priv->isOn
+		// on a null parent priv (that blanked Domain Home after fast Add Domain).
+		$webhosting = true;
+		try {
+			$parent = $this->getParentO();
+			if (is_object($parent) && method_exists($parent, 'checkButton')) {
+				$webhosting = (bool) $parent->checkButton('webhosting_flag');
+			}
+		} catch (Throwable $e) {
+			$webhosting = true;
+		}
+
+		if (!$webhosting) {
+			try {
+				$this->getShowActions($alist, 'mmail');
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'domain createShowAlist mmail-only: ' . $e->getMessage());
+				}
+			}
 			return $alist;
 		}
 
-		$gen = $login->getObject('general')->generalmisc_b;
-		$webstatsprog = (isset($gen->webstatisticsprogram)) ? $gen->webstatisticsprogram : null;
-		
-		if (!$webstatsprog) {
-			$webstatsprog = "awstats";
+		$webstatsprog = 'awstats';
+		try {
+			if (is_object($login) && method_exists($login, 'getObject')) {
+				$genObj = $login->getObject('general');
+				$gen = (is_object($genObj) && isset($genObj->generalmisc_b)) ? $genObj->generalmisc_b : null;
+				if (is_object($gen) && isset($gen->webstatisticsprogram) && $gen->webstatisticsprogram) {
+					$webstatsprog = $gen->webstatisticsprogram;
+				}
+			}
+		} catch (Throwable $e) {
 		}
 
 		if ($subaction === 'config') {
@@ -1425,9 +1515,14 @@ class Domaind extends DomainBase
 	*/
 
 		// MR -- just a trick to find out not access to 'home' because need title for domain
-		if ($login->getUrlIdentity() || !$login->isAdmin()) {
-			// MR -- disable because want combine 'domain' and 'domain adm'
-			$alist['__title_domain_administer'] = $login->getKeywordUc('domain');
+		try {
+			if ((is_object($login) && method_exists($login, 'getUrlIdentity') && $login->getUrlIdentity())
+				|| !(is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin())) {
+				// MR -- disable because want combine 'domain' and 'domain adm'
+				$alist['__title_domain_administer'] = is_object($login) && method_exists($login, 'getKeywordUc')
+					? $login->getKeywordUc('domain') : 'Domain';
+			}
+		} catch (Throwable $e) {
 		}
 
 	//	$this->getLxclientActions($alist);
@@ -1442,7 +1537,12 @@ class Domaind extends DomainBase
 
 		$alist[] = 'a=list&c=addondomain';
 
-		$web = $this->getObject('web');
+		$web = null;
+		try {
+			$web = $this->getObject('web');
+		} catch (Throwable $e) {
+			$web = null;
+		}
 
 	//	$alist['__var_backup_flag'] = "a=show&o=lxbackup";
 	//	$alist[] = "a=list&c=mysqldb";
@@ -1454,13 +1554,23 @@ class Domaind extends DomainBase
 		//	}
 		}
 	*/
-		if ($login->isLteAdmin() || $login->priv->isOn('dns_manage_flag')) {
+		$canDns = true;
+		try {
+			$canDns = (is_object($login) && method_exists($login, 'isLteAdmin') && $login->isLteAdmin())
+				|| (is_object($login) && method_exists($login, 'checkButton') && $login->checkButton('dns_manage_flag'))
+				|| (is_object($login) && isset($login->priv) && is_object($login->priv)
+					&& method_exists($login->priv, 'isOn') && $login->priv->isOn('dns_manage_flag'));
+		} catch (Throwable $e) {
+			$canDns = true;
+		}
+		if ($canDns) {
 			$alist[] = 'a=show&o=dns';
 		}
 
 	//	$alist['__title_web'] = $this->getTitleWithSync('web');
 
-		$alist['__title_domain_log'] = $login->getKeywordUc('trafficandlog');
+		$alist['__title_domain_log'] = (is_object($login) && method_exists($login, 'getKeywordUc'))
+			? $login->getKeywordUc('trafficandlog') : 'Trafficandlog';
 		$alist['__v_dialog_stat'] = "n=web&a=updateform&sa=stats_protect";
 		$tmpurl = "n=web&a=show&l[class]=ffile&l[nname]=__lx_error_log";
 		$alist[] = create_simpleObject(array('url' => "$tmpurl", 'purl' => "o=web&a=updateform&sa=error_log", 'target' => "", '__internal' => true));
@@ -1477,15 +1587,31 @@ class Domaind extends DomainBase
 		$alist[] = 'a=list&c=domaintraffichistory';
 		$alist[] = "n=web&a=list&c=weblastvisit";
 		$alist[] = "n=web&a=updateform&sa=statsconfig";
-		
-		if ($login->priv->isOn('runstats_flag') && $this->priv->isOn('awstats_flag')) {
+
+		$canRunStats = false;
+		try {
+			$canRunStats = is_object($login) && method_exists($login, 'checkButton')
+				&& $login->checkButton('runstats_flag')
+				&& method_exists($this, 'checkButton') && $this->checkButton('awstats_flag');
+		} catch (Throwable $e) {
+			$canRunStats = false;
+		}
+		if ($canRunStats) {
 			$alist[] = "n=web&a=updateform&sa=run_stats";
 		}
 		
 	//	$alist[] = "n=web&a=updateform&sa=sesubmit";
 
 
-		$alist['__title_domain_classweb'] = $web->getTitleWithSync();
+		if (is_object($web) && method_exists($web, 'getTitleWithSync')) {
+			try {
+				$alist['__title_domain_classweb'] = $web->getTitleWithSync();
+			} catch (Throwable $e) {
+				$alist['__title_domain_classweb'] = 'web';
+			}
+		} else {
+			$alist['__title_domain_classweb'] = 'web';
+		}
 	//	$alist['__title_domain_classweb'] = 'web';
 
 	/*
@@ -1559,7 +1685,7 @@ class Domaind extends DomainBase
 			"frm_o_o[0][class]=client&frm_o_o[0][nname]={$this->getParentName()}&frm_o_o[1][class]=phpini",
 			'purl' => "a=show&o=phpini", 'target' => "target='_self'"));
 	*/
-		if ($login->isAdmin()) {
+		if (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()) {
 		//	if ($web->__driverappclass === 'lighttpd') {
 			//	if (is_centosfive()) {
 					$alist[] = "n=web&a=list&c=rubyrails";
@@ -1588,7 +1714,8 @@ class Domaind extends DomainBase
 
 	//	$this->getChildShowActions($alist);
 
-		$alist['__title_domain_extra'] = $login->getKeywordUc('extra');
+		$alist['__title_domain_extra'] = (is_object($login) && method_exists($login, 'getKeywordUc'))
+			? $login->getKeywordUc('extra') : 'Extra';
 
 		$tmpurl = "n=web&a=show&l[class]=ffile&l[nname]=/";
 		$alist[] = create_simpleObject(array('url' => "$tmpurl", 'purl' => "o=web&a=updateform&sa=image_manager", 
@@ -1618,9 +1745,12 @@ class Domaind extends DomainBase
 		}
 	*/
 
-		if ($login->isNotCustomer()) {
-			// Disabling change owner for the present.
-			$alist[] = "a=updateform&sa=changeowner";
+		try {
+			if (is_object($login) && method_exists($login, 'isNotCustomer') && $login->isNotCustomer()) {
+				// Disabling change owner for the present.
+				$alist[] = "a=updateform&sa=changeowner";
+			}
+		} catch (Throwable $e) {
 		}
 		
 	//	$alist[] = "a=list&c=subweb_a";
@@ -1632,8 +1762,11 @@ class Domaind extends DomainBase
 			$alist[] = create_simpleObject(array('url' => "/sitepreview/$this->nname/", 'purl' => 'c=domain&a=updateform&sa=site_preview', 'target' => "target='_blank'"));
 	//	}
 
-		if ($login->isAdmin()) {
-			$alist[] = "a=updateform&sa=preview_config";
+		try {
+			if (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()) {
+				$alist[] = "a=updateform&sa=preview_config";
+			}
+		} catch (Throwable $e) {
 		}
 
 		$alist[] = create_simpleObject(array('url' => "http://intodns.com/$this->nname", 'purl' => 'c=domain&a=updateform&sa=check_dns', 'target' => "target='_blank'"));
@@ -1647,7 +1780,13 @@ class Domaind extends DomainBase
 		$alist[] = "a=list&c=smessage";
 	*/
 
-		$this->getShowActions($alist, 'mmail');
+		try {
+			$this->getShowActions($alist, 'mmail');
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'domain createShowAlist mmail: ' . $e->getMessage());
+			}
+		}
 
 		return $alist;
 	}

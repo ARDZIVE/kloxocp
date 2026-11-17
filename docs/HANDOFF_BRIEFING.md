@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111706**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111707**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1191,6 +1191,15 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `getObject('web')`; guard used/priv; flush each list row; allow-list the
    sync functions; root CLI drain calls them directly; backend only
    `kloxo_kick_dropped_client_jobs`. Live after upcp **UNVERIFIED**.
+   **Domain Home empty tiles after Add Domain:** left Info/Resources showed
+   but the dashboard tile area was blank. `createShowAlist` called
+   `getParentO()->priv->isOn('webhosting_flag')`; a missing client `priv`
+   threw and the show path swallowed it as an empty alist. Info also showed
+   blank FTP / DocRoot `/` when the web row was incomplete. Fix: use
+   `checkButton` (missing priv ⇒ allowed); Info falls back to domain
+   nname/docroot; `getShowActions` initialises `$onl` and guards `$ghtml`;
+   finish backfills web ftpusername/docroot. Test:
+   `tests/p2/test_domain_home.php`. Live **UNVERIFIED**.
    **Add Domain / Add Subdomain nginx -t `*.pem`:** empty IP/SSL list used
    to set `certnamelist = ['*' => '*']`, so Nginx templates wrote
    `ssl_certificate /home/kloxo/ssl/*.pem` and `nginx -t` aborted the add
@@ -1246,7 +1255,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111706**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111707**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

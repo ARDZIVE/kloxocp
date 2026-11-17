@@ -160,6 +160,11 @@ if php "$HERE/test_domain_fast_add.php"; then
 else
   bad "test_domain_fast_add.php"
 fi
+if php "$HERE/test_domain_home.php"; then
+  ok "test_domain_home.php"
+else
+  bad "test_domain_home.php"
+fi
 if php "$HERE/test_title_with_sync.php"; then
   ok "test_title_with_sync.php"
 else

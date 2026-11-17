@@ -5469,11 +5469,37 @@ abstract class Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$object = $this->getObject($class);
+		if (!is_array($alist)) {
+			$alist = array();
+		}
+
+		try {
+			$object = $this->getObject($class);
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', "getShowActions getObject {$class}: " . $e->getMessage());
+			}
+
+			return $alist;
+		}
+		if (!is_object($object) || !method_exists($object, 'createShowAlist')) {
+			return $alist;
+		}
 
 	//	$ol[] = "a=show&o={$class}";
 		$ol = null;
-		$object->createShowAlist($onl);
+		$onl = array();
+		try {
+			$object->createShowAlist($onl);
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', "getShowActions createShowAlist {$class}: " . $e->getMessage());
+			}
+			$onl = array();
+		}
+		if (!is_array($onl)) {
+			$onl = array();
+		}
 
 		// Hack hack... Removing the '__title_main' from the alist. This is already present in the parent, 
 		// and it will mix everything and screw up.
@@ -5481,7 +5507,7 @@ abstract class Lxclass
 
 		unset($onl['action']);
 
-		if (isset($nl['property'])) {
+		if (isset($onl['property']) && is_array($onl['property'])) {
 			foreach ($onl['property'] as $_tq) {
 				$onl[] = $_tq;
 			}
@@ -5499,7 +5525,8 @@ abstract class Lxclass
 					continue;
 				}
 
-				if ($ghtml->is_special_url($_to)) {
+				if (is_object($ghtml) && method_exists($ghtml, 'is_special_url')
+					&& $ghtml->is_special_url($_to)) {
 					$_to->purl = "n={$class}&{$_to->purl}";
 
 					if (isset($_to->__internal)) {
@@ -5509,8 +5536,11 @@ abstract class Lxclass
 					continue;
 				}
 
-				$_to = "n={$class}&{$_to}";
+				if (is_string($_to)) {
+					$_to = "n={$class}&{$_to}";
+				}
 			}
+			unset($_to);
 		}
 		$alist = lx_array_merge(array($alist, $ol, $onl));
 
