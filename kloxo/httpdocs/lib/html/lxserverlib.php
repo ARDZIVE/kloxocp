@@ -74,8 +74,9 @@ function do_server_stuff()
 	}
 
 	// Add Client / Domain / mailname drop-files: never run sync inline in the
-	// backend accept loop (nginx -t would stall every rl_exec). Detach the
-	// same runner watchdog uses.
+	// backend accept loop (nginx -t would stall every rl_exec). Kick only when
+	// a drop file exists and no drain is already running — an unconditional
+	// kick here (every accept + 30s select timeout) fork-bombed PHP to OOM.
 	if (function_exists('posix_geteuid') && posix_geteuid() === 0
 		&& function_exists('kloxo_kick_dropped_client_jobs')) {
 		try {

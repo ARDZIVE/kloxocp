@@ -124,13 +124,16 @@ if ($drain !== ''
 	&& str_contains($serverLib, 'kloxo_kick_dropped_client_jobs')
 	&& !str_contains($serverLib, 'kloxo_run_dropped_client_jobs()')
 	&& str_contains($runner, 'kloxo_run_dropped_client_jobs')
+	&& str_contains($runner, 'LOCK_EX | LOCK_NB')
+	&& str_contains($lxlib, 'kloxo_dropped_client_jobs_pending')
+	&& str_contains($lxlib, 'kloxo_dropped_client_jobs_busy')
 	&& str_contains($wd, 'domain-sync.request')
 	&& str_contains($wd, 'runClientAddJobs')
 	&& str_contains($bgPhp, 'kloxo_domain_system_sync')
 	&& str_contains($bgPhp, 'kloxo_client_system_sync')) {
-	ok('backend kicks detached runner; drain allow-lists sync; root CLI runs direct');
+	ok('backend kicks gated runner; drain allow-lists sync; single-flight lock');
 } else {
-	bad('backend kicks detached runner; drain allow-lists sync; root CLI runs direct');
+	bad('backend kicks gated runner; drain allow-lists sync; single-flight lock');
 }
 
 if (str_contains($js, 'function hasToastQuery')

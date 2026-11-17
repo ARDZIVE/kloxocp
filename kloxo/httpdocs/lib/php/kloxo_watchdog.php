@@ -445,6 +445,31 @@ final class KloxoWatchdog
         if (!is_file($queue) && !is_file($req) && !is_file($dom) && !is_file($mail)) {
             return;
         }
+        // Same single-flight as kloxo_kick_dropped_client_jobs — do not stack
+        // runners while a domain sync (nginx -t) still holds the lock.
+        if (function_exists('kloxo_dropped_client_jobs_busy')
+            && kloxo_dropped_client_jobs_busy($this->root)) {
+            return;
+        }
+        $spawnFile = $this->root . '/pid/dropped-client-jobs.spawn';
+        if (is_file($spawnFile)) {
+            $age = time() - (int) @filemtime($spawnFile);
+            if ($age >= 0 && $age < 20) {
+                return;
+            }
+        }
+        $pidFile = $this->root . '/pid/dropped-client-jobs.pid';
+        if (is_file($pidFile)) {
+            $pid = (int) trim((string) @file_get_contents($pidFile));
+            if ($pid > 1 && function_exists('posix_kill') && @posix_kill($pid, 0)) {
+                return;
+            }
+        }
+        $pidDir = $this->root . '/pid';
+        if (!is_dir($pidDir)) {
+            @mkdir($pidDir, 0750, true);
+        }
+        @file_put_contents($pidDir . '/dropped-client-jobs.spawn', (string) time());
         $php = '/usr/bin/php';
         if (defined('PHP_BINARY') && is_string(PHP_BINARY) && PHP_BINARY !== '' && is_executable(PHP_BINARY)) {
             $php = PHP_BINARY;

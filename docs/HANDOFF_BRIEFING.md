@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111707**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111708**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1191,6 +1191,18 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `getObject('web')`; guard used/priv; flush each list row; allow-list the
    sync functions; root CLI drain calls them directly; backend only
    `kloxo_kick_dropped_client_jobs`. Live after upcp **UNVERIFIED**.
+   **OOM / host crash after Add Domain (fast-add waves):**
+   `do_server_stuff` runs on every backend accept and every 30s select
+   timeout. An unconditional `kloxo_kick_dropped_client_jobs` while
+   `log/domain-sync.request` existed spawned a new PHP for every
+   `rl_exec` / page hit; each runner loaded `include.php` before the
+   drop file was consumed → fork bomb → OOM (MariaDB / panel killed on
+   4 GB hosts). Fix: kick only when pending and not busy; spawn
+   cooldown stamp; `run-dropped-client-jobs.php` exits before include
+   when idle and takes `pid/dropped-client-jobs.lock` + pid
+   (single-flight); watchdog skips a second drain while busy. Tests:
+   `tests/p2/test_dropped_jobs_kick.php`, `test_domain_fast_add.php`.
+   Live after upcp **UNVERIFIED**.
    **Domain Home empty tiles after Add Domain:** left Info/Resources showed
    but the dashboard tile area was blank. `createShowAlist` called
    `getParentO()->priv->isOn('webhosting_flag')`; a missing client `priv`
@@ -1255,7 +1267,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111707**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111708**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

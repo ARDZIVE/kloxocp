@@ -4146,7 +4146,90 @@ function kloxo_queue_domain_system_sync(string $nname): void
 }
 
 /**
+ * Drop-file paths drained by run-dropped-client-jobs / watchdog.
+ *
+ * @return list<string>
+ */
+function kloxo_dropped_client_job_paths(string $root): array
+{
+	$root = rtrim($root, '/');
+
+	return array(
+		$root . '/log/background.queue',
+		$root . '/log/client-sync.request',
+		$root . '/log/domain-sync.request',
+		$root . '/log/mailname.request',
+	);
+}
+
+/** True when at least one Add Client/Domain/mailname drop file exists. */
+function kloxo_dropped_client_jobs_pending(string $root): bool
+{
+	foreach (kloxo_dropped_client_job_paths($root) as $path) {
+		if (is_file($path)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * True when a drain runner already holds the lock / live pid, or a kick
+ * stamped a spawn cooldown (closes the race before the runner flocks).
+ * Prevents do_server_stuff (every accept + 30s) from fork-bombing PHP.
+ */
+function kloxo_dropped_client_jobs_busy(string $root): bool
+{
+	$root = rtrim($root, '/');
+	$spawnFile = $root . '/pid/dropped-client-jobs.spawn';
+	if (is_file($spawnFile)) {
+		$age = time() - (int) @filemtime($spawnFile);
+		// Runner should flock within a second; 20s covers a slow PHP start.
+		if ($age >= 0 && $age < 20) {
+			return true;
+		}
+		@unlink($spawnFile);
+	}
+	$pidFile = $root . '/pid/dropped-client-jobs.pid';
+	if (is_file($pidFile)) {
+		$pid = (int) trim((string) @file_get_contents($pidFile));
+		if ($pid > 1) {
+			$alive = false;
+			if (function_exists('posix_kill')) {
+				$alive = @posix_kill($pid, 0);
+			} elseif (is_dir('/proc/' . $pid)) {
+				$alive = true;
+			}
+			if ($alive) {
+				return true;
+			}
+		}
+		@unlink($pidFile);
+	}
+	$lockFile = $root . '/pid/dropped-client-jobs.lock';
+	if (!is_file($lockFile)) {
+		return false;
+	}
+	$fp = @fopen($lockFile, 'c+');
+	if (!is_resource($fp)) {
+		return false;
+	}
+	$got = @flock($fp, LOCK_EX | LOCK_NB);
+	if ($got) {
+		@flock($fp, LOCK_UN);
+		@fclose($fp);
+
+		return false;
+	}
+	@fclose($fp);
+
+	return true;
+}
+
+/**
  * Root / backend: run dropped background.php jobs, client-sync, and domain-sync.
+ * Single-flight via pid/dropped-client-jobs.lock (see run-dropped-client-jobs.php).
  */
 function kloxo_run_dropped_client_jobs(): void
 {
@@ -4154,6 +4237,9 @@ function kloxo_run_dropped_client_jobs(): void
 	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
 		? rtrim((string) $sgbl->__path_program_root, '/')
 		: '/opt/kloxo';
+	if (!kloxo_dropped_client_jobs_pending($root)) {
+		return;
+	}
 	$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
 		? (string) $sgbl->__path_php_path
 		: (function_exists('kloxo_php_binary') ? (string) kloxo_php_binary() : '/usr/bin/php');
@@ -4347,6 +4433,11 @@ function kloxo_finish_client_add(string $nname): void
 /**
  * Fire-and-forget: run-dropped-client-jobs.php as a detached process.
  * Safe after fastcgi_finish_request / emit — must not block the browser.
+ *
+ * Never spawn when idle or when a drain is already running. The backend
+ * accept loop calls do_server_stuff on every connection and every 30s
+ * timeout; an unconditional kick there fork-bombed PHP and OOM-killed
+ * MariaDB on a 4 GB host.
  */
 function kloxo_kick_dropped_client_jobs(): void
 {
@@ -4355,6 +4446,12 @@ function kloxo_kick_dropped_client_jobs(): void
 	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
 		? rtrim((string) $sgbl->__path_program_root, '/')
 		: '/opt/kloxo';
+	if (!kloxo_dropped_client_jobs_pending($root)) {
+		return;
+	}
+	if (kloxo_dropped_client_jobs_busy($root)) {
+		return;
+	}
 	$php = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_php_path))
 		? (string) $sgbl->__path_php_path
 		: (function_exists('kloxo_php_binary') ? (string) kloxo_php_binary() : '/usr/bin/php');
@@ -4362,10 +4459,14 @@ function kloxo_kick_dropped_client_jobs(): void
 	if (!is_file($runner)) {
 		return;
 	}
-	// Panel FPM is lxlabs: useradd needs root. Prefer asking kloxo-backend
-	// (root) via a tiny drop the backend loop already drains; also try a
-	// detached runner in case the process can elevate. Backend do_server_stuff
-	// always drains client-sync.request as root.
+	$pidDir = $root . '/pid';
+	if (!is_dir($pidDir)) {
+		@mkdir($pidDir, 0750, true);
+	}
+	// Stamp before spawn so the next do_server_stuff accept cannot race
+	// another PHP while this runner is still starting up.
+	@file_put_contents($pidDir . '/dropped-client-jobs.spawn', (string) time());
+	@chmod($pidDir . '/dropped-client-jobs.spawn', 0640);
 	if (function_exists('lxshell_background')) {
 		lxshell_background($php, $runner, '--root=' . $root);
 	}
