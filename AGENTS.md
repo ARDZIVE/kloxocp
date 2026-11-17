@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111701. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111702. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -55,7 +55,7 @@ print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have
 text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
 htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
 The Update
-screen shows **10.1-2026111701** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111702** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -421,14 +421,18 @@ MySQL logon form on a live server); live SSO after deploy is UNVERIFIED.
 `install.sh` re-runs keep an existing admin password
 (`init-panel-db --keep-admin-password` when `/var/lib/kloxo/panel.sqlite` already
 exists; not MariaDB `kloxo.client`) unless `KLOXO_ADMIN_PASSWORD` is set.
-`install.sh` waits for the dpkg/apt lock (fresh servers run
-unattended-upgrades) via a temporary `apt.conf.d/99kloxo-install`
-(`DPkg::Lock::Timeout`) plus `wait_for_apt_locks`, and `apt_update` /
-`repair_apt_cache` drop a half-written `pkgcache.bin` / `srcpkgcache.bin`
-(needrestart rename ENOENT / "package cache file is corrupted") then retry;
-`get` does the same when it must apt-install curl. The one-liner uses
-`-o DPkg::Lock::Timeout=600`. Tested for bash -n and source invariants on a
-non-Ubuntu host; a live run on Ubuntu 26.04 is UNVERIFIED.
+`install.sh` pauses background apt for the install (`pause_background_apt`:
+stop + runtime-mask `unattended-upgrades` and `apt-daily*` timers/services,
+restored on EXIT), waits for any in-flight dpkg lock (`wait_for_apt_locks`
+names the holder, e.g. `unattended-upgr`), and sets `NEEDRESTART_SUSPEND=1`
+so needrestart does not scan "User sessions running outdated binaries" for
+minutes. A temporary `apt.conf.d/99kloxo-install` still sets
+`DPkg::Lock::Timeout`; `apt_update` / `repair_apt_cache` drop a half-written
+`pkgcache.bin` / `srcpkgcache.bin` (needrestart rename ENOENT / "package
+cache file is corrupted") then retry; `get` does the same when it must
+apt-install curl. The one-liner uses `-o DPkg::Lock::Timeout=600`. Tested
+for bash -n and source invariants on a non-Ubuntu host; a live run on
+Ubuntu 26.04 is UNVERIFIED.
 Switch Program audit: `updateSwitchProgram` now only treats the six driver keys (web/webcache/dns/spam/pop3/smtp) as programs (before, `use_pagespeed` reached `switchDriver` as class `use`), rejects names not on the offered list, no longer reinstalls the web server on every Update, calls `/script/fixmail` (there is no `/script/fixmmail`) after spam/pop3/smtp switches, and Exim/Postfix/Dovecot installs go through `KloxoApt` (non-interactive, errors shown, old choice kept). `tests/p2/test_switchprogram.php` runs this in a copy of the tree with fake apt-get/systemctl; web driver switch, real apt and a live server are UNVERIFIED.
 Recovery console (`https://<host>:7777/recovery/`, `httpdocs/recovery/index.php`, `lib/php/kloxo_recovery.php`, `lib/php/kloxo_recovery_page.php`): works with MariaDB, Nginx and Apache down. Own login (Argon2id hash in `etc/conf/recovery.json`, 0640 root:lxlabs; `install.sh` generates it once and saves the password to `/root/kloxo-recovery-password`; `kloxocp recovery-password --generate|--password-env=VAR`), HTTPS only, CSRF token, own session under `var/recovery`, 5 failures per address locks 15 min, idle 15 min. Whitelisted units only (including postfix); panel units (kloxo-web/php/backend) start/enable only. Starting, restarting or enabling nginx/apache2, bind9/knot or exim4/postfix stops and disables the other of the pair so both cannot run. Installed units that are not enabled at boot get an **Enable at boot** button (`systemctl enable` on the canonical unit). Root work (systemctl, journalctl) goes through `rl_exec_get` to kloxo-backend (`KloxoRecovery::serverControl/serverJournal`); the legacy client is included only for a logged-in request. `kloxo-backend` master mode now survives a missing database (`db_degraded`, retries in `do_server_stuff`), `lx_exception_handler` shows a 503 with a link when mysqli reports 2002/2003/2006/2013, `kloxo-web.service` and a MariaDB drop-in (`mariadb.service.d/kloxo-restart.conf`) restart on failure. Debian `bind9.service` is an alias of `named.service` and `postfix.service` of `postfix@-.service`: recovery asks for those real units too (a multi-unit `systemctl show` can omit the alias names, which listed bind9 and postfix as not installed), retries each missing unit on its own, and treats a unit file / cgroup as installed when systemd still says not-found. `systemctl --system` is used so a user bus does not hide system units. Start/stop/journal use the canonical unit. Overview shows exact systemd status `ActiveState (SubState)` (for example `active (running)`). `tests/p2/test_recovery.php` (76 checks, fake systemctl/journalctl, bind9→named and postfix→postfix@- aliases, unit-file fallback, phpX.Y-fpm) plus a manual run of a real backend in a temp tree (round trip while the DB was unreachable). Login, overview and journal use the panel red/beige/green (inline CSS only; CSP stays `style-src 'unsafe-inline'`): Actions sit next to State so the buttons stay on screen, installed rows list first. Tested against HTML dumps in a local browser. NOT verified: real systemd as root, Hiawatha/FPM serving the page, the MariaDB-down page flow on Ubuntu, a reboot with MariaDB failing, live bind9 row on Ubuntu.
 

@@ -56,7 +56,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111701"
+KCP_VERSION="10.1-2026111702"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -454,19 +454,84 @@ log "Kloxo CP ${KCP_VERSION} install starting $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 log "host=$(hostname -f 2>/dev/null || hostname) os=${os_pretty} profile=${PROFILE}"
 
 # A fresh Ubuntu server usually runs unattended-upgrades (or cloud-init apt) for
-# the first minutes and holds the dpkg lock. Wait for it instead of aborting:
-# apt gets a lock timeout for every apt/dpkg call (including the helper
-# scripts), and we also poll the lock files before our own first apt call.
+# the first minutes and holds the dpkg lock. Pause those units for this install
+# (restored on EXIT), wait for any in-flight dpkg to finish, and suppress
+# needrestart's long "outdated binaries" session scan (not an install hang).
+# apt also gets DPkg::Lock::Timeout for every apt/dpkg call.
 KLOXO_APT_CONF=/etc/apt/apt.conf.d/99kloxo-install
 KLOXO_APT_WAIT="${KLOXO_APT_WAIT:-900}"
+KLOXO_PAUSED_APT=0
+# Skip needrestart prompts / session scans during every apt-get in this script.
+export NEEDRESTART_SUSPEND="${NEEDRESTART_SUSPEND:-1}"
+export NEEDRESTART_MODE="${NEEDRESTART_MODE:-a}"
 write_apt_conf() {
   printf '%s\n' \
     "// Temporary Kloxo CP install settings (removed when install.sh exits)" \
     "DPkg::Lock::Timeout \"${KLOXO_APT_WAIT}\";" \
-    "Acquire::Retries \"3\";" > "$KLOXO_APT_CONF" || true
+    "Acquire::Retries \"3\";" \
+    "// Avoid interactive needrestart / kernel hints during install" \
+    "DPkg::Options:: \"--force-confdef\";" \
+    "DPkg::Options:: \"--force-confold\";" > "$KLOXO_APT_CONF" || true
+  # needrestart reads this when present (Ubuntu cloud images often ship it).
+  if [[ -d /etc/needrestart/conf.d ]]; then
+    printf '%s\n' \
+      "# Temporary Kloxo CP install (removed on EXIT)" \
+      "\$nrconf{restart} = 'a';" \
+      "\$nrconf{kernelhints} = 0;" \
+      "\$nrconf{ucodehints} = 0;" \
+      > /etc/needrestart/conf.d/99kloxo-install.conf || true
+  fi
+}
+# Who holds an apt/dpkg lock (for progress logs). Empty if none / unknown.
+apt_lock_holder() {
+  local f locks pid comm
+  locks=(/var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock)
+  command -v fuser >/dev/null 2>&1 || { printf ''; return 0; }
+  for f in "${locks[@]}"; do
+    [[ -e "$f" ]] || continue
+    for pid in $(fuser "$f" 2>/dev/null | tr -s '[:space:]' ' '); do
+      [[ "$pid" =~ ^[0-9]+$ ]] || continue
+      comm="$(ps -o comm= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)"
+      if [[ -n "$comm" ]]; then
+        printf '%s (%s)' "$comm" "$pid"
+      else
+        printf 'pid %s' "$pid"
+      fi
+      return 0
+    done
+  done
+  printf ''
+}
+pause_background_apt() {
+  [[ "${KLOXO_PAUSED_APT:-0}" -eq 1 ]] && return 0
+  log "pausing background apt (unattended-upgrades / apt-daily) so install is not stuck on the dpkg lock"
+  # Stop timers first so a new unattended-upgrade cannot start while we wait.
+  systemctl stop apt-daily.timer apt-daily-upgrade.timer \
+    apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
+  systemctl mask --runtime apt-daily.timer apt-daily-upgrade.timer \
+    apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
+  # Stop unattended-upgrades so it releases the lock. Do not kill -9: a mid-
+  # flight dpkg would leave a broken package state. systemctl stop waits.
+  if systemctl is-active --quiet unattended-upgrades.service 2>/dev/null \
+    || pgrep -x unattended-upgr >/dev/null 2>&1; then
+    log "stopping unattended-upgrades (finishes the current package job if one is running)"
+    systemctl stop unattended-upgrades.service >/dev/null 2>&1 || true
+  fi
+  systemctl mask --runtime unattended-upgrades.service >/dev/null 2>&1 || true
+  KLOXO_PAUSED_APT=1
+}
+resume_background_apt() {
+  [[ "${KLOXO_PAUSED_APT:-0}" -eq 1 ]] || return 0
+  systemctl unmask --runtime unattended-upgrades.service \
+    apt-daily.service apt-daily-upgrade.service \
+    apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+  systemctl start apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+  # Leave unattended-upgrades.service stopped; the timer starts it on schedule.
+  rm -f /etc/needrestart/conf.d/99kloxo-install.conf 2>/dev/null || true
+  KLOXO_PAUSED_APT=0
 }
 wait_for_apt_locks() {
-  local waited=0 locks held
+  local waited=0 locks held holder
   locks=(/var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock)
   command -v fuser >/dev/null 2>&1 || return 0
   while :; do
@@ -479,10 +544,16 @@ wait_for_apt_locks() {
     done
     [[ "$held" -eq 0 ]] && return 0
     if [[ "$waited" -ge "$KLOXO_APT_WAIT" ]]; then
-      die "apt/dpkg is still locked after ${KLOXO_APT_WAIT}s (another updater is running); try again later"
+      holder="$(apt_lock_holder)"
+      die "apt/dpkg is still locked after ${KLOXO_APT_WAIT}s${holder:+ by ${holder}}; try again later"
     fi
-    if [[ $((waited % 30)) -eq 0 ]]; then
-      log "waiting for another apt/dpkg process to finish (unattended-upgrades?) ... ${waited}s"
+    if [[ $((waited % 15)) -eq 0 ]]; then
+      holder="$(apt_lock_holder)"
+      if [[ -n "$holder" ]]; then
+        log "waiting for apt/dpkg lock held by ${holder} ... ${waited}s / ${KLOXO_APT_WAIT}s (normal on a fresh Ubuntu image)"
+      else
+        log "waiting for apt/dpkg lock ... ${waited}s / ${KLOXO_APT_WAIT}s"
+      fi
     fi
     sleep 5
     waited=$((waited + 5))
@@ -523,6 +594,7 @@ apt_update() {
   return 0
 }
 write_apt_conf
+pause_background_apt
 wait_for_apt_locks
 
 # apt postinst starts packaged daemons. knot would start on 127.0.0.1:53 and
@@ -585,6 +657,7 @@ EOF
 }
 release_standby_units() {
   rm -f "$KLOXO_APT_CONF"
+  resume_background_apt
   local u
   for u in "${KLOXO_STANDBY_UNITS[@]:-}"; do
     [[ -n "$u" ]] || continue

@@ -148,6 +148,16 @@ if grep -q 'repair_apt_cache' "$ROOT/install.sh" \
 else
   bad "install.sh/get repair a corrupted apt package cache"
 fi
+if grep -q 'pause_background_apt' "$ROOT/install.sh" \
+  && grep -q 'resume_background_apt' "$ROOT/install.sh" \
+  && grep -q 'unattended-upgrades' "$ROOT/install.sh" \
+  && grep -q 'NEEDRESTART_SUSPEND' "$ROOT/install.sh" \
+  && grep -q 'apt_lock_holder' "$ROOT/install.sh" \
+  && grep -q 'mask --runtime unattended-upgrades.service' "$ROOT/install.sh"; then
+  ok "install.sh pauses unattended-upgrades and suppresses needrestart during apt"
+else
+  bad "install.sh pauses unattended-upgrades and suppresses needrestart during apt"
+fi
 if grep -q 'pure-ftpd redis-server iproute2 ufw imagemagick' "$ROOT/install.sh" \
   && grep -q 'fail2ban python3-systemd nftables logwatch certbot' "$ROOT/install.sh" \
   && grep -q 'PROFILE="full"' "$ROOT/install.sh" \

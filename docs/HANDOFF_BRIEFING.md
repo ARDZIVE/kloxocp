@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111701**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111702**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1231,7 +1231,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111701**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111702**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
@@ -1244,8 +1244,11 @@ Work in this order. Keep every change small, tested and committed separately. Do
    failure does not toast `got_error_from_ur_end` after a successful save
    (`tests/p2/test_panel_mail.php`). One-liner in `README.md` downloads
    `install.sh` from GitHub `main` to `/tmp` then runs that file (not
-   `curl | bash`). **UNVERIFIED on a real Ubuntu VM.** Does not add a
-   signed apt repo. Live two-host add is **UNVERIFIED**.
+   `curl | bash`). Fresh-install apt lock: `pause_background_apt` stops and
+   runtime-masks `unattended-upgrades` / `apt-daily*` (restored on EXIT),
+   `wait_for_apt_locks` names the holder, `NEEDRESTART_SUSPEND=1` skips the
+   long “outdated binaries” session scan. **UNVERIFIED on a real Ubuntu VM.**
+   Does not add a signed apt repo. Live two-host add is **UNVERIFIED**.
 3. **NOT DONE.** Signed apt repo, `debian/` packaging, `kloxocp update` (pre-flight →
    snapshot → apt → migrate → validate → health-check → auto-rollback), LVM/ZFS snapshots,
    panel-DB dump in the snapshot. `init-panel-db` / `install-hiawatha` exist
