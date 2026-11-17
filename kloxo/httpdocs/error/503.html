@@ -7,7 +7,7 @@
 
 <style>
 body {
-	font-family: Tahoma, Verdana, Arial, Helvertica, sans-serif;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
 	font-size: 8pt;
 	font-weight: 100;
 	background-image:url('/images/abstract.jpg');
@@ -30,7 +30,7 @@ table.header {
 	border-collapse: collapse;
 	border-spacing: 0;
 	width: 100%;
-	font-family: Tahoma, Verdana, Arial, Helvertica, sans-serif;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
 	font-size: 8pt;
 	font-weight: 100;
 }
@@ -39,7 +39,7 @@ table.content {
 	border-collapse: collapse;
 	border-spacing: 0;
 	width: 100%;
-	font-family: Tahoma, Verdana, Arial, Helvertica, sans-serif;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
 	font-size: 8pt;
 	font-weight: 100%;
 }
@@ -47,7 +47,7 @@ table.content {
 table.content_body td {
 	border-collapse: collapse;
 	border: 1px dashed #cccccc;
-	font-family: Tahoma, Verdana, Arial, Helvertica, sans-serif;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
 	font-size: 10pt;
 	color: #444444;
 	padding:10px;
@@ -57,11 +57,16 @@ table.content_body td {
 table.content_title td {
 	border-collapse: collapse;
 	border: 0;
-	font-family: Tahoma, Verdana, Arial, Helvertica, sans-serif;
+	font-family: Tahoma, Verdana, Arial, Helvetica, sans-serif;
 	font-size: 12pt;
 	color: #336699;
 }
 
+code {
+	font-size: 9pt;
+	background: #fff;
+	padding: 1px 4px;
+}
 </style>
 
 <body>
@@ -88,7 +93,14 @@ table.content_title td {
 		<table  class="content_body" width="640">
 			<tr>
 				<td width="100%" bgcolor="#eeeeee">
-					The server is currently unavailable (overloaded or down)<br></td>
+					The panel PHP process is not answering (overloaded or down).<br><br>
+					As <b>root</b> on the server, run:<br><br>
+					<code>systemctl restart kloxo-php kloxo-web</code><br><br>
+					Then reload this page. If it still fails, open the recovery console:<br><br>
+					<code>https://&lt;server-ip&gt;:7777/recovery/</code><br>
+					(password in <code>/root/kloxo-recovery-password</code>)<br>
+					and check <code>journalctl -u kloxo-php -n 80 --no-pager</code>.
+				</td>
 			</tr>
 		</table>
 </div>
@@ -98,5 +110,4 @@ table.content_title td {
 </table>
 
 </body>
-
 </html>

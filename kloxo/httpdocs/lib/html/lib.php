@@ -3201,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111703';
+	return '10.1-2026111704';
 }
 
 function getDownloadServer()
@@ -3652,6 +3652,11 @@ function kloxo_admin_mail_setup_needed($login): bool
 
 /**
  * Best-effort write of /etc/mailname (dotted FQDN) for panel From + Exim.
+ *
+ * Never call kloxo-backend from panel FPM here: first-login Mail Setup used to
+ * block on rl_exec_get(..., false), pile up php-fpm workers, and leave Hiawatha
+ * returning Error 503 (FastCGI unavailable). Root writes immediately; FPM
+ * queues log/mailname.request for backend/watchdog.
  */
 function kloxo_admin_mail_setup_apply_mailname(string $fqdn): void
 {
@@ -3660,16 +3665,13 @@ function kloxo_admin_mail_setup_apply_mailname(string $fqdn): void
 		return;
 	}
 	$body = $fqdn . "\n";
-	try {
-		if (function_exists('rl_exec_get')) {
-			rl_exec_get(null, 'localhost', 'lfile_put_contents', array('/etc/mailname', $body), false);
-			return;
-		}
-	} catch (Throwable $e) {
-		log_log('mail_send', 'mailname via backend skipped: ' . $e->getMessage());
-	}
 	if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
 		@file_put_contents('/etc/mailname', $body);
+
+		return;
+	}
+	if (function_exists('kloxo_queue_mailname_apply')) {
+		kloxo_queue_mailname_apply($fqdn);
 	}
 }
 

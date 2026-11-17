@@ -95,10 +95,12 @@ if (preg_match('/function lxshell_background\(.*?^function /sm', $linuxFs, $mBg)
 	$bgFn = $mBg[0];
 }
 check($bgFn !== ''
-	&& str_contains($bgFn, 'setsid')
+	&& str_contains($bgFn, 'pcntl_fork')
+	&& str_contains($bgFn, 'pcntl_exec')
+	&& (str_contains($bgFn, 'posix_setsid') || str_contains($bgFn, '/usr/bin/setsid'))
 	&& !str_contains($bgFn, 'ionice -c3')
-	&& str_contains($bgFn, '</dev/null >/dev/null 2>&1 &'),
-	'lxshell_background detaches with setsid (no ionice wrap)');
+	&& !str_contains($bgFn, '</dev/null >/dev/null 2>&1 &'),
+	'lxshell_background detaches with fork/exec setsid (no ionice / shell &)');
 
 check(str_contains($lib, "callInBackground(\"lx_mail\", array(null, \$email")
 	&& str_contains($lib, 'admin contactemail empty'),
@@ -169,9 +171,24 @@ check(str_contains($core, "kloxo_skip_was_now")
 	&& str_contains($core, "metadbaction = 'writeonly'")
 	&& str_contains($core, 'frm_smessage=updated_successfully'),
 	'updateMailsetup skips was and redirects with success toast');
+$libHtml = (string) file_get_contents($doc . '/lib/html/lib.php');
+$lxlibMail = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+$applyFn = '';
+if (preg_match('/function kloxo_admin_mail_setup_apply_mailname\(.*?^function /sm', $libHtml, $mApp) === 1) {
+	$applyFn = $mApp[0];
+}
+check($applyFn !== ''
+	&& !str_contains($applyFn, 'rl_exec_get')
+	&& str_contains($applyFn, 'kloxo_queue_mailname_apply')
+	&& str_contains($lxlibMail, 'function kloxo_queue_mailname_apply')
+	&& str_contains($lxlibMail, 'mailname.request')
+	&& str_contains($lxlibMail, 'function kloxo_drain_mailname_request')
+	&& str_contains($lxlibMail, 'kloxo_drain_mailname_request($root)'),
+	'mailsetup queues /etc/mailname (no blocking rl_exec from FPM)');
 check(str_contains($lxclient, "\$isMailsetup = (\$this->subaction === 'mailsetup')")
 	&& str_contains($lxclient, '$isPassword || $isMailsetup')
-	&& str_contains($lxclient, 'kloxo_finish_local_redirect'),
+	&& str_contains($lxclient, 'kloxo_emit_local_redirect')
+	&& str_contains($lxclient, 'kloxo_kick_dropped_client_jobs'),
 	'postUpdate treats mailsetup like password (local write + finish redirect)');
 $mes = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
 check(str_contains($mes, "\$__emessage['got_error_from_ur_end']")

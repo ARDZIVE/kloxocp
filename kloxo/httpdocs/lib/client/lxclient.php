@@ -1315,9 +1315,28 @@ abstract class Lxclient extends Lxdb
 			if (is_object($gbl) && empty($gbl->__this_redirect)) {
 				$gbl->__this_redirect = '/display.php?frm_action=show';
 			}
-			if (function_exists('kloxo_finish_local_redirect')) {
+			// Mail Setup may have queued log/mailname.request — kick root drain
+			// after the stub (never block FPM on rl_exec during the modal).
+			if ($isMailsetup && function_exists('kloxo_hold_background_spawn')) {
+				kloxo_hold_background_spawn(true);
+			}
+			if (function_exists('kloxo_emit_local_redirect')) {
+				kloxo_emit_local_redirect();
+			} elseif (function_exists('kloxo_finish_local_redirect')) {
 				kloxo_finish_local_redirect();
 			}
+			if (function_exists('kloxo_close_client_connection')) {
+				kloxo_close_client_connection();
+			}
+			if ($isMailsetup) {
+				if (function_exists('kloxo_release_held_background_to_queue')) {
+					kloxo_release_held_background_to_queue();
+				}
+				if (function_exists('kloxo_kick_dropped_client_jobs')) {
+					kloxo_kick_dropped_client_jobs();
+				}
+			}
+			exit(0);
 		}
 
 		if ($this->subaction === 'limit') {

@@ -158,6 +158,12 @@ if grep -q 'pause_background_apt' "$ROOT/install.sh" \
 else
   bad "install.sh pauses unattended-upgrades and suppresses needrestart during apt"
 fi
+if grep -q 'etc/slavedb' "$ROOT/install.sh" \
+  && grep -q 'chown -R lxlabs:lxlabs "$ROOT/etc/slavedb"' "$ROOT/install.sh"; then
+  ok "install.sh makes etc/slavedb writable by panel FPM (lxlabs)"
+else
+  bad "install.sh makes etc/slavedb writable by panel FPM (lxlabs)"
+fi
 if grep -q 'pure-ftpd redis-server iproute2 ufw imagemagick' "$ROOT/install.sh" \
   && grep -q 'fail2ban python3-systemd nftables logwatch certbot' "$ROOT/install.sh" \
   && grep -q 'PROFILE="full"' "$ROOT/install.sh" \

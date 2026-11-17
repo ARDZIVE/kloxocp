@@ -56,7 +56,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111703"
+KCP_VERSION="10.1-2026111704"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -923,9 +923,12 @@ if [[ -f "$ROOT/etc/program.pem" ]]; then
   chmod 0600 "$ROOT/etc/program.pem"
 fi
 
-install -d -m 0755 "$ROOT/init" "$ROOT/log" "$ROOT/session" "$ROOT/pid"
+install -d -m 0755 "$ROOT/init" "$ROOT/log" "$ROOT/session" "$ROOT/pid" "$ROOT/etc/slavedb"
 if id -u lxlabs >/dev/null 2>&1; then
   chown lxlabs:lxlabs "$ROOT/log" "$ROOT/session" "$ROOT/pid" || true
+  # Panel FPM (lxlabs) writes etc/slavedb/contactemail on Mail Setup / profile save.
+  chown -R lxlabs:lxlabs "$ROOT/etc/slavedb" || true
+  chmod 0750 "$ROOT/etc/slavedb" || true
 fi
 
 wait_mariadb() {

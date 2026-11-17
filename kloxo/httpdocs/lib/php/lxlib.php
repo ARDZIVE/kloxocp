@@ -4058,6 +4058,68 @@ function kloxo_release_held_background_to_queue(): void
 }
 
 /**
+ * Queue /etc/mailname for root (backend/watchdog). Panel FPM is lxlabs and
+ * must not block first-login Mail Setup on rl_exec_get.
+ */
+function kloxo_queue_mailname_apply(string $fqdn): void
+{
+	$fqdn = strtolower(trim($fqdn));
+	if ($fqdn === '' || !function_exists('kloxo_mail_setup_hostname_ok')
+		|| !kloxo_mail_setup_hostname_ok($fqdn)) {
+		return;
+	}
+	global $sgbl;
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/log';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$path = $dir . '/mailname.request';
+	@file_put_contents($path, $fqdn . "\n", LOCK_EX);
+	@chmod($path, 0640);
+	if (function_exists('log_log')) {
+		log_log('info', "mailsetup: queued /etc/mailname apply for {$fqdn}");
+	}
+}
+
+/**
+ * Root: apply a queued mailname.request (last line wins).
+ */
+function kloxo_drain_mailname_request(string $root): void
+{
+	$req = rtrim($root, '/') . '/log/mailname.request';
+	if (!is_file($req) || !is_readable($req)) {
+		return;
+	}
+	if (function_exists('posix_geteuid') && posix_geteuid() !== 0) {
+		return;
+	}
+	$running = $req . '.running.' . getmypid();
+	if (!@rename($req, $running)) {
+		return;
+	}
+	$raw = (string) @file_get_contents($running);
+	@unlink($running);
+	$fqdn = '';
+	foreach (preg_split('/\r\n|\n|\r/', $raw) ?: array() as $line) {
+		$line = strtolower(trim($line));
+		if ($line !== '' && (!function_exists('kloxo_mail_setup_hostname_ok')
+			|| kloxo_mail_setup_hostname_ok($line))) {
+			$fqdn = $line;
+		}
+	}
+	if ($fqdn === '') {
+		return;
+	}
+	@file_put_contents('/etc/mailname', $fqdn . "\n");
+	if (function_exists('log_log')) {
+		log_log('info', "mailsetup: wrote /etc/mailname={$fqdn}");
+	}
+}
+
+/**
  * Append a domain nname for kloxo-backend / watchdog to sync web/DNS/mail
  * after Add Domain redirected (never block the busy spinner on nginx -t).
  */
@@ -4131,6 +4193,7 @@ function kloxo_run_dropped_client_jobs(): void
 		'kloxo_domain_system_sync',
 		'/^[A-Za-z0-9._-]{1,253}$/'
 	);
+	kloxo_drain_mailname_request($root);
 }
 
 /**

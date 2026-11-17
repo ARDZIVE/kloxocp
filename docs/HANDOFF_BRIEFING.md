@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111703**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111704**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1234,7 +1234,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111703**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111704**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
@@ -1245,7 +1245,11 @@ Work in this order. Keep every change small, tested and committed separately. Do
    watchdog mail work). Password + Mail Setup skip `login->was()` /
    kloxo-backend (SQLite-only write + local redirect) so a backend RPC
    failure does not toast `got_error_from_ur_end` after a successful save
-   (`tests/p2/test_panel_mail.php`). One-liner in `README.md` downloads
+   (`tests/p2/test_panel_mail.php`). **First-login 503 after Mail Setup:**
+   `kloxo_admin_mail_setup_apply_mailname` used `rl_exec_get(..., false)` and
+   could stall every `kloxo-php` worker; Hiawatha then served
+   `error/503.html`. Now queues `log/mailname.request` (no FPM rl_exec);
+   503 page tells root to `systemctl restart kloxo-php kloxo-web`. One-liner in `README.md` downloads
    `install.sh` from GitHub `main` to `/tmp` then runs that file (not
    `curl | bash`). Fresh-install apt lock: `pause_background_apt` stops and
    runtime-masks `unattended-upgrades` / `apt-daily*` (restored on EXIT),
