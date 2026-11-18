@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111804**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111805**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -366,14 +366,18 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     `kloxo-php` uses a PHP 8-safe FPM pool (no removed
     `allow_url_include` / `magic_quotes_gpc` / `mysql.allow_persistent`),
     with **hard caps** so a hung Domain Home cannot OOM the host:
-    `memory_limit=256M` (was `-1`), `request_terminate_timeout=120s`
+    `memory_limit=256M` (was `-1`), `request_terminate_timeout=600s`
     (was `12000s`), `default_socket_timeout=15` (was `600`),
-    `pm.max_children=4`, `max_execution_time=90`. Show/list also set
-    `set_time_limit(45)` and `__var_no_sync`. Live OOM after Domain Home
-    on Ubuntu 26.04 reproduced (kernel killed processes including
-    systemd); fix tested only as source/install invariants — live
-    UNVERIFIED until upcp. Also `Type=notify` (falls back to
-    `Type=simple`), and `php-fpm -t` before enable. A successful install prints a boxed login message
+    `pm.max_children=4`, `max_execution_time=90`, zlib compression **off**.
+    Show/list also set `set_time_limit(45)` and `__var_no_sync`.
+    **Never** auto-reload left/top frames after Add Domain (that stacked
+    FPM workers on a hung Domain Home and OOMed the box). `kloxocp upcp`
+    runs `ensureFpmOomGuards` to rewrite leftover unlimited pools.
+    Crash-guard test: `php tests/p2/test_crash_guards.php`. Live OOM
+    after Domain Home on Ubuntu 26.04 reproduced (kernel killed processes
+    including systemd); fix tested as source/install invariants — live
+    UNVERIFIED until fresh install or upcp. Also `Type=notify` (falls
+    back to `Type=simple`), and `php-fpm -t` before enable. A successful install prints a boxed login message
     (URL, admin/admin, change password, firewall 7777). The README
     one-liner downloads `install.sh` from
     `raw.githubusercontent.com/ARDZIVE/kloxocp/main/install.sh` (default
@@ -1284,7 +1288,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111804**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111805**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

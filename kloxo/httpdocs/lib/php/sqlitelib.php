@@ -1,6 +1,11 @@
 <?php
 
-ini_set('memory_limit', '-1');
+// CLI tools (backup, migrate) may need a high ceiling. Panel FPM must NOT —
+// unlimited memory here used to defeat pool caps and OOM the host when Domain
+// Home hung. php_admin_value wins in FPM, but keep this SAPI-aware anyway.
+if (PHP_SAPI === 'cli' || PHP_SAPI === 'cli-server') {
+	@ini_set('memory_limit', '512M');
+}
 
 /*
 * Note #1

@@ -73,7 +73,7 @@ declare(strict_types=1);
 	}
 })();
 
-const KCP_VERSION = '10.1-2026111804';
+const KCP_VERSION = '10.1-2026111805';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -1121,6 +1121,11 @@ TXT;
             $this->ulog($logFile, 'ensure php upload tmp');
             $plan['php_upload_tmp'] = $this->ensurePhpUploadTmpDir();
 
+            // Rewrite live FPM pool if an older install still has unlimited
+            // memory / 12000s terminate (Domain Home OOM).
+            $this->ulog($logFile, 'ensure fpm oom guards');
+            $plan['fpm_oom_guards'] = $this->ensureFpmOomGuards();
+
             // Reload panel PHP + backend so the in-memory version stamp matches
             // bin/kloxoversion (otherwise Fail2Ban/UFW hit slave_upgrading).
             $this->ulog($logFile, 'restart panel services');
@@ -1485,6 +1490,88 @@ TXT;
         }
 
         return ['ok' => is_dir($dir) && is_writable($dir), 'detail' => $dir];
+    }
+
+    /**
+     * Force Domain Home OOM guards into the live FPM pool conf (best-effort).
+     * Tree sync should already have the template; this rewrites leftovers.
+     *
+     * @return array{ok:bool,detail:string}
+     */
+    private function ensureFpmOomGuards(): array
+    {
+        $conf = $this->root . '/init/kloxo-php-fpm.conf';
+        if (!is_file($conf) || !is_readable($conf)) {
+            return ['ok' => false, 'detail' => 'missing ' . $conf];
+        }
+        $raw = (string) file_get_contents($conf);
+        if ($raw === '') {
+            return ['ok' => false, 'detail' => 'empty conf'];
+        }
+        $want = [
+            'memory_limit] = 256M',
+            'request_terminate_timeout = 600s',
+            'default_socket_timeout] = 15',
+            'pm.max_children = 4',
+            'zlib.output_compression] = off',
+        ];
+        $ok = true;
+        foreach ($want as $needle) {
+            if (!str_contains($raw, $needle)) {
+                $ok = false;
+                break;
+            }
+        }
+        if ($ok && !str_contains($raw, 'memory_limit] = -1')
+            && !str_contains($raw, 'request_terminate_timeout = 12000s')) {
+            return ['ok' => true, 'detail' => 'already capped'];
+        }
+        $uid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+        if ($uid !== 0) {
+            return ['ok' => false, 'detail' => 'not root; conf still uncapped'];
+        }
+        if (!str_contains($raw, 'memory_limit] = 256M')
+            || str_contains($raw, 'memory_limit] = -1')
+            || str_contains($raw, 'request_terminate_timeout = 12000s')) {
+            // Apply surgical replacements onto the live program-root conf.
+            $raw2 = $raw;
+            $raw2 = preg_replace('/^pm\.max_children\s*=\s*.*$/m', 'pm.max_children = 4', $raw2, 1) ?? $raw2;
+            $raw2 = preg_replace('/^request_terminate_timeout\s*=\s*.*$/m', 'request_terminate_timeout = 600s', $raw2, 1) ?? $raw2;
+            $raw2 = preg_replace(
+                '/^php_admin_value\[memory_limit\]\s*=\s*.*$/m',
+                'php_admin_value[memory_limit] = 256M',
+                $raw2,
+                1
+            ) ?? $raw2;
+            $raw2 = preg_replace(
+                '/^php_admin_value\[default_socket_timeout\]\s*=\s*.*$/m',
+                'php_admin_value[default_socket_timeout] = 15',
+                $raw2,
+                1
+            ) ?? $raw2;
+            $raw2 = preg_replace(
+                '/^php_admin_value\[max_execution_time\]\s*=\s*.*$/m',
+                'php_admin_value[max_execution_time] = 90',
+                $raw2,
+                1
+            ) ?? $raw2;
+            $raw2 = preg_replace(
+                '/^php_admin_flag\[zlib\.output_compression\]\s*=\s*.*$/m',
+                'php_admin_flag[zlib.output_compression] = off',
+                $raw2,
+                1
+            ) ?? $raw2;
+            if (!is_string($raw2) || $raw2 === $raw) {
+                return ['ok' => false, 'detail' => 'rewrite no-op; check ' . $conf];
+            }
+            if (@file_put_contents($conf, $raw2) === false) {
+                return ['ok' => false, 'detail' => 'write failed'];
+            }
+
+            return ['ok' => true, 'detail' => 'rewrote OOM caps into ' . $conf];
+        }
+
+        return ['ok' => true, 'detail' => 'already capped'];
     }
 
     /**

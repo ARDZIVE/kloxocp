@@ -3269,24 +3269,21 @@ function do_display_init()
 		}
 	}
 
-	if ($gbl->getSessionV('__refresh_lpanel') == 'true') {
-		// Defer leftframe refresh: immediate reload races Domains/Domain Home
-		// for the PHP session lock and FPM workers (tab spinner + dead clicks).
-		// Only reload leftframe (not topframe) once, after a short delay, with
-		// a long busy-suppress so Please wait... does not flash.
-		print("<script>(function(){function kloxoRefreshLpanel(){try{sessionStorage.setItem('kloxo-busy-suppress',String(Date.now()+15000));sessionStorage.removeItem('kloxo-busy');}catch(e0){}try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}"
-			. "try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}}"
-			. "function arm(){setTimeout(kloxoRefreshLpanel,750);}"
-			. "if(window.addEventListener){window.addEventListener('load',arm);}else{arm();}})();</script>");
+	// NEVER auto-reload left/top frames after Add Domain / Domain Home.
+	// That second FPM request stacked on a hung Domain Home worker, held the
+	// session/SQLite path, kept the browser tab "working", and OOMed the host
+	// (security-wave era + fresh installs). Clear busy only; the next click
+	// navigates the left tree normally.
+	if ($gbl->getSessionV('__refresh_lpanel') == 'true'
+		|| (is_object($ghtml) && isset($ghtml->frm_refresh_lpanel)
+			&& (string) $ghtml->frm_refresh_lpanel === 'true')) {
+		if (is_object($ghtml) && isset($ghtml->__http_vars['frm_refresh_lpanel'])) {
+			unset($ghtml->__http_vars['frm_refresh_lpanel']);
+		}
 		$gbl->unsetSessionV('__refresh_lpanel');
-	}
-
-	if ($ghtml->frm_refresh_lpanel === 'true') {
-		unset($ghtml->__http_vars['frm_refresh_lpanel']);
-		print("<script>(function(){function kloxoRefreshLpanel(){try{sessionStorage.setItem('kloxo-busy-suppress',String(Date.now()+15000));sessionStorage.removeItem('kloxo-busy');}catch(e0){}try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}"
-			. "try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}}"
-			. "function arm(){setTimeout(kloxoRefreshLpanel,750);}"
-			. "if(window.addEventListener){window.addEventListener('load',arm);}else{arm();}})();</script>");
+		print('<script>(function(){try{sessionStorage.setItem("kloxo-busy-suppress",String(Date.now()+15000));'
+			. 'sessionStorage.removeItem("kloxo-busy");}catch(e0){}'
+			. 'try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}})();</script>');
 	}
 
 	createPrincipleObject();

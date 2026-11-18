@@ -190,15 +190,16 @@ if (preg_match('/function do_display_init\(\)\s*\{.*?^function /sm', $coreDisp, 
 if (str_contains($coreDisp, 'kloxo-busy-suppress')
 	&& str_contains($coreDisp, '__refresh_lpanel')
 	&& str_contains($coreDisp, 'KloxoBusy.hide')
-	&& str_contains($coreDisp, 'setTimeout(kloxoRefreshLpanel,750)')
+	&& str_contains($coreDisp, 'NEVER auto-reload left/top frames')
+	&& !str_contains($coreDisp, 'leftframe.location.reload')
 	&& !str_contains($coreDisp, 'top.topframe&&top.topframe.location')
 	&& str_contains($coreDisp, 'sessionStorage.removeItem("kloxo-busy")')
 	&& $initShow !== ''
 	&& str_contains($initShow, 'set_time_limit(45)')
 	&& str_contains($initShow, "__var_no_sync = true")) {
-	ok('lpanel refresh delayed; Domain Home show caps time and skips sync');
+	ok('no frame auto-reload after Domain Home; show caps time and skips sync');
 } else {
-	bad('lpanel refresh delayed; Domain Home show caps time and skips sync');
+	bad('no frame auto-reload after Domain Home; show caps time and skips sync');
 }
 if (str_contains($js, "addEventListener('pageshow'")
 	&& str_contains($js, "doc.readyState === 'complete'")
