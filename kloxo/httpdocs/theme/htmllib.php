@@ -1699,19 +1699,56 @@ class HtmlLib
 		} elseif (is_string($path) && (strpos($path, '/display.php') !== false || $path === 'display.php'
 			|| str_ends_with($path, '/display.php') || basename($path) === 'display.php')) {
 			$pathEsc = htmlspecialchars((string) $path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-			$qsEsc = htmlspecialchars((string) $this->get_get_from_post(null, $post), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$act = isset($post['frm_action']) ? (string) $post['frm_action'] : '';
+			// update/add/delete must POST with frm_token (isCSRFTokenMatch rejects GET).
+			if ($act === 'update' || $act === 'add' || $act === 'delete') {
+				$tokenEsc = htmlspecialchars(
+					function_exists('getCSRFToken') ? (string) getCSRFToken() : '',
+					ENT_QUOTES | ENT_SUBSTITUTE,
+					'UTF-8'
+				);
+?>
+			<form onClick="document.form_<?= $form_name ?>.submit();" name="form_<?= $form_name ?>" <?= $targetAttr ?> method="post" action="<?= $pathEsc ?>">
+				<input type="hidden" name="frm_token" value="<?= $tokenEsc ?>">
+<?php
+				foreach ($post as $k => $v) {
+					if ((string) $k === 'frm_token') {
+						continue;
+					}
+					$kEsc = htmlspecialchars((string) $k, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+					$vEsc = htmlspecialchars(is_scalar($v) ? (string) $v : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+				<input type="hidden" name="<?= $kEsc ?>" value="<?= $vEsc ?>">
+<?php
+				}
+?>
+				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
+			</form>
+<?php
+			} else {
+				$qsEsc = htmlspecialchars((string) $this->get_get_from_post(null, $post), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 			<a <?= $targetAttr ?> href="<?= $pathEsc ?>?<?= $qsEsc ?>">
 				<?= $this->print_div_for_divbutton($key, $imgflag, $linkflag, $form_name, $name, $image, $descr) ?>
 			</a>
 <?php
+			}
 		} else {
 			if ($post) {
 				$pathEsc = htmlspecialchars((string) $path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+				$tokenEsc = htmlspecialchars(
+					function_exists('getCSRFToken') ? (string) getCSRFToken() : '',
+					ENT_QUOTES | ENT_SUBSTITUTE,
+					'UTF-8'
+				);
 ?>
 			<form onClick="document.form_<?= $form_name ?>.submit();" name="form_<?= $form_name ?>" <?= $targetAttr ?> method="post" action="<?= $pathEsc ?>">
+				<input type="hidden" name="frm_token" value="<?= $tokenEsc ?>">
 <?php
 				foreach ($post as $k => $v) {
+					if ((string) $k === 'frm_token') {
+						continue;
+					}
 					$kEsc = htmlspecialchars((string) $k, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 					$vEsc = htmlspecialchars(is_scalar($v) ? (string) $v : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
@@ -6206,8 +6243,12 @@ class HtmlLib
 		$this->print_jscript_source($preop_path);
 		$busyJs = str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js"));
 		if (is_string($busyJs) && $busyJs !== '' && !str_contains($busyJs, '?')) {
-			$busyJs .= '?v=14';
+			$busyJs .= '?v=16';
 		}
+		$__panel_csrf = function_exists('getCSRFToken') ? (string) getCSRFToken() : '';
+?>
+		<script>var kloxoCsrfToken = <?= json_encode($__panel_csrf, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;</script>
+<?php
 		$this->print_jscript_source($busyJs);
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-toast.js")));
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-sitephp.js")));

@@ -233,14 +233,12 @@ if (str_contains($msgSrc, "logwatch_show__pre")
 	bad('LogWatch help block explains enable + detail/range + mail');
 }
 $coreShow = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
-if (str_contains($coreShow, 'willHaveForms')
-	&& str_contains($coreShow, 'createShowUpdateform')
-	&& str_contains($coreShow, "\$ocls === 'ffile'")
-	&& str_contains($coreShow, "\$ocls === 'sshclient'")
-	&& str_contains($coreShow, 'Form-only / file-browser')) {
-	ok('show page skips empty action-block for forms, File Manager, SSH Terminal');
+if (!str_contains($coreShow, 'No actions available for this page')
+	&& str_contains($coreShow, 'show page has no action tiles')
+	&& str_contains($coreShow, 'Never print a developer')) {
+	ok('show page never prints the empty action-block developer message');
 } else {
-	bad('show page skips empty action-block for forms, File Manager, SSH Terminal');
+	bad('show page never prints the empty action-block developer message');
 }
 // Format/frequency/hour use non-assoc 's' lists (value === entry) so the form
 // never injects "--Select One--". Range keeps assoc 'A' for the long key label.

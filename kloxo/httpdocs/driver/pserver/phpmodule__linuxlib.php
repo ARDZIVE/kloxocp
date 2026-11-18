@@ -1,6 +1,9 @@
 <?php
 
 include_once dirname(__DIR__, 2) . '/lib/php/kloxo_phpver.php';
+if (!class_exists('PhpModule', false)) {
+	include_once __DIR__ . '/phpmodulelib.php';
+}
 
 class PhpModule__linux extends lxDriverClass
 {
@@ -73,6 +76,76 @@ class PhpModule__linux extends lxDriverClass
 			'type' => $type,
 			'status' => $status,
 			'fullfile' => $fv,
+			'syncserver' => $syncserver,
 		);
+	}
+
+	/**
+	 * Enable / disable / restart a PHP module as root (via kloxo-backend).
+	 *
+	 * @return array{ok:bool,error?:string}
+	 */
+	static function applyAction($subaction, $fullfile, $status)
+	{
+		$sub = is_string($subaction) ? strtolower($subaction) : '';
+		$file = is_string($fullfile) ? $fullfile : '';
+		$st = is_string($status) ? $status : '';
+
+		if ($sub === 'restart') {
+			if (function_exists('createRestartFile')) {
+				createRestartFile('restart-php-fpm');
+				createRestartFile('kloxo-php');
+			}
+
+			return array('ok' => true);
+		}
+
+		if ($sub !== 'enable' && $sub !== 'disable') {
+			return array('ok' => false, 'error' => 'unknown action');
+		}
+
+		$enable = ($sub === 'enable');
+		if ($enable && $st === 'on') {
+			return array('ok' => true);
+		}
+		if (!$enable && $st === 'off') {
+			return array('ok' => true);
+		}
+
+		if (class_exists('PhpModule', false) && is_callable(array('PhpModule', 'toggleDistroMod'))) {
+			if (PhpModule::toggleDistroMod($file, $enable)) {
+				return array('ok' => true);
+			}
+		}
+
+		// Legacy CentOS-style rename under /opt/*/etc/php.d or /etc/php.d.
+		if ($file === '' || str_contains($file, '..') || !is_file($file)) {
+			return array('ok' => false, 'error' => 'module file not found');
+		}
+		if (!preg_match('#^/(opt/|etc/php\.d/)#', $file)) {
+			return array('ok' => false, 'error' => 'refused unsafe module path');
+		}
+
+		if ($enable) {
+			if (str_contains($file, '_unused.nonini')) {
+				$t = str_replace('_unused.nonini', '.ini', $file);
+			} else {
+				$t = str_replace('.nonini', '_used.ini', $file);
+			}
+		} else {
+			if (str_contains($file, '_used.ini')) {
+				$t = str_replace('_used.ini', '.nonini', $file);
+			} else {
+				$t = str_replace('.ini', '_unused.nonini', $file);
+			}
+		}
+		if ($t === $file || str_contains($t, '..')) {
+			return array('ok' => false, 'error' => 'could not map module file');
+		}
+		if (!@rename($file, $t)) {
+			return array('ok' => false, 'error' => 'could not rename module file');
+		}
+
+		return array('ok' => true);
 	}
 }

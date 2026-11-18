@@ -76,7 +76,7 @@ if (str_contains($html, '__kloxo_ajax_after_tiles = false')
 if (preg_match('/var MAX_WAIT = \d+/', $busy) === 1
 	&& str_contains($busy, 'clearBusyNow()')
 	&& str_contains($busy, "ev.key !== 'Escape'")
-	&& str_contains($busy, 'readyState=loading')) {
+	&& str_contains($busy, "readyState === 'loading'")) {
 	ok('busy: MAX_WAIT settles, Esc dismisses, clears while still loading');
 } else {
 	bad('busy: MAX_WAIT settles, Esc dismisses, clears while still loading');

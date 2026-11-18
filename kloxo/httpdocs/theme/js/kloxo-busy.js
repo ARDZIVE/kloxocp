@@ -6,11 +6,12 @@
  * KloxoBusy.show(text) / KloxoBusy.hide()
  *
  * Every in-panel navigation can show it: link click, form submit, a script
- * that sets location or calls form.submit(). It appears when the page is
- * still loading after DELAY (1s), so quick pages never flash it. Services
- * Start/Stop/Restart/Sb/State show the modal immediately. Once shown it
- * stays until the next page has received its whole HTML (DOMContentLoaded),
- * with a MAX_WAIT failsafe. Long actions rotate the wait text.
+ * that sets location or calls form.submit(). Quick pages wait DELAY (300ms)
+ * so they never flash. Heavy work (Switch Program, Backup/Restore, Services
+ * icons, Fail2Ban, Multiple PHP, fixweb/dns/mail, …) shows the modal
+ * immediately. Once shown it stays until the destination page has finished
+ * its main content (or DOMContentLoaded), with a MAX_WAIT failsafe. Long
+ * actions rotate the wait text.
  *
  * The busy state is kept in sessionStorage so a streamed response or
  * redirect stub does not drop the modal. A destination with frm_smessage /
@@ -33,8 +34,9 @@
 	// Absolute failsafe for a hung request; hide so the UI is not stuck forever.
 	var MAX_WAIT = 3 * 60 * 1000;
 	var DEFAULT_TEXT = 'Please wait...';
-	// Show the modal when the request is still going after 1s (quick pages stay clean).
-	var DELAY = 1000;
+	// Quick pages: short delay so light navigations never flash the modal.
+	// Heavy actions use delay 0 (see isHeavy / heavyText).
+	var DELAY = 300;
 	var ROTATE_MS = 4000;
 	var WAIT_TEXTS = [
 		'Please wait...',
@@ -359,6 +361,78 @@
 		flagTouch(text || DEFAULT_TEXT, true);
 	}
 
+	/**
+	 * Heavy panel work: show the modal now (no DELAY). Matches Services icons,
+	 * Switch Program, Backup/Restore, Fail2Ban, SSH Terminal, Multiple PHP,
+	 * fixweb/dns/mail, reboot, and similar slow pages/actions.
+	 */
+	var heavyRe = /(?:^|[?&#]|frm_)(?:subaction|action)=(?:switchprogram|backup|restore(?:_confirm(?:_confirm)?)?|start|stop|restart|toggle_state|toggle_boot_state|reboot|poweroff|installphp|phpbranch|multi(?:ple)?_?php|sitephp|fixweb|fixdns|fixmail|updateall|optimize|mysqlconvert|chown|hostname)|frm_o_cname=service|(?:\[class\]|%5Bclass%5D)=(?:fail2ban|sshclient|lxbackup|service|serverweb|ufwfirewall|logwatch)|(?:^|[?&])o=(?:fail2ban|sshclient|lxbackup|service|serverweb)|sa=(?:switchprogram|backup|restore)/i;
+
+	function isHeavy(src) {
+		return !!(src && heavyRe.test(String(src)));
+	}
+
+	function heavyText(src) {
+		var s = String(src || '');
+		if (/switchprogram/i.test(s)) {
+			return 'Switching program...';
+		}
+		if (/restore/i.test(s)) {
+			return 'Restoring...';
+		}
+		if (/backup/i.test(s)) {
+			return 'Running backup...';
+		}
+		if (/fail2ban/i.test(s)) {
+			return 'Loading Fail2Ban...';
+		}
+		if (/sshclient/i.test(s)) {
+			return 'Opening SSH Terminal...';
+		}
+		if (/lxbackup/i.test(s)) {
+			return 'Loading Backup / Restore...';
+		}
+		if (/serverweb|installphp|phpbranch|multi(?:ple)?_?php|sitephp/i.test(s)) {
+			return 'Working on PHP / webserver...';
+		}
+		if (/fix(?:web|dns|mail)/i.test(s)) {
+			return 'Applying server changes...';
+		}
+		if (/reboot|poweroff/i.test(s)) {
+			return 'Sending power command...';
+		}
+		if (/frm_o_cname=service|\[class\]=service|%5Bclass%5D=service/i.test(s)) {
+			return 'Working on service...';
+		}
+		return DEFAULT_TEXT;
+	}
+
+	function formSrc(f) {
+		var parts = [];
+		try {
+			if (f.getAttribute) {
+				parts.push(f.getAttribute('action') || '');
+			}
+			var els = f.elements;
+			if (els) {
+				for (var i = 0; i < els.length; i++) {
+					var el = els[i];
+					if (!el || !el.name) {
+						continue;
+					}
+					var n = String(el.name);
+					if (n === 'frm_subaction' || n === 'frm_action' || n.indexOf('frm_o_') === 0
+						|| n.indexOf('frm_o_cname') === 0 || n === 'frm_o_cname') {
+						parts.push(n + '=' + String(el.value || ''));
+					}
+				}
+			}
+		} catch (e) {
+			// ignore
+		}
+		return parts.join('&');
+	}
+
 	function showSoon(text, since, shown) {
 		cancelPending();
 		if (settled) {
@@ -377,6 +451,17 @@
 			}
 			present(text);
 		}, wait);
+	}
+
+	/** Arm busy for a user navigation; heavy hints show the modal immediately. */
+	function armNav(text, src) {
+		var heavy = isHeavy(src) || isHeavy(text);
+		var msg = text || (heavy ? heavyText(src) : DEFAULT_TEXT);
+		if (msg === DEFAULT_TEXT && heavy) {
+			msg = heavyText(src);
+		}
+		beginNavigation(msg, heavy);
+		showSoon(msg, Date.now(), heavy);
 	}
 
 	var api = {
@@ -522,6 +607,8 @@
 	var serviceAct = /[?&]frm_subaction=(start|stop|restart|toggle_state|toggle_boot_state)(?:&|$)/;
 	var serviceObj = /[?&]frm_o_o(?:\[|%5B)\d+(?:\]|%5D)(?:\[|%5B)class(?:\]|%5D)=service(?:&|$)/i;
 	var serviceListPage = /[?&]frm_o_cname=service(?:&|$)/i;
+	// CSRF rejects GET update/add/delete; convert leftover GET links to POST + frm_token.
+	var mutateAct = /[?&]frm_action=(update|add|delete)(?:&|$)/;
 	var texts = {
 		start: 'Starting service...',
 		stop: 'Stopping service...',
@@ -671,9 +758,13 @@
 			run(href, n.getAttribute('data-kloxo-busy') || svc);
 			return;
 		}
-		var own = n.getAttribute('data-kloxo-busy') || DEFAULT_TEXT;
-		beginNavigation(own, false);
-		showSoon(own, Date.now(), false);
+		if (mutateAct.test(href) && href.indexOf('#') !== 0) {
+			ev.preventDefault();
+			run(href, n.getAttribute('data-kloxo-busy') || DEFAULT_TEXT);
+			return;
+		}
+		var own = n.getAttribute('data-kloxo-busy');
+		armNav(own || '', href);
 	}, true);
 
 	doc.addEventListener('submit', function (ev) {
@@ -685,10 +776,9 @@
 			suppress();
 			return;
 		}
-		var t = f.getAttribute('data-kloxo-busy') || DEFAULT_TEXT;
-		beginNavigation(t, false);
-		// Slow form posts (Switch Program, Update, etc.): modal after 1s.
-		showSoon(t, Date.now(), false);
+		var src = formSrc(f);
+		var own = f.getAttribute('data-kloxo-busy');
+		armNav(own || '', src);
 	}, true);
 
 	win.addEventListener('beforeunload', function () {

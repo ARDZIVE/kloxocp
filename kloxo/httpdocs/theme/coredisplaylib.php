@@ -602,62 +602,26 @@ function __ac_desc_show($object)
 					$tilesOk = true;
 				}
 			}
-			// Form-only / file-browser show pages have no tile map; their
-			// updateforms, addforms, or child lists are the page. Do not print
-			// the developer fallback as if the page were broken.
-			if (!$tilesOk && !$subaction) {
-				$willHaveForms = false;
+			// Form-only / raw-print / list show pages (Fail2Ban, SSH Terminal,
+			// File Manager, LogWatch, …) have no tile map; their own content is
+			// the page. Never print a developer "No actions available" box —
+			// it looked like a broken page on every non-tile show.
+			if (!$tilesOk && !$subaction && function_exists('log_log')) {
 				$ocls = method_exists($object, 'getClass')
 					? strtolower((string) $object->getClass()) : '';
-				// File Manager (incl. Backup → File Manager) is a listing page.
-				// SSH Terminal paints its own WebConsole via showRawPrint — no tiles.
-				if ($ocls === 'ffile' || $ocls === 'sshclient') {
-					$willHaveForms = true;
-				}
-				if (!$willHaveForms) {
-					try {
-						$ufProbe = $object->createShowUpdateform();
-						if (is_array($ufProbe) && $ufProbe !== array()) {
-							$willHaveForms = true;
-						}
-					} catch (Throwable $e) {
-						log_log('error', 'createShowUpdateform probe: ' . $e->getMessage());
-					}
-				}
-				if (!$willHaveForms) {
-					try {
-						$afProbe = $object->createShowAddform();
-						if (is_array($afProbe) && $afProbe !== array()) {
-							$willHaveForms = true;
-						}
-					} catch (Throwable $e) {
-						log_log('error', 'createShowAddform probe: ' . $e->getMessage());
-					}
-				}
-				if (!$willHaveForms) {
-					try {
-						$clProbe = $object->createShowClist($subaction);
-						if (is_array($clProbe) && $clProbe !== array()) {
-							$willHaveForms = true;
-						}
-					} catch (Throwable $e) {
-						log_log('error', 'createShowClist probe: ' . $e->getMessage());
-					}
-				}
-				if (!$willHaveForms) {
-					echo '<div class="kloxo-tile-fallback" style="padding:16px;border:1px solid #ccc;background:#fafafa;color:#333">'
-						. 'No actions available for this page. Check panel log for '
-						. '<code>createShowAlist</code> / <code>action block</code>.'
-						. '</div>';
-				}
+				log_log('error', "show page has no action tiles for {$ocls} (ok if showRawPrint/forms)");
 			}
-			// Tiles are on screen: drop leftover Please wait... from the request
-			// that opened this page. Do NOT set kloxo-busy-suppress here — that
-			// blocked Start/Stop/Update clicks for 8s (beginNavigation returned
-			// early and the modal never appeared). Frame-refresh suppress stays
-			// only on the __refresh_lpanel path below.
-			echo '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");'
-				. '}catch(e0){}try{if(window.KloxoBusy){KloxoBusy.hide();}}catch(e1){}})();</script>';
+			// Clear busy only when the main UI is already on screen. Tile homes
+			// (Domain/Client) are ready after the action block; raw-print /
+			// form / list pages (Fail2Ban, SSH Terminal, …) still have heavy
+			// work below — clearing here hid the spinner while jails/console
+			// were still streaming.
+			$kloxoBusyCleared = false;
+			if ($tilesOk) {
+				echo '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");'
+					. '}catch(e0){}try{if(window.KloxoBusy){KloxoBusy.hide();}}catch(e1){}})();</script>';
+				$kloxoBusyCleared = true;
+			}
 			if (function_exists('ob_get_level') && ob_get_level() > 0) {
 				@ob_flush();
 			}
@@ -722,6 +686,11 @@ function __ac_desc_show($object)
 	}
 
 	$ghtml->print_information('post', 'show', $cname, $subaction, "");
+
+	if (empty($kloxoBusyCleared)) {
+		echo '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");'
+			. '}catch(e0){}try{if(window.KloxoBusy){KloxoBusy.hide();}}catch(e1){}})();</script>';
+	}
 
 	$ghtml->print_content_end();
 }

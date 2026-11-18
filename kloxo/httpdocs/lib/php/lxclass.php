@@ -29,8 +29,10 @@ abstract class Lxclass
 	static $__acdesc_update_commandcenter = array("", "", "command_center");
 	static $__desc_ccenter_command = array("", "", "ccenter_command");
 	static $__desc_confirm_f = array("", "", "Confirm");
-	static $__desc_ccenter_output = array("T", "", "ccenter_output");
-	static $__desc_ccenter_error = array("T", "", "ccenter_error");
+	// "t" = named textarea (values round-trip on the form). Output/Error are
+	// filled after Execute from stdout/stderr; kept as plain textareas.
+	static $__desc_ccenter_output = array("t", "", "ccenter_output");
+	static $__desc_ccenter_error = array("t", "", "ccenter_error");
 	static $__acdesc_update_toggle_status = array("", "", "status");
 	static $__acdesc_update_disable = array("", "", "disable");
 	static $__acdesc_update_enable = array("", "", "enable");
@@ -5813,17 +5815,16 @@ abstract class Lxclass
 		}
 
 		$toRun = ($ccenterArgv !== null) ? $ccenterArgv : $this->ccenter_command;
+		$this->ccenter_output = '';
+		$this->ccenter_error = '';
 		if ($toRun) {
 			// This is needed, otherwise if a command gets stuck it will keep tyring to execute the same command.
 			// We are not at all using session now. We are just passing it to the next ccenter.
 		//	if ($gbl) { $gbl->c_session->write(); }
 
-			$driverapp = $gbl->getSyncClass(null, $this->syncserver, $this->get__table());
-			$res = kloxo_rl_driver($this->__masterserver, $this->syncserver, $this->get__table(), $driverapp,
-				"execCommand", array($this->iid, $toRun));
-
-			$this->ccenter_output = is_array($res) && isset($res['output']) ? $res['output'] : '';
-			$this->ccenter_error = is_array($res) && isset($res['error']) ? $res['error'] : '';
+			$res = $this->runCommandCenterExec($toRun);
+			$this->ccenter_output = is_array($res) ? (string) ($res['output'] ?? '') : '';
+			$this->ccenter_error = is_array($res) ? (string) ($res['error'] ?? '') : '';
 		}
 
 		$vlist['ccenter_standard'] = array('s', array('--- Not Selected ---', 
@@ -5836,12 +5837,89 @@ abstract class Lxclass
 		$this->setDefaultValue('ccenter_restart', 'off');
 
 		$vlist['ccenter_command'] = null;
+		// Keep Output / Error as named readonly textareas so stdout and stderr
+		// show in their fields after Execute (type "T" had no name and null
+		// error values were skipped by getVariable).
 		$vlist['ccenter_output'] = null;
 		$vlist['ccenter_error'] = null;
 		$vlist['__v_next'] = 'commandcenter';
 		$vlist['__v_button'] = 'Execute';
 
 		return $vlist;
+	}
+
+	/**
+	 * Run a Command Center command via kloxo-backend. Stdout → Output field,
+	 * stderr / failures → Error field. Never swallow a failed RPC into blank
+	 * boxes (kloxo_rl_driver returned array() on any Throwable).
+	 *
+	 * @param array|string $toRun
+	 * @return array{output:string,error:string}
+	 */
+	function runCommandCenterExec($toRun): array
+	{
+		global $gbl, $login;
+
+		$empty = array('output' => '', 'error' => '');
+		$iid = isset($this->iid) ? $this->iid : (isset($this->nname) ? $this->nname : 'localhost');
+		$sync = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+			? $this->syncserver : 'localhost';
+		$master = isset($this->__masterserver) ? $this->__masterserver : null;
+
+		$driverapp = null;
+		if (is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
+			try {
+				$driverapp = $gbl->getSyncClass($master, $sync, $this->get__table());
+			} catch (Throwable $e) {
+				$driverapp = null;
+			}
+		}
+		if (!is_string($driverapp) || $driverapp === '') {
+			$driverapp = 'linux';
+		}
+		$dclass = function_exists('kloxo_driver_class')
+			? kloxo_driver_class($this->get__table(), $driverapp)
+			: null;
+		if (!is_string($dclass) || $dclass === '') {
+			$dclass = 'pserver__linux';
+		}
+
+		try {
+			if (!function_exists('rl_exec_get')) {
+				throw new lxException(
+					is_object($login) && method_exists($login, 'getThrow')
+						? $login->getThrow('could_not_run_command')
+						: 'could_not_run_command'
+				);
+			}
+			$res = rl_exec_get($master, $sync, array($dclass, 'execCommand'), array($iid, $toRun));
+		} catch (Throwable $e) {
+			$msg = trim((string) $e->getMessage());
+			if ($msg === '') {
+				$msg = 'Command could not be run (kloxo-backend did not answer).';
+			}
+
+			return array('output' => '', 'error' => $msg);
+		}
+
+		if (!is_array($res)) {
+			if (is_string($res) && $res !== '') {
+				return array('output' => $res, 'error' => '');
+			}
+
+			return array(
+				'output' => '',
+				'error' => 'Command produced no result (empty backend reply).',
+			);
+		}
+
+		$out = isset($res['output']) ? (string) $res['output'] : '';
+		$err = isset($res['error']) ? (string) $res['error'] : '';
+		if ($out === '' && $err === '') {
+			$err = 'Command produced no output.';
+		}
+
+		return array('output' => $out, 'error' => $err);
 	}
 
 	function getSpecialObject($class)
@@ -6742,6 +6820,10 @@ abstract class Lxclass
 
 	static function getTextAreaProperties($var)
 	{
+		if ($var === 'ccenter_output' || $var === 'ccenter_error') {
+			return array("height" => 12, "width" => "95%");
+		}
+
 		return array("height" => 10, "width" => "85%");
 	}
 

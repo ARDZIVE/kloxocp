@@ -1588,6 +1588,7 @@ final class KloxoPhpver
                 'type' => 'php-branch',
                 'status' => isset($enabled[$name]) ? 'on' : 'off',
                 'fullfile' => $avail . '/' . $fn,
+                'syncserver' => $sync,
             ];
         }
 
@@ -1623,6 +1624,7 @@ final class KloxoPhpver
                 'type' => 'php-branch',
                 'status' => isset($on[$name]) ? 'on' : 'off',
                 'fullfile' => rtrim($availDir, '/') . '/' . $name . '.ini',
+                'syncserver' => $syncserver,
             ];
         }
 

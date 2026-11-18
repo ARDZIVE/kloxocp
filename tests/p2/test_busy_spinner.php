@@ -122,14 +122,17 @@ if ($domFin !== ''
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
-	&& (str_contains($html, "'?v=14'") || str_contains($html, '"?v=14"'))
+	&& (str_contains($html, "'?v=15'") || str_contains($html, '"?v=15"'))
 	&& str_contains($js, 'MAX_AGE = 3 * 60 * 1000')
 	&& str_contains($js, 'MAX_WAIT = 3 * 60 * 1000')
-	&& str_contains($js, 'DELAY = 1000')
+	&& str_contains($js, 'DELAY = 300')
 	&& str_contains($js, 'WAIT_TEXTS')
 	&& str_contains($js, 'Still working...')
 	&& str_contains($js, 'function clearBusyNow')
 	&& str_contains($js, 'function startRotate')
+	&& str_contains($js, 'function isHeavy')
+	&& str_contains($js, 'function armNav')
+	&& str_contains($js, 'switchprogram')
 	&& str_contains($js, "t === 'mainframe'")
 	&& str_contains($js, 'Services always take noticeable time')) {
 	ok('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
@@ -204,12 +207,11 @@ $initShow = '';
 if (preg_match('/function do_display_init\(\)\s*\{.*?^function /sm', $coreDisp, $mInitShow) === 1) {
 	$initShow = $mInitShow[0];
 }
-// Domain Home tiles clear leftover busy only (no 8s suppress that blocked clicks).
+// Tile homes clear busy after tiles; raw-print pages (Fail2Ban, SSH) clear after
+// showRawPrint/forms/lists so the spinner stays for heavy content. No 8s suppress.
 // __refresh_lpanel still sets a short suppress for automatic frame reloads.
-$tileBusyClear = str_contains($coreDisp, 'Tiles are on screen')
-	|| str_contains($coreDisp, 'drop leftover Please wait');
 $homeSuppress8s = preg_match(
-	'/Tiles are on screen.*?kloxo-busy-suppress.*?8000/s',
+	'/kloxoBusyCleared.*?kloxo-busy-suppress.*?8000/s',
 	$coreDisp
 ) === 1;
 if (str_contains($coreDisp, 'kloxo-busy-suppress')
@@ -219,7 +221,9 @@ if (str_contains($coreDisp, 'kloxo-busy-suppress')
 	&& !str_contains($coreDisp, 'leftframe.location.reload')
 	&& !str_contains($coreDisp, 'top.topframe&&top.topframe.location')
 	&& str_contains($coreDisp, 'sessionStorage.removeItem("kloxo-busy")')
-	&& $tileBusyClear
+	&& str_contains($coreDisp, '$kloxoBusyCleared')
+	&& str_contains($coreDisp, 'empty($kloxoBusyCleared)')
+	&& str_contains($coreDisp, 'raw-print')
 	&& !$homeSuppress8s
 	&& $initShow !== ''
 	&& str_contains($initShow, 'set_time_limit(45)')
@@ -263,12 +267,15 @@ if (preg_match('/function armMaxWait\(\)\s*\{.*?^\tfunction /sm', $js, $mArm) ==
 	$armFn = $mArm[0];
 }
 if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait')
-	&& preg_match('/var DELAY = 1000;/', $code) === 1
+	&& preg_match('/var DELAY = 300;/', $code) === 1
 	&& preg_match('/var MAX_WAIT = 3 \* 60 \* 1000;/', $code) === 1
 	&& preg_match('/var MAX_AGE = 3 \* 60 \* 1000;/', $code) === 1
 	&& str_contains($code, 'WAIT_TEXTS')
 	&& str_contains($code, 'Still working...')
 	&& str_contains($code, 'function startRotate')
+	&& str_contains($code, 'function isHeavy')
+	&& str_contains($code, 'function armNav')
+	&& str_contains($code, 'switchprogram')
 	&& str_contains($code, 'settled') && str_contains($code, 'navToken')
 	&& str_contains($code, 'function isImmediateRefresh')
 	&& str_contains($code, 'function followRedirectStub')
@@ -277,9 +284,9 @@ if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait
 	&& $armFn !== '' && str_contains($armFn, 'clearBusyNow()')
 	&& str_contains($js, "ev.key !== 'Escape'")
 	&& $setTimeouts >= 3 && $setTimeouts <= 6) {
-	ok('modal appears after 1s; Services immediate; long MAX_WAIT + rotating text');
+	ok('modal appears after 300ms; heavy/Services immediate; long MAX_WAIT + rotating text');
 } else {
-	bad('modal appears after 1s; Services immediate; long MAX_WAIT + rotating text', 'setTimeouts=' . $setTimeouts);
+	bad('modal appears after 300ms; heavy/Services immediate; long MAX_WAIT + rotating text', 'setTimeouts=' . $setTimeouts);
 }
 
 // The hrefs the Services list really renders must match the JS patterns.
@@ -305,6 +312,62 @@ if (preg_match('~var serviceAct = /(.+)/[gimuy]*;~', $js, $m1)
 	}
 } else {
 	bad('URL patterns found in JS');
+}
+
+// Heavy pages/actions must arm the spinner immediately (isHeavy).
+if (preg_match('~var heavyRe = /(.+)/[gimuy]*;~', $js, $mH)) {
+	$heavy = '~' . str_replace('~', '\~', $mH[1]) . '~i';
+	$heavyOk = true;
+	foreach (array(
+		'/display.php?frm_action=update&frm_subaction=switchprogram',
+		'/display.php?frm_action=update&frm_subaction=backup',
+		'/display.php?frm_action=show&frm_o_o[1][class]=fail2ban',
+		'/display.php?frm_action=list&frm_o_cname=service',
+		'frm_subaction=restore_confirm_confirm',
+	) as $u) {
+		if (!preg_match($heavy, $u)) {
+			$heavyOk = false;
+		}
+	}
+	if ($heavyOk && !preg_match($heavy, '/display.php?frm_action=show&frm_o_o[0][class]=client')) {
+		ok('heavy URL patterns cover Switch Program / Backup / Fail2Ban / Services');
+	} else {
+		bad('heavy URL patterns cover Switch Program / Backup / Fail2Ban / Services');
+	}
+} else {
+	bad('heavy URL patterns cover Switch Program / Backup / Fail2Ban / Services', 'heavyRe missing');
+}
+
+// Mutating GET links (Re Read IPaddress, list icons) must POST with CSRF.
+if (preg_match('~var mutateAct = /(.+)/[gimuy]*;~', $js, $mMut)
+	&& str_contains($js, 'mutateAct.test(href)')
+	&& str_contains($html, 'kloxoCsrfToken')
+	&& str_contains($html, "\$post['frm_action']")
+	&& str_contains($html, "\$act === 'update' || \$act === 'add' || \$act === 'delete'")
+	&& str_contains($html, 'name="frm_token"')) {
+	$mut = '~' . str_replace('~', '\~', $mMut[1]) . '~i';
+	$mutOk = preg_match($mut, '/display.php?frm_action=update&frm_subaction=readipaddress')
+		&& preg_match($mut, '/display.php?frm_action=delete&frm_o_cname=ipaddress')
+		&& !preg_match($mut, '/display.php?frm_action=updateform&frm_subaction=password')
+		&& !preg_match($mut, '/display.php?frm_action=addform&frm_o_cname=domain')
+		&& !preg_match($mut, '/display.php?frm_action=list&frm_o_cname=ipaddress')
+		&& !preg_match($mut, '/display.php?frm_action=show');
+	if ($mutOk) {
+		ok('mutateAct POSTs update/add/delete GET links; updateform/addform/list stay GET');
+	} else {
+		bad('mutateAct POSTs update/add/delete GET links; updateform/addform/list stay GET');
+	}
+} else {
+	bad('mutateAct POSTs update/add/delete GET links; updateform/addform/list stay GET', 'pattern or CSRF wiring missing');
+}
+
+$menu = (string) file_get_contents($doc . '/theme/skin/simplicity/default/menu.php');
+if (str_contains($menu, 'function kloxo_menu_post_link')
+	&& str_contains($menu, "frm_subaction' => 'readipaddress'")
+	&& !preg_match('/href="\/display\.php\?frm_action=update&frm_subaction=readipaddress/', $menu)) {
+	ok('Re Read IPaddress menu uses POST + frm_token, not a GET href');
+} else {
+	bad('Re Read IPaddress menu uses POST + frm_token, not a GET href');
 }
 
 printf("\n%d passed, %d failed\n", $pass, $fail);

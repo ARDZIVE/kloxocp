@@ -47,11 +47,7 @@ class PhpModule extends lxclass
 
 	static function createListBlist($parent, $class)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
-
-	//	$blist[] = array("a=update&sa=restart&c=$class", 1);
-
-	//	return $blist;
+		return null;
 	}
 
 	static function createListNlist($parent, $view)
@@ -102,68 +98,119 @@ class PhpModule extends lxclass
 
 	static function initThisList($parent, $class)
 	{
-		global $gbl, $sgbl, $login, $ghtml;
+		global $gbl, $login;
 
-		$driverapp = $gbl->getSyncClass($parent->__masterserver, $parent->__readserver, 'phpmodule');
+		$sync = (is_object($parent) && isset($parent->syncserver) && is_string($parent->syncserver)
+			&& $parent->syncserver !== '')
+			? $parent->syncserver : 'localhost';
+		$master = (is_object($parent) && isset($parent->__masterserver)) ? $parent->__masterserver : null;
+		$read = (is_object($parent) && isset($parent->__readserver) && is_string($parent->__readserver)
+			&& $parent->__readserver !== '')
+			? $parent->__readserver : $sync;
 
-		$res = kloxo_rl_driver($parent->__masterserver, $parent->__readserver, 'phpmodule', $driverapp, 'getListDetail', array($parent->syncserver));
+		$driverapp = null;
+		if (is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
+			try {
+				$driverapp = $gbl->getSyncClass($master, $read, 'phpmodule');
+			} catch (Throwable $e) {
+				$driverapp = null;
+			}
+		}
+		if (!is_string($driverapp) || $driverapp === '') {
+			$driverapp = 'linux';
+		}
+		$dclass = function_exists('kloxo_driver_class')
+			? kloxo_driver_class('phpmodule', $driverapp)
+			: null;
+		if (!is_string($dclass) || $dclass === '') {
+			$dclass = 'PhpModule__linux';
+		}
+
+		$res = null;
+		try {
+			if (function_exists('rl_exec_get')) {
+				// List is read-only; allow in-process fallback when backend is down
+				// so the page is not blank (kloxo_rl_driver used to return []).
+				$res = rl_exec_get($master, $read, array($dclass, 'getListDetail'), array($sync), true);
+			}
+		} catch (Throwable $e) {
+			log_log('error', 'phpmodule getListDetail: ' . $e->getMessage());
+			$res = null;
+		}
+
+		if ((!is_array($res) || $res === array())
+			&& function_exists('isLocalhost') && isLocalhost($sync)
+			&& class_exists('PhpModule__linux', false)) {
+			try {
+				$res = PhpModule__linux::getListDetail($sync);
+			} catch (Throwable $e) {
+				log_log('error', 'phpmodule local getListDetail: ' . $e->getMessage());
+				$res = array();
+			}
+		}
 
 		return is_array($res) ? $res : array();
 	}
 
 	function updateform($subaction, $param)
 	{
+		return array('non_f' => array('h', null));
 	}
 
 	function update($subaction, $param)
 	{
-		global $login;
+		global $gbl, $login;
 
-		switch ($subaction) {
-			case "enable":
-				if ($this->status === 'off') {
-					if (self::toggleDistroMod($this->fullfile, true)) {
-						break;
-					}
-					$s = $this->fullfile;
+		$sub = is_string($subaction) ? strtolower($subaction) : '';
+		if (!in_array($sub, array('enable', 'disable', 'restart'), true)) {
+			return $param;
+		}
 
-					if (strrpos($s, '_unused.nonini') !== false) {
-						$t = str_replace("_unused.nonini", ".ini", $s);
-					} else {
-						$t = str_replace(".nonini", "_used.ini", $s);
-					}
+		$fullfile = isset($this->fullfile) ? (string) $this->fullfile : '';
+		$status = isset($this->status) ? (string) $this->status : '';
+		$sync = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+			? $this->syncserver : 'localhost';
+		$master = isset($this->__masterserver) ? $this->__masterserver : null;
 
-					if (is_file($s) && !str_contains($s, '..')) {
-						@rename($s, $t);
-					}
+		$driverapp = 'linux';
+		if (is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
+			try {
+				$got = $gbl->getSyncClass($master, $sync, 'phpmodule');
+				if (is_string($got) && $got !== '') {
+					$driverapp = $got;
 				}
+			} catch (Throwable $e) {
+				// keep linux
+			}
+		}
+		$dclass = function_exists('kloxo_driver_class')
+			? kloxo_driver_class('phpmodule', $driverapp)
+			: 'PhpModule__linux';
+		if (!is_string($dclass) || $dclass === '') {
+			$dclass = 'PhpModule__linux';
+		}
 
-			//	throw new lxException($login->getThrow('enable'), '', $subaction);
-				break;
-			case "disable":
-				if ($this->status === 'on') {
-					if (self::toggleDistroMod($this->fullfile, false)) {
-						break;
-					}
-					$s = $this->fullfile;
+		try {
+			if (!function_exists('rl_exec_get')) {
+				throw new lxException(
+					is_object($login) && method_exists($login, 'getThrow')
+						? $login->getThrow('could_not_run_command')
+						: 'could_not_run_command'
+				);
+			}
+			// phpenmod / restart need root — no panel-user fallback.
+			$res = rl_exec_get($master, $sync, array($dclass, 'applyAction'),
+				array($sub, $fullfile, $status), false);
+		} catch (Throwable $e) {
+			$msg = trim((string) $e->getMessage());
+			if ($msg === '') {
+				$msg = 'Could not change PHP module (kloxo-backend did not answer).';
+			}
+			throw new lxException($msg);
+		}
 
-					if (strrpos($s, '_used.ini') !== false) {
-						$t = str_replace("_used.ini", ".nonini", $s);
-					} else {
-						$t = str_replace(".ini", "_unused.nonini", $s);
-					}
-
-					if (is_file($s) && !str_contains($s, '..')) {
-						@rename($s, $t);
-					}
-				}
-
-			//	throw new lxException($login->getThrow('disable'), '', $subaction);
-				break;
-			case "restart":
-				createRestartFile("restart-php-fpm");
-				createRestartFile("kloxo-php");
-				break;
+		if (is_array($res) && isset($res['error']) && is_string($res['error']) && $res['error'] !== '') {
+			throw new lxException($res['error']);
 		}
 
 		return $param;
@@ -182,11 +229,19 @@ class PhpModule extends lxclass
 		if (!is_executable($path)) {
 			$path = $bin;
 		}
-		$p = @proc_open([$path, '-v', $m[1], '-s', 'ALL', $m[2]], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-		if (is_resource($p)) {
-			fclose($pipes[1]);
-			fclose($pipes[2]);
-			proc_close($p);
+		$p = @proc_open(array($path, '-v', $m[1], '-s', 'ALL', $m[2]),
+			array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
+		if (!is_resource($p)) {
+			return false;
+		}
+		$err = (string) stream_get_contents($pipes[2]);
+		fclose($pipes[1]);
+		fclose($pipes[2]);
+		$code = proc_close($p);
+		if ($code !== 0) {
+			log_log('error', "phpmodule {$bin} {$m[2]}: " . trim($err));
+
+			return false;
 		}
 
 		return true;

@@ -1718,13 +1718,55 @@ $ps->syncserver = 'localhost';
 try {
 	$form = $ps->commandCenter(null);
 	if (is_array($form) && array_key_exists('ccenter_command', $form)
-		&& array_key_exists('ccenter_output', $form)) {
+		&& array_key_exists('ccenter_output', $form)
+		&& array_key_exists('ccenter_error', $form)) {
 		ok('Command Center form loads without a submitted command');
 	} else {
 		bad('Command Center form loads without a submitted command');
 	}
 } catch (Throwable $e) {
 	bad('Command Center form loads without a submitted command', $e->getMessage());
+}
+
+// stdout → Output, stderr → Error (never null; never merge into one field).
+try {
+	$split = pserver__linux::execCommand('test', 'echo CC_OUT; echo CC_ERR >&2');
+	if (is_array($split)
+		&& isset($split['output'], $split['error'])
+		&& is_string($split['output']) && is_string($split['error'])
+		&& str_contains($split['output'], 'CC_OUT')
+		&& str_contains($split['error'], 'CC_ERR')
+		&& !str_contains($split['output'], 'CC_ERR')
+		&& !str_contains($split['error'], 'CC_OUT')) {
+		ok('Command Center execCommand splits stdout and stderr');
+	} else {
+		bad('Command Center execCommand splits stdout and stderr', var_export($split, true));
+	}
+} catch (Throwable $e) {
+	bad('Command Center execCommand splits stdout and stderr', $e->getMessage());
+}
+try {
+	$only = pserver__linux::execCommand('test', 'echo ONLY_OUT');
+	if (is_array($only) && ($only['error'] ?? null) === ''
+		&& str_contains((string) ($only['output'] ?? ''), 'ONLY_OUT')) {
+		ok('Command Center execCommand returns empty string error (not null)');
+	} else {
+		bad('Command Center execCommand returns empty string error (not null)', var_export($only, true));
+	}
+} catch (Throwable $e) {
+	bad('Command Center execCommand returns empty string error (not null)', $e->getMessage());
+}
+$lxSrc = (string) file_get_contents($doc . '/lib/php/lxclass.php');
+if (str_contains($lxSrc, 'function runCommandCenterExec')
+	&& str_contains($lxSrc, 'ccenter_output')
+	&& str_contains($lxSrc, 'ccenter_error')
+	&& str_contains($lxSrc, "array(\$dclass, 'execCommand')")
+	&& !str_contains($lxSrc, 'kloxo_rl_driver($this->__masterserver, $this->syncserver, $this->get__table()')
+	&& str_contains($lxSrc, "\$__desc_ccenter_output = array(\"t\"")
+	&& str_contains($lxSrc, "\$__desc_ccenter_error = array(\"t\"")) {
+	ok('Command Center surfaces stdout/stderr via runCommandCenterExec');
+} else {
+	bad('Command Center surfaces stdout/stderr via runCommandCenterExec');
 }
 
 try {

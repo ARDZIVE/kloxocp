@@ -196,13 +196,19 @@ class pserver__Linux extends lxDriverClass
 			$err .= (string) stream_get_contents($pipes[2]);
 			fclose($pipes[1]);
 			fclose($pipes[2]);
-			proc_close($p);
+			$code = proc_close($p);
+			// Non-zero exit with no stderr: still show a status in Error.
+			if ($code !== 0 && $err === '') {
+				$err .= "exit code {$code}\n";
+			}
 		}
 		if ($err !== '') {
 			$global_shell_error = $err;
 		}
 
-		return array('output' => $out, 'error' => $global_shell_error);
+		// Always strings so Command Center Output / Error fields fill correctly
+		// (returning null for error made getVariable skip the property).
+		return array('output' => $out, 'error' => $err);
 	}
 
 	function information()

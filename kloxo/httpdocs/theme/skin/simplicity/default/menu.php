@@ -31,6 +31,33 @@ if (!function_exists('kloxo_menu_kw')) {
 	}
 }
 
+// State-changing menu items must POST with frm_token (GET update is rejected by CSRF).
+if (!function_exists('kloxo_menu_post_link')) {
+	function kloxo_menu_post_link(string $labelHtml, array $fields): string
+	{
+		static $seq = 0;
+		$seq++;
+		$id = 'kloxo_mpl_' . $seq;
+		$csrf = function_exists('getCSRFToken') ? (string) getCSRFToken() : '';
+		$out = '<form id="' . $id . '" method="post" action="/display.php"'
+			. ' style="display:inline;margin:0;padding:0">';
+		$out .= '<input type="hidden" name="frm_token" value="'
+			. htmlspecialchars($csrf, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">';
+		foreach ($fields as $name => $value) {
+			$out .= '<input type="hidden" name="'
+				. htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				. '" value="'
+				. htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				. '">';
+		}
+		$out .= '</form>';
+		$out .= '<a href="#" onclick="document.getElementById(\'' . $id
+			. '\').submit();return false;">' . $labelHtml . '</a>';
+
+		return $out;
+	}
+}
+
 $syncserver = $login->syncserver;
 
 $loginas = $login->nname;
@@ -446,14 +473,29 @@ if (strpos($loginas, "@") !== false) {
 
 						&#x00bb;&nbsp;<?=kloxo_menu_title("a=update&sa=readipaddress&o=pserver");?>
 
-							&#x00bb;&nbsp;<a href="/display.php?frm_action=update&frm_subaction=readipaddress&<?=$localhostquery;?>"> &#x00bb;&nbsp; localhost</a>
-							&#x00bb;&nbsp;<a href="/display.php?frm_action=update&frm_subaction=readipaddress&<?=$serverquery;?>"><?=$syncserverEsc;?></a><br/>
+							&#x00bb;&nbsp;<?= kloxo_menu_post_link(' &#x00bb;&nbsp; localhost', array(
+								'frm_action' => 'update',
+								'frm_subaction' => 'readipaddress',
+								'frm_o_o[0][class]' => 'pserver',
+								'frm_o_o[0][nname]' => 'localhost',
+							)); ?><br/>
+							&#x00bb;&nbsp;<?= kloxo_menu_post_link($syncserverEsc, array(
+								'frm_action' => 'update',
+								'frm_subaction' => 'readipaddress',
+								'frm_o_o[0][class]' => 'pserver',
+								'frm_o_o[0][nname]' => (string) $syncserver,
+							)); ?><br/>
 
 <?php
 		} else {
 ?>
 						&#x00bb;&nbsp;<?=kloxo_menu_title("a=list&c=ipaddress");?>&nbsp;&#x00bb;&nbsp;<a href="/display.php?frm_action=list&frm_o_cname=ipaddress"><?=$syncserverEsc;?></a><br/>
-						&#x00bb;&nbsp;<?=kloxo_menu_title("a=update&sa=readipaddress&o=pserver");?>&nbsp;&#x00bb;&nbsp;<a href="/display.php?frm_action=update&frm_subaction=readipaddress&<?=$serverquery;?>"><?=$syncserverEsc;?></a><br/>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=update&sa=readipaddress&o=pserver");?>&nbsp;&#x00bb;&nbsp;<?= kloxo_menu_post_link($syncserverEsc, array(
+								'frm_action' => 'update',
+								'frm_subaction' => 'readipaddress',
+								'frm_o_o[0][class]' => 'pserver',
+								'frm_o_o[0][nname]' => (string) $syncserver,
+							)); ?><br/>
 <?php
 		}
 	}
