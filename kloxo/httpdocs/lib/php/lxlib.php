@@ -3998,6 +3998,153 @@ function kloxo_ensure_client_unix(string $nname): array
 }
 
 /**
+ * Delete everything owned by a client (domains, DBs, ftp, mail, cron, SSL,
+ * nested clients). Called from Client::deleteSpecific before the parent row
+ * goes. Each child is deleted + written; failures are logged and the rest continue.
+ */
+function kloxo_client_cascade_delete(object $client): void
+{
+	if (!is_object($client) || !method_exists($client, 'getClName')) {
+		return;
+	}
+	$classes = array(
+		'domain', 'mysqldb', 'ftpuser', 'mailaccount', 'mailinglist',
+		'cron', 'sslcert', 'client',
+	);
+	foreach ($classes as $class) {
+		try {
+			$list = method_exists($client, 'getList') ? $client->getList($class) : null;
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', "cascade getList {$class}: " . $e->getMessage());
+			}
+			$list = null;
+		}
+		foreach ((array) $list as $child) {
+			if (!is_object($child) || !method_exists($child, 'delete')) {
+				continue;
+			}
+			try {
+				$child->delete();
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'cascade delete '
+						. (isset($child->nname) ? (string) $child->nname : $class)
+						. ': ' . $e->getMessage());
+				}
+			}
+			try {
+				if (method_exists($child, 'was')) {
+					$child->metadbaction = 'writeonly';
+					$child->was();
+				} elseif (method_exists($child, 'write')) {
+					$child->metadbaction = 'writeonly';
+					$child->write();
+				}
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'cascade write '
+						. (isset($child->nname) ? (string) $child->nname : $class)
+						. ': ' . $e->getMessage());
+				}
+				try {
+					if (method_exists($child, 'write')) {
+						$child->metadbaction = 'writeonly';
+						$child->dbaction = 'delete';
+						$child->write();
+					}
+				} catch (Throwable $e2) {
+					if (function_exists('log_log')) {
+						log_log('error', 'cascade force write: ' . $e2->getMessage());
+					}
+				}
+			}
+		}
+	}
+
+	// Belt-and-suspenders: remove any leftover SQLite rows still pointing at us.
+	kloxo_purge_client_panel_orphans((string) $client->getClName(), isset($client->nname) ? (string) $client->nname : '');
+}
+
+/**
+ * Remove panel.sqlite rows still owned by a deleted client (parent_clname).
+ */
+function kloxo_purge_client_panel_orphans(string $parentClName, string $nname = ''): void
+{
+	$parentClName = trim($parentClName);
+	$nname = trim($nname);
+	if ($parentClName === '' && $nname !== '' && preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) === 1) {
+		$parentClName = 'client-' . $nname;
+	}
+	if ($parentClName === '' || !class_exists('Sqlite', false)) {
+		return;
+	}
+	// Domain-owned tables are keyed by domain parent_clname; wipe those after
+	// collecting domain nnames still pointing at this client.
+	$domainNames = array();
+	$tables = array(
+		'domain', 'mysqldb', 'ftpuser', 'mailaccount', 'mailinglist',
+		'cron', 'sslcert', 'client', 'addondomain', 'mailforward',
+	);
+	foreach ($tables as $table) {
+		try {
+			$db = new Sqlite(null, $table);
+			if ($table === 'domain') {
+				$rows = $db->getRows('parent_clname', $parentClName, array('nname'));
+				foreach ((array) $rows as $r) {
+					if (isset($r['nname']) && is_string($r['nname']) && $r['nname'] !== '') {
+						$domainNames[] = $r['nname'];
+					}
+				}
+			}
+			if (method_exists($db, 'delRow')) {
+				$db->delRow('parent_clname', $parentClName);
+			} elseif (method_exists($db, 'rawQuery') && function_exists('kloxo_sql_eq')) {
+				$db->rawQuery('DELETE FROM ' . $table . ' WHERE ' . kloxo_sql_eq('parent_clname', $parentClName));
+			}
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', "purge panel orphans {$table}: " . $e->getMessage());
+			}
+		}
+	}
+	$domainNames = array_values(array_unique($domainNames));
+	$childTables = array('web', 'mmail', 'dns', 'addondomain', 'dirprotect');
+	foreach ($domainNames as $dom) {
+		if (preg_match('/^[A-Za-z0-9.-]{1,253}$/', $dom) !== 1) {
+			continue;
+		}
+		$domParent = 'domain-' . $dom;
+		foreach ($childTables as $table) {
+			try {
+				$db = new Sqlite(null, $table);
+				if (method_exists($db, 'delRow')) {
+					$db->delRow('parent_clname', $domParent);
+				} elseif (method_exists($db, 'rawQuery') && function_exists('kloxo_sql_eq')) {
+					$db->rawQuery('DELETE FROM ' . $table . ' WHERE ' . kloxo_sql_eq('parent_clname', $domParent));
+				}
+				// Some tables use nname = domain.
+				if (method_exists($db, 'delRow')) {
+					$db->delRow('nname', $dom);
+				}
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', "purge domain child {$table}/{$dom}: " . $e->getMessage());
+				}
+			}
+		}
+		try {
+			$db = new Sqlite(null, 'domain');
+			if (method_exists($db, 'delRow')) {
+				$db->delRow('nname', $dom);
+			}
+		} catch (Throwable $e) {
+			// already logged path above
+		}
+	}
+}
+
+/**
  * Remove orphan /home/<client> left after a DB-only delete so Add Client can
  * reuse the name. Panel FPM is lxlabs — must go through kloxo-backend as root.
  *

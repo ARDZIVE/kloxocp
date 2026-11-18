@@ -5095,6 +5095,11 @@ class HtmlLib
 
 		$perpageof = null;
 
+		// Cast: empty-string cgi_pagenum / pagesize is string+int on PHP 8.
+		$pagesize = max(1, (int) $pagesize);
+		$cgi_pagenum = max(1, (int) $cgi_pagenum);
+		$total_num = max(0, (int) $total_num);
+
 		$lower = $pagesize * ($cgi_pagenum - 1) + 1;
 
 		if ($lower > $total_num) {
@@ -5107,7 +5112,7 @@ class HtmlLib
 			$upper = $pagesize * $cgi_pagenum;
 		}
 
-		$total_page = strtil($total_num / $pagesize, ".") + 1;
+		$total_page = (int) strtil((string) ($total_num / $pagesize), '.') + 1;
 		// Numeric range only (security LLL2).
 		$perpageof = ((int) $lower) . ' to ' . ((int) $upper) . ' of ';
 

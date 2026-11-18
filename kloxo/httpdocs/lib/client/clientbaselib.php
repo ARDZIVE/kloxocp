@@ -480,7 +480,63 @@ class ClientBase extends ClientCore
 
 	function deleteSpecific()
 	{
-		$this->notifyObjects('delete');
+		// Cascade must finish even when a later was()/sync TypeError would
+		// otherwise leave domains, mail, ftp and DBs as orphans under All *.
+		if (function_exists('kloxo_client_cascade_delete')) {
+			try {
+				kloxo_client_cascade_delete($this);
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'client cascade delete: ' . $e->getMessage());
+				}
+			}
+		}
+		try {
+			$this->notifyObjects('delete');
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'client notifyObjects delete: ' . $e->getMessage());
+			}
+		}
+	}
+
+	/**
+	 * Objects listed on the delete-client confirmation screen.
+	 *
+	 * @return list<array{class:string,label:string,names:list<string>}>
+	 */
+	function getDeleteCascadePreview(): array
+	{
+		$out = array();
+		$map = array(
+			'domain' => 'Domains / Subdomains',
+			'mysqldb' => 'Databases',
+			'ftpuser' => 'FTP Users',
+			'mailaccount' => 'Mail Accounts',
+			'mailinglist' => 'Mailing Lists',
+			'cron' => 'Cron Tasks',
+			'sslcert' => 'SSL Certificates',
+			'client' => 'Sub-clients',
+		);
+		foreach ($map as $class => $label) {
+			$names = array();
+			try {
+				$list = $this->getList($class);
+			} catch (Throwable $e) {
+				$list = null;
+			}
+			foreach ((array) $list as $o) {
+				if (is_object($o) && isset($o->nname) && (string) $o->nname !== '') {
+					$names[] = (string) $o->nname;
+				}
+			}
+			sort($names);
+			if ($names !== array()) {
+				$out[] = array('class' => $class, 'label' => $label, 'names' => $names);
+			}
+		}
+
+		return $out;
 	}
 
 	function isContactable()

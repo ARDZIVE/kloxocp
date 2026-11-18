@@ -1459,6 +1459,9 @@ function __ac_desc_delete($object)
 		} else {
 			$warning = $g_language_mes->__information['general_delete_warning'];
 		}
+		$h = static function ($s): string {
+			return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		};
 ?>
 
 		<div class="div_mmm_inside">
@@ -1467,24 +1470,64 @@ function __ac_desc_delete($object)
 			</div>
 
 <?php
-	
-		/*
-
-			if (exec_class_method($cname, 'isTreeForDelete')) {
+			// Client delete: list domains, mail, DBs, FTP, etc. that will go with it.
+			if ($cname === 'client') {
+				foreach ($ll as $l) {
+					$l = trim((string) $l);
+					if ($l === '') {
+						continue;
+					}
+					try {
+						$o = $object->getFromList($cname, $l);
+					} catch (Throwable $e) {
+						$o = null;
+					}
+					if (!is_object($o)) {
+						continue;
+					}
+					$preview = method_exists($o, 'getDeleteCascadePreview')
+						? $o->getDeleteCascadePreview() : array();
+					echo '<div class="kloxo-delete-cascade" style="margin:12px 0;padding:10px 14px;'
+						. 'background:#fff8e1;border:1px solid #e0c36a;border-radius:4px">';
+					echo '<p style="margin:0 0 8px 0"><b>Deleting client '
+						. $h($o->nname ?? $l)
+						. ' will also permanently delete:</b></p>';
+					if ($preview === array()) {
+						echo '<p style="margin:0">No domains, databases, mail accounts or FTP users found under this client.</p>';
+					} else {
+						echo '<ul style="margin:0;padding-left:1.4em">';
+						foreach ($preview as $block) {
+							$label = $h($block['label'] ?? $block['class'] ?? '');
+							$names = array_map($h, (array) ($block['names'] ?? array()));
+							echo '<li style="margin:4px 0"><b>' . $label . '</b> ('
+								. count($names) . '): ' . implode(', ', $names) . '</li>';
+						}
+						echo '</ul>';
+					}
+					echo '<p style="margin:8px 0 0 0;color:#666">No recovery except restore from backup.</p>';
+					echo '</div>';
+				}
+			} elseif (exec_class_method($cname, 'isTreeForDelete')) {
 ?>
-
-				<div>These Objects Under these <?=get_plural($object->getClass())?> will also be Deleted.<br/> <br/></div>
-
+				<div>These objects under the selected <?= $h(get_plural($cname)) ?> will also be deleted.</div>
 <?php
 				foreach ($ll as $l) {
-					$o = $object->getFromList($cname, $l);
-					$ghtml->do_resource(null, $o, 6, false, "getResourceChildList", true, false);
+					$l = trim((string) $l);
+					if ($l === '') {
+						continue;
+					}
+					try {
+						$o = $object->getFromList($cname, $l);
+						if (is_object($o) && is_object($ghtml) && method_exists($ghtml, 'do_resource')) {
+							$ghtml->do_resource(null, $o, 6, false, 'getResourceChildList', true, false);
+						}
+					} catch (Throwable $e) {
+						if (function_exists('log_log')) {
+							log_log('error', 'delete confirm tree: ' . $e->getMessage());
+						}
+					}
 				}
-?>
-				<br/>
-<?php
 			}
-		*/
 			do_list_class($object, $cname);
 ?>
 		</div>

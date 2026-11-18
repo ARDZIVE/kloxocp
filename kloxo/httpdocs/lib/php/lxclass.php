@@ -3632,7 +3632,17 @@ abstract class Lxclass
 		$pclass = $this->get__table();
 		$desc = get_real_class_variable($pclass, $desc);
 
-		if (csa($desc[0], "r")) {
+		// Readonly lists (uppercase R) must still persist deletes: Client
+		// domain_l is RqdtB — skipping here left orphan domains after delete.
+		$readonly = is_array($desc) && isset($desc[0]) && csa((string) $desc[0], 'r', 1);
+		$hasUnclean = false;
+		foreach ((array) ($this->$list ?? null) as $__chk) {
+			if (is_object($__chk) && method_exists($__chk, 'isUnclean') && $__chk->isUnclean()) {
+				$hasUnclean = true;
+				break;
+			}
+		}
+		if ($readonly && !$hasUnclean) {
 			dprint("Readonly {$class} in {$this->get__table()} {$this->nname}\n");
 			return;
 		}
@@ -3656,7 +3666,25 @@ abstract class Lxclass
 				$element->__parent_o = $this;
 			}
 
-			$element->was();
+			try {
+				$element->was();
+			} catch (Throwable $e) {
+				// One child must not abort the rest (client delete used to stop
+				// after the first TypeError and leave domains in All Domains).
+				log_log('error', "writeAChildList {$class} "
+					. (isset($element->nname) ? (string) $element->nname : '?')
+					. ': ' . $e->getMessage());
+				if (isset($element->dbaction) && $element->dbaction === 'delete'
+					&& method_exists($element, 'write')) {
+					try {
+						$element->metadbaction = 'writeonly';
+						$element->write();
+						$element->dbaction = 'delete_done';
+					} catch (Throwable $e2) {
+						log_log('error', "writeAChildList force write {$class}: " . $e2->getMessage());
+					}
+				}
+			}
 
 			if ($element->dbaction === "delete_done") {
 				unset($this->{$list}[$element->nname]);

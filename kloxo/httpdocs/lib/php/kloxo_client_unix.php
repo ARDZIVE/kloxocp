@@ -182,6 +182,17 @@ final class KloxoClientUnix
 
 		self::removeHomeAndUser($nname, $nname);
 
+		// Also drop orphan panel rows (domains etc.) still pointing at client-X.
+		if (function_exists('kloxo_purge_client_panel_orphans')) {
+			try {
+				kloxo_purge_client_panel_orphans('client-' . $nname, $nname);
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'purgeLeftover panel orphans: ' . $e->getMessage());
+				}
+			}
+		}
+
 		return ['ok' => true, 'euid' => $euid, 'removed' => true];
 	}
 

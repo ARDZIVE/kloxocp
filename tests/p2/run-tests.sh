@@ -300,6 +300,11 @@ if php "$HERE/test_client_unix.php"; then
 else
   bad "test_client_unix.php"
 fi
+if php "$HERE/test_client_cascade_delete.php"; then
+  ok "test_client_cascade_delete.php"
+else
+  bad "test_client_cascade_delete.php"
+fi
 if php "$HERE/test_knot.php"; then
   ok "test_knot.php"
 else
