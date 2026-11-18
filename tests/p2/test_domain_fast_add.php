@@ -142,6 +142,7 @@ if (str_contains($js, 'function hasToastQuery')
 	&& str_contains($js, 'frm_emessage=')
 	&& str_contains($js, 'function clearBusyNow')
 	&& str_contains($js, 'MAX_AGE = 3 * 60 * 1000')
+	&& str_contains($js, 'DELAY = 1000')
 	&& str_contains($js, 'arrived && !hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
 	&& (bool) preg_match('/busyJs\s*\.?=.*\?v=\d+/s', $html)) {

@@ -122,13 +122,16 @@ if ($domFin !== ''
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
-	&& str_contains($html, "'?v=12'")
+	&& str_contains($html, "'?v=13'")
 	&& str_contains($js, 'MAX_AGE = 3 * 60 * 1000')
 	&& str_contains($js, 'MAX_WAIT = 3 * 60 * 1000')
+	&& str_contains($js, 'DELAY = 1000')
 	&& str_contains($js, 'WAIT_TEXTS')
 	&& str_contains($js, 'Still working...')
 	&& str_contains($js, 'function clearBusyNow')
-	&& str_contains($js, 'function startRotate')) {
+	&& str_contains($js, 'function startRotate')
+	&& str_contains($js, "t === 'mainframe'")
+	&& str_contains($js, 'Services always take noticeable time')) {
 	ok('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
 } else {
 	bad('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
@@ -241,7 +244,7 @@ if (preg_match('/function armMaxWait\(\)\s*\{.*?^\tfunction /sm', $js, $mArm) ==
 	$armFn = $mArm[0];
 }
 if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait')
-	&& preg_match('/var DELAY = \d+;/', $code) === 1
+	&& preg_match('/var DELAY = 1000;/', $code) === 1
 	&& preg_match('/var MAX_WAIT = 3 \* 60 \* 1000;/', $code) === 1
 	&& preg_match('/var MAX_AGE = 3 \* 60 \* 1000;/', $code) === 1
 	&& str_contains($code, 'WAIT_TEXTS')
@@ -255,15 +258,18 @@ if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait
 	&& $armFn !== '' && str_contains($armFn, 'clearBusyNow()')
 	&& str_contains($js, "ev.key !== 'Escape'")
 	&& $setTimeouts >= 3 && $setTimeouts <= 6) {
-	ok('modal appears after DELAY ms; long MAX_WAIT + rotating text; Esc/failsafe; redirect stubs navigate');
+	ok('modal appears after 1s; Services immediate; long MAX_WAIT + rotating text');
 } else {
-	bad('modal appears after DELAY ms; long MAX_WAIT + rotating text; Esc/failsafe; redirect stubs navigate', 'setTimeouts=' . $setTimeouts);
+	bad('modal appears after 1s; Services immediate; long MAX_WAIT + rotating text', 'setTimeouts=' . $setTimeouts);
 }
 
 // The hrefs the Services list really renders must match the JS patterns.
-if (preg_match('~var serviceAct = /(.+)/;~', $js, $m1) && preg_match('~var serviceObj = /(.+)/;~', $js, $m2)) {
-	$act = '~' . str_replace('~', '\~', $m1[1]) . '~';
-	$obj = '~' . str_replace('~', '\~', $m2[1]) . '~';
+if (preg_match('~var serviceAct = /(.+)/[gimuy]*;~', $js, $m1)
+	&& preg_match('~var serviceObj = /(.+)/[gimuy]*;~', $js, $m2)
+	&& str_contains($js, "t === 'mainframe'")
+	&& str_contains($js, 'present(text)')) {
+	$act = '~' . str_replace('~', '\~', $m1[1]) . '~i';
+	$obj = '~' . str_replace('~', '\~', $m2[1]) . '~i';
 	$all = true;
 	foreach (array('start', 'stop', 'restart', 'toggle_state', 'toggle_boot_state') as $sa) {
 		$href = '/display.php?frm_action=update&frm_subaction=' . $sa

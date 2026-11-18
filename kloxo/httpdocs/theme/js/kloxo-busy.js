@@ -6,11 +6,11 @@
  * KloxoBusy.show(text) / KloxoBusy.hide()
  *
  * Every in-panel navigation can show it: link click, form submit, a script
- * that sets location or calls form.submit(). It appears only when the page
- * is slow: DELAY ms after the navigation started (counted across the page
- * change, so quick pages never show it). Once shown it stays until the next
- * page has received its whole HTML (DOMContentLoaded), with a MAX_WAIT
- * failsafe. Long actions refresh the wait text so the user sees progress.
+ * that sets location or calls form.submit(). It appears when the page is
+ * still loading after DELAY (1s), so quick pages never flash it. Services
+ * Start/Stop/Restart/Sb/State show the modal immediately. Once shown it
+ * stays until the next page has received its whole HTML (DOMContentLoaded),
+ * with a MAX_WAIT failsafe. Long actions rotate the wait text.
  *
  * The busy state is kept in sessionStorage so a streamed response or
  * redirect stub does not drop the modal. A destination with frm_smessage /
@@ -33,7 +33,8 @@
 	// Absolute failsafe for a hung request; hide so the UI is not stuck forever.
 	var MAX_WAIT = 3 * 60 * 1000;
 	var DEFAULT_TEXT = 'Please wait...';
-	var DELAY = 500;
+	// Show the modal when the request is still going after 1s (quick pages stay clean).
+	var DELAY = 1000;
 	var ROTATE_MS = 4000;
 	var WAIT_TEXTS = [
 		'Please wait...',
@@ -486,7 +487,8 @@
 	// ---- Services icons ---------------------------------------------------------------
 
 	var serviceAct = /[?&]frm_subaction=(start|stop|restart|toggle_state|toggle_boot_state)(?:&|$)/;
-	var serviceObj = /[?&]frm_o_o(?:\[|%5B)\d+(?:\]|%5D)(?:\[|%5B)class(?:\]|%5D)=service(?:&|$)/;
+	var serviceObj = /[?&]frm_o_o(?:\[|%5B)\d+(?:\]|%5D)(?:\[|%5B)class(?:\]|%5D)=service(?:&|$)/i;
+	var serviceListPage = /[?&]frm_o_cname=service(?:&|$)/i;
 	var texts = {
 		start: 'Starting service...',
 		stop: 'Stopping service...',
@@ -495,9 +497,24 @@
 		toggle_boot_state: 'Changing boot state...'
 	};
 
+	function onServiceListPage() {
+		try {
+			return serviceListPage.test(win.location.search || '');
+		} catch (e) {
+			return false;
+		}
+	}
+
 	function serviceText(href) {
 		var m = serviceAct.exec(href);
-		return (m && serviceObj.test(href)) ? texts[m[1]] : '';
+		if (!m) {
+			return '';
+		}
+		// Icon links use frm_o_o[…][class]=service; also accept the Services list page.
+		if (serviceObj.test(href) || onServiceListPage()) {
+			return texts[m[1]] || DEFAULT_TEXT;
+		}
+		return '';
 	}
 
 	var refreshRe = /http-equiv\s*=\s*["']?refresh["']?\s+content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*([^"'>\s]+)/i;
@@ -514,8 +531,9 @@
 	}
 
 	function run(href, text) {
-		beginNavigation(text, false);
-		showSoon(text, Date.now(), false);
+		// Services always take noticeable time (systemctl): show the modal now.
+		beginNavigation(text, true);
+		present(text);
 		var tok = csrfToken();
 		var postUrl = href;
 		var postBody = '';
@@ -588,8 +606,13 @@
 	}
 
 	function opensElsewhere(el) {
-		var t = el.getAttribute('target');
-		return !!t && t !== '_self';
+		var t = (el.getAttribute('target') || '').toLowerCase();
+		// Panel frames use target=mainframe — that is still in-panel work and
+		// must show the busy modal (was wrongly treated as a new window).
+		if (!t || t === '_self' || t === 'mainframe') {
+			return false;
+		}
+		return true;
 	}
 
 	doc.addEventListener('click', function (ev) {
@@ -631,6 +654,7 @@
 		}
 		var t = f.getAttribute('data-kloxo-busy') || DEFAULT_TEXT;
 		beginNavigation(t, false);
+		// Slow form posts (Switch Program, Update, etc.): modal after 1s.
 		showSoon(t, Date.now(), false);
 	}, true);
 
