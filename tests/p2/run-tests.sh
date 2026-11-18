@@ -165,6 +165,11 @@ if php "$HERE/test_domain_home.php"; then
 else
   bad "test_domain_home.php"
 fi
+if php "$HERE/test_domain_home_timeline.php"; then
+  ok "test_domain_home_timeline.php"
+else
+  bad "test_domain_home_timeline.php"
+fi
 if php "$HERE/test_dropped_jobs_kick.php"; then
   ok "test_dropped_jobs_kick.php"
 else

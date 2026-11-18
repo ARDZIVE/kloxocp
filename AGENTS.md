@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111710. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111801. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -57,7 +57,7 @@ print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have
 text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
 htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
 The Update
-screen shows **10.1-2026111710** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111801** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -328,14 +328,16 @@ kick is now pending+busy gated with a spawn cooldown, and
 `run-dropped-client-jobs.php` takes a single-flight lock before
 `include.php` (`tests/p2/test_dropped_jobs_kick.php`). Tests:
 `tests/p2/test_domain_fast_add.php`, `test_busy_spinner.php`,
-`test_domain_home.php`). Domain Home tiles: web sections show unless
-`webhosting_flag` is explicitly `off`; a failed `sp_specialplay` load no
-longer blanks the right column (`get_expand_url` /
-`kloxo_button_type` / `kloxo_ajax_enabled` — security-wave regression where
-`print_action_block` died before any section HTML). Info falls back to
-domain nname/docroot; `getShowActions` initialises `$onl` and tolerates a
-null `$ghtml`. Live Add Domain / Domain Home after this path is
-UNVERIFIED (site may appear in the list before web/DNS/mail finish). Add Domain used to toast `got_error_from_ur_end` with no
+`test_domain_home.php`, `test_domain_home_timeline.php`). Domain Home
+tiles (before/during/after security waves): BEFORE null `priv->isOn`
+killed the page; DURING try/catch left Info/Resource up and a **white
+right column**; AFTER virtual/`web_o` always gets full tiles,
+`createShowAlistWebBody` + non-empty fallback, show path seeds fallback
+and never `array_splice`s the tile map, `get_expand_url` /
+`kloxo_button_type` never throw. Info falls back to domain nname/docroot;
+`getShowActions` initialises `$onl` and tolerates a null `$ghtml`. Live
+Add Domain / Domain Home after this path is UNVERIFIED (site may appear
+in the list before web/DNS/mail finish). Add Domain used to toast `got_error_from_ur_end` with no
 row: domain/mmail sync payloads carry `LxaClass` (no Class__driver yet) and
 `Used` (declared casing; allow-list had only `used`) and the backend rejected
 them (`kloxo_unserialize_panel_class_ok` now allows `LxaClass`, case-insensitive
@@ -486,6 +488,7 @@ php tests/p2/test_domain_sync_unserialize.php # Add Domain LxaClass sync allow-l
 php tests/p2/test_domain_fast_add.php # Add Domain fast redirect + domain-sync drop
 php tests/p2/test_dropped_jobs_kick.php # drop-queue kick pending/busy/single-flight (OOM guard)
 php tests/p2/test_domain_home.php # Domain Home tiles with missing client priv / web fields
+php tests/p2/test_domain_home_timeline.php # before/during/after blank-tile security-wave timeline
 php tests/p2/test_busy_spinner.php # busy modal + Add Client/Domain stub redirects
 php tests/p2/test_backup.php          # admin/client Backup Now / Restore argv + dump (no live server)
 php tests/p2/test_sitepreview.php     # DNSless Preview parse/ACL/rewrite/Host fetch (no live panel)

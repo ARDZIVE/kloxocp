@@ -1469,20 +1469,40 @@ class Domaind extends DomainBase
 			$alist = array();
 		}
 
-		// Web tiles unless the parent explicitly turned webhosting off.
-		// checkButton/isOn treat unset/'0'/true as false — after fast Add Domain
-		// and quota priv rows that is common and blanked Domain Home.
+		// BEFORE security/PHP8 waves: bare `$parent->priv->isOn('webhosting_flag')`
+		// threw on null priv and blanked the whole Domain Home page.
+		// DURING try/catch wave (9f28703+): that throw was swallowed → empty
+		// $showalist → Info/Resource still painted, right column stayed white.
+		// AFTER: virtual domains / existing web rows always get full tiles;
+		// mmail-only only for non-virtual with explicit webhosting off.
 		$webhosting = true;
+		$isVirtual = false;
 		try {
-			$parent = $this->getParentO();
-			if (is_object($parent) && isset($parent->priv) && is_object($parent->priv)
-				&& isset($parent->priv->webhosting_flag)
-				&& $parent->priv->webhosting_flag !== ''
-				&& $parent->priv->webhosting_flag !== null) {
-				$webhosting = (strtolower((string) $parent->priv->webhosting_flag) !== 'off');
-			}
+			$isVirtual = method_exists($this, 'isDomainVirtual')
+				? (bool) $this->isDomainVirtual()
+				: (isset($this->ttype) && $this->ttype === 'virtual');
 		} catch (Throwable $e) {
+			$isVirtual = true;
+		}
+		$hasWeb = isset($this->web_o) && is_object($this->web_o);
+		if ($isVirtual || $hasWeb) {
 			$webhosting = true;
+		} else {
+			try {
+				$parent = $this->getParentO();
+				if (is_object($parent) && isset($parent->priv) && is_object($parent->priv)
+					&& isset($parent->priv->webhosting_flag)
+					&& $parent->priv->webhosting_flag !== ''
+					&& $parent->priv->webhosting_flag !== null) {
+					$webhosting = (strtolower((string) $parent->priv->webhosting_flag) !== 'off');
+				}
+			} catch (Throwable $e) {
+				$webhosting = true;
+			}
+		}
+
+		if ($subaction === 'config') {
+			return $this->createShowAlistConfig($alist);
 		}
 
 		if (!$webhosting) {
@@ -1493,9 +1513,42 @@ class Domaind extends DomainBase
 					log_log('error', 'domain createShowAlist mmail-only: ' . $e->getMessage());
 				}
 			}
+			if (!is_array($alist) || count($alist) === 0) {
+				// Never return a totally empty Domain Home (white right column).
+				$alist['__title_domain'] = 'Domain';
+				$alist[] = 'a=updateform&sa=limit';
+			}
 			return $alist;
 		}
 
+		try {
+			$this->createShowAlistWebBody($alist, $login, $gbl, $ghtml);
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'domain createShowAlist web body: ' . $e->getMessage());
+			}
+			if (!is_array($alist) || count($alist) === 0) {
+				$alist = array();
+				$alist['__title_domain_classweb'] = 'web';
+				$alist[] = 'n=web&a=show&l[class]=ffile&l[nname]=/';
+				$alist[] = 'a=show&o=dns';
+				$alist[] = 'a=list&c=addondomain';
+				try {
+					$this->getShowActions($alist, 'mmail');
+				} catch (Throwable $e2) {
+				}
+			}
+		}
+
+		return $alist;
+	}
+
+	/**
+	 * Full Domain Home tile list (web + mail). Split out so the outer
+	 * createShowAlist can guarantee a non-empty fallback on any throw.
+	 */
+	private function createShowAlistWebBody(&$alist, $login, $gbl, $ghtml): void
+	{
 		$webstatsprog = 'awstats';
 		try {
 			if (is_object($login) && method_exists($login, 'getObject')) {
@@ -1506,10 +1559,6 @@ class Domaind extends DomainBase
 				}
 			}
 		} catch (Throwable $e) {
-		}
-
-		if ($subaction === 'config') {
-			return $this->createShowAlistConfig($alist);
 		}
 	/*
 		if (!$this->isLogin()) {
@@ -1797,8 +1846,6 @@ class Domaind extends DomainBase
 				log_log('error', 'domain createShowAlist mmail: ' . $e->getMessage());
 			}
 		}
-
-		return $alist;
 	}
 
 

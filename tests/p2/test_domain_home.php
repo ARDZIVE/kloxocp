@@ -149,6 +149,8 @@ if ($alist2Err === '' && count($alist2) >= 10 && $titles2 >= 2 && $hasWebTitle) 
 		$alist2Err !== '' ? $alist2Err : ('count=' . count($alist2) . ' titles=' . $titles2));
 }
 
+// Virtual domain with webhosting_flag=off must STILL get web tiles (live
+// mesrob.com had Info/FTP but a stale off flag → mmail-only → blank right).
 $parentOff = new Client(null, 'localhost', 'mesrob');
 $parentOff->nname = 'mesrob';
 $parentOff->priv = new priv(null, null, 'mesrob');
@@ -176,10 +178,33 @@ foreach ($alistOff as $k => $v) {
 		$hasWebOff = true;
 	}
 }
-if (!$hasWebOff) {
-	ok('createShowAlist hides web tiles when webhosting_flag is explicitly off');
+if ($hasWebOff && count($alistOff) >= 10) {
+	ok('virtual domain keeps web tiles even when webhosting_flag is off');
 } else {
-	bad('createShowAlist hides web tiles when webhosting_flag is explicitly off');
+	bad('virtual domain keeps web tiles even when webhosting_flag is off',
+		'count=' . count($alistOff));
+}
+
+// Non-virtual + explicit off → mmail-only (or minimal fallback, never empty).
+$domPark = new domain(null, 'localhost', 'parked.example');
+$domPark->nname = 'parked.example';
+$domPark->ttype = 'parked';
+$domPark->dtype = 'domain';
+$domPark->__parent_o = $parentOff;
+$domPark->mmail_o = $mmail;
+$alistPark = array();
+$domPark->createShowAlist($alistPark);
+$hasWebPark = false;
+foreach ($alistPark as $k => $v) {
+	if (is_string($k) && str_contains($k, 'classweb')) {
+		$hasWebPark = true;
+	}
+}
+if (!$hasWebPark && count($alistPark) >= 1) {
+	ok('non-virtual with webhosting off stays mmail/fallback and never empty');
+} else {
+	bad('non-virtual with webhosting off stays mmail/fallback and never empty',
+		'count=' . count($alistPark) . ' hasWeb=' . ($hasWebPark ? 'Y' : 'N'));
 }
 
 $ilist = null;
@@ -221,7 +246,8 @@ if (preg_match('/function kloxo_finish_domain_add\(.*?^function /sm', $lxlib, $m
 }
 if ($showFn !== ''
 	&& str_contains($showFn, 'webhosting_flag')
-	&& str_contains($showFn, "strtolower((string) \$parent->priv->webhosting_flag) !== 'off'")
+	&& str_contains($showFn, 'isDomainVirtual')
+	&& str_contains($domSrc, 'createShowAlistWebBody')
 	&& !str_contains($showFn, 'getParentO()->priv->isOn')
 	&& !str_contains($showFn, "checkButton('webhosting_flag')")
 	&& $infoFn !== ''
@@ -232,9 +258,18 @@ if ($showFn !== ''
 	&& $fin !== ''
 	&& str_contains($fin, 'ftpusername')
 	&& str_contains($fin, 'docroot')) {
-	ok('source: explicit-off webhosting gate, info fallbacks, getShowActions/$ghtml, finish backfills web');
+	ok('source: virtual overrides webhosting gate, web-body fallback, info/finish guards');
 } else {
-	bad('source: explicit-off webhosting gate, info fallbacks, getShowActions/$ghtml, finish backfills web');
+	bad('source: virtual overrides webhosting gate, web-body fallback, info/finish guards');
+}
+$coreShow = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+if (str_contains($coreShow, 'kloxo-tile-fallback')
+	&& str_contains($coreShow, 'show tiles empty')
+	&& str_contains($coreShow, 'head + $acalist + $rest')
+	&& !str_contains($coreShow, 'array_splice($aalist')) {
+	ok('source: show path seeds fallback tiles and avoids array_splice on alist');
+} else {
+	bad('source: show path seeds fallback tiles and avoids array_splice on alist');
 }
 
 $htmlLib = (string) file_get_contents($doc . '/theme/htmllib.php');

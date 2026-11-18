@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111710**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111801**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1203,20 +1203,25 @@ Work in this order. Keep every change small, tested and committed separately. Do
    (single-flight); watchdog skips a second drain while busy. Tests:
    `tests/p2/test_dropped_jobs_kick.php`, `test_domain_fast_add.php`.
    Live after upcp **UNVERIFIED**.
-   **Domain Home empty tiles + hyper-busy browser (security-wave regression):**
-   left Info/Resources showed; right tile area blank; tab kept spinning.
-   Before waves: raw `getSpecialObject('sp_specialplay')` usually worked.
-   During/after identifier/XSS/skin hardenings, a failed specialplay
-   `get()` (or any throw) aborted `print_action_block` **before any
-   section HTML** — call chain `print_action_block` → `get_expand_url` →
-   unprotected `getSpecialObject`; coredisplaylib caught it and left the
-   right column empty. Same pattern in `print_div_button` /
-   `print_div_for_divbutton`. Also: unset/`0` `webhosting_flag` looked
-   like off via `checkButton`/`isOn`; frame refresh re-armed busy.
-   Fix: `get_expand_url` / `kloxo_button_type` / `kloxo_ajax_enabled`
-   never throw; web tiles unless flag is explicitly `off`;
-   `kloxo-busy-suppress` on lpanel refresh. Tests: `test_domain_home.php`
-   (includes boom-client render). Live **UNVERIFIED**.
+   **Domain Home empty tiles (before / during / after security waves):**
+   Screenshot: Info + Resource OK, right column pure white.
+   - **BEFORE** (import): `$parent->priv->isOn('webhosting_flag')` threw on
+     null priv → whole Domain Home died.
+   - **DURING** (try/catch wave `9f28703`+): that throw (and later
+     specialplay/`createShowAlist` failures) was **swallowed** → empty
+     `$showalist` → Info/Resource still painted, **right column white**.
+     Separately, `print_action_block` → `get_expand_url` → unprotected
+     `getSpecialObject` aborted before any section HTML. Stale
+     `webhosting_flag=off` on a virtual domain forced mmail-only; if
+     mmail failed, again white. `array_splice($aalist)` could scramble
+     `__title_*` keys. Frame refresh re-armed busy.
+   - **AFTER**: virtual / existing `web_o` always gets full web tiles;
+     `createShowAlistWebBody` + non-empty fallback; show path seeds
+     fallback tiles and prints a visible error instead of a void;
+     `get_expand_url` / `kloxo_button_type` / `kloxo_ajax_enabled` never
+     throw; no `array_splice` on the tile map; busy suppress on lpanel
+     refresh. Tests: `test_domain_home.php`,
+     `test_domain_home_timeline.php`. Live **UNVERIFIED**.
    **Add Domain / Add Subdomain nginx -t `*.pem`:** empty IP/SSL list used
    to set `certnamelist = ['*' => '*']`, so Nginx templates wrote
    `ssl_certificate /home/kloxo/ssl/*.pem` and `nginx -t` aborted the add
@@ -1272,7 +1277,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111710**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111801**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

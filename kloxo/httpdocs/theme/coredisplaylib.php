@@ -420,8 +420,24 @@ function __ac_desc_show($object)
 			$acalist = array();
 		}
 
-		if ($acalist) {
-			array_splice($aalist, 1, 0, $acalist);
+		// Do not array_splice() an associative tile map — that reindexes string
+		// keys and can drop __title_* sections (security/PHP8 cleanup side effect
+		// when action lists became non-empty). Prepend with key-preserving merge.
+		if (is_array($acalist) && $acalist !== array()) {
+			if (!is_array($aalist) || $aalist === array()) {
+				$aalist = $acalist;
+			} else {
+				$head = array();
+				$rest = $aalist;
+				foreach ($aalist as $k => $v) {
+					if (is_string($k) && csb($k, '__title')) {
+						$head[$k] = $v;
+						unset($rest[$k]);
+						break;
+					}
+				}
+				$aalist = $head + $acalist + $rest;
+			}
 		}
 	}
 
@@ -462,6 +478,30 @@ function __ac_desc_show($object)
 						log_log('error', 'getFullUrl show tile: ' . $e->getMessage());
 					}
 				}
+			}
+		}
+	}
+
+	// DURING try/catch wave: createShowAlist throw → empty $showalist → blank
+	// right column while Info/Resource still show. Never leave Domain/Client
+	// Home with a white void — seed a minimal tile map and log.
+	if ((!$nalist || $nalist === array()) && !$subaction && is_object($object)
+		&& method_exists($object, 'getClass')) {
+		$oclass = strtolower((string) $object->getClass());
+		if ($oclass === 'domain' || $oclass === 'client' || $oclass === 'domaina'
+			|| $oclass === 'subdomain') {
+			if (function_exists('log_log')) {
+				log_log('error', "show tiles empty for {$oclass}; seeding fallback");
+			}
+			$nalist = array(
+				'__title_resource' => 'Actions',
+				0 => is_object($ghtml) ? $ghtml->getFullUrl('a=updateform&sa=limit') : 'a=updateform&sa=limit',
+			);
+			if ($oclass === 'domain' || $oclass === 'domaina' || $oclass === 'subdomain') {
+				$nalist[1] = is_object($ghtml)
+					? $ghtml->getFullUrl('n=web&a=show&l[class]=ffile&l[nname]=/')
+					: 'n=web&a=show&l[class]=ffile&l[nname]=/';
+				$nalist[2] = is_object($ghtml) ? $ghtml->getFullUrl('a=show&o=dns') : 'a=show&o=dns';
 			}
 		}
 	}
@@ -542,12 +582,25 @@ function __ac_desc_show($object)
 ?>
 			<td class="div_home_right" style="vertical-align:top; padding:0;">
 <?php
+			$tilesOk = false;
 			if (isset($nalist) && $nalist) {
 				try {
 					$ghtml->print_object_action_block($object, $nalist, 6);
+					$tilesOk = true;
 				} catch (Throwable $e) {
 					log_log("error", "action block: " . $e->getMessage());
+					echo '<div class="kloxo-tile-fallback" style="padding:16px;border:1px solid #c66;background:#fff8f8;color:#600">'
+						. 'Could not render actions: '
+						. htmlspecialchars($e->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+						. '</div>';
+					$tilesOk = true;
 				}
+			}
+			if (!$tilesOk && !$subaction) {
+				echo '<div class="kloxo-tile-fallback" style="padding:16px;border:1px solid #ccc;background:#fafafa;color:#333">'
+					. 'No actions available for this page. Check panel log for '
+					. '<code>createShowAlist</code> / <code>action block</code>.'
+					. '</div>';
 			}
 ?>
 			</td>
