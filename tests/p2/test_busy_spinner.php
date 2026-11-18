@@ -183,15 +183,22 @@ if ($beforeFn !== '' && str_contains($beforeFn, 'if (settled)') && str_contains(
 	bad('beforeunload does not re-arm busy after the page has settled');
 }
 $coreDisp = (string) @file_get_contents($doc . '/theme/coredisplaylib.php');
+$initShow = '';
+if (preg_match('/function do_display_init\(\)\s*\{.*?^function /sm', $coreDisp, $mInitShow) === 1) {
+	$initShow = $mInitShow[0];
+}
 if (str_contains($coreDisp, 'kloxo-busy-suppress')
 	&& str_contains($coreDisp, '__refresh_lpanel')
 	&& str_contains($coreDisp, 'KloxoBusy.hide')
 	&& str_contains($coreDisp, 'setTimeout(kloxoRefreshLpanel,750)')
 	&& !str_contains($coreDisp, 'top.topframe&&top.topframe.location')
-	&& str_contains($coreDisp, 'sessionStorage.removeItem("kloxo-busy")')) {
-	ok('lpanel refresh is delayed, skips topframe, clears busy after Domain Home tiles');
+	&& str_contains($coreDisp, 'sessionStorage.removeItem("kloxo-busy")')
+	&& $initShow !== ''
+	&& str_contains($initShow, 'set_time_limit(45)')
+	&& str_contains($initShow, "__var_no_sync = true")) {
+	ok('lpanel refresh delayed; Domain Home show caps time and skips sync');
 } else {
-	bad('lpanel refresh is delayed, skips topframe, clears busy after Domain Home tiles');
+	bad('lpanel refresh delayed; Domain Home show caps time and skips sync');
 }
 if (str_contains($js, "addEventListener('pageshow'")
 	&& str_contains($js, "doc.readyState === 'complete'")

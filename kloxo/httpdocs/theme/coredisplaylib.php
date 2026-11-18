@@ -3255,6 +3255,20 @@ function do_display_init()
 
 	check_if_disabled_and_exit();
 
+	// Domain/Client Home must not hold an FPM worker for minutes. Unlimited
+	// memory_limit + 12000s terminate used to OOM the host (systemd killed)
+	// once mesrob.com Domain Home hung. Cap this request; pool conf also caps.
+	$act = is_object($ghtml) && isset($ghtml->frm_action) ? (string) $ghtml->frm_action : '';
+	if ($act === 'show' || $act === '' || $act === 'list') {
+		if (function_exists('set_time_limit')) {
+			@set_time_limit(45);
+		}
+		@ini_set('default_socket_timeout', '15');
+		if (is_object($sgbl)) {
+			$sgbl->__var_no_sync = true;
+		}
+	}
+
 	if ($gbl->getSessionV('__refresh_lpanel') == 'true') {
 		// Defer leftframe refresh: immediate reload races Domains/Domain Home
 		// for the PHP session lock and FPM workers (tab spinner + dead clicks).

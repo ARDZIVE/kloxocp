@@ -412,6 +412,19 @@ if grep -q 'opcache.validate_timestamps' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
 else
   bad "panel FPM re-reads updated PHP files"
 fi
+# Domain Home hang used to OOM the host: unlimited memory_limit, 12000s
+# terminate, 600s socket timeout, 6 uncapped workers.
+if grep -q 'memory_limit] = 256M' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && ! grep -q 'memory_limit] = -1' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && grep -q 'request_terminate_timeout = 120s' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && ! grep -q 'request_terminate_timeout = 12000s' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && grep -q 'default_socket_timeout] = 15' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && grep -q 'pm.max_children = 4' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && grep -q 'max_execution_time] = 90' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
+  ok "panel FPM caps memory/timeouts so Domain Home cannot OOM the host"
+else
+  bad "panel FPM caps memory/timeouts so Domain Home cannot OOM the host"
+fi
 if grep -q 'listen = 127.0.0.1:39000' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
   && grep -q 'ConnectTo = 127.0.0.1:39000' "$ROOT/kloxo/init/hiawatha.conf.base" \
   && grep -q 'systemctl restart kloxo-web' "$ROOT/install.sh"; then
