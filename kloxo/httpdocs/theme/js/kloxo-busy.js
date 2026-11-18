@@ -539,6 +539,11 @@
 			suppress();
 			return;
 		}
+		// Domain Home already painted under a stuck overlay: clear it before
+		// starting the next navigation so FPM/tab "working" does not stack.
+		if (overlayOn() && doc.querySelector && doc.querySelector('.div_home_page, #show_page')) {
+			clearBusyNow();
+		}
 		var svc = serviceText(href);
 		if (svc) {
 			ev.preventDefault();

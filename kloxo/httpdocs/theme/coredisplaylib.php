@@ -608,6 +608,12 @@ function __ac_desc_show($object)
 					. '<code>createShowAlist</code> / <code>action block</code>.'
 					. '</div>';
 			}
+			// Tiles are on screen: drop Please wait... even if the request is
+			// still streaming (footer / frame refresh). Otherwise the tab keeps
+			// "working" and FPM workers stay occupied so clicks never land.
+			echo '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");'
+				. 'sessionStorage.setItem("kloxo-busy-suppress",String(Date.now()+8000));'
+				. '}catch(e0){}try{if(window.KloxoBusy){KloxoBusy.hide();}}catch(e1){}})();</script>';
 			if (function_exists('ob_get_level') && ob_get_level() > 0) {
 				@ob_flush();
 			}
@@ -3250,24 +3256,23 @@ function do_display_init()
 	check_if_disabled_and_exit();
 
 	if ($gbl->getSessionV('__refresh_lpanel') == 'true') {
-		// Defer until this page finishes: an immediate leftframe.reload() races
-		// the Domains list for the PHP session lock and FPM workers, so the
-		// browser tab keeps spinning and the domain row never paints.
-		// Suppress kloxo-busy across the frame reloads (shared sessionStorage
-		// otherwise keeps Please wait... flashing = "hyper busy").
-		print("<script>(function(){function kloxoRefreshLpanel(){try{sessionStorage.setItem('kloxo-busy-suppress',String(Date.now()+5000));sessionStorage.removeItem('kloxo-busy');}catch(e0){}try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}"
-			. "try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
-			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}}"
-			. "if(window.addEventListener){window.addEventListener('load',kloxoRefreshLpanel);}else{setTimeout(kloxoRefreshLpanel,0);}})();</script>");
+		// Defer leftframe refresh: immediate reload races Domains/Domain Home
+		// for the PHP session lock and FPM workers (tab spinner + dead clicks).
+		// Only reload leftframe (not topframe) once, after a short delay, with
+		// a long busy-suppress so Please wait... does not flash.
+		print("<script>(function(){function kloxoRefreshLpanel(){try{sessionStorage.setItem('kloxo-busy-suppress',String(Date.now()+15000));sessionStorage.removeItem('kloxo-busy');}catch(e0){}try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}"
+			. "try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}}"
+			. "function arm(){setTimeout(kloxoRefreshLpanel,750);}"
+			. "if(window.addEventListener){window.addEventListener('load',arm);}else{arm();}})();</script>");
 		$gbl->unsetSessionV('__refresh_lpanel');
 	}
 
 	if ($ghtml->frm_refresh_lpanel === 'true') {
 		unset($ghtml->__http_vars['frm_refresh_lpanel']);
-		print("<script>(function(){function kloxoRefreshLpanel(){try{sessionStorage.setItem('kloxo-busy-suppress',String(Date.now()+5000));sessionStorage.removeItem('kloxo-busy');}catch(e0){}try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}"
-			. "try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}"
-			. "try{if(top.topframe&&top.topframe.location)top.topframe.location.reload();}catch(e2){}}"
-			. "if(window.addEventListener){window.addEventListener('load',kloxoRefreshLpanel);}else{setTimeout(kloxoRefreshLpanel,0);}})();</script>");
+		print("<script>(function(){function kloxoRefreshLpanel(){try{sessionStorage.setItem('kloxo-busy-suppress',String(Date.now()+15000));sessionStorage.removeItem('kloxo-busy');}catch(e0){}try{if(window.KloxoBusy)KloxoBusy.hide();}catch(e1){}"
+			. "try{if(top.leftframe&&top.leftframe.location)top.leftframe.location.reload();}catch(e){}}"
+			. "function arm(){setTimeout(kloxoRefreshLpanel,750);}"
+			. "if(window.addEventListener){window.addEventListener('load',arm);}else{arm();}})();</script>");
 	}
 
 	createPrincipleObject();

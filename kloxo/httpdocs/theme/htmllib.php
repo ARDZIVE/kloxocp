@@ -1797,12 +1797,12 @@ class HtmlLib
 			$outputdisplay = 'none';
 		}
 
-		// Do NOT render ExtJS dialog / drag-drop scaffolding before the visible
-		// tile sections. Domain Home used to hang there after the left Info/
-		// Resource column had already flushed → white right column + stuck
-		// Please wait... while PHP-FPM workers piled up. Tiles first; ajax chrome
-		// after (best-effort).
-		$__kloxo_ajax_after_tiles = $ajax_on;
+		// Never render ExtJS dialog / drag-drop on Domain/Client Home during
+		// the show request. That scaffolding used to run before tiles (white
+		// right column) and, after we moved it, still kept the HTTP connection
+		// open so the browser tab kept spinning and FPM stayed busy — clicks
+		// then queued forever. Tile drag/dialog is optional; Home must finish.
+		$__kloxo_ajax_after_tiles = false;
 
 		if ($sgbl->isBlackBackground()) {
 			$backgimage = "{$skindir}/images/black.gif";
@@ -6201,7 +6201,7 @@ class HtmlLib
 		$this->print_jscript_source($preop_path);
 		$busyJs = str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js"));
 		if (is_string($busyJs) && $busyJs !== '' && !str_contains($busyJs, '?')) {
-			$busyJs .= '?v=10';
+			$busyJs .= '?v=11';
 		}
 		$this->print_jscript_source($busyJs);
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-toast.js")));

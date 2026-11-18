@@ -121,7 +121,7 @@ if ($domFin !== ''
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
-	&& str_contains($html, "'?v=10'")
+	&& str_contains($html, "'?v=11'")
 	&& str_contains($js, 'MAX_AGE = 8')
 	&& str_contains($js, 'function clearBusyNow')
 	&& str_contains($js, 'DELAY * 4')) {
@@ -185,10 +185,13 @@ if ($beforeFn !== '' && str_contains($beforeFn, 'if (settled)') && str_contains(
 $coreDisp = (string) @file_get_contents($doc . '/theme/coredisplaylib.php');
 if (str_contains($coreDisp, 'kloxo-busy-suppress')
 	&& str_contains($coreDisp, '__refresh_lpanel')
-	&& str_contains($coreDisp, 'KloxoBusy.hide')) {
-	ok('lpanel frame refresh suppresses busy so Domain Home is not hyper-busy');
+	&& str_contains($coreDisp, 'KloxoBusy.hide')
+	&& str_contains($coreDisp, 'setTimeout(kloxoRefreshLpanel,750)')
+	&& !str_contains($coreDisp, 'top.topframe&&top.topframe.location')
+	&& str_contains($coreDisp, 'sessionStorage.removeItem("kloxo-busy")')) {
+	ok('lpanel refresh is delayed, skips topframe, clears busy after Domain Home tiles');
 } else {
-	bad('lpanel frame refresh suppresses busy so Domain Home is not hyper-busy');
+	bad('lpanel refresh is delayed, skips topframe, clears busy after Domain Home tiles');
 }
 if (str_contains($js, "addEventListener('pageshow'")
 	&& str_contains($js, "doc.readyState === 'complete'")
