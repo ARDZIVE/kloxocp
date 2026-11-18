@@ -220,6 +220,26 @@ if ($emFn !== ''
 } else {
 	bad('Email last report redirects to LogWatch show with explicit toast keys');
 }
+if (str_contains($msgSrc, "logwatch_show__pre")
+	&& str_contains($msgSrc, 'Enable LogWatch')
+	&& str_contains($msgSrc, 'Detail Level')
+	&& str_contains($msgSrc, 'Report Range')
+	&& str_contains($msgSrc, 'Mail Reports')
+	&& str_contains($msgSrc, 'To Email')
+	&& str_contains($msgSrc, 'logwatch_updateform_emaillast_pre')
+	&& !str_contains($msgSrc, 'logwatch_updateform_update_pre')) {
+	ok('LogWatch help block explains enable + detail/range + mail');
+} else {
+	bad('LogWatch help block explains enable + detail/range + mail');
+}
+$coreShow = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
+if (str_contains($coreShow, 'willHaveForms')
+	&& str_contains($coreShow, 'createShowUpdateform')
+	&& str_contains($coreShow, 'Form-only show pages')) {
+	ok('show page skips empty action-block when updateforms exist');
+} else {
+	bad('show page skips empty action-block when updateforms exist');
+}
 // Format/frequency/hour use non-assoc 's' lists (value === entry) so the form
 // never injects "--Select One--". Range keeps assoc 'A' for the long key label.
 if (preg_match("/lw_format'\\]\\s*=\\s*array\\('s'\\s*,\\s*array\\('text'/", $lwSrc)
@@ -275,7 +295,8 @@ if (str_contains($inc, 'kloxo_logwatch.php')
 }
 
 $inst = (string) file_get_contents(dirname($root) . '/install.sh');
-if (str_contains($inst, 'prepare_logwatch') && str_contains($inst, 'logwatch \\')) {
+if (str_contains($inst, 'prepare_logwatch')
+	&& (bool) preg_match('/\blogwatch\b/', $inst)) {
 	ok('install.sh packages and prepares LogWatch');
 } else {
 	bad('install.sh packages and prepares LogWatch');

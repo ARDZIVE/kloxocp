@@ -239,6 +239,18 @@ $__information['fail2ban_updateform_whitelist_pre'] = "<p>Add one IPv4/IPv6 addr
 $__information['fail2ban_updateform_settings_pre'] = "<p>Defaults for all jails: how many failures within the find time cause a ban, and how long the ban lasts. Whitelist IPs (one per line) are never banned — or add a single address from the <b>Whitelist</b> tab.</p>";
 $__information['fail2ban_updateform_editjail_pre'] = "<p>Turn a jail on or off and give it its own limits. Empty values use the defaults from Settings.</p>";
 
+// Shown once at the top of Security → LogWatch (forms are embedded on show).
+$__information['logwatch_show__pre'] = "<p><b>LogWatch</b> summarises system logs (SSH, mail, web, auth, and more) into a scheduled report.</p>".
+	"<p>To <b>activate</b> it, tick <b>Enable LogWatch (starts the scheduled reports)</b> and click <b>Update</b>. ".
+	"Until that box is checked, no reports are generated — even if Mail Reports is on.</p>".
+	"<p>Fine-tune what each report contains with <b>Detail Level</b> (Low / Med / High) and <b>Report Range</b> ".
+	"(Yesterday, Today, All, or Last 7 days). Higher detail and wider ranges make longer reports.</p>".
+	"<p>For email delivery, leave <b>Mail Reports</b> checked and set a real <b>To Email</b> (and optional <b>From Email</b>). ".
+	"Frequency, hour, format, and retention (further down the form) control when reports run and how long they are kept under <code>/var/log/logwatch/</code>.</p>";
+
+$__information['logwatch_updateform_emaillast_pre'] = "<p>Send the newest saved report under <code>/var/log/logwatch/</code> to the <b>To Email</b> from the settings above. ".
+	"Works even when Mail Reports is off. Set a real To Email first if it is still blank or only <code>root</code>.</p>";
+
 $__information['lxguard_updateform_update_pre'] = "<p>Lxguard protects you against brute force attacks by monitoring the ssh and ftp log messages, ".
 	"and blocking ipaddresses that have too many failed attempts at logging into the server.</p>".
 	"<p>Lxguard is <b>default turned on</b>, and will automatically block hosts, and <b>cannot be turned off</b>.</p>".

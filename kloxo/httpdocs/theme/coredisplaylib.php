@@ -602,11 +602,35 @@ function __ac_desc_show($object)
 					$tilesOk = true;
 				}
 			}
+			// Form-only show pages (LogWatch, SSH Configure, …) have no tile
+			// map; their createShowUpdateform content is the page. Do not print
+			// the developer fallback as if the page were broken.
 			if (!$tilesOk && !$subaction) {
-				echo '<div class="kloxo-tile-fallback" style="padding:16px;border:1px solid #ccc;background:#fafafa;color:#333">'
-					. 'No actions available for this page. Check panel log for '
-					. '<code>createShowAlist</code> / <code>action block</code>.'
-					. '</div>';
+				$willHaveForms = false;
+				try {
+					$ufProbe = $object->createShowUpdateform();
+					if (is_array($ufProbe) && $ufProbe !== array()) {
+						$willHaveForms = true;
+					}
+				} catch (Throwable $e) {
+					log_log('error', 'createShowUpdateform probe: ' . $e->getMessage());
+				}
+				if (!$willHaveForms) {
+					try {
+						$afProbe = $object->createShowAddform();
+						if (is_array($afProbe) && $afProbe !== array()) {
+							$willHaveForms = true;
+						}
+					} catch (Throwable $e) {
+						log_log('error', 'createShowAddform probe: ' . $e->getMessage());
+					}
+				}
+				if (!$willHaveForms) {
+					echo '<div class="kloxo-tile-fallback" style="padding:16px;border:1px solid #ccc;background:#fafafa;color:#333">'
+						. 'No actions available for this page. Check panel log for '
+						. '<code>createShowAlist</code> / <code>action block</code>.'
+						. '</div>';
+				}
 			}
 			// Tiles are on screen: drop Please wait... even if the request is
 			// still streaming (footer / frame refresh). Otherwise the tab keeps
