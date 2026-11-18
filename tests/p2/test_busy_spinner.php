@@ -122,7 +122,7 @@ if ($domFin !== ''
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
-	&& str_contains($html, "'?v=13'")
+	&& (str_contains($html, "'?v=14'") || str_contains($html, '"?v=14"'))
 	&& str_contains($js, 'MAX_AGE = 3 * 60 * 1000')
 	&& str_contains($js, 'MAX_WAIT = 3 * 60 * 1000')
 	&& str_contains($js, 'DELAY = 1000')
@@ -166,13 +166,22 @@ if (str_contains($login, '/theme/js/kloxo-busy.js')) {
 } else {
 	bad('the login page includes kloxo-busy.js');
 }
-// Click/submit must beginNavigation (clear settled) or the spinner never shows
-// again after the first page's DOMContentLoaded.
+// Click/submit must beginNavigation (clear settled + clear suppress) or the
+// spinner never shows again after DCL / Domain Home leftover suppress.
+$beginFn = '';
+if (preg_match('/function beginNavigation\(\s*text,\s*shown\s*\)\s*\{.*?^\tfunction /sm', $js, $mBegin) === 1) {
+	$beginFn = $mBegin[0];
+}
 if (str_contains($js, "addEventListener('beforeunload'") && str_contains($js, 'sessionStorage')
 	&& str_contains($js, "'DOMContentLoaded'") && str_contains($js, 'arrivedFully')
 	&& str_contains($js, 'doc.documentElement')
 	&& str_contains($js, 'function beginNavigation')
-	&& str_contains($js, 'settled = false')) {
+	&& str_contains($js, 'function clearSuppress')
+	&& str_contains($js, 'settled = false')
+	&& $beginFn !== ''
+	&& str_contains($beginFn, 'clearSuppress()')
+	&& !str_contains($beginFn, 'isSuppressed()')
+	&& str_contains($js, "overlay.style.display = 'flex'")) {
 	ok('JS shows the modal on click/submit and resets settled so later navigations work');
 } else {
 	bad('JS shows the modal on click/submit and resets settled so later navigations work');
@@ -195,6 +204,14 @@ $initShow = '';
 if (preg_match('/function do_display_init\(\)\s*\{.*?^function /sm', $coreDisp, $mInitShow) === 1) {
 	$initShow = $mInitShow[0];
 }
+// Domain Home tiles clear leftover busy only (no 8s suppress that blocked clicks).
+// __refresh_lpanel still sets a short suppress for automatic frame reloads.
+$tileBusyClear = str_contains($coreDisp, 'Tiles are on screen')
+	|| str_contains($coreDisp, 'drop leftover Please wait');
+$homeSuppress8s = preg_match(
+	'/Tiles are on screen.*?kloxo-busy-suppress.*?8000/s',
+	$coreDisp
+) === 1;
 if (str_contains($coreDisp, 'kloxo-busy-suppress')
 	&& str_contains($coreDisp, '__refresh_lpanel')
 	&& str_contains($coreDisp, 'KloxoBusy.hide')
@@ -202,6 +219,8 @@ if (str_contains($coreDisp, 'kloxo-busy-suppress')
 	&& !str_contains($coreDisp, 'leftframe.location.reload')
 	&& !str_contains($coreDisp, 'top.topframe&&top.topframe.location')
 	&& str_contains($coreDisp, 'sessionStorage.removeItem("kloxo-busy")')
+	&& $tileBusyClear
+	&& !$homeSuppress8s
 	&& $initShow !== ''
 	&& str_contains($initShow, 'set_time_limit(45)')
 	&& str_contains($initShow, "__var_no_sync = true")) {

@@ -236,10 +236,11 @@ $coreShow = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 if (str_contains($coreShow, 'willHaveForms')
 	&& str_contains($coreShow, 'createShowUpdateform')
 	&& str_contains($coreShow, "\$ocls === 'ffile'")
+	&& str_contains($coreShow, "\$ocls === 'sshclient'")
 	&& str_contains($coreShow, 'Form-only / file-browser')) {
-	ok('show page skips empty action-block for forms and File Manager');
+	ok('show page skips empty action-block for forms, File Manager, SSH Terminal');
 } else {
-	bad('show page skips empty action-block for forms and File Manager');
+	bad('show page skips empty action-block for forms, File Manager, SSH Terminal');
 }
 // Format/frequency/hour use non-assoc 's' lists (value === entry) so the form
 // never injects "--Select One--". Range keeps assoc 'A' for the long key label.

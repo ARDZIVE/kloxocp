@@ -141,6 +141,20 @@
 		return false;
 	}
 
+	/** User clicks/submits must always show busy; suppress is only for auto frame reloads. */
+	function clearSuppress() {
+		var s = store();
+		if (!s) {
+			return;
+		}
+		try {
+			s.removeItem(SUPPRESS_KEY);
+		} catch (e) {
+			// ignore
+		}
+		suppressUntil = 0;
+	}
+
 	function refreshTarget() {
 		var metas = doc.getElementsByTagName('meta');
 		for (var i = 0; i < metas.length; i++) {
@@ -208,41 +222,51 @@
 	}
 
 	function build() {
-		if (overlay) {
+		if (overlay && overlay.parentNode) {
 			return;
 		}
 		var host = doc.body || doc.documentElement;
 		if (!host) {
 			return;
 		}
-		var css = doc.createElement('style');
-		css.type = 'text/css';
-		css.appendChild(doc.createTextNode(
-			'#kloxo-busy{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;' +
-			'background:rgba(0,0,0,.45);align-items:center;justify-content:center}' +
-			'#kloxo-busy.on{display:flex;align-items:center;justify-content:center}' +
-			'#kloxo-busy .kb-box{background:#fff;border-radius:8px;padding:22px 34px;min-width:220px;max-width:90%;' +
-			'text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4);font:14px Arial,Helvetica,sans-serif;color:#333}' +
-			'#kloxo-busy img{width:64px;height:64px;display:block;margin:0 auto 10px;background:#fff}'
-		));
-		(doc.head || doc.getElementsByTagName('head')[0] || host).appendChild(css);
+		if (!doc.getElementById('kloxo-busy-style')) {
+			var css = doc.createElement('style');
+			css.id = 'kloxo-busy-style';
+			css.type = 'text/css';
+			css.appendChild(doc.createTextNode(
+				'#kloxo-busy{display:none !important;position:fixed !important;left:0;top:0;right:0;bottom:0;' +
+				'z-index:2147483646 !important;background:rgba(0,0,0,.45) !important;' +
+				'align-items:center;justify-content:center}' +
+				'#kloxo-busy.on{display:flex !important}' +
+				'#kloxo-busy .kb-box{background:#fff;border-radius:8px;padding:22px 34px;min-width:220px;max-width:90%;' +
+				'text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4);font:14px Arial,Helvetica,sans-serif;color:#333}' +
+				'#kloxo-busy img{width:64px;height:64px;display:block;margin:0 auto 10px;background:#fff}'
+			));
+			(doc.head || doc.getElementsByTagName('head')[0] || host).appendChild(css);
+		}
 
-		overlay = doc.createElement('div');
-		overlay.id = 'kloxo-busy';
-		overlay.setAttribute('role', 'alertdialog');
-		overlay.setAttribute('aria-busy', 'true');
-		var box = doc.createElement('div');
-		box.className = 'kb-box';
-		var img = doc.createElement('img');
-		img.src = '/theme/img/kloxo-spinner.gif?v=3';
-		img.alt = '';
-		img.width = 64;
-		img.height = 64;
-		label = doc.createElement('div');
-		box.appendChild(img);
-		box.appendChild(label);
-		overlay.appendChild(box);
-		host.appendChild(overlay);
+		overlay = doc.getElementById('kloxo-busy');
+		if (!overlay) {
+			overlay = doc.createElement('div');
+			overlay.id = 'kloxo-busy';
+			overlay.setAttribute('role', 'alertdialog');
+			overlay.setAttribute('aria-busy', 'true');
+			overlay.setAttribute('aria-live', 'assertive');
+			var box = doc.createElement('div');
+			box.className = 'kb-box';
+			var img = doc.createElement('img');
+			img.src = '/theme/img/kloxo-spinner.gif?v=3';
+			img.alt = '';
+			img.width = 64;
+			img.height = 64;
+			label = doc.createElement('div');
+			box.appendChild(img);
+			box.appendChild(label);
+			overlay.appendChild(box);
+			host.appendChild(overlay);
+		} else if (!label) {
+			label = overlay.querySelector('.kb-box div') || overlay.querySelector('div');
+		}
 	}
 
 	function cancelPending() {
@@ -310,24 +334,25 @@
 	}
 
 	function overlayOn() {
-		return !!overlay && overlay.className === 'on';
+		return !!overlay && (overlay.className === 'on' || overlay.style.display === 'flex');
 	}
 
-	/** Leaving this page: allow showSoon again (settled was true after DCL). */
+	/**
+	 * User click/submit: always arm busy. Domain Home / frame-refresh may set
+	 * kloxo-busy-suppress so auto reloads do not flash Please wait — that must
+	 * never block a deliberate Start/Stop/Update (it left settled=true and the
+	 * modal never appeared).
+	 */
 	function beginNavigation(text, shown) {
-		if (isSuppressed()) {
-			flagClear();
-			return;
-		}
+		clearSuppress();
 		settled = false;
 		navToken += 1;
 		flagSet(text || DEFAULT_TEXT, !!shown);
 	}
 
 	function present(text) {
-		if (settled) {
-			return;
-		}
+		// Force visible even if a prior DCL left settled=true.
+		settled = false;
 		api.show(text);
 		startRotate(text || DEFAULT_TEXT);
 		armMaxWait();
@@ -363,6 +388,12 @@
 			}
 			setLabel(text || DEFAULT_TEXT);
 			overlay.className = 'on';
+			// Inline styles so a theme CSS rule cannot keep display:none.
+			overlay.style.display = 'flex';
+			overlay.style.visibility = 'visible';
+			overlay.style.opacity = '1';
+			overlay.style.pointerEvents = 'auto';
+			overlay.style.zIndex = '2147483646';
 		},
 		hide: function () {
 			cancelPending();
@@ -370,6 +401,8 @@
 			cancelRotate();
 			if (overlay) {
 				overlay.className = '';
+				overlay.style.display = 'none';
+				overlay.style.visibility = 'hidden';
 			}
 		}
 	};

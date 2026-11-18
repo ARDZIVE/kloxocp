@@ -610,7 +610,8 @@ function __ac_desc_show($object)
 				$ocls = method_exists($object, 'getClass')
 					? strtolower((string) $object->getClass()) : '';
 				// File Manager (incl. Backup → File Manager) is a listing page.
-				if ($ocls === 'ffile') {
+				// SSH Terminal paints its own WebConsole via showRawPrint — no tiles.
+				if ($ocls === 'ffile' || $ocls === 'sshclient') {
 					$willHaveForms = true;
 				}
 				if (!$willHaveForms) {
@@ -650,11 +651,12 @@ function __ac_desc_show($object)
 						. '</div>';
 				}
 			}
-			// Tiles are on screen: drop Please wait... even if the request is
-			// still streaming (footer / frame refresh). Otherwise the tab keeps
-			// "working" and FPM workers stay occupied so clicks never land.
+			// Tiles are on screen: drop leftover Please wait... from the request
+			// that opened this page. Do NOT set kloxo-busy-suppress here — that
+			// blocked Start/Stop/Update clicks for 8s (beginNavigation returned
+			// early and the modal never appeared). Frame-refresh suppress stays
+			// only on the __refresh_lpanel path below.
 			echo '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");'
-				. 'sessionStorage.setItem("kloxo-busy-suppress",String(Date.now()+8000));'
 				. '}catch(e0){}try{if(window.KloxoBusy){KloxoBusy.hide();}}catch(e1){}})();</script>';
 			if (function_exists('ob_get_level') && ob_get_level() > 0) {
 				@ob_flush();
