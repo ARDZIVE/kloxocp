@@ -3762,7 +3762,14 @@ abstract class Lxclass
 					$this->setUpdateSubaction();
 				}
 				if (!is_object($vv)) {
-					$this->$key = new $key(null, null, $this->nname);
+					// Removed legacy *_b classes (e.g. aspnetconf_b) must not
+					// fatal on client/domain delete when the DB still has ser_*.
+					if (class_exists($key)) {
+						$this->$key = new $key(null, null, $this->nname);
+					} else {
+						$this->$key = null;
+						continue;
+					}
 				} else {
 					$this->$key = $vv;
 				}
@@ -3796,6 +3803,11 @@ abstract class Lxclass
 				if ($value === false) {
 					dprint("Unserialize failed: {$this->get__table()}: {$key}\n", 3);
 					if (cse($key, "_b") && !is_object($value)) {
+						if (!class_exists($key)) {
+							$this->$key = null;
+
+							continue;
+						}
 						$value = new $key(null, null, $this->nname);
 						$this->$key = $value;
 
@@ -3804,6 +3816,11 @@ abstract class Lxclass
 				} else {
 					if (cse($key, "_b") && !is_object($value)) {
 						dprint("Unserialize failed: {$this->get__table()}: {$key}\n", 3);
+						if (!class_exists($key)) {
+							$this->$key = null;
+
+							continue;
+						}
 						$value = new $key(null, null, $this->nname);
 						$this->$key = $value;
 

@@ -73,9 +73,9 @@ $web = (string) file_get_contents($root . '/kloxo/httpdocs/driver/web/weblib.php
 expect(
 	str_contains($def, 'security QQ5')
 	&& !preg_match('/^\s*\$gl_class_array\["aspnet"\]/m', $def)
-	&& str_contains($web, 'security QQ5')
-	&& !preg_match('/^\s*class aspnetconf_b/m', $web),
-	'QQ5 aspnet unregistered'
+	&& str_contains($web, 'security QQ5 / PP4')
+	&& (bool) preg_match('/^\s*class aspnetconf_b extends Lxaclass/m', $web),
+	'QQ5 aspnet unregistered (empty aspnetconf_b stub kept for legacy DB)'
 );
 
 $lxlib = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/lxlib.php');

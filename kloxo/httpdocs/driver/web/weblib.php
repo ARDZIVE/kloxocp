@@ -7,10 +7,13 @@ class webmisc_b extends Lxaclass
 	static $__desc_disable_openbasedir = array("f", "", "disable_openbasedir");
 }
 
-// ASP.NET config class removed on Ubuntu (security QQ5 / PP4).
-// class aspnetconf_b extends lxaclass
-// {
-// }
+// ASP.NET is not offered on Ubuntu (security QQ5 / PP4), but legacy web rows
+// still carry ser_aspnetconf_b. Deleting a client loads those rows and
+// setFromArray does `new aspnetconf_b` when unserialize fails — keep an empty
+// stub so Admin → delete client does not toast Class "aspnetconf_b" not found.
+class aspnetconf_b extends Lxaclass
+{
+}
 
 class phpconfig_b extends Lxaclass
 {

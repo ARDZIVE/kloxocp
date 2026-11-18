@@ -383,6 +383,11 @@ if php "$HERE/test_multiserver.php"; then
 else
   bad "test_multiserver.php"
 fi
+if php "$HERE/test_aspnetconf_stub.php"; then
+  ok "test_aspnetconf_stub.php"
+else
+  bad "test_aspnetconf_stub.php"
+fi
 if grep -q 'function AddListForm' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
   && grep -q 'nnameIsValid' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
   && grep -q 'failedlist = array()' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" \
