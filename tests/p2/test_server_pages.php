@@ -803,11 +803,11 @@ if (is_array($rows)
 $src = file_get_contents($doc . '/lib/php/lxlib.php');
 if (is_string($src) && str_contains($src, 'function kloxo_skip_find_class')
 	&& str_contains($src, "'sshconfig', 'lxguard', 'ufwfirewall', 'fail2ban', 'sshclient', 'ffile', 'ticket', 'notification'")
-	&& str_contains($src, "'lxupdate', 'dns', 'dnstemplate', 'dns_record_a', 'web', 'servermail', 'mail_graylist_wlist_a'")
+	&& str_contains($src, "'lxupdate', 'dns', 'dnstemplate', 'dns_record_a', 'web', 'mmail', 'servermail', 'mail_graylist_wlist_a'")
 	&& str_contains($src, "'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist'")) {
-	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns show pages');
+	ok('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns/mail show pages');
 } else {
-	bad('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns show pages');
+	bad('Find column is skipped on log/driver/php/backup/webserver/ssh/lxguard/file/ticket/notification/update/dns/mail show pages');
 }
 if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('lxguard')
@@ -822,13 +822,14 @@ if (function_exists('kloxo_skip_find_class')
 	&& kloxo_skip_find_class('dnstemplate')
 	&& kloxo_skip_find_class('dns_record_a')
 	&& kloxo_skip_find_class('web')
+	&& kloxo_skip_find_class('mmail')
 	&& kloxo_skip_find_class('dbadmin')
 	&& kloxo_skip_find_class('mailqueue')
 	&& !kloxo_skip_find_class('tickethistory')
 	&& !kloxo_skip_find_class('client')) {
-	ok('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS, Mail Queue and PHPinfo pages skip the Find input');
+	ok('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS, Mail, Mail Queue and PHPinfo pages skip the Find input');
 } else {
-	bad('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS, Mail Queue and PHPinfo pages skip the Find input');
+	bad('LxGuard, UFW Firewall, HelpDesk ticket, Notification, Update, Manage DNS, Mail, Mail Queue and PHPinfo pages skip the Find input');
 }
 
 $showSrc = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
