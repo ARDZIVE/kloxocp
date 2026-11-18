@@ -1425,6 +1425,19 @@ function __ac_desc_delete($object)
 
 	if ($ghtml->frm_confirmed === "yes") {
 		do_desc_delete($object, $cname, $ll);
+		// Admin → Clients → mesrob → Domains: deletes sit on $object (mesrob),
+		// but lx_frm_inc only calls $login->was() (admin). Write the list
+		// deletes on the real parent so SQLite actually drops the rows.
+		if (function_exists('kloxo_finish_list_delete') && is_object($object)
+			&& is_string($cname) && $cname !== '' && $cname !== 'dnstemplate') {
+			try {
+				kloxo_finish_list_delete($object, $cname, $ll);
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'finish list delete: ' . $e->getMessage());
+				}
+			}
+		}
 		$desc = get_classvar_description($cname);
 		$ret = $gbl->getSessionV("lx_delete_return_url");
 		if (!is_string($ret) || $ret === '') {
@@ -1793,6 +1806,18 @@ function __ac_desc_Update($object)
 			foreach ($list as $l) {
 				$ob = $object->getFromList($class, $l);
 				$ret = do_update($ob, $subaction, null);
+				// Multi-select update under a non-login parent: persist each
+				// child now so a later $login->was() cannot skip the row.
+				if (is_object($ob) && isset($ob->nname)
+					&& function_exists('kloxo_finish_list_child_was')) {
+					try {
+						kloxo_finish_list_child_was($object, (string) $class, (string) $ob->nname);
+					} catch (Throwable $e) {
+						if (function_exists('log_log')) {
+							log_log('error', 'finish list update was: ' . $e->getMessage());
+						}
+					}
+				}
 			}
 		}
 	}
@@ -2187,7 +2212,7 @@ function __ac_desc_add($object, $param = null)
 		if ($nname === '' && is_object($ghtml) && isset($ghtml->__http_vars['frm_client_c_nname'])) {
 			$nname = trim((string) $ghtml->__http_vars['frm_client_c_nname']);
 		}
-		kloxo_finish_client_add($nname);
+		kloxo_finish_client_add($nname, $object);
 	}
 	// Add Domain / Subdomain: same pattern — do not wait on nginx/DNS/mail sync.
 	if (($class === 'domain' || $class === 'subdomain') && function_exists('kloxo_finish_domain_add')) {
@@ -2202,6 +2227,20 @@ function __ac_desc_add($object, $param = null)
 			}
 		}
 		kloxo_finish_domain_add($nname, $object);
+	}
+	// Add Database / FTP / Mail / Cron / SSL / etc. under a client or domain:
+	// write the new child on the real parent (same toast-without-row class as
+	// domain delete). Domain/Client/DNS template already exited above.
+	if ($class !== 'client' && $class !== 'domain' && $class !== 'subdomain'
+		&& $class !== 'dnstemplate' && $class !== 'vps'
+		&& is_object($object) && function_exists('kloxo_finish_list_adds')) {
+		try {
+			kloxo_finish_list_adds($object, (string) $class);
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'finish list adds: ' . $e->getMessage());
+			}
+		}
 	}
 }
 
@@ -3660,6 +3699,31 @@ function lx_frm_inc()
 			kloxo_close_client_connection();
 		}
 		try {
+			// Mutations (delete domain under a client, etc.) live on $cobject.
+			// $login->was() alone never walks that tree when admin is not the parent.
+			if (function_exists('kloxo_persist_cobject_was')) {
+				kloxo_persist_cobject_was($cobject);
+			} elseif (is_object($cobject) && $cobject !== $login
+				&& method_exists($cobject, 'was')) {
+				try {
+					$cobject->was();
+				} catch (Throwable $coEx) {
+					log_log('error', 'cobject was: ' . $coEx->getMessage());
+					if (function_exists('kloxo_skip_was_now')) {
+						kloxo_skip_was_now();
+					}
+					try {
+						$cobject->metadbaction = 'writeonly';
+						$cobject->was();
+					} catch (Throwable $coEx2) {
+						log_log('error', 'cobject writeonly was: ' . $coEx2->getMessage());
+					}
+					$GLOBALS['kloxo_skip_was'] = false;
+					if (is_object($gbl)) {
+						$gbl->__kloxo_skip_was = false;
+					}
+				}
+			}
 			$login->was();
 		} catch (Throwable $wasEx) {
 			// Only Backup/Restore may keep a success redirect after was() fails
@@ -3678,6 +3742,12 @@ function lx_frm_inc()
 				try {
 					if (function_exists('kloxo_skip_was_now')) {
 						kloxo_skip_was_now();
+					}
+					if (function_exists('kloxo_persist_cobject_was')) {
+						kloxo_persist_cobject_was($cobject);
+					} elseif (is_object($cobject) && $cobject !== $login
+						&& method_exists($cobject, 'was')) {
+						$cobject->was();
 					}
 					if (is_object($login) && method_exists($login, 'was')) {
 						$login->was();

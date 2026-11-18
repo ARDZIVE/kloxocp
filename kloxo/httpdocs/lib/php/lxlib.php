@@ -3998,6 +3998,227 @@ function kloxo_ensure_client_unix(string $nname): array
 }
 
 /**
+ * Persist one unclean list child on the real parent. Admin → Clients →
+ * mesrob → Add Database (etc.): $login->was() never walks mesrob's lists
+ * when mesrob itself is still clean and client_l is readonly.
+ */
+function kloxo_finish_list_child_was(object $parent, string $class, string $nname): bool
+{
+	$class = trim($class);
+	$nname = trim($nname);
+	if ($class === '' || $nname === '' || !is_object($parent)) {
+		return false;
+	}
+	$list = $class . '_l';
+	$obj = null;
+	if (isset($parent->{$list}) && is_array($parent->{$list})) {
+		if (isset($parent->{$list}[$nname]) && is_object($parent->{$list}[$nname])) {
+			$obj = $parent->{$list}[$nname];
+		} else {
+			$want = strtolower($nname);
+			foreach ($parent->{$list} as $cand) {
+				if (!is_object($cand) || !isset($cand->nname)) {
+					continue;
+				}
+				if (strtolower((string) $cand->nname) === $want) {
+					$obj = $cand;
+					break;
+				}
+			}
+		}
+	}
+	if (!is_object($obj) && method_exists($parent, 'getFromList')) {
+		try {
+			$obj = $parent->getFromList($class, $nname);
+		} catch (Throwable $e) {
+			$obj = null;
+		}
+	}
+	if (!is_object($obj)) {
+		return false;
+	}
+	try {
+		if (method_exists($obj, 'was')) {
+			$obj->was();
+		} elseif (method_exists($obj, 'write')) {
+			$obj->write();
+		} else {
+			return false;
+		}
+
+		return true;
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('error', "finish list child was {$class}/{$nname}: " . $e->getMessage());
+		}
+		try {
+			if (method_exists($obj, 'write')) {
+				$obj->metadbaction = 'writeonly';
+				$obj->write();
+
+				return true;
+			}
+		} catch (Throwable $e2) {
+			if (function_exists('log_log')) {
+				log_log('error', "finish list child force {$class}/{$nname}: " . $e2->getMessage());
+			}
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Persist every newly-added child on a parent list (dbaction=add). Used after
+ * Add Database / FTP / Mail / Cron / SSL / nested Client when the toast would
+ * otherwise fire while $login->was() never wrote the row.
+ */
+function kloxo_finish_list_adds(object $parent, string $class): int
+{
+	$class = trim($class);
+	if ($class === '' || !is_object($parent)) {
+		return 0;
+	}
+	$list = $class . '_l';
+	if (!isset($parent->{$list}) || !is_array($parent->{$list})) {
+		return 0;
+	}
+	$n = 0;
+	foreach ($parent->{$list} as $obj) {
+		if (!is_object($obj) || !isset($obj->dbaction) || $obj->dbaction !== 'add') {
+			continue;
+		}
+		$name = isset($obj->nname) ? (string) $obj->nname : '';
+		if ($name === '') {
+			continue;
+		}
+		if (kloxo_finish_list_child_was($parent, $class, $name)) {
+			$n++;
+		}
+	}
+
+	return $n;
+}
+
+/**
+ * $login->was() never walks a non-login $cobject tree when that object is
+ * still clean and sits on a readonly list (client_l RqdtLB). Call this before
+ * $login->was() after any mutate on $cobject.
+ */
+function kloxo_persist_cobject_was($cobject): void
+{
+	global $login, $gbl;
+
+	if (!is_object($cobject) || !is_object($login) || $cobject === $login
+		|| !method_exists($cobject, 'was')) {
+		return;
+	}
+	try {
+		$cobject->was();
+	} catch (Throwable $coEx) {
+		if (function_exists('log_log')) {
+			log_log('error', 'cobject was: ' . $coEx->getMessage());
+		}
+		if (function_exists('kloxo_skip_was_now')) {
+			kloxo_skip_was_now();
+		}
+		try {
+			$cobject->metadbaction = 'writeonly';
+			$cobject->was();
+		} catch (Throwable $coEx2) {
+			if (function_exists('log_log')) {
+				log_log('error', 'cobject writeonly was: ' . $coEx2->getMessage());
+			}
+		}
+		$GLOBALS['kloxo_skip_was'] = false;
+		if (is_object($gbl)) {
+			$gbl->__kloxo_skip_was = false;
+		}
+	}
+}
+
+/**
+ * Persist list deletes on the real parent object. Admin viewing Clients →
+ * mesrob → Domains only runs $login->was() afterward; that never walks
+ * mesrob's domain_l, so the toast said Deleted while SQLite kept the row.
+ *
+ * @param list<string>|array $names
+ */
+function kloxo_finish_list_delete(object $parent, string $class, array $names): void
+{
+	$class = trim($class);
+	if ($class === '' || !is_object($parent)) {
+		return;
+	}
+	$list = $class . '_l';
+	foreach ($names as $name) {
+		$name = trim((string) $name);
+		if ($name === '') {
+			continue;
+		}
+		$obj = null;
+		if (isset($parent->{$list}) && is_array($parent->{$list})
+			&& isset($parent->{$list}[$name]) && is_object($parent->{$list}[$name])) {
+			$obj = $parent->{$list}[$name];
+		} elseif (method_exists($parent, 'getFromList')) {
+			try {
+				$obj = $parent->getFromList($class, $name);
+			} catch (Throwable $e) {
+				$obj = null;
+			}
+		}
+		if (!is_object($obj)) {
+			// Last resort: load by nname and delete the SQLite row.
+			try {
+				if (class_exists($class, false) || class_exists($class)) {
+					$obj = new $class(null, 'localhost', $name);
+					if (method_exists($obj, 'get')) {
+						$obj->get();
+					}
+				}
+			} catch (Throwable $e) {
+				$obj = null;
+			}
+		}
+		if (!is_object($obj)) {
+			continue;
+		}
+		try {
+			if (!isset($obj->dbaction)
+				|| ($obj->dbaction !== 'delete' && $obj->dbaction !== 'delete_done')) {
+				if (method_exists($obj, 'delete')) {
+					$obj->delete();
+				} else {
+					$obj->dbaction = 'delete';
+				}
+			}
+			if (method_exists($obj, 'was')) {
+				$obj->was();
+			} elseif (method_exists($obj, 'write')) {
+				$obj->write();
+				$obj->dbaction = 'delete_done';
+			}
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', "finish list delete {$class}/{$name}: " . $e->getMessage());
+			}
+			try {
+				if (method_exists($obj, 'write')) {
+					$obj->metadbaction = 'writeonly';
+					$obj->dbaction = 'delete';
+					$obj->write();
+					$obj->dbaction = 'delete_done';
+				}
+			} catch (Throwable $e2) {
+				if (function_exists('log_log')) {
+					log_log('error', "finish list delete force {$class}/{$name}: " . $e2->getMessage());
+				}
+			}
+		}
+	}
+}
+
+/**
  * Delete everything owned by a client (domains, DBs, ftp, mail, cron, SSL,
  * nested clients). Called from Client::deleteSpecific before the parent row
  * goes. Each child is deleted + written; failures are logged and the rest continue.
@@ -4597,7 +4818,7 @@ function kloxo_drain_sync_request_file(
  * queue useradd/mail for kloxo-backend/watchdog. Never Location-redirect and
  * never spawn workers from this FPM request.
  */
-function kloxo_finish_client_add(string $nname): void
+function kloxo_finish_client_add(string $nname, $parent = null): void
 {
 	global $login;
 
@@ -4608,24 +4829,64 @@ function kloxo_finish_client_add(string $nname): void
 
 	$nname = trim($nname);
 	$wrote = false;
-	if ($nname !== '' && is_object($login) && isset($login->client_l)
-		&& is_array($login->client_l) && isset($login->client_l[$nname])
-		&& is_object($login->client_l[$nname]) && method_exists($login->client_l[$nname], 'was')) {
+	// Client client_l is readonly (RqdtLB): parent->was() never persists
+	// nested customers. Admin → reseller → Add Client must write from the
+	// reseller's list, not only $login->client_l.
+	$owners = array();
+	if (is_object($parent)) {
+		$owners[] = $parent;
+	}
+	if (is_object($login) && (!is_object($parent) || $login !== $parent)) {
+		$owners[] = $login;
+	}
+	foreach ($owners as $owner) {
+		if ($nname === '' || !isset($owner->client_l) || !is_array($owner->client_l)
+			|| !isset($owner->client_l[$nname]) || !is_object($owner->client_l[$nname])
+			|| !method_exists($owner->client_l[$nname], 'was')) {
+			continue;
+		}
 		try {
-			$login->client_l[$nname]->was();
+			$owner->client_l[$nname]->was();
 			$wrote = true;
+			break;
 		} catch (Throwable $e) {
 			if (function_exists('log_log')) {
 				log_log('error', 'client add local write (child): ' . $e->getMessage());
 			}
+			try {
+				$owner->client_l[$nname]->metadbaction = 'writeonly';
+				$owner->client_l[$nname]->write();
+				$wrote = true;
+				break;
+			} catch (Throwable $e2) {
+				if (function_exists('log_log')) {
+					log_log('error', 'client add force write: ' . $e2->getMessage());
+				}
+			}
 		}
 	}
-	if (!$wrote && is_object($login) && method_exists($login, 'was')) {
-		try {
-			$login->was();
-		} catch (Throwable $e) {
-			if (function_exists('log_log')) {
-				log_log('error', 'client add local write: ' . $e->getMessage());
+	if (!$wrote && $nname !== '' && function_exists('kloxo_finish_list_child_was')) {
+		foreach ($owners as $owner) {
+			if (kloxo_finish_list_child_was($owner, 'client', $nname)) {
+				$wrote = true;
+				break;
+			}
+		}
+	}
+	if (!$wrote) {
+		$writer = null;
+		if (is_object($parent) && method_exists($parent, 'was')) {
+			$writer = $parent;
+		} elseif (is_object($login) && method_exists($login, 'was')) {
+			$writer = $login;
+		}
+		if (is_object($writer)) {
+			try {
+				$writer->was();
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'client add local write: ' . $e->getMessage());
+				}
 			}
 		}
 	}

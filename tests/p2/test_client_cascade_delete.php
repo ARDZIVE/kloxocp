@@ -76,5 +76,13 @@ expect(
 	'cascade function signature is typed object'
 );
 
+expect(
+	str_contains($lx, 'function kloxo_finish_list_delete')
+	&& str_contains($disp, 'kloxo_finish_list_delete')
+	&& (str_contains($disp, 'kloxo_persist_cobject_was')
+		|| (str_contains($disp, 'cobject was:') && str_contains($disp, '$cobject->was()'))),
+	'domain delete persists via parent was / finish_list_delete (not only login->was)'
+);
+
 echo "\n{$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);

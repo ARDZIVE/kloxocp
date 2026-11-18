@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111810**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111811**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1190,6 +1190,16 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Tests: `tests/p2/test_domain_fast_add.php`, `test_busy_spinner.php`. Live
    Add Domain after this path is **UNVERIFIED** (list may show the domain
    before web/DNS/mail finish).
+   **Toast success without SQLite persist (same class as domain delete):**
+   Admin → client → list add/update/delete mutated `$cobject` but only
+   `$login->was()` ran; readonly `client_l` / `domain_l` / `mailaccount_l`
+   skipped unclean children when the parent stayed clean. Fix:
+   `kloxo_finish_list_delete` / `kloxo_finish_list_adds` /
+   `kloxo_finish_list_child_was`, `kloxo_persist_cobject_was` before
+   `$login->was()`, `kloxo_finish_client_add($nname, $parent)` for nested
+   reseller Add Client, `writeAChildList` unclean-readonly writes. Tests:
+   `tests/p2/test_persist_was.php`, `test_client_cascade_delete.php`. Live
+   after upcp **UNVERIFIED**.
    **Add Domain toast + blank Domains row + tab spinner:** after fast-add the
    list showed `(1 to 1 of 1)` with no row while the browser tab kept loading.
    Causes: (1) `__refresh_lpanel` reloaded left/top frames immediately and
@@ -1288,7 +1298,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111810**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111811**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

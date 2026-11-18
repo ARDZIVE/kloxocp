@@ -305,6 +305,11 @@ if php "$HERE/test_client_cascade_delete.php"; then
 else
   bad "test_client_cascade_delete.php"
 fi
+if php "$HERE/test_persist_was.php"; then
+  ok "test_persist_was.php"
+else
+  bad "test_persist_was.php"
+fi
 if php "$HERE/test_knot.php"; then
   ok "test_knot.php"
 else

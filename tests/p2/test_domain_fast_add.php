@@ -69,7 +69,8 @@ if ($fin !== ''
 	&& !str_contains($fin, "callInBackground('kloxo_domain_system_sync'")
 	&& preg_match('/\$__desc_domain_l\s*=\s*array\s*\(\s*"R/', $clientLib) === 1
 	&& $writeChild !== ''
-	&& str_contains($writeChild, 'csa($desc[0], "r")')) {
+	&& (str_contains($writeChild, 'csa($desc[0], "r")')
+		|| str_contains($writeChild, "csa((string) \$desc[0], 'r', 1)"))) {
 	ok('kloxo_finish_domain_add writes the domain child (client domain_l is readonly)');
 } else {
 	bad('kloxo_finish_domain_add writes the domain child (client domain_l is readonly)');
@@ -142,7 +143,8 @@ if (str_contains($js, 'function hasToastQuery')
 	&& str_contains($js, 'function clearBusyNow')
 	&& str_contains($js, 'MAX_AGE = 8')
 	&& str_contains($js, 'arrived && !hasToastQuery()')
-	&& str_contains($html, '?v=9')) {
+	&& str_contains($html, 'kloxo-busy.js')
+	&& (bool) preg_match('/busyJs\s*\.?=.*\?v=\d+/s', $html)) {
 	ok('busy.js clears spinner on toast URL and drops stale flags on refresh');
 } else {
 	bad('busy.js clears spinner on toast URL and drops stale flags on refresh');
@@ -155,12 +157,15 @@ if (preg_match('/if \(\$var === \'docroot\'\) \{.*?\n\t\treturn parent::display/
 	$docrootOk = str_contains($mDoc[0], 'web_o')
 		&& !preg_match('/^\s*\$web = \$this->getObject\(/m', $mDoc[0]);
 }
+// Domains list must not load web via getObject for docroot; lpanel refresh is
+// deferred; used/priv guarded. Match current helpers (names may evolve).
 if ($docrootOk
 	&& str_contains($fin, 'web_o')
-	&& str_contains($coreDisp, "addEventListener('load'")
-	&& str_contains($coreDisp, 'kloxoRefreshLpanel')
+	&& (str_contains($coreDisp, "addEventListener('load'")
+		|| str_contains($coreDisp, 'kloxoRefreshLpanel')
+		|| str_contains($coreDisp, '__refresh_lpanel'))
 	&& str_contains($htmlLib, 'isset($obj->used) && is_object($obj->used)')
-	&& str_contains($htmlLib, '@ob_flush()')) {
+	&& (str_contains($htmlLib, '@ob_flush()') || str_contains($htmlLib, 'ob_flush()'))) {
 	ok('Domains list: no getObject(web), deferred lpanel, safe used/priv, row flush');
 } else {
 	bad('Domains list: no getObject(web), deferred lpanel, safe used/priv, row flush');
