@@ -39,6 +39,7 @@ function kloxo_background_allowed_functions(): array
 		// Add Client / Add Domain system sync (drain → background.php jobs).
 		'kloxo_client_system_sync',
 		'kloxo_domain_system_sync',
+		'kloxo_client_home_purge',
 	];
 }
 

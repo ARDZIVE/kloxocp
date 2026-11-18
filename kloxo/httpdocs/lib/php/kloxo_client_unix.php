@@ -148,6 +148,74 @@ final class KloxoClientUnix
 		return $got;
 	}
 
+	/**
+	 * Root-side: remove leftover Unix user + /home/<nname> + panel client dir
+	 * after a DB-only delete (sync failed) so Add Client can reuse the name.
+	 * Refuses when a client row still exists.
+	 *
+	 * @return array{ok:bool,euid:int,removed?:bool,error?:string}
+	 */
+	public static function purgeLeftover(string $nname): array
+	{
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+		if ($euid !== 0) {
+			return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
+		}
+
+		$nname = trim($nname);
+		if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1
+			|| str_contains($nname, '..') || str_contains($nname, '/')) {
+			return ['ok' => false, 'euid' => $euid, 'error' => 'invalid client name'];
+		}
+
+		if (class_exists('Sqlite', false)) {
+			try {
+				$db = new Sqlite(null, 'client');
+				$rows = $db->getRows('nname', $nname, array('nname'));
+				if (is_array($rows) && isset($rows[0]['nname'])) {
+					return ['ok' => false, 'euid' => $euid, 'error' => 'client still exists'];
+				}
+			} catch (Throwable $e) {
+				return ['ok' => false, 'euid' => $euid, 'error' => 'client lookup: ' . $e->getMessage()];
+			}
+		}
+
+		self::removeHomeAndUser($nname, $nname);
+
+		return ['ok' => true, 'euid' => $euid, 'removed' => true];
+	}
+
+	/**
+	 * Root-side: always remove paths/user for a client being deleted (sync delete).
+	 *
+	 * @return array{ok:bool,euid:int,error?:string}
+	 */
+	public static function purgePaths(string $nname, string $username = ''): array
+	{
+		$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+		if ($euid !== 0) {
+			return ['ok' => false, 'euid' => $euid, 'error' => 'not root'];
+		}
+
+		$nname = trim($nname);
+		if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1
+			|| str_contains($nname, '..') || str_contains($nname, '/')) {
+			return ['ok' => false, 'euid' => $euid, 'error' => 'invalid client name'];
+		}
+
+		$user = trim($username);
+		if ($user === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $user) !== 1) {
+			$user = $nname;
+			if ($user !== '' && is_numeric($user[0])) {
+				$user = 'a' . $user;
+			}
+		}
+
+		self::removeHomeAndUser($nname, $user);
+
+		return ['ok' => true, 'euid' => $euid];
+	}
+
 	/** @param object $client */
 	private static function expectedUnixName(object $client): string
 	{
@@ -167,5 +235,37 @@ final class KloxoClientUnix
 		}
 
 		return $name;
+	}
+
+	private static function removeHomeAndUser(string $nname, string $username): void
+	{
+		$home = '/home/' . $nname;
+		$clientRoot = '/home/kloxo/client/' . $nname;
+
+		if ($username !== '' && function_exists('posix_getpwnam') && @posix_getpwnam($username)) {
+			if (function_exists('os_userdel')) {
+				@os_userdel($username);
+			} elseif (function_exists('lxshell_return')) {
+				@lxshell_return('userdel', '-r', $username);
+			}
+		}
+
+		foreach (array($home, $clientRoot) as $path) {
+			if (!is_dir($path) && !is_link($path) && !is_file($path)) {
+				continue;
+			}
+			if (function_exists('lxfile_rm_rec')) {
+				@lxfile_rm_rec($path);
+			} elseif (function_exists('kloxo_exec_argv')) {
+				@kloxo_exec_argv(array('rm', '-rf', '--', $path));
+			}
+		}
+
+		// userdel -r may leave a broken home; force again.
+		if (is_dir($home) || is_link($home)) {
+			if (function_exists('kloxo_exec_argv')) {
+				@kloxo_exec_argv(array('rm', '-rf', '--', $home));
+			}
+		}
 	}
 }

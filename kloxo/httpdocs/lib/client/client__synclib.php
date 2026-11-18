@@ -4,13 +4,37 @@ class client__sync extends lxDriverClass {
 
 	function dbactionDelete()
 	{
-		lxshell_return("userdel", $this->main->username);
+		$nname = isset($this->main->nname) ? (string) $this->main->nname : '';
+		$user = isset($this->main->username) ? (string) $this->main->username : '';
+		if ($user === '' && method_exists($this->main, 'getPathFromName')) {
+			$user = (string) $this->main->getPathFromName();
+		}
 
-		lxfile_rm_rec("__path_client_root/{$this->main->nname}");
-		lxfile_rm_rec("__path_customer_root/{$this->main->getPathFromName()}");
+		// Prefer the shared root purge (userdel -r + absolute /home paths).
+		// Legacy path-macro rm alone left /home/<client> after a DB-only delete.
+		if ($nname !== '' && class_exists('KloxoClientUnix', false)) {
+			try {
+				KloxoClientUnix::purgePaths($nname, $user);
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'client delete purgePaths: ' . $e->getMessage());
+				}
+			}
+		} else {
+			if ($user !== '') {
+				if (function_exists('os_userdel')) {
+					@os_userdel($user);
+				} else {
+					@lxshell_return('userdel', '-r', $user);
+				}
+			}
+			lxfile_rm_rec("__path_client_root/{$nname}");
+			$pathName = method_exists($this->main, 'getPathFromName')
+				? (string) $this->main->getPathFromName() : $nname;
+			lxfile_rm_rec("__path_customer_root/{$pathName}");
+		}
 
 		// Validated username + find/rm argv — no shell glob (security EE2).
-		$user = isset($this->main->username) ? (string) $this->main->username : '';
 		if (preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,31}$/', $user) === 1
 			&& function_exists('kloxo_exec_argv')) {
 			kloxo_exec_argv(array(

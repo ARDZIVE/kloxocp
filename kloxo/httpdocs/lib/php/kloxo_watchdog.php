@@ -440,9 +440,11 @@ final class KloxoWatchdog
     {
         $queue = $this->root . '/log/background.queue';
         $req = $this->root . '/log/client-sync.request';
+        $purge = $this->root . '/log/client-home-purge.request';
         $dom = $this->root . '/log/domain-sync.request';
         $mail = $this->root . '/log/mailname.request';
-        if (!is_file($queue) && !is_file($req) && !is_file($dom) && !is_file($mail)) {
+        if (!is_file($queue) && !is_file($req) && !is_file($purge)
+			&& !is_file($dom) && !is_file($mail)) {
             return;
         }
         // Same single-flight as kloxo_kick_dropped_client_jobs — do not stack

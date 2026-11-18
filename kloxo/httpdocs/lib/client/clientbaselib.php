@@ -1084,9 +1084,31 @@ class ClientBase extends ClientCore
 			}
 		}
 
+		// After a DB-only delete (sync failed), /home/<client> can remain while
+		// the client row is gone. Reclaim that orphan via kloxo-backend so
+		// recreating the same name works; refuse only when the client still exists.
 		if (lxfile_exists("/home/{$param['nname']}")) {
-			throw new lxException($login->getThrow("dir_exists_under_home_dir"), '', $param['nname']);
-
+			$stillThere = false;
+			try {
+				$sq = new Sqlite(null, 'client');
+				$got = $sq->getRows('nname', $param['nname'], array('nname'));
+				$stillThere = is_array($got) && isset($got[0]['nname']);
+			} catch (Throwable $e) {
+				$stillThere = true;
+			}
+			if ($stillThere) {
+				throw new lxException($login->getThrow("dir_exists_under_home_dir"), '', $param['nname']);
+			}
+			$purged = function_exists('kloxo_purge_client_leftover')
+				? kloxo_purge_client_leftover($param['nname'])
+				: array('ok' => false, 'error' => 'purge helper missing');
+			if (!is_array($purged) || empty($purged['ok']) || lxfile_exists("/home/{$param['nname']}")) {
+				$why = (is_array($purged) && isset($purged['error'])) ? (string) $purged['error'] : 'home still present';
+				if (function_exists('log_log')) {
+					log_log('error', "Add Client orphan home {$param['nname']}: {$why}");
+				}
+				throw new lxException($login->getThrow("dir_exists_under_home_dir"), '', $param['nname']);
+			}
 		}
 
 		$param['nname'] = trim($param['nname']);

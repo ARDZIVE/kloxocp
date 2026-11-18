@@ -938,6 +938,19 @@ abstract class Lxclass
 			}
 		}
 
+		// Client delete wrote SQLite; if sync skipped (writeonly / backend
+		// down), /home/<nname> would block recreating the same name. Queue a
+		// leftover purge for kloxo-backend/watchdog (best-effort).
+		if (($this->dbaction === 'delete' || $this->dbaction === 'delete_done')
+			&& $this->isClass('client')
+			&& function_exists('kloxo_queue_client_home_purge')) {
+			try {
+				kloxo_queue_client_home_purge((string) $this->nname);
+			} catch (Throwable $e) {
+				log_log('error', 'queue client home purge: ' . $e->getMessage());
+			}
+		}
+
 		if ($this->dbaction !== "delete" && $this->dbaction !== "delete_done") {
 			$this->dbaction = "clean";
 		} else {

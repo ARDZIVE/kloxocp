@@ -108,4 +108,55 @@ if (is_array($gotBad) && empty($gotBad['ok'])) {
 	bad('ensureUnixName rejects path-like names');
 }
 
+if (str_contains($unix, 'public static function purgeLeftover')
+	&& str_contains($unix, 'public static function purgePaths')
+	&& str_contains($unix, 'removeHomeAndUser')) {
+	ok('KloxoClientUnix purgeLeftover / purgePaths present');
+} else {
+	bad('KloxoClientUnix purgeLeftover / purgePaths present');
+}
+
+if (str_contains($lxlib, 'function kloxo_purge_client_leftover')
+	&& str_contains($lxlib, 'function kloxo_queue_client_home_purge')
+	&& str_contains($lxlib, 'function kloxo_client_home_purge')
+	&& str_contains($lxlib, "array('KloxoClientUnix', 'purgeLeftover')")
+	&& str_contains($lxlib, 'client-home-purge.request')) {
+	ok('panel helpers purge leftover home via backend / drop-queue');
+} else {
+	bad('panel helpers purge leftover home via backend / drop-queue');
+}
+
+$base = (string) file_get_contents($doc . '/lib/client/clientbaselib.php');
+$sync = (string) file_get_contents($doc . '/lib/client/client__synclib.php');
+if (str_contains($base, 'kloxo_purge_client_leftover')
+	&& str_contains($base, 'dir_exists_under_home_dir')
+	&& str_contains($sync, 'KloxoClientUnix::purgePaths')) {
+	ok('Add Client reclaims orphan /home; delete uses purgePaths');
+} else {
+	bad('Add Client reclaims orphan /home; delete uses purgePaths');
+}
+
+$gotPurge = KloxoClientUnix::purgeLeftover('../evil');
+if (is_array($gotPurge) && empty($gotPurge['ok'])) {
+	ok('purgeLeftover rejects path-like names');
+} else {
+	bad('purgeLeftover rejects path-like names');
+}
+
+$gotPurge2 = KloxoClientUnix::purgeLeftover('mesrob');
+if ($euid !== 0 && is_array($gotPurge2) && empty($gotPurge2['ok']) && ($gotPurge2['error'] ?? '') === 'not root') {
+	ok('purgeLeftover refuses when not root');
+} elseif ($euid === 0 && is_array($gotPurge2)) {
+	ok('purgeLeftover refuses when not root');
+} else {
+	bad('purgeLeftover refuses when not root');
+}
+
+$bg = (string) file_get_contents($root . '/kloxo/bin/common/background.php');
+if (str_contains($bg, 'kloxo_client_home_purge')) {
+	ok('background.php allow-lists kloxo_client_home_purge');
+} else {
+	bad('background.php allow-lists kloxo_client_home_purge');
+}
+
 exit($fails > 0 ? 1 : 0);

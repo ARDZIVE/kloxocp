@@ -3998,6 +3998,84 @@ function kloxo_ensure_client_unix(string $nname): array
 }
 
 /**
+ * Remove orphan /home/<client> left after a DB-only delete so Add Client can
+ * reuse the name. Panel FPM is lxlabs — must go through kloxo-backend as root.
+ *
+ * @return array{ok:bool,euid?:int,removed?:bool,error?:string}
+ */
+function kloxo_purge_client_leftover(string $nname): array
+{
+	$nname = trim($nname);
+	if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1) {
+		return array('ok' => false, 'error' => 'invalid client name');
+	}
+	if (!class_exists('KloxoClientUnix', false)) {
+		$p = __DIR__ . '/kloxo_client_unix.php';
+		if (is_file($p)) {
+			include_once $p;
+		}
+	}
+	$euid = function_exists('posix_geteuid') ? (int) posix_geteuid() : -1;
+	if ($euid === 0 && class_exists('KloxoClientUnix', false)) {
+		return KloxoClientUnix::purgeLeftover($nname);
+	}
+	if (!function_exists('rl_exec_get') || !class_exists('KloxoClientUnix', false)) {
+		return array('ok' => false, 'error' => 'kloxo-backend purge unavailable');
+	}
+	try {
+		$got = rl_exec_get(null, 'localhost', array('KloxoClientUnix', 'purgeLeftover'), array($nname), false);
+	} catch (Throwable $e) {
+		return array('ok' => false, 'error' => $e->getMessage());
+	}
+	if (!is_array($got)) {
+		return array('ok' => false, 'error' => 'kloxo-backend did not handle purgeLeftover');
+	}
+
+	return $got;
+}
+
+/**
+ * After client delete wrote SQLite: remove orphan /home/<nname> if sync did
+ * not. Immediate rl_exec when possible; also drop a request for watchdog.
+ */
+function kloxo_queue_client_home_purge(string $nname): void
+{
+	$nname = trim($nname);
+	if ($nname === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $nname) !== 1) {
+		return;
+	}
+	try {
+		kloxo_purge_client_leftover($nname);
+	} catch (Throwable $e) {
+		if (function_exists('log_log')) {
+			log_log('error', "client home purge {$nname}: " . $e->getMessage());
+		}
+	}
+	global $sgbl;
+	$root = (isset($sgbl) && is_object($sgbl) && !empty($sgbl->__path_program_root))
+		? rtrim((string) $sgbl->__path_program_root, '/')
+		: '/opt/kloxo';
+	$dir = $root . '/log';
+	if (!is_dir($dir)) {
+		@mkdir($dir, 0750, true);
+	}
+	$path = $dir . '/client-home-purge.request';
+	@file_put_contents($path, $nname . "\n", FILE_APPEND | LOCK_EX);
+}
+
+/**
+ * Root / background: drain one client-home-purge.request name.
+ */
+function kloxo_client_home_purge(string $nname): void
+{
+	$got = kloxo_purge_client_leftover($nname);
+	if ((!is_array($got) || empty($got['ok'])) && function_exists('log_log')) {
+		$why = (is_array($got) && isset($got['error'])) ? (string) $got['error'] : 'purge failed';
+		log_log('error', "kloxo_client_home_purge {$nname}: {$why}");
+	}
+}
+
+/**
  * Append a client nname for kloxo-backend / watchdog to useradd (never spawn
  * from panel FPM — that held the busy spinner even after the SQLite write).
  */
@@ -4161,6 +4239,7 @@ function kloxo_dropped_client_job_paths(string $root): array
 	return array(
 		$root . '/log/background.queue',
 		$root . '/log/client-sync.request',
+		$root . '/log/client-home-purge.request',
 		$root . '/log/domain-sync.request',
 		$root . '/log/mailname.request',
 	);
@@ -4273,6 +4352,14 @@ function kloxo_run_dropped_client_jobs(): void
 		$php,
 		$bg,
 		'kloxo_client_system_sync',
+		'/^[A-Za-z0-9._-]{1,64}$/'
+	);
+	kloxo_drain_sync_request_file(
+		$root . '/log/client-home-purge.request',
+		$root,
+		$php,
+		$bg,
+		'kloxo_client_home_purge',
 		'/^[A-Za-z0-9._-]{1,64}$/'
 	);
 	kloxo_drain_sync_request_file(

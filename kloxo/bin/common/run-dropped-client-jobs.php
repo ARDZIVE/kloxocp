@@ -23,6 +23,7 @@ $pending = false;
 foreach (array(
 	$root . '/log/background.queue',
 	$root . '/log/client-sync.request',
+	$root . '/log/client-home-purge.request',
 	$root . '/log/domain-sync.request',
 	$root . '/log/mailname.request',
 ) as $drop) {
