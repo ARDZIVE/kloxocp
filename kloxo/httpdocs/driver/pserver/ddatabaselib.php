@@ -489,6 +489,58 @@ class mysqldb extends databasecore
 
 //	static $__desc_mysqldbuser_l = array("db", "", "");
 
+	/**
+	 * Create/update/drop in MariaDB from the panel process (kloxo_pma).
+	 * rl_exec_set never falls back as the panel user, so a down or failing
+	 * kloxo-backend used to toast "added" while only panel.sqlite had the row.
+	 */
+	function syncToSystem()
+	{
+		global $login;
+
+		if (!$this->syncToSystemCommon()) {
+			return null;
+		}
+
+		$sync = isset($this->syncserver) && is_string($this->syncserver)
+			? trim($this->syncserver) : 'localhost';
+		$local = ($sync === '' || $sync === 'localhost' || $sync === '127.0.0.1');
+		if (!$local) {
+			return parent::syncToSystem();
+		}
+
+		if (!function_exists('kloxo_mysqldb_create_live')) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_mariadb.php';
+		}
+
+		$act = (string) $this->dbaction;
+		try {
+			if ($act === 'add' || $act === 'syncadd') {
+				kloxo_mysqldb_create_live($this);
+
+				return null;
+			}
+			if ($act === 'delete' || $act === 'syncdelete') {
+				kloxo_mysqldb_drop_live($this);
+
+				return null;
+			}
+			if ($act === 'update') {
+				kloxo_mysqldb_update_live($this);
+
+				return null;
+			}
+		} catch (KloxoMariadbException $e) {
+			throw new lxException(
+				is_object($login) ? $login->getThrow('could_not_connect_to_db') : 'could_not_connect_to_db',
+				'',
+				$e->getMessage()
+			);
+		}
+
+		return parent::syncToSystem();
+	}
+
 	function getStubUrl($name)
 	{
 		if ($name == '__stub_phpmyadmin_url') {

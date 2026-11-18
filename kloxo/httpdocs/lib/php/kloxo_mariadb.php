@@ -502,3 +502,108 @@ final class KloxoMariadb
 		}
 	}
 }
+
+/**
+ * Create a customer MariaDB database from a panel mysqldb object.
+ * Runs in-process as kloxo_pma (panel FPM can do this; rl_exec_set cannot
+ * fall back as lxlabs). Call before writing the panel.sqlite row as success.
+ *
+ * @param object $db mysqldb (or stdClass) with dbname/username/dbpassword
+ */
+function kloxo_mysqldb_create_live(object $db): void
+{
+	if (method_exists($db, 'createExtraVariables')) {
+		try {
+			$db->createExtraVariables();
+		} catch (Throwable $e) {
+			// connectAdmin still tries pma.pass
+		}
+	}
+	$dbname = '';
+	if (isset($db->dbname) && is_string($db->dbname) && $db->dbname !== '') {
+		$dbname = $db->dbname;
+	} elseif (isset($db->nname) && is_string($db->nname)) {
+		$dbname = $db->nname;
+	}
+	$user = (isset($db->username) && is_string($db->username)) ? $db->username : '';
+	$pass = (isset($db->dbpassword) && is_string($db->dbpassword)) ? $db->dbpassword : '';
+	if (function_exists('kloxo_pma_normalize_db_password')) {
+		$pass = kloxo_pma_normalize_db_password($pass);
+	} elseif (str_contains($pass, "\\'")) {
+		$pass = str_replace("\\'", "'", $pass);
+	}
+	if ($dbname === '' || $user === '' || $pass === '') {
+		throw new KloxoMariadbException('Database name, user and password are required');
+	}
+	$adminUser = (isset($db->__var_dbadmin) && is_string($db->__var_dbadmin))
+		? $db->__var_dbadmin : '';
+	$adminPass = (isset($db->__var_dbpassword) && is_string($db->__var_dbpassword))
+		? $db->__var_dbpassword : '';
+	$primary = null;
+	if (isset($db->__var_primary_user) && is_string($db->__var_primary_user)
+		&& $db->__var_primary_user !== '') {
+		$primary = $db->__var_primary_user;
+	}
+	$mdb = KloxoMariadb::connectAdmin($adminUser, $adminPass);
+	$mdb->createDatabase($dbname, $user, $pass, $primary);
+}
+
+/**
+ * Drop a customer MariaDB database from a panel mysqldb object (localhost).
+ *
+ * @param object $db mysqldb with dbname/username
+ */
+function kloxo_mysqldb_drop_live(object $db): void
+{
+	if (method_exists($db, 'createExtraVariables')) {
+		try {
+			$db->createExtraVariables();
+		} catch (Throwable $e) {
+		}
+	}
+	$dbname = '';
+	if (isset($db->dbname) && is_string($db->dbname) && $db->dbname !== '') {
+		$dbname = $db->dbname;
+	} elseif (isset($db->nname) && is_string($db->nname)) {
+		$dbname = $db->nname;
+	}
+	$user = (isset($db->username) && is_string($db->username)) ? $db->username : '';
+	if ($dbname === '') {
+		throw new KloxoMariadbException('Database name is required');
+	}
+	$adminUser = (isset($db->__var_dbadmin) && is_string($db->__var_dbadmin))
+		? $db->__var_dbadmin : '';
+	$adminPass = (isset($db->__var_dbpassword) && is_string($db->__var_dbpassword))
+		? $db->__var_dbpassword : '';
+	$mdb = KloxoMariadb::connectAdmin($adminUser, $adminPass);
+	$mdb->dropDatabase($dbname, $user);
+}
+
+/**
+ * Update a customer MariaDB user password from a panel mysqldb object.
+ *
+ * @param object $db mysqldb with username/dbpassword
+ */
+function kloxo_mysqldb_update_live(object $db): void
+{
+	if (method_exists($db, 'createExtraVariables')) {
+		try {
+			$db->createExtraVariables();
+		} catch (Throwable $e) {
+		}
+	}
+	$user = (isset($db->username) && is_string($db->username)) ? $db->username : '';
+	$pass = (isset($db->dbpassword) && is_string($db->dbpassword)) ? $db->dbpassword : '';
+	if (function_exists('kloxo_pma_normalize_db_password')) {
+		$pass = kloxo_pma_normalize_db_password($pass);
+	}
+	if ($user === '' || $pass === '') {
+		throw new KloxoMariadbException('Database user and password are required');
+	}
+	$adminUser = (isset($db->__var_dbadmin) && is_string($db->__var_dbadmin))
+		? $db->__var_dbadmin : '';
+	$adminPass = (isset($db->__var_dbpassword) && is_string($db->__var_dbpassword))
+		? $db->__var_dbpassword : '';
+	$mdb = KloxoMariadb::connectAdmin($adminUser, $adminPass);
+	$mdb->setPassword($user, $pass);
+}

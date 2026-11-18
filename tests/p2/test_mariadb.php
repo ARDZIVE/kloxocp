@@ -211,6 +211,7 @@ check($drvErr === '' && str_contains($addSql, 'CREATE DATABASE IF NOT EXISTS `ac
 $load = databasecore::loadExtension('mysql');
 $src = (string) file_get_contents($doc . '/driver/pserver/ddatabaselib.php');
 $drvSrc = (string) file_get_contents($doc . '/driver/pserver/mysqldb__mysqllib.php');
+$lxSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 $loadPos = strpos($src, 'static function loadExtension');
 $loadFn = $loadPos !== false ? substr($src, $loadPos, 600) : '';
 check($load === true, 'loadExtension(mysql) is true when mysqli or pdo_mysql is loaded');
@@ -220,6 +221,51 @@ check(str_contains($drvSrc, 'KloxoMariadb')
 	&& !str_contains($drvSrc, 'GRANT ALL on {$this->main->dbname}')
 	&& !preg_match('/PASSWORD\s*\(/', $drvSrc),
 	'mysqldb driver uses KloxoMariadb, not GRANT IDENTIFIED BY or PASSWORD()');
+check(str_contains($src, 'function syncToSystem')
+	&& str_contains($src, 'kloxo_mysqldb_create_live')
+	&& str_contains($src, 'kloxo_mysqldb_drop_live'),
+	'mysqldb::syncToSystem creates MariaDB in-process on localhost');
+check(str_contains($lxSrc, "\$class === 'mysqldb'")
+	&& str_contains($lxSrc, 'must exist in MariaDB'),
+	'finish list child does not writeonly-success a failed mysqldb create');
+
+KloxoMariadb::$injected = new KloxoMariadb(null);
+$live = new stdClass();
+$live->dbname = 'client_db';
+$live->username = 'client_db';
+$live->dbpassword = 'ClientPass1';
+$live->__var_dbadmin = 'kloxo_pma';
+$live->__var_dbpassword = 'pma-secret';
+$liveErr = '';
+try {
+	kloxo_mysqldb_create_live($live);
+} catch (Throwable $e) {
+	$liveErr = $e->getMessage();
+}
+$liveSql = implode("\n", array_map(static fn (array $row): string => $row[0], KloxoMariadb::$injected->log));
+check($liveErr === '' && str_contains($liveSql, 'CREATE DATABASE IF NOT EXISTS `client_db`')
+	&& str_contains($liveSql, "CREATE USER IF NOT EXISTS 'client_db'@'127.0.0.1'")
+	&& str_contains($liveSql, 'GRANT ALL PRIVILEGES ON `client_db`.*'),
+	'kloxo_mysqldb_create_live issues CREATE DATABASE + USER + GRANT', $liveErr);
+
+$mdbObj = new mysqldb(null, 'localhost', 'panel_db');
+$mdbObj->dbname = 'panel_db';
+$mdbObj->username = 'panel_db';
+$mdbObj->dbpassword = 'PanelPass1';
+$mdbObj->syncserver = 'localhost';
+$mdbObj->dbaction = 'add';
+$mdbObj->__var_dbadmin = 'kloxo_pma';
+$mdbObj->__var_dbpassword = 'pma-secret';
+KloxoMariadb::$injected = new KloxoMariadb(null);
+$syncErr = '';
+try {
+	$mdbObj->syncToSystem();
+} catch (Throwable $e) {
+	$syncErr = $e->getMessage();
+}
+$syncSql = implode("\n", array_map(static fn (array $row): string => $row[0], KloxoMariadb::$injected->log));
+check($syncErr === '' && str_contains($syncSql, 'CREATE DATABASE IF NOT EXISTS `panel_db`'),
+	'mysqldb::syncToSystem add creates MariaDB without kloxo-backend', $syncErr);
 KloxoMariadb::$injected = null;
 
 echo "\n{$pass} passed, {$fail} failed\n";

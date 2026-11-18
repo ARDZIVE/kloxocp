@@ -4242,6 +4242,11 @@ function kloxo_finish_list_child_was(object $parent, string $class, string $nnam
 		if (function_exists('log_log')) {
 			log_log('error', "finish list child was {$class}/{$nname}: " . $e->getMessage());
 		}
+		// mysqldb must exist in MariaDB before the panel row is a success.
+		// writeonly here was the "added successfully" toast with no DB.
+		if ($class === 'mysqldb' || $class === 'mysqldbuser') {
+			throw $e;
+		}
 		try {
 			if (method_exists($obj, 'write')) {
 				$obj->metadbaction = 'writeonly';
