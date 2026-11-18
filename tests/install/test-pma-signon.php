@@ -68,10 +68,21 @@ $check(str_contains($src, 'kloxo_pma_try_admin_sso')
 	&& str_contains($src, 'kloxo_pma_same_origin_nav')
 	&& str_contains($src, 'PMA_single_signon_cfgupdate')
 	&& !str_contains($src, 'session_regenerate_id')
-	&& str_contains($src, "header('Location: ' . kloxo_pma_index_url(), true, 302)"),
+	&& str_contains($src, 'kloxo_pma_database_url')
+	&& str_contains($src, "header('Location: ' . \$dest, true, 302)"),
 	'sign-on GET uses panel-admin SSO or per-database SSO then phpMyAdmin');
 $check(kloxo_pma_db_href('mesrob_wp') === kloxo_pma_url() . '?db=mesrob_wp',
 	'per-database SQL Manager href carries only the mysqldb nname');
+$check(kloxo_pma_only_db_pattern('mesrob_db') === 'mesrob\\_db'
+	&& kloxo_pma_only_db_pattern('mysql') === '',
+	'only_db escapes underscore wildcards for a literal database name');
+$check(kloxo_pma_database_url('mesrob_db')
+	=== '/thirdparty/phpMyAdmin/index.php?route=/database/structure&db=mesrob_db',
+	'client SSO redirects into that database structure page');
+$cfgSrc = (string) file_get_contents($root . '/kloxo/file/phpmyadmin/config.inc.php');
+$check(str_contains($cfgSrc, 'ShowCreateDb') && str_contains($cfgSrc, 'KloxoPmaSsoDb')
+	&& str_contains($cfgSrc, "ShowCreateDb'] = false"),
+	'phpMyAdmin config hides New database when KloxoPmaSsoDb is set');
 $check(kloxo_pma_db_href('../etc/passwd') === kloxo_pma_url()
 	&& kloxo_pma_db_href('mysql') === kloxo_pma_url(),
 	'unsafe or reserved database names are not put in the SQL Manager href');

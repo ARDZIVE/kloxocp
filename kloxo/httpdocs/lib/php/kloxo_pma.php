@@ -44,6 +44,31 @@ function kloxo_pma_index_url(): string
 	return '/thirdparty/phpMyAdmin/index.php';
 }
 
+/**
+ * phpMyAdmin only_db treats "_" and "%" as wildcards — escape for a literal name.
+ */
+function kloxo_pma_only_db_pattern(string $dbname): string
+{
+	if (!kloxo_pma_db_ident($dbname)) {
+		return '';
+	}
+
+	return str_replace(array('\\', '_', '%'), array('\\\\', '\\_', '\\%'), $dbname);
+}
+
+/**
+ * After client SSO, open that database's structure page (not the server home
+ * with "New database").
+ */
+function kloxo_pma_database_url(string $dbname): string
+{
+	if (!kloxo_pma_db_ident($dbname)) {
+		return kloxo_pma_index_url();
+	}
+
+	return kloxo_pma_index_url() . '?route=/database/structure&db=' . rawurlencode($dbname);
+}
+
 /** HTML attributes so SQL Manager opens phpMyAdmin in a new browser tab. */
 function kloxo_pma_link_attrs(): string
 {
@@ -739,8 +764,10 @@ function kloxo_pma_emit_sso_db_cookie(string $db): void
 
 		return;
 	}
+	// Browser-session cookie so config.inc.php can keep ShowCreateDb off
+	// for the whole phpMyAdmin visit (not only the first 60s bounce).
 	setcookie($name, $db, array(
-		'expires' => time() + 60,
+		'expires' => 0,
 		'path' => '/',
 		'secure' => $p['secure'],
 		'httponly' => true,
@@ -793,7 +820,13 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 	$_SESSION['PMA_single_signon_port'] = '3306';
 	unset($_SESSION['PMA_single_signon_error_message']);
 	if ($onlyDb !== '') {
-		$_SESSION['PMA_single_signon_cfgupdate'] = array('only_db' => $onlyDb);
+		$pat = kloxo_pma_only_db_pattern($onlyDb);
+		$_SESSION['PMA_single_signon_cfgupdate'] = array(
+			'only_db' => $pat !== '' ? $pat : $onlyDb,
+			// Server-merge keys; ShowCreateDb is global — config.inc.php
+			// also reads KloxoPmaSsoDb to hide "New database".
+			'hide_db' => '(information_schema|performance_schema|mysql|sys|phpmyadmin)',
+		);
 	} else {
 		unset($_SESSION['PMA_single_signon_cfgupdate']);
 	}
@@ -811,7 +844,8 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 			'samesite' => 'Lax',
 		));
 		header('Cache-Control: no-store');
-		header('Location: ' . kloxo_pma_index_url(), true, 302);
+		$dest = $onlyDb !== '' ? kloxo_pma_database_url($onlyDb) : kloxo_pma_index_url();
+		header('Location: ' . $dest, true, 302);
 	}
 	exit;
 }

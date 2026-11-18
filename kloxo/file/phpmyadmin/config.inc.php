@@ -39,3 +39,24 @@ $cfg['Servers'][$i]['SignonCookieParams'] = array(
 	'httponly' => true,
 	'samesite' => 'Lax',
 );
+
+// Client per-database SSO (KloxoPmaSsoDb): open only that DB and never show
+// "New database". Admin SQL Manager (no cookie) keeps full create UI.
+$cfg['ShowCreateDb'] = true;
+$cfg['AllowUserDropDatabase'] = true;
+$kloxoPmaDb = isset($_COOKIE['KloxoPmaSsoDb']) && is_string($_COOKIE['KloxoPmaSsoDb'])
+	? trim($_COOKIE['KloxoPmaSsoDb']) : '';
+if ($kloxoPmaDb !== '' && preg_match('/^[A-Za-z0-9_]{1,64}$/', $kloxoPmaDb) === 1
+	&& !in_array(strtolower($kloxoPmaDb), array(
+		'mysql', 'information_schema', 'performance_schema', 'sys', 'kloxo',
+		'phpmyadmin', 'root', 'kloxo_pma',
+	), true)) {
+	$cfg['ShowCreateDb'] = false;
+	$cfg['AllowUserDropDatabase'] = false;
+	// only_db: "_" and "%" are wildcards — escape for a literal name.
+	$cfg['Servers'][$i]['only_db'] = str_replace(
+		array('\\', '_', '%'),
+		array('\\\\', '\\_', '\\%'),
+		$kloxoPmaDb
+	);
+}

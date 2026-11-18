@@ -445,7 +445,15 @@ final class KloxoMariadb
 		}
 		$db = self::quoteIdent($dbname);
 		foreach (self::USER_HOSTS as $host) {
-			$this->run('GRANT ALL PRIVILEGES ON ' . $db . '.* TO ' . self::quoteUser($username, $host));
+			$uh = self::quoteUser($username, $host);
+			// Never leave global CREATE (phpMyAdmin "New database"). Scope is
+			// this database only; ignore REVOKE errors when nothing to revoke.
+			try {
+				$this->run('REVOKE ALL PRIVILEGES, GRANT OPTION ON *.* FROM ' . $uh);
+			} catch (KloxoMariadbException $e) {
+				// no prior global grants
+			}
+			$this->run('GRANT ALL PRIVILEGES ON ' . $db . '.* TO ' . $uh);
 		}
 	}
 

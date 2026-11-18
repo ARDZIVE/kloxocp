@@ -76,6 +76,9 @@ $sql = array_map(static fn (array $row): string => $row[0], $mdb->log);
 $joined = implode("\n", $sql);
 check(str_contains($joined, 'CREATE DATABASE IF NOT EXISTS `acme_wp`')
 	&& str_contains($joined, 'utf8mb4'), 'CREATE DATABASE utf8mb4');
+check(str_contains($joined, 'REVOKE ALL PRIVILEGES, GRANT OPTION ON *.* FROM')
+	&& str_contains($joined, 'GRANT ALL PRIVILEGES ON `acme_wp`.*'),
+	'GRANT is database-scoped; global CREATE is revoked first');
 check(str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'localhost' IDENTIFIED BY 'Secret12'")
 	&& str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'127.0.0.1' IDENTIFIED BY 'Secret12'")
 	&& str_contains($joined, "CREATE USER IF NOT EXISTS 'acme_wp'@'%' IDENTIFIED BY 'Secret12'"),
