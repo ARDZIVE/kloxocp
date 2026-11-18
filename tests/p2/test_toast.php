@@ -171,42 +171,80 @@ if (function_exists('kloxo_toast_plain')) {
 		}
 	}
 	$plainAdd = kloxo_toast_plain('added_successfully', 'Client');
+	$plainUpd = kloxo_toast_plain('updated_successfully', 'Password');
+	$plainUpdEmpty = kloxo_toast_plain('updated_successfully', '');
+	$plainDel = kloxo_toast_plain('deleted_successfully', 'Domain');
+	$plainFail = kloxo_toast_plain('update_failed', 'Hostname');
+	$plainEn = kloxo_toast_plain('enabled_successfully', 'opcache');
 	$plainLong = kloxo_toast_plain('smtp_server_not_running');
 	$plainKey = kloxo_toast_plain('create_certificate_failed', 'certbot failed: ' . str_repeat('x', 80));
 	$plainFree = kloxo_toast_plain('Domain successfully deleted.');
 	$plainUpload = kloxo_toast_plain('file_uploaded');
-	$okPlain = str_contains(strtolower($plainAdd), 'added')
+	$okPlain = ($plainAdd === 'Client added.')
+		&& ($plainUpd === 'Password saved.')
+		&& ($plainUpdEmpty === 'Settings saved.')
+		&& ($plainDel === 'Domain deleted.')
+		&& ($plainFail === 'Update failed: Hostname')
+		&& ($plainEn === 'opcache enabled.')
 		&& strlen($plainLong) <= 100
 		&& strlen($plainKey) <= 100
 		&& str_contains(strtolower($plainFree), 'deleted')
 		&& ($plainUpload === 'File uploaded.');
 	if ($okPlain) {
-		ok('kloxo_toast_plain is short, resolves keys, and humanizes free text');
+		ok('kloxo_toast_plain is short, resolves keys, and names what was saved');
 	} else {
-		bad('kloxo_toast_plain is short, resolves keys, and humanizes free text',
-			"add=$plainAdd long=$plainLong key=$plainKey free=$plainFree up=$plainUpload");
+		bad('kloxo_toast_plain is short, resolves keys, and names what was saved',
+			"add=$plainAdd upd=$plainUpd empty=$plainUpdEmpty del=$plainDel fail=$plainFail en=$plainEn");
 	}
 } else {
-	bad('kloxo_toast_plain is short, resolves keys, and humanizes free text', 'missing function');
+	bad('kloxo_toast_plain is short, resolves keys, and names what was saved', 'missing function');
+}
+
+if (function_exists('kloxo_toast_update_what') && function_exists('kloxo_toast_update_pair')) {
+	$dummy = new stdClass();
+	$dummy->nname = 'admin';
+	$passWhat = kloxo_toast_update_what($dummy, 'password', 'client');
+	$hostWhat = kloxo_toast_update_what($dummy, 'hostname', 'pserver');
+	$pairPass = kloxo_toast_update_pair($dummy, 'password', 'client');
+	$mod = new stdClass();
+	$mod->nname = 'php8.3-opcache___localhost';
+	$mod->modulename = 'opcache';
+	$pairEn = kloxo_toast_update_pair($mod, 'enable', 'phpmodule');
+	$okWhat = stripos($passWhat, 'password') !== false
+		&& stripos($passWhat, 'admin') === false
+		&& $pairPass[0] === 'updated_successfully'
+		&& $pairEn[0] === 'enabled_successfully'
+		&& $pairEn[1] === 'opcache';
+	if ($okWhat) {
+		ok('update toast uses form title (Password), not nname admin; enable names the module');
+	} else {
+		bad('update toast uses form title (Password), not nname admin; enable names the module',
+			"pass=$passWhat host=$hostWhat pair=" . json_encode($pairPass) . ' en=' . json_encode($pairEn));
+	}
+} else {
+	bad('update toast uses form title (Password), not nname admin; enable names the module', 'helpers missing');
 }
 
 $core = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
-if (str_contains($core, "frm_smessage=updated_successfully")
+if (str_contains($core, 'kloxo_toast_update_pair')
+	&& str_contains($core, 'kloxo_toast_update_what')
 	&& str_contains($core, "frm_smessage=deleted_successfully")
 	&& str_contains($core, 'frm_emessage=update_failed')) {
-	ok('update/delete redirects use short toast language keys');
+	ok('update/delete redirects use form-aware toast helpers');
 } else {
-	bad('update/delete redirects use short toast language keys');
+	bad('update/delete redirects use form-aware toast helpers');
 }
 
 $msgLib = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
-if (str_contains($msgLib, "deleted_successfully")
+if (str_contains($msgLib, "[%s] saved.")
+	&& str_contains($msgLib, "[%s] deleted.")
+	&& str_contains($msgLib, "[%s] enabled.")
 	&& str_contains($msgLib, "update_failed")
 	&& str_contains($msgLib, "file_uploaded")
 	&& !preg_match('/\\$__emessage\\[\'smtp_server_not_running\'\\]\\s*=\\s*\'[^\']{101,}\'/', $msgLib)) {
-	ok('messagelib toast strings stay short and include delete/update keys');
+	ok('messagelib toast strings name the form/item and stay short');
 } else {
-	bad('messagelib toast strings stay short and include delete/update keys');
+	bad('messagelib toast strings name the form/item and stay short');
 }
 
 echo "$pass passed, $fail failed\n";

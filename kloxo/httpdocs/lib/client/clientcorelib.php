@@ -756,8 +756,12 @@ abstract class ClientCore extends Resourcecore
 		$this->metadbaction = 'writeonly';
 
 		if ($this->isLogin()) {
+			$what = function_exists('kloxo_toast_update_what')
+				? kloxo_toast_update_what($this, 'mailsetup')
+				: 'Mail Setup';
 			$gbl->__this_redirect = '/display.php?frm_action=show'
-				. '&frm_smessage=updated_successfully';
+				. '&frm_smessage=updated_successfully'
+				. '&frm_m_smessage_data=' . rawurlencode($what);
 		}
 
 		return $param;

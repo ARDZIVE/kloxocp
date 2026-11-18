@@ -1734,7 +1734,7 @@ function kloxo_toast_kind($key, $channel = 'info')
 	} elseif ($ch === 's') {
 		$ch = 'info';
 	}
-	if (preg_match('/success|successfully|added_successfully|deleted_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|f2b_whitelisted|deleted|updated|created|completed|logwatch_report_emailed|logwatch_settings_saved|password_sent|mis_changed|switch_done/', $k) === 1) {
+	if (preg_match('/success|successfully|added_successfully|deleted_successfully|enabled_successfully|disabled_successfully|restarted_successfully|backup_completed|restore_completed|restore_started|ufw_rule_added|f2b_whitelisted|deleted|updated|created|completed|logwatch_report_emailed|logwatch_settings_saved|password_sent|mis_changed|switch_done/', $k) === 1) {
 		return 'success';
 	}
 	if (preg_match('/warn|not_set|not_correct|expire|license_will_expire|security_warning|limit|mail_setup_required|upload_file_too_large/', $k) === 1) {
@@ -1767,7 +1767,7 @@ function kloxo_toast_humanize_key(string $key): string
 	}
 	$lower = strtolower($k);
 	if (preg_match('/successfully\s+updated/i', $lower) === 1) {
-		return 'Saved.';
+		return 'Settings saved.';
 	}
 	if (preg_match('/successfully\s+deleted/i', $lower) === 1) {
 		return 'Deleted.';
@@ -1785,6 +1785,179 @@ function kloxo_toast_humanize_key(string $key): string
 	}
 
 	return $k;
+}
+
+/**
+ * Resolve a desclib / acdesc keyword (password, switch_program) to a short title.
+ */
+function kloxo_toast_resolve_label($raw): string
+{
+	global $g_language_desc, $login;
+
+	$k = trim((string) $raw, "_\n \t");
+	if ($k === '') {
+		return '';
+	}
+	if (isset($g_language_desc) && is_object($g_language_desc)
+		&& isset($g_language_desc->__description[$k])
+		&& is_array($g_language_desc->__description[$k])
+		&& isset($g_language_desc->__description[$k][0])) {
+		$t = trim((string) $g_language_desc->__description[$k][0]);
+		if ($t !== '') {
+			return $t;
+		}
+	}
+	if (is_object($login) && method_exists($login, 'getKeyword')) {
+		$kw = $login->getKeyword($k);
+		if (is_string($kw) && $kw !== '' && strtolower($kw) !== strtolower($k)) {
+			return ucwords(str_replace('_', ' ', $kw));
+		}
+	}
+	if (preg_match('/^[a-z][a-z0-9_]*$/i', $k) === 1) {
+		return ucwords(str_replace('_', ' ', strtolower($k)));
+	}
+
+	return $k;
+}
+
+/**
+ * Short "what" for update/delete toasts: form/action title, not bare nname
+ * (avoids "admin saved" / "localhost saved").
+ *
+ * @param object|null $object
+ * @param string|null $subaction
+ * @param string|null $listClass child class when updating a list under $object
+ */
+function kloxo_toast_update_what($object = null, $subaction = null, $listClass = null): string
+{
+	global $ghtml;
+
+	$sa = is_string($subaction) ? trim($subaction) : '';
+	if ($sa === '' && is_object($ghtml) && isset($ghtml->frm_subaction)
+		&& is_string($ghtml->frm_subaction)) {
+		$sa = trim($ghtml->frm_subaction);
+	}
+
+	$class = '';
+	if (is_string($listClass) && $listClass !== '') {
+		$class = strtolower($listClass);
+	} elseif (is_object($object)) {
+		if (function_exists('lget_class')) {
+			$class = strtolower((string) lget_class($object));
+		} elseif (method_exists($object, 'getClass')) {
+			$class = strtolower((string) $object->getClass());
+		}
+	}
+
+	$label = '';
+	if ($sa !== '' && $class !== '' && function_exists('get_classvar_description')) {
+		$udesc = get_classvar_description($class, '__acdesc_update_' . $sa);
+		if (is_array($udesc) && isset($udesc[2])) {
+			$label = trim((string) $udesc[2]);
+		}
+	}
+	if ($label === '' && $sa !== '') {
+		$label = str_replace('-', '_', $sa);
+	}
+	if ($label === '' && $class !== '' && function_exists('get_description')) {
+		$d = get_description($class);
+		if (is_string($d) && trim($d) !== '') {
+			$label = trim($d);
+		}
+	}
+	if ($label === '') {
+		$label = 'Settings';
+	}
+
+	// get_classvar_description may already have resolved; still humanize keywords.
+	if (preg_match('/^[a-z][a-z0-9_]*$/i', $label) === 1) {
+		$resolved = kloxo_toast_resolve_label($label);
+		if ($resolved !== '') {
+			$label = $resolved;
+		}
+	}
+
+	$label = preg_replace('/\s+/', ' ', $label) ?? $label;
+	$label = trim($label);
+	if ($label === '') {
+		$label = 'Settings';
+	}
+
+	// Append a resource name when it helps (example.com), never admin/localhost
+	// on settings forms (password, information, hostname, …).
+	$nname = (is_object($object) && isset($object->nname))
+		? trim((string) $object->nname) : '';
+	$settingsSa = array(
+		'password', 'information', 'mailsetup', 'hostname', 'switchprogram',
+		'general', 'update', 'limit', 'skeleton', 'mis', 'logo', 'skin',
+		'disable_policy', 'notification', 'ssh_config', 'sshconfig',
+		'ftp_config', 'webfeature', 'phpini', 'extraedit',
+	);
+	$entityClass = array(
+		'domain', 'subdomain', 'client', 'mysqldb', 'mailaccount', 'sslcert',
+		'dnstemplate', 'service', 'ipaddress', 'cron', 'phpmodule', 'ffile',
+	);
+	if ($nname !== ''
+		&& !in_array(strtolower($nname), array('localhost', 'admin', 'client-admin'), true)
+		&& stripos($label, $nname) === false
+		&& in_array($class, $entityClass, true)
+		&& !in_array($sa, $settingsSa, true)) {
+		$short = strlen($nname) > 24 ? (rtrim(substr($nname, 0, 23)) . '…') : $nname;
+		$label .= ' (' . $short . ')';
+	}
+
+	if (strlen($label) > 40) {
+		$label = rtrim(substr($label, 0, 39)) . '…';
+	}
+
+	return $label;
+}
+
+/**
+ * Toast key + data for an update: enable/disable/restart get verb keys;
+ * everything else uses updated_successfully with the form title.
+ *
+ * @return array{0:string,1:string} [message_key, data]
+ */
+function kloxo_toast_update_pair($object = null, $subaction = null, $listClass = null): array
+{
+	$sa = is_string($subaction) ? strtolower(trim($subaction)) : '';
+	if ($sa === 'enable' || $sa === 'disable' || $sa === 'restart') {
+		$entity = '';
+		if (is_object($object) && isset($object->modulename)
+			&& is_string($object->modulename) && trim($object->modulename) !== '') {
+			$entity = trim($object->modulename);
+		} elseif (is_object($object) && isset($object->nname)
+			&& is_string($object->nname) && trim($object->nname) !== '') {
+			$nn = trim($object->nname);
+			if (!in_array(strtolower($nn), array('localhost', 'admin', 'client-admin'), true)) {
+				$entity = preg_replace('/___.+$/', '', $nn) ?? $nn;
+			}
+		}
+		$class = is_string($listClass) && $listClass !== ''
+			? strtolower($listClass)
+			: (is_object($object) && function_exists('lget_class')
+				? strtolower((string) lget_class($object)) : '');
+		if ($entity === '' && $class !== '' && function_exists('get_description')) {
+			$entity = kloxo_toast_resolve_label((string) get_description($class));
+		}
+		if ($entity === '' || preg_match('/^(enable|disable|restart)d?$/i', $entity) === 1) {
+			$entity = 'Item';
+		}
+		if (strlen($entity) > 40) {
+			$entity = rtrim(substr($entity, 0, 39)) . '…';
+		}
+		if ($sa === 'enable') {
+			return array('enabled_successfully', $entity);
+		}
+		if ($sa === 'disable') {
+			return array('disabled_successfully', $entity);
+		}
+
+		return array('restarted_successfully', $entity);
+	}
+
+	return array('updated_successfully', kloxo_toast_update_what($object, $subaction, $listClass));
 }
 
 /**
@@ -1837,7 +2010,20 @@ function kloxo_toast_plain($message, $value = '', int $max = 100): string
 			$text = rtrim($text, " \t.:") . ': ' . $val;
 		}
 	} else {
-		$text = str_replace(array('[%s]', '[%cs]'), '', $text);
+		// Prefer a clear fallback over a lone "saved." / "Saved:"
+		if (str_contains($text, '[%s]') || str_contains($text, '[%cs]')) {
+			if (preg_match('/\bsaved\b/i', $text) === 1) {
+				$text = 'Settings saved.';
+			} elseif (preg_match('/\bdeleted\b/i', $text) === 1) {
+				$text = 'Deleted.';
+			} elseif (preg_match('/\badded\b/i', $text) === 1) {
+				$text = 'Added.';
+			} elseif (preg_match('/\bfailed\b/i', $text) === 1) {
+				$text = 'Update failed.';
+			} else {
+				$text = str_replace(array('[%s]', '[%cs]'), '', $text);
+			}
+		}
 	}
 
 	$text = preg_replace('/\s+/', ' ', $text) ?? $text;

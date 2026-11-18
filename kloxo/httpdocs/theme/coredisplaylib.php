@@ -1461,6 +1461,12 @@ function __ac_desc_delete($object)
 				: "/display.php?frm_action=list&frm_o_cname={$cname}";
 		}
 		$msg = is_array($desc) && isset($desc[2]) ? (string) $desc[2] : $cname;
+		if (function_exists('kloxo_toast_resolve_label')) {
+			$resolved = kloxo_toast_resolve_label($msg);
+			if ($resolved !== '') {
+				$msg = $resolved;
+			}
+		}
 		$sep = str_contains($ret, '?') ? '&' : '?';
 		$gbl->__this_redirect = $ret . $sep . 'frm_smessage=deleted_successfully'
 			. '&frm_m_smessage_data=' . rawurlencode($msg);
@@ -1837,12 +1843,19 @@ function __ac_desc_Update($object)
 
 	if (!isset($gbl->__this_redirect)) {
 		if ($ret) {
-			$name = is_object($object) && isset($object->nname) ? (string) $object->nname : '';
+			$pair = function_exists('kloxo_toast_update_pair')
+				? kloxo_toast_update_pair($object, $subaction, is_string($class) ? $class : null)
+				: array('updated_successfully', 'Settings');
 			$gbl->__this_redirect = get_return_url("update")
-				. '&frm_smessage=updated_successfully'
-				. ($name !== '' ? '&frm_m_smessage_data=' . rawurlencode($name) : '');
+				. '&frm_smessage=' . rawurlencode((string) $pair[0])
+				. '&frm_m_smessage_data=' . rawurlencode((string) $pair[1]);
 		} else {
-			$gbl->__this_redirect = get_return_url("update") . '&frm_emessage=update_failed';
+			$what = function_exists('kloxo_toast_update_what')
+				? kloxo_toast_update_what($object, $subaction, is_string($class) ? $class : null)
+				: 'Settings';
+			$gbl->__this_redirect = get_return_url("update")
+				. '&frm_emessage=update_failed'
+				. '&frm_m_emessage_data=' . rawurlencode($what);
 		}
 	}
 
@@ -2202,7 +2215,14 @@ function __ac_desc_add($object, $param = null)
 	}
 
 	$descr = get_description($class);
-	$gbl->__this_redirect .= "&frm_smessage=added_successfully&frm_m_smessage_data=$descr";
+	if (function_exists('kloxo_toast_resolve_label')) {
+		$resolved = kloxo_toast_resolve_label((string) $descr);
+		if ($resolved !== '') {
+			$descr = $resolved;
+		}
+	}
+	$gbl->__this_redirect .= '&frm_smessage=added_successfully'
+		. '&frm_m_smessage_data=' . rawurlencode((string) $descr);
 
 	if ($class === 'domain' || $class === 'subdomain' || $class === 'client' || $class === 'vps') {
 		$gbl->setSessionV('__refresh_lpanel', 'true');

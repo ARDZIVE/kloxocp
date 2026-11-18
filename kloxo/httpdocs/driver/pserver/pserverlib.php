@@ -346,10 +346,12 @@ class pserver extends pservercore {
 					? (string) $ghtml->getFullUrl('a=updateform&sa=switchprogram')
 					: '/display.php?frm_action=updateform&frm_subaction=switchprogram';
 			}
-			$name = isset($this->nname) ? (string) $this->nname : 'localhost';
+			$what = function_exists('kloxo_toast_update_what')
+				? kloxo_toast_update_what($this, 'switchprogram')
+				: 'Switch Program';
 			$gbl->__this_redirect = $retUrl
 				. '&frm_smessage=updated_successfully'
-				. '&frm_m_smessage_data=' . rawurlencode($name);
+				. '&frm_m_smessage_data=' . rawurlencode($what);
 		}
 
 		// do_desc_update treats a falsy return as failure (update_failed toast)
