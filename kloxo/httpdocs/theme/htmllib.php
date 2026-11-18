@@ -4312,9 +4312,11 @@ class HtmlLib
 						$spancolor = '#c83';
 					}
 
+					// ostype (T column): fedora hat glyph for debian/ubuntu/rhel/fedora
 					$a = array('maindomain' => '&#xf01d;', 'subdomain' => '&#xf052;', 'cpstatus' => '&#xf008;',
-						'rhel' => '&#xf3f1;', 'customer' => '&#xf133;', 'reseller' => '&#xf134;',
-						'autorespond' => '&#xf08e;', 'forward' => '&#xf175;', 
+						'ostype' => '&#xf3f1;', 'debian' => '&#xf3f1;', 'fedora' => '&#xf3f1;', 'rhel' => '&#xf3f1;',
+						'customer' => '&#xf133;', 'reseller' => '&#xf134;',
+						'autorespond' => '&#xf08e;', 'forward' => '&#xf175;',
 						'file' => '&#xf0d6;', 'directory' => '&#xf094;', 'dirlink' => '&#xf022;');
 
 					foreach ($a as $k => $v) {

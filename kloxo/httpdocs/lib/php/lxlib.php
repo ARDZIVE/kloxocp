@@ -6230,7 +6230,10 @@ function kloxo_content_tab_label($str, $url = '')
 		|| $str === 'generalsetting' || $str === 'Generalsetting') {
 		return 'General Settings';
 	}
-	if ($act === 'refresh' || $act === 'hardrefresh') {
+	if ($act === 'hardrefresh') {
+		return 'Hardrefresh';
+	}
+	if ($act === 'refresh') {
 		return 'Refresh';
 	}
 	if ($sa === 'switchprogram') {

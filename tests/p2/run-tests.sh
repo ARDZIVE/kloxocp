@@ -210,6 +210,11 @@ if php "$HERE/test_server_pages.php"; then
 else
   bad "test_server_pages.php"
 fi
+if php "$HERE/test_servers_list_icons.php"; then
+  ok "test_servers_list_icons.php"
+else
+  bad "test_servers_list_icons.php"
+fi
 if php "$HERE/test_llog.php"; then
   ok "test_llog.php"
 else
