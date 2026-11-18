@@ -138,19 +138,22 @@
 
   <h1>Kloxo CP vs cPanel / WHM — Rated Feature Comparison</h1>
   <p class="meta">
-    Kloxo CP <strong>10.1-2026111821</strong> (AGPLv3, Ubuntu 24.04 / 26.x only — CentOS/RHEL installer removed)
+    Kloxo CP <strong>10.1-2026111822</strong> (AGPLv3, Ubuntu 24.04 / 26.x only — CentOS/RHEL installer removed)
     · vs <strong>cPanel &amp; WHM</strong>
     · Section 1 also vs <strong>ISPConfig 3.3</strong> (BSD) and <strong>Hestia CP</strong> (GPLv3)
-    · Ratings 0–10 · refreshed 10 Nov 2026 (post <code>kloxocp upcp</code> with auto-rollback)
+    · Ratings 0–10 · refreshed <strong>18 Nov 2026</strong>
   </p>
   <p class="note">
     Ratings weigh <strong>utility for hosting operators/customers</strong> and
     <strong>security posture</strong>. Kloxo scores are capped where features are
     coded but still live-unverified or incomplete on Ubuntu. Still
-    <strong>not production-safe</strong> (legacy PHP / live gaps). Panel updates:
-    <code>kloxocp upcp</code> / <code>update</code> (snapshot → apply → health → auto-rollback)
-    are built and php-cli tested; signed apt packaging is not.
-    ISPConfig / Hestia ratings reflect typical current stable releases (open-source panels).
+    <strong>not production-safe</strong> (legacy PHP / live gaps). Recent lifts covered here:
+    Fail2Ban + UFW, recovery console, watchdog, CSRF (POST+token for mutate actions),
+    Argon2id, Roundcube-only webmail, Nginx web-cache front, Knot DNS, SQLite panel DB,
+    explicit Status toasts, busy spinner, PHP Module Status (Ubuntu <code>mods-available</code>),
+    Command Center / LogWatch, <code>kloxocp upcp</code> auto-rollback.
+    Signed apt packaging is not built. ISPConfig / Hestia ratings reflect typical current
+    stable releases (open-source panels).
   </p>
   <p class="legend">
     <span><span class="bar r9">9–10</span> strong / mature</span>
@@ -159,6 +162,91 @@
     <span><span class="bar r3">3–4</span> weak / early</span>
     <span><span class="bar r1">0–2</span> missing / not ready</span>
   </p>
+
+  <h2>Kloxo CP — install &amp; update commands (current)</h2>
+  <p class="note">
+    Fresh <strong>Ubuntu 24.04 or 26.x</strong>, root, ~2&nbsp;GB RAM / 10&nbsp;GB disk.
+    Scripts: repo-root <code>get</code> (bootstrap) → <code>install.sh</code> (full install).
+    Cache-bust raw GitHub so CDN does not serve a stale <code>get</code>.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th class="feature">Action</th>
+        <th class="side" style="width:70%">Command / script</th>
+        <th class="side">Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="feature">Install (default full)</td>
+        <td><code>curl -fsSL -H 'Cache-Control: no-cache' \<br>
+&nbsp;&nbsp;"https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" \<br>
+&nbsp;&nbsp;| sudo bash</code></td>
+        <td><code>get</code> fetches cache-busted <code>install.sh</code>; pipe-safe (<code>exec &lt;/dev/null</code>); <code>[1/8]…[8/8]</code>; log <code>/var/log/kloxo-install.log</code></td>
+      </tr>
+      <tr>
+        <td class="feature">Install full (explicit)</td>
+        <td><code>… | sudo bash -s -- --profile=full</code></td>
+        <td>Nginx, MariaDB, Exim, Dovecot, Rspamd, BIND, Pure-FTPd, UFW, Fail2Ban, certbot, LogWatch (off until enabled), Visitor Stats</td>
+      </tr>
+      <tr>
+        <td class="feature">Install core (no mail)</td>
+        <td><code>… | sudo bash -s -- --profile=core</code></td>
+        <td>Panel + sites + DNS + FTP; no Exim/Dovecot/Rspamd packages</td>
+      </tr>
+      <tr>
+        <td class="feature">Wipe panel, reinstall</td>
+        <td><code>… | sudo bash -s -- --fresh --yes</code></td>
+        <td>Removes program + panel DB/passwords; keeps sites, <code>/var/vmail</code>, customer DBs, UFW, apt packages</td>
+      </tr>
+      <tr>
+        <td class="feature">Slave backend</td>
+        <td><code>… | sudo bash -s -- --slave --slave-password='SECRET'</code></td>
+        <td>No UI on 7777; TLS backend on 7779</td>
+      </tr>
+      <tr>
+        <td class="feature">Low RAM/disk</td>
+        <td><code>… | sudo bash -s -- --force</code></td>
+        <td>Override ~2&nbsp;GB / ~10&nbsp;GB floor</td>
+      </tr>
+      <tr>
+        <td class="feature">Local tree install</td>
+        <td><code>sudo bash get</code> or <code>sudo bash install.sh</code> from a copied clone</td>
+        <td>Uses sibling <code>install.sh</code> when present (no GitHub download)</td>
+      </tr>
+      <tr>
+        <td class="feature">Update (preferred)</td>
+        <td><code>sudo kloxocp upcp</code><br>
+          same: <code>sudo kloxocp update</code> · <code>sudo sh /script/upcp</code></td>
+        <td>Pre-flight → snapshot → git sync → health → <strong>auto-rollback</strong>; log <code>/var/log/kloxo-update.log</code></td>
+      </tr>
+      <tr>
+        <td class="feature">Update (panel PHP wrapper)</td>
+        <td><code>/opt/kloxo/init/php-cli.sh /opt/kloxo/bin/kloxocp upcp</code></td>
+        <td>Safe after <strong>PHP Used</strong> (bare <code>php</code> may lack <code>pdo_sqlite</code>)</td>
+      </tr>
+      <tr>
+        <td class="feature">Update flags</td>
+        <td><code>--check</code> · <code>--no-fetch</code> · <code>--no-rollback</code> · <code>--src=DIR</code></td>
+        <td>Plan only / skip fetch / refuse auto-rollback / custom source</td>
+      </tr>
+      <tr>
+        <td class="feature">Other CLI</td>
+        <td><code>kloxocp status</code> · <code>doctor</code> · <code>snapshot</code> · <code>rollback</code> · <code>help</code></td>
+        <td>Prefer <code>/opt/kloxo/init/php-cli.sh …</code> or <code>lxphp.exe …</code></td>
+      </tr>
+      <tr>
+        <td class="feature">Env overrides</td>
+        <td><code>KLOXO_GIT_URL</code> · <code>KLOXO_GIT_BRANCH</code> · <code>KLOXO_ADMIN_PASSWORD</code> · <code>KLOXO_GIT_TOKEN</code> · <code>KLOXO_GET_URL</code></td>
+        <td>Private fork / alternate <code>install.sh</code> URL for <code>get</code></td>
+      </tr>
+      <tr class="total">
+        <td class="feature">Panel URL</td>
+        <td colspan="2"><code>https://&lt;ip&gt;:7777/</code> admin/admin → Change Password → Mail Setup · Recovery: <code>https://&lt;ip&gt;:7777/recovery/</code></td>
+      </tr>
+    </tbody>
+  </table>
 
   <h2>1. Platform, license, install &amp; updates — four-panel comparison</h2>
   <p class="note">
@@ -191,21 +279,21 @@
       </tr>
       <tr>
         <td class="feature">Install experience</td>
-        <td class="panel"><span class="bar r8">8</span><br><code>curl -fsSL -H 'Cache-Control: no-cache' "…/get?$(date +%s)" | sudo bash</code> — cache-busted raw URL, no questions, pipe-safe, <code>[1/8]…[8/8]</code> steps, auto hostname, full profile; Hiawatha source-built (5&nbsp;GB panel uploads). Still not a GA production installer.</td>
+        <td class="panel"><span class="bar r8">8</span><br><code>curl -fsSL -H 'Cache-Control: no-cache' "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" | sudo bash</code> — <code>get</code>→<code>install.sh</code>, cache-busted, pipe-safe, <code>[1/8]…[8/8]</code>, auto hostname, <code>--profile=full|core</code> / <code>--fresh</code> / <code>--slave</code>; Hiawatha source-built. Still not a GA production installer.</td>
         <td class="panel"><span class="bar r9">9</span><br>Official installer + EasyApache; decades of ops muscle memory.</td>
         <td class="panel"><span class="bar r9">9</span><br>Autoinstaller: <code>wget -O - https://get.ispconfig.org | sh</code> — full stack on fresh Debian/Ubuntu.</td>
         <td class="panel"><span class="bar r9">9</span><br><code>hst-install.sh</code> on a fresh OS; interactive or flags; very popular one-command path.</td>
       </tr>
       <tr>
         <td class="feature">Updates + rollback</td>
-        <td class="panel"><span class="bar r7">7</span><br><code>kloxocp upcp</code>/<code>update</code> + <code>/script/upcp</code>: pre-flight → snapshot → git sync → health check → <strong>auto-rollback</strong> on failure (php-cli tested). Still git-tree based; signed apt / full component upgrades not built; live Ubuntu UNVERIFIED.</td>
+        <td class="panel"><span class="bar r7">7</span><br><code>sudo kloxocp upcp</code> (= <code>update</code> / <code>sh /script/upcp</code>): pre-flight → snapshot → sync <code>/usr/local/src/kloxo-cp</code> → health → <strong>auto-rollback</strong>; flags <code>--check</code>/<code>--no-fetch</code>/<code>--no-rollback</code>. Prefer <code>/opt/kloxo/init/php-cli.sh … upcp</code> after PHP Used. Git-tree based; no signed apt; live Ubuntu UNVERIFIED.</td>
         <td class="panel"><span class="bar r9">9</span><br>Mature <code>upcp</code>, vendor channels, support for failed updates.</td>
         <td class="panel"><span class="bar r8">8</span><br><code>ispconfig_update.sh</code> / <code>update.php</code> — routine one-command updates; not cPanel-class rollback tooling.</td>
         <td class="panel"><span class="bar r8">8</span><br>Apt packages; automatic updates on by default; managed in Server Settings → Updates.</td>
       </tr>
       <tr>
         <td class="feature">Production readiness</td>
-        <td class="panel"><span class="bar r2">2</span><br>Docs/README: not safe for public production. Legacy PHP still not PHP 8.3-safe end-to-end. Many live paths UNVERIFIED. New upcp does not change that.</td>
+        <td class="panel"><span class="bar r2">2</span><br>Docs/README: not safe for public production. Security tooling (UFW/Fail2Ban/CSRF/Argon2/recovery) is much stronger, but legacy PHP + live-unverified paths still block a production claim. New upcp does not change that.</td>
         <td class="panel"><span class="bar r10">10</span><br>Industry default for shared hosting.</td>
         <td class="panel"><span class="bar r9">9</span><br>Long-running production OSS panel; multi-server / service nodes widely used.</td>
         <td class="panel"><span class="bar r9">9</span><br>Widely deployed in production for VPS/single-server hosting; active releases.</td>
@@ -358,8 +446,8 @@
       </tr>
       <tr>
         <td class="feature">PHP configuration UI</td>
-        <td class="rate"><span class="bar r8">8</span></td>
-        <td>PHP Configure + Advanced PHP Configure; Module Status; Domain PHPinfo with native-style HTML tables (improved rendering).</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>PHP Configure + Advanced PHP Configure; <strong>PHP Module Status</strong> lists Ubuntu <code>/etc/php/*/mods-available</code> with enable/disable/restart via backend; Domain PHPinfo with native-style HTML tables.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>MultiPHP INI Editor and related tools.</td>
       </tr>
@@ -372,8 +460,8 @@
       </tr>
       <tr>
         <td class="feature">Front web cache</td>
-        <td class="rate"><span class="bar r5">5</span></td>
-        <td>Optional Nginx cache front designed with cookie/admin bypass; live 80/443 hand-over UNVERIFIED.</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td>Switch Program <strong>Web Cache = nginx</strong>: front proxy on 80/443/8080, site servers on loopback, cookie/admin/<code>/wp-admin</code>/ACME bypass, atomic <code>nginx -t</code> + rollback. Live 80/443 hand-over still UNVERIFIED.</td>
         <td class="rate"><span class="bar r8">8</span></td>
         <td>Optimize Website / LSCache / Nginx cache partners — more mature ecosystem.</td>
       </tr>
@@ -460,8 +548,8 @@
       </tr>
       <tr>
         <td class="feature">Webmail</td>
-        <td class="rate"><span class="bar r5">5</span></td>
-        <td>Chooser for Roundcube/Rainloop/Afterlogic/etc.; Ubuntu package path UNVERIFIED.</td>
+        <td class="rate"><span class="bar r6">6</span></td>
+        <td><strong>Roundcube only</strong> (System Default); Afterlogic/Rainloop/Squirrelmail/Telaen/chooser dropped. Ubuntu package path still UNVERIFIED.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Roundcube integrated; historically Horde too.</td>
       </tr>
@@ -541,45 +629,52 @@
       <tr class="section"><td colspan="5">6. Security &amp; operations</td></tr>
       <tr>
         <td class="feature">Firewall</td>
-        <td class="rate"><span class="bar r7">7</span></td>
-        <td>UFW enabled by default; full rule UI with suspend and panel-port guards. Live UFW UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td><strong>UFW enabled by default</strong>; list/add/edit/suspend; IPv4+IPv6 collapsed rows; panel-port delete/deny guards; comments on default ports. Live UFW UNVERIFIED.</td>
         <td class="rate"><span class="bar r8">8</span></td>
         <td>WHM firewall config; CSF common in ecosystem.</td>
       </tr>
       <tr>
         <td class="feature">Brute-force protection</td>
-        <td class="rate"><span class="bar r7">7</span></td>
-        <td>Fail2Ban (16 jails, nftables) + LxGuard. Live bans/journals UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td><strong>Fail2Ban</strong> UI: 16 jails (SSH, panel/recovery auth log, Exim, Dovecot, Postfix, Nginx, Apache, Pure-FTPd, MariaDB, recidive), Banned IPs, Whitelist, Recent Activity; <strong>nftables</strong> action (not UFW); generate → <code>fail2ban-client -t</code> → atomic install + rollback. + LxGuard. Live bans UNVERIFIED.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>cPHulk + Fail2Ban/CSF integrations — proven at scale.</td>
       </tr>
       <tr>
         <td class="feature">Recovery when core services fail</td>
         <td class="rate"><span class="bar r9">9</span></td>
-        <td>HTTPS :7777 recovery console with own Argon2 login; designed to work with MariaDB/Nginx/Apache down.</td>
+        <td>HTTPS <code>:7777/recovery/</code> with own Argon2 login, CSRF, rate-limit; works with MariaDB/Nginx/Apache down; Start/Stop/Enable + Watchdog column; pair-mutex for web/DNS/MTA.</td>
         <td class="rate"><span class="bar r5">5</span></td>
         <td>Depends on hoster rescue / WHM still needing core services.</td>
       </tr>
       <tr>
         <td class="feature">Service watchdog</td>
         <td class="rate"><span class="bar r8">8</span></td>
-        <td><code>kloxo-watchdog</code> restarts dead units/ports; holds intentional stops. Live crash proof UNVERIFIED.</td>
+        <td><code>kloxo-watchdog</code> (cPanel chkservd model): unit + port/socket checks, hold intentional stops, notify admin, max restarts/window. Live crash proof UNVERIFIED.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>chkservd / service manager — long production history.</td>
       </tr>
       <tr>
         <td class="feature">Services control UI</td>
         <td class="rate"><span class="bar r8">8</span></td>
-        <td>Catalog + systemd states; refuses stop of panel-critical units; MariaDB stoppable safely for panel UI.</td>
+        <td>Full catalog + systemd states; refuses stop of panel-critical units; MariaDB stoppable (panel is SQLite); Start waits for failed/inactive and shows journal.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Restart Services / Service Manager — mature.</td>
       </tr>
       <tr>
         <td class="feature">SSH tools</td>
         <td class="rate"><span class="bar r8">8</span></td>
-        <td>SSH Configure; Authorized Keys with server pubkey prefill + strict username rules; admin Terminal via backend. Live UNVERIFIED.</td>
+        <td>SSH Configure; Authorized Keys (server pubkey prefill, strict usernames); admin WebConsole-like Terminal via kloxo-backend (no Java applet). Live UNVERIFIED.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>SSH Access, Terminal, Key Manager.</td>
+      </tr>
+      <tr>
+        <td class="feature">LogWatch / Command Center</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>LogWatch under Watchdog (reports, email, settings); Command Center shows stdout as Output and stderr as Error (no silent RPC swallow). Live UNVERIFIED.</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Terminal + script center + partner log tools.</td>
       </tr>
       <tr>
         <td class="feature">WAF / ModSecurity</td>
@@ -597,8 +692,8 @@
       </tr>
       <tr>
         <td class="feature">Core panel security hygiene</td>
-        <td class="rate"><span class="bar r8">8</span></td>
-        <td>P0 closed; first-login session null-assign fixed; Aux passwords Argon2id; forced admin password change. Legacy PHP still not public-safe overall.</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>P0 closed (no committed keys, no setuid helpers, auth-before-unserialize). <strong>CSRF:</strong> GET update/add/delete rejected; forms/menu/icons POST with <code>frm_token</code>. Argon2id (panel + mail + aux + recovery); forced admin password change; panel SQLite survives MariaDB down. Legacy PHP still not public-safe overall.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Vendor-hardened over years; large attack surface but actively maintained commercially.</td>
       </tr>
@@ -657,8 +752,8 @@
       <tr class="section"><td colspan="5">8. UX, API, ecosystem</td></tr>
       <tr>
         <td class="feature">End-user / admin UI</td>
-        <td class="rate"><span class="bar r6">6</span></td>
-        <td>Classic UI kept on purpose. Busy spinner, typed status toasts, unread ticket red-dot (no spam toast). Still dated vs modern panels.</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Classic UI kept on purpose. <strong>Busy spinner</strong> (300&nbsp;ms delay; heavy pages immediate); <strong>explicit Status toasts</strong> (“Password saved.” / “Switch Program saved.” — not “admin saved”); unread ticket red-dot (no spam toast). Still dated vs modern panels.</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Modern themes (Jupiter/Meridian) + mobile apps.</td>
       </tr>
@@ -701,8 +796,8 @@
       </tr>
       <tr class="total">
         <td class="feature">2. Web / PHP</td>
-        <td class="rate">5.3</td>
-        <td>Solid LEMP/multi-PHP + progress UI; apps/CDN gap still hurts utility hard.</td>
+        <td class="rate">5.6</td>
+        <td>LEMP/multi-PHP + Module Status + Nginx cache front; apps/CDN gap still hurts utility hard.</td>
         <td class="rate">9.1</td>
         <td>Full hosting web product.</td>
       </tr>
@@ -715,8 +810,8 @@
       </tr>
       <tr class="total">
         <td class="feature">4. Mail</td>
-        <td class="rate">5.0</td>
-        <td>Security + SMTP policy stronger; mailbox UI / lists / CalDAV still weak.</td>
+        <td class="rate">5.1</td>
+        <td>Security + SMTP policy + Roundcube-only default; mailbox UI / lists / CalDAV still weak.</td>
         <td class="rate">8.6</td>
         <td>Complete mail product.</td>
       </tr>
@@ -729,8 +824,8 @@
       </tr>
       <tr class="total">
         <td class="feature">6. Security / ops</td>
-        <td class="rate">6.2</td>
-        <td>Recovery + watchdog + UFW/Fail2Ban + SSH keys; WAF/Imunify missing.</td>
+        <td class="rate">6.6</td>
+        <td>UFW + Fail2Ban + recovery + watchdog + CSRF + Argon2id + LogWatch; WAF/Imunify missing.</td>
         <td class="rate">8.4</td>
         <td>Broader commercial security ecosystem.</td>
       </tr>
@@ -743,8 +838,8 @@
       </tr>
       <tr class="total">
         <td class="feature">8. UX / API / ecosystem</td>
-        <td class="rate">4.4</td>
-        <td>Toasts/unread-dot polish; API/marketplace/support far behind.</td>
+        <td class="rate">4.6</td>
+        <td>Busy spinner + form-named toasts; API/marketplace/support far behind.</td>
         <td class="rate">9.4</td>
         <td>Ecosystem is the decisive advantage.</td>
       </tr>
@@ -761,11 +856,11 @@
   <div class="scorebox">
     <div class="score">
       <h3>Kloxo CP — overall</h3>
-      <div class="big">5.8 / 10</div>
-      <p><strong>Utility: 5.4</strong> · <strong>Security: 6.4</strong> <span style="font-weight:400;color:var(--muted)">(was 5.5 / 5.0 / 6.3)</span></p>
+      <div class="big">6.0 / 10</div>
+      <p><strong>Utility: 5.5</strong> · <strong>Security: 6.7</strong> <span style="font-weight:400;color:var(--muted)">(was 5.8 / 5.4 / 6.4)</span></p>
       <ul>
-        <li>Latest lift: <code>kloxocp upcp</code> (cPanel-style) with snapshot, health check, and automatic rollback — php-cli tested.</li>
-        <li>Also recent: <code>curl …/get | sudo bash</code>, CentOS removal, Backup Now, Aux login, default_plan, SMTP overlay, UI toasts.</li>
+        <li>Latest security lift: Fail2Ban (16 jails, nftables) + UFW UI, recovery console, watchdog, CSRF on mutate actions, Argon2id everywhere that matters.</li>
+        <li>Also recent: Roundcube-only webmail, Nginx cache front, PHP Module Status (Ubuntu), form-named toasts, busy spinner, Command Center/LogWatch, <code>kloxocp upcp</code> auto-rollback.</li>
         <li>Utility still held down by apps, transfers, mail UI (P4), public API, signed apt, and production readiness.</li>
         <li><strong>Still not recommended as a public cPanel/Hestia/ISPConfig replacement today.</strong></li>
       </ul>
@@ -797,19 +892,19 @@
       <tr>
         <td class="feature">Utility (60%)</td>
         <td>Day-to-day hosting usefulness: web/apps, DNS, mail UX, DB/files/backup, reseller/transfers, UI/API/ecosystem, install/update readiness.</td>
-        <td class="rate"><span class="bar r5">5.4</span></td>
+        <td class="rate"><span class="bar r5">5.5</span></td>
         <td class="rate"><span class="bar r9">9.1</span></td>
       </tr>
       <tr>
         <td class="feature">Security (40%)</td>
-        <td>Defaults and ops safety: mail invariants, firewall/Fail2Ban, recovery console, watchdog, panel DB resilience, core hygiene, WAF/commercial suites, update auto-rollback.</td>
-        <td class="rate"><span class="bar r6">6.4</span></td>
+        <td>Defaults and ops safety: mail invariants, UFW/Fail2Ban, recovery console, watchdog, CSRF, Argon2id, panel SQLite resilience, core hygiene, WAF/commercial suites, update auto-rollback.</td>
+        <td class="rate"><span class="bar r7">6.7</span></td>
         <td class="rate"><span class="bar r8">8.3</span></td>
       </tr>
       <tr class="total">
         <td class="feature">Overall</td>
         <td>0.6 × Utility + 0.4 × Security</td>
-        <td class="rate"><span class="bar r6">5.8</span></td>
+        <td class="rate"><span class="bar r6">6.0</span></td>
         <td class="rate"><span class="bar r9">8.8</span></td>
       </tr>
     </tbody>
@@ -913,9 +1008,9 @@
       </tr>
       <tr>
         <td class="feature">End-user / admin UI</td>
-        <td class="rate"><span class="bar r5">5</span></td>
-        <td>Classic UI kept on purpose; dated vs Jupiter/Meridian / mobile apps.</td>
-        <td>Perceived product quality and mobile usability suffer even when features exist.</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Classic UI kept; busy spinner + form-named toasts help; still dated vs Jupiter/Meridian / mobile apps.</td>
+        <td>Perceived product quality and mobile usability still lag modern panels.</td>
       </tr>
       <tr>
         <td class="feature">Docs &amp; support</td>
@@ -991,21 +1086,63 @@
       </tr>
       <tr class="section"><td colspan="4">Recently improved (no longer top weakeners, but still not parity)</td></tr>
       <tr>
+        <td class="feature">Fail2Ban + UFW</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Full Fail2Ban UI (16 jails, nftables, whitelist/bans/activity) + UFW enabled by default with suspend/edit guards.</td>
+        <td>Closes the old “no firewall/brute-force product” gap; live bans/UFW still UNVERIFIED; no CSF/cPHulk brand.</td>
+      </tr>
+      <tr>
+        <td class="feature">Recovery console + watchdog</td>
+        <td class="rate"><span class="bar r9">9</span> / <span class="bar r8">8</span></td>
+        <td>HTTPS recovery with Argon2/CSRF; <code>kloxo-watchdog</code> port/unit checks with hold/notify.</td>
+        <td>Stronger than typical OSS panels for MariaDB-down ops; live systemd proof UNVERIFIED.</td>
+      </tr>
+      <tr>
+        <td class="feature">CSRF + Argon2id hygiene</td>
+        <td class="rate"><span class="bar r9">9</span></td>
+        <td>GET update/add/delete rejected; menu/tiles/icons POST with <code>frm_token</code>; Argon2id for panel/mail/aux/recovery.</td>
+        <td>Closes classic Kloxo-MR CSRF/token holes; legacy PHP surface still not public-safe.</td>
+      </tr>
+      <tr>
         <td class="feature">Panel upcp + auto-rollback</td>
         <td class="rate"><span class="bar r7">7</span></td>
         <td><code>kloxocp upcp</code>/<code>update</code> + <code>/script/upcp</code>; snapshot; health; auto-rollback; <code>--check</code>; lock + log.</td>
         <td>Closes the old “update exits 2” gap vs Hestia/ISPConfig; still git-based, live Ubuntu UNVERIFIED, no signed apt.</td>
       </tr>
       <tr>
-        <td class="feature">Install one-liner</td>
+        <td class="feature">Install one-liner + scripts</td>
         <td class="rate"><span class="bar r8">8</span></td>
-        <td><code>curl …/get | sudo bash</code>; CentOS tree removed; stepped progress.</td>
+        <td><code>get</code> + <code>install.sh</code>; full URL <code>raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)</code>; flags <code>--profile=full|core</code>, <code>--fresh --yes</code>, <code>--slave</code>, <code>--force</code>.</td>
         <td>Competitive with Hestia/ISPConfig onboarding shape — still not a production-safe outcome.</td>
+      </tr>
+      <tr>
+        <td class="feature">Update scripts</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td><code>kloxocp upcp</code> / <code>update</code> / <code>/script/upcp</code>; wrapper <code>/opt/kloxo/init/php-cli.sh</code>; log <code>/var/log/kloxo-update.log</code>.</td>
+        <td>Do not re-run the install one-liner for routine updates; live Ubuntu UNVERIFIED; no signed apt.</td>
+      </tr>
+      <tr>
+        <td class="feature">Roundcube-only + mail policy</td>
+        <td class="rate"><span class="bar r6">6</span> / <span class="bar r8">8</span></td>
+        <td>Webmail System Default is Roundcube only; SMTP Protection (greylist/RBL/headers) via <code>kloxo-mail policy:apply</code>.</td>
+        <td>Cleaner than multi-chooser chaos; Roundcube Ubuntu install + full P4 mailbox UI still open.</td>
+      </tr>
+      <tr>
+        <td class="feature">PHP Module Status + Nginx cache</td>
+        <td class="rate"><span class="bar r9">9</span> / <span class="bar r6">6</span></td>
+        <td>Ubuntu <code>mods-available</code> list with enable/disable; optional Nginx front cache with cookie/admin bypass.</td>
+        <td>Matches MultiPHP expectations better; live cache hand-over UNVERIFIED.</td>
+      </tr>
+      <tr>
+        <td class="feature">UI polish (busy + toasts)</td>
+        <td class="rate"><span class="bar r7">7</span></td>
+        <td>Busy spinner on slow navigations; Status toasts name the form (“Password saved.”).</td>
+        <td>Operator clarity improved; classic skin still dated vs modern panels.</td>
       </tr>
       <tr>
         <td class="feature">Backup Now / Restore UX</td>
         <td class="rate"><span class="bar r7">7</span></td>
-        <td>Waits for job, status text, env snapshot, clearer manual leftovers.</td>
+        <td>Waits for job, status text, env snapshot, clearer manual leftovers; safer extract/allow-listed unserialize.</td>
         <td>Better operator guidance; live Ubuntu restore still UNVERIFIED; no Transfer Tool.</td>
       </tr>
       <tr>
@@ -1074,7 +1211,7 @@
         <td class="feature">Roundcube webmail (shipped)</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Users search “cPanel webmail” / Roundcube login every day.</td>
-        <td><span class="bar r5">Partial</span> Chooser lists Roundcube/etc.; Ubuntu install path UNVERIFIED.</td>
+        <td><span class="bar r6">Partial</span> System Default is <strong>Roundcube only</strong> (legacy choosers dropped); Ubuntu package install still UNVERIFIED.</td>
       </tr>
       <tr>
         <td class="feature">Track Delivery / Email Deliverability</td>
@@ -1208,7 +1345,13 @@
         <td class="feature">cPHulk / brute-force protection</td>
         <td class="rate"><span class="bar r8">8</span></td>
         <td>Stop password attacks on mail/FTP/WHM.</td>
-        <td><span class="bar r7">Partial</span> Fail2Ban + LxGuard exist; not the cPHulk brand users search for.</td>
+        <td><span class="bar r8">Strong</span> Full Fail2Ban product UI (panel/mail/web/FTP/SSH jails, nftables) + LxGuard; not the cPHulk brand users search for. Live bans UNVERIFIED.</td>
+      </tr>
+      <tr>
+        <td class="feature">ConfigServer Firewall (CSF) / firewall UI</td>
+        <td class="rate"><span class="bar r8">8</span></td>
+        <td>Hosters search CSF for port rules and “block this IP”.</td>
+        <td><span class="bar r8">Strong</span> UFW Firewall UI (default-on, suspend/edit, panel-port guards); not CSF. Live UFW UNVERIFIED.</td>
       </tr>
       <tr>
         <td class="feature">DNS Zone Editor + DNSSEC</td>
@@ -1238,7 +1381,7 @@
         <td class="feature">upcp / Easy updates</td>
         <td class="rate"><span class="bar r9">9</span></td>
         <td>Admins search how to update cPanel safely.</td>
-        <td><span class="bar r7">Partial</span> <code>kloxocp upcp</code> with auto-rollback is built (php-cli tested); signed apt / live Ubuntu still missing.</td>
+        <td><span class="bar r7">Partial</span> <code>sudo kloxocp upcp</code> (= <code>update</code> / <code>/script/upcp</code>) with auto-rollback; use <code>/opt/kloxo/init/php-cli.sh … upcp</code> after PHP Used; signed apt / live Ubuntu still missing.</td>
       </tr>
       <tr>
         <td class="feature">PostgreSQL + phpPgAdmin</td>
@@ -1315,7 +1458,10 @@
 
   <p class="footer">
     Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, <code>README.md</code>/<code>install.sh</code>
-    (~2 GB RAM / 10 GB disk floor; version 10.1-2026111821) ·
+    (~2 GB RAM / 10 GB disk floor; version 10.1-2026111822; refreshed 18 Nov 2026) ·
+    Recent code covered: Fail2Ban/UFW/recovery/watchdog, CSRF mutate POST, Argon2id,
+    Roundcube-only webmail, Nginx cache front, Knot DNS, SQLite panel DB, PHP Module Status,
+    form-named toasts, busy spinner, Command Center/LogWatch, <code>kloxocp upcp</code> ·
     cPanel system requirements (Ubuntu/CloudLinux: 2/4 GB RAM, 20/40 GB disk; ≥5 GB free in
     <code>/usr/local/cpanel</code>; community reports ~2–3 GB panel tree) ·
     ISPConfig install guides / community (practical ~2 GB / ~20 GB) ·

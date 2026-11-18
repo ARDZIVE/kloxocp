@@ -595,6 +595,63 @@ if ($trimSrc !== '' && str_contains($trimSrc, 'is_array($data)')) {
 		&& ($got['n'] ?? null) === 3;
 }
 check($trimOk, 'trimming() recurses nested restore _accountselect without TypeError');
+
+// Restore confirm checkboxes: createTreeObject must not pre-escape quotes
+// (jsString/json_encode already escapes; type=\'checkbox\' became a text input).
+$lxlibSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+$createTreeFn = '';
+if (preg_match('/function createTreeObject\(.*?^function /sm', $lxlibSrc, $mCt) === 1) {
+	$createTreeFn = $mCt[0];
+}
+check($createTreeFn !== ''
+	&& !str_contains($createTreeFn, "str_replace(\"'\", \"\\\\'\", \$imgstr)")
+	&& !str_contains($createTreeFn, 'str_replace("\'", "\\\'", $imgstr)')
+	&& str_contains($createTreeFn, 'Do not str_replace'),
+	'createTreeObject does not pre-escape quotes for tree HTML');
+check(str_contains($lx, 'type=\"checkbox\"')
+	|| str_contains($lx, "type=\\\"checkbox\\\"")
+	|| preg_match('/type=\\\\?"checkbox\\\\?"/', $lx) === 1
+	|| str_contains($lx, 'type="checkbox"'),
+	'addToTree emits type="checkbox" with HTML-escaped value');
+$addTreeFn = '';
+if (preg_match('/function addToTree\(.*?^[\t ]*function /sm', $lx, $mAt) === 1) {
+	$addTreeFn = $mAt[0];
+}
+check($addTreeFn !== ''
+	&& str_contains($addTreeFn, 'htmlspecialchars')
+	&& str_contains($addTreeFn, 'treecheckbox')
+	&& str_contains($addTreeFn, 'getClName'),
+	'addToTree HTML-escapes checkbox value and label text');
+
+// Round-trip: checkbox HTML through jsString must stay type=checkbox (not text).
+$jsRoundOk = false;
+if (class_exists('HtmlLib', false) || is_file($doc . '/theme/htmllib.php')) {
+	if (!class_exists('HtmlLib', false)) {
+		// Pull jsString only via a tiny stand-in matching production flags.
+		$jsString = static function (string $value): string {
+			$j = json_encode(
+				$value,
+				JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
+			);
+
+			return is_string($j) && $j !== '' ? $j : '""';
+		};
+	} else {
+		$jsString = static function (string $value): string {
+			return HtmlLib::jsString($value);
+		};
+	}
+	$clEsc = htmlspecialchars('client-mesrob', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	$html = "<input type=\"checkbox\" id=\"treecheckbox0\" name=\"treecheckbox0\""
+		. " value=\"{$clEsc}\" class=\"verysmall\" /> mesrob --> Already Exists";
+	$decoded = json_decode($jsString($html));
+	$jsRoundOk = is_string($decoded)
+		&& str_contains($decoded, 'type="checkbox"')
+		&& str_contains($decoded, 'value="client-mesrob"')
+		&& !str_contains($decoded, "\\'");
+}
+check($jsRoundOk, 'jsString round-trip keeps restore checkbox as type=checkbox');
+
 check(str_contains($bak, "dbaction = 'clean'")
 	&& str_contains($bak, 'collectquota after restore'),
 	'Restore marks lxbackup clean and does not abort on collectquota');

@@ -3288,10 +3288,10 @@ function createTreeObject($name, $img, $imgstr, $url, $open, $help, $alt)
 {
 	static $val;
 
-	$imgstr = str_replace("'", "\'", $imgstr);
-	$help = str_replace("'", "\'", $help);
-	$alt = str_replace("'", "\'", $alt);
-	$img = str_replace("'", "\'", $img);
+	// Do not str_replace("'", "\'") here. print_tree embeds these via
+	// HtmlLib::jsString (json_encode). Pre-escaping broke restore checkboxes:
+	// type=\'checkbox\' is not a valid HTML type, so the browser showed a
+	// text field whose value was \'client-…\'.
 	$val++;
 	$name = $name . $val;
 	$tobj = new Tree(null, null, $name);

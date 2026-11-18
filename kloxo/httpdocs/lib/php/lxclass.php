@@ -3260,23 +3260,21 @@ abstract class Lxclass
 			$img = $ghtml->get_image($path, $this->get__table(), "show", ".gif");
 		}
 
-		$message = $this->__v_message;
+		$message = isset($this->__v_message) ? (string) $this->__v_message : '';
 
 		$name = $this->getId();
-	//	$imgstr = "<img height='12' width='12' src='{$img}'/> {$name} {$message}";
-		$imgstr = " {$name} {$message}";
+		$nameEsc = htmlspecialchars((string) $name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$msgEsc = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$imgstr = " {$nameEsc} {$msgEsc}";
 
-		$showdisabledflag = $gbl->__var_tmp_disabled_flag;
-		$disabled = null;
-		$checked = null;
+		$showdisabledflag = !empty($gbl->__var_tmp_disabled_flag);
+		$disabled = '';
+		$checked = '';
 
 		if ($showdisabledflag) {
-			$disabled = "disabled";
-		
-			if (isset($this->__var_checked) && $this->__var_checked) {
-				$checked = "checked";
-			} else {
-				$checked = null;
+			$disabled = 'disabled';
+			if (!empty($this->__var_checked)) {
+				$checked = 'checked';
 			}
 		}
 
@@ -3284,11 +3282,14 @@ abstract class Lxclass
 			$gbl->__tmp_checkbox_value = 0;
 		}
 
-		$v = $gbl->__tmp_checkbox_value;
+		$v = (int) $gbl->__tmp_checkbox_value;
 		$gbl->__tmp_checkbox_value++;
 
-		$inputstr = "<input type='checkbox' id='treecheckbox{$v}' {$checked} {$disabled} name='treecheckbox{$v}' " .
-			"value='{$this->getClName()}' class='verysmall'/>";
+		// Double-quoted attrs: safe with HtmlLib::jsString; avoid type='…' which
+		// used to become type=\'…\' after createTreeObject + json_encode.
+		$clEsc = htmlspecialchars((string) $this->getClName(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$inputstr = "<input type=\"checkbox\" id=\"treecheckbox{$v}\" {$checked} {$disabled}"
+			. " name=\"treecheckbox{$v}\" value=\"{$clEsc}\" class=\"verysmall\" />";
 
 		$img = null;
 		$imgstr = $inputstr . $imgstr;
