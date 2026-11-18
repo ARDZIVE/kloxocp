@@ -4991,17 +4991,15 @@ if (str_contains($pwSrc, 'kloxo_force_modal_updateform')
 } else {
 	bad('forced Change Password form posts to the login client, not the page object');
 }
-if (str_contains($pwSrc, 'kloxo-mail-setup-force')
-	&& str_contains($pwSrc, "kloxo_force_modal_updateform(\$login, 'mailsetup'")
-	&& str_contains($pwSrc, 'kloxo_admin_mail_setup_needed')
+if (str_contains($pwSrc, 'kloxo_admin_mail_setup_needed')
 	&& str_contains($ccSrc, 'case "mailsetup"')
 	&& str_contains($ccSrc, 'function updateMailsetup')
 	&& str_contains($libMailSrc, 'function kloxo_mail_setup_contact_ok')
 	&& str_contains($libMailSrc, 'function kloxo_admin_mail_setup_gaps')
-	&& str_contains((string) file_get_contents($doc . '/theme/js/lxa.js'), 'kloxo-mail-setup-force')) {
-	ok('forced Mail Setup modal follows password change for missing contact/FQDN');
+	&& (bool) preg_match('/function kloxo_admin_mail_setup_needed\(\$login\): bool\s*\{\s*return false;/s', $libMailSrc)) {
+	ok('Mail Setup force modal disabled after first login (needed always false)');
 } else {
-	bad('forced Mail Setup modal follows password change for missing contact/FQDN');
+	bad('Mail Setup force modal disabled after first login (needed always false)');
 }
 $pwPrevLogin = isset($login) ? $login : null;
 try {

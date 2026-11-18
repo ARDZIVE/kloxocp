@@ -3201,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111813';
+	return '10.1-2026111814';
 }
 
 function getDownloadServer()
@@ -3647,9 +3647,14 @@ function kloxo_admin_mail_setup_gaps($login): array
 	return $gaps;
 }
 
+/**
+ * Required Mail Setup modal after first login is off: admin email and
+ * hostname can be set later under the profile / Mail Setup form. Gaps are
+ * still available via kloxo_admin_mail_setup_gaps() for optional UI.
+ */
 function kloxo_admin_mail_setup_needed($login): bool
 {
-	return kloxo_admin_mail_setup_gaps($login) !== array();
+	return false;
 }
 
 /**

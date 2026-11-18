@@ -111,8 +111,9 @@ check(str_contains($lib, 'function kloxo_mail_setup_contact_ok')
 	&& str_contains($lib, 'function kloxo_admin_mail_setup_needed')
 	&& str_contains($lib, 'function kloxo_admin_mail_setup_gaps')
 	&& str_contains($lib, 'example.com')
-	&& str_contains($lib, 'kloxo_admin_mail_setup_apply_mailname'),
-	'first-login mail setup helpers reject placeholders and require FQDN');
+	&& str_contains($lib, 'kloxo_admin_mail_setup_apply_mailname')
+	&& (bool) preg_match('/function kloxo_admin_mail_setup_needed\(\$login\): bool\s*\{\s*return false;/s', $lib),
+	'mail setup helpers exist; forced first-login modal is off');
 
 // Standalone copies of contact/hostname checks (mirrors lib.php).
 function test_kloxo_mail_setup_contact_ok(string $email): bool
@@ -160,9 +161,9 @@ $core = (string) file_get_contents($doc . '/lib/client/clientcorelib.php');
 $disp = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 check(str_contains($core, 'function updateMailsetup')
 	&& str_contains($core, 'case "mailsetup"')
-	&& str_contains($disp, 'kloxo-mail-setup-force')
-	&& str_contains($disp, "kloxo_force_modal_updateform(\$login, 'mailsetup'"),
-	'mail setup updateform + required modal after password change');
+	&& str_contains($disp, 'kloxo_admin_mail_setup_needed')
+	&& str_contains($disp, 'kloxo-mail-setup-force'),
+	'mail setup updateform remains; force modal gated by needed() (always false)');
 
 // First-login Mail Setup must not call login->was()/kloxo-backend (that RPC
 // failure was the false "Got error from ur end" toast after a successful save).

@@ -1268,7 +1268,7 @@ $__description["search_engine_list"] = array("Search Engine List");
 $__description["force_redirect_domain.com_to_www.domain.com"] = array("Force Redirect 'domain.com' To 'www.domain.com'");
 $__description["force_redirect_http_to_https"] = array("Force Redirect 'http' To 'https'");
 
-$__description["enable_ssl"] = array("Enable SSL (only On Linux)");
+$__description["enable_ssl"] = array("Enable SSL");
 $__description["enable_awstats"] = array("Enable Awstats");
 $__description["enable_asp.net"] = array("Enable Asp.net (windows Only)");
 $__description["lighttp_rewrite_rule"] = array("Lighttp Rewrite Rule");
