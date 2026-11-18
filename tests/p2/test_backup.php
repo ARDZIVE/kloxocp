@@ -912,10 +912,13 @@ check($xhrFn !== ''
 	&& str_contains($xhrFn, 'http_response_code(200)'),
 	'XHR redirect response has no Location header');
 check(str_contains($lxlibSrc, 'function kloxo_redirect_stub_html')
-	&& str_contains($lxlibSrc, 'sessionStorage.removeItem("kloxo-busy")')
-	&& str_contains($lxlibSrc, 'location.replace')
-	&& str_contains($lxlibSrc, 'http_response_code(303)'),
-	'form redirects clear busy flag and use 303 + location.replace');
+	&& str_contains($lxlibSrc, 'sessionStorage.setItem(k,JSON.stringify(f))')
+	&& !str_contains(
+		(string) (preg_match('/function kloxo_redirect_stub_html\(.*?^function /sm', $lxlibSrc, $mStub) === 1 ? $mStub[0] : ''),
+		'sessionStorage.removeItem("kloxo-busy")'
+	)
+	&& str_contains($lxlibSrc, 'location.replace'),
+	'form redirect stub keeps busy across hop and uses location.replace');
 $bakSrcUpload = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
 check(str_contains($ffileSrc, 'function uploadSuccessRedirectUrl')
 	&& str_contains($ffileSrc, 'function backupFileManagerPathArray')

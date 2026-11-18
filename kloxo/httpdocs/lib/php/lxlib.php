@@ -3622,10 +3622,15 @@ function kloxo_redirect_stub_html(string $url): string
 		$js = '"' . addcslashes($url, "\\\"\0..\x1f") . '"';
 	}
 
+	// Keep kloxo-busy across the hop: clearing here made the spinner vanish
+	// while the destination page was still loading. Toast URLs / DCL clear it.
 	return '<!DOCTYPE html><html><head><meta charset="utf-8">'
 		. '<meta http-equiv="Refresh" content="0;URL=' . $esc . '">'
 		. '<title>Continue</title>'
-		. '<script>(function(){try{sessionStorage.removeItem("kloxo-busy");}catch(e){}'
+		. '<script>(function(){try{var k="kloxo-busy";var raw=sessionStorage.getItem(k);'
+		. 'var f=raw?JSON.parse(raw):{text:"Please wait...",shown:true};'
+		. 'f.t=Date.now();f.shown=true;if(!f.text)f.text="Please wait...";'
+		. 'sessionStorage.setItem(k,JSON.stringify(f));}catch(e){}'
 		. 'var u=' . $js . ';'
 		. 'try{if(window.parent&&window.parent!==window&&window.parent.frames&&window.parent.frames.mainframe){'
 		. 'window.parent.frames.mainframe.location.replace(u);}else{location.replace(u);}}'

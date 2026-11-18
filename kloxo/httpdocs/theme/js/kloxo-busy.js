@@ -10,20 +10,14 @@
  * is slow: DELAY ms after the navigation started (counted across the page
  * change, so quick pages never show it). Once shown it stays until the next
  * page has received its whole HTML (DOMContentLoaded), with a MAX_WAIT
- * failsafe. Because the panel can stream its pages (header first, then a
- * long action), the new document would otherwise replace the old one and
- * take the modal with it; so the "busy" state is kept in sessionStorage and
- * the new page shows the modal again from the first line of its <head>.
- * A page that ends with <meta http-equiv="Refresh" content="0;URL=...">
- * keeps the modal up until the page it redirects to has loaded.
+ * failsafe. Long actions refresh the wait text so the user sees progress.
  *
- * It is not shown for navigations that leave the page showing (they would
- * never hide it): downloads, mailto:, links or forms with a target, forms
- * with a chosen file (an upload has its own progress display), and links or
- * forms marked data-kloxo-nobusy. Service list icons (Sb, State, Start,
- * Stop, Restart) run their action in the background (fetch) and then follow
- * the server's redirect. Any link or form can set its own text with
- * data-kloxo-busy="text".
+ * The busy state is kept in sessionStorage so a streamed response or
+ * redirect stub does not drop the modal. A destination with frm_smessage /
+ * frm_emessage (toast) clears it: the action is finished.
+ *
+ * Not shown for downloads, mailto:, target=_blank, file uploads, or
+ * data-kloxo-nobusy. Service icons use fetch then follow the redirect.
  */
 (function (win, doc) {
 	'use strict';
@@ -34,21 +28,30 @@
 
 	var KEY = 'kloxo-busy';
 	var SUPPRESS_KEY = 'kloxo-busy-suppress';
-	// Stale flags must die quickly: sessionStorage is shared across frames, and
-	// a leftframe reload / browser Refresh used to resurrect Please wait... forever.
-	var MAX_AGE = 8 * 1000;
-	// Domain Home can stream the left column then hang on tiles: DOMContentLoaded
-	// never fires while readyState stays "loading", so the old interactive-only
-	// failsafe never ran. Cap the spinner hard from page start.
-	var MAX_WAIT = 12 * 1000;
+	// Flag must outlive long Switch Program / apt / sync work (was 8s → spinner vanished).
+	var MAX_AGE = 3 * 60 * 1000;
+	// Absolute failsafe for a hung request; hide so the UI is not stuck forever.
+	var MAX_WAIT = 3 * 60 * 1000;
 	var DEFAULT_TEXT = 'Please wait...';
 	var DELAY = 500;
+	var ROTATE_MS = 4000;
+	var WAIT_TEXTS = [
+		'Please wait...',
+		'Still working...',
+		'This may take a little longer...',
+		'Working on the server...',
+		'Hang on — almost ready...',
+		'Please keep this window open...'
+	];
 
 	var overlay = null;
 	var label = null;
 	var suppressUntil = 0;
 	var pending = null;
 	var maxWaitTimer = null;
+	var rotateTimer = null;
+	var rotateIndex = 0;
+	var rotateBase = DEFAULT_TEXT;
 	var settled = false;
 	var navToken = 0;
 
@@ -68,6 +71,21 @@
 			} catch (e) {
 				// storage full or disabled
 			}
+		}
+	}
+
+	function flagTouch(text, shown) {
+		var s = store();
+		if (!s) {
+			return;
+		}
+		try {
+			var f = flagGet();
+			var msg = text || (f && f.text) || DEFAULT_TEXT;
+			var isShown = (typeof shown === 'boolean') ? shown : !!(f && f.shown);
+			s.setItem(KEY, JSON.stringify({t: Date.now(), text: msg, shown: isShown}));
+		} catch (e) {
+			// ignore
 		}
 	}
 
@@ -158,17 +176,20 @@
 		}
 	}
 
-	/** Meta-refresh / Continue stubs: clear busy and navigate (do not wait). */
+	/**
+	 * Meta-refresh / Continue stubs: keep busy across the hop so the spinner
+	 * does not vanish between "action done on server" and the next page.
+	 */
 	function followRedirectStub() {
 		var u = refreshTarget();
 		if (!u) {
 			return false;
 		}
-		flagClear();
-		settled = true;
+		settled = false;
+		flagTouch(DEFAULT_TEXT, true);
 		cancelPending();
 		cancelMaxWait();
-		api.hide();
+		cancelRotate();
 		try {
 			if (win.parent && win.parent !== win && win.parent.frames && win.parent.frames.mainframe) {
 				win.parent.frames.mainframe.location.replace(u);
@@ -199,7 +220,7 @@
 			'#kloxo-busy{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;' +
 			'background:rgba(0,0,0,.45);align-items:center;justify-content:center}' +
 			'#kloxo-busy.on{display:flex;align-items:center;justify-content:center}' +
-			'#kloxo-busy .kb-box{background:#fff;border-radius:8px;padding:22px 34px;min-width:200px;' +
+			'#kloxo-busy .kb-box{background:#fff;border-radius:8px;padding:22px 34px;min-width:220px;max-width:90%;' +
 			'text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.4);font:14px Arial,Helvetica,sans-serif;color:#333}' +
 			'#kloxo-busy img{width:64px;height:64px;display:block;margin:0 auto 10px;background:#fff}'
 		));
@@ -237,6 +258,44 @@
 		}
 	}
 
+	function cancelRotate() {
+		if (rotateTimer !== null) {
+			win.clearInterval(rotateTimer);
+			rotateTimer = null;
+		}
+	}
+
+	function setLabel(text) {
+		if (label) {
+			label.textContent = text || DEFAULT_TEXT;
+		}
+	}
+
+	function startRotate(baseText) {
+		cancelRotate();
+		rotateBase = baseText || DEFAULT_TEXT;
+		rotateIndex = 0;
+		setLabel(rotateBase);
+		rotateTimer = win.setInterval(function () {
+			if (settled || !overlayOn()) {
+				cancelRotate();
+				return;
+			}
+			rotateIndex += 1;
+			// Keep a custom action text for the first tick, then cycle formulations.
+			if (rotateIndex === 1 && rotateBase !== DEFAULT_TEXT
+				&& WAIT_TEXTS.indexOf(rotateBase) === -1) {
+				setLabel(WAIT_TEXTS[1]);
+				flagTouch(WAIT_TEXTS[1], true);
+				return;
+			}
+			var idx = rotateIndex % WAIT_TEXTS.length;
+			var msg = WAIT_TEXTS[idx];
+			setLabel(msg);
+			flagTouch(msg, true);
+		}, ROTATE_MS);
+	}
+
 	function armMaxWait() {
 		cancelMaxWait();
 		var token = navToken;
@@ -245,8 +304,6 @@
 			if (token !== navToken || settled) {
 				return;
 			}
-			// Must settle: hide-only left settled=false so beforeunload re-armed
-			// Please wait... on the next click while Domain Home was still hung.
 			clearBusyNow();
 		}, MAX_WAIT);
 	}
@@ -271,11 +328,9 @@
 			return;
 		}
 		api.show(text);
+		startRotate(text || DEFAULT_TEXT);
 		armMaxWait();
-		var f = flagGet();
-		if (f) {
-			flagSet(f.text, true);
-		}
+		flagTouch(text || DEFAULT_TEXT, true);
 	}
 
 	function showSoon(text, since, shown) {
@@ -305,12 +360,13 @@
 			if (!overlay) {
 				return;
 			}
-			label.textContent = text || DEFAULT_TEXT;
+			setLabel(text || DEFAULT_TEXT);
 			overlay.className = 'on';
 		},
 		hide: function () {
 			cancelPending();
 			cancelMaxWait();
+			cancelRotate();
 			if (overlay) {
 				overlay.className = '';
 			}
@@ -332,12 +388,12 @@
 		settled = true;
 		cancelPending();
 		cancelMaxWait();
+		cancelRotate();
 		flagClear();
 		api.hide();
 	}
 
-	// Toast on the URL (Domain added / errors) means the action finished —
-	// never keep Please wait... over that page.
+	// Toast on the URL (Domain added / errors) means the action finished.
 	if (hasToastQuery()) {
 		clearBusyNow();
 	}
@@ -350,12 +406,11 @@
 	if (arrived && !hasToastQuery() && !isSuppressed()) {
 		if (isImmediateRefresh()) {
 			followRedirectStub();
-		} else if (doc.readyState === 'loading' && (Date.now() - arrived.t) < (DELAY * 4)) {
-			// Only continue a spinner that just crossed a page boundary.
-			showSoon(arrived.text, arrived.t, !!arrived.shown);
 		} else {
-			// Browser Refresh / stale frame flag: destination is already here.
-			clearBusyNow();
+			// Continue spinner across the redirect hop / slow response.
+			settled = false;
+			navToken += 1;
+			showSoon(arrived.text, arrived.t, !!arrived.shown);
 		}
 	} else if (isImmediateRefresh()) {
 		followRedirectStub();
@@ -363,39 +418,52 @@
 
 	if (doc.readyState === 'loading') {
 		doc.addEventListener('DOMContentLoaded', arrivedFully);
-	} else {
+	} else if (!arrived || hasToastQuery() || isSuppressed()) {
 		arrivedFully();
+	} else if (!isImmediateRefresh()) {
+		// Carried-over busy on an already-parsed document: wait for load, not
+		// wipe immediately (that made long actions look finished early).
+		win.addEventListener('load', function () {
+			if (!isImmediateRefresh()) {
+				arrivedFully();
+			}
+		});
 	}
+
 	win.addEventListener('load', function () {
-		if (doc.readyState === 'complete') {
-			arrivedFully();
+		if (doc.readyState === 'complete' && !flagGet() && !isImmediateRefresh()) {
+			if (overlayOn()) {
+				arrivedFully();
+			}
 		}
 	});
 
-	// Clear stuck spinner on bfcache restore and on ordinary show of a
-	// finished page (Add Domain used to leave Please wait... after 303).
+	// bfcache restore only — do not kill an in-flight busy carry-over.
 	win.addEventListener('pageshow', function (ev) {
 		if (isImmediateRefresh()) {
 			return;
 		}
-		if (ev.persisted || doc.readyState === 'interactive' || doc.readyState === 'complete') {
+		if (ev.persisted) {
 			clearBusyNow();
 			navToken += 1;
 		}
 	});
 
-	// Failsafe: if the page has painted and a spinner is still up with no
-	// navigation in flight, drop it (Refresh / frame race).
+	// Leftover stuck overlay with no fresh flag (Refresh / race), not in-flight work.
 	win.setTimeout(function () {
-		if (!isImmediateRefresh() && (doc.readyState === 'interactive' || doc.readyState === 'complete')) {
-			if (overlayOn() || flagGet()) {
-				clearBusyNow();
-			}
+		if (isImmediateRefresh() || hasToastQuery() || isSuppressed()) {
+			return;
+		}
+		if (doc.readyState !== 'interactive' && doc.readyState !== 'complete') {
+			return;
+		}
+		var f = flagGet();
+		if (!f && overlayOn()) {
+			clearBusyNow();
 		}
 	}, DELAY + 250);
 
-	// Absolute failsafe for hung/streaming responses (Domain Home left column
-	// painted, right tiles never finished): clear even while readyState=loading.
+	// Absolute failsafe for hung/streaming responses.
 	win.setTimeout(function () {
 		if (isImmediateRefresh()) {
 			return;
@@ -487,11 +555,13 @@
 			var m = refreshRe.exec(r.body);
 			var target = m ? m[1].replace(/&amp;/g, '&') : '';
 			if (target && target.charAt(0) === '/' && target.charAt(1) !== '/') {
+				flagTouch(text, true);
 				win.location.assign(target);
 				return;
 			}
 			flagClear();
 			settled = true;
+			cancelRotate();
 			doc.open();
 			doc.write(r.body);
 			doc.close();
@@ -539,11 +609,6 @@
 			suppress();
 			return;
 		}
-		// Domain Home already painted under a stuck overlay: clear it before
-		// starting the next navigation so FPM/tab "working" does not stack.
-		if (overlayOn() && doc.querySelector && doc.querySelector('.div_home_page, #show_page')) {
-			clearBusyNow();
-		}
 		var svc = serviceText(href);
 		if (svc) {
 			ev.preventDefault();
@@ -574,22 +639,13 @@
 			flagClear();
 			return;
 		}
-		// Page already finished (toast/list visible) but overlay stuck: a refresh
-		// must not re-arm the flag or Please wait... comes back forever.
 		if (settled) {
-			flagClear();
-			return;
-		}
-		// Stuck overlay on a fully loaded page (no in-flight nav we started):
-		// clear instead of poisoning sessionStorage for the next document/frame.
-		if (overlayOn() && doc.readyState === 'complete' && !flagGet()) {
 			flagClear();
 			return;
 		}
 		var f = flagGet();
 		var text = f ? f.text : DEFAULT_TEXT;
 		var shown = overlayOn() || !!(f && f.shown);
-		// Navigation may have started without a click we saw (location= / form.submit()).
 		if (!f && !overlayOn()) {
 			beginNavigation(text, false);
 		} else {

@@ -81,7 +81,8 @@ if (str_contains($core, 'kloxo_finish_client_add')
 	&& !str_contains($emitFn, 'http_response_code(303)')
 	&& !str_contains($emitFn, "header('Location:")
 	&& $stubFn !== ''
-	&& str_contains($stubFn, 'sessionStorage.removeItem("kloxo-busy")')
+	&& str_contains($stubFn, 'sessionStorage.setItem(k,JSON.stringify(f))')
+	&& !str_contains($stubFn, 'sessionStorage.removeItem("kloxo-busy")')
 	&& str_contains($stubFn, 'mainframe')
 	&& str_contains($lxlib, 'function kloxo_run_dropped_client_jobs')
 	&& str_contains($lxlib, 'client-sync.request')
@@ -121,10 +122,13 @@ if ($domFin !== ''
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
-	&& str_contains($html, "'?v=11'")
-	&& str_contains($js, 'MAX_AGE = 8')
+	&& str_contains($html, "'?v=12'")
+	&& str_contains($js, 'MAX_AGE = 3 * 60 * 1000')
+	&& str_contains($js, 'MAX_WAIT = 3 * 60 * 1000')
+	&& str_contains($js, 'WAIT_TEXTS')
+	&& str_contains($js, 'Still working...')
 	&& str_contains($js, 'function clearBusyNow')
-	&& str_contains($js, 'DELAY * 4')) {
+	&& str_contains($js, 'function startRotate')) {
 	ok('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
 } else {
 	bad('Add Domain returns 200 stub, writes domain child, drop-queues sync; toast clears busy');
@@ -133,13 +137,14 @@ if ($domFin !== ''
 // Domain add must not treat every deferred was() failure as Backup success
 // ("Domain was added successfully" with an empty Domains list).
 $lxFrm = '';
-if (preg_match('/try \{\s*\$login->was\(\);.*?^[\t ]*if \(\$login->isAuxiliary/sm', $core, $mWas) === 1) {
-	$lxFrm = $mWas[0];
+if (preg_match('/function lx_frm_inc\(.*?^function /sm', $core, $mLx) === 1) {
+	$lxFrm = $mLx[0];
 }
 if ($lxFrm !== ''
 	&& str_contains($lxFrm, 'kloxo_is_long_backend_update')
 	&& str_contains($lxFrm, 'post-sync local write')
 	&& str_contains($lxFrm, 'throw $wasEx')
+	&& str_contains($lxFrm, '$login->was()')
 	&& !str_contains($lxFrm, "empty(\$gbl->__kloxo_defer_chrome) || empty(\$gbl->__this_redirect)")) {
 	ok('was() failures after Add Domain are not swallowed as success');
 } else {
@@ -202,11 +207,12 @@ if (str_contains($coreDisp, 'kloxo-busy-suppress')
 	bad('no frame auto-reload after Domain Home; show caps time and skips sync');
 }
 if (str_contains($js, "addEventListener('pageshow'")
-	&& str_contains($js, "doc.readyState === 'complete'")
-	&& str_contains($js, '!isImmediateRefresh()')) {
-	ok('pageshow clears stuck spinner on a finished page');
+	&& str_contains($js, 'ev.persisted')
+	&& str_contains($js, '!isImmediateRefresh()')
+	&& str_contains($js, 'flagTouch')) {
+	ok('pageshow only clears bfcache restore; in-flight busy is kept');
 } else {
-	bad('pageshow clears stuck spinner on a finished page');
+	bad('pageshow only clears bfcache restore; in-flight busy is kept');
 }
 $redirFn = '';
 if (preg_match('/function print_redirect\(\$redirect_url.*?\n\tfunction /s', $html, $mPr) === 1) {
@@ -226,9 +232,8 @@ if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") &&
 } else {
 	bad('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form');
 }
-// Quick pages: DELAY show timer; MAX_WAIT failsafe so a hung POST / streaming
-// Domain Home cannot leave the modal forever. Absolute failsafe clears even
-// while readyState=loading. Esc dismisses. No CSS fade.
+// Quick pages: DELAY show timer; long MAX_WAIT so Switch Program / apt do not
+// drop the spinner early; WAIT_TEXTS rotate; Esc dismisses. No CSS fade.
 $code = (string)preg_replace('#/\*.*?\*/#s', '', $js);
 $setTimeouts = substr_count($code, 'setTimeout(');
 $armFn = '';
@@ -237,7 +242,11 @@ if (preg_match('/function armMaxWait\(\)\s*\{.*?^\tfunction /sm', $js, $mArm) ==
 }
 if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait')
 	&& preg_match('/var DELAY = \d+;/', $code) === 1
-	&& preg_match('/var MAX_WAIT = \d+/', $code) === 1
+	&& preg_match('/var MAX_WAIT = 3 \* 60 \* 1000;/', $code) === 1
+	&& preg_match('/var MAX_AGE = 3 \* 60 \* 1000;/', $code) === 1
+	&& str_contains($code, 'WAIT_TEXTS')
+	&& str_contains($code, 'Still working...')
+	&& str_contains($code, 'function startRotate')
 	&& str_contains($code, 'settled') && str_contains($code, 'navToken')
 	&& str_contains($code, 'function isImmediateRefresh')
 	&& str_contains($code, 'function followRedirectStub')
@@ -245,11 +254,10 @@ if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait
 	&& !str_contains($code, 'animation')
 	&& $armFn !== '' && str_contains($armFn, 'clearBusyNow()')
 	&& str_contains($js, "ev.key !== 'Escape'")
-	&& str_contains($js, 'readyState=loading')
-	&& $setTimeouts >= 3 && $setTimeouts <= 5) {
-	ok('modal appears after DELAY ms; MAX_WAIT settles; Esc/loading failsafe; redirect stubs navigate');
+	&& $setTimeouts >= 3 && $setTimeouts <= 6) {
+	ok('modal appears after DELAY ms; long MAX_WAIT + rotating text; Esc/failsafe; redirect stubs navigate');
 } else {
-	bad('modal appears after DELAY ms; MAX_WAIT settles; Esc/loading failsafe; redirect stubs navigate', 'setTimeouts=' . $setTimeouts);
+	bad('modal appears after DELAY ms; long MAX_WAIT + rotating text; Esc/failsafe; redirect stubs navigate', 'setTimeouts=' . $setTimeouts);
 }
 
 // The hrefs the Services list really renders must match the JS patterns.
