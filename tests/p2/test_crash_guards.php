@@ -33,6 +33,8 @@ $sqlite = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/sqlitelib.
 $kloxocp = (string) file_get_contents($root . '/kloxo/bin/kloxocp');
 $lxserver = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/lxserverlib.php');
 $lxlib = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/lxlib.php');
+$lxclass = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/lxclass.php');
+$linuxFs = (string) file_get_contents($root . '/kloxo/httpdocs/lib/html/linuxfslib.php');
 
 // --- FPM hard caps ---
 if (str_contains($fpm, 'memory_limit] = 256M')
@@ -104,6 +106,33 @@ if (str_contains($kloxocp, 'ensureFpmOomGuards')
 	ok('kloxocp upcp ensures FPM OOM guards on live conf');
 } else {
 	bad('kloxocp upcp ensures FPM OOM guards on live conf');
+}
+
+// --- Post-tile was() must not rl_exec on Domain Home ---
+$syncFn = '';
+if (preg_match('/function syncToSystemCommon\(\)\s*\{.*?\n\tfunction /s', $lxclass, $mSync) === 1) {
+	$syncFn = $mSync[0];
+}
+if ($syncFn !== ''
+	&& str_contains($syncFn, '__var_no_sync')
+	&& str_contains($core, 'kloxo_close_client_connection')
+	&& str_contains($lxlib, 'function kloxo_close_client_connection')) {
+	ok('show/list: __var_no_sync blocks syncToSystem; client connection closes before was()');
+} else {
+	bad('show/list: __var_no_sync blocks syncToSystem; client connection closes before was()');
+}
+
+// --- FPM must not pcntl_fork background jobs ---
+$bgFn = '';
+if (preg_match('/function lxshell_background\(.*?^function /sm', $linuxFs, $mBg) === 1) {
+	$bgFn = $mBg[0];
+}
+if ($bgFn !== ''
+	&& str_contains($bgFn, "fpm-fcgi")
+	&& str_contains($bgFn, 'lxshell_background refused under')) {
+	ok('lxshell_background refuses fork under panel FPM');
+} else {
+	bad('lxshell_background refuses fork under panel FPM');
 }
 
 printf("\n%d passed, %d failed\n", $pass, $fail);

@@ -903,6 +903,18 @@ function lxshell_background($cmd)
 		log_log("other_cmd", $logLine);
 	}
 
+	// Never fork from panel FPM: Add Domain / Domain Home kicks used to
+	// double memory in the same worker and help OOM the host. Drop-queue
+	// drains must run from kloxo-backend / watchdog / CLI instead.
+	$sapi = PHP_SAPI;
+	if ($sapi === 'fpm-fcgi' || $sapi === 'cgi-fcgi' || $sapi === 'cgi') {
+		if (function_exists('log_log')) {
+			log_log('other_cmd', 'lxshell_background refused under ' . $sapi . ': ' . $logLine);
+		}
+
+		return false;
+	}
+
 	if (function_exists('pcntl_fork') && function_exists('pcntl_exec')) {
 		$pid = @pcntl_fork();
 		if ($pid === -1) {

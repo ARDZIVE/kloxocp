@@ -313,6 +313,15 @@ abstract class Lxclass
 	{
 		global $gbl, $sgbl, $login, $ghtml;
 
+		// Domain/Client Home show sets __var_no_sync so login->was() after
+		// tiles must not rl_exec (that hung FPM until OOM). createSyncClass
+		// already honored this flag; syncToSystem did not — until now.
+		if (is_object($sgbl) && !empty($sgbl->__var_no_sync)) {
+			dprint("Global __var_no_sync: not syncing {$this->get__table()}\n");
+
+			return false;
+		}
+
 		// Don't sync if there is no subactiion for update..
 		if ($this->dbaction === 'update' && !$this->subaction) {
 			dprint("No subaction for update not syncing anymore {$this->get__table()}\n");

@@ -3607,6 +3607,15 @@ function lx_frm_inc()
 			}
 			exit(0);
 		}
+		// Domain Home / lists: HTML is already on the wire. Close the client
+		// before login->was() so the tab stops "working"; __var_no_sync (set in
+		// do_display_init) makes syncToSystem skip rl_exec so was() is local-only.
+		$actNow = is_object($ghtml) && isset($ghtml->frm_action) ? (string) $ghtml->frm_action : '';
+		if (($actNow === 'show' || $actNow === 'list' || $actNow === '')
+			&& empty($gbl->__this_redirect)
+			&& function_exists('kloxo_close_client_connection')) {
+			kloxo_close_client_connection();
+		}
 		try {
 			$login->was();
 		} catch (Throwable $wasEx) {
