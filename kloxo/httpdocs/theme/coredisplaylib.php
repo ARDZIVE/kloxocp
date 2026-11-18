@@ -602,18 +602,26 @@ function __ac_desc_show($object)
 					$tilesOk = true;
 				}
 			}
-			// Form-only show pages (LogWatch, SSH Configure, …) have no tile
-			// map; their createShowUpdateform content is the page. Do not print
+			// Form-only / file-browser show pages have no tile map; their
+			// updateforms, addforms, or child lists are the page. Do not print
 			// the developer fallback as if the page were broken.
 			if (!$tilesOk && !$subaction) {
 				$willHaveForms = false;
-				try {
-					$ufProbe = $object->createShowUpdateform();
-					if (is_array($ufProbe) && $ufProbe !== array()) {
-						$willHaveForms = true;
+				$ocls = method_exists($object, 'getClass')
+					? strtolower((string) $object->getClass()) : '';
+				// File Manager (incl. Backup → File Manager) is a listing page.
+				if ($ocls === 'ffile') {
+					$willHaveForms = true;
+				}
+				if (!$willHaveForms) {
+					try {
+						$ufProbe = $object->createShowUpdateform();
+						if (is_array($ufProbe) && $ufProbe !== array()) {
+							$willHaveForms = true;
+						}
+					} catch (Throwable $e) {
+						log_log('error', 'createShowUpdateform probe: ' . $e->getMessage());
 					}
-				} catch (Throwable $e) {
-					log_log('error', 'createShowUpdateform probe: ' . $e->getMessage());
 				}
 				if (!$willHaveForms) {
 					try {
@@ -623,6 +631,16 @@ function __ac_desc_show($object)
 						}
 					} catch (Throwable $e) {
 						log_log('error', 'createShowAddform probe: ' . $e->getMessage());
+					}
+				}
+				if (!$willHaveForms) {
+					try {
+						$clProbe = $object->createShowClist($subaction);
+						if (is_array($clProbe) && $clProbe !== array()) {
+							$willHaveForms = true;
+						}
+					} catch (Throwable $e) {
+						log_log('error', 'createShowClist probe: ' . $e->getMessage());
 					}
 				}
 				if (!$willHaveForms) {

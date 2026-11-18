@@ -815,62 +815,20 @@ class Ffile extends Lxclass
 
 	function printFullUrl()
 	{
-		// Big freeking hack.
 		global $gbl, $sgbl, $login, $ghtml;
 
-		$genimgpath = get_general_image_path();
+		$base = is_object($ghtml) && isset($ghtml->frm_selectshowbase)
+			? $ghtml->frm_selectshowbase : null;
 
-		$iconpath = get_image_path();
-
-		$skin_name = 'simplicity';
-		$button_type = 'font';
-		try {
-			if (is_object($login) && method_exists($login, 'getSpecialObject')) {
-				$sp = $login->getSpecialObject('sp_specialplay');
-				if (is_object($sp)) {
-					if (!empty($sp->skin_name)) {
-						$skin_name = (string) $sp->skin_name;
-					}
-					if (!empty($sp->button_type)) {
-						$button_type = (string) $sp->button_type;
-					}
-				}
-			}
-		} catch (Throwable $e) {
-		}
-
-		if ($button_type !== 'image') {
-			$background = "url({$genimgpath}/button/fnav_02.gif)";
-			$icon_text = "<span class='if16' style='color:#d33'>&#xf382;</span>";
-		} else {
-			$background = "#ffffff";
-			$icon_text = "<img height='16' src='{$iconpath}/ffile_show.gif'>";
-		}
-
-		// Hack hack
-
-		if ($skin_name === 'simplicity') {
-		} else {
-		}
-?>
-
-<div style="width:910px; margin:0 auto">
-<table>
-	<tr>
-		<td><?=$icon_text;?></td>
-		<td nowrap style='background <?= $background ?>'>
-<?php
-
-		$base = $ghtml->frm_selectshowbase;
-		
-		if ($ghtml->isSelectShow()) {
+		if (is_object($ghtml) && method_exists($ghtml, 'isSelectShow') && $ghtml->isSelectShow()) {
 			$url = "a=selectshow&l[class]=ffile&l[nname]=/$base";
 		} else {
 			$url = "a=show&l[class]=ffile&l[nname]=/";
 		}
 
-		$url = $ghtml->getFullUrl($url);
-		
+		$url = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
+			? $ghtml->getFullUrl($url) : $url;
+
 		if ($base) {
 			$url .= "&frm_selectshowbase=$base";
 		}
@@ -883,9 +841,11 @@ class Ffile extends Lxclass
 		}
 		$desc = is_object($parent) ? get_classvar_description($parent->getClass()) : null;
 		$desc_label = (is_array($desc) && isset($desc[2])) ? kloxo_string($desc[2]) : '';
+		$isBackupFm = false;
 		if (is_object($parent) && method_exists($parent, 'getClass')
 			&& strtolower((string) $parent->getClass()) === 'lxbackup') {
 			$desc_label = 'Backup / Restore';
+			$isBackupFm = true;
 		}
 		$parent_id = '';
 		if (is_object($parent) && method_exists($parent, 'getId')) {
@@ -895,66 +855,80 @@ class Ffile extends Lxclass
 				$parent_id = isset($parent->nname) ? kloxo_string($parent->nname) : '';
 			}
 		}
-?>
-		Address: (<?= $desc_label ?>: <a class=insidelist href="<?= $url ?>"><?= $parent_id ?></a>)
-<?php
-		$list = explode('/', kloxo_string($this->nname));
-		$nlist = array();
 
-		for ($j = 0; $j < count($list); $j++) {
-			$nlist[] = $list[$j];
-			$newname = implode('/', $nlist);
-			
-			if ($base) {
-				if (strlen($newname) < strlen($base)) {
-					continue;
-				}
-			}
-
-			if ($base) {
-				$url = 'a=selectshow&l[class]=ffile&l[nname]=' . $newname;
-			} else {
-				$url = 'a=show&l[class]=ffile&l[nname]=' . $newname;
-			}
-
-			$url = $ghtml->getFullUrl($url);
-			
-			if ($base) {
-				$url .= "&frm_selectshowbase=$base";
-			}
-			if ($j === count($list) - 1) {
-
-?>
-<span>/ <?= $list[$j] ?></span>
-
-<?php
-			} else {
-				if ($list[$j] !== '') {
-?>
-<span>/ <a #ff0000" class="insidelist" href="<?= $url ?>"><?= $list[$j] ?></a></span>
-<?php
-				}
-			}
-		}
 		$diskPath = '';
 		try {
-			if ($this->isBackupStorePath()) {
+			if (method_exists($this, 'isBackupStorePath') && $this->isBackupStorePath()) {
 				$diskPath = rtrim((string) $this->getFullPath(), '/');
+				$isBackupFm = true;
 			}
 		} catch (Throwable $e) {
 			$diskPath = '';
 		}
+
+		$helpKw = 'Help';
+		try {
+			if (is_object($login) && method_exists($login, 'getKeywordUc')) {
+				$helpKw = (string) $login->getKeywordUc('help');
+			}
+		} catch (Throwable $e) {
+		}
+		$helpTitle = $isBackupFm ? 'Backup File Manager' : 'File Manager';
+		$helpKwEsc = htmlspecialchars($helpKw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$helpTitleEsc = htmlspecialchars($helpTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$urlEsc = htmlspecialchars((string) $url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$descEsc = htmlspecialchars((string) $desc_label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$parentEsc = htmlspecialchars((string) $parent_id, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+		// Path crumbs (keep links for navigation).
+		$crumbHtml = '';
+		$list = explode('/', kloxo_string($this->nname));
+		$nlist = array();
+		for ($j = 0; $j < count($list); $j++) {
+			$nlist[] = $list[$j];
+			$newname = implode('/', $nlist);
+			if ($base && strlen($newname) < strlen((string) $base)) {
+				continue;
+			}
+			$curl = $base
+				? ('a=selectshow&l[class]=ffile&l[nname]=' . $newname)
+				: ('a=show&l[class]=ffile&l[nname]=' . $newname);
+			$curl = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
+				? $ghtml->getFullUrl($curl) : $curl;
+			if ($base) {
+				$curl .= '&frm_selectshowbase=' . $base;
+			}
+			$seg = htmlspecialchars((string) $list[$j], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$curlEsc = htmlspecialchars((string) $curl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			if ($j === count($list) - 1) {
+				$crumbHtml .= '<span>/ ' . $seg . '</span>';
+			} elseif ($list[$j] !== '') {
+				$crumbHtml .= '<span>/ <a class="insidelist" href="' . $curlEsc . '">'
+					. $seg . '</a></span>';
+			}
+		}
+
+		$addrHtml = 'Address: (' . $descEsc . ': <a class="insidelist" href="'
+			. $urlEsc . '">' . $parentEsc . '</a>)' . $crumbHtml;
+		$bodyHtml = '<p style="margin:6px 0">' . $addrHtml . '</p>';
 		if ($diskPath !== '') {
-?>
-		<br/><span class="small" style="color:#666">On disk: <code><?= htmlspecialchars($diskPath, ENT_QUOTES) ?></code>
-		(each client has its own folder — admin archives are under <code>/home/kloxo/client/admin/__backup</code>)</span>
-<?php
+			$diskEsc = htmlspecialchars($diskPath, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$bodyHtml .= '<p style="margin:6px 0">On disk: <code>' . $diskEsc . '</code>. '
+				. 'Each client has its own folder — admin archives are under '
+				. '<code>/home/kloxo/client/admin/__backup</code>.</p>';
+			$bodyHtml .= '<p style="margin:6px 0">Use <b>Backup Now</b> to create an archive here, '
+				. 'or the <b>Upload</b> tab / scp/SFTP into this folder, then '
+				. '<b>Restore From File</b> on Backup / Restore.</p>';
 		}
 ?>
-		</td>
-		<td width="100%"></td>
-	</tr>
-</table>
+
+<div class="kloxo-help-box" style="width:600px;max-width:95%;margin:10px auto">
+	<div style="padding:4px 0;margin:0 10px">
+		<span style="background-color:#f88;padding:4px 8px;font-weight:bold;color:#ffc"><?= $helpKwEsc ?>: <?= $helpTitleEsc ?></span>
+	</div>
+	<div style="padding:8px 10px;background-color:#cff;border:1px solid #f88;text-align:left">
+		<?= $bodyHtml ?>
+	</div>
 </div>
 <br/>
 <?php

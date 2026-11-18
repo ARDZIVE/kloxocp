@@ -235,10 +235,11 @@ if (str_contains($msgSrc, "logwatch_show__pre")
 $coreShow = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 if (str_contains($coreShow, 'willHaveForms')
 	&& str_contains($coreShow, 'createShowUpdateform')
-	&& str_contains($coreShow, 'Form-only show pages')) {
-	ok('show page skips empty action-block when updateforms exist');
+	&& str_contains($coreShow, "\$ocls === 'ffile'")
+	&& str_contains($coreShow, 'Form-only / file-browser')) {
+	ok('show page skips empty action-block for forms and File Manager');
 } else {
-	bad('show page skips empty action-block when updateforms exist');
+	bad('show page skips empty action-block for forms and File Manager');
 }
 // Format/frequency/hour use non-assoc 's' lists (value === entry) so the form
 // never injects "--Select One--". Range keeps assoc 'A' for the long key label.
