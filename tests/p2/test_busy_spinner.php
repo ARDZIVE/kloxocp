@@ -121,7 +121,7 @@ if ($domFin !== ''
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
-	&& str_contains($html, "'?v=9'")
+	&& str_contains($html, "'?v=10'")
 	&& str_contains($js, 'MAX_AGE = 8')
 	&& str_contains($js, 'function clearBusyNow')
 	&& str_contains($js, 'DELAY * 4')) {
@@ -215,11 +215,15 @@ if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") &&
 } else {
 	bad('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form');
 }
-// Quick pages: DELAY show timer; MAX_WAIT failsafe so a hung POST cannot leave
-// the modal forever (password change / add client used to stick). No CSS fade.
-// settled/navToken stop a late timer from resurrecting the modal after DCL.
+// Quick pages: DELAY show timer; MAX_WAIT failsafe so a hung POST / streaming
+// Domain Home cannot leave the modal forever. Absolute failsafe clears even
+// while readyState=loading. Esc dismisses. No CSS fade.
 $code = (string)preg_replace('#/\*.*?\*/#s', '', $js);
 $setTimeouts = substr_count($code, 'setTimeout(');
+$armFn = '';
+if (preg_match('/function armMaxWait\(\)\s*\{.*?^\tfunction /sm', $js, $mArm) === 1) {
+	$armFn = $mArm[0];
+}
 if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait')
 	&& preg_match('/var DELAY = \d+;/', $code) === 1
 	&& preg_match('/var MAX_WAIT = \d+/', $code) === 1
@@ -228,10 +232,13 @@ if (str_contains($code, 'function showSoon(') && str_contains($code, 'armMaxWait
 	&& str_contains($code, 'function followRedirectStub')
 	&& str_contains($code, 'location.replace')
 	&& !str_contains($code, 'animation')
-	&& $setTimeouts >= 2 && $setTimeouts <= 3) {
-	ok('modal appears after DELAY ms; MAX_WAIT failsafe; redirect stubs navigate');
+	&& $armFn !== '' && str_contains($armFn, 'clearBusyNow()')
+	&& str_contains($js, "ev.key !== 'Escape'")
+	&& str_contains($js, 'readyState=loading')
+	&& $setTimeouts >= 3 && $setTimeouts <= 5) {
+	ok('modal appears after DELAY ms; MAX_WAIT settles; Esc/loading failsafe; redirect stubs navigate');
 } else {
-	bad('modal appears after DELAY ms; MAX_WAIT failsafe; redirect stubs navigate', 'setTimeouts=' . $setTimeouts);
+	bad('modal appears after DELAY ms; MAX_WAIT settles; Esc/loading failsafe; redirect stubs navigate', 'setTimeouts=' . $setTimeouts);
 }
 
 // The hrefs the Services list really renders must match the JS patterns.

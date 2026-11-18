@@ -37,7 +37,10 @@
 	// Stale flags must die quickly: sessionStorage is shared across frames, and
 	// a leftframe reload / browser Refresh used to resurrect Please wait... forever.
 	var MAX_AGE = 8 * 1000;
-	var MAX_WAIT = 20 * 1000;
+	// Domain Home can stream the left column then hang on tiles: DOMContentLoaded
+	// never fires while readyState stays "loading", so the old interactive-only
+	// failsafe never ran. Cap the spinner hard from page start.
+	var MAX_WAIT = 12 * 1000;
 	var DEFAULT_TEXT = 'Please wait...';
 	var DELAY = 500;
 
@@ -242,8 +245,9 @@
 			if (token !== navToken || settled) {
 				return;
 			}
-			flagClear();
-			api.hide();
+			// Must settle: hide-only left settled=false so beforeunload re-armed
+			// Please wait... on the next click while Domain Home was still hung.
+			clearBusyNow();
 		}, MAX_WAIT);
 	}
 
@@ -389,6 +393,27 @@
 			}
 		}
 	}, DELAY + 250);
+
+	// Absolute failsafe for hung/streaming responses (Domain Home left column
+	// painted, right tiles never finished): clear even while readyState=loading.
+	win.setTimeout(function () {
+		if (isImmediateRefresh()) {
+			return;
+		}
+		if (overlayOn() || flagGet() || !settled) {
+			clearBusyNow();
+		}
+	}, MAX_WAIT);
+
+	// Esc dismisses a stuck overlay so the user can keep working.
+	doc.addEventListener('keydown', function (ev) {
+		if (!ev || ev.key !== 'Escape') {
+			return;
+		}
+		if (overlayOn() || flagGet()) {
+			clearBusyNow();
+		}
+	}, true);
 
 	// ---- Services icons ---------------------------------------------------------------
 

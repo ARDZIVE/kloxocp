@@ -1797,16 +1797,12 @@ class HtmlLib
 			$outputdisplay = 'none';
 		}
 
-		if ($ajax_on) {
-			try {
-				$this->print_dialog($talist, $obj);
-				$this->print_drag_drop($obj, $ret, $class);
-			} catch (Throwable $e) {
-				if (function_exists('log_log')) {
-					log_log('error', 'print_action_block ajax: ' . $e->getMessage());
-				}
-			}
-		}
+		// Do NOT render ExtJS dialog / drag-drop scaffolding before the visible
+		// tile sections. Domain Home used to hang there after the left Info/
+		// Resource column had already flushed → white right column + stuck
+		// Please wait... while PHP-FPM workers piled up. Tiles first; ajax chrome
+		// after (best-effort).
+		$__kloxo_ajax_after_tiles = $ajax_on;
 
 		if ($sgbl->isBlackBackground()) {
 			$backgimage = "{$skindir}/images/black.gif";
@@ -2078,6 +2074,16 @@ class HtmlLib
 
 		</script>
 <?php
+		if (!empty($__kloxo_ajax_after_tiles)) {
+			try {
+				$this->print_dialog($talist, $obj);
+				$this->print_drag_drop($obj, $ret, $class);
+			} catch (Throwable $e) {
+				if (function_exists('log_log')) {
+					log_log('error', 'print_action_block ajax: ' . $e->getMessage());
+				}
+			}
+		}
 	}
 
 	function cginum($key)
@@ -6195,7 +6201,7 @@ class HtmlLib
 		$this->print_jscript_source($preop_path);
 		$busyJs = str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js"));
 		if (is_string($busyJs) && $busyJs !== '' && !str_contains($busyJs, '?')) {
-			$busyJs .= '?v=9';
+			$busyJs .= '?v=10';
 		}
 		$this->print_jscript_source($busyJs);
 		$this->print_jscript_source(str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-toast.js")));

@@ -266,10 +266,11 @@ $coreShow = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
 if (str_contains($coreShow, 'kloxo-tile-fallback')
 	&& str_contains($coreShow, 'show tiles empty')
 	&& str_contains($coreShow, 'head + $acalist + $rest')
+	&& str_contains($coreShow, 'Stream the left column before tiles')
 	&& !str_contains($coreShow, 'array_splice($aalist')) {
-	ok('source: show path seeds fallback tiles and avoids array_splice on alist');
+	ok('source: show path seeds fallback tiles, flushes left column, avoids array_splice');
 } else {
-	bad('source: show path seeds fallback tiles and avoids array_splice on alist');
+	bad('source: show path seeds fallback tiles, flushes left column, avoids array_splice');
 }
 
 $htmlLib = (string) file_get_contents($doc . '/theme/htmllib.php');
@@ -285,6 +286,10 @@ $divButtonFn = '';
 if (preg_match('/function print_div_for_divbutton\(.*?^[\t ]*static function mailTileFaName/sm', $htmlLib, $m) === 1) {
 	$divButtonFn = $m[0];
 }
+$printActionFn = '';
+if (preg_match('/function print_action_block\(.*?^[\t ]*function cginum/sm', $htmlLib, $m) === 1) {
+	$printActionFn = $m[0];
+}
 if ($expandFn !== ''
 	&& str_contains($expandFn, 'catch (Throwable')
 	&& str_contains($expandFn, "getSpecialObject('sp_specialplay')")
@@ -296,10 +301,14 @@ if ($expandFn !== ''
 	&& $divButtonFn !== ''
 	&& str_contains($divButtonFn, 'kloxo_button_type()')
 	&& str_contains($divButtonFn, 'kloxo_ajax_enabled()')
-	&& !str_contains($divButtonFn, "getSpecialObject('sp_specialplay')->button_type")) {
-	ok('source: get_expand_url and tile buttons never throw on specialplay failure');
+	&& !str_contains($divButtonFn, "getSpecialObject('sp_specialplay')->button_type")
+	&& $printActionFn !== ''
+	&& str_contains($printActionFn, '__kloxo_ajax_after_tiles')
+	&& str_contains($printActionFn, 'print_dialog($talist, $obj)')
+	&& strpos($printActionFn, 'div class="section"') < strpos($printActionFn, 'print_dialog($talist, $obj)')) {
+	ok('source: get_expand_url/tile buttons safe; ajax dialog after visible tiles');
 } else {
-	bad('source: get_expand_url and tile buttons never throw on specialplay failure');
+	bad('source: get_expand_url/tile buttons safe; ajax dialog after visible tiles');
 }
 
 // Behaviour: specialplay boom must not blank Domain Home sections (security-wave regression).

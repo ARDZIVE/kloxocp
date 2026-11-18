@@ -578,6 +578,12 @@ function __ac_desc_show($object)
 ?>
 			</td>
 <?php
+		// Stream the left column before tiles so a hung action-block cannot
+		// leave Domain Home as a blank white right pane behind Please wait...
+		if (function_exists('ob_get_level') && ob_get_level() > 0) {
+			@ob_flush();
+		}
+		@flush();
 	}
 ?>
 			<td class="div_home_right" style="vertical-align:top; padding:0;">
@@ -602,6 +608,10 @@ function __ac_desc_show($object)
 					. '<code>createShowAlist</code> / <code>action block</code>.'
 					. '</div>';
 			}
+			if (function_exists('ob_get_level') && ob_get_level() > 0) {
+				@ob_flush();
+			}
+			@flush();
 ?>
 			</td>
 		</tr>
