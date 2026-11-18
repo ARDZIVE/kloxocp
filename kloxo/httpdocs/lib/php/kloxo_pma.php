@@ -265,6 +265,14 @@ function kloxo_pma_panel_is_admin(?string $root = null): bool
 
 function kloxo_pma_sqlite_path(?string $root = null): string
 {
+	// Explicit $root (tests / install) wins over KLOXO_VAR_LIB so a leftover
+	// env from another job cannot point SSO at the wrong panel.sqlite.
+	if (is_string($root) && $root !== '') {
+		$inRoot = kloxo_pma_root($root) . '/var/lib/kloxo/panel.sqlite';
+		if (is_file($inRoot)) {
+			return $inRoot;
+		}
+	}
 	$env = getenv('KLOXO_VAR_LIB');
 	if (is_string($env) && $env !== '' && !str_contains($env, "\0")) {
 		return rtrim($env, '/') . '/panel.sqlite';
@@ -325,7 +333,7 @@ function kloxo_pma_mysqldb_row(string $nname, ?string $root = null): ?array
 	}
 	$dbname = (string)($row['dbname'] ?? '');
 	$user = (string)($row['username'] ?? '');
-	$pass = (string)($row['dbpassword'] ?? '');
+	$pass = kloxo_pma_normalize_db_password((string)($row['dbpassword'] ?? ''));
 	if (!kloxo_pma_db_ident($dbname)
 		|| preg_match('/^[A-Za-z0-9_]{1,32}$/', $user) !== 1
 		|| in_array(strtolower($user), array('root', 'kloxo_pma', 'kloxo', 'mysql', 'debian-sys-maint', 'mariadb.sys'), true)
@@ -341,6 +349,51 @@ function kloxo_pma_mysqldb_row(string $nname, ?string $root = null): ?array
 		'parent_clname' => (string)($row['parent_clname'] ?? ''),
 		'parent_cmlist' => (string)($row['parent_cmlist'] ?? ''),
 	);
+}
+
+/**
+ * Undo legacy Sqlite::getToArray quote mangling ("'" → "\'") so the
+ * MariaDB password matches what createDatabase received.
+ */
+function kloxo_pma_normalize_db_password(string $pass): string
+{
+	if ($pass === '' || !str_contains($pass, "\\'")) {
+		return $pass;
+	}
+
+	return str_replace("\\'", "'", $pass);
+}
+
+/**
+ * Re-apply the panel-stored password/grants for a customer DB user via
+ * kloxo_pma (WITH GRANT OPTION). Fixes 1045 when MariaDB drifted from
+ * the panel row (failed sync, quote-mangled store, password change).
+ */
+function kloxo_pma_repair_db_login(string $user, string $pass, string $dbname, ?string $root = null): bool
+{
+	if ($pass === '' || strlen($pass) > 64 || str_contains($pass, "\0")
+		|| preg_match('/^[A-Za-z0-9_]{1,32}$/', $user) !== 1
+		|| !kloxo_pma_db_ident($dbname)
+		|| in_array(strtolower($user), array('root', 'kloxo_pma', 'kloxo', 'mysql'), true)) {
+		return false;
+	}
+	$mdbFile = dirname(__FILE__) . '/kloxo_mariadb.php';
+	if (!class_exists('KloxoMariadb', false) && is_readable($mdbFile)) {
+		include_once $mdbFile;
+	}
+	if (!class_exists('KloxoMariadb', false)) {
+		return false;
+	}
+	try {
+		$admin = KloxoMariadb::connectAdmin('', '', $root);
+		$admin->ensureUser($user, $pass);
+		$admin->grantDatabase($dbname, $user);
+		$admin->flushPrivileges();
+	} catch (Throwable $e) {
+		return false;
+	}
+
+	return true;
 }
 
 /**
@@ -712,7 +765,7 @@ function kloxo_pma_pending_db(): string
  * @return string error text when the login check failed (nothing is redirected);
  *                otherwise this function redirects and exits
  */
-function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string $host = '127.0.0.1', string $onlyDb = ''): string
+function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string $host = '127.0.0.1', string $onlyDb = '', ?string $root = null): string
 {
 	if ($onlyDb !== '') {
 		if (!kloxo_pma_db_ident($onlyDb)) {
@@ -723,6 +776,13 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 		}
 	}
 	$bad = kloxo_pma_check_login($user, $pass, $host);
+	if ($bad !== '' && $onlyDb !== ''
+		&& (str_contains($bad, 'Access denied') || str_contains($bad, '1045'))) {
+		// Panel row password and MariaDB drifted — push the panel password.
+		if (kloxo_pma_repair_db_login($user, $pass, $onlyDb, $root)) {
+			$bad = kloxo_pma_check_login($user, $pass, $host);
+		}
+	}
 	if ($bad !== '') {
 		return $bad;
 	}
@@ -835,7 +895,8 @@ function kloxo_pma_try_db_sso(?string $root = null): bool
 		$cred['user'],
 		$cred['pass'],
 		$cred['host'],
-		$cred['dbname']
+		$cred['dbname'],
+		$root
 	);
 	kloxo_pma_last_error($err);
 
@@ -935,7 +996,8 @@ function kloxo_pma_signon_submit(?string $root = null): string
 			$want['user'],
 			$pass,
 			$want['host'],
-			$want['dbname']
+			$want['dbname'],
+			$root
 		);
 	}
 	$user = kloxo_pma_signon_posted_user();

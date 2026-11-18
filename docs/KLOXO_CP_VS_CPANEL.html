@@ -138,16 +138,18 @@
 
   <h1>Kloxo CP vs cPanel / WHM — Rated Feature Comparison</h1>
   <p class="meta">
-    Kloxo CP <strong>10.1-2026111823</strong> (AGPLv3, Ubuntu 24.04 / 26.x only — CentOS/RHEL installer removed)
+    Kloxo CP <strong>Release Candidate 10.20-202611023</strong> (AGPLv3, Ubuntu 24.04 / 26.x only — CentOS/RHEL installer removed)
     · vs <strong>cPanel &amp; WHM</strong>
     · Section 1 also vs <strong>ISPConfig 3.3</strong> (BSD) and <strong>Hestia CP</strong> (GPLv3)
     · Ratings 0–10 · refreshed <strong>18 Nov 2026</strong>
+    · version from <code>README.md</code>
   </p>
   <p class="note">
     Ratings weigh <strong>utility for hosting operators/customers</strong> and
     <strong>security posture</strong>. Kloxo scores are capped where features are
-    coded but still live-unverified or incomplete on Ubuntu. Still
-    <strong>not production-safe</strong> (legacy PHP / live gaps). Recent lifts covered here:
+    coded but still live-unverified or incomplete on Ubuntu. README marks this as a
+    <strong>Release Candidate</strong> and still
+    <strong>not for production</strong> (legacy PHP / live gaps). Recent lifts covered here:
     Fail2Ban + UFW, recovery console, watchdog, CSRF (POST+token for mutate actions),
     Argon2id, Roundcube-only webmail, Nginx web-cache front, Knot DNS, SQLite panel DB,
     explicit Status toasts, busy spinner, PHP Module Status (Ubuntu <code>mods-available</code>),
@@ -279,7 +281,7 @@
       </tr>
       <tr>
         <td class="feature">Install experience</td>
-        <td class="panel"><span class="bar r8">8</span><br><code>curl -fsSL -H 'Cache-Control: no-cache' "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" | sudo bash</code> — <code>get</code>→<code>install.sh</code>, cache-busted, pipe-safe, <code>[1/8]…[8/8]</code>, auto hostname, <code>--profile=full|core</code> / <code>--fresh</code> / <code>--slave</code>; Hiawatha source-built. Still not a GA production installer.</td>
+        <td class="panel"><span class="bar r8">8</span><br><code>curl -fsSL -H 'Cache-Control: no-cache' "https://raw.githubusercontent.com/ARDZIVE/kloxocp/main/get?$(date +%s)" | sudo bash</code> — <code>get</code>→<code>install.sh</code>, cache-busted, pipe-safe, <code>[1/8]…[8/8]</code>, auto hostname, <code>--profile=full|core</code> / <code>--fresh</code> / <code>--slave</code>; Hiawatha source-built. <strong>Release Candidate</strong> (README: not for production).</td>
         <td class="panel"><span class="bar r9">9</span><br>Official installer + EasyApache; decades of ops muscle memory.</td>
         <td class="panel"><span class="bar r9">9</span><br>Autoinstaller: <code>wget -O - https://get.ispconfig.org | sh</code> — full stack on fresh Debian/Ubuntu.</td>
         <td class="panel"><span class="bar r9">9</span><br><code>hst-install.sh</code> on a fresh OS; interactive or flags; very popular one-command path.</td>
@@ -293,7 +295,7 @@
       </tr>
       <tr>
         <td class="feature">Production readiness</td>
-        <td class="panel"><span class="bar r2">2</span><br>Docs/README: not safe for public production. Security tooling (UFW/Fail2Ban/CSRF/Argon2/recovery) is much stronger, but legacy PHP + live-unverified paths still block a production claim. New upcp does not change that.</td>
+        <td class="panel"><span class="bar r2">2</span><br>README: <strong>Release Candidate 10.20-202611023</strong> — not for production / public network until hardened. Security tooling (UFW/Fail2Ban/CSRF/Argon2/recovery) is much stronger, but legacy PHP + live-unverified paths still block a production claim. New upcp does not change that.</td>
         <td class="panel"><span class="bar r10">10</span><br>Industry default for shared hosting.</td>
         <td class="panel"><span class="bar r9">9</span><br>Long-running production OSS panel; multi-server / service nodes widely used.</td>
         <td class="panel"><span class="bar r9">9</span><br>Widely deployed in production for VPS/single-server hosting; active releases.</td>
@@ -929,7 +931,7 @@
       <tr>
         <td class="feature">Production readiness</td>
         <td class="rate"><span class="bar r2">2</span></td>
-        <td>Docs/README still say not safe for public use; legacy PHP not fully PHP 8.3-safe; many paths live-unverified.</td>
+        <td>README: Release Candidate, not for production; legacy PHP not fully PHP 8.3-safe; many paths live-unverified.</td>
         <td>Customers and hosters cannot trust it as a live panel. This single gap caps every other feature’s value — install polish does not fix it.</td>
       </tr>
       <tr>
@@ -1458,7 +1460,7 @@
 
   <p class="footer">
     Sources: Kloxo CP <code>docs/HANDOFF_BRIEFING.md</code>, <code>AGENTS.md</code>, <code>README.md</code>/<code>install.sh</code>
-    (~2 GB RAM / 10 GB disk floor; version 10.1-2026111823; refreshed 18 Nov 2026) ·
+    (~2 GB RAM / 10 GB disk floor; Release Candidate <strong>10.20-202611023</strong>; refreshed 18 Nov 2026) ·
     Recent code covered: Fail2Ban/UFW/recovery/watchdog, CSRF mutate POST, Argon2id,
     Roundcube-only webmail, Nginx cache front, Knot DNS, SQLite panel DB, PHP Module Status,
     form-named toasts, busy spinner, Command Center/LogWatch, <code>kloxocp upcp</code> ·

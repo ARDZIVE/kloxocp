@@ -629,12 +629,16 @@ class Sqlite
 				}
 
 				if (csb($key, "text_")) {
-					$string = str_replace("\\", '\\\\', $object->$key);
+					$string = str_replace("\\", '\\\\', (string) $object->$key);
 				} else {
-					$string = $object->$key;
+					$string = (string) $object->$key;
 				}
 
-				$ret[$key] = str_replace("'", "\'", $string);
+				// Do not turn "'" into "\'" here: escapeBack / kloxo_sql_quote
+				// already doubles quotes for the SQL literal. Pre-escaping
+				// stored a literal backslash in dbpassword so MariaDB (which
+				// got the real password at create) rejected phpMyAdmin SSO.
+				$ret[$key] = $string;
 			}
 		}
 

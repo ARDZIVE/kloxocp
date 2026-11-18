@@ -189,6 +189,37 @@ $check(is_array($own) && ($own['user'] ?? '') === 'bob_wp' && ($own['dbname'] ??
 	'client opening their database uses that database user, not kloxo_pma');
 $check(kloxo_pma_db_login('eve_wp', $tmp) === null, 'client cannot open another client database');
 $check(kloxo_pma_db_login('bad_pma', $tmp) === null, 'a row whose MariaDB user is kloxo_pma is refused');
+$check(kloxo_pma_normalize_db_password("Secret\\'12") === "Secret'12"
+	&& kloxo_pma_normalize_db_password('plain') === 'plain',
+	'legacy getToArray quote mangling is undone for MariaDB login');
+$insPdo = new PDO('sqlite:' . $sqlite);
+$insPdo->prepare('INSERT INTO mysqldb (nname, dbname, username, dbpassword, parent_clname, parent_cmlist)
+	VALUES (?, ?, ?, ?, ?, ?)')->execute(
+	array('quote_db', 'quote_db', 'quote_db', "Secret\\'12", 'client-bob', ',client-bob,')
+);
+$insPdo = null;
+$_COOKIE['kloxo-clientname'] = 'bob';
+$sess('client-bob', time());
+$quoteRow = kloxo_pma_db_login('quote_db', $tmp);
+$check(is_array($quoteRow) && ($quoteRow['pass'] ?? '') === "Secret'12",
+	'mangled dbpassword from sqlite is normalized for SSO');
+require_once $root . '/kloxo/httpdocs/lib/php/kloxo_mariadb.php';
+$fakeMdb = new KloxoMariadb(null);
+KloxoMariadb::$injected = $fakeMdb;
+$repaired = kloxo_pma_repair_db_login('bob_wp', 'bob-secret', 'bob_wp', $tmp);
+$joinedRepair = implode("\n", array_map(static fn (array $r): string => $r[0], $fakeMdb->log));
+KloxoMariadb::$injected = null;
+$check($repaired && str_contains($joinedRepair, "CREATE USER IF NOT EXISTS 'bob_wp'@'127.0.0.1'")
+	&& str_contains($joinedRepair, "GRANT ALL PRIVILEGES ON `bob_wp`.*")
+	&& str_contains($joinedRepair, 'FLUSH PRIVILEGES'),
+	'1045 repair re-applies ensureUser + GRANT via kloxo_pma');
+$srcRepair = (string) file_get_contents($helper);
+$check(str_contains($srcRepair, 'kloxo_pma_repair_db_login')
+	&& str_contains($srcRepair, 'Access denied'),
+	'per-database sign-on retries after MariaDB 1045 repair');
+$sqlSrc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/sqlitelib.php');
+$check(!preg_match('/\$ret\[\$key\]\s*=\s*str_replace\("\'",\s*"\\\\\'"/', $sqlSrc),
+	'Sqlite::getToArray no longer stores backslash-escaped quotes in dbpassword');
 $_COOKIE['kloxo-clientname'] = 'alice';
 $sess('client-alice', time());
 $resell = kloxo_pma_db_login('bob_wp', $tmp);
