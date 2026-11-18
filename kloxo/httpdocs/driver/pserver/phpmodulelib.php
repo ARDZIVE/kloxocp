@@ -96,9 +96,23 @@ class PhpModule extends lxclass
 
 	static function initThisListRule($parent, $class) { return null; }
 
+	/** Load PhpModule__linux (Ubuntu mods-available + legacy php.d scanners). */
+	static function ensureLinuxDriver()
+	{
+		if (class_exists('PhpModule__linux', false)) {
+			return true;
+		}
+		$path = __DIR__ . '/phpmodule__linuxlib.php';
+		if (is_readable($path)) {
+			include_once $path;
+		}
+
+		return class_exists('PhpModule__linux', false);
+	}
+
 	static function initThisList($parent, $class)
 	{
-		global $gbl, $login;
+		global $gbl;
 
 		$sync = (is_object($parent) && isset($parent->syncserver) && is_string($parent->syncserver)
 			&& $parent->syncserver !== '')
@@ -107,6 +121,22 @@ class PhpModule extends lxclass
 		$read = (is_object($parent) && isset($parent->__readserver) && is_string($parent->__readserver)
 			&& $parent->__readserver !== '')
 			? $parent->__readserver : $sync;
+
+		$local = !function_exists('isLocalhost') || isLocalhost($sync) || isLocalhost($read);
+
+		// Localhost: scan /etc/php/*/mods-available in-process. That tree is
+		// world-readable; going through kloxo-backend used to return [] when the
+		// driver class was not loaded or the local-fallback allow-list refused it,
+		// which left "PHP Modules Under localhost (0 to 0 of 0)".
+		if ($local && self::ensureLinuxDriver()) {
+			try {
+				$res = PhpModule__linux::getListDetail($sync);
+
+				return is_array($res) ? $res : array();
+			} catch (Throwable $e) {
+				log_log('error', 'phpmodule local getListDetail: ' . $e->getMessage());
+			}
+		}
 
 		$driverapp = null;
 		if (is_object($gbl) && method_exists($gbl, 'getSyncClass')) {
@@ -125,12 +155,15 @@ class PhpModule extends lxclass
 		if (!is_string($dclass) || $dclass === '') {
 			$dclass = 'PhpModule__linux';
 		}
+		// Prefer the real class name so do_local_action can load via gl_class_array.
+		if (strcasecmp($dclass, 'phpmodule__linux') === 0) {
+			$dclass = 'PhpModule__linux';
+			self::ensureLinuxDriver();
+		}
 
 		$res = null;
 		try {
 			if (function_exists('rl_exec_get')) {
-				// List is read-only; allow in-process fallback when backend is down
-				// so the page is not blank (kloxo_rl_driver used to return []).
 				$res = rl_exec_get($master, $read, array($dclass, 'getListDetail'), array($sync), true);
 			}
 		} catch (Throwable $e) {
@@ -138,13 +171,11 @@ class PhpModule extends lxclass
 			$res = null;
 		}
 
-		if ((!is_array($res) || $res === array())
-			&& function_exists('isLocalhost') && isLocalhost($sync)
-			&& class_exists('PhpModule__linux', false)) {
+		if ((!is_array($res) || $res === array()) && self::ensureLinuxDriver()) {
 			try {
 				$res = PhpModule__linux::getListDetail($sync);
 			} catch (Throwable $e) {
-				log_log('error', 'phpmodule local getListDetail: ' . $e->getMessage());
+				log_log('error', 'phpmodule fallback getListDetail: ' . $e->getMessage());
 				$res = array();
 			}
 		}
