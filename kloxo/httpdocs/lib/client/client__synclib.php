@@ -98,8 +98,10 @@ class client__sync extends lxDriverClass {
 
 	function setQuota()
 	{
-		if (!is_unlimited($this->main->priv->totaldisk_usage)) {
-			$disk = $this->main->priv->totaldisk_usage * 1024;
+		$priv = (isset($this->main->priv) && is_object($this->main->priv))
+			? $this->main->priv->totaldisk_usage : null;
+		if (!is_unlimited($priv) && function_exists('kloxo_quota_num')) {
+			$disk = (int) (kloxo_quota_num($priv) * 1024);
 			os_set_quota($this->main->username, $disk);
 		} else {
 			os_set_quota($this->main->username, 0);

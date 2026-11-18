@@ -619,8 +619,12 @@ class web__ extends lxDriverClass
 		$users = array();
 
 		foreach ($clist as &$n) {
-			$userinfo = posix_getpwnam($n);
-			$fpmport = (50000 + $userinfo['uid']);
+			$userinfo = function_exists('posix_getpwnam') ? @posix_getpwnam($n) : false;
+			if (!is_array($userinfo) || !isset($userinfo['uid'])) {
+				continue;
+			}
+			// Empty-string uid is string+int on PHP 8 (delete client mid-pass).
+			$fpmport = 50000 + (int) $userinfo['uid'];
 
 			if ($fpmport === 50000) { continue; }
 
@@ -1558,9 +1562,12 @@ class web__ extends lxDriverClass
 
 	function dosyncToSystemPost()
 	{
-		// MR -- to make sure after domain config process
-		// also update static config
-		$this->dbactionUpdate("static_config_update");
+		// After delete the domain is gone — do not rebuild static config
+		// (getUserList / FPM ports used to TypeError on a removed Unix user).
+		$dbaction = isset($this->main->dbaction) ? (string) $this->main->dbaction : '';
+		if ($dbaction !== 'delete' && $dbaction !== 'syncdelete') {
+			$this->dbactionUpdate("static_config_update");
+		}
 
 		createRestartFile("restart-web");
 	}

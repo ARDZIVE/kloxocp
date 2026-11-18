@@ -98,5 +98,58 @@ if (preg_match('/->used->\$\w+\s*(\+=|-=)|used->\$\w+\s*\+\s*1\b/', $src)) {
 	ok('no raw arithmetic on quota used counters remains');
 }
 
+// Client delete: parent used counters are often '' — must not TypeError.
+try {
+	$admin = new Client(null, 'localhost', 'admin');
+	$admin->nname = 'admin';
+	$admin->cttype = 'admin';
+	$admin->dbaction = 'clean';
+	$admin->used = new Used(null, null, 'admin');
+	$admin->priv = new Priv(null, null, 'admin');
+	$admin->used->client_num = '';
+	$admin->priv->client_num = 'Unlimited';
+	$admin->used->__parent_o = $admin;
+	$admin->priv->__parent_o = $admin;
+
+	$child = new Client(null, 'localhost', 'todel');
+	$child->nname = 'todel';
+	$child->cttype = 'customer';
+	$child->dbaction = 'delete';
+	$child->used = new Used(null, null, 'todel');
+	$child->priv = new Priv(null, null, 'todel');
+	$child->__parent_o = $admin;
+	$child->changeUsedFromParent($admin, -1);
+	if ((int) $admin->used->client_num === -1 || (int) $admin->used->client_num === 0) {
+		ok('client delete changeUsedFromParent with empty used counter');
+	} else {
+		bad('client delete changeUsedFromParent with empty used counter', var_export($admin->used->client_num, true));
+	}
+} catch (Throwable $e) {
+	bad('client delete changeUsedFromParent with empty used counter', get_class($e) . ': ' . $e->getMessage());
+}
+
+$lx = (string) file_get_contents($doc . '/lib/php/lxclass.php');
+if (str_contains($lx, 'changeUsedFromParentAll after delete')
+	&& str_contains($lx, 'catch (Throwable $e)')) {
+	ok('writeEntireObject swallows quota TypeError after delete so toast stays success');
+} else {
+	bad('writeEntireObject swallows quota TypeError after delete so toast stays success');
+}
+
+$sync = (string) file_get_contents($doc . '/lib/client/client__synclib.php');
+if (str_contains($sync, 'kloxo_quota_num($priv)')) {
+	ok('client setQuota uses kloxo_quota_num (no string * int)');
+} else {
+	bad('client setQuota uses kloxo_quota_num (no string * int)');
+}
+
+$web = (string) file_get_contents($doc . '/driver/web/web__lib.php');
+if (str_contains($web, '50000 + (int)')
+	&& str_contains($web, "dbaction !== 'delete'")) {
+	ok('web sync casts uid and skips static_config on delete');
+} else {
+	bad('web sync casts uid and skips static_config on delete');
+}
+
 echo "$pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

@@ -920,11 +920,22 @@ abstract class Lxclass
 		$this->writeAndSyncChildren();
 
 		if ($this->dbaction === 'add') {
-			$this->changeUsedFromParentAll();
+			try {
+				$this->changeUsedFromParentAll();
+			} catch (Throwable $e) {
+				log_log('error', 'changeUsedFromParentAll after add: ' . $e->getMessage());
+			}
 		}
 
+		// Quota used counters are strings in the DB; a TypeError here used to
+		// toast after the row was already gone (delete client "worked" but
+		// Admin Home showed Unsupported operand types: string + int).
 		if ($this->dbaction === 'delete' && !$this->isClass('ssession')) {
-			$this->changeUsedFromParentAll(-1);
+			try {
+				$this->changeUsedFromParentAll(-1);
+			} catch (Throwable $e) {
+				log_log('error', 'changeUsedFromParentAll after delete: ' . $e->getMessage());
+			}
 		}
 
 		if ($this->dbaction !== "delete" && $this->dbaction !== "delete_done") {
@@ -4925,10 +4936,17 @@ abstract class Lxclass
 
 		$qlist = $this->getQuotaVariableList();
 
+		$parent = $this->getParentO();
 		foreach ((array)$qlist as $k => $v) {
-			if ($this->isHardQuota($k)) {
-				$this->getParentO()->used->$k = kloxo_quota_num($this->getParentO()->used->$k) - kloxo_quota_num($this->priv->$k);
+			if (!$this->isHardQuota($k)) {
+				continue;
 			}
+			if (!is_object($parent) || !isset($parent->used) || !is_object($parent->used)) {
+				continue;
+			}
+			$parent->used->$k = kloxo_quota_num($parent->used->$k ?? 0) - kloxo_quota_num(
+				(isset($this->priv) && is_object($this->priv)) ? ($this->priv->$k ?? 0) : 0
+			);
 		}
 
 		if ($this->get__table() === 'ticket') {

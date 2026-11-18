@@ -3201,7 +3201,7 @@ function getInstalledVersion()
 		return (string)$sgbl->__ver_full;
 	}
 
-	return '10.1-2026111807';
+	return '10.1-2026111808';
 }
 
 function getDownloadServer()
@@ -3346,7 +3346,9 @@ function incrementVar($table, $var, $min, $increment)
 	if (!$res) {
 		$ret = $min;
 	} else {
-		$ret = $res[0][$var] + $increment;
+		$ret = (function_exists('kloxo_quota_num')
+			? kloxo_quota_num($res[0][$var] ?? 0)
+			: (int) ($res[0][$var] ?? 0)) + (int) $increment;
 	}
 
 	return $ret;

@@ -3087,7 +3087,8 @@ function delete_expired_ssessions()
 			if (!is_object($s)) {
 				continue;
 			}
-			$timeout = $s->last_access + $login->getSpecialObject('sp_specialplay')->ssession_timeout;
+			$timeout = (int) $s->last_access
+				+ (int) $login->getSpecialObject('sp_specialplay')->ssession_timeout;
 			dprint($s->nname);
 			if ($timeout < time()) {
 				$s->delete();
@@ -3249,7 +3250,10 @@ function initProgramlib($ctype = null)
 		$login->setUpdateSubaction();
 	}
 
-	$timeout = $sessobj->last_access + $login->getSpecialObject('sp_specialplay')->ssession_timeout;
+	// last_access / ssession_timeout are often strings from SQLite; PHP 8
+	// throws "Unsupported operand types: string + int" for '' + N.
+	$timeout = (int) $sessobj->last_access
+		+ (int) $login->getSpecialObject('sp_specialplay')->ssession_timeout;
 	$sessobj->timeout = $timeout;
 	//$timeout  =  $sessobj->last_access + 4;
 	$sessobj->last_access = time();
