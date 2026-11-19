@@ -20,7 +20,7 @@ else
 fi
 
 . /script/directory
-lxphp.exe ../bin/fix/fixweb.php $*
+lxphp.exe ../bin/fix/fixweb.php "$@"
 
 . /script/counter-end.inc
 
@@ -28,4 +28,4 @@ echo "-------------------------------------"
 echo
 echo "*** >>> PHP portion <<<***"
 
-sh /script/fixphp
+sh /script/fixphp "$@"

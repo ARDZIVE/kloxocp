@@ -1,4 +1,7 @@
-if [ "$1" == "--help" ] || [ "$1" == "-h" ] ; then
+# POSIX sh (Ubuntu /bin/sh is dash): use = not == inside [ ].
+# $list is a space-separated unit name string from restart-list.inc.
+
+if [ "$1" = "--help" ] || [ "$1" = "-h" ] ; then
 	echo ""
 	echo " ------------------------------------------------------------------------------"
 	echo "  format: sh $0 [--force|-y]"
@@ -12,7 +15,10 @@ if [ "$1" == "--help" ] || [ "$1" == "-h" ] ; then
 else
 	ppath="/opt/kloxo/etc/process"
 
-	for item in ${list[*]} ; do
+	for item in $list ; do
+		if [ -z "$item" ] ; then
+			continue
+		fi
 		if ! systemctl list-unit-files --type=service 2>/dev/null | grep -q "^${item}\.service"; then
 			continue
 		fi
@@ -23,16 +29,16 @@ else
 			continue
 		fi
 		echo ""
-		if [ "$1" == "--force" ] || [ "$1" == "-y" ] ; then
-			if [ "${item}" == "spawn-fcgi" ] ; then
+		if [ "$1" = "--force" ] || [ "$1" = "-y" ] ; then
+			if [ "${item}" = "spawn-fcgi" ] ; then
 				rm -f /tmp/fcgiwrap.sock
 			fi
 			systemctl restart "${item}" 2>/dev/null || true
 		else
-			if [ -f ${ppath}/custom.${item} ] ; then
-				sh ${ppath}/custom.${item}
-			elif [ -f ${ppath}/${item} ] ; then
-				sh ${ppath}/${item}
+			if [ -f "${ppath}/custom.${item}" ] ; then
+				sh "${ppath}/custom.${item}"
+			elif [ -f "${ppath}/${item}" ] ; then
+				sh "${ppath}/${item}"
 			else
 				systemctl restart "${item}" 2>/dev/null || true
 			fi

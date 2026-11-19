@@ -6,7 +6,7 @@ else
 	. /script/restart-list.inc
 fi
 
-list=${list_ftp[*]}
+list="$list_ftp"
 
 if [ -f /script/custom.restart.inc ] ; then
 	. /script/custom.restart.inc

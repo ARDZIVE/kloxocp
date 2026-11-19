@@ -2397,9 +2397,10 @@ class HtmlLib
 			$class = $stuff;
 		}
 
-		if (!is_array($value)) {
-			$value = kloxo_html($value);
-		}
+		// Keep the raw value. Escaping here (kloxo_html) then again in
+		// print_variable/print_modify turned ' into a literal &#039; in
+		// Command Center Output and every other form field. Callers that
+		// put $value into HTML must htmlspecialchars once at render time.
 	}
 
 	function print_file_permissions($ffile)
@@ -8924,7 +8925,9 @@ class HtmlLib
 		// Don't Create extra variables 'pre-$var' and 'post-$var' if there are extra texts.
 
 		if ($variable->value != "") {
-			$this->checkForScript($variable->value);
+			// Object/DB display values are not user script input — do not run
+			// checkForScript here (it rejects legitimate quotes and forced
+			// a pre-escape that showed &#039; in the UI).
 			$m_value = $variable->value;
 		} else {
 			if (trim($variable->texttype) != "password") {

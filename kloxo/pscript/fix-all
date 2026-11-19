@@ -1,8 +1,9 @@
 #!/bin/sh
+# Forward --server= / --client= so each stage sees the same args (Command Center).
 
-sh /script/fixdns
-sh /script/fixwebcache
-sh /script/fixweb
-sh /script/fixphp
-sh /script/fixmail
-sh /script/fixftp-all
+sh /script/fixdns "$@"
+sh /script/fixwebcache "$@"
+sh /script/fixweb "$@"
+sh /script/fixphp "$@"
+sh /script/fixmail "$@"
+sh /script/fixftp-all "$@"

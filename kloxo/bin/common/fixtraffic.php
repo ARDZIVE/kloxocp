@@ -7,17 +7,12 @@ $list = parse_opt($argv);
 
 // MR -- because only 1 class (domain)
 $class = isset($list['class']) ? $list['class'] : 'domain';
-/*
-if (isset($list['class'])) {
-	$class = $list['class'];
-} else {
-	print("Need --class=\n");
-	exit;
-}
-*/
 
 if (isset($list['day'])) {
-	$day = $list['day'];
+	$day = (int) $list['day'];
+	if ($day < 1) {
+		$day = 1;
+	}
 } else {
 	print("Day not set. Defaulting to $day\n");
 }

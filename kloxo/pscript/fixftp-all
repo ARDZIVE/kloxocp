@@ -2,8 +2,8 @@
 
 . /script/counter-start.inc
 
-sh /script/fixftp $*
+sh /script/fixftp "$@"
 
-sh /script/fixftpuser $*
+sh /script/fixftpuser "$@"
 
 . /script/counter-end.inc

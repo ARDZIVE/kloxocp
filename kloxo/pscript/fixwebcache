@@ -9,6 +9,6 @@ else
 fi
 
 . /script/directory
-lxphp.exe ../bin/fix/fixwebcache.php $*
+lxphp.exe ../bin/fix/fixwebcache.php "$@"
 
 . /script/counter-end.inc
