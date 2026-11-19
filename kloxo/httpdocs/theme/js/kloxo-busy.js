@@ -709,7 +709,8 @@
 	}
 
 	var noNavigate = /^(?:mailto:|tel:|sms:|blob:|data:|javascript:|#)/i;
-	var downloadUrl = /[?&]frm_subaction=download(?:&|$)|\/filedownload\.php/i;
+	// File Manager download, and MySQL Database Backup Now (streams a dump).
+	var downloadUrl = /[?&]frm_subaction=download(?:&|$)|[?&]frm_subaction=backup(?:&|$)|\/filedownload\.php/i;
 
 	function suppress() {
 		suppressUntil = Date.now() + 2000;

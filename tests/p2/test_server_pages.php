@@ -1051,7 +1051,29 @@ $dbBackupTab = str_contains($dbLibSrc, "a=updateform&sa=backup")
 	&& !str_contains($dbLibSrc, "a=update&sa=backup");
 $lxdbSrc = (string) file_get_contents($doc . '/lib/php/lxdb.php');
 $dbBackupForm = str_contains($lxdbSrc, 'case "backup":')
-	&& str_contains($lxdbSrc, "'Backup Now'");
+	&& str_contains($lxdbSrc, "'Backup Now'")
+	&& str_contains($lxdbSrc, "__v_form_target")
+	&& str_contains($lxdbSrc, "'_blank'");
+$lxClassSrc = (string) file_get_contents($doc . '/lib/php/lxclass.php');
+$dbBackupDl = str_contains($lxClassSrc, 'kloxo_send_download_headers')
+	&& str_contains($lxClassSrc, 'could_not_download_here');
+$lxlibDl = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+$dbBackupClass = str_contains($lxlibDl, 'function kloxo_request_object_class')
+	&& str_contains($lxlibDl, "!== 'lxbackup'");
+$prevGhtmlBak = $ghtml ?? null;
+$prevGblBak = $gbl ?? null;
+$ghtml = new stdClass();
+$ghtml->frm_action = 'update';
+$ghtml->frm_subaction = 'backup';
+$ghtml->frm_o_o = array(array('class' => 'mysqldb', 'nname' => 'db_admin'));
+$gbl = new stdClass();
+$mysqldbIsDl = function_exists('kloxo_is_file_download') && kloxo_is_file_download();
+$mysqldbNotLong = function_exists('kloxo_is_long_backend_update') && !kloxo_is_long_backend_update();
+$ghtml->frm_o_o = array(array('class' => 'lxbackup', 'nname' => 'client-admin'));
+$lxbackupIsLong = function_exists('kloxo_is_long_backend_update') && kloxo_is_long_backend_update();
+$lxbackupNotDl = function_exists('kloxo_is_file_download') && !kloxo_is_file_download();
+$ghtml = $prevGhtmlBak;
+$gbl = $prevGblBak;
 if (str_contains($dbStubUrl, 'kloxo-signon.php') && str_contains($dbStubUrl, 'db=mesrob_wp')
 	&& !str_contains($dbStubUrl, 'kloxo_pma') && $dbListHasPma && $dbPropHasPma
 	&& str_contains($dbStubTarget, '_blank') && $dbListTargetOk
@@ -1059,13 +1081,15 @@ if (str_contains($dbStubUrl, 'kloxo-signon.php') && str_contains($dbStubUrl, 'db
 	&& str_contains($pmaHelperSrc, 'PMA_single_signon_cfgupdate')
 	&& str_contains($dbLibSrc, 'phpMyAdminActionObject')
 	&& str_contains($dbLibSrc, 'kloxo_pma_db_href')
-	&& $dbBackupTab && $dbBackupForm) {
+	&& $dbBackupTab && $dbBackupForm && $dbBackupDl && $dbBackupClass
+	&& $mysqldbIsDl && $mysqldbNotLong && $lxbackupIsLong && $lxbackupNotDl) {
 	ok('client database SQL Manager opens that database as its own user');
 } else {
 	bad('client database SQL Manager opens that database as its own user',
 		$pmaErr !== '' ? $pmaErr : ('stub=' . $dbStubUrl . ' list=' . (int) $dbListHasPma
 			. ' prop=' . (int) $dbPropHasPma . ' tgt=' . $dbStubTarget
-			. ' bakTab=' . (int) $dbBackupTab . ' bakForm=' . (int) $dbBackupForm));
+			. ' bakTab=' . (int) $dbBackupTab . ' bakForm=' . (int) $dbBackupForm
+			. ' dl=' . (int) $mysqldbIsDl . ' long=' . (int) $lxbackupIsLong));
 }
 
 if (function_exists('kloxo_driver_class')

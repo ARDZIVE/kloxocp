@@ -134,6 +134,9 @@ abstract class Lxdb extends Lxclass
 				$vlist['__v_info'] = array('M',
 					'Download a dump of this database. Click Backup Now to start.');
 				$vlist['__v_button'] = 'Backup Now';
+				// Stream the dump in a new tab so this page does not go blank.
+				$vlist['__v_form_target'] = '_blank';
+				$vlist['__v_form_nobusy'] = true;
 
 				return $vlist;
 

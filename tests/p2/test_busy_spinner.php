@@ -253,7 +253,9 @@ if ($redirFn !== ''
 	bad('print_redirect uses 200 stub (no 303 Location) so busy clears');
 }
 if (str_contains($js, 'data-kloxo-nobusy') && str_contains($js, "'download'") && str_contains($js, 'mailto:')
-	&& str_contains($js, 'hasChosenFile') && !str_contains($js, "enctype === 'multipart/form-data'") && str_contains($js, 'frm_subaction=download')) {
+	&& str_contains($js, 'hasChosenFile') && !str_contains($js, "enctype === 'multipart/form-data'")
+	&& str_contains($js, 'frm_subaction=download')
+	&& str_contains($js, 'frm_subaction=backup')) {
 	ok('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form (the panel renders all forms as multipart)');
 } else {
 	bad('JS skips downloads, mailto, targets and forms with a chosen file, but not every multipart form');

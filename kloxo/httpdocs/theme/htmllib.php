@@ -8710,6 +8710,12 @@ class HtmlLib
 		if ($ft === 'enctype="multipart/form-data"' || stripos($ft, 'multipart/form-data') !== false) {
 			$formEnc = 'enctype="multipart/form-data"';
 		}
+		$formTarget = '';
+		$tgtRaw = strtolower(trim((string) ($block->target ?? '')));
+		if (in_array($tgtRaw, array('_blank', '_self', '_top'), true)) {
+			$formTarget = 'target="' . $tgtRaw . '"';
+		}
+		$formBusy = !empty($block->nobusy) ? 'data-kloxo-nobusy="1"' : '';
 		$csrfEsc = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
 		// Single-quoted onsubmit so json_encode() double quotes in wait_text
@@ -8737,7 +8743,7 @@ class HtmlLib
 ?>
 
 			<div style="margin: 0 auto">
-				<form name="<?= $formName ?>" id="<?= $formName ?>" action="<?= $formUrl ?>" <?= $formEnc ?> method="<?= $method ?>" <?= $onsubmit ?> accept-charset="utf-8">
+				<form name="<?= $formName ?>" id="<?= $formName ?>" action="<?= $formUrl ?>" <?= $formEnc ?> <?= $formTarget ?> <?= $formBusy ?> method="<?= $method ?>" <?= $onsubmit ?> accept-charset="utf-8">
 				<input type='hidden' name='frm_token' value='<?= $csrfEsc ?>'>
 <?php
 	//	dprint($block->form);

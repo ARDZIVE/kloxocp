@@ -2128,7 +2128,19 @@ function do_updateform($object, $subaction)
 			return;
 		}
 
-		$string[] = $ghtml->object_variable_startblock($object, null, $title);
+		$header = $ghtml->object_variable_startblock($object, null, $title);
+		if (is_object($header)) {
+			if (!empty($vlist['__v_form_target']) && is_string($vlist['__v_form_target'])) {
+				$tgt = strtolower(trim($vlist['__v_form_target']));
+				if (in_array($tgt, array('_blank', '_self', '_top'), true)) {
+					$header->target = $tgt;
+				}
+			}
+			if (!empty($vlist['__v_form_nobusy'])) {
+				$header->nobusy = true;
+			}
+		}
+		$string[] = $header;
 		$string[] = $ghtml->object_inherit_classpath();
 		$ret['variable'] = $vlist;
 

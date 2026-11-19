@@ -3602,6 +3602,26 @@ function isModifyAction()
 	return true;
 }
 
+/**
+ * Class of the principle object for this request (mysqldb, lxbackup, …).
+ */
+function kloxo_request_object_class(): string
+{
+	global $gbl, $ghtml;
+
+	if (is_object($gbl) && isset($gbl->__c_object) && is_object($gbl->__c_object)) {
+		return strtolower((string) get_class($gbl->__c_object));
+	}
+	if (is_object($ghtml) && isset($ghtml->frm_o_o) && is_array($ghtml->frm_o_o)) {
+		$last = end($ghtml->frm_o_o);
+		if (is_array($last) && isset($last['class'])) {
+			return strtolower((string) $last['class']);
+		}
+	}
+
+	return '';
+}
+
 function kloxo_is_file_download(): bool
 {
 	global $ghtml;
@@ -3610,14 +3630,26 @@ function kloxo_is_file_download(): bool
 	}
 	$action = strtolower((string) ($ghtml->frm_action ?? ''));
 	$sub = strtolower((string) ($ghtml->frm_subaction ?? ''));
+	if ($action !== 'update') {
+		return false;
+	}
+	if ($sub === 'download') {
+		return true;
+	}
+	// mysqldb (and domain/web content) Backup Now streams an attachment.
+	// lxbackup Backup Now is a long job that redirects — not a download.
+	if ($sub === 'backup') {
+		return kloxo_request_object_class() !== 'lxbackup';
+	}
 
-	return $action === 'update' && $sub === 'download';
+	return false;
 }
 
 /**
  * Backup Now / Restore From File wait on kloxo-backend. Do not print the page
  * chrome first: zlib.output_compression + a late fatal left a blank page after
  * restore. Defer HTML until redirect (or error) so the response stays whole.
+ * MySQL Database Backup Now is a download (see kloxo_is_file_download), not this.
  */
 function kloxo_is_long_backend_update(): bool
 {
@@ -3628,6 +3660,9 @@ function kloxo_is_long_backend_update(): bool
 	$action = strtolower((string) ($ghtml->frm_action ?? ''));
 	$sub = strtolower((string) ($ghtml->frm_subaction ?? ''));
 	if ($action !== 'update') {
+		return false;
+	}
+	if ($sub === 'backup' && kloxo_request_object_class() !== 'lxbackup') {
 		return false;
 	}
 

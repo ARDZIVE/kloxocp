@@ -6192,15 +6192,34 @@ abstract class Lxclass
 
 	function updateBackup($param)
 	{
-		$ret = $this->backMeUpThere();
-		$fname = $this->getBackupFileNameForObject('out-' . time());
+		global $login;
 
-		while (@ob_end_clean()) {
-			;
+		$ret = $this->backMeUpThere();
+		if (!is_array($ret) || !isset($ret['file'])) {
+			$who = isset($this->nname) ? (string) $this->nname : '';
+			throw new lxException(
+				is_object($login) && method_exists($login, 'getThrow')
+					? $login->getThrow('could_not_download_here')
+					: 'could_not_download_here',
+				'',
+				$who
+			);
 		}
 
-		header('Content-Type: application/octet-stream');
-		header("Content-Disposition: attachment; filename={$fname}");
+		$fname = $this->getBackupFileNameForObject('out-' . time());
+		$size = 0;
+		if (isset($ret['size']) && is_numeric($ret['size'])) {
+			$size = (int) $ret['size'];
+		}
+		if (function_exists('kloxo_send_download_headers')) {
+			kloxo_send_download_headers((string) $fname, $size);
+		} else {
+			while (@ob_end_clean()) {
+				;
+			}
+			header('Content-Type: application/octet-stream');
+			header('Content-Disposition: attachment; filename="' . basename((string) $fname) . '"');
+		}
 		printFromFileServ($this->syncserver, $ret);
 		flush();
 
