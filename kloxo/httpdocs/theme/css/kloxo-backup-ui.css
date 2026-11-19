@@ -1,7 +1,7 @@
 /* Kloxo CP — Backup / Restore console (simplicity red/beige/green). */
 .kbu {
 	max-width: 920px;
-	margin: 0 0 24px;
+	margin: 0 auto 24px;
 	font: 9pt Tahoma, Verdana, sans-serif;
 	color: #222;
 }
@@ -248,17 +248,31 @@
 	word-break: break-all;
 }
 .kbu-dialog {
-	border: 1px solid #a88;
-	padding: 0;
-	max-width: 420px;
+	position: fixed;
+	inset: 0;
+	z-index: 10050;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	background: rgba(0, 0, 0, 0.35);
 	font: inherit;
 }
-.kbu-dialog::backdrop {
-	background: rgba(0, 0, 0, 0.35);
+.kbu-dialog.is-open,
+.kbu-dialog:not([hidden]) {
+	display: flex;
+}
+.kbu-dialog[hidden] {
+	display: none !important;
 }
 .kbu-dialog-inner {
 	margin: 0;
 	padding: 16px;
+	max-width: 420px;
+	width: 100%;
+	border: 1px solid #a88;
+	background: #fff;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 .kbu-dialog-inner h3 {
 	margin: 0 0 8px;

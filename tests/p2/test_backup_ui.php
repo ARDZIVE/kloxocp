@@ -100,13 +100,16 @@ $css = (string) file_get_contents($doc . '/theme/css/kloxo-backup-ui.css');
 $ui = (string) file_get_contents($doc . '/lib/php/kloxo_backup_ui.php');
 check(str_contains($bak, 'function showRawPrint')
 	&& str_contains($bak, 'KloxoBackupUi::renderConsole')
+	&& str_contains($bak, 'createShowUpdateform')
+	&& str_contains($bak, 'return array()')
 	&& str_contains($bak, "a=updateform&sa=settings")
 	&& str_contains($bak, 'case "settings"')
 	&& str_contains($bak, 'function updateSettings')
-	&& str_contains($bak, "\$uflist['backup'] = null")
+	&& str_contains($bak, "'archives' => \$archives")
 	&& str_contains($ui, 'KloxoBackup::backupDir')
+	&& str_contains($ui, 'renderArchiveRowsHtml')
 	&& !str_contains($ui, "KloxoBackup::ensureDir('client'"),
-	'lxbackup show uses console + classic forms; API path avoids ensureDir hang');
+	'lxbackup show seeds console list; no duplicate classic forms; no ensureDir hang');
 check(str_contains($api, "case 'upload_chunk'")
 	&& str_contains($api, "case 'fetch_url'")
 	&& str_contains($api, "case 'fetch_ftp'")
@@ -120,22 +123,34 @@ check(str_contains($js, 'upload_init')
 	&& str_contains($js, 'fetch_url')
 	&& str_contains($js, 'fetch_ftp')
 	&& str_contains($js, 'data-act="download"')
+	&& str_contains($js, 'data-kloxo-nobusy')
+	&& str_contains($js, 'startUpload')
+	&& str_contains($js, 'openRestoreDialog')
 	&& str_contains($js, 'kbu-drop')
-	&& str_contains($js, 'KloxoToast'),
-	'kloxo-backup-ui.js drives chunked upload, download and toasts');
+	&& str_contains($js, 'KloxoToast')
+	&& !str_contains($js, 'location.href = apiUrl'),
+	'kloxo-backup-ui.js auto-uploads, downloads without busy hang, custom restore dialog');
 check(str_contains($css, '.kbu-drop')
 	&& str_contains($css, '.kbu-progress-fill')
+	&& str_contains($css, '.kbu-dialog.is-open')
 	&& str_contains($css, '#c44'),
-	'kloxo-backup-ui.css matches panel colours');
+	'kloxo-backup-ui.css matches panel colours + overlay dialog');
 check(str_contains($ui, '10737418240')
 	&& str_contains($ui, 'From computer')
 	&& str_contains($ui, 'From URL')
-	&& str_contains($ui, 'From FTP'),
-	'console HTML offers file / URL / FTP');
+	&& str_contains($ui, 'From FTP')
+	&& str_contains($ui, 'kbu-btn-restore-confirm')
+	&& !str_contains($ui, 'method="dialog"')
+	&& !str_contains($ui, 'kbu-btn-upload'),
+	'console HTML offers file / URL / FTP; auto-upload; non-native restore dialog');
 check(str_contains($bak, "a=updateform&sa=settings")
 	&& str_contains($bak, "a=show&l[class]=ffile&l[nname]=/")
 	&& str_contains($bak, "a=updateform&sa=upload"),
 	'backupPropertyTabs keeps Settings, File Manager and Upload');
+
+$busyJs = (string) file_get_contents($doc . '/theme/js/kloxo-busy.js');
+check(str_contains($busyJs, 'backup-api.php') || str_contains($busyJs, 'action=download'),
+	'kloxo-busy.js skips Backup/Restore archive download');
 
 // cleanup
 $it = new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS);

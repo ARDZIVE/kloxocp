@@ -613,6 +613,9 @@ final class KloxoBackupUi
 	 *   token:string,
 	 *   api:string,
 	 *   upload:string,
+	 *   dir?:string,
+	 *   writable?:bool,
+	 *   archives?:list<array{name?:string,size?:int,mtime?:int,human?:string}>,
 	 *   backupstage?:string,
 	 *   restorestage?:string,
 	 *   ftp_server?:string,
@@ -628,7 +631,7 @@ final class KloxoBackupUi
 	{
 		$css = '/theme/css/kloxo-backup-ui.css';
 		$js = '/theme/js/kloxo-backup-ui.js';
-		$ver = '20261119c';
+		$ver = '20261119d';
 		$archives = (isset($cfg['archives']) && is_array($cfg['archives'])) ? $cfg['archives'] : array();
 		$boot = array(
 			'account' => (string) ($cfg['account'] ?? ''),

@@ -287,15 +287,19 @@ $__information['resourceplan_show__pre'] = "<p><b>Note:</b> ".
 $__information['resourceplan_addform__pre'] = "<p>You can set 'Resource Plan' here and then create client based on it.</p>".
 	"<p>Note: for 'Number Of FastCGI Children', 'Unlimited' equal to '4'</p>";
 
-$__information['lxbackup_show__pre'] = "<p><b>Backup / Restore</b> — create a backup, add an archive (computer / HTTPS URL / FTP, up to 10&nbsp;GB), then restore from the list. "
-	. "<b>Settings</b> = remote FTP mirror + schedule. <b>File Manager</b> / <b>Upload</b> tabs are available for browse and classic upload.</p>"
-	. "<p>A backup is a copy of this account (admin: everyone under you), not the whole server. Saved: panel records, sites, mail, DBs, DKIM, Let's Encrypt. "
-	. "Not saved: the panel itself, UFW, Fail2Ban, panel SSL, recovery password. After restore, web/DNS/mail are applied automatically; leftover steps appear in the status.</p>";
+$__information['lxbackup_show__pre'] = "<p><b>Backup / Restore</b> makes a <b>copy of this account</b> (admin: everyone under you) — <b>not a copy of the whole server</b>.</p>"
+	. "<p><b>Saved:</b> panel records, sites, mail, databases, <b>DKIM keys</b>, <b>Let's Encrypt files</b>. "
+	. "<b>Not saved:</b> the panel program itself, UFW, Fail2Ban, panel SSL, recovery password.</p>"
+	. "<p>Use the console: create a backup, add an archive (computer / HTTPS URL / FTP, up to 10&nbsp;GB), then Restore from the list. "
+	. "<b>Settings</b> = remote FTP mirror + schedule. <b>File Manager</b> / <b>Upload</b> remain for browse and classic upload.</p>"
+	. "<p><b>Before you backup:</b> finish any long site installs and note custom server packages. "
+	. "<b>After restore:</b> web/DNS/mail are applied automatically; leftover steps (for example <b>Point nameservers</b>) appear under <b>Last Restore Status</b>.</p>";
 
 $__information['lxbackup_updateform_backup_pre'] = $__information['lxbackup_show__pre'];
 
-$__information['lxbackup_updateform_restore_from_file_pre'] = "<p>Pick the archive with the folder icon, then <b>Start Restore Process</b>. Upload the file first (Upload tab, HTTP, or FTP) if it is not already in File Manager. FTP restore is a poor choice for a large archive.</p>".
-	$__information['lxbackup_show__pre'];
+$__information['lxbackup_updateform_restore_from_file_pre'] = "<p>Use the archive list on Backup / Restore, or pick a file in File Manager then <b>Start Restore Process</b>. "
+	. "Upload first (console, Upload tab, HTTP, or FTP) if the archive is not already there. FTP restore is a poor choice for a large archive.</p>"
+	. $__information['lxbackup_show__pre'];
 
 $__information['lxbackup_updateform_restore_from_ftp_pre'] = $__information['lxbackup_updateform_restore_from_file_pre'];
 

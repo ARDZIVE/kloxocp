@@ -28,6 +28,7 @@
 	var selectedFile = null;
 	var uploadId = null;
 	var uploadAbort = false;
+	var uploading = false;
 	var pendingRestore = null;
 
 	function $(id) {
@@ -170,19 +171,22 @@
 		var html = '';
 		archives.forEach(function (a) {
 			var name = String(a.name || '');
-			var size = humanBytes(a.size || 0);
+			if (!name) {
+				return;
+			}
+			var size = a.human ? String(a.human) : humanBytes(a.size || 0);
 			var when = a.mtime ? new Date(Number(a.mtime) * 1000).toLocaleString() : '—';
 			html += '<tr data-name="' + escapeAttr(name) + '">'
 				+ '<td class="kbu-fname">' + escapeHtml(name) + '</td>'
 				+ '<td>' + escapeHtml(size) + '</td>'
 				+ '<td>' + escapeHtml(when) + '</td>'
 				+ '<td>'
-				+ '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-primary" data-act="restore">Restore</button>'
-				+ '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-ghost" data-act="download">Download</button>'
+				+ '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-primary" data-act="restore">Restore</button> '
+				+ '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-ghost" data-act="download">Download</button> '
 				+ '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-ghost" data-act="delete">Delete</button>'
 				+ '</td></tr>';
 		});
-		tbody.innerHTML = html;
+		tbody.innerHTML = html || '<tr><td colspan="4" class="kbu-empty">No archives yet. Create a backup or add one above.</td></tr>';
 	}
 
 	function escapeHtml(s) {
@@ -195,12 +199,16 @@
 		return escapeHtml(s).replace(/\n/g, ' ');
 	}
 
-	function refreshList() {
+	function refreshList(quiet) {
 		if (!token) {
-			setStatus($('kbu-list-status'), 'Session token missing — refresh the page.', 'err');
+			if (!quiet) {
+				setStatus($('kbu-list-status'), 'Session token missing — refresh the page.', 'err');
+			}
 			return Promise.resolve();
 		}
-		setStatus($('kbu-list-status'), 'Refreshing…', 'busy');
+		if (!quiet) {
+			setStatus($('kbu-list-status'), 'Refreshing…', 'busy');
+		}
 		return fetch(apiUrl('list'), {
 			credentials: 'same-origin',
 			headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': token }
@@ -215,27 +223,46 @@
 				setStatus($('kbu-list-status'), '');
 			}
 		}).catch(function (err) {
-			setStatus($('kbu-list-status'), err.message || 'Could not list archives.', 'err');
-			toast(err.message || 'Could not list archives.', 'error');
+			if (!quiet) {
+				setStatus($('kbu-list-status'), err.message || 'Could not list archives.', 'err');
+				toast(err.message || 'Could not list archives.', 'error');
+			}
 		});
 	}
 
 	function downloadArchive(name) {
-		window.location.href = apiUrl('download', { file: name });
+		// Use an <a download> so kloxo-busy.js does not treat navigation as a page load.
+		var a = document.createElement('a');
+		a.href = apiUrl('download', { file: name });
+		a.setAttribute('download', name);
+		a.setAttribute('data-kloxo-nobusy', '1');
+		a.style.display = 'none';
+		document.body.appendChild(a);
+		a.click();
+		setTimeout(function () {
+			if (a.parentNode) {
+				a.parentNode.removeChild(a);
+			}
+		}, 0);
+	}
+
+	function resetDropTitle() {
+		var title = root.querySelector('.kbu-drop-title');
+		if (title) {
+			title.textContent = 'Drop a backup archive here, or click to browse';
+		}
 	}
 
 	function setFile(file) {
 		selectedFile = file || null;
-		var btn = $('kbu-btn-upload');
 		var drop = $('kbu-drop');
-		if (btn) {
-			btn.disabled = !selectedFile;
-		}
 		if (drop && selectedFile) {
 			var title = drop.querySelector('.kbu-drop-title');
 			if (title) {
 				title.textContent = selectedFile.name + ' (' + humanBytes(selectedFile.size) + ')';
 			}
+		} else if (!selectedFile) {
+			resetDropTitle();
 		}
 	}
 
@@ -267,6 +294,24 @@
 		}
 	}
 
+	function startUpload(file) {
+		if (!file || uploading) {
+			return;
+		}
+		if (file.size > maxBytes) {
+			toast('File over 10 GB.', 'warning');
+			return;
+		}
+		setFile(file);
+		uploading = true;
+		uploadChunked(file).catch(function (err) {
+			setStatus($('kbu-add-status'), err.message || 'Upload failed.', 'err');
+			toast(err.message || 'Upload failed.', 'error');
+		}).finally(function () {
+			uploading = false;
+		});
+	}
+
 	function uploadChunked(file) {
 		uploadAbort = false;
 		uploadId = null;
@@ -274,7 +319,7 @@
 		if (cancelBtn) {
 			cancelBtn.hidden = false;
 		}
-		setStatus($('kbu-add-status'), 'Preparing upload…', 'busy');
+		setStatus($('kbu-add-status'), 'Uploading… keep this tab open.', 'busy');
 		setProgress(0, humanBytes(0) + ' / ' + humanBytes(file.size));
 
 		return postForm('upload_init', { file: file.name, size: file.size }).then(function (init) {
@@ -327,10 +372,6 @@
 			if (input) {
 				input.value = '';
 			}
-			var title = root.querySelector('.kbu-drop-title');
-			if (title) {
-				title.textContent = 'Drop a backup archive here, or click to browse';
-			}
 		}).finally(function () {
 			uploadId = null;
 			if (cancelBtn) {
@@ -356,21 +397,32 @@
 		});
 	}
 
-	function runRestore(name) {
+	function openRestoreDialog(name) {
 		pendingRestore = name;
 		var dlg = $('kbu-restore-dialog');
 		var msg = $('kbu-restore-msg');
 		if (msg) {
 			msg.textContent = 'Restore “‘ + name + '” into this account? Existing data may be replaced.';
 		}
-		if (dlg && typeof dlg.showModal === 'function') {
-			dlg.showModal();
+		if (dlg) {
+			dlg.hidden = false;
+			dlg.classList.add('is-open');
 		} else if (window.confirm('Restore ' + name + '?')) {
 			doRestore(name);
 		}
 	}
 
+	function closeRestoreDialog() {
+		var dlg = $('kbu-restore-dialog');
+		if (dlg) {
+			dlg.hidden = true;
+			dlg.classList.remove('is-open');
+		}
+		pendingRestore = null;
+	}
+
 	function doRestore(name) {
+		closeRestoreDialog();
 		setStatus($('kbu-list-status'), 'Restoring ' + name + '… keep this tab open.', 'busy');
 		busy(true, 'Restoring backup…');
 		postForm('restore', { file: name }).then(function (j) {
@@ -381,7 +433,6 @@
 			toast(err.message || 'Restore failed.', 'error');
 		}).finally(function () {
 			busy(false);
-			pendingRestore = null;
 		});
 	}
 
@@ -404,6 +455,12 @@
 	}
 	if ($('kbu-ftp-user') && ftpCfg.user) {
 		$('kbu-ftp-user').value = String(ftpCfg.user);
+	}
+	if ($('kbu-ftp-file') && ftpCfg.dir) {
+		var dirHint = String(ftpCfg.dir).replace(/\/+$/, '');
+		if (dirHint && !$('kbu-ftp-file').value) {
+			$('kbu-ftp-file').placeholder = dirHint + '/backup.tgz';
+		}
 	}
 
 	root.querySelectorAll('.kbu-tab').forEach(function (btn) {
@@ -430,46 +487,40 @@
 		drop.addEventListener('drop', function (e) {
 			var files = e.dataTransfer && e.dataTransfer.files;
 			if (files && files[0]) {
-				if (files[0].size > maxBytes) {
-					toast('File over 10 GB.', 'warning');
-					return;
+				startUpload(files[0]);
+			}
+		});
+		drop.addEventListener('click', function (e) {
+			if (e.target === fileInput) {
+				return;
+			}
+			if (fileInput) {
+				fileInput.click();
+			}
+		});
+		drop.addEventListener('keydown', function (e) {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				if (fileInput) {
+					fileInput.click();
 				}
-				setFile(files[0]);
 			}
 		});
 	}
 	if (fileInput) {
+		fileInput.addEventListener('click', function (e) {
+			e.stopPropagation();
+		});
 		fileInput.addEventListener('change', function () {
 			var f = fileInput.files && fileInput.files[0];
 			if (!f) {
 				setFile(null);
 				return;
 			}
-			if (f.size > maxBytes) {
-				toast('File over 10 GB.', 'warning');
-				fileInput.value = '';
-				setFile(null);
-				return;
-			}
-			setFile(f);
+			startUpload(f);
 		});
 	}
 
-	var btnUpload = $('kbu-btn-upload');
-	if (btnUpload) {
-		btnUpload.addEventListener('click', function () {
-			if (!selectedFile) {
-				return;
-			}
-			btnUpload.disabled = true;
-			uploadChunked(selectedFile).catch(function (err) {
-				setStatus($('kbu-add-status'), err.message || 'Upload failed.', 'err');
-				toast(err.message || 'Upload failed.', 'error');
-			}).finally(function () {
-				btnUpload.disabled = !selectedFile;
-			});
-		});
-	}
 	var btnCancel = $('kbu-btn-cancel-upload');
 	if (btnCancel) {
 		btnCancel.addEventListener('click', function () {
@@ -525,7 +576,9 @@
 	}
 	var btnRefresh = $('kbu-btn-refresh');
 	if (btnRefresh) {
-		btnRefresh.addEventListener('click', refreshList);
+		btnRefresh.addEventListener('click', function () {
+			refreshList(false);
+		});
 	}
 
 	var tbody = $('kbu-tbody');
@@ -542,7 +595,7 @@
 			var name = tr.getAttribute('data-name') || '';
 			var act = btn.getAttribute('data-act');
 			if (act === 'restore') {
-				runRestore(name);
+				openRestoreDialog(name);
 			} else if (act === 'download') {
 				downloadArchive(name);
 			} else if (act === 'delete') {
@@ -551,20 +604,48 @@
 		});
 	}
 
-	if (!token) {
-		setStatus($('kbu-add-status'), 'Session token missing — refresh the page.', 'err');
-	}
-
 	var dlg = $('kbu-restore-dialog');
-	if (dlg) {
-		dlg.addEventListener('close', function () {
-			if (dlg.returnValue === 'ok' && pendingRestore) {
+	var btnRestoreCancel = $('kbu-btn-restore-cancel');
+	var btnRestoreConfirm = $('kbu-btn-restore-confirm');
+	if (btnRestoreCancel) {
+		btnRestoreCancel.addEventListener('click', function () {
+			closeRestoreDialog();
+		});
+	}
+	if (btnRestoreConfirm) {
+		btnRestoreConfirm.addEventListener('click', function () {
+			if (pendingRestore) {
 				doRestore(pendingRestore);
 			} else {
-				pendingRestore = null;
+				closeRestoreDialog();
+			}
+		});
+	}
+	if (dlg) {
+		dlg.addEventListener('click', function (e) {
+			if (e.target === dlg) {
+				closeRestoreDialog();
+			}
+		});
+		document.addEventListener('keydown', function (e) {
+			if (e.key === 'Escape' && dlg.classList.contains('is-open')) {
+				closeRestoreDialog();
 			}
 		});
 	}
 
-	refreshList();
+	if (!token) {
+		setStatus($('kbu-add-status'), 'Session token missing — refresh the page.', 'err');
+	}
+
+	// Seeded HTML already lists archives; refresh quietly in the background.
+	if (Array.isArray(cfg.archives) && cfg.archives.length) {
+		renderList(cfg.archives);
+	}
+	if (cfg.writable === false && cfg.dir) {
+		setStatus($('kbu-list-status'),
+			'Backup folder is not writable. As root: chown -R lxlabs:lxlabs ' + String(cfg.dir),
+			'err');
+	}
+	refreshList(true);
 })();

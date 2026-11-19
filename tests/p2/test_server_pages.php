@@ -2448,9 +2448,7 @@ $bakFormOk = is_array($bakSettingsForm)
 	&& array_key_exists('backupschedule_time', $bakSettingsForm)
 	&& array_key_exists('rm_last_number', $bakSettingsForm)
 	&& is_array($bakShowForms)
-	&& array_key_exists('backup', $bakShowForms)
-	&& array_key_exists('restore_from_file', $bakShowForms)
-	&& array_key_exists('restore_from_ftp', $bakShowForms)
+	&& $bakShowForms === array()
 	&& $bakFormErr === '';
 if (($bakProp[0] ?? '') === 'a=show'
 	&& ($bakProp[1] ?? '') === 'a=updateform&sa=settings'
@@ -2558,7 +2556,13 @@ $bakShowOk = str_contains($bakShowHtml, 'kloxo-backup-ui')
 	&& str_contains($bakShowHtml, 'From URL')
 	&& str_contains($bakShowHtml, 'From FTP')
 	&& str_contains($bakShowHtml, 'kloxo-backup-ui.js')
-	&& str_contains($bakShowHtml, 'Backup Now');
+	&& str_contains($bakShowHtml, 'kbu-tbody')
+	&& str_contains($bakShowHtml, 'kbu-restore-dialog')
+	&& str_contains($bakShowHtml, 'kbu-btn-restore-confirm')
+	&& str_contains($bakShowHtml, 'No archives yet')
+	&& !str_contains($bakShowHtml, 'kbu-btn-upload')
+	&& !str_contains($bakShowHtml, 'method="dialog"')
+	&& !str_contains($bakShowHtml, 'Classic forms below');
 $bakSettingsOk = str_contains($bakSettingsHtml, 'Settings')
 	&& str_contains($bakSettingsHtml, 'frm_lxbackup_c_ftp_server')
 	&& str_contains($bakSettingsHtml, 'frm_lxbackup_c_rm_username')
