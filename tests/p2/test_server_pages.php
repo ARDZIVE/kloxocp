@@ -628,7 +628,10 @@ if (class_exists('KloxoComponent')) {
 	}
 	if (isset($names['nginx'], $names['apache2'], $names['bind9'], $names['knot'],
 		$names['mariadb-server'], $names['exim4'], $names['postfix'], $names['dovecot-core'], $names['rspamd'],
-		$names['hiawatha'], $names['php8.3-cli'], $names['php5.6-cli'], $names['php7.4-fpm'])) {
+		$names['hiawatha'], $names['fail2ban'], $names['ufw'], $names['pure-ftpd'],
+		$names['php8.3-cli'], $names['php5.6-cli'], $names['php7.4-fpm'])
+		&& !isset($names['mysql-server']) && !isset($names['postgresql'])
+		&& !isset($names['vsftpd']) && !isset($names['proftpd-basic'])) {
 		ok('Component catalog lists the Ubuntu stack');
 	} else {
 		bad('Component catalog lists the Ubuntu stack');
@@ -640,11 +643,17 @@ if (class_exists('KloxoComponent')) {
 		bad('Component catalog does not use CentOS RPM names');
 	}
 	$parsed = KloxoComponent::parseQuery(
-		"nginx\t1.24.0-2ubuntu7\tinstalled\nbind9\t1:9.18.28-0ubuntu0.24.04.1\tinstalled\napache2\t2.4.58-1ubuntu8\tnot-installed\n"
+		"nginx\t1.24.0-2ubuntu7\tinstalled\n"
+		. "bind9\t1:9.18.28-0ubuntu0.24.04.1\tinstalled\n"
+		. "apache2\t2.4.58-1ubuntu8\tnot-installed\n"
+		. "exim4-daemon-heavy\t4.97-8ubuntu1\tinstalled\n"
+		. "libsqlite3-0\t3.45.1-1ubuntu2\tinstalled\n"
+		. "exim4\t4.97-8ubuntu1\tnot-installed\n"
 	);
 	if (isset($parsed['nginx']['installed']) && $parsed['nginx']['installed'] === true
 		&& $parsed['bind9']['version'] === '1:9.18.28-0ubuntu0.24.04.1'
-		&& $parsed['apache2']['installed'] === false) {
+		&& $parsed['apache2']['installed'] === false
+		&& $parsed['exim4-daemon-heavy']['installed'] === true) {
 		ok('parseQuery maps dpkg installed vs not-installed');
 	} else {
 		bad('parseQuery maps dpkg installed vs not-installed');
@@ -660,18 +669,22 @@ if (class_exists('KloxoComponent')) {
 	foreach ($rows as $r) {
 		$by[$r['componentname']] = $r;
 	}
+	$eximOn = isset($by['exim4']) && $by['exim4']['status'] === 'on'
+		&& str_contains($by['exim4']['version'], 'exim4-daemon-heavy-4.97');
+	$sqliteOn = isset($by['sqlite3']) && $by['sqlite3']['status'] === 'on'
+		&& str_contains($by['sqlite3']['version'], 'libsqlite3-0-');
 	if (isset($by['nginx'], $by['bind9'], $by['hiawatha'], $by['exim4'])
 		&& $by['nginx']['status'] === 'on'
 		&& $by['bind9']['status'] === 'on'
 		&& $by['hiawatha']['status'] === 'on'
 		&& $by['hiawatha']['version'] === 'hiawatha-12.4'
-		&& $by['exim4']['status'] === 'off'
-		&& str_contains($by['exim4']['version'], 'is not installed')
+		&& $eximOn && $sqliteOn
 		&& $by['nginx']['type'] === 'web'
 		&& count($rows) === count($cat)) {
 		ok('Component rows use green/red status like Kloxo-MR');
 	} else {
-		bad('Component rows use green/red status like Kloxo-MR');
+		bad('Component rows use green/red status like Kloxo-MR',
+			'exim=' . ($by['exim4']['version'] ?? '?') . ' sqlite=' . ($by['sqlite3']['version'] ?? '?'));
 	}
 	$list = Component__deb::getListVersion('localhost', array());
 	if (is_array($list) && count($list) === count($cat)) {

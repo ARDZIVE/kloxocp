@@ -4,6 +4,8 @@ declare(strict_types=1);
 /**
  * Component Info rows for Ubuntu: apt packages plus source-built Hiawatha.
  * Status is installed vs not installed (same green/red meaning as Kloxo-MR).
+ * Package aliases match what install.sh / Switch Program actually apt-install
+ * (e.g. exim4-daemon-heavy, not the empty exim4 metapackage name alone).
  *
  * Copyright (C) 2026 Kloxo CP contributors
  * GNU Affero General Public License v3 or later. See LICENSE.txt.
@@ -26,33 +28,39 @@ final class KloxoComponent
     }
 
     /**
-     * Packages the panel cares about, in screenshot-style types.
-     * Lighttpd / Varnish / Squid / qmail / toaster names are not listed.
+     * Packages the panel manages. Optional stack peers (Postfix, Apache, Knot)
+     * stay listed so Switch Program choices show on/off. Dead options
+     * (postgresql, vsftpd, proftpd, mysql-server) are not listed.
      *
-     * @return list<array{name:string,type:string,kind:string}>
+     * @return list<array{name:string,type:string,kind:string,packages?:list<string>}>
      */
     public static function catalog(): array
     {
         $rows = [
-            ['name' => 'mariadb-server', 'type' => 'database', 'kind' => 'deb'],
-            ['name' => 'mysql-server', 'type' => 'database', 'kind' => 'deb'],
-            ['name' => 'postgresql', 'type' => 'database', 'kind' => 'deb'],
-            ['name' => 'sqlite3', 'type' => 'database', 'kind' => 'deb'],
+            ['name' => 'mariadb-server', 'type' => 'database', 'kind' => 'deb',
+                'packages' => ['mariadb-server', 'mariadb-server-10.11', 'mariadb-server-11.4', 'mariadb-server-11.8']],
             ['name' => 'redis-server', 'type' => 'database', 'kind' => 'deb'],
+            // Panel DB is SQLite; CLI package or the shared library counts.
+            ['name' => 'sqlite3', 'type' => 'database', 'kind' => 'deb',
+                'packages' => ['sqlite3', 'libsqlite3-0']],
             ['name' => 'bind9', 'type' => 'dns', 'kind' => 'deb'],
             ['name' => 'knot', 'type' => 'dns', 'kind' => 'deb'],
             ['name' => 'nginx', 'type' => 'web', 'kind' => 'deb'],
             ['name' => 'apache2', 'type' => 'web', 'kind' => 'deb'],
             ['name' => 'hiawatha', 'type' => 'web', 'kind' => 'hiawatha'],
-            ['name' => 'exim4', 'type' => 'smtp', 'kind' => 'deb'],
+            // install.sh / smtp__exim install exim4-daemon-heavy.
+            ['name' => 'exim4', 'type' => 'smtp', 'kind' => 'deb',
+                'packages' => ['exim4-daemon-heavy', 'exim4-daemon-light', 'exim4', 'exim4-base']],
             ['name' => 'postfix', 'type' => 'smtp', 'kind' => 'deb'],
             ['name' => 'dovecot-core', 'type' => 'pop', 'kind' => 'deb'],
             ['name' => 'dovecot-imapd', 'type' => 'pop', 'kind' => 'deb'],
             ['name' => 'dovecot-pop3d', 'type' => 'pop', 'kind' => 'deb'],
             ['name' => 'rspamd', 'type' => 'spam', 'kind' => 'deb'],
             ['name' => 'pure-ftpd', 'type' => 'ftp', 'kind' => 'deb'],
-            ['name' => 'proftpd-basic', 'type' => 'ftp', 'kind' => 'deb'],
-            ['name' => 'vsftpd', 'type' => 'ftp', 'kind' => 'deb'],
+            ['name' => 'fail2ban', 'type' => 'security', 'kind' => 'deb'],
+            ['name' => 'ufw', 'type' => 'security', 'kind' => 'deb'],
+            ['name' => 'imagemagick', 'type' => 'utility', 'kind' => 'deb',
+                'packages' => ['imagemagick', 'imagemagick-7.q16', 'imagemagick-6.q16']],
         ];
         foreach (self::phpSeries() as $ver) {
             $rows[] = ['name' => 'php' . $ver . '-cli', 'type' => 'php-branch', 'kind' => 'deb'];
@@ -68,7 +76,7 @@ final class KloxoComponent
     public static function listVersion(string $syncserver): array
     {
         $sync = self::safeSync($syncserver);
-        $deb = self::queryDebInstalled(self::debNames());
+        $deb = self::queryDebInstalled(self::debQueryNames());
 
         return self::rowsFromStatus($sync, $deb, self::hiawathaStatus());
     }
@@ -86,16 +94,19 @@ final class KloxoComponent
             $name = $item['name'];
             if ($item['kind'] === 'hiawatha') {
                 $st = is_array($hiawatha) ? $hiawatha : ['version' => '', 'installed' => false];
+                $pkgLabel = 'hiawatha';
             } else {
-                $st = $deb[$name] ?? ['version' => '', 'installed' => false];
+                $picked = self::pickInstalled($item, $deb);
+                $st = $picked['status'];
+                $pkgLabel = $picked['package'];
             }
             $on = !empty($st['installed']);
-            $ver = trim((string)($st['version'] ?? ''));
+            $ver = trim((string) ($st['version'] ?? ''));
             $out[] = [
                 'nname' => $name . '___' . $sync,
                 'componentname' => $name,
                 'version' => $on && $ver !== ''
-                    ? $name . '-' . $ver
+                    ? $pkgLabel . '-' . $ver
                     : 'package ' . $name . ' is not installed',
                 'status' => $on ? 'on' : 'off',
                 'type' => $item['type'],
@@ -106,6 +117,55 @@ final class KloxoComponent
         });
 
         return $out;
+    }
+
+    /**
+     * @param array{name:string,type:string,kind:string,packages?:list<string>} $item
+     * @param array<string, array{version:string, installed:bool}> $deb
+     * @return array{package:string, status:array{version:string, installed:bool}}
+     */
+    public static function pickInstalled(array $item, array $deb): array
+    {
+        $name = (string) ($item['name'] ?? '');
+        $cands = self::packagesFor($item);
+        foreach ($cands as $pkg) {
+            if (!empty($deb[$pkg]['installed'])) {
+                return [
+                    'package' => $pkg,
+                    'status' => [
+                        'version' => (string) ($deb[$pkg]['version'] ?? ''),
+                        'installed' => true,
+                    ],
+                ];
+            }
+        }
+
+        return [
+            'package' => $name,
+            'status' => ['version' => '', 'installed' => false],
+        ];
+    }
+
+    /**
+     * @param array{name?:string,packages?:list<string>} $item
+     * @return list<string>
+     */
+    public static function packagesFor(array $item): array
+    {
+        $name = isset($item['name']) ? (string) $item['name'] : '';
+        $pkgs = [];
+        if (isset($item['packages']) && is_array($item['packages'])) {
+            foreach ($item['packages'] as $p) {
+                if (is_string($p) && $p !== '' && preg_match('/^[A-Za-z0-9.+-]+$/', $p) === 1) {
+                    $pkgs[] = $p;
+                }
+            }
+        }
+        if ($pkgs === [] && $name !== '' && preg_match('/^[A-Za-z0-9.+-]+$/', $name) === 1) {
+            $pkgs[] = $name;
+        }
+
+        return array_values(array_unique($pkgs));
     }
 
     /**
@@ -129,6 +189,7 @@ final class KloxoComponent
             }
             $version = $parts[1];
             $st = strtolower($parts[2]);
+            // dpkg db:Status-Status — installed is on; config-files / not-installed are off.
             $on = ($st === 'installed');
             $map[$name] = [
                 'version' => $on ? $version : '',
@@ -168,9 +229,17 @@ final class KloxoComponent
                 return "Package: hiawatha\nStatus: installed (panel binary)\nVersion: {$st['version']}\n"
                     . 'Binary: ' . self::hiawathaBinary() . "\n";
             }
-            $raw = self::run(['/usr/bin/dpkg-query', '-s', $pkg]);
+            $deb = self::queryDebInstalled(self::packagesFor($item));
+            $picked = self::pickInstalled($item, $deb);
+            if (empty($picked['status']['installed'])) {
+                $tried = implode(', ', self::packagesFor($item));
+
+                return "package {$pkg} is not installed (checked: {$tried})\n";
+            }
+            $real = $picked['package'];
+            $raw = self::run(['/usr/bin/dpkg-query', '-s', $real]);
             if (trim($raw) === '') {
-                return "package {$pkg} is not installed\n";
+                return "Package: {$real}\nStatus: installed\nVersion: {$picked['status']['version']}\n";
             }
 
             return $raw;
@@ -196,16 +265,19 @@ final class KloxoComponent
     }
 
     /** @return list<string> */
-    private static function debNames(): array
+    private static function debQueryNames(): array
     {
         $names = [];
         foreach (self::catalog() as $item) {
-            if ($item['kind'] === 'deb') {
-                $names[] = $item['name'];
+            if (($item['kind'] ?? '') !== 'deb') {
+                continue;
+            }
+            foreach (self::packagesFor($item) as $p) {
+                $names[] = $p;
             }
         }
 
-        return $names;
+        return array_values(array_unique($names));
     }
 
     /**
