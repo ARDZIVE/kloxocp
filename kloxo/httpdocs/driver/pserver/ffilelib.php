@@ -468,7 +468,7 @@ class Ffile extends Lxclass
 			$npost = array(
 				'frm_action' => 'show',
 				'frm_o_o' => $path,
-				'frm_smessage' => 'file uploaded successfully',
+				'frm_smessage' => 'file_uploaded',
 			);
 			$url = '/display.php?' . $ghtml->get_get_from_post(null, $npost);
 		}
@@ -484,7 +484,7 @@ class Ffile extends Lxclass
 		}
 		if (!str_contains($url, 'frm_smessage=')) {
 			$url .= (str_contains($url, '?') ? '&' : '?')
-				. 'frm_smessage=' . rawurlencode('file uploaded successfully');
+				. 'frm_smessage=' . rawurlencode('file_uploaded');
 		}
 
 		return $url;

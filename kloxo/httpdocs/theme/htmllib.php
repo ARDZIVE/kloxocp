@@ -9626,6 +9626,8 @@ var uploadBackupAccount = <?= json_encode($__upload_backup_account, JSON_UNESCAP
 var uploadCsrfToken = <?= json_encode($__upload_csrf, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
 var uploadExpectName = '';
 var uploadExpectBytes = 0;
+var uploadXhrDone = false;
+var uploadFailTimer = 0;
 
 function uploadRedirectFromForm(form) {
 	if (!form || !form.elements) {
@@ -9702,9 +9704,43 @@ function uploadUrlFromResponse(text, xhr) {
 	return u;
 }
 
+function uploadIsLargeBackup() {
+	return uploadExpectBytes > (5 * 1024 * 1024);
+}
+
+function uploadClearFailTimer() {
+	if (uploadFailTimer) {
+		clearTimeout(uploadFailTimer);
+		uploadFailTimer = 0;
+	}
+}
+
+function uploadArmFailTimer() {
+	uploadClearFailTimer();
+	// Small files must not sit on "Server is saving…" forever (hung PHP/backend).
+	var ms = uploadIsLargeBackup() ? (10 * 60 * 1000) : (45 * 1000);
+	uploadFailTimer = setTimeout(function () {
+		if (uploadDidRedirect || uploadXhrDone) {
+			return;
+		}
+		uploadFailBackup(
+			uploadIsLargeBackup()
+				? uploadToastFailedScp
+				: 'Upload timed out. Refresh and try again, or as root: chown -R lxlabs:lxlabs /home/kloxo/client/'
+					+ (uploadBackupAccount || '<account>')
+		);
+	}, ms);
+}
+
 function uploadSavingRemind() {
-	// Do NOT navigate: changing location aborts the XHR and kills the PHP
-	// worker mid-copy. Keep this tab open; poll will redirect when the file is ready.
+	// Only for large archives still writing after the browser finished sending.
+	// Small files that hang are a server/dir problem — fail instead of this toast.
+	if (uploadDidRedirect || uploadXhrDone) {
+		return;
+	}
+	if (!uploadIsLargeBackup()) {
+		return;
+	}
 	var info = document.getElementById('progress_info');
 	if (info) {
 		info.style.backgroundColor = '#fff8e1';
@@ -9758,7 +9794,7 @@ function uploadStartPoll() {
 			}
 		};
 		x.send(null);
-	}, 3000);
+	}, 2000);
 }
 
 function uploadGoNext(nextUrl) {
@@ -9766,6 +9802,8 @@ function uploadGoNext(nextUrl) {
 		return;
 	}
 	uploadDidRedirect = true;
+	uploadXhrDone = true;
+	uploadClearFailTimer();
 	uploadStopPoll();
 	if (uploadRedirectTimer) {
 		clearTimeout(uploadRedirectTimer);
@@ -9803,6 +9841,8 @@ function uploadBackupFailMessage(j, status) {
 
 function uploadFailBackup(msg) {
 	var text = (typeof msg === 'string' && msg !== '') ? msg : uploadToastFailedScp;
+	uploadXhrDone = true;
+	uploadClearFailTimer();
 	var err = document.getElementById('progress_error2');
 	if (err) {
 		err.style.display = 'block';
@@ -9826,6 +9866,8 @@ function uploadFailBackup(msg) {
 }
 
 function uploadFinishBackupRaw(xhr) {
+	uploadXhrDone = true;
+	uploadClearFailTimer();
 	document.getElementById('progress_percent').textContent = '100%';
 	document.getElementById('progress').style.width = '400px';
 	document.getElementById('progress_remaining').textContent = '00:00:00';
@@ -9838,6 +9880,12 @@ function uploadFinishBackupRaw(xhr) {
 		j = null;
 	}
 	if (j && j.ok) {
+		var infoOk = document.getElementById('progress_info');
+		if (infoOk) {
+			infoOk.style.backgroundColor = '#eafaf1';
+			infoOk.style.textAlign = 'center';
+			infoOk.textContent = 'Upload complete — opening File Manager…';
+		}
 		uploadGoNext((j.redirect) ? j.redirect : uploadRedirectUrl);
 		return;
 	}
@@ -9857,7 +9905,9 @@ function startUploading(e) {
 	// cleanup all temp states
 	iPreviousBytesLoaded = 0;
 	uploadDidRedirect = false;
+	uploadXhrDone = false;
 	uploadStopPoll();
+	uploadClearFailTimer();
 	if (uploadRedirectTimer) {
 		clearTimeout(uploadRedirectTimer);
 		uploadRedirectTimer = 0;
@@ -9869,6 +9919,11 @@ function startUploading(e) {
 	var oProgress = document.getElementById('progress');
 	oProgress.style.display = 'block';
 	oProgress.style.width = '0px';
+	var infoStart = document.getElementById('progress_info');
+	if (infoStart) {
+		infoStart.style.backgroundColor = '#eee';
+		infoStart.style.textAlign = 'left';
+	}
 
 	if (typeof FormData !== "undefined") {
 		// get form data for POSTing
@@ -9925,8 +9980,14 @@ function startUploading(e) {
 		}, false);
 		oXHR.addEventListener('error', uploadError, false);
 		oXHR.addEventListener('abort', uploadAbort, false);
-		oXHR.addEventListener('timeout', function (ev) {
-			uploadSavingRemind();
+		oXHR.addEventListener('timeout', function () {
+			if (uploadIsBackup) {
+				uploadFailBackup(uploadIsLargeBackup()
+					? uploadToastFailedScp
+					: 'Upload timed out. Refresh and try again.');
+			} else {
+				uploadShowToast(uploadToastFailedScp, 'error');
+			}
 		}, false);
 		oXHR.timeout = 0;
 
@@ -9942,6 +10003,7 @@ function startUploading(e) {
 			oXHR.open('POST', rawUrl);
 			oXHR.setRequestHeader('Content-Type', 'application/octet-stream');
 			oXHR.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+			uploadArmFailTimer();
 			oXHR.send(oFile);
 		} else {
 			var vFD = new FormData(uploadForm);
@@ -9997,16 +10059,21 @@ function uploadProgress(e) { // upload process in progress
 		if (iPercentComplete == 100) {
 			document.getElementById('progress_info').style.backgroundColor = '#eee';
 			document.getElementById('progress_info').style.textAlign = 'center';
-			document.getElementById('progress_info').textContent = 'Wait for redirecting...';
-			// Bytes reached the panel. Stream-to-disk may still run; poll __backup
-			// and remind — never navigate early (that aborts the write).
-			uploadStartPoll();
-			if (!uploadRedirectTimer) {
-				uploadRedirectTimer = setTimeout(function () {
-					if (!uploadDidRedirect) {
-						uploadSavingRemind();
-					}
-				}, 15000);
+			document.getElementById('progress_info').textContent = uploadIsLargeBackup()
+				? 'Transfer finished — server is saving into __backup…'
+				: 'Transfer finished — waiting for server…';
+			uploadArmFailTimer();
+			// Large archives: poll disk while PHP finishes. Small files: wait for
+			// the XHR JSON only (do not show the misleading "saving" toast).
+			if (uploadIsLargeBackup()) {
+				uploadStartPoll();
+				if (!uploadRedirectTimer) {
+					uploadRedirectTimer = setTimeout(function () {
+						if (!uploadDidRedirect && !uploadXhrDone) {
+							uploadSavingRemind();
+						}
+					}, 20000);
+				}
 			}
 		}
 	} else {
@@ -10032,6 +10099,8 @@ function uploadFinish(e, xhr) { // upload finished (or timed out waiting for the
 }
 
 function uploadError(e) { // upload error
+	uploadXhrDone = true;
+	uploadClearFailTimer();
 	document.getElementById('progress_error2').style.display = 'block';
 	clearInterval(oTimer);
 	uploadStopPoll();
@@ -10039,12 +10108,16 @@ function uploadError(e) { // upload error
 		clearTimeout(uploadRedirectTimer);
 		uploadRedirectTimer = 0;
 	}
-	// Large / Kloxo-MR archives often hit the browser or connection limit —
-	// tell the user to scp into __backup instead of a bare "error occurred".
+	if (uploadIsBackup) {
+		uploadFailBackup(uploadToastFailedScp);
+		return;
+	}
 	uploadShowToast(uploadToastFailedScp, 'error');
 }
 
 function uploadAbort(e) { // upload abort
+	uploadXhrDone = true;
+	uploadClearFailTimer();
 	document.getElementById('progress_abort').style.display = 'block';
 	clearInterval(oTimer);
 	uploadStopPoll();
@@ -10063,7 +10136,7 @@ function uploadAbort(e) { // upload abort
 					<?= $variable_description ?> <?= $myneedstring ?> <br/>
 					<input class="filebox" type="file" name="<?= $fileNameEsc ?>" id="<?= $fileNameEsc ?>" size="30" onchange="fileSelected(this);">
 					<div>&nbsp;</div>
-					<div id="progress_error2">Upload failed. For large or Kloxo-MR backups: scp into __backup, then Restore From File.</div>
+					<div id="progress_error2">Upload failed. If the folder is not writable: as root chown -R lxlabs:lxlabs the client __backup. Large/Kloxo-MR archives: scp into __backup, then Restore From File.</div>
 					<div id="progress_abort">The upload has been canceled by the user or the browser dropped the connection</div>
 					<div id="progress_warnsize">File over 5&nbsp;GB. Use scp/SFTP into <code>__backup</code> or Upload (ftp), then Restore From File.</div>
 

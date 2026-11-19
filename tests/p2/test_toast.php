@@ -192,7 +192,12 @@ if (function_exists('kloxo_toast_plain')) {
 		&& str_contains(strtolower($plainFree), 'deleted')
 		&& ($plainUpload === 'File uploaded.')
 		&& ($plainTrace === 'Trace to google.com complete.')
-		&& kloxo_toast_kind('traceroute_completed', 's') === 'success';
+		&& kloxo_toast_kind('traceroute_completed', 's') === 'success'
+		&& kloxo_toast_kind('file_uploaded', 's') === 'success'
+		&& kloxo_toast_kind('backup_completed', 's') === 'success'
+		&& kloxo_toast_kind('restore_completed', 's') === 'success'
+		&& kloxo_toast_kind('upload_saving_refresh', 's') === 'warning'
+		&& kloxo_toast_kind('upload_failed_use_scp', 'e') === 'error';
 	if ($okPlain) {
 		ok('kloxo_toast_plain is short, resolves keys, and names what was saved');
 	} else {

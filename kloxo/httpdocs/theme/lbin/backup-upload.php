@@ -209,42 +209,46 @@ if ($bytes > 0 && $cl > 0 && $bytes !== $cl) {
 	], 400);
 }
 
-// Create/chown __backup as root via backend when panel FPM cannot write
-// (common after Backup Now left the folder root-owned — fails even for 16 KB).
-if (!class_exists('KloxoBackup', false)) {
-	$kb = dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
-	if (is_file($kb)) {
-		include_once $kb;
-	}
-}
-if (!class_exists('lxbackup', false)) {
-	$lb = dirname(__DIR__, 2) . '/lib/html/lxbackuplib.php';
-	if (is_file($lb)) {
-		include_once $lb;
-	}
-}
-try {
-	if (class_exists('KloxoBackup', false) && method_exists('KloxoBackup', 'ensureDir')) {
-		$dir = KloxoBackup::ensureDir('client', $account);
-		$dest = rtrim($dir, '/') . '/' . $file;
-	}
-} catch (Throwable $e) {
-	if (function_exists('log_log')) {
-		log_log('error', 'backup-upload ensureDir: ' . $e->getMessage());
-	}
-}
+// Prepare __backup without blocking the browser on a hung kloxo-backend.
+// A full ensureDir via rl_exec can stall the XHR after progress hits 100%,
+// leaving the yellow "Server is saving…" toast forever (even for 16 KB).
 if (!is_dir($dir)) {
 	@mkdir($dir, 0755, true);
 }
-if ((!is_dir($dir) || !is_writable($dir)) && class_exists('lxbackup', false)
-	&& function_exists('rl_exec_get')) {
-	try {
-		rl_exec_get(null, 'localhost', ['lxbackup', 'MakeSureDirectoryExists'], [$dir . '/']);
-	} catch (Throwable $e) {
-		// fall through
-	}
+$parentClient = dirname($dir);
+if (!is_dir($parentClient)) {
+	@mkdir($parentClient, 0755, true);
 }
-if (!is_dir($dir) || !is_writable($dir)) {
+$writable = is_dir($dir) && is_writable($dir);
+if (!$writable) {
+	if (function_exists('lxfile_generic_chown')) {
+		lxfile_generic_chown($parentClient, 'lxlabs');
+		lxfile_generic_chown($dir, 'lxlabs');
+	}
+	@chmod($dir, 0755);
+	$writable = is_dir($dir) && is_writable($dir);
+}
+if (!$writable) {
+	if (!class_exists('lxbackup', false)) {
+		$lb = dirname(__DIR__, 2) . '/lib/html/lxbackuplib.php';
+		if (is_file($lb)) {
+			include_once $lb;
+		}
+	}
+	if (class_exists('lxbackup', false) && function_exists('rl_exec_get')) {
+		try {
+			// One quick root mkdir/chown only — avoid double rl_exec + probes
+			// on the upload critical path.
+			rl_exec_get(null, 'localhost', ['lxbackup', 'MakeSureDirectoryExists'], [$dir . '/']);
+		} catch (Throwable $e) {
+			if (function_exists('log_log')) {
+				log_log('error', 'backup-upload MakeSureDirectoryExists: ' . $e->getMessage());
+			}
+		}
+	}
+	$writable = is_dir($dir) && is_writable($dir);
+}
+if (!$writable) {
 	kloxo_backup_upload_json([
 		'ok' => false,
 		'error' => 'backup_dir_not_writable',
@@ -252,6 +256,7 @@ if (!is_dir($dir) || !is_writable($dir)) {
 		'message' => kloxo_backup_upload_message('backup_dir_not_writable', $dir),
 	], 500);
 }
+$dest = rtrim($dir, '/') . '/' . $file;
 
 $part = $dest . '.uploading.' . getmypid();
 @unlink($part);
