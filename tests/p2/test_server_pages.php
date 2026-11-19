@@ -838,15 +838,17 @@ if (function_exists('kloxo_skip_find_show_class')
 	&& kloxo_skip_find_show_class('smessage')
 	&& kloxo_skip_find_show_class('auxiliary')
 	&& kloxo_skip_find_show_class('sslcert')
+	&& kloxo_skip_find_show_class('mysqldb')
 	&& !kloxo_skip_find_class('mailaccount')
 	&& !kloxo_skip_find_class('smessage')
 	&& !kloxo_skip_find_class('auxiliary')
 	&& !kloxo_skip_find_class('sslcert')
+	&& !kloxo_skip_find_class('mysqldb')
 	&& !kloxo_skip_find_show_class('client')
 	&& str_contains($showSrc, 'kloxo_skip_find_show_class($show_class)')) {
-	ok('Mail Account, Message, Auxiliary Login and SSL Certificate show pages drop the Find box while their lists keep search');
+	ok('Mail Account, Message, Auxiliary Login, SSL Certificate and MySQL Database show pages drop the Find box while their lists keep search');
 } else {
-	bad('Mail Account, Message, Auxiliary Login and SSL Certificate show pages drop the Find box while their lists keep search');
+	bad('Mail Account, Message, Auxiliary Login, SSL Certificate and MySQL Database show pages drop the Find box while their lists keep search');
 }
 
 $welcomeDefault = Notification::defaultWelcomeMessage();
@@ -1045,18 +1047,25 @@ $dbListTargetOk = class_exists('HtmlLib')
 	&& str_contains(HtmlLib::linkTargetAttr(
 		$dbStubTarget !== '' ? $dbStubTarget : 'target="_blank" rel="noopener noreferrer"'
 	), 'target="_blank"');
+$dbBackupTab = str_contains($dbLibSrc, "a=updateform&sa=backup")
+	&& !str_contains($dbLibSrc, "a=update&sa=backup");
+$lxdbSrc = (string) file_get_contents($doc . '/lib/php/lxdb.php');
+$dbBackupForm = str_contains($lxdbSrc, 'case "backup":')
+	&& str_contains($lxdbSrc, "'Backup Now'");
 if (str_contains($dbStubUrl, 'kloxo-signon.php') && str_contains($dbStubUrl, 'db=mesrob_wp')
 	&& !str_contains($dbStubUrl, 'kloxo_pma') && $dbListHasPma && $dbPropHasPma
 	&& str_contains($dbStubTarget, '_blank') && $dbListTargetOk
 	&& str_contains($pmaHelperSrc, 'kloxo_pma_try_db_sso')
 	&& str_contains($pmaHelperSrc, 'PMA_single_signon_cfgupdate')
 	&& str_contains($dbLibSrc, 'phpMyAdminActionObject')
-	&& str_contains($dbLibSrc, 'kloxo_pma_db_href')) {
+	&& str_contains($dbLibSrc, 'kloxo_pma_db_href')
+	&& $dbBackupTab && $dbBackupForm) {
 	ok('client database SQL Manager opens that database as its own user');
 } else {
 	bad('client database SQL Manager opens that database as its own user',
 		$pmaErr !== '' ? $pmaErr : ('stub=' . $dbStubUrl . ' list=' . (int) $dbListHasPma
-			. ' prop=' . (int) $dbPropHasPma . ' tgt=' . $dbStubTarget));
+			. ' prop=' . (int) $dbPropHasPma . ' tgt=' . $dbStubTarget
+			. ' bakTab=' . (int) $dbBackupTab . ' bakForm=' . (int) $dbBackupForm));
 }
 
 if (function_exists('kloxo_driver_class')

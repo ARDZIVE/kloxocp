@@ -130,6 +130,13 @@ abstract class Lxdb extends Lxclass
 
 				return $vlist;
 
+			case "backup":
+				$vlist['__v_info'] = array('M',
+					'Download a dump of this database. Click Backup Now to start.');
+				$vlist['__v_button'] = 'Backup Now';
+
+				return $vlist;
+
 			case "restore":
 				$vlist['restore_file_f'] = null;
 				$sgbl->method = 'post';

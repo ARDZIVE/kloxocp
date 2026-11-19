@@ -571,9 +571,11 @@ class mysqldb extends databasecore
 
 		$alist['property'][] = 'a=show';
 		$this->getSwitchServerUrl($alist['property']);
-		$alist['property'][] = "a=update&sa=backup";
-		$alist['property'][] = "a=updateform&sa=restore";
-		$alist['property'][] = "a=updateform&sa=changeowner";
+		// updateform (not a=update): a bare update tab ran download on click and
+		// looked wrong among the beige tabs; Restore already uses updateform.
+		$alist['property'][] = 'a=updateform&sa=backup';
+		$alist['property'][] = 'a=updateform&sa=restore';
+		$alist['property'][] = 'a=updateform&sa=changeowner';
 
 		$pma = $this->phpMyAdminActionObject();
 		if (is_object($pma)) {
