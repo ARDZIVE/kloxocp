@@ -24,7 +24,7 @@ header('X-Content-Type-Options: nosniff');
 @ignore_user_abort(true);
 @set_time_limit(0);
 
-const KLOXO_BACKUP_UPLOAD_MAX = 5368709120; // 5 GiB
+const KLOXO_BACKUP_UPLOAD_MAX = 10737418240; // 10 GiB (chunked console preferred)
 
 /**
  * @return never
@@ -116,7 +116,7 @@ function kloxo_backup_upload_message(string $code, string $path = ''): string
 		case 'invalid_account':
 			return 'Upload failed: invalid account.';
 		case 'file_too_large':
-			return 'File over 5 GB. Use scp/SFTP into __backup or Upload (ftp), then Restore From File.';
+			return 'File over 10 GB. Use scp/SFTP into __backup or Fetch from FTP, then restore from the list.';
 		case 'size_mismatch':
 			return 'Upload failed: browser size did not match the request.';
 		case 'backup_dir_not_writable':

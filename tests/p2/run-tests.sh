@@ -335,6 +335,11 @@ if php "$HERE/test_backup.php"; then
 else
   bad "test_backup.php"
 fi
+if php "$HERE/test_backup_ui.php"; then
+  ok "test_backup_ui.php"
+else
+  bad "test_backup_ui.php"
+fi
 if php "$HERE/test_sitepreview.php"; then
   ok "test_sitepreview.php"
 else

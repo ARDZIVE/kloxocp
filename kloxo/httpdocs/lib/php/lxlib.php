@@ -6062,6 +6062,7 @@ function kloxo_backup_action_label($sa)
 	static $map = array(
 		'ftp_conf' => 'FTP Configuration',
 		'schedule_conf' => 'Schedule Configuration',
+		'settings' => 'Settings',
 		'backup' => 'Backup Now',
 		'restore' => 'Restore',
 		'restore_from_file' => 'Restore From File',
@@ -6094,8 +6095,13 @@ function kloxo_backup_page_tab_label($str, $url)
 		'Schedule Configuration' => true,
 		'Update_schedule_conf' => true,
 		'Update _schedule_conf' => true,
+		'settings' => true,
+		'Settings' => true,
+		'Update_settings' => true,
+		'Update _settings' => true,
 	);
-	if (!$isBackupUrl && !isset($backupStr[$str]) && $sa !== 'ftp_conf' && $sa !== 'schedule_conf') {
+	if (!$isBackupUrl && !isset($backupStr[$str]) && $sa !== 'ftp_conf'
+		&& $sa !== 'schedule_conf' && $sa !== 'settings') {
 		return '';
 	}
 	$isFfile = kloxo_url_has_ffile($url);
@@ -6104,6 +6110,10 @@ function kloxo_backup_page_tab_label($str, $url)
 	}
 	if ($isFfile && ($act === 'show' || $act === '' || $sa === '')) {
 		return 'File Manager';
+	}
+	if ($sa === 'settings' || $str === 'settings' || $str === 'Settings'
+		|| $str === 'Update_settings' || $str === 'Update _settings') {
+		return 'Settings';
 	}
 	if ($sa === 'ftp_conf' || $str === 'ftp_conf' || $str === 'ftp_configuration'
 		|| $str === 'Update_ftp_conf' || $str === 'Update _ftp_conf' || $str === 'FTP_config') {
@@ -6126,7 +6136,7 @@ function kloxo_backup_page_tab_label($str, $url)
 		return 'Backup / Restore';
 	}
 	if (isset($backupStr[$str]) && ($sa === '' || $act === 'show' || $act === '')
-		&& $sa !== 'ftp_conf' && $sa !== 'schedule_conf') {
+		&& $sa !== 'ftp_conf' && $sa !== 'schedule_conf' && $sa !== 'settings') {
 		return 'Backup / Restore';
 	}
 
@@ -6384,16 +6394,20 @@ function kloxo_content_tab_label($str, $url = '')
 		'backup_now' => 'Backup Now',
 		'ftp_configuration' => 'FTP Configuration',
 		'schedule_configuration' => 'Schedule Configuration',
+		'settings' => 'Settings',
+		'Settings' => 'Settings',
 		'restore_from_file' => 'Restore From File',
 		'restore_from_ftp' => 'Restore From FTP',
 		'Update_ftp_conf' => 'FTP Configuration',
 		'Update_schedule_conf' => 'Schedule Configuration',
+		'Update_settings' => 'Settings',
 		'Update_backup' => 'Backup Now',
 		'Update_restore' => 'Restore',
 		'Update_restore_from_file' => 'Restore From File',
 		'Update_restore_from_ftp' => 'Restore From FTP',
 		'Update _ftp_conf' => 'FTP Configuration',
 		'Update _schedule_conf' => 'Schedule Configuration',
+		'Update _settings' => 'Settings',
 		'Update _backup' => 'Backup Now',
 		'Update _restore' => 'Restore',
 		'Update _restore_from_file' => 'Restore From File',

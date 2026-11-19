@@ -182,97 +182,18 @@ try {
 	// Null real property (old menu_title bug): Backup tabs must still keep lxbackup.
 	$ghtml->frm_o_o = null;
 	$bakUrl = method_exists($ghtml, 'getFullUrl') ? $ghtml->getFullUrl('a=show') : '';
-	$bakFtpUrl = method_exists($ghtml, 'getFullUrl')
-		? $ghtml->getFullUrl('a=updateform&sa=ftp_conf') : '';
-	$bakSchedUrl = method_exists($ghtml, 'getFullUrl')
-		? $ghtml->getFullUrl('a=updateform&sa=schedule_conf') : '';
-	$bakFmUrl = method_exists($ghtml, 'getFullUrl')
-		? $ghtml->getFullUrl('a=show&l[class]=ffile&l[nname]=/') : '';
-	$bakUpUrl = method_exists($ghtml, 'getFullUrl')
-		? $ghtml->getFullUrl('l[class]=ffile&l[nname]=/&a=updateform&sa=upload') : '';
+	$bakSettingsUrl = method_exists($ghtml, 'getFullUrl')
+		? $ghtml->getFullUrl('a=updateform&sa=settings') : '';
 	$bakTabLabel = kloxo_content_tab_label('Home', is_string($bakUrl) ? $bakUrl : '');
-	$bakFtpLabel = kloxo_content_tab_label('Update_ftp_conf',
-		is_string($bakFtpUrl) ? $bakFtpUrl : '');
-	$bakSchedLabel = kloxo_content_tab_label('Update_schedule_conf',
-		is_string($bakSchedUrl) ? $bakSchedUrl : '');
-	$bakFmLabel = kloxo_content_tab_label('home', is_string($bakFmUrl) ? $bakFmUrl : '');
-	$bakUpLabel = kloxo_content_tab_label('Upload', is_string($bakUpUrl) ? $bakUpUrl : '');
-	$bakFtpSelect = false;
-	$bakSchedSelect = false;
-	$bakFmSelect = false;
-	$bakUpSelect = false;
-	if (is_string($bakFtpUrl) && method_exists($ghtml, 'compare_urls')) {
+	$bakSettingsLabel = kloxo_content_tab_label('Update_settings',
+		is_string($bakSettingsUrl) ? $bakSettingsUrl : '');
+	$bakSettingsSelect = false;
+	if (is_string($bakSettingsUrl) && method_exists($ghtml, 'compare_urls')) {
 		$ghtml->__http_vars['frm_action'] = 'updateform';
-		$ghtml->__http_vars['frm_subaction'] = 'ftp_conf';
+		$ghtml->__http_vars['frm_subaction'] = 'settings';
 		$cur = 'display.php?' . $ghtml->get_get_from_current_post(null);
-		$bakFtpSelect = $ghtml->compare_urls($cur, $bakFtpUrl)
+		$bakSettingsSelect = $ghtml->compare_urls($cur, $bakSettingsUrl)
 			&& !$ghtml->compare_urls($cur, is_string($bakUrl) ? $bakUrl : '');
-	}
-	if (is_string($bakSchedUrl) && method_exists($ghtml, 'compare_urls')) {
-		$ghtml->__http_vars['frm_action'] = 'updateform';
-		$ghtml->__http_vars['frm_subaction'] = 'schedule_conf';
-		$cur = 'display.php?' . $ghtml->get_get_from_current_post(null);
-		$bakSchedSelect = $ghtml->compare_urls($cur, $bakSchedUrl)
-			&& !$ghtml->compare_urls($cur, is_string($bakFtpUrl) ? $bakFtpUrl : '')
-			&& !$ghtml->compare_urls($cur, is_string($bakUrl) ? $bakUrl : '');
-	}
-	if (is_string($bakFmUrl) && method_exists($ghtml, 'compare_urls')) {
-		// On File Manager, tabs use goback=1 so Backup / Restore does not also match.
-		$ghtml->__http_vars['frm_action'] = 'show';
-		unset($ghtml->__http_vars['frm_subaction']);
-		$ghtml->__http_vars['frm_o_o'] = array(
-			array('class' => 'client', 'nname' => 'admin'),
-			array('class' => 'lxbackup'),
-			array('class' => 'ffile', 'nname' => '/'),
-		);
-		$ghtml->frm_o_o = null;
-		$fmTabs = array();
-		foreach (lxbackup::backupPropertyTabs() as $tabUrl) {
-			$fmTabs[] = $ghtml->getFullUrl(
-				(is_string($tabUrl) && !str_starts_with($tabUrl, 'goback='))
-					? ('goback=1&' . $tabUrl) : $tabUrl);
-		}
-		$cur = 'display.php?' . $ghtml->get_get_from_current_post(null);
-		$fmHits = 0;
-		$fmHitLabel = '';
-		foreach ($fmTabs as $tu) {
-			if ($ghtml->compare_urls($cur, $tu)) {
-				$fmHits++;
-				$fmHitLabel = kloxo_content_tab_label('', $tu);
-			}
-		}
-		$bakFmSelect = $fmHits === 1 && $fmHitLabel === 'File Manager'
-			&& is_string($bakFmUrl) && str_contains($bakFmUrl, 'ffile')
-			&& str_contains($bakFmUrl, 'lxbackup');
-	}
-	if (is_string($bakUpUrl) && method_exists($ghtml, 'compare_urls')) {
-		$ghtml->__http_vars['frm_action'] = 'updateform';
-		$ghtml->__http_vars['frm_subaction'] = 'upload';
-		$ghtml->__http_vars['frm_o_o'] = array(
-			array('class' => 'client', 'nname' => 'admin'),
-			array('class' => 'lxbackup'),
-			array('class' => 'ffile', 'nname' => '/'),
-		);
-		$ghtml->frm_o_o = null;
-		$upTabs = array();
-		foreach (lxbackup::backupPropertyTabs() as $tabUrl) {
-			$upTabs[] = $ghtml->getFullUrl(
-				(is_string($tabUrl) && !str_starts_with($tabUrl, 'goback='))
-					? ('goback=1&' . $tabUrl) : $tabUrl);
-		}
-		$cur = 'display.php?' . $ghtml->get_get_from_current_post(null);
-		$upHits = 0;
-		$upHitLabel = '';
-		foreach ($upTabs as $tu) {
-			if ($ghtml->compare_urls($cur, $tu)) {
-				$upHits++;
-				$upHitLabel = kloxo_content_tab_label('', $tu);
-			}
-		}
-		$bakUpSelect = $upHits === 1 && $upHitLabel === 'Upload'
-			&& is_string($bakUpUrl) && str_contains($bakUpUrl, 'ffile')
-			&& str_contains($bakUpUrl, 'lxbackup')
-			&& str_contains($bakUpUrl, 'upload');
 	}
 	$gbl = $gblPrev;
 	$ghtml = $prevHtml;
@@ -283,23 +204,15 @@ try {
 		&& is_string($advUrl) && str_contains($advUrl, 'extraedit') && str_contains($advUrl, 'phpini')
 		&& is_string($shadowUrl) && str_contains($shadowUrl, 'phpini') && str_contains($shadowUrl, 'extraedit')
 		&& is_string($bakUrl) && str_contains($bakUrl, 'lxbackup')
-		&& is_string($bakFtpUrl) && str_contains($bakFtpUrl, 'lxbackup')
-		&& str_contains($bakFtpUrl, 'ftp_conf')
-		&& $bakFtpSelect
-		&& is_string($bakSchedUrl) && str_contains($bakSchedUrl, 'lxbackup')
-		&& str_contains($bakSchedUrl, 'schedule_conf')
-		&& $bakSchedSelect
-		&& $bakFmSelect
-		&& $bakUpSelect;
+		&& is_string($bakSettingsUrl) && str_contains($bakSettingsUrl, 'lxbackup')
+		&& str_contains($bakSettingsUrl, 'settings')
+		&& $bakSettingsSelect;
 	$labelOk = $homeLabel === 'PHP Configure'
 		&& $showLabel === 'PHP Configure'
 		&& $advLabel === 'Advanced PHP Configure'
 		&& $bakHomeLabel === 'Backup / Restore'
 		&& $bakTabLabel === 'Backup / Restore'
-		&& $bakFtpLabel === 'FTP Configuration'
-		&& $bakSchedLabel === 'Schedule Configuration'
-		&& $bakFmLabel === 'File Manager'
-		&& $bakUpLabel === 'Upload';
+		&& $bakSettingsLabel === 'Settings';
 	$src = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 	$htmlSrc = (string) file_get_contents($doc . '/theme/htmllib.php');
 	$srcOk = str_contains($src, 'Do not assign $ghtml->frm_o_o')

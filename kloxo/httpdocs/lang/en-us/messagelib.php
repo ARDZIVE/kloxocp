@@ -71,9 +71,11 @@ $__emessage['enabled_successfully'] = '[%s] enabled.';
 $__emessage['disabled_successfully'] = '[%s] disabled.';
 $__emessage['restarted_successfully'] = '[%s] restarted.';
 $__emessage['file_uploaded'] = 'File uploaded.';
-$__emessage['upload_file_too_large'] = 'File over 5 GB. Use scp/SFTP into __backup or Upload (ftp), then Restore From File.';
-$__emessage['upload_failed_use_scp'] = 'Upload failed. If the folder is not writable: as root chown -R lxlabs:lxlabs the client __backup. Large/Kloxo-MR archives: scp into __backup, then Restore From File.';
-$__emessage['upload_saving_refresh'] = 'Large upload: server is still saving into __backup. Keep this tab open — File Manager opens when done.';
+$__emessage['upload_file_too_large'] = 'File over 10 GB. Use scp/SFTP into __backup or Fetch from FTP, then restore from the list.';
+$__emessage['upload_failed_use_scp'] = 'Upload failed. If the folder is not writable: as root chown -R lxlabs:lxlabs the client __backup. Large/Kloxo-MR archives: scp into __backup, then restore from the list.';
+$__emessage['upload_saving_refresh'] = 'Large upload: server is still saving into __backup. Keep this tab open until the archive list refreshes.';
+$__emessage['archive_deleted'] = 'Archive deleted.';
+$__emessage['archive_fetched'] = 'Archive fetched.';
 $__emessage['first_add_some_autoresponders'] = 'First add some autoresponders.';
 $__emessage['restore_started'] = 'Restore started in the background.';
 $__emessage['restore_completed'] = 'Restore completed.';
@@ -285,11 +287,12 @@ $__information['resourceplan_show__pre'] = "<p><b>Note:</b> ".
 $__information['resourceplan_addform__pre'] = "<p>You can set 'Resource Plan' here and then create client based on it.</p>".
 	"<p>Note: for 'Number Of FastCGI Children', 'Unlimited' equal to '4'</p>";
 
-$__information['lxbackup_show__pre'] = "<p><b>A backup is a copy of this account</b> (for admin: everyone under you). It is not a copy of the whole server. The other machine must already have [%_programname_%] installed.</p>".
+$__information['lxbackup_show__pre'] = "<p>Use the console below: <b>Backup now</b>, <b>Add archive</b> (computer / URL / FTP, up to 10&nbsp;GB), then <b>Restore</b> from the list. Settings holds remote FTP mirror and schedule.</p>".
+	"<p><b>A backup is a copy of this account</b> (for admin: everyone under you). It is not a copy of the whole server. The other machine must already have [%_programname_%] installed.</p>".
 	"<p><b>Saved:</b> panel records, website files, mail folders, customer databases, DKIM keys, Let's Encrypt files, and (admin) the mail database. Hostname, IPs, Switch Program and PHP versions are recorded so restore can apply them.</p>".
 	"<p><b>Not saved:</b> the panel itself, UFW, Fail2Ban, panel SSL, the recovery password.</p>".
-	"<p><b>Before you backup</b> (also on the Backup Now form): if you will restore on another server, match Switch Program (web, DNS, mail) and install the same PHP versions there first.</p>".
-	"<p><b>After restore</b> (also on Restore From File): web, DNS, mail, DKIM, certificates and DNS IPs are applied automatically. Last Restore Status lists anything still for you.</p>".
+	"<p><b>Before you backup:</b> if you will restore on another server, match Switch Program (web, DNS, mail) and install the same PHP versions there first.</p>".
+	"<p><b>After restore:</b> web, DNS, mail, DKIM, certificates and DNS IPs are applied automatically. Last Restore Status lists anything still for you.</p>".
 	"<p><b>You may still need to:</b></p>".
 	"<ol>".
 	"<li>Point nameservers at this server at the registrar (when the IP changed).</li>".
@@ -765,8 +768,8 @@ $__information['auxiliary_addform__pre'] = "<p>You can add/delete 'auxiliary log
 
 $__information['all_auxiliary_list__pre'] = "<p>List all auxiliary login which you and your customer owned.</p>";
 
-$__information['ffile_updateform_upload_s_pre'] = "<p>You can upload a backup file from your local PC.</p>".
-	"<p>Browser upload maximum is <b>5120&nbsp;MB (5&nbsp;GB)</b>. The file streams into <code>__backup</code>; <b>keep this tab open</b> until File Manager opens (after 100% the server may still be writing). Larger archives — use <b>Upload (ftp)</b>, or scp/SFTP into this account's <code>__backup</code> (admin: <code>/home/kloxo/client/admin/__backup/</code>), then <b>Restore From File</b>.</p>";
+$__information['ffile_updateform_upload_s_pre'] = "<p>Prefer the <b>Backup / Restore</b> console (chunked upload up to <b>10&nbsp;GB</b>, URL or FTP).</p>".
+	"<p>This page still accepts a local file into <code>__backup</code> (admin: <code>/home/kloxo/client/admin/__backup/</code>). Keep the tab open until the upload finishes.</p>";
 
 $__information['ffile_updateform_download_from_http_pre'] = "<p>You can upload backup file via FTP from other remote server.</p>";
 

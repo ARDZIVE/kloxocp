@@ -91,7 +91,7 @@ Binding {
 	# Content-Length. MaxUploadSize is MB (patched ceiling 10240).
 	# v1 wrongly returned HTTP 400 on every POST (endptr after restoring CR).
 	MaxRequestSize = 5242880
-	MaxUploadSize = 5120
+	MaxUploadSize = 10240
 }
 
 Binding {
@@ -101,7 +101,7 @@ Binding {
 	MaxKeepAlive = 3600
 	TimeForRequest = 14400
 	MaxRequestSize = 5242880
-	MaxUploadSize = 5120
+	MaxUploadSize = 10240
 	#RequiredCA = /opt/kloxo/etc/program.ca
 	TLScertFile = /opt/kloxo/etc/program.pem
 }

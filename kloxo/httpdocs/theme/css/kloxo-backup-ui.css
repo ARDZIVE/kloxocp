@@ -1,0 +1,273 @@
+/* Kloxo CP — Backup / Restore console (simplicity red/beige/green). */
+.kbu {
+	max-width: 920px;
+	margin: 0 0 24px;
+	font: 9pt Tahoma, Verdana, sans-serif;
+	color: #222;
+}
+.kbu-hero {
+	margin: 0 0 14px;
+	padding: 10px 12px;
+	background: linear-gradient(180deg, #fff8f0 0%, #fff 100%);
+	border: 1px solid #e0c8b0;
+	border-left: 4px solid #c44;
+}
+.kbu-title {
+	margin: 0 0 4px;
+	font-size: 14pt;
+	font-weight: bold;
+	color: #a22;
+}
+.kbu-lead {
+	margin: 0;
+	line-height: 1.45;
+	color: #444;
+}
+.kbu-card {
+	margin: 0 0 14px;
+	border: 1px solid #c9b89a;
+	background: #fff;
+}
+.kbu-card-h {
+	padding: 7px 12px;
+	background: #f0e6d2;
+	border-bottom: 1px solid #c9b89a;
+	font-weight: bold;
+	color: #333;
+}
+.kbu-card-h-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.kbu-card-b {
+	padding: 12px;
+}
+.kbu-label {
+	display: block;
+	margin: 0 0 6px;
+	font-weight: bold;
+	color: #444;
+}
+.kbu-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 8px;
+}
+.kbu-input {
+	box-sizing: border-box;
+	min-width: 180px;
+	padding: 5px 8px;
+	border: 1px solid #aaa;
+	background: #fff;
+	font: inherit;
+}
+.kbu-input-wide {
+	width: 100%;
+	max-width: 640px;
+	margin-bottom: 8px;
+}
+.kbu-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px 12px;
+	margin-bottom: 10px;
+}
+@media (max-width: 640px) {
+	.kbu-grid { grid-template-columns: 1fr; }
+}
+.kbu-hint {
+	margin: 6px 0 0;
+	color: #666;
+	line-height: 1.4;
+}
+.kbu-hint code {
+	font-size: 8.5pt;
+	background: #f5f0e6;
+	padding: 1px 4px;
+}
+.kbu-btn {
+	display: inline-block;
+	padding: 6px 14px;
+	border: 1px solid #888;
+	background: #eee;
+	color: #222;
+	font: inherit;
+	font-weight: bold;
+	cursor: pointer;
+	border-radius: 2px;
+}
+.kbu-btn:hover { background: #e4e4e4; }
+.kbu-btn:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+.kbu-btn-primary {
+	background: #3a7;
+	border-color: #286;
+	color: #fff;
+}
+.kbu-btn-primary:hover { background: #2f9a5c; }
+.kbu-btn-danger {
+	background: #c44;
+	border-color: #a22;
+	color: #fff;
+}
+.kbu-btn-danger:hover { background: #b33; }
+.kbu-btn-ghost {
+	background: #fff;
+	border-color: #bbb;
+}
+.kbu-btn-sm {
+	padding: 3px 8px;
+	font-weight: normal;
+	margin-right: 4px;
+}
+.kbu-tabs {
+	display: flex;
+	gap: 0;
+	margin: 0 0 12px;
+	border-bottom: 2px solid #c9b89a;
+}
+.kbu-tab {
+	padding: 7px 14px;
+	border: 1px solid transparent;
+	border-bottom: none;
+	background: transparent;
+	font: inherit;
+	font-weight: bold;
+	color: #555;
+	cursor: pointer;
+	margin-bottom: -2px;
+}
+.kbu-tab.is-on {
+	background: #fff;
+	border-color: #c9b89a;
+	border-bottom: 2px solid #fff;
+	color: #a22;
+}
+.kbu-pane[hidden] { display: none !important; }
+.kbu-drop {
+	position: relative;
+	padding: 28px 16px;
+	margin-bottom: 10px;
+	border: 2px dashed #c9b89a;
+	background: #faf7f0;
+	text-align: center;
+	cursor: pointer;
+}
+.kbu-drop.is-drag {
+	border-color: #3a7;
+	background: #eefaf2;
+}
+.kbu-drop-title {
+	margin: 0 0 4px;
+	font-weight: bold;
+	color: #333;
+}
+.kbu-file {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	cursor: pointer;
+}
+.kbu-progress {
+	margin: 8px 0 10px;
+}
+.kbu-progress-bar {
+	height: 10px;
+	background: #eee;
+	border: 1px solid #ccc;
+	overflow: hidden;
+}
+.kbu-progress-fill {
+	height: 100%;
+	width: 0;
+	background: linear-gradient(90deg, #3a7, #5c9);
+	transition: width 0.15s ease;
+}
+.kbu-progress-meta {
+	margin-top: 4px;
+	color: #555;
+	font-size: 8.5pt;
+}
+.kbu-status {
+	margin-top: 10px;
+	padding: 8px 10px;
+	border: 1px solid #ccc;
+	background: #f7f7f7;
+	line-height: 1.4;
+}
+.kbu-status.is-ok {
+	border-color: #8c8;
+	background: #eafaf1;
+	color: #163;
+}
+.kbu-status.is-err {
+	border-color: #e88;
+	background: #fdecea;
+	color: #822;
+}
+.kbu-status.is-busy {
+	border-color: #db8;
+	background: #fff8e1;
+	color: #654;
+}
+.kbu-table-wrap {
+	overflow-x: auto;
+}
+.kbu-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+.kbu-table th,
+.kbu-table td {
+	padding: 7px 8px;
+	border-bottom: 1px solid #e0d5c0;
+	text-align: left;
+	vertical-align: middle;
+}
+.kbu-table th {
+	background: #f7f0e4;
+	font-weight: bold;
+	color: #444;
+}
+.kbu-table tr:hover td { background: #fffcf7; }
+.kbu-empty {
+	text-align: center;
+	color: #888;
+	padding: 18px 8px !important;
+}
+.kbu-fname {
+	font-weight: bold;
+	word-break: break-all;
+}
+.kbu-dialog {
+	border: 1px solid #a88;
+	padding: 0;
+	max-width: 420px;
+	font: inherit;
+}
+.kbu-dialog::backdrop {
+	background: rgba(0, 0, 0, 0.35);
+}
+.kbu-dialog-inner {
+	margin: 0;
+	padding: 16px;
+}
+.kbu-dialog-inner h3 {
+	margin: 0 0 8px;
+	color: #a22;
+}
+.kbu-dialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin: 14px 0 0;
+	padding: 0;
+}
