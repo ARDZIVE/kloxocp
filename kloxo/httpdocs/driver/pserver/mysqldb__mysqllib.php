@@ -122,6 +122,43 @@ class Mysqldb__mysql extends lxDriverClass
 		KloxoBackup::dumpMysql((string) $dbname, (string) $dbuser, (string) $dbpass, (string) $docf);
 	}
 
+	/**
+	 * Dump one database to a .sql and register it with fileserv (for panel
+	 * Backup Now when FPM cannot run mysqldump itself).
+	 *
+	 * @return array{file:string,pass?:string,size?:int,type?:string}
+	 */
+	static function dumpToFileserv($dbname, $dbuser, $dbpass)
+	{
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
+		$dbname = (string) $dbname;
+		$dbuser = (string) $dbuser;
+		$dbpass = (string) $dbpass;
+		if ($dbname === '' || preg_match('/^[A-Za-z0-9_]{1,64}$/', $dbname) !== 1) {
+			throw new Exception('invalid database name');
+		}
+		$dir = rtrim(sys_get_temp_dir(), '/') . '/kloxo-mysqldb-fs-' . getmypid() . '-' . bin2hex(random_bytes(4));
+		@mkdir($dir, 0700, true);
+		$docf = $dir . '/' . $dbname . '.sql';
+		try {
+			KloxoBackup::dumpMysql($dbname, $dbuser, $dbpass, $docf);
+			if (!function_exists('cp_fileserv')) {
+				throw new Exception('cp_fileserv missing');
+			}
+			$res = cp_fileserv($docf);
+			@unlink($docf);
+			@rmdir($dir);
+
+			return $res;
+		} catch (Throwable $e) {
+			@unlink($docf);
+			@rmdir($dir);
+			throw $e;
+		}
+	}
+
 	static function drop_all_table($dbname, $dbuser, $dbpass)
 	{
 		$con = new mysqli("localhost", $dbuser, $dbpass, $dbname);

@@ -2131,9 +2131,11 @@ function do_updateform($object, $subaction)
 		$header = $ghtml->object_variable_startblock($object, null, $title);
 		if (is_object($header)) {
 			if (!empty($vlist['__v_form_target']) && is_string($vlist['__v_form_target'])) {
-				$tgt = strtolower(trim($vlist['__v_form_target']));
-				if (in_array($tgt, array('_blank', '_self', '_top'), true)) {
-					$header->target = $tgt;
+				$tgt = trim($vlist['__v_form_target']);
+				$tgtLower = strtolower($tgt);
+				if (in_array($tgtLower, array('_blank', '_self', '_top'), true)
+					|| preg_match('/^[A-Za-z][A-Za-z0-9_]{0,63}$/', $tgt) === 1) {
+					$header->target = $tgtLower === $tgt ? $tgtLower : $tgt;
 				}
 			}
 			if (!empty($vlist['__v_form_nobusy'])) {
@@ -2143,6 +2145,16 @@ function do_updateform($object, $subaction)
 		$string[] = $header;
 		$string[] = $ghtml->object_inherit_classpath();
 		$ret['variable'] = $vlist;
+
+		if (!empty($vlist['__v_form_iframe']) && is_string($vlist['__v_form_iframe'])
+			&& preg_match('/^[A-Za-z][A-Za-z0-9_]{0,63}$/', $vlist['__v_form_iframe']) === 1) {
+			$iframeName = $vlist['__v_form_iframe'];
+			echo '<iframe name="' . htmlspecialchars($iframeName, ENT_QUOTES)
+				. '" id="' . htmlspecialchars($iframeName, ENT_QUOTES)
+				. '" title="Database backup download" '
+				. 'style="position:absolute;width:0;height:0;border:0;clip:rect(0,0,0,0)" '
+				. 'aria-hidden="true"></iframe>';
+		}
 
 		if (isset($vlist['__v_next'])) {
 			$ret['action'] = 'updateform';

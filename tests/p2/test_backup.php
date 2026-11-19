@@ -706,6 +706,34 @@ check(str_contains($mysql, 'KloxoBackup::dumpMysql')
 	&& str_contains($mysql, 'KloxoBackup::restoreMysql')
 	&& !str_contains($mysql, 'system("{$cmd}'),
 	'mysqldb dump/restore no longer uses system() shell strings');
+$ddb = (string) file_get_contents($doc . '/driver/pserver/ddatabaselib.php');
+$lxdb = (string) file_get_contents($doc . '/lib/php/lxdb.php');
+check(str_contains($ddb, 'function updateBackup')
+	&& str_contains($ddb, 'KloxoBackup::dumpMysql')
+	&& str_contains($ddb, 'kloxo_send_download_headers')
+	&& str_contains($ddb, 'dumpToFileserv')
+	&& str_contains($mysql, 'function dumpToFileserv')
+	&& str_contains($lxdb, 'kloxo_dbbackup_frame')
+	&& str_contains($lxdb, '__v_form_iframe'),
+	'MySQL Backup Now dumps .sql (iframe form) instead of a blank tab');
+// Runtime: dumpMysql path used by updateBackup writes a .sql file.
+$mdbDir = sys_get_temp_dir() . '/kloxo-mysqldb-bak-' . getmypid();
+@mkdir($mdbDir, 0700, true);
+KloxoBackup::$fsPrefix = $mdbDir;
+KloxoBackup::$runCmd = static function (array $argv): array {
+	return array('code' => 0, 'out' => "-- panel dump\nCREATE TABLE t (id int);\n");
+};
+$mdbOut = $mdbDir . '/db_admin.sql';
+$mdbOk = false;
+try {
+	KloxoBackup::dumpMysql('db_admin', 'kloxo_pma', 'pw', $mdbOut);
+	$mdbOk = is_file($mdbOut) && filesize($mdbOut) > 0
+		&& str_contains((string) file_get_contents($mdbOut), 'CREATE TABLE');
+} catch (Throwable $e) {
+	$mdbOk = false;
+}
+@unlink($mdbOut);
+check($mdbOk, 'MySQL Backup Now dumpMysql writes a non-empty .sql');
 check(str_contains($mmail, 'KloxoBackup::packMailDomain')
 	&& str_contains($mmail, 'function backMeUp'),
 	'mmail packs /var/vmail without a qmail driver');

@@ -1053,13 +1053,18 @@ $lxdbSrc = (string) file_get_contents($doc . '/lib/php/lxdb.php');
 $dbBackupForm = str_contains($lxdbSrc, 'case "backup":')
 	&& str_contains($lxdbSrc, "'Backup Now'")
 	&& str_contains($lxdbSrc, "__v_form_target")
-	&& str_contains($lxdbSrc, "'_blank'");
-$lxClassSrc = (string) file_get_contents($doc . '/lib/php/lxclass.php');
-$dbBackupDl = str_contains($lxClassSrc, 'kloxo_send_download_headers')
-	&& str_contains($lxClassSrc, 'could_not_download_here');
+	&& str_contains($lxdbSrc, 'kloxo_dbbackup_frame')
+	&& str_contains($lxdbSrc, "__v_form_iframe");
+$dbLibFull = (string) file_get_contents($doc . '/driver/pserver/ddatabaselib.php');
+$mysqlLibSrc = (string) file_get_contents($doc . '/driver/pserver/mysqldb__mysqllib.php');
+$dbBackupDl = str_contains($dbLibFull, 'function updateBackup')
+	&& str_contains($dbLibFull, 'KloxoBackup::dumpMysql')
+	&& str_contains($dbLibFull, 'kloxo_send_download_headers')
+	&& str_contains($mysqlLibSrc, 'function dumpToFileserv');
 $lxlibDl = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 $dbBackupClass = str_contains($lxlibDl, 'function kloxo_request_object_class')
-	&& str_contains($lxlibDl, "!== 'lxbackup'");
+	&& str_contains($lxlibDl, "!== 'lxbackup'")
+	&& str_contains($lxlibDl, 'window.parent.location.replace');
 $prevGhtmlBak = $ghtml ?? null;
 $prevGblBak = $gbl ?? null;
 $ghtml = new stdClass();

@@ -8711,9 +8711,11 @@ class HtmlLib
 			$formEnc = 'enctype="multipart/form-data"';
 		}
 		$formTarget = '';
-		$tgtRaw = strtolower(trim((string) ($block->target ?? '')));
-		if (in_array($tgtRaw, array('_blank', '_self', '_top'), true)) {
-			$formTarget = 'target="' . $tgtRaw . '"';
+		$tgtRaw = trim((string) ($block->target ?? ''));
+		$tgtLower = strtolower($tgtRaw);
+		if (in_array($tgtLower, array('_blank', '_self', '_top'), true)
+			|| preg_match('/^[A-Za-z][A-Za-z0-9_]{0,63}$/', $tgtRaw) === 1) {
+			$formTarget = 'target="' . htmlspecialchars($tgtRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
 		}
 		$formBusy = !empty($block->nobusy) ? 'data-kloxo-nobusy="1"' : '';
 		$csrfEsc = htmlspecialchars((string) getCSRFToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

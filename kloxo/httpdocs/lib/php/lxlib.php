@@ -3853,8 +3853,11 @@ function kloxo_redirect_stub_html(string $url): string
 		. 'f.t=Date.now();f.shown=true;if(!f.text)f.text="Please wait...";'
 		. 'sessionStorage.setItem(k,JSON.stringify(f));}catch(e){}'
 		. 'var u=' . $js . ';'
-		. 'try{if(window.parent&&window.parent!==window&&window.parent.frames&&window.parent.frames.mainframe){'
-		. 'window.parent.frames.mainframe.location.replace(u);}else{location.replace(u);}}'
+		// Prefer mainframe; else parent (hidden download iframe); else self.
+		. 'try{if(window.parent&&window.parent!==window){'
+		. 'var mf=window.parent.frames&&window.parent.frames.mainframe;'
+		. 'if(mf){mf.location.replace(u);}else{window.parent.location.replace(u);}}'
+		. 'else{location.replace(u);}}'
 		. 'catch(e2){try{location.replace(u);}catch(e3){location.href=u;}}})();</script>'
 		. '</head><body data-kloxo-redirect="' . $esc . '">'
 		. '<p style="font-family:sans-serif;margin:2em"><a href="' . $esc . '">click here</a></p>'

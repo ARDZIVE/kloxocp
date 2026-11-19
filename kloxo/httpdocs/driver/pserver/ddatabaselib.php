@@ -565,6 +565,152 @@ class mysqldb extends databasecore
 		return isset($list[$k]);
 	}
 
+	/**
+	 * Stream a .sql dump of this database. Prefer in-process mysqldump (same
+	 * as Add Database / phpMyAdmin), then kloxo-backend. Never the legacy
+	 * zip→fileserv path that left a blank tab with no file.
+	 */
+	function updateBackup($param)
+	{
+		global $login;
+
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
+		if (!function_exists('kloxo_pma_normalize_db_password')) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
+		}
+
+		$dbname = '';
+		if (isset($this->dbname) && is_string($this->dbname) && $this->dbname !== '') {
+			$dbname = $this->dbname;
+		} elseif (isset($this->nname) && is_string($this->nname)) {
+			$dbname = $this->nname;
+		}
+		$user = (isset($this->username) && is_string($this->username)) ? $this->username : '';
+		$pass = (isset($this->dbpassword) && is_string($this->dbpassword)) ? $this->dbpassword : '';
+		if (function_exists('kloxo_pma_normalize_db_password')) {
+			$pass = kloxo_pma_normalize_db_password($pass);
+		}
+
+		if ($dbname === '' || preg_match('/^[A-Za-z0-9_]{1,64}$/', $dbname) !== 1) {
+			throw new lxException(
+				is_object($login) ? $login->getThrow('invalid_database_name') : 'invalid_database_name',
+				'',
+				$dbname
+			);
+		}
+
+		try {
+			$this->createExtraVariables();
+		} catch (Throwable $e) {
+		}
+		$admin = (isset($this->__var_dbadmin) && is_string($this->__var_dbadmin))
+			? $this->__var_dbadmin : '';
+		$adminPass = (isset($this->__var_dbpassword) && is_string($this->__var_dbpassword))
+			? $this->__var_dbpassword : '';
+
+		$dir = rtrim(sys_get_temp_dir(), '/') . '/kloxo-mysqldb-' . getmypid() . '-' . bin2hex(random_bytes(4));
+		@mkdir($dir, 0700, true);
+		$outfile = $dir . '/' . $dbname . '.sql';
+		$lastErr = '';
+
+		$attempts = array();
+		if ($admin !== '') {
+			$attempts[] = array($admin, $adminPass);
+		}
+		if ($user !== '' && ($user !== $admin || $pass !== $adminPass)) {
+			$attempts[] = array($user, $pass);
+		}
+
+		foreach ($attempts as $cred) {
+			try {
+				KloxoBackup::dumpMysql($dbname, $cred[0], $cred[1], $outfile);
+				$lastErr = '';
+				break;
+			} catch (Throwable $e) {
+				$lastErr = $e->getMessage();
+				@unlink($outfile);
+			}
+		}
+
+		$serv = null;
+		if ($lastErr !== '' || !is_file($outfile) || (int) filesize($outfile) < 1) {
+			$sync = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+				? $this->syncserver : 'localhost';
+			if (function_exists('rl_exec_get')) {
+				try {
+					$dumpUser = $admin !== '' ? $admin : $user;
+					$dumpPass = $admin !== '' ? $adminPass : $pass;
+					$got = rl_exec_get(null, $sync, array('Mysqldb__mysql', 'dumpToFileserv'),
+						array($dbname, $dumpUser, $dumpPass), false);
+					if (is_array($got) && isset($got['file'])) {
+						$serv = $got;
+						$lastErr = '';
+					} elseif (is_string($got) && $got !== '') {
+						$lastErr = $got;
+					}
+				} catch (Throwable $e) {
+					$lastErr = $e->getMessage();
+					$serv = null;
+				}
+			}
+		}
+
+		if (is_array($serv) && isset($serv['file'])) {
+			$size = (isset($serv['size']) && is_numeric($serv['size'])) ? (int) $serv['size'] : 0;
+			$fname = $dbname . '-' . gmdate('Ymd-His') . '.sql';
+			if (function_exists('kloxo_send_download_headers')) {
+				kloxo_send_download_headers($fname, $size);
+			}
+			$readServer = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+				? $this->syncserver : 'localhost';
+			printFromFileServ($readServer, $serv);
+			$this->cleanupMysqldbDumpDir($dir);
+			flush();
+			exit;
+		}
+
+		if ($lastErr !== '' || !is_file($outfile) || (int) filesize($outfile) < 1) {
+			$this->cleanupMysqldbDumpDir($dir);
+			throw new lxException(
+				is_object($login) ? $login->getThrow('could_not_connect_to_db') : 'could_not_connect_to_db',
+				'',
+				$lastErr !== '' ? $lastErr : 'mysqldump produced no data'
+			);
+		}
+
+		$size = (int) filesize($outfile);
+		$fname = $dbname . '-' . gmdate('Ymd-His') . '.sql';
+		if (function_exists('kloxo_send_download_headers')) {
+			kloxo_send_download_headers($fname, $size);
+		} else {
+			while (ob_get_level() > 0) {
+				@ob_end_clean();
+			}
+			header('Content-Type: application/octet-stream');
+			header('Content-Disposition: attachment; filename="' . $fname . '"');
+		}
+		readfile($outfile);
+		$this->cleanupMysqldbDumpDir($dir);
+		flush();
+		exit;
+	}
+
+	private function cleanupMysqldbDumpDir(string $dir): void
+	{
+		if ($dir === '' || !is_dir($dir)) {
+			return;
+		}
+		foreach ((array) @scandir($dir) as $f) {
+			if ($f === '.' || $f === '..') {
+				continue;
+			}
+			@unlink($dir . '/' . $f);
+		}
+		@rmdir($dir);
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		global $gbl, $sgbl, $login, $ghtml;
