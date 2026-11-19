@@ -49,12 +49,20 @@ function kloxo_backup_upload_json(array $data, int $code = 200): void
 try {
 	initProgram();
 } catch (Throwable $e) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'forbidden'], 403);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'forbidden',
+		'message' => 'Upload forbidden for this account.',
+	], 403);
 }
 
 global $login;
 if (!is_object($login) || !method_exists($login, 'nname')) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'forbidden'], 403);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'forbidden',
+		'message' => 'Upload forbidden for this account.',
+	], 403);
 }
 
 $account = isset($_GET['account']) ? trim((string) $_GET['account']) : '';
@@ -66,20 +74,67 @@ $check = isset($_GET['check']) && (string) $_GET['check'] === '1';
 
 $file = str_replace(["'", "\0", '/', '\\'], '', basename(str_replace('\\', '/', $file)));
 if ($file === '' || $file === '.' || $file === '..' || strlen($file) > 200) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'invalid_file_name'], 400);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'invalid_file_name',
+		'message' => 'Upload failed: invalid file name.',
+	], 400);
 }
 if ($account === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $account) !== 1) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'invalid_account'], 400);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'invalid_account',
+		'message' => 'Upload failed: invalid account.',
+	], 400);
 }
 
 $loginName = (string) $login->nname;
 $isAdmin = method_exists($login, 'isAdmin') && $login->isAdmin();
 if (!$isAdmin && $account !== $loginName) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'forbidden'], 403);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'forbidden',
+		'message' => 'Upload forbidden for this account.',
+	], 403);
 }
 
 $dir = '/home/kloxo/client/' . $account . '/__backup';
 $dest = $dir . '/' . $file;
+
+/**
+ * Human text for the browser toast (size is irrelevant — show the real cause).
+ */
+function kloxo_backup_upload_message(string $code, string $path = ''): string
+{
+	switch ($code) {
+		case 'token_not_match':
+			return 'Upload failed: session expired — refresh the page and try again.';
+		case 'forbidden':
+			return 'Upload forbidden for this account.';
+		case 'invalid_file_name':
+			return 'Upload failed: invalid file name.';
+		case 'invalid_account':
+			return 'Upload failed: invalid account.';
+		case 'file_too_large':
+			return 'File over 5 GB. Use scp/SFTP into __backup or Upload (ftp), then Restore From File.';
+		case 'size_mismatch':
+			return 'Upload failed: browser size did not match the request.';
+		case 'backup_dir_not_writable':
+			$hint = $path !== '' ? $path : '/home/kloxo/client/<account>/__backup';
+
+			return 'Backup folder not writable: ' . $hint
+				. ' — as root: chown -R lxlabs:lxlabs ' . dirname($hint);
+		case 'cannot_open_temp':
+		case 'cannot_read_body':
+		case 'incomplete_upload':
+		case 'cannot_install_file':
+		case 'size_check_failed':
+			return 'Upload failed while saving the file (got '
+				. str_replace('_', ' ', $code) . '). Try again.';
+		default:
+			return 'Upload failed (' . $code . ').';
+	}
+}
 
 if ($check) {
 	$size = is_file($dest) ? (int) @filesize($dest) : 0;
@@ -116,24 +171,68 @@ if (function_exists('getCSRFToken')) {
 	}
 }
 if ($sess === '' || $token === '' || !hash_equals($sess, $token)) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'token_not_match'], 403);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'token_not_match',
+		'message' => kloxo_backup_upload_message('token_not_match'),
+	], 403);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'method_not_allowed'], 405);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'method_not_allowed',
+		'message' => 'Upload failed: method not allowed.',
+	], 405);
 }
 
 if ($bytes > KLOXO_BACKUP_UPLOAD_MAX) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'file_too_large'], 413);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'file_too_large',
+		'message' => kloxo_backup_upload_message('file_too_large'),
+	], 413);
 }
 $cl = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
 if ($cl > KLOXO_BACKUP_UPLOAD_MAX) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'file_too_large'], 413);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'file_too_large',
+		'message' => kloxo_backup_upload_message('file_too_large'),
+	], 413);
 }
 if ($bytes > 0 && $cl > 0 && $bytes !== $cl) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'size_mismatch'], 400);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'size_mismatch',
+		'message' => kloxo_backup_upload_message('size_mismatch'),
+	], 400);
 }
 
+// Create/chown __backup as root via backend when panel FPM cannot write
+// (common after Backup Now left the folder root-owned — fails even for 16 KB).
+if (!class_exists('KloxoBackup', false)) {
+	$kb = dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+	if (is_file($kb)) {
+		include_once $kb;
+	}
+}
+if (!class_exists('lxbackup', false)) {
+	$lb = dirname(__DIR__, 2) . '/lib/html/lxbackuplib.php';
+	if (is_file($lb)) {
+		include_once $lb;
+	}
+}
+try {
+	if (class_exists('KloxoBackup', false) && method_exists('KloxoBackup', 'ensureDir')) {
+		$dir = KloxoBackup::ensureDir('client', $account);
+		$dest = rtrim($dir, '/') . '/' . $file;
+	}
+} catch (Throwable $e) {
+	if (function_exists('log_log')) {
+		log_log('error', 'backup-upload ensureDir: ' . $e->getMessage());
+	}
+}
 if (!is_dir($dir)) {
 	@mkdir($dir, 0755, true);
 }
@@ -146,20 +245,34 @@ if ((!is_dir($dir) || !is_writable($dir)) && class_exists('lxbackup', false)
 	}
 }
 if (!is_dir($dir) || !is_writable($dir)) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'backup_dir_not_writable', 'path' => $dir], 500);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'backup_dir_not_writable',
+		'path' => $dir,
+		'message' => kloxo_backup_upload_message('backup_dir_not_writable', $dir),
+	], 500);
 }
 
 $part = $dest . '.uploading.' . getmypid();
 @unlink($part);
 $out = @fopen($part, 'wb');
 if ($out === false) {
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'cannot_open_temp'], 500);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'cannot_open_temp',
+		'message' => kloxo_backup_upload_message('cannot_open_temp'),
+		'path' => $dir,
+	], 500);
 }
 $in = @fopen('php://input', 'rb');
 if ($in === false) {
 	fclose($out);
 	@unlink($part);
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'cannot_read_body'], 500);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'cannot_read_body',
+		'message' => kloxo_backup_upload_message('cannot_read_body'),
+	], 500);
 }
 
 $copied = @stream_copy_to_stream($in, $out);
@@ -175,6 +288,7 @@ if ($copied === false || $written < 1 || ($expect > 0 && $written !== $expect)) 
 		'error' => 'incomplete_upload',
 		'written' => $written,
 		'expect' => $expect,
+		'message' => kloxo_backup_upload_message('incomplete_upload'),
 	], 500);
 }
 
@@ -188,7 +302,11 @@ if (is_file($dest)) {
 if (!@rename($part, $dest)) {
 	if (!@copy($part, $dest)) {
 		@unlink($part);
-		kloxo_backup_upload_json(['ok' => false, 'error' => 'cannot_install_file'], 500);
+		kloxo_backup_upload_json([
+			'ok' => false,
+			'error' => 'cannot_install_file',
+			'message' => kloxo_backup_upload_message('cannot_install_file'),
+		], 500);
 	}
 	@unlink($part);
 }
@@ -200,7 +318,12 @@ if (function_exists('lxfile_generic_chown')) {
 $final = (int) @filesize($dest);
 if ($final < 1 || ($expect > 0 && $final !== $expect)) {
 	@unlink($dest);
-	kloxo_backup_upload_json(['ok' => false, 'error' => 'size_check_failed', 'size' => $final], 500);
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'size_check_failed',
+		'size' => $final,
+		'message' => kloxo_backup_upload_message('size_check_failed'),
+	], 500);
 }
 
 // Only allow a fixed success landing (security N23) — no caller-controlled

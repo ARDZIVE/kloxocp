@@ -9581,6 +9581,7 @@ function fileSelected(e) {
 	$__upload_redir_qs = http_build_query($__upload_redir_q);
 	$__upload_is_backup = false;
 	$__upload_backup_account = '';
+	$__upload_lxbackup_nname = '';
 	if (!empty($_REQUEST['frm_o_o']) && is_array($_REQUEST['frm_o_o'])) {
 		foreach ($_REQUEST['frm_o_o'] as $__seg) {
 			if (!is_array($__seg)) {
@@ -9588,17 +9589,25 @@ function fileSelected(e) {
 			}
 			$__cls = isset($__seg['class']) ? strtolower((string) $__seg['class']) : '';
 			$__nn = isset($__seg['nname']) ? (string) $__seg['nname'] : '';
-			if ($__cls === 'client' && $__nn !== '') {
+			if ($__cls === 'client' && $__nn !== ''
+				&& preg_match('/^[A-Za-z0-9._-]{1,64}$/', $__nn) === 1) {
 				$__upload_backup_account = $__nn;
 			}
 			if ($__cls === 'lxbackup') {
 				$__upload_is_backup = true;
+				if ($__nn !== '' && preg_match('/^[A-Za-z0-9._-]{1,64}$/', $__nn) === 1) {
+					$__upload_lxbackup_nname = $__nn;
+				}
 			}
 		}
 	}
 	if (!$__upload_is_backup && !empty($_SERVER['QUERY_STRING'])
 		&& str_contains((string) $_SERVER['QUERY_STRING'], 'lxbackup')) {
 		$__upload_is_backup = true;
+	}
+	// Single-object lxbackup show often has nname = client name (no client segment).
+	if ($__upload_is_backup && $__upload_backup_account === '' && $__upload_lxbackup_nname !== '') {
+		$__upload_backup_account = $__upload_lxbackup_nname;
 	}
 	if ($__upload_is_backup && $__upload_backup_account === '') {
 		global $login;
@@ -9766,29 +9775,82 @@ function uploadGoNext(nextUrl) {
 	window.location.href = uploadEnsureToast(nextUrl || uploadRedirectUrl);
 }
 
+function uploadBackupFailMessage(j, status) {
+	if (j && typeof j.message === 'string' && j.message !== '') {
+		return j.message;
+	}
+	var code = (j && j.error) ? String(j.error) : '';
+	if (code === 'file_too_large') {
+		return uploadToastTooLarge;
+	}
+	if (code === 'backup_dir_not_writable') {
+		var p = (j && j.path) ? String(j.path) : '/home/kloxo/client/<account>/__backup';
+		return 'Backup folder not writable: ' + p
+			+ ' — as root: chown -R lxlabs:lxlabs ' + p.replace(/\/__backup\/?$/, '');
+	}
+	if (code === 'token_not_match') {
+		return 'Upload failed: session expired — refresh the page and try again.';
+	}
+	if (code !== '') {
+		return 'Upload failed (' + code.replace(/_/g, ' ') + ').';
+	}
+	if (status === 413) {
+		return uploadToastTooLarge;
+	}
+	// Only suggest scp when we truly do not know — size is not the usual cause.
+	return uploadToastFailedScp;
+}
+
+function uploadFailBackup(msg) {
+	var text = (typeof msg === 'string' && msg !== '') ? msg : uploadToastFailedScp;
+	var err = document.getElementById('progress_error2');
+	if (err) {
+		err.style.display = 'block';
+		err.style.color = '#c0392b';
+		err.style.fontStyle = 'normal';
+		err.textContent = text;
+	}
+	var info = document.getElementById('progress_info');
+	if (info) {
+		info.style.backgroundColor = '#fdecea';
+		info.style.textAlign = 'center';
+		info.textContent = text;
+	}
+	clearInterval(oTimer);
+	uploadStopPoll();
+	if (uploadRedirectTimer) {
+		clearTimeout(uploadRedirectTimer);
+		uploadRedirectTimer = 0;
+	}
+	uploadShowToast(text, 'error');
+}
+
 function uploadFinishBackupRaw(xhr) {
 	document.getElementById('progress_percent').textContent = '100%';
 	document.getElementById('progress').style.width = '400px';
 	document.getElementById('progress_remaining').textContent = '00:00:00';
-	var next = uploadRedirectUrl;
+	var status = (xhr && typeof xhr.status === 'number') ? xhr.status : 0;
+	var body = (xhr && typeof xhr.responseText === 'string') ? xhr.responseText : '';
+	var j = null;
 	try {
-		var j = JSON.parse((xhr && xhr.responseText) ? xhr.responseText : '{}');
-		if (j && j.ok && j.redirect) {
-			next = j.redirect;
-		} else if (j && j.ready) {
-			next = uploadRedirectUrl;
-		} else if (j && j.error) {
-			uploadError(null);
-			uploadShowToast((j.error || 'upload failed') + '', 'error');
-			return;
-		}
+		j = JSON.parse(body || '{}');
 	} catch (eRaw) {
-		next = uploadUrlFromResponse(
-			(xhr && typeof xhr.responseText === 'string') ? xhr.responseText : '',
-			xhr
-		) || uploadRedirectUrl;
+		j = null;
 	}
-	uploadGoNext(next);
+	if (j && j.ok) {
+		uploadGoNext((j.redirect) ? j.redirect : uploadRedirectUrl);
+		return;
+	}
+	if (j && (j.error || j.message)) {
+		uploadFailBackup(uploadBackupFailMessage(j, status));
+		return;
+	}
+	if (status >= 200 && status < 400) {
+		var next = uploadUrlFromResponse(body, xhr) || uploadRedirectUrl;
+		uploadGoNext(next);
+		return;
+	}
+	uploadFailBackup(uploadBackupFailMessage(null, status));
 }
 
 function startUploading(e) {
@@ -9841,12 +9903,14 @@ function startUploading(e) {
 		}
 		oXHR.upload.addEventListener('progress', uploadProgress, false);
 		oXHR.addEventListener('load', function (ev) {
+			// Backup raw upload: always parse JSON (4xx/5xx carry the real reason;
+			// the old path always showed the "large file / scp" toast even for 16 KB).
+			if (uploadIsBackup && uploadBackupAccount) {
+				uploadFinishBackupRaw(oXHR);
+				return;
+			}
 			if (oXHR.status >= 200 && oXHR.status < 400) {
-				if (uploadIsBackup && uploadBackupAccount) {
-					uploadFinishBackupRaw(oXHR);
-				} else {
-					uploadFinish(ev, oXHR);
-				}
+				uploadFinish(ev, oXHR);
 			} else if (oXHR.status >= 300 && oXHR.status < 400) {
 				var loc = '';
 				try {
