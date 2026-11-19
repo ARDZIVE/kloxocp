@@ -967,7 +967,8 @@ check(str_contains($htmlUpload, 'function uploadGoNext')
 $buSrc = (string) file_get_contents($doc . '/theme/lbin/backup-upload.php');
 check(str_contains($buSrc, 'php://input')
 	&& str_contains($buSrc, 'stream_copy_to_stream')
-	&& str_contains($buSrc, '/home/kloxo/client/')
+	&& str_contains($buSrc, 'KloxoBackup::backupDir')
+	&& str_contains($buSrc, 'KloxoBackup::clientAccountName')
 	&& str_contains($buSrc, '__backup')
 	&& str_contains($buSrc, 'check=1')
 	&& str_contains($buSrc, 'token_not_match')
@@ -977,6 +978,16 @@ check(str_contains($buSrc, 'php://input')
 	&& str_contains($buSrc, 'backup_dir_not_writable')
 	&& str_contains($buSrc, '5368709120'),
 	'backup-upload.php streams into client __backup with size/auth checks');
+check(KloxoBackup::clientAccountName('admin') === 'admin'
+	&& KloxoBackup::clientAccountName('client-admin') === 'admin'
+	&& KloxoBackup::clientAccountName('client-alice') === 'alice'
+	&& KloxoBackup::clientAccountName('client-foo-bar') === 'foo-bar'
+	&& KloxoBackup::clientAccountName('') === ''
+	&& KloxoBackup::backupDir('client', 'admin') === '/home/kloxo/client/admin/__backup',
+	'clientAccountName maps lxbackup nname client-admin to File Manager admin');
+check(str_contains($htmlUpload, 'KloxoBackup::clientAccountName')
+	&& str_contains($htmlUpload, 'uploadBackupAccount'),
+	'Upload form JS account is normalized to the client folder name');
 check(str_contains($htmlUpload, 'onchange="fileSelected(this);"')
 	&& !str_contains($htmlUpload, 'onclick="fileSelected(this);')
 	&& str_contains($htmlUpload, 'function uploadFileTooLarge')

@@ -80,7 +80,13 @@ if ($file === '' || $file === '.' || $file === '..' || strlen($file) > 200) {
 		'message' => 'Upload failed: invalid file name.',
 	], 400);
 }
-if ($account === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $account) !== 1) {
+
+if (!class_exists('KloxoBackup', false)) {
+	include_once 'lib/php/kloxo_backup.php';
+}
+// "client-admin" (lxbackup nname) must become "admin" — same folder File Manager uses.
+$account = KloxoBackup::clientAccountName($account);
+if ($account === '') {
 	kloxo_backup_upload_json([
 		'ok' => false,
 		'error' => 'invalid_account',
@@ -98,7 +104,15 @@ if (!$isAdmin && $account !== $loginName) {
 	], 403);
 }
 
-$dir = '/home/kloxo/client/' . $account . '/__backup';
+try {
+	$dir = KloxoBackup::backupDir('client', $account);
+} catch (Throwable $e) {
+	kloxo_backup_upload_json([
+		'ok' => false,
+		'error' => 'invalid_account',
+		'message' => 'Upload failed: invalid account.',
+	], 400);
+}
 $dest = $dir . '/' . $file;
 
 /**

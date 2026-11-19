@@ -9599,20 +9599,68 @@ function fileSelected(e) {
 					$__upload_lxbackup_nname = $__nn;
 				}
 			}
+			if ($__cls === 'ffile') {
+				$__upload_is_backup = $__upload_is_backup
+					|| str_contains((string) ($_SERVER['QUERY_STRING'] ?? ''), 'lxbackup');
+			}
 		}
 	}
 	if (!$__upload_is_backup && !empty($_SERVER['QUERY_STRING'])
 		&& str_contains((string) $_SERVER['QUERY_STRING'], 'lxbackup')) {
 		$__upload_is_backup = true;
 	}
-	// Single-object lxbackup show often has nname = client name (no client segment).
+	// lxbackup nname is "client-admin" — File Manager uses client/<admin>/__backup.
 	if ($__upload_is_backup && $__upload_backup_account === '' && $__upload_lxbackup_nname !== '') {
-		$__upload_backup_account = $__upload_lxbackup_nname;
+		if (!class_exists('KloxoBackup', false)) {
+			$__kb = dirname(__DIR__) . '/lib/php/kloxo_backup.php';
+			if (is_file($__kb)) {
+				include_once $__kb;
+			}
+		}
+		$__upload_backup_account = class_exists('KloxoBackup', false)
+			? KloxoBackup::clientAccountName($__upload_lxbackup_nname)
+			: $__upload_lxbackup_nname;
 	}
 	if ($__upload_is_backup && $__upload_backup_account === '') {
-		global $login;
-		if (is_object($login) && isset($login->nname)) {
+		global $login, $gbl;
+		if (is_object($gbl) && isset($gbl->__c_object) && is_object($gbl->__c_object)) {
+			$__walk = $gbl->__c_object;
+			for ($__i = 0; $__i < 6 && is_object($__walk); $__i++) {
+				if (isset($__walk->nname) && is_string($__walk->nname)
+					&& method_exists($__walk, 'get__table')
+					&& (string) $__walk->get__table() === 'client'
+					&& preg_match('/^[A-Za-z0-9._-]{1,64}$/', $__walk->nname) === 1) {
+					$__upload_backup_account = (string) $__walk->nname;
+					break;
+				}
+				if (isset($__walk->__parent_o) && is_object($__walk->__parent_o)) {
+					$__walk = $__walk->__parent_o;
+					continue;
+				}
+				if (method_exists($__walk, 'getParentO')) {
+					try {
+						$__walk = $__walk->getParentO();
+					} catch (Throwable $e) {
+						break;
+					}
+					continue;
+				}
+				break;
+			}
+		}
+		if ($__upload_backup_account === '' && is_object($login) && isset($login->nname)) {
 			$__upload_backup_account = (string) $login->nname;
+		}
+	}
+	if ($__upload_is_backup && $__upload_backup_account !== '') {
+		if (!class_exists('KloxoBackup', false)) {
+			$__kb2 = dirname(__DIR__) . '/lib/php/kloxo_backup.php';
+			if (is_file($__kb2)) {
+				include_once $__kb2;
+			}
+		}
+		if (class_exists('KloxoBackup', false)) {
+			$__upload_backup_account = KloxoBackup::clientAccountName($__upload_backup_account);
 		}
 	}
 	$__upload_csrf = function_exists('getCSRFToken') ? (string) getCSRFToken() : '';

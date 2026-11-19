@@ -105,6 +105,38 @@ final class KloxoBackup
 	}
 
 	/**
+	 * Client account folder under /home/kloxo/client/<account>/__backup.
+	 * Accepts a plain client nname ("admin") or an lxbackup nname ("client-admin").
+	 * Never returns the composite "client-admin" as the folder name — that was
+	 * why raw uploads landed outside the File Manager directory.
+	 */
+	public static function clientAccountName(string $accountOrLxbackup): string
+	{
+		$raw = trim($accountOrLxbackup);
+		if ($raw === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $raw) !== 1) {
+			return '';
+		}
+		if (preg_match('/^client-(.+)$/', $raw, $m) !== 1) {
+			return $raw;
+		}
+		$maybe = (string) $m[1];
+		if ($maybe === '' || preg_match('/^[A-Za-z0-9._-]{1,64}$/', $maybe) !== 1) {
+			return $raw;
+		}
+		$home = self::programHome();
+		$asClient = $home . '/client/' . $maybe . '/__backup';
+		$asComposite = $home . '/client/' . $raw . '/__backup';
+		// Prefer the File Manager path (client/<name>/__backup). Keep the rare
+		// literal client nname "client-*" only when that folder already exists
+		// and the stripped path does not.
+		if (is_dir($asClient) || !is_dir($asComposite)) {
+			return $maybe;
+		}
+
+		return $raw;
+	}
+
+	/**
 	 * Directory listed by Backup / Restore → File Manager. Creates it and
 	 * gives it to lxlabs so the panel can list and download archives.
 	 * Panel FPM runs as lxlabs; if a parent is root-owned, mkdir fails and we
