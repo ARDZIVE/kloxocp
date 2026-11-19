@@ -2433,7 +2433,9 @@ $bakProp = $bakTabs['property'] ?? array();
 $bakFfProp = $bakFfTabs['property'] ?? array();
 $bakFfHas = is_array($bakFfProp)
 	&& in_array('goback=1&a=show', $bakFfProp, true)
-	&& in_array('goback=1&a=updateform&sa=settings', $bakFfProp, true);
+	&& in_array('goback=1&a=updateform&sa=settings', $bakFfProp, true)
+	&& in_array('goback=1&a=show&l[class]=ffile&l[nname]=/', $bakFfProp, true)
+	&& in_array('goback=1&l[class]=ffile&l[nname]=/&a=updateform&sa=upload', $bakFfProp, true);
 $bakTabCount = is_array($bakForced) ? count($bakForced) : 0;
 $bakSettingsForm = $bakForms['settings'] ?? null;
 $bakSchedType = is_array($bakSettingsForm) ? ($bakSettingsForm['backupschedule_type'] ?? null) : null;
@@ -2446,11 +2448,15 @@ $bakFormOk = is_array($bakSettingsForm)
 	&& array_key_exists('backupschedule_time', $bakSettingsForm)
 	&& array_key_exists('rm_last_number', $bakSettingsForm)
 	&& is_array($bakShowForms)
-	&& $bakShowForms === array()
+	&& array_key_exists('backup', $bakShowForms)
+	&& array_key_exists('restore_from_file', $bakShowForms)
+	&& array_key_exists('restore_from_ftp', $bakShowForms)
 	&& $bakFormErr === '';
 if (($bakProp[0] ?? '') === 'a=show'
 	&& ($bakProp[1] ?? '') === 'a=updateform&sa=settings'
-	&& $bakTabCount === 2
+	&& ($bakProp[2] ?? '') === 'a=show&l[class]=ffile&l[nname]=/'
+	&& ($bakProp[3] ?? '') === 'l[class]=ffile&l[nname]=/&a=updateform&sa=upload'
+	&& $bakTabCount === 4
 	&& $bakForced === $bakProp
 	&& $bakShow === 'Backup / Restore'
 	&& $bakHomeBare === 'Backup / Restore'
@@ -2478,9 +2484,9 @@ if (($bakProp[0] ?? '') === 'a=show'
 	&& str_contains($bakUi, '10737418240')
 	&& str_contains($bakLib, 'function kloxo_backup_page_tab_label')
 	&& str_contains($bakCore, 'backupPropertyTabs()')) {
-	ok('Backup/Restore console tabs are Backup / Restore and Settings');
+	ok('Backup/Restore console tabs are Backup / Restore, Settings, File Manager, Upload');
 } else {
-	bad('Backup/Restore console tabs are Backup / Restore and Settings',
+	bad('Backup/Restore console tabs are Backup / Restore, Settings, File Manager, Upload',
 		'show=' . $bakShow . ' homeBare=' . $bakHomeBare
 			. ' settings=' . $bakSettings . '/' . $bakSettingsFull
 			. ' props=' . implode(',', array_map('strval', $bakProp))
@@ -2544,14 +2550,15 @@ try {
 }
 $bakTwo = str_contains($bakTabHtml, 'Backup / Restore')
 	&& str_contains($bakTabHtml, 'Settings')
-	&& !str_contains($bakTabHtml, 'FTP Configuration')
-	&& !str_contains($bakTabHtml, 'Schedule Configuration');
+	&& str_contains($bakTabHtml, 'File Manager')
+	&& str_contains($bakTabHtml, 'Upload');
 $bakShowOk = str_contains($bakShowHtml, 'kloxo-backup-ui')
 	&& str_contains($bakShowHtml, 'Backup now')
 	&& str_contains($bakShowHtml, 'From computer')
 	&& str_contains($bakShowHtml, 'From URL')
 	&& str_contains($bakShowHtml, 'From FTP')
-	&& str_contains($bakShowHtml, 'kloxo-backup-ui.js');
+	&& str_contains($bakShowHtml, 'kloxo-backup-ui.js')
+	&& str_contains($bakShowHtml, 'Backup Now');
 $bakSettingsOk = str_contains($bakSettingsHtml, 'Settings')
 	&& str_contains($bakSettingsHtml, 'frm_lxbackup_c_ftp_server')
 	&& str_contains($bakSettingsHtml, 'frm_lxbackup_c_rm_username')

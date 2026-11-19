@@ -562,11 +562,13 @@ class lxbackup extends Lxdb
 
 	static function backupPropertyTabs()
 	{
-		// Modern console on show; Settings merges FTP + Schedule.
-		// Legacy File Manager / Upload remain reachable from Settings help if needed.
+		// Console on show; Settings = FTP + schedule; File Manager + Upload kept
+		// so browse/download/classic upload still work when AJAX is unavailable.
 		return array(
 			'a=show',
 			'a=updateform&sa=settings',
+			'a=show&l[class]=ffile&l[nname]=/',
+			'l[class]=ffile&l[nname]=/&a=updateform&sa=upload',
 		);
 	}
 
@@ -585,8 +587,12 @@ class lxbackup extends Lxdb
 
 	function createShowUpdateform()
 	{
-		// Main flow is the AJAX console in showRawPrint — no stacked forms.
-		return array();
+		// Classic Backup Now / Restore forms under the console (reliable fallback).
+		$uflist['backup'] = null;
+		$uflist['restore_from_file'] = null;
+		$uflist['restore_from_ftp'] = null;
+
+		return $uflist;
 	}
 
 	function showRawPrint($subaction = null)

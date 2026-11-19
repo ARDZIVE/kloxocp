@@ -63,6 +63,35 @@ if ($sess === '' || $token === '' || !hash_equals($sess, $token)) {
 	), 403);
 }
 
+
+function kloxo_backup_api_msg(Throwable $e): string
+{
+	$code = $e->getMessage();
+	$map = array(
+		'invalid_file_name' => 'Invalid file name.',
+		'invalid_account' => 'Invalid account.',
+		'forbidden' => 'Not allowed.',
+		'file_too_large' => 'File over 10 GB. Use scp/SFTP into __backup, then restore from the list.',
+		'not_an_archive' => 'Use a .tgz, .tar.gz, .tar or .zip archive.',
+		'empty_file' => 'Empty file.',
+		'backup_dir_not_writable' => 'Backup folder is not writable. As root: chown -R lxlabs:lxlabs the client __backup folder.',
+		'file_not_found' => 'Archive not found.',
+		'file_exists' => 'File already exists.',
+		'invalid_url' => 'Enter a full https:// URL including the file name.',
+		'ftp_fields_required' => 'FTP server, username and remote file are required.',
+		'fetch_empty' => 'Download produced an empty file.',
+		'ftp_connect_failed' => 'Could not connect to the FTP server.',
+		'ftp_login_failed' => 'FTP login failed.',
+		'ftp_get_failed' => 'Could not download the remote FTP file.',
+		'upload_not_found' => 'Upload session expired — start again.',
+		'size_check_failed' => 'Uploaded size did not match — try again.',
+		'cannot_delete' => 'Could not delete the archive.',
+		'missing_chunk' => 'Upload incomplete — try again.',
+	);
+
+	return $map[$code] ?? ('Error: ' . $code);
+}
+
 $account = isset($_REQUEST['account']) ? trim((string) $_REQUEST['account']) : '';
 if ($account === '') {
 	$account = (string) $login->nname;
@@ -71,10 +100,11 @@ if ($account === '') {
 try {
 	$acc = KloxoBackupUi::resolveAccount($login, $account);
 } catch (InvalidArgumentException $e) {
-	KloxoBackupUi::json(array('ok' => false, 'error' => $e->getMessage(), 'message' => 'Invalid account.'), 400);
-} catch (RuntimeException $e) {
+	KloxoBackupUi::json(array('ok' => false, 'error' => $e->getMessage(), 'message' => kloxo_backup_api_msg($e)), 400);
+} catch (Throwable $e) {
 	$code = $e->getMessage() === 'forbidden' ? 403 : 500;
-	KloxoBackupUi::json(array('ok' => false, 'error' => $e->getMessage(), 'message' => 'Not allowed.'), $code);
+	$msg = $e->getMessage() === 'forbidden' ? 'Not allowed.' : kloxo_backup_api_msg($e);
+	KloxoBackupUi::json(array('ok' => false, 'error' => $e->getMessage(), 'message' => $msg), $code);
 }
 
 $dir = $acc['dir'];
@@ -112,45 +142,49 @@ function kloxo_backup_api_load(string $table, string $clientName): ?lxbackup
 	}
 }
 
-function kloxo_backup_api_msg(Throwable $e): string
-{
-	$code = $e->getMessage();
-	$map = array(
-		'invalid_file_name' => 'Invalid file name.',
-		'invalid_account' => 'Invalid account.',
-		'forbidden' => 'Not allowed.',
-		'file_too_large' => 'File over 10 GB. Use scp/SFTP into __backup, then restore from the list.',
-		'not_an_archive' => 'Use a .tgz, .tar.gz, .tar or .zip archive.',
-		'empty_file' => 'Empty file.',
-		'backup_dir_not_writable' => 'Backup folder is not writable. As root: chown -R lxlabs:lxlabs the client __backup folder.',
-		'file_not_found' => 'Archive not found.',
-		'file_exists' => 'File already exists.',
-		'invalid_url' => 'Enter a full http:// or https:// URL including the file name.',
-		'ftp_fields_required' => 'FTP server, username and remote file are required.',
-		'fetch_empty' => 'Download produced an empty file.',
-		'ftp_connect_failed' => 'Could not connect to the FTP server.',
-		'ftp_login_failed' => 'FTP login failed.',
-		'ftp_get_failed' => 'Could not download the remote FTP file.',
-		'upload_not_found' => 'Upload session expired — start again.',
-		'size_check_failed' => 'Uploaded size did not match — try again.',
-		'cannot_delete' => 'Could not delete the archive.',
-		'missing_chunk' => 'Upload incomplete — try again.',
-	);
-
-	return $map[$code] ?? ('Error: ' . $code);
-}
-
 try {
 	switch ($action) {
 		case 'list':
-			KloxoBackupUi::ensureWritableDir($dir);
+			// Soft mkdir only — never block list on rl_exec/ensureDir.
+			if (!is_dir($dir)) {
+				@mkdir($dir, 0755, true);
+			}
 			KloxoBackupUi::json(array(
 				'ok' => true,
 				'account' => $name,
 				'dir' => $dir,
 				'max' => KloxoBackupUi::MAX_BYTES,
 				'archives' => KloxoBackupUi::listArchives($dir),
+				'writable' => is_dir($dir) && is_writable($dir),
 			));
+
+		case 'download':
+			$file = isset($_GET['file']) ? (string) $_GET['file'] : (isset($_POST['file']) ? (string) $_POST['file'] : '');
+			try {
+				$file = KloxoBackupUi::safeFileName($file);
+			} catch (Throwable $e) {
+				KloxoBackupUi::json(array('ok' => false, 'error' => 'invalid_file_name', 'message' => kloxo_backup_api_msg($e)), 400);
+			}
+			$path = rtrim($dir, '/') . '/' . $file;
+			if (!is_file($path) || !is_readable($path)) {
+				KloxoBackupUi::json(array('ok' => false, 'error' => 'file_not_found', 'message' => 'Archive not found.'), 404);
+			}
+			while (ob_get_level() > 0) {
+				@ob_end_clean();
+			}
+			$size = (int) @filesize($path);
+			header('Content-Type: application/octet-stream');
+			header('Content-Disposition: attachment; filename="' . str_replace('"', '', $file) . '"');
+			header('Content-Length: ' . (string) $size);
+			header('Cache-Control: no-store');
+			header('X-Content-Type-Options: nosniff');
+			$fp = fopen($path, 'rb');
+			if ($fp === false) {
+				KloxoBackupUi::json(array('ok' => false, 'error' => 'cannot_read', 'message' => 'Could not read archive.'), 500);
+			}
+			fpassthru($fp);
+			fclose($fp);
+			exit(0);
 
 		case 'status':
 			$bak = kloxo_backup_api_load($table, $name);

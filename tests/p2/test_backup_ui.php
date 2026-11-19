@@ -103,22 +103,26 @@ check(str_contains($bak, 'function showRawPrint')
 	&& str_contains($bak, "a=updateform&sa=settings")
 	&& str_contains($bak, 'case "settings"')
 	&& str_contains($bak, 'function updateSettings')
-	&& str_contains($bak, 'return array();'),
-	'lxbackup show uses console; Settings tab; empty stacked forms');
+	&& str_contains($bak, "\$uflist['backup'] = null")
+	&& str_contains($ui, 'KloxoBackup::backupDir')
+	&& !str_contains($ui, "KloxoBackup::ensureDir('client'"),
+	'lxbackup show uses console + classic forms; API path avoids ensureDir hang');
 check(str_contains($api, "case 'upload_chunk'")
 	&& str_contains($api, "case 'fetch_url'")
 	&& str_contains($api, "case 'fetch_ftp'")
 	&& str_contains($api, "case 'backup'")
 	&& str_contains($api, "case 'restore'")
+	&& str_contains($api, "case 'download'")
 	&& str_contains($api, 'hash_equals'),
-	'backup-api.php covers upload/fetch/backup/restore with CSRF');
+	'backup-api.php covers upload/fetch/backup/restore/download with CSRF');
 check(str_contains($js, 'upload_init')
 	&& str_contains($js, 'upload_chunk')
 	&& str_contains($js, 'fetch_url')
 	&& str_contains($js, 'fetch_ftp')
+	&& str_contains($js, 'data-act="download"')
 	&& str_contains($js, 'kbu-drop')
 	&& str_contains($js, 'KloxoToast'),
-	'kloxo-backup-ui.js drives chunked upload and toasts');
+	'kloxo-backup-ui.js drives chunked upload, download and toasts');
 check(str_contains($css, '.kbu-drop')
 	&& str_contains($css, '.kbu-progress-fill')
 	&& str_contains($css, '#c44'),
@@ -128,12 +132,10 @@ check(str_contains($ui, '10737418240')
 	&& str_contains($ui, 'From URL')
 	&& str_contains($ui, 'From FTP'),
 	'console HTML offers file / URL / FTP');
-
-check(preg_match(
-	"/function backupPropertyTabs\(\)\s*\{[^}]*'a=show'[^}]*'a=updateform&sa=settings'/s",
-	$bak
-) === 1,
-	'backupPropertyTabs is show + settings only');
+check(str_contains($bak, "a=updateform&sa=settings")
+	&& str_contains($bak, "a=show&l[class]=ffile&l[nname]=/")
+	&& str_contains($bak, "a=updateform&sa=upload"),
+	'backupPropertyTabs keeps Settings, File Manager and Upload');
 
 // cleanup
 $it = new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS);

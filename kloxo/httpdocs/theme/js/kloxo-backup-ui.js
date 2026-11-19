@@ -121,13 +121,22 @@
 	function parseJson(res) {
 		return res.text().then(function (t) {
 			var j = null;
+			var raw = String(t || '');
 			try {
-				j = JSON.parse(t || '{}');
+				j = JSON.parse(raw || '{}');
 			} catch (e3) {
 				j = null;
 			}
 			if (!res.ok || !j || j.ok === false) {
-				var msg = (j && j.message) ? j.message : ('Request failed (' + res.status + ')');
+				var msg = (j && j.message) ? j.message : '';
+				if (!msg && raw.indexOf('<') !== -1) {
+					msg = res.status === 403 || res.status === 401
+						? 'Session expired — refresh the page and try again.'
+						: 'Server returned a page instead of JSON (HTTP ' + res.status + '). Refresh and try again.';
+				}
+				if (!msg) {
+					msg = 'Request failed (HTTP ' + res.status + ').';
+				}
 				var err = new Error(msg);
 				err.payload = j;
 				err.status = res.status;
@@ -169,6 +178,7 @@
 				+ '<td>' + escapeHtml(when) + '</td>'
 				+ '<td>'
 				+ '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-primary" data-act="restore">Restore</button>'
+				+ '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-ghost" data-act="download">Download</button>'
 				+ '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-ghost" data-act="delete">Delete</button>'
 				+ '</td></tr>';
 		});
@@ -186,16 +196,32 @@
 	}
 
 	function refreshList() {
+		if (!token) {
+			setStatus($('kbu-list-status'), 'Session token missing — refresh the page.', 'err');
+			return Promise.resolve();
+		}
 		setStatus($('kbu-list-status'), 'Refreshing…', 'busy');
 		return fetch(apiUrl('list'), {
 			credentials: 'same-origin',
 			headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': token }
 		}).then(parseJson).then(function (j) {
 			renderList(j.archives);
-			setStatus($('kbu-list-status'), '');
+			if (j.writable === false) {
+				setStatus($('kbu-list-status'),
+					'Backup folder is not writable. As root: chown -R lxlabs:lxlabs '
+						+ String(j.dir || '/home/kloxo/client/' + account + '/__backup'),
+					'err');
+			} else {
+				setStatus($('kbu-list-status'), '');
+			}
 		}).catch(function (err) {
 			setStatus($('kbu-list-status'), err.message || 'Could not list archives.', 'err');
+			toast(err.message || 'Could not list archives.', 'error');
 		});
+	}
+
+	function downloadArchive(name) {
+		window.location.href = apiUrl('download', { file: name });
 	}
 
 	function setFile(file) {
@@ -517,10 +543,16 @@
 			var act = btn.getAttribute('data-act');
 			if (act === 'restore') {
 				runRestore(name);
+			} else if (act === 'download') {
+				downloadArchive(name);
 			} else if (act === 'delete') {
 				deleteArchive(name);
 			}
 		});
+	}
+
+	if (!token) {
+		setStatus($('kbu-add-status'), 'Session token missing — refresh the page.', 'err');
 	}
 
 	var dlg = $('kbu-restore-dialog');

@@ -58,6 +58,9 @@ final class KloxoBackupUi
 	}
 
 	/**
+	 * Resolve account backup dir without blocking on kloxo-backend.
+	 * (ensureDir → rl_exec can hang the AJAX list/upload forever.)
+	 *
 	 * @return array{table:string,name:string,dir:string}
 	 */
 	public static function resolveAccount(object $login, string $account): array
@@ -74,9 +77,13 @@ final class KloxoBackupUi
 		if (!class_exists('KloxoBackup', false)) {
 			include_once __DIR__ . '/kloxo_backup.php';
 		}
-		$dir = KloxoBackup::ensureDir('client', $account);
+		$dir = KloxoBackup::backupDir('client', $account);
 		if (!is_dir($dir)) {
 			@mkdir($dir, 0755, true);
+		}
+		$parent = dirname($dir);
+		if (!is_dir($parent)) {
+			@mkdir($parent, 0755, true);
 		}
 
 		return array('table' => 'client', 'name' => $account, 'dir' => $dir);
@@ -88,20 +95,25 @@ final class KloxoBackupUi
 			@mkdir($dir, 0755, true);
 		}
 		$parent = dirname($dir);
+		if (!is_dir($parent)) {
+			@mkdir($parent, 0755, true);
+		}
 		if (function_exists('lxfile_generic_chown')) {
 			if (is_dir($parent)) {
 				lxfile_generic_chown($parent, 'lxlabs');
 			}
-			lxfile_generic_chown($dir, 'lxlabs');
+			if (is_dir($dir)) {
+				lxfile_generic_chown($dir, 'lxlabs');
+			}
 		}
 		@chmod($dir, 0755);
-		if (!is_dir($dir) || !is_writable($dir)) {
-			if (class_exists('lxbackup', false) && function_exists('rl_exec_get')) {
-				try {
-					rl_exec_get(null, 'localhost', array('lxbackup', 'MakeSureDirectoryExists'), array($dir . '/'));
-				} catch (Throwable $e) {
-					// fall through
-				}
+		// One best-effort root mkdir — do not retry/probe like ensureDir (hang risk).
+		if ((!is_dir($dir) || !is_writable($dir))
+			&& class_exists('lxbackup', false) && function_exists('rl_exec_get')) {
+			try {
+				rl_exec_get(null, 'localhost', array('lxbackup', 'MakeSureDirectoryExists'), array($dir . '/'));
+			} catch (Throwable $e) {
+				// fall through to writable check
 			}
 		}
 		if (!is_dir($dir) || !is_writable($dir)) {
@@ -509,6 +521,42 @@ final class KloxoBackupUi
 			$host = $m[1];
 			$port = (int) $m[2];
 		}
+		// Prefer cURL — php-ftp is often not installed on Ubuntu panel PHP.
+		if (function_exists('curl_init')) {
+			$remote = ltrim(str_replace('\\', '/', $remoteFile), '/');
+			$url = 'ftp://' . $host . ':' . $port . '/' . $remote;
+			$fp = @fopen($dest, 'wb');
+			if ($fp === false) {
+				throw new RuntimeException('cannot_open_temp');
+			}
+			$ch = curl_init($url);
+			curl_setopt_array($ch, array(
+				CURLOPT_FILE => $fp,
+				CURLOPT_USERPWD => $user . ':' . $pass,
+				CURLOPT_FTP_USE_EPSV => true,
+				CURLOPT_CONNECTTIMEOUT => 30,
+				CURLOPT_TIMEOUT => 0,
+				CURLOPT_PROTOCOLS => defined('CURLPROTO_FTP') ? CURLPROTO_FTP : 3,
+			));
+			$ok = curl_exec($ch);
+			$err = curl_error($ch);
+			$code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			curl_close($ch);
+			fclose($fp);
+			if ($ok !== false && is_file($dest) && (int) @filesize($dest) > 0) {
+				return;
+			}
+			@unlink($dest);
+			if ($err !== '') {
+				throw new RuntimeException('ftp_get_failed');
+			}
+			if ($code >= 400) {
+				throw new RuntimeException('ftp_get_failed');
+			}
+		}
+		if (!function_exists('ftp_connect')) {
+			throw new RuntimeException('ftp_connect_failed');
+		}
 		$conn = @ftp_connect($host, $port, 30);
 		if ($conn === false) {
 			throw new RuntimeException('ftp_connect_failed');
@@ -580,6 +628,7 @@ final class KloxoBackupUi
 	{
 		$css = '/theme/css/kloxo-backup-ui.css';
 		$js = '/theme/js/kloxo-backup-ui.js';
+		$ver = '20261119b';
 		$boot = array(
 			'account' => (string) ($cfg['account'] ?? ''),
 			'token' => (string) ($cfg['token'] ?? ''),
@@ -596,16 +645,23 @@ final class KloxoBackupUi
 				'configured' => !empty($cfg['has_ftp']),
 			),
 		);
-		$bootJson = json_encode($boot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		$bootJson = json_encode(
+			$boot,
+			JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS
+		);
 		if (!is_string($bootJson)) {
 			$bootJson = '{}';
 		}
-		echo '<link rel="stylesheet" type="text/css" href="'
-			. htmlspecialchars($css, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" />';
+		$cssEsc = htmlspecialchars($css . '?v=' . $ver, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$jsEsc = htmlspecialchars($js . '?v=' . $ver, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		echo '<link rel="stylesheet" type="text/css" href="' . $cssEsc . '" />';
 		echo '<div id="kloxo-backup-ui" class="kbu" data-kloxo-nobusy="1">';
 		echo '<div class="kbu-hero">';
 		echo '<h2 class="kbu-title">Backup &amp; Restore</h2>';
-		echo '<p class="kbu-lead">Create a backup, add an archive (computer, URL or FTP), then restore in one place. Archives up to <strong>10&nbsp;GB</strong>.</p>';
+		echo '<p class="kbu-lead">Create a backup, add an archive (computer, HTTPS URL or FTP), then restore from the list. Archives up to <strong>10&nbsp;GB</strong>. Classic forms below still work if needed.</p>';
+		if (($cfg['token'] ?? '') === '') {
+			echo '<p class="kbu-status is-err">Session token missing — refresh the page before using the console.</p>';
+		}
 		echo '</div>';
 
 		echo '<section class="kbu-card" id="kbu-create">';
@@ -685,6 +741,7 @@ final class KloxoBackupUi
 
 		echo '</div>';
 		echo '<script type="application/json" id="kbu-boot">' . $bootJson . '</script>';
-		echo '<script src="' . htmlspecialchars($js, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" defer></script>';
+		// No defer: panel frames sometimes finish paint before deferred scripts run.
+		echo '<script src="' . $jsEsc . '"></script>';
 	}
 }
