@@ -38,7 +38,7 @@ require_once $doc . '/lib/php/kloxo_backup_ui.php';
 
 echo "== KloxoBackupUi constants and helpers\n";
 check(KloxoBackupUi::MAX_BYTES === 10737418240, 'MAX_BYTES is 10 GiB');
-check(KloxoBackupUi::CHUNK_BYTES === 4194304, 'CHUNK_BYTES is 4 MiB');
+check(KloxoBackupUi::CHUNK_BYTES === 3145728, 'CHUNK_BYTES is 3 MiB (under Hiawatha MaxRequestSize)');
 check(KloxoBackupUi::isArchiveName('foo.tgz')
 	&& KloxoBackupUi::isArchiveName('a.tar.gz')
 	&& KloxoBackupUi::isArchiveName('b.zip')
@@ -125,6 +125,7 @@ check(str_contains($js, 'upload_init')
 	&& str_contains($js, 'data-act="download"')
 	&& str_contains($js, 'data-kloxo-nobusy')
 	&& str_contains($js, 'startUpload')
+	&& str_contains($js, 'kbu-btn-upload')
 	&& str_contains($js, 'openRestoreDialog')
 	&& str_contains($js, 'kbu-drop')
 	&& str_contains($js, 'KloxoToast')
@@ -140,9 +141,11 @@ check(str_contains($ui, '10737418240')
 	&& str_contains($ui, 'From URL')
 	&& str_contains($ui, 'From FTP')
 	&& str_contains($ui, 'kbu-btn-restore-confirm')
+	&& str_contains($ui, 'kbu-btn-upload')
+	&& str_contains($ui, 'for="kbu-file"')
 	&& !str_contains($ui, 'method="dialog"')
-	&& !str_contains($ui, 'kbu-btn-upload'),
-	'console HTML offers file / URL / FTP; auto-upload; non-native restore dialog');
+	&& str_contains($ui, 'Soft local mkdir only'),
+	'console HTML offers file / URL / FTP; Upload button; soft upload_init');
 check(str_contains($bak, "a=updateform&sa=settings")
 	&& str_contains($bak, "a=show&l[class]=ffile&l[nname]=/")
 	&& str_contains($bak, "a=updateform&sa=upload"),

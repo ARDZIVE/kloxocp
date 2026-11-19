@@ -152,6 +152,7 @@
 .kbu-pane[hidden] { display: none !important; }
 .kbu-drop {
 	position: relative;
+	display: block;
 	padding: 28px 16px;
 	margin-bottom: 10px;
 	border: 2px dashed #c9b89a;

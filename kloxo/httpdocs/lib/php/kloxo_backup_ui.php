@@ -15,8 +15,8 @@ final class KloxoBackupUi
 	/** 10 GiB — matches Hiawatha MaxUploadSize ceiling (10240 MB). */
 	public const MAX_BYTES = 10737418240;
 
-	/** Chunk size under Hiawatha MaxRequestSize (~5 MiB). */
-	public const CHUNK_BYTES = 4194304;
+	/** Chunk size under Hiawatha MaxRequestSize (5 MiB) with headroom for headers. */
+	public const CHUNK_BYTES = 3145728;
 
 	public const ARCHIVE_EXT = '/\.(tgz|tar\.gz|tar|gz|zip)$/i';
 
@@ -192,7 +192,13 @@ final class KloxoBackupUi
 	 */
 	public static function uploadInit(string $dir, string $fileName, int $size): array
 	{
-		self::ensureWritableDir($dir);
+		// Soft local mkdir only — never rl_exec/ensureDir here (hangs the AJAX upload).
+		if (!is_dir($dir)) {
+			@mkdir($dir, 0755, true);
+		}
+		if (!is_dir($dir) || !is_writable($dir)) {
+			throw new RuntimeException('backup_dir_not_writable');
+		}
 		$fileName = self::safeFileName($fileName);
 		if (!self::isArchiveName($fileName)) {
 			throw new InvalidArgumentException('not_an_archive');
@@ -372,7 +378,12 @@ final class KloxoBackupUi
 	 */
 	public static function fetchUrl(string $dir, string $url, bool $overwrite = true): array
 	{
-		self::ensureWritableDir($dir);
+		if (!is_dir($dir)) {
+			@mkdir($dir, 0755, true);
+		}
+		if (!is_dir($dir) || !is_writable($dir)) {
+			throw new RuntimeException('backup_dir_not_writable');
+		}
 		$url = trim($url);
 		if ($url === '' || !preg_match('#^https://#i', $url)) {
 			throw new InvalidArgumentException('invalid_url');
@@ -431,7 +442,12 @@ final class KloxoBackupUi
 		string $remoteFile,
 		bool $overwrite = true
 	): array {
-		self::ensureWritableDir($dir);
+		if (!is_dir($dir)) {
+			@mkdir($dir, 0755, true);
+		}
+		if (!is_dir($dir) || !is_writable($dir)) {
+			throw new RuntimeException('backup_dir_not_writable');
+		}
 		$server = trim($server);
 		$user = trim($user);
 		$remoteFile = trim($remoteFile);
@@ -631,7 +647,7 @@ final class KloxoBackupUi
 	{
 		$css = '/theme/css/kloxo-backup-ui.css';
 		$js = '/theme/js/kloxo-backup-ui.js';
-		$ver = '20261119d';
+		$ver = '20261119e';
 		$archives = (isset($cfg['archives']) && is_array($cfg['archives'])) ? $cfg['archives'] : array();
 		$boot = array(
 			'account' => (string) ($cfg['account'] ?? ''),
@@ -710,16 +726,19 @@ final class KloxoBackupUi
 		echo '</div>';
 
 		echo '<div class="kbu-pane is-on" data-pane="file">';
-		echo '<div class="kbu-drop" id="kbu-drop" tabindex="0">';
+		echo '<label class="kbu-drop" id="kbu-drop" for="kbu-file" tabindex="0">';
 		echo '<input type="file" id="kbu-file" class="kbu-file" accept=".tgz,.tar.gz,.tar,.gz,.zip,application/gzip,application/x-gzip,application/x-tar,application/zip" />';
 		echo '<p class="kbu-drop-title">Drop a backup archive here, or click to browse</p>';
-		echo '<p class="kbu-hint">.tgz / .tar.gz / .zip — up to 10&nbsp;GB. Upload starts when you choose a file.</p>';
-		echo '</div>';
+		echo '<p class="kbu-hint">.tgz / .tar.gz / .zip — up to 10&nbsp;GB.</p>';
+		echo '</label>';
 		echo '<div class="kbu-progress" id="kbu-progress" hidden>';
 		echo '<div class="kbu-progress-bar"><div class="kbu-progress-fill" id="kbu-progress-fill"></div></div>';
 		echo '<div class="kbu-progress-meta"><span id="kbu-progress-pct">0%</span> <span id="kbu-progress-detail"></span></div>';
 		echo '</div>';
+		echo '<div class="kbu-row">';
+		echo '<button type="button" class="kbu-btn kbu-btn-primary" id="kbu-btn-upload" disabled>Upload</button>';
 		echo '<button type="button" class="kbu-btn kbu-btn-ghost" id="kbu-btn-cancel-upload" hidden>Cancel upload</button>';
+		echo '</div>';
 		echo '</div>';
 
 		echo '<div class="kbu-pane" data-pane="url" hidden>';

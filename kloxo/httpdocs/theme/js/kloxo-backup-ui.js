@@ -22,7 +22,7 @@
 	var token = String(cfg.token || '');
 	var api = String(cfg.api || '/theme/lbin/backup-api.php');
 	var maxBytes = Number(cfg.maxBytes) || 10737418240;
-	var chunkBytes = Number(cfg.chunkBytes) || 4194304;
+	var chunkBytes = Number(cfg.chunkBytes) || 3145728;
 	var ftpCfg = cfg.ftp || {};
 
 	var selectedFile = null;
@@ -255,6 +255,10 @@
 
 	function setFile(file) {
 		selectedFile = file || null;
+		var btn = $('kbu-btn-upload');
+		if (btn) {
+			btn.disabled = !selectedFile || uploading;
+		}
 		var drop = $('kbu-drop');
 		if (drop && selectedFile) {
 			var title = drop.querySelector('.kbu-drop-title');
@@ -298,17 +302,33 @@
 		if (!file || uploading) {
 			return;
 		}
+		if (!token) {
+			setStatus($('kbu-add-status'), 'Session token missing — refresh the page.', 'err');
+			toast('Session token missing — refresh the page.', 'error');
+			return;
+		}
 		if (file.size > maxBytes) {
 			toast('File over 10 GB.', 'warning');
 			return;
 		}
+		if (file.size < 1) {
+			toast('Empty file.', 'warning');
+			return;
+		}
 		setFile(file);
 		uploading = true;
+		var btn = $('kbu-btn-upload');
+		if (btn) {
+			btn.disabled = true;
+		}
 		uploadChunked(file).catch(function (err) {
 			setStatus($('kbu-add-status'), err.message || 'Upload failed.', 'err');
 			toast(err.message || 'Upload failed.', 'error');
 		}).finally(function () {
 			uploading = false;
+			if (btn) {
+				btn.disabled = !selectedFile;
+			}
 		});
 	}
 
@@ -475,27 +495,26 @@
 		['dragenter', 'dragover'].forEach(function (ev) {
 			drop.addEventListener(ev, function (e) {
 				e.preventDefault();
+				e.stopPropagation();
 				drop.classList.add('is-drag');
 			});
 		});
-		['dragleave', 'drop'].forEach(function (ev) {
-			drop.addEventListener(ev, function (e) {
-				e.preventDefault();
-				drop.classList.remove('is-drag');
-			});
+		drop.addEventListener('dragleave', function (e) {
+			e.preventDefault();
+			drop.classList.remove('is-drag');
 		});
 		drop.addEventListener('drop', function (e) {
+			e.preventDefault();
+			e.stopPropagation();
+			drop.classList.remove('is-drag');
 			var files = e.dataTransfer && e.dataTransfer.files;
 			if (files && files[0]) {
+				if (fileInput) {
+					try {
+						fileInput.value = '';
+					} catch (eClr) { /* ignore */ }
+				}
 				startUpload(files[0]);
-			}
-		});
-		drop.addEventListener('click', function (e) {
-			if (e.target === fileInput) {
-				return;
-			}
-			if (fileInput) {
-				fileInput.click();
 			}
 		});
 		drop.addEventListener('keydown', function (e) {
@@ -508,19 +527,26 @@
 		});
 	}
 	if (fileInput) {
-		fileInput.addEventListener('click', function (e) {
-			e.stopPropagation();
-		});
 		fileInput.addEventListener('change', function () {
 			var f = fileInput.files && fileInput.files[0];
 			if (!f) {
 				setFile(null);
 				return;
 			}
+			// Select enables Upload; start immediately (button remains as fallback).
 			startUpload(f);
 		});
 	}
 
+	var btnUpload = $('kbu-btn-upload');
+	if (btnUpload) {
+		btnUpload.addEventListener('click', function () {
+			if (!selectedFile || uploading) {
+				return;
+			}
+			startUpload(selectedFile);
+		});
+	}
 	var btnCancel = $('kbu-btn-cancel-upload');
 	if (btnCancel) {
 		btnCancel.addEventListener('click', function () {
