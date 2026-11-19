@@ -104,35 +104,21 @@ class Dns extends DnsBase
 
 	function fixDateSerial()
 	{
-		$ddate = @ date("Ymd");
+		$ddate = date('Ymd');
 
-		// MR -- error for create new domain
-		$this->serial = (isset($this->serial)) ? $this->serial + 1 : 0;
-
-		if ($this->serial > 99) {
-			$this->serial = 0;
+		// Panel/SQLite stores serial as a string; PHP 8 rejects '' + 1
+		// ("Unsupported operand types: string + int") during fixdns.
+		$serial = isset($this->serial) ? (int) $this->serial : 0;
+		if ($serial < 0) {
+			$serial = 0;
 		}
-
-		$v = $this->serial;
-
-		if ($v < 10) {
-			$v = "0$v";
+		$serial++;
+		if ($serial > 99) {
+			$serial = 0;
 		}
-
-		$ddate = "$ddate{$v}";
-
-		$this->__var_ddate = $ddate;
-
-		$p = $this->getClientParentO();
-
-	/*
-		// MR -- move to hostmaster param
-		if ($p->contactemail) {
-			$this->__var_email = str_replace("@", ".", $p->contactemail);
-		} else {
-			$this->__var_email = "admin.{$this->nname}";
-		}
-	*/
+		$this->serial = $serial;
+		$v = ($serial < 10) ? ('0' . $serial) : (string) $serial;
+		$this->__var_ddate = $ddate . $v;
 	}
 
 	static function switchProgramPre($old, $new)

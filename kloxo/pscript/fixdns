@@ -9,6 +9,7 @@ else
 fi
 
 . /script/directory
-lxphp.exe ../bin/fix/fixdns.php $*
+# "$@" keeps --server=all as one argv (not word-split).
+lxphp.exe ../bin/fix/fixdns.php "$@"
 
 . /script/counter-end.inc
