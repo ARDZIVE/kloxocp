@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111911. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111912. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -57,7 +57,7 @@ print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have
 text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
 htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
 The Update
-screen shows **10.1-2026111911** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111912** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -231,9 +231,12 @@ home) and shows a WebConsole-like black terminal as root via kloxo-backend
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
 uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
 Directory Index list does not `count()` a missing `dirindexlist_a`.
-Traceroute parses both `traceroute` and `tracepath` output; response times
-show three decimal places and unreachable hops (`no reply` / `*`) show as `*`
-(not `no`). Live Traceroute after deploy is UNVERIFIED.
+Traceroute (admin Server / Task, client Home tile + Task): Host/IP Trace form
+on the list; session host; no DB/quota child (`submitTraceAndRedirect` before
+`do_desc_add`); backend then local `KloxoTraceroute`; parses both
+`traceroute` and `tracepath`; times to 3 decimals; `*` for unreachable; a
+one-row note when the binary is missing or no hops. Live after deploy is
+UNVERIFIED.
 Cron Tasks Mail To does not need the C daemon on TCP 7776.
 DNS Template links list `dnstemplate`, not Backup/Restore.
 The DNS Templates list has the add form on that tab; there is no separate

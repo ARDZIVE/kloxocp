@@ -1234,6 +1234,23 @@ if (strpos($loginas, "@") !== false) {
 	}
 ?>
 					</div>
+					<b><?=kloxo_menu_title("a=list&c=traceroute");?></b>
+					<div class="dropmenu">
+<?php
+	if ($clientquery === "") {
+?>
+						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&frm_o_cname=traceroute"><?=kloxo_menu_title("a=list&c=traceroute");?></a><br/>
+<?php
+	} else {
+?>
+						&#x00bb;&nbsp;<?=kloxo_menu_title("a=list&c=traceroute");?>
+
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&frm_o_cname=traceroute"><?=$loginasEsc;?></a>
+							&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=list&<?=$clientquery;?>frm_o_cname=traceroute"><?=$clientidEsc;?></a><br/>
+<?php
+	}
+?>
+					</div>
 <?php
 	if (!$login->isCustomer()) {
 ?>
@@ -1273,10 +1290,10 @@ if (strpos($loginas, "@") !== false) {
 ?>
 						&#x00bb;&nbsp;<a href="/display.php?<?=$consumedlogin;?>frm_action=addform&frm_dttype[var]=cttype&frm_dttype[val]=customer&frm_o_cname=client"><?=kloxo_menu_title("a=addform&dta[var]=cttype&dta[val]=customer&c=client");?></a><br/>
 					</div>
-				</div>
 <?php
 	}
 ?>
+				</div>
 				<div style='clear: both;'></div>
 			</div>
 		</li>

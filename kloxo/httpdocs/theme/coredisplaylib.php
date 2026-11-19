@@ -2212,6 +2212,19 @@ function __ac_desc_add($object, $param = null)
 		$param = $ghtml->createCurrentParam($class);
 	}
 
+	// Traceroute: session host + hop list only — never create a DB child or
+	// touch quota (admin and client both use a=list&c=traceroute + Trace).
+	if ($class === 'traceroute') {
+		if (!class_exists('traceroute', false)) {
+			include_once dirname(__DIR__) . '/lib/html/traceroute.php';
+		}
+		if (class_exists('traceroute', false)
+			&& method_exists('traceroute', 'submitTraceAndRedirect')) {
+			traceroute::submitTraceAndRedirect(is_array($param) ? $param : array());
+		}
+		return;
+	}
+
 	// Add Client / Domain: hold sync spawns and skip kloxo-backend until after
 	// the redirect is flushed (busy spinner used to wait on useradd / nginx -t).
 	if ($class === 'client' || $class === 'domain' || $class === 'subdomain') {

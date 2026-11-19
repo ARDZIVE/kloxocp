@@ -52,7 +52,9 @@ final class KloxoTraceroute
     public static function findBinary(): string
     {
         foreach (self::BINS as $bin) {
-            if (is_executable($bin)) {
+            // is_file: setuid traceroute is still usable; is_executable alone
+            // can fail under open_basedir / unusual modes.
+            if (is_file($bin) && (is_executable($bin) || @is_readable($bin))) {
                 return $bin;
             }
         }
@@ -70,7 +72,7 @@ final class KloxoTraceroute
             return [];
         }
         foreach (self::BINS as $bin) {
-            if (!is_executable($bin)) {
+            if (!is_file($bin) || !(is_executable($bin) || @is_readable($bin))) {
                 continue;
             }
             $lines = self::runBinary($bin, $host);

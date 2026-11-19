@@ -37,11 +37,31 @@ if (!preg_match('/\bexec\s*\(/', $src)
     && strpos($src, 'KloxoTraceroute::run') !== false
     && strpos($src, 'createListAddForm') !== false
     && strpos($src, '__kloxo_traceroute_host') !== false
+    && strpos($src, 'submitTraceAndRedirect') !== false
+    && strpos($src, 'emptyResultRows') !== false
+    && strpos($src, 'getquotaclass') !== false
     && strpos($src, 'kloxo_finish_local_redirect') !== false
     && strpos($src, "array('traceroute', 'exec_traceroute')") !== false) {
     $ok('traceroute has Trace form, session host, backend+local run, no shell exec()');
 } else {
     $bad('traceroute has Trace form, session host, backend+local run, no shell exec()');
+}
+
+$core = (string) file_get_contents($root . '/kloxo/httpdocs/theme/coredisplaylib.php');
+if (strpos($core, "class === 'traceroute'") !== false
+    && strpos($core, 'submitTraceAndRedirect') !== false) {
+    $ok('__ac_desc_add intercepts traceroute before do_desc_add');
+} else {
+    $bad('__ac_desc_add intercepts traceroute before do_desc_add');
+}
+
+$menu = (string) file_get_contents($root . '/kloxo/httpdocs/theme/skin/simplicity/default/menu.php');
+$clientHome = (string) file_get_contents($root . '/kloxo/httpdocs/lib/client/clientlib.php');
+if (substr_count($menu, 'frm_o_cname=traceroute') >= 3
+    && strpos($clientHome, 'a=list&c=traceroute') !== false) {
+    $ok('Traceroute reachable from Task menu and client home tile');
+} else {
+    $bad('Traceroute reachable from Task menu and client home tile');
 }
 $install = (string) file_get_contents($root . '/install.sh');
 if (str_contains($install, 'traceroute') && str_contains($install, 'iputils-tracepath')) {
@@ -144,6 +164,24 @@ if (strpos($src, 'formatHopTime') !== false && strpos($src, 'number_format') !==
     $ok('traceroute display formats response times');
 } else {
     $bad('traceroute display formats response times');
+}
+
+if (traceroute::getquotaclass('traceroute') === '__none__'
+    && traceroute::createListAddForm(null, 'traceroute') === true
+    && traceroute::createListBlist(null, 'traceroute') === null
+    && traceroute::canGetSingle() === false) {
+    $ok('traceroute skips quota/DB and shows Trace form without Delete');
+} else {
+    $bad('traceroute skips quota/DB and shows Trace form without Delete');
+}
+
+$rows = traceroute::emptyResultRows('1.2.3.4');
+if (is_array($rows) && isset($rows[0]['ip'], $rows[0]['nname'])
+    && $rows[0]['nname'] === '1'
+    && is_string($rows[0]['ip']) && $rows[0]['ip'] !== '') {
+    $ok('emptyResultRows explains a failed Trace');
+} else {
+    $bad('emptyResultRows explains a failed Trace');
 }
 
 echo $fail === 0 ? "traceroute tests ok\n" : "traceroute tests failed\n";

@@ -80,9 +80,27 @@ class traceroute extends lxclass
 		return true;
 	}
 
+	/** Hops are ephemeral — no Delete / multi-select actions. */
+	static function createListBlist($object, $class)
+	{
+		return null;
+	}
+
+	/** Not a quota-backed child (Trace must not hit traceroute_num). */
+	static function getquotaclass($class)
+	{
+		return '__none__';
+	}
+
+	static function canGetSingle()
+	{
+		return false;
+	}
+
 	static function addform($parent, $class, $typetd = null)
 	{
-		$vlist['ip'] = null;
+		$host = self::targetHost();
+		$vlist['ip'] = $host !== '' ? array('m', $host) : null;
 		$vlist['__v_button'] = 'Trace';
 
 		return array('variable' => $vlist, 'action' => 'add');
@@ -91,13 +109,19 @@ class traceroute extends lxclass
 	/**
 	 * Store the target host in the panel session and reload the list.
 	 * Does not write a traceroute row (ephemeral hops only).
+	 * Always exits via stub redirect when the panel helpers are loaded.
+	 *
+	 * @param array|null $param
 	 */
-	static function add($parent, $class, $param)
+	static function submitTraceAndRedirect($param)
 	{
 		global $gbl, $ghtml, $login;
 
 		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
 
+		if (!is_array($param)) {
+			$param = array();
+		}
 		$raw = '';
 		if (isset($param['ip']) && is_string($param['ip'])) {
 			$raw = trim($param['ip']);
@@ -132,7 +156,8 @@ class traceroute extends lxclass
 		}
 		$sep = str_contains($url, '?') ? '&' : '?';
 		if (is_object($gbl)) {
-			$gbl->__this_redirect = $url . $sep . 'frm_smessage=updated_successfully'
+			$gbl->__this_redirect = $url . $sep . 'frm_list_refresh=yes'
+				. '&frm_smessage=updated_successfully'
 				. '&frm_m_smessage_data=' . rawurlencode('Traceroute ' . $host);
 		}
 		if (function_exists('kloxo_skip_was_now')) {
@@ -141,13 +166,29 @@ class traceroute extends lxclass
 		if (function_exists('kloxo_finish_local_redirect')) {
 			kloxo_finish_local_redirect();
 		}
+		if (function_exists('kloxo_emit_local_redirect')) {
+			kloxo_emit_local_redirect();
+			exit(0);
+		}
+		exit(0);
+	}
 
-		return $param;
+	/**
+	 * @param mixed $parent
+	 * @param string $class
+	 * @param array $param
+	 * @return array
+	 */
+	static function add($parent, $class, $param)
+	{
+		self::submitTraceAndRedirect(is_array($param) ? $param : array());
+
+		return is_array($param) ? $param : array();
 	}
 
 	static function createListNlist($parent, $view)
 	{
-		$nlist['ip'] = '10%';
+		$nlist['ip'] = '40%';
 		$nlist['responsetimes'] = '100%';
 
 		return $nlist;
@@ -184,13 +225,36 @@ class traceroute extends lxclass
 		return $host;
 	}
 
+	/**
+	 * One-row explanation when Trace was set but produced no hops.
+	 *
+	 * @return list<array{nname:string,ip:string,responsetimes:int}>
+	 */
+	static function emptyResultRows(string $host)
+	{
+		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
+		$bin = class_exists('KloxoTraceroute', false)
+			? KloxoTraceroute::findBinary() : '';
+		$msg = $bin === ''
+			? 'traceroute/tracepath not installed — apt install traceroute iputils-tracepath'
+			: ('No hops returned for ' . $host);
+
+		return array(
+			array(
+				'nname' => '1',
+				'ip' => $msg,
+				'responsetimes' => -1,
+			),
+		);
+	}
+
 	static function initThisList($parent, $class)
 	{
 		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
 
 		$host = self::targetHost();
 		if ($host === '') {
-			// No destination yet — show the add form only (not a blank auto-run).
+			// No destination yet — show the Trace form only (not a blank auto-run).
 			return array();
 		}
 
@@ -204,23 +268,23 @@ class traceroute extends lxclass
 			$_result = null;
 		}
 		if (!is_array($_result) || count($_result) === 0) {
-			// Backend down or no hops: try in-process (traceroute often needs no root).
+			// Backend down or no hops: try in-process (tracepath often needs no root).
 			$_result = self::exec_traceroute($host);
 		}
 
 		if (!is_array($_result) || count($_result) === 0) {
-			return array();
+			return self::emptyResultRows($host);
 		}
 
 		try {
 			$object = new traceroute(null, null, '__name__');
 			$hops = $object->Net_Traceroute_Result($_result, 'linux');
 		} catch (Throwable $e) {
-			return array();
+			return self::emptyResultRows($host);
 		}
 
 		if (!is_array($hops) || $hops === array()) {
-			return array();
+			return self::emptyResultRows($host);
 		}
 
 		return array_values($hops);

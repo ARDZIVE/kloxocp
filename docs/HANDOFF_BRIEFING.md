@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111911**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111912**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -296,12 +296,13 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     off). PHP Module Status lists Ubuntu
     `/etc/php/<ver>/mods-available` (plus leftover `/opt/*m` and
     `/etc/php.d`); enable/disable uses `phpenmod`/`phpdismod` on those
-    paths, not `.nonini` renames.     Traceroute no longer throws
-    `traceroute_failed` when the Ubuntu binary is missing; it uses
-    `traceroute`/`tracepath` with a validated host and an empty list on
-    failure. It parses both formats (including tracepath `no reply` and
-    `0.456ms`), shows response times with three decimals, and shows `*`
-    for unreachable hops (not `no`). Live after deploy is UNVERIFIED.
+    paths, not `.nonini` renames.     Traceroute works for admin and client: Host/IP Trace form on the list
+    (session host, no SQLite child, quota bypass, `__ac_desc_add` intercept);
+    Task menu link for every login plus admin Server and client Home tile;
+    backend then local `KloxoTraceroute`; packages `traceroute` /
+    `iputils-tracepath`; parses both formats (tracepath `no reply`,
+    `0.456ms`); times to 3 decimals; `*` for unreachable; one-row note when
+    the binary is missing or no hops. Live after deploy is UNVERIFIED.
     Services list collapses httpd/apache2 and named/bind9 to one preferred
     row; start/stop/restart/boot use absolute `systemctl --no-block` with pipe
     timeouts via `Service::runServiceControl` on the icon click (so list
@@ -1298,7 +1299,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111911**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111912**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
