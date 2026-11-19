@@ -390,9 +390,9 @@ function kloxo_pma_normalize_db_password(string $pass): string
 }
 
 /**
- * Re-apply the panel-stored password/grants for a customer DB user via
- * kloxo_pma (WITH GRANT OPTION). Fixes 1045 when MariaDB drifted from
- * the panel row (failed sync, quote-mangled store, password change).
+ * Ensure the panel mysqldb exists in MariaDB (CREATE DATABASE IF NOT EXISTS
+ * + user + GRANT). Fixes toast-only SQLite adds and 1045 when MariaDB
+ * drifted from the panel row (failed sync, quote-mangled store).
  */
 function kloxo_pma_repair_db_login(string $user, string $pass, string $dbname, ?string $root = null): bool
 {
@@ -411,9 +411,9 @@ function kloxo_pma_repair_db_login(string $user, string $pass, string $dbname, ?
 	}
 	try {
 		$admin = KloxoMariadb::connectAdmin('', '', $root);
-		$admin->ensureUser($user, $pass);
-		$admin->grantDatabase($dbname, $user);
-		$admin->flushPrivileges();
+		// Must CREATE the schema — GRANT alone leaves an invisible database
+		// in phpMyAdmin when the panel row was written without MariaDB.
+		$admin->createDatabase($dbname, $user, $pass);
 	} catch (Throwable $e) {
 		return false;
 	}
@@ -802,10 +802,14 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 			return 'This database must be opened as its own user.';
 		}
 	}
+	// Per-database open: heal a panel row that never got CREATE DATABASE
+	// (or drifted grants) before checking the customer login.
+	if ($onlyDb !== '') {
+		kloxo_pma_repair_db_login($user, $pass, $onlyDb, $root);
+	}
 	$bad = kloxo_pma_check_login($user, $pass, $host);
 	if ($bad !== '' && $onlyDb !== ''
 		&& (str_contains($bad, 'Access denied') || str_contains($bad, '1045'))) {
-		// Panel row password and MariaDB drifted — push the panel password.
 		if (kloxo_pma_repair_db_login($user, $pass, $onlyDb, $root)) {
 			$bad = kloxo_pma_check_login($user, $pass, $host);
 		}
@@ -821,8 +825,9 @@ function kloxo_pma_write_signon_and_redirect(string $user, string $pass, string 
 	unset($_SESSION['PMA_single_signon_error_message']);
 	if ($onlyDb !== '') {
 		$pat = kloxo_pma_only_db_pattern($onlyDb);
+		// Array form: exact name after unescape (underscore must be escaped).
 		$_SESSION['PMA_single_signon_cfgupdate'] = array(
-			'only_db' => $pat !== '' ? $pat : $onlyDb,
+			'only_db' => array($pat !== '' ? $pat : $onlyDb),
 			// Server-merge keys; ShowCreateDb is global — config.inc.php
 			// also reads KloxoPmaSsoDb to hide "New database".
 			'hide_db' => '(information_schema|performance_schema|mysql|sys|phpmyadmin)',

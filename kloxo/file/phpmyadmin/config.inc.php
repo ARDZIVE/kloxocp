@@ -54,9 +54,13 @@ if ($kloxoPmaDb !== '' && preg_match('/^[A-Za-z0-9_]{1,64}$/', $kloxoPmaDb) === 
 	$cfg['ShowCreateDb'] = false;
 	$cfg['AllowUserDropDatabase'] = false;
 	// only_db: "_" and "%" are wildcards — escape for a literal name.
-	$cfg['Servers'][$i]['only_db'] = str_replace(
-		array('\\', '_', '%'),
-		array('\\\\', '\\_', '\\%'),
-		$kloxoPmaDb
+	// Array form so phpMyAdmin unescapes to the exact schema (string form
+	// with an unescaped "_" would LIKE-match other names and hide this one).
+	$cfg['Servers'][$i]['only_db'] = array(
+		str_replace(
+			array('\\', '_', '%'),
+			array('\\\\', '\\_', '\\%'),
+			$kloxoPmaDb
+		),
 	);
 }

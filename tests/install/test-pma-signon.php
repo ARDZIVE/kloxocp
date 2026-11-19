@@ -228,14 +228,17 @@ KloxoMariadb::$injected = $fakeMdb;
 $repaired = kloxo_pma_repair_db_login('bob_wp', 'bob-secret', 'bob_wp', $tmp);
 $joinedRepair = implode("\n", array_map(static fn (array $r): string => $r[0], $fakeMdb->log));
 KloxoMariadb::$injected = null;
-$check($repaired && str_contains($joinedRepair, "CREATE USER IF NOT EXISTS 'bob_wp'@'127.0.0.1'")
+$check($repaired && str_contains($joinedRepair, 'CREATE DATABASE IF NOT EXISTS `bob_wp`')
+	&& str_contains($joinedRepair, "CREATE USER IF NOT EXISTS 'bob_wp'@'127.0.0.1'")
 	&& str_contains($joinedRepair, "GRANT ALL PRIVILEGES ON `bob_wp`.*")
 	&& str_contains($joinedRepair, 'FLUSH PRIVILEGES'),
-	'1045 repair re-applies ensureUser + GRANT via kloxo_pma');
+	'repair creates the MariaDB schema then ensureUser + GRANT');
 $srcRepair = (string) file_get_contents($helper);
 $check(str_contains($srcRepair, 'kloxo_pma_repair_db_login')
-	&& str_contains($srcRepair, 'Access denied'),
-	'per-database sign-on retries after MariaDB 1045 repair');
+	&& str_contains($srcRepair, 'Access denied')
+	&& str_contains($srcRepair, 'createDatabase')
+	&& preg_match('/if \(\$onlyDb !== \'\'\) \{\s*kloxo_pma_repair_db_login/s', $srcRepair) === 1,
+	'per-database sign-on heals missing CREATE DATABASE before login check');
 $sqlSrc = (string) file_get_contents($root . '/kloxo/httpdocs/lib/php/sqlitelib.php');
 $check(!preg_match('/\$ret\[\$key\]\s*=\s*str_replace\("\'",\s*"\\\\\'"/', $sqlSrc),
 	'Sqlite::getToArray no longer stores backslash-escaped quotes in dbpassword');
