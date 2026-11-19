@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111921**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111922**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -999,23 +999,38 @@ Work in this order. Keep every change small, tested and committed separately. Do
    `systemctl --no-block` (full path) instead of `system("reboot")`.
    Reboot/Poweroff content tabs use capitalized labels (`pserver::rebootPropertyTabs`).
    Switch Program content tab is labelled **Switch Program**.
-   Backup / Restore is a modern AJAX console (beige tabs: **Backup / Restore**,
-   **Settings**, **File Manager**, **Upload**). Show (`lxbackup::showRawPrint` →
-   `KloxoBackupUi::renderConsole`) seeds the archive list from `__backup` and has
-   Create backup, Add archive (computer auto-upload / HTTPS URL / FTP), and
-   Restore / Download / Delete — no stacked Backup Now / Restore From File /
-   Restore From FTP forms (`createShowUpdateform` returns `[]`). Downloads use
-   `<a download data-kloxo-nobusy>` / `backup-api.php?action=download` (busy.js
-   skips that URL). Transfers use `theme/lbin/backup-api.php` (CSRF, chunked
-   upload 4 MiB parts, up to **10 GiB**), CSS/JS under `theme/css|js/kloxo-backup-ui.*`.
-   Settings merges remote FTP mirror + schedule (legacy `ftp_conf` /
-   `schedule_conf` still work). Panel limits: Hiawatha `MaxUploadSize = 10240`,
-   FPM `upload_max_filesize` / `post_max_size` `10240M`. Live console after
-   deploy is **UNVERIFIED**.
-    File download (`sa=download`) still skips panel HTML chrome and sends
-   `Content-Disposition: attachment` (`kloxo_send_download_headers`).
+   Backup / Restore has exactly five content tabs **Backup / Restore**,
+   **FTP Configuration**, **Schedule Configuration**, **File Manager**,
+   **Upload** (`lxbackup::backupPropertyTabs` forced). Show page sections:
+   Backup Now, Restore From File, Restore From FTP. Clicking **FTP Configuration**
+   or **Schedule Configuration** keeps `frm_o_o` lxbackup path (`getFullUrl` falls
+   back to `__http_vars`) so the tab is selected. FTP form matches Kloxo-MR
+   (FTP Server / Username / Password / Directory / upload flags / Upload Type
+   `ftp` / Updateall). Schedule form matches Kloxo-MR (Schedule Backup select,
+   Time To Backup, keep-count default 5, Updateall; always listed as a tab;
+   `checkButton('backupschedule_flag')` for the select). Clicking **File Manager**
+   keeps lxbackup+ffile path with `goback=1` tab hrefs so only File Manager is
+   selected; list toolbar is T Hidden / Remove / Copy and columns match Kloxo-MR.
+   File download (`sa=download`) skips the panel HTML chrome and sends
+   `Content-Disposition: attachment` (`kloxo_send_download_headers`) so a `.tgz`
+   is saved instead of shown as text.
+    Clicking **Upload** selects that tab and shows the three Kloxo-MR multi-upload
+    forms (local overwrite warning + file, HTTP URL, FTP credentials/file). After a
+    successful local `__backup` save the panel sets `__kloxo_skip_was`, flushes
+    `finishUploadRedirectNow` immediately, and for XHR returns a tiny **200**
+    body with Refresh / `X-Kloxo-Redirect` / `data-kloxo-redirect` (**no**
+    `Location` — XMLHttpRequest was following Location into a full File Manager
+    show and sitting on "Wait for redirecting..."). URL is built from the object
+    parent chain (`backupFileManagerPathArray`); the client rebuilds it from
+    form `frm_o_o` (`uploadRedirectFromForm`) and arms a 12s grace redirect.
     Root-owned `__backup` is re-chowned via `lxbackup::MakeSureDirectoryExists`
-    through kloxo-backend when needed. Backup Now / Restore (admin and client) go through
+    through kloxo-backend before the local write. Live Upload after this XHR
+    fix is **UNVERIFIED**. File
+    Manager and Upload create `__backup/` in-process when kloxo-backend is down
+    (`getFfileFromVirtualList`), keep `ttype=directory` for `/`, and print
+    Address `(Backup / Restore: …) /`. Forms still render when `sp_specialplay`
+    or `c_session` is missing (`get_image_path`, `getCSRFToken`,
+    `print_content_begin`). Backup Now / Restore (admin and client) go through
     `KloxoBackup` (`lib/php/kloxo_backup.php`): absolute `bin/common/backup.php`
     / `restore.php`, argument-array `mysqldump`/`mysql`/`tar`, `/var/vmail`
     packs for mmail, Ubuntu `www-data` on client restore. PHP 8 crashes that
@@ -1023,9 +1038,9 @@ Work in this order. Keep every change small, tested and committed separately. Do
     the object loops, no `getFromFileserv` on a null driver result, tgz
     metadata extract instead of unzip).     `lxbackup` writes the row before
     launching the job and resolves the parent from `client-admin` /
-    `client-<name>`. Backup Now stores the archive in
-    `/home/kloxo/client/<name>/__backup/` (`KloxoBackup::ensureDir`
-    / `installFile`, chown `lxlabs`); restore reads that same folder.
+    `client-<name>`. Backup Now stores the archive in the File Manager tab
+    directory (`/home/kloxo/client/<name>/__backup/`, `KloxoBackup::ensureDir`
+    / `installFile`, chown `lxlabs`); Restore From File reads that same folder.
     Backup Now on kloxo-backend (root) runs `lxbackup::backupAccountInProcess`
     in-process (writes Last Backup Status in the same request; nested
     `backup.php` remains for CLI/cron). `clearLxbackup` forces `dbaction=update`
@@ -1056,10 +1071,15 @@ Work in this order. Keep every change small, tested and committed separately. Do
     `restoreAccountInProcess` forces `__var_list_flag = false` and
     defaults accounts; `doCoreRestore` uses Throwable for the
     `kloxo.file`→`lxadmin.file` fallback and skips mail when
-    `contactemail` is empty. Tested: `tests/p2/test_backup.php` (114 ok),
-    `tests/p2/test_backup_ui.php` (chunked assemble + console wiring). Live
-    Backup Now / Restore / console upload after deploy is **UNVERIFIED**.
-    Each client has its own `/home/kloxo/client/<name>/__backup`.
+    `contactemail` is empty. Tested: `tests/p2/test_backup.php` (105
+    checks, fakes + local tar + File Manager store + slip + ARG_MAX-safe
+    extract + gadget unserialize + client restore invariants). Multi-GB Upload
+    that opened File Manager after the old 12s grace could toast **File uploaded**
+    while the archive was still/never in `__backup`; grace is size-scaled and
+    uses `upload_saving_refresh`; Backup FM shows the on-disk path; `*.uploading.*`
+    sidecars are promoted on list. Each client has its own
+    `/home/kloxo/client/<name>/__backup`. Live Backup Now / Restore From File /
+    File Manager listing after deploy is **UNVERIFIED**.
    Mail Server Settings has exactly three content tabs **Mail Server Settings**
    (selected on `sa=update`), **SMTP Protection** (was Spamdyke), **Whitelist IPs**
    (`ServerMail::servermailPropertyTabs` forced); Switch To Another via
@@ -1279,7 +1299,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111921**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111922**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

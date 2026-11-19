@@ -434,13 +434,13 @@ else
   bad "Hiawatha FastCGI uses 127.0.0.1:39000 and restarts after FPM"
 fi
 if grep -q '^BanOnMaxReqSize = 0' "$ROOT/kloxo/init/hiawatha.conf.base" \
-  && grep -q 'MaxUploadSize = 10240' "$ROOT/kloxo/init/hiawatha.conf.base" \
+  && grep -q 'MaxUploadSize = 5120' "$ROOT/kloxo/init/hiawatha.conf.base" \
   && grep -q 'TimeForRequest = 14400' "$ROOT/kloxo/init/hiawatha.conf.base" \
-  && grep -q 'upload_max_filesize] = 10240M' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
-  && grep -q 'post_max_size] = 10240M' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
-  ok "Hiawatha/PHP panel upload limit is 10240M (10GB)"
+  && grep -q 'upload_max_filesize] = 5120M' "$ROOT/kloxo/init/kloxo-php-fpm.conf" \
+  && grep -q 'post_max_size] = 5120M' "$ROOT/kloxo/init/kloxo-php-fpm.conf"; then
+  ok "Hiawatha/PHP panel upload limit is 5120M (5GB)"
 else
-  bad "Hiawatha/PHP panel upload limit is 10240M (10GB)"
+  bad "Hiawatha/PHP panel upload limit is 5120M (5GB)"
 fi
 if grep -q 'HIAWATHA_PATCH_ID="12.4-large-upload-v2"' "$HIA" \
   && [[ -f "$ROOT/kloxo/file/hiawatha/patches/12.4-large-upload.patch" ]] \

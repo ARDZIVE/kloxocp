@@ -2391,7 +2391,8 @@ $bakTabs = array('property' => array());
 $bak->createShowPropertyList($bakTabs);
 $bakForced = lxbackup::backupPropertyTabs();
 $bakFull = 'display.php?frm_action=show&frm_o_o[0][class]=client&frm_o_o[0][nname]=admin&frm_o_o[1][class]=lxbackup&frm_o_o[1][nname]=client-admin';
-$bakFullSettings = 'display.php?frm_action=updateform&frm_subaction=settings&frm_o_o[0][class]=lxbackup&frm_o_o[0][nname]=admin';
+$bakFullFtp = 'display.php?frm_action=updateform&frm_subaction=ftp_conf&frm_o_o[0][class]=lxbackup&frm_o_o[0][nname]=admin';
+$bakFullSched = '/display.php?frm_action=updateform&frm_subaction=schedule_conf&frm_o_o%5B0%5D%5Bclass%5D=lxbackup';
 $bakShow = kloxo_content_tab_label('lxbackup', $bakFull);
 $bakHomeBare = 'Home';
 $prevGblBak = $gbl ?? null;
@@ -2401,8 +2402,15 @@ if (!isset($gbl) || !is_object($gbl)) {
 $gbl->__c_object = $bak;
 $bakHomeBare = kloxo_content_tab_label('Home', 'display.php?frm_action=show');
 $gbl = $prevGblBak;
-$bakSettings = kloxo_content_tab_label('Update_settings', 'a=updateform&sa=settings');
-$bakSettingsFull = kloxo_content_tab_label('Update _settings', $bakFullSettings);
+$bakFtp = kloxo_content_tab_label('Update_ftp_conf', 'a=updateform&sa=ftp_conf');
+$bakFtpFull = kloxo_content_tab_label('Update _ftp_conf', $bakFullFtp);
+$bakSched = kloxo_content_tab_label('schedule_configuration', 'a=updateform&sa=schedule_conf');
+$bakSchedFull = kloxo_content_tab_label('', $bakFullSched);
+$bakNow = kloxo_content_tab_label('backup_now', 'a=updateform&sa=backup');
+$bakFile = kloxo_content_tab_label('restore_from_file', 'a=updateform&sa=restore_from_file');
+$bakFtpRest = kloxo_content_tab_label('', 'a=updateform&sa=restore_from_ftp');
+$bakBrowse = kloxo_content_tab_label('file', $bakFull . '&frm_o_o[2][class]=ffile&frm_o_o[2][nname]=/');
+$bakUpload = kloxo_content_tab_label('upload', $bakFull . '&frm_action=updateform&frm_subaction=upload&frm_o_o[2][class]=ffile&frm_o_o[2][nname]=/');
 $bakFf = new Ffile(null, 'localhost', '/home/kloxo/client/admin/__backup/', '/', 'lxlabs');
 $bakFf->nname = '/';
 $bakFf->root = '/home/kloxo/client/admin/__backup/';
@@ -2416,7 +2424,7 @@ try {
 }
 $bakForms = array();
 $bakFormErr = '';
-foreach (array('settings', 'ftp_conf', 'schedule_conf') as $bakSa) {
+foreach (array('backup', 'restore_from_file', 'restore_from_ftp', 'ftp_conf', 'schedule_conf') as $bakSa) {
 	try {
 		$bakForms[$bakSa] = $bak->updateform($bakSa, array());
 	} catch (Throwable $e) {
@@ -2425,43 +2433,137 @@ foreach (array('settings', 'ftp_conf', 'schedule_conf') as $bakSa) {
 	}
 }
 $bakShowForms = $bak->createShowUpdateform();
+$bakUploadMulti = null;
+$bakUploadForms = array();
+try {
+	$bakUploadMulti = $bakFf->getMultiUpload('upload');
+	foreach ((array) $bakUploadMulti as $bakUpSa) {
+		$bakUploadForms[$bakUpSa] = $bakFf->updateform($bakUpSa, array());
+	}
+} catch (Throwable $e) {
+	$bakFormErr .= 'upload:' . $e->getMessage() . ';';
+}
+$bakUpLocal = $bakUploadForms['upload_s'] ?? null;
+$bakUpHttp = $bakUploadForms['download_from_http'] ?? null;
+$bakUpFtp = $bakUploadForms['download_from_ftp'] ?? null;
+$bakUpFormsOk = is_array($bakUpLocal)
+	&& array_key_exists('upload_overwrite_f', $bakUpLocal)
+	&& is_array($bakUpLocal['upload_overwrite_f'] ?? null)
+	&& ($bakUpLocal['upload_overwrite_f'][0] ?? '') === 'W'
+	&& is_string($bakUpLocal['upload_overwrite_f'][1] ?? null)
+	&& str_contains((string) $bakUpLocal['upload_overwrite_f'][1], 'WARNING: Existing file will be overwritten')
+	&& array_key_exists('upload_file_f', $bakUpLocal)
+	&& ($bakUpLocal['__v_button'] ?? '') === 'Upload'
+	&& is_array($bakUpHttp)
+	&& array_key_exists('download_url_f', $bakUpHttp)
+	&& array_key_exists('download_overwrite_f', $bakUpHttp)
+	&& ($bakUpHttp['__v_button'] ?? '') === 'Upload'
+	&& is_array($bakUpFtp)
+	&& array_key_exists('download_ftp_f', $bakUpFtp)
+	&& array_key_exists('download_username_f', $bakUpFtp)
+	&& array_key_exists('download_password_f', $bakUpFtp)
+	&& array_key_exists('download_ftp_file_f', $bakUpFtp)
+	&& array_key_exists('download_overwrite_f', $bakUpFtp)
+	&& ($bakUpFtp['__v_button'] ?? '') === 'Upload'
+	&& kloxo_content_tab_label('Update_upload_s', 'a=updateform&sa=upload_s') === 'Upload'
+	&& kloxo_content_tab_label('Update_download_from_http', 'a=updateform&sa=download_from_http') === 'Upload (http)'
+	&& kloxo_content_tab_label('Update_download_from_ftp', 'a=updateform&sa=download_from_ftp') === 'Upload (ftp)';
 $bakSrc = (string) file_get_contents($doc . '/lib/html/lxbackuplib.php');
 $bakLib = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 $bakCore = (string) file_get_contents($doc . '/theme/coredisplaylib.php');
-$bakUi = (string) file_get_contents($doc . '/lib/php/kloxo_backup_ui.php');
 $bakProp = $bakTabs['property'] ?? array();
 $bakFfProp = $bakFfTabs['property'] ?? array();
 $bakFfHas = is_array($bakFfProp)
 	&& in_array('goback=1&a=show', $bakFfProp, true)
-	&& in_array('goback=1&a=updateform&sa=settings', $bakFfProp, true)
+	&& in_array('goback=1&a=updateform&sa=ftp_conf', $bakFfProp, true)
+	&& in_array('goback=1&a=updateform&sa=schedule_conf', $bakFfProp, true)
 	&& in_array('goback=1&a=show&l[class]=ffile&l[nname]=/', $bakFfProp, true)
 	&& in_array('goback=1&l[class]=ffile&l[nname]=/&a=updateform&sa=upload', $bakFfProp, true);
+$bakFfBlist = array();
+$bakFfBlistErr = '';
+try {
+	$bakFfBlist = Ffile::createListBlist($bakFf, 'ffile');
+} catch (Throwable $e) {
+	$bakFfBlistErr = $e->getMessage();
+}
+$bakFfTools = array();
+foreach ((array) $bakFfBlist as $bakFfBtn) {
+	$bakFfUrl = is_array($bakFfBtn) ? ($bakFfBtn[0] ?? '') : $bakFfBtn;
+	$bakFfTools[] = kloxo_content_tab_label('', is_string($bakFfUrl) ? $bakFfUrl : '');
+}
+$bakFfNlist = array();
+try {
+	$bakFfNlist = Ffile::createListNlist($bakFf, null);
+} catch (Throwable $e) {
+	$bakFfNlist = array('error' => $e->getMessage());
+}
 $bakTabCount = is_array($bakForced) ? count($bakForced) : 0;
-$bakSettingsForm = $bakForms['settings'] ?? null;
-$bakSchedType = is_array($bakSettingsForm) ? ($bakSettingsForm['backupschedule_type'] ?? null) : null;
-$bakSchedTime = is_array($bakSettingsForm) ? ($bakSettingsForm['backupschedule_time'] ?? null) : null;
-$bakFormOk = is_array($bakSettingsForm)
-	&& array_key_exists('ftp_server', $bakSettingsForm)
-	&& array_key_exists('rm_username', $bakSettingsForm)
-	&& array_key_exists('upload_to_ftp', $bakSettingsForm)
-	&& array_key_exists('backupschedule_type', $bakSettingsForm)
-	&& array_key_exists('backupschedule_time', $bakSettingsForm)
-	&& array_key_exists('rm_last_number', $bakSettingsForm)
+$bakFormOk = is_array($bakForms['backup'] ?? null)
+	&& array_key_exists('upload_to_ftp', $bakForms['backup'])
+	&& array_key_exists('backup_to_file_f', $bakForms['backup'])
+	&& ($bakForms['backup']['__v_button'] ?? '') === 'Backup Now'
+	&& is_array($bakForms['restore_from_file'] ?? null)
+	&& array_key_exists('backup_from_file_f', $bakForms['restore_from_file'])
+	&& ($bakForms['restore_from_file']['__v_button'] ?? '') === 'Start Restore Process'
+	&& is_array($bakForms['restore_from_ftp'] ?? null)
+	&& array_key_exists('ftp_server', $bakForms['restore_from_ftp'])
+	&& ($bakForms['restore_from_ftp']['__v_button'] ?? '') === 'Update'
+	&& is_array($bakForms['ftp_conf'] ?? null)
+	&& array_key_exists('ftp_server', $bakForms['ftp_conf'])
+	&& array_key_exists('rm_username', $bakForms['ftp_conf'])
+	&& array_key_exists('upload_to_ftp', $bakForms['ftp_conf'])
+	&& is_array($bakForms['schedule_conf'] ?? null)
+	&& array_key_exists('backupschedule_type', $bakForms['schedule_conf'])
+	&& array_key_exists('backupschedule_time', $bakForms['schedule_conf'])
+	&& array_key_exists('rm_last_number', $bakForms['schedule_conf'])
 	&& is_array($bakShowForms)
-	&& $bakShowForms === array()
+	&& array_key_exists('backup', $bakShowForms)
+	&& array_key_exists('restore_from_file', $bakShowForms)
+	&& array_key_exists('restore_from_ftp', $bakShowForms)
+	&& is_array($bakUploadMulti)
+	&& $bakUploadMulti === array('upload_s', 'download_from_http', 'download_from_ftp')
+	&& $bakUpFormsOk
 	&& $bakFormErr === '';
+$bakSchedForm = $bakForms['schedule_conf'] ?? null;
+$bakSchedType = is_array($bakSchedForm) ? ($bakSchedForm['backupschedule_type'] ?? null) : null;
+$bakSchedTime = is_array($bakSchedForm) ? ($bakSchedForm['backupschedule_time'] ?? null) : null;
 if (($bakProp[0] ?? '') === 'a=show'
-	&& ($bakProp[1] ?? '') === 'a=updateform&sa=settings'
-	&& ($bakProp[2] ?? '') === 'a=show&l[class]=ffile&l[nname]=/'
-	&& ($bakProp[3] ?? '') === 'l[class]=ffile&l[nname]=/&a=updateform&sa=upload'
-	&& $bakTabCount === 4
+	&& ($bakProp[1] ?? '') === 'a=updateform&sa=ftp_conf'
+	&& ($bakProp[2] ?? '') === 'a=updateform&sa=schedule_conf'
+	&& ($bakProp[3] ?? '') === 'a=show&l[class]=ffile&l[nname]=/'
+	&& ($bakProp[4] ?? '') === 'l[class]=ffile&l[nname]=/&a=updateform&sa=upload'
+	&& $bakTabCount === 5
 	&& $bakForced === $bakProp
 	&& $bakShow === 'Backup / Restore'
 	&& $bakHomeBare === 'Backup / Restore'
-	&& $bakSettings === 'Settings'
-	&& $bakSettingsFull === 'Settings'
+	&& $bakFtp === 'FTP Configuration'
+	&& $bakFtpFull === 'FTP Configuration'
+	&& $bakSched === 'Schedule Configuration'
+	&& $bakSchedFull === 'Schedule Configuration'
+	&& $bakNow === 'Backup Now'
+	&& $bakFile === 'Restore From File'
+	&& $bakFtpRest === 'Restore From FTP'
+	&& $bakBrowse === 'File Manager'
+	&& $bakUpload === 'Upload'
 	&& $bakFfHas
+	&& $bakFfBlistErr === ''
+	&& $bakFfTools === array('T Hidden', 'Remove', 'Copy')
+	&& is_array($bakFfNlist)
+	&& array_keys($bakFfNlist) === array(
+		'ttype', 'size', 'nname', 'mtime', 'other_username', 'mode', 'pvrename', 'pvdownload')
 	&& $bakFormOk
+	&& is_array($bakForms['ftp_conf'] ?? null)
+	&& array_key_exists('ftp_server', $bakForms['ftp_conf'])
+	&& array_key_exists('rm_username', $bakForms['ftp_conf'])
+	&& array_key_exists('rm_password', $bakForms['ftp_conf'])
+	&& array_key_exists('rm_directory', $bakForms['ftp_conf'])
+	&& array_key_exists('upload_to_ftp', $bakForms['ftp_conf'])
+	&& array_key_exists('upload_type', $bakForms['ftp_conf'])
+	&& ($bakForms['ftp_conf']['upload_type'][0] ?? '') === 'M'
+	&& ($bakForms['ftp_conf']['upload_type'][1] ?? '') === 'ftp'
+	&& array_key_exists('no_local_copy_flag', $bakForms['ftp_conf'])
+	&& array_key_exists('dont_verify_ftp_f', $bakForms['ftp_conf'])
+	&& array_key_exists('__v_updateall_button', $bakForms['ftp_conf'])
 	&& is_array($bakSchedType) && ($bakSchedType[0] ?? '') === 's'
 	&& is_array($bakSchedType[1] ?? null)
 	&& in_array('disabled', $bakSchedType[1], true)
@@ -2471,31 +2573,42 @@ if (($bakProp[0] ?? '') === 'a=show'
 	&& is_array($bakSchedTime[1] ?? null) && in_array(6, $bakSchedTime[1], true)
 	&& (int) ($bak->backupschedule_time ?? -1) === 6
 	&& (int) ($bak->rm_last_number ?? -1) === 5
-	&& array_key_exists('__v_updateall_button', (array) $bakSettingsForm)
+	&& array_key_exists('__v_updateall_button', (array) $bakSchedForm)
 	&& kloxo_object_is_backup_page($bak)
 	&& kloxo_object_is_backup_page($bakFf)
-	&& str_contains($bakSrc, 'function showRawPrint')
-	&& str_contains($bakSrc, 'KloxoBackupUi::renderConsole')
 	&& str_contains($bakSrc, 'function backupPropertyTabs')
-	&& str_contains($bakSrc, "a=updateform&sa=settings")
-	&& str_contains($bakSrc, 'case "settings"')
-	&& str_contains($bakUi, '10737418240')
+	&& str_contains($bakSrc, "\$alist['property'] = self::backupPropertyTabs()")
+	&& str_contains($bakSrc, 'Backup / Restore')
+	&& str_contains($bakSrc, "case \"ftp_conf\"")
+	&& str_contains($bakSrc, "case \"schedule_conf\"")
+	&& str_contains($bakSrc, "checkButton('backupschedule_flag')")
+	&& !str_contains($bakSrc, "'__var_backupschedule_flag'")
 	&& str_contains($bakLib, 'function kloxo_backup_page_tab_label')
+	&& str_contains($bakLib, "\$cur === 'lxbackup'")
 	&& str_contains($bakCore, 'backupPropertyTabs()')) {
-	ok('Backup/Restore console tabs are Backup / Restore, Settings, File Manager, Upload');
+	ok('Backup/Restore page tabs are labelled Backup / Restore, FTP Configuration, Schedule Configuration');
 } else {
-	bad('Backup/Restore console tabs are Backup / Restore, Settings, File Manager, Upload',
+	bad('Backup/Restore page tabs are labelled Backup / Restore, FTP Configuration, Schedule Configuration',
 		'show=' . $bakShow . ' homeBare=' . $bakHomeBare
-			. ' settings=' . $bakSettings . '/' . $bakSettingsFull
+			. ' ftp=' . $bakFtp . '/' . $bakFtpFull . ' sched=' . $bakSched . '/' . $bakSchedFull
+			. ' now=' . $bakNow . ' file=' . $bakFile . ' restftp=' . $bakFtpRest
+			. ' browse=' . $bakBrowse . ' upload=' . $bakUpload
 			. ' props=' . implode(',', array_map('strval', $bakProp))
 			. ' ff=' . implode(',', array_map('strval', $bakFfProp))
 			. ' formErr=' . $bakFormErr
 			. ' formOk=' . ($bakFormOk ? '1' : '0')
-			. ' settingsKeys=' . implode(',', array_keys((array) ($bakForms['settings'] ?? array())))
+			. ' ftpKeys=' . implode(',', array_keys((array) ($bakForms['ftp_conf'] ?? array())))
 			. ' schedType=' . json_encode($bakSchedType)
 			. ' defaults=' . (string) ($bak->backupschedule_type ?? '')
 				. '/' . (string) ($bak->backupschedule_time ?? '')
-				. '/' . (string) ($bak->rm_last_number ?? ''));
+				. '/' . (string) ($bak->rm_last_number ?? '')
+			. ' fmTools=' . implode(',', $bakFfTools)
+			. ' fmCols=' . implode(',', array_keys((array) $bakFfNlist))
+			. ' fmBlistErr=' . $bakFfBlistErr
+			. ' upOk=' . ($bakUpFormsOk ? '1' : '0')
+			. ' upLocal=' . implode(',', array_keys((array) $bakUpLocal))
+			. ' upHttp=' . implode(',', array_keys((array) $bakUpHttp))
+			. ' upFtp=' . implode(',', array_keys((array) $bakUpFtp)));
 }
 
 include_once $doc . '/theme/coredisplaylib.php';
@@ -2505,7 +2618,8 @@ $bakPrevGbl2 = $gbl ?? null;
 $bakPrevHome = (isset($sgbl) && is_object($sgbl) && isset($sgbl->__path_program_home))
 	? $sgbl->__path_program_home : null;
 $bakRenderErr = '';
-$bakTabHtml = $bakShowHtml = $bakSettingsHtml = '';
+$bakTabHtml = $bakShowHtml = $bakFtpHtml = $bakSchedHtml = $bakFmHtml = $bakUpHtml = '';
+$bakFfLive = null;
 try {
 	if (!isset($gbl) || !is_object($gbl)) {
 		$gbl = new Gbl();
@@ -2538,55 +2652,89 @@ try {
 	__ac_desc_show($bak);
 	$bakShowHtml = (string) ob_get_clean();
 	$ghtml->__http_vars['frm_action'] = 'updateform';
-	$ghtml->__http_vars['frm_subaction'] = 'settings';
+	$ghtml->__http_vars['frm_subaction'] = 'ftp_conf';
 	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
 	ob_start();
 	__ac_desc_UpdateForm($bak);
-	$bakSettingsHtml = (string) ob_get_clean();
+	$bakFtpHtml = (string) ob_get_clean();
+	$ghtml->__http_vars['frm_subaction'] = 'schedule_conf';
+	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
+	ob_start();
+	__ac_desc_UpdateForm($bak);
+	$bakSchedHtml = (string) ob_get_clean();
+	$bakFfLive = $bak->getFfileFromVirtualList('/');
+	$gbl->__c_object = $bakFfLive;
+	$ghtml->__http_vars = array(
+		'frm_action' => 'show',
+		'frm_o_o' => array(
+			array('class' => 'client', 'nname' => 'admin'),
+			array('class' => 'lxbackup', 'nname' => 'client-admin'),
+			array('class' => 'ffile', 'nname' => '/'),
+		),
+	);
+	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
+	ob_start();
+	__ac_desc_show($bakFfLive);
+	$bakFmHtml = (string) ob_get_clean();
+	$ghtml->__http_vars['frm_action'] = 'updateform';
+	$ghtml->__http_vars['frm_subaction'] = 'upload';
+	unset($ghtml->frm_o_o, $ghtml->frm_action, $ghtml->frm_subaction);
+	ob_start();
+	__ac_desc_UpdateForm($bakFfLive);
+	$bakUpHtml = (string) ob_get_clean();
 } catch (Throwable $e) {
 	$bakRenderErr = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
 }
-$bakTwo = str_contains($bakTabHtml, 'Backup / Restore')
-	&& str_contains($bakTabHtml, 'Settings')
+$bakFive = str_contains($bakTabHtml, 'Backup / Restore')
+	&& str_contains($bakTabHtml, 'FTP Configuration')
+	&& str_contains($bakTabHtml, 'Schedule Configuration')
 	&& str_contains($bakTabHtml, 'File Manager')
 	&& str_contains($bakTabHtml, 'Upload');
-$bakShowOk = str_contains($bakShowHtml, 'kloxo-backup-ui')
-	&& str_contains($bakShowHtml, 'Backup now')
-	&& str_contains($bakShowHtml, 'From computer')
-	&& str_contains($bakShowHtml, 'From URL')
-	&& str_contains($bakShowHtml, 'From FTP')
-	&& str_contains($bakShowHtml, 'kloxo-backup-ui.js')
-	&& str_contains($bakShowHtml, 'kbu-tbody')
-	&& str_contains($bakShowHtml, 'kbu-restore-dialog')
-	&& str_contains($bakShowHtml, 'kbu-btn-restore-confirm')
-	&& str_contains($bakShowHtml, 'kbu-btn-upload')
-	&& str_contains($bakShowHtml, 'No archives yet')
-	&& !str_contains($bakShowHtml, 'method="dialog"')
-	&& !str_contains($bakShowHtml, 'Classic forms below');
-$bakSettingsOk = str_contains($bakSettingsHtml, 'Settings')
-	&& str_contains($bakSettingsHtml, 'frm_lxbackup_c_ftp_server')
-	&& str_contains($bakSettingsHtml, 'frm_lxbackup_c_rm_username')
-	&& str_contains($bakSettingsHtml, 'backupschedule_type')
-	&& str_contains($bakSettingsHtml, 'rm_last_number');
+$bakShowOk = str_contains($bakShowHtml, 'Backup Now')
+	&& str_contains($bakShowHtml, 'frm_lxbackup_c_backup_to_file_f')
+	&& str_contains($bakShowHtml, 'Restore From File')
+	&& str_contains($bakShowHtml, 'frm_lxbackup_c_backup_from_file_f')
+	&& str_contains($bakShowHtml, 'Restore From FTP');
+$bakFtpOk = str_contains($bakFtpHtml, 'FTP Configuration')
+	&& str_contains($bakFtpHtml, 'frm_lxbackup_c_ftp_server')
+	&& str_contains($bakFtpHtml, 'frm_lxbackup_c_rm_username')
+	&& str_contains($bakFtpHtml, 'frm_lxbackup_c_rm_password')
+	&& str_contains($bakFtpHtml, 'frm_lxbackup_c_rm_directory')
+	&& str_contains($bakFtpHtml, 'upload_to_ftp');
+$bakSchedOk = str_contains($bakSchedHtml, 'Schedule Configuration')
+	&& str_contains($bakSchedHtml, 'backupschedule_type')
+	&& str_contains($bakSchedHtml, 'backupschedule_time')
+	&& str_contains($bakSchedHtml, 'rm_last_number');
+$bakFmOk = is_object($bakFfLive)
+	&& (($bakFfLive->ttype ?? '') === 'directory')
+	&& str_contains($bakFmHtml, 'Address:')
+	&& str_contains($bakFmHtml, 'Backup / Restore');
+$bakUpOk = str_contains($bakUpHtml, 'WARNING: Existing file will be overwritten')
+	&& str_contains($bakUpHtml, 'upload_file_f')
+	&& str_contains($bakUpHtml, 'download_url_f')
+	&& str_contains($bakUpHtml, 'download_ftp_f');
 $bakImplode = str_contains($bakSrc, 'KloxoBackup::runRestore')
 	&& str_contains($bakSrc, 'KloxoBackup::runBackup')
 	&& str_contains($bakSrc, 'function fileManagerDir')
 	&& str_contains($bakSrc, 'KloxoBackup::installFile')
 	&& str_contains($bakSrc, 'MakeSureDirectoryExists')
-	&& str_contains($bakSrc, 'KloxoBackupUi::renderConsole')
 	&& str_contains($bakLib, 'function kloxo_ffile_is_backup_list')
 	&& str_contains((string) file_get_contents($doc . '/lib/html/lib.php'), 'method_exists($session, \'write\')')
 	&& str_contains($bakLib, "icon_name");
-if ($bakRenderErr === '' && $bakTwo && $bakShowOk && $bakSettingsOk && $bakImplode) {
-	ok('Backup/Restore console renders show + Settings (FTP and schedule)');
+if ($bakRenderErr === '' && $bakFive && $bakShowOk && $bakFtpOk && $bakSchedOk && $bakFmOk && $bakUpOk && $bakImplode) {
+	ok('Backup/Restore pages render Backup Now, FTP, Schedule, File Manager and Upload');
 } else {
-	bad('Backup/Restore console renders show + Settings (FTP and schedule)',
+	bad('Backup/Restore pages render Backup Now, FTP, Schedule, File Manager and Upload',
 		($bakRenderErr !== '' ? $bakRenderErr : '')
-			. ' tabs=' . ($bakTwo ? '1' : '0')
+			. ' tabs=' . ($bakFive ? '1' : '0')
 			. ' show=' . ($bakShowOk ? '1' : '0')
-			. ' settings=' . ($bakSettingsOk ? '1' : '0')
+			. ' ftp=' . ($bakFtpOk ? '1' : '0')
+			. ' sched=' . ($bakSchedOk ? '1' : '0')
+			. ' fm=' . ($bakFmOk ? '1' : '0')
+			. ' up=' . ($bakUpOk ? '1' : '0')
 			. ' implode=' . ($bakImplode ? '1' : '0')
-			. ' showHint=' . substr(preg_replace('/\s+/', ' ', strip_tags($bakShowHtml)), 0, 180));
+			. ' ttype=' . (is_object($bakFfLive) ? (string) ($bakFfLive->ttype ?? '') : 'none')
+			. ' fmHint=' . substr(preg_replace('/\s+/', ' ', strip_tags($bakFmHtml)), 0, 180));
 }
 if ($bakPrevHome !== null && isset($sgbl) && is_object($sgbl)) {
 	$sgbl->__path_program_home = $bakPrevHome;

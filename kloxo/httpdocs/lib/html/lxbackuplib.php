@@ -40,7 +40,6 @@ class lxbackup extends Lxdb
 	static $__acdesc_update_restore = array("", "", "Restore");
 	static $__acdesc_update_ftp_conf = array("", "", "FTP Configuration");
 	static $__acdesc_update_schedule_conf = array("", "", "Schedule Configuration");
-	static $__acdesc_update_settings = array("", "", "Settings");
 	static $__acdesc_update_restore_from_file = array("", "", "Restore From File");
 	static $__acdesc_update_restore_from_ftp = array("", "", "Restore From FTP");
 
@@ -169,7 +168,7 @@ class lxbackup extends Lxdb
 		// We need to write because the fixphpini reads everything from the database.
 		$this->write();
 
-		if ($this->subaction === 'schedule_conf' || $this->subaction === 'settings') {
+		if ($this->subaction === 'schedule_conf') {
 			if (is_file('/script/fix-cron-backup')) {
 				lxshell_background('sh', '/script/fix-cron-backup');
 			}
@@ -282,11 +281,6 @@ class lxbackup extends Lxdb
 		}
 
 		return $param;
-	}
-
-	function updateSettings($param)
-	{
-		return $this->updateFtp_conf($param);
 	}
 
 	function updateform($subaction, $param)
@@ -461,59 +455,6 @@ class lxbackup extends Lxdb
 
 				break;
 
-			case "settings":
-				// One Settings page: remote FTP mirror + schedule (replaces two tabs).
-				$vlist['ftp_server'] = null;
-				$vlist['rm_username'] = null;
-				$vlist['rm_password'] = null;
-				$vlist['rm_directory'] = null;
-				$vlist['upload_to_ftp'] = null;
-				$vlist['upload_type'] = array('M', 'ftp');
-				$vlist['no_local_copy_flag'] = null;
-				$vlist['dont_verify_ftp_f'] = null;
-
-				$simple = is_object($parent) && method_exists($parent, 'isSimpleBackup')
-					&& $parent->isSimpleBackup();
-				$sched = $simple
-					? array('disabled', 'weekly', 'monthly')
-					: array('disabled', 'daily', 'weekly', 'monthly');
-				if (!$this->backupschedule_type) {
-					$this->backupschedule_type = 'disabled';
-				}
-				$canSched = true;
-				try {
-					$who = is_object($parent) ? $parent : $this;
-					$canSched = method_exists($who, 'checkButton') ? $who->checkButton('backupschedule_flag') : true;
-				} catch (Throwable $e) {
-					$canSched = true;
-				}
-				if ($canSched) {
-					$vlist['backupschedule_type'] = array('s', $sched);
-				} else {
-					$vlist['backupschedule_type'] = array('M', 'Disabled');
-				}
-				$time = range(0, 23);
-				$isAdmin = is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin();
-				if ($isAdmin) {
-					$vlist['backupschedule_time'] = array('s', $time);
-				} else {
-					$vlist['backupschedule_time'] = array('M', null);
-				}
-				$parentName = (is_object($parent) && isset($parent->nname))
-					? (string) $parent->nname : '';
-				if ($parentName === 'admin' || $parentName === '') {
-					$this->setDefaultValue('backupschedule_time', 6);
-				} else {
-					$this->setDefaultValue('backupschedule_time', 18);
-				}
-				if (!isset($this->rm_last_number) || $this->rm_last_number === '' || $this->rm_last_number === null) {
-					$this->setDefaultValue('rm_last_number', 5);
-				}
-				$vlist['rm_last_number'] = null;
-				$vlist['__v_updateall_button'] = array();
-
-				break;
-
 			case "restore_from_ftp":
 				$vlist['prerestore_note_f'] = array('M', KloxoBackup::postRestoreNotes(array()));
 				$ftp = isset($this->ftp_server) ? trim((string) $this->ftp_server) : '';
@@ -562,11 +503,12 @@ class lxbackup extends Lxdb
 
 	static function backupPropertyTabs()
 	{
-		// Console on show; Settings = FTP + schedule; File Manager + Upload kept
-		// so browse/download/classic upload still work when AJAX is unavailable.
+		// Exactly five beige tabs (Kloxo-MR Backup / Restore page).
+		// Schedule is always listed (privilege gates the Schedule Backup select, not the tab).
 		return array(
 			'a=show',
-			'a=updateform&sa=settings',
+			'a=updateform&sa=ftp_conf',
+			'a=updateform&sa=schedule_conf',
 			'a=show&l[class]=ffile&l[nname]=/',
 			'l[class]=ffile&l[nname]=/&a=updateform&sa=upload',
 		);
@@ -582,72 +524,22 @@ class lxbackup extends Lxdb
 
 	function createShowAlist(&$alist, $subaction = null)
 	{
+	//	global $login;
+
+	//	$alist['__title_main'] = $login->getKeywordUc('actions');
+	//	$alist[] = 'a=updateform&sa=restore_from_file';
+	//	$alist[] = 'a=updateform&sa=restore_from_ftp';
+
 		return $alist;
 	}
 
 	function createShowUpdateform()
 	{
-		// Console owns Backup/Restore on show. Use Settings / File Manager / Upload tabs
-		// for FTP mirror, schedule, browse and classic upload — no duplicate forms here.
-		return array();
-	}
+		$uflist['backup'] = null;
+		$uflist['restore_from_file'] = null;
+		$uflist['restore_from_ftp'] = null;
 
-	function showRawPrint($subaction = null)
-	{
-		global $login;
-
-		if (!class_exists('KloxoBackupUi', false)) {
-			include_once dirname(__DIR__) . '/php/kloxo_backup_ui.php';
-		}
-		if (!class_exists('KloxoBackup', false)) {
-			include_once dirname(__DIR__) . '/php/kloxo_backup.php';
-		}
-		$parent = $this->backupParent();
-		$account = 'admin';
-		if (is_object($parent) && isset($parent->nname) && (string) $parent->nname !== '') {
-			$account = (string) $parent->nname;
-		} elseif (is_object($login) && method_exists($login, 'nname')) {
-			$account = (string) $login->nname;
-		}
-		$token = '';
-		if (function_exists('getCSRFToken')) {
-			try {
-				$token = (string) getCSRFToken();
-			} catch (Throwable $e) {
-				$token = '';
-			}
-		}
-		$ftpServer = isset($this->ftp_server) ? (string) $this->ftp_server : '';
-		$ftpUser = isset($this->rm_username) ? (string) $this->rm_username : '';
-		$dir = '';
-		$archives = array();
-		try {
-			$dir = KloxoBackup::backupDir('client', $account);
-			if (!is_dir($dir)) {
-				@mkdir($dir, 0755, true);
-			}
-			$archives = KloxoBackupUi::listArchives($dir);
-		} catch (Throwable $e) {
-			$archives = array();
-		}
-		KloxoBackupUi::renderConsole(array(
-			'account' => $account,
-			'token' => $token,
-			'api' => '/theme/lbin/backup-api.php',
-			'upload' => '/theme/lbin/backup-upload.php',
-			'dir' => $dir,
-			'archives' => $archives,
-			'writable' => ($dir !== '' && is_dir($dir) && is_writable($dir)),
-			'backupstage' => isset($this->backupstage) ? (string) $this->backupstage : '',
-			'restorestage' => isset($this->restorestage) ? (string) $this->restorestage : '',
-			'ftp_server' => $ftpServer,
-			'rm_username' => $ftpUser,
-			'rm_directory' => isset($this->rm_directory) ? (string) $this->rm_directory : '',
-			'has_ftp' => ($ftpServer !== '' && $ftpUser !== ''),
-			'schedule_type' => isset($this->backupschedule_type) ? (string) $this->backupschedule_type : 'disabled',
-			'schedule_time' => isset($this->backupschedule_time) ? (string) $this->backupschedule_time : '6',
-			'keep' => isset($this->rm_last_number) ? (string) $this->rm_last_number : '5',
-		));
+		return $uflist;
 	}
 
 	function getId()

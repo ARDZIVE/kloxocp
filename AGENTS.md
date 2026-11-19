@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026111921. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026111922. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -57,7 +57,7 @@ print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have
 text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
 htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
 The Update
-screen shows **10.1-2026111921** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026111922** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -182,31 +182,48 @@ keeps the path, selects that tab, and shows three forms (local Upload with
 overwrite warning + progress, Upload (http), Upload (ftp)). Clicking
 **Thumbnail** uses lowercase `a=updateform&sa=thumbnail` (selected) with
 Width/Height default `20` and Update. Live File Manager after deploy needs a
-tree with the getFullUrl path fallback. Backup / Restore has four beige tabs
-(**Backup / Restore** selected on show, **Settings**, **File Manager**, **Upload**).
-Show is an AJAX console (`KloxoBackupUi::renderConsole`, seeded archive list):
-Create backup, Add archive (computer auto-upload / HTTPS URL / FTP, up to 10 GB),
-Restore / Download / Delete — no stacked Backup Now / Restore From File /
-Restore From FTP forms (`createShowUpdateform` returns `[]`). Downloads skip the
-busy modal (`data-kloxo-nobusy` + `backup-api.php?action=download`). **Settings**
-merges remote FTP mirror + schedule (legacy `ftp_conf` / `schedule_conf` still
-work; schedule privilege uses `checkButton`). File Manager / Upload under backup
-keep those four tabs with **File Manager** / **Upload** selected (`goback=1`):
-Address `(Backup / Restore: …) /`, classic browse/upload escape hatches. Bare
-Home tab label maps to **Backup / Restore** when current object is lxbackup.
-File Manager and Upload under Backup create `__backup/` locally if kloxo-backend
-is down. Backend still goes through `KloxoBackup` (absolute backup.php /
-restore.php, argument-array mysqldump, `/var/vmail` packs, Ubuntu `www-data` on
-restore; PHP 8 `unbackup` / null fileserv fixed). Restore lists archive members
-and refuses `../` / absolute paths (`extractArchive`); `kloxo.file` uses an
-allow-list (`unserializeMetadata`). Archives land in `__backup/`
-(`ensureDir` / `installFile`, owned by `lxlabs`). Backup on kloxo-backend runs
-`lxbackup::backupAccountInProcess` in-process; `clearLxbackup` forces
-`dbaction=update`; UI Restore skips `--priority=low` sleep. Help lists what is
-saved and leftover steps. Client restore: unselected domains/clients set
-`dbaction = clean`; empty account select means all; `doCoreRestore` falls back
-`kloxo.file`→`lxadmin.file` on Throwable. `tests/p2/test_backup.php` /
-`test_backup_ui.php`. Live Backup / Restore console after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
+tree with the getFullUrl path fallback. Backup / Restore has exactly five beige tabs
+(**Backup / Restore** selected on show, **FTP Configuration**, **Schedule Configuration**,
+**File Manager**, **Upload**): show has Backup Now / Restore From File /
+Restore From FTP; clicking **FTP Configuration** keeps the lxbackup path and
+selects that tab (FTP Server, Username, Password, Directory, Upload Files To
+Remote Server, Upload Type `ftp`, Dont Keep A Local Copy, Dont Verify FTP
+Credentials, Update / Updateall). Clicking **Schedule Configuration** keeps the
+path and selects that tab (Schedule Backup select default `disabled`, Time To
+Backup default `6` for admin, Keep This Many Backups On The Server default `5`,
+Update / Updateall; schedule privilege uses `checkButton`, tab always listed).
+File Manager under backup keeps those five tabs with **File Manager** selected
+(`goback=1` so Backup / Restore is not also selected): Address
+`(Backup / Restore: …) /`, toolbar T Hidden / Remove / Copy (+ Refresh/search/
+Showall), columns T / Size / File Name / Modified / Owner / Permissions / Rename /
+Download. Clicking **Upload** keeps lxbackup+ffile path with **Upload** selected
+(`goback=1`): three sections Upload / Upload (http) / Upload (ftp) (local file
+with overwrite warning + progress upload, URL + overwrite, FTP Server/Username/
+Password/File Name + overwrite). Bare Home tab label maps to **Backup / Restore**
+when current object is lxbackup (same frm_o_o path fix as PHP Configure). File Manager
+and Upload under Backup create `__backup/` locally if kloxo-backend is down, keep
+`ttype=directory` for `/`, and the address bar is `(Backup / Restore: …) /`.
+Schedule privilege is read from the parent client (`checkButton`). Backup Now /
+Restore for admin and client go through `KloxoBackup` (absolute backup.php /
+restore.php, argument-array mysqldump, `/var/vmail` mail     packs, Ubuntu
+`www-data` on restore; PHP 8 `unbackup` constant and null fileserv crashes
+fixed). Restore lists archive members and refuses `../` / absolute paths
+(`KloxoBackup::extractArchive`); `kloxo.file` is unserialized with an
+allow-list (`unserializeMetadata`), not a raw `unserialize`. Backup Now writes the archive into the same `__backup/` directory the
+File Manager tab lists (`KloxoBackup::ensureDir` / `installFile`, owned by
+`lxlabs`); Restore From File picks from that folder. Backup Now on kloxo-backend runs `lxbackup::backupAccountInProcess` in-process
+(sets Last Backup Status in the same request; `backup.php` stays for CLI/cron).
+`clearLxbackup` forces `dbaction=update`; pid locks are absolute and released.
+UI Restore skips the scheduled `--priority=low` sleep. Restore From File waits
+(`restoreAccountInProcess` / `runRestore`), applies web/DNS/mail/DKIM/certificates/DNS IPs,
+and lists leftover human steps on Last Restore Status. Help and the Backup Now / Restore forms show what is
+saved and what you still do by hand. Client Restore From File: unselected domains/clients set `dbaction = clean`
+    (was `==`, a no-op that still restored them); empty account select means
+    all; `restoreAccountInProcess` clears `__var_list_flag` and defaults
+    `_accountselect` to `all`; `doCoreRestore` falls back `kloxo.file`→`lxadmin.file`
+    on Throwable and skips notify mail when `contactemail` is empty.
+    `tests/p2/test_backup.php` (81 checks). Live Backup Now / Restore From File /
+    File Manager listing after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend

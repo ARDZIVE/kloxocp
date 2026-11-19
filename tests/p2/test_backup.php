@@ -975,22 +975,23 @@ check(str_contains($buSrc, 'php://input')
 	&& str_contains($buSrc, 'MakeSureDirectoryExists')
 	&& str_contains($buSrc, 'kloxo_backup_upload_message')
 	&& str_contains($buSrc, 'backup_dir_not_writable')
-	&& str_contains($buSrc, '10737418240'),
+	&& str_contains($buSrc, '5368709120'),
 	'backup-upload.php streams into client __backup with size/auth checks');
 check(str_contains($htmlUpload, 'onchange="fileSelected(this);"')
 	&& !str_contains($htmlUpload, 'onclick="fileSelected(this);')
 	&& str_contains($htmlUpload, 'function uploadFileTooLarge')
 	&& str_contains($htmlUpload, 'uploadFileTooLarge(fileInput)')
-	&& str_contains($htmlUpload, '10737418240')
+	&& str_contains($htmlUpload, '5368709120')
 	&& str_contains($htmlUpload, 'oXHR.timeout = 0')
 	&& str_contains($htmlUpload, "'GB'")
 	&& str_contains($htmlUpload, 'uploadShowToast')
 	&& str_contains($htmlUpload, 'uploadToastFailedScp')
-	&& str_contains($htmlUpload, '__backup'),
-	'Browser upload allows up to 10GB and toasts guidance on failure');
+	&& str_contains($htmlUpload, '__backup')
+	&& str_contains($htmlUpload, 'Upload (ftp)'),
+	'Browser upload allows up to 5GB and toasts scp guidance on failure');
 $msgUpload = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
 check(str_contains($msgUpload, 'ffile_updateform_upload_s_pre')
-	&& str_contains($msgUpload, '10')
+	&& str_contains($msgUpload, '5120')
 	&& str_contains($msgUpload, '/home/kloxo/client/admin/__backup/')
 	&& str_contains($msgUpload, 'upload_failed_use_scp')
 	&& str_contains($msgUpload, 'upload_saving_refresh')
@@ -1000,8 +1001,9 @@ check(str_contains($msgUpload, 'ffile_updateform_upload_s_pre')
 	&& str_contains($msgUpload, 'file_uploaded')
 	&& preg_match_all("/\\\$__emessage\\['backup_completed'\\]/", $msgUpload) === 1
 	&& preg_match_all("/\\\$__emessage\\['restore_completed'\\]/", $msgUpload) === 1
-	&& str_contains($msgUpload, 'Kloxo-MR'),
-	'Upload help/toast text covers 10GB limit and Kloxo-MR scp path');
+	&& str_contains($msgUpload, 'Kloxo-MR')
+	&& str_contains($msgUpload, 'Restore From File'),
+	'Upload help/toast text covers 5GB limit and Kloxo-MR scp path');
 check(str_contains($htmlUpload, 'uploadArmFailTimer()')
 	&& str_contains($htmlUpload, 'if (!uploadIsLargeBackup())')
 	&& str_contains($htmlUpload, 'Transfer finished — waiting for server')

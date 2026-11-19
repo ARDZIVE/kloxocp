@@ -9451,14 +9451,14 @@ class HtmlLib
 var iBytesUploaded = 0;
 var iBytesTotal = 0;
 var iPreviousBytesLoaded = 0;
-	// 10240 MiB: matches panel PHP upload_max_filesize and Hiawatha MaxUploadSize
-	// (requires install-hiawatha 12.4-large-upload patch; console uses chunked upload).
-	var iMaxFilesize = 10737418240;
+	// 5120 MiB: matches panel PHP upload_max_filesize and Hiawatha MaxUploadSize
+	// (requires install-hiawatha 12.4-large-upload patch).
+	var iMaxFilesize = 5368709120;
 	var oTimer = 0;
 	var sResultFileSize = '';
 <?php
 	global $g_language_mes;
-	$__upload_toast_too_large = 'File over 10 GB. Use scp/SFTP into __backup or Fetch from FTP, then restore from the list.';
+	$__upload_toast_too_large = 'File over 5 GB. Use scp/SFTP into __backup or Upload (ftp), then Restore From File.';
 	$__upload_toast_failed = 'Upload failed. For large or Kloxo-MR backups: scp into __backup, then Restore From File.';
 	$__upload_toast_saving = 'Transfer finished; server is still saving into __backup. Keep this tab open — do not refresh until File Manager opens.';
 	if (isset($g_language_mes) && is_object($g_language_mes)
@@ -10138,7 +10138,7 @@ function uploadAbort(e) { // upload abort
 					<div>&nbsp;</div>
 					<div id="progress_error2">Upload failed. If the folder is not writable: as root chown -R lxlabs:lxlabs the client __backup. Large/Kloxo-MR archives: scp into __backup, then Restore From File.</div>
 					<div id="progress_abort">The upload has been canceled by the user or the browser dropped the connection</div>
-					<div id="progress_warnsize">File over 10&nbsp;GB. Use scp/SFTP into <code>__backup</code> or Fetch from FTP, then restore from the list.</div>
+					<div id="progress_warnsize">File over 5&nbsp;GB. Use scp/SFTP into <code>__backup</code> or Upload (ftp), then Restore From File.</div>
 
 					<div id="progress_info">
 						<div id="progress_base"><div id="progress">0%</div></div>
