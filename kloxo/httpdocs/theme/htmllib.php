@@ -45,6 +45,38 @@ class HtmlLib
 		return is_string($j) && $j !== '' ? $j : '""';
 	}
 
+	/**
+	 * Allow-listed HTML target=… (and rel for _blank). Accepts bare names,
+	 * target="_blank", and kloxo_pma_link_attrs()-style strings that also
+	 * carry rel="noopener noreferrer" (list/tile parsers used to drop those).
+	 */
+	static function linkTargetAttr($target): string
+	{
+		$t = is_string($target) ? trim($target) : '';
+		if ($t === '') {
+			return '';
+		}
+		$name = '';
+		if (preg_match(
+			'/(?:^|\s)target\s*=\s*["\']?(mainframe|_blank|_self|_top|_parent|[A-Za-z0-9_-]+)["\']?/i',
+			$t,
+			$m
+		)) {
+			$name = (string) $m[1];
+		} elseif (preg_match('/^(mainframe|_blank|_self|_top|_parent|[A-Za-z0-9_-]+)$/i', $t, $m)) {
+			$name = (string) $m[1];
+		}
+		if ($name === '' || !preg_match('/^(mainframe|_blank|_self|_top|_parent|[A-Za-z0-9_-]+)$/i', $name)) {
+			return '';
+		}
+		$attr = 'target="' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+		if (strcasecmp($name, '_blank') === 0) {
+			$attr .= ' rel="noopener noreferrer"';
+		}
+
+		return $attr;
+	}
+
 	function __construct()
 	{
 		global $gbl, $sgbl;
@@ -1642,15 +1674,7 @@ class HtmlLib
 		$form_name = fix_nname_to_be_variable($form_name);
 		// Allow-listed form id + safe target/path (security GGG2).
 		$form_name = preg_replace('/[^A-Za-z0-9_]/', '', (string) $form_name) ?: 'kloxoform';
-		$targetAttr = '';
-		$t = is_string($target) ? trim($target) : '';
-		if ($t === 'target=_blank' || $t === 'target="_blank"' || strcasecmp($t, '_blank') === 0) {
-			$targetAttr = 'target="_blank"';
-		} elseif ($t === 'target=mainframe' || $t === 'target="mainframe"' || strcasecmp($t, 'mainframe') === 0) {
-			$targetAttr = 'target="mainframe"';
-		} elseif (preg_match('/^target=["\']?(mainframe|_blank|_self|_top|_parent)["\']?$/i', $t)) {
-			$targetAttr = 'target="' . preg_replace('/^target=["\']?|["\']$/i', '', $t) . '"';
-		}
+		$targetAttr = self::linkTargetAttr($target);
 	/*
 		if (csb($url, "http:/")) {
 			$formmethod = "get";
@@ -4450,13 +4474,7 @@ class HtmlLib
 				$urlHref = '#';
 			}
 			$urlHrefEsc = htmlspecialchars($urlHref, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-			$tgtRaw = trim((string) $target);
-			$tgtAttr = '';
-			if ($tgtRaw !== '' && preg_match('/^target=["\']?(mainframe|_blank|_self|_parent|_top|[A-Za-z0-9_-]+)["\']?$/i', $tgtRaw, $tm)) {
-				$tgtAttr = 'target="' . htmlspecialchars($tm[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
-			} elseif ($tgtRaw !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $tgtRaw)) {
-				$tgtAttr = 'target="' . htmlspecialchars($tgtRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
-			}
+			$tgtAttr = self::linkTargetAttr($target);
 ?>
 				<a class="insidelist" <?= $tgtAttr ?> <?= $urlhelp ?> <?= $downloadAttr ?> href="<?= $urlHrefEsc ?>"> <?= $pname ?> </a></span>
 			</td>

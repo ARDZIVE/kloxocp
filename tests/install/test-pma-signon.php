@@ -39,6 +39,14 @@ $check(kloxo_pma_is_loopback('127.0.0.1') && kloxo_pma_is_loopback('::1')
 	'loopback FastCGI REMOTE_ADDR is recognized');
 $check(str_contains(kloxo_pma_link_attrs(), 'target="_blank"')
 	&& str_contains(kloxo_pma_link_attrs(), 'noopener'), 'SQL Manager link opens a new tab');
+// List/tile HTML used to drop target when rel= was also present.
+require_once dirname(__DIR__, 2) . '/kloxo/httpdocs/theme/htmllib.php';
+$pmaTgt = HtmlLib::linkTargetAttr(kloxo_pma_link_attrs());
+$check(str_contains($pmaTgt, 'target="_blank"')
+	&& str_contains($pmaTgt, 'noopener')
+	&& HtmlLib::linkTargetAttr('javascript:alert(1)') === ''
+	&& HtmlLib::linkTargetAttr('_blank') === 'target="_blank" rel="noopener noreferrer"',
+	'list/tile target parser keeps _blank for SQL Manager (with rel)');
 $check(kloxo_pma_href(true, 'localhost') === '/thirdparty/phpMyAdmin/kloxo-signon.php', 'localhost SQL Manager href is phpMyAdmin sign-on');
 $check(kloxo_pma_login_is_admin() === false, 'SQL Manager admin check is false without a login');
 $pmaTile = kloxo_pma_action_object(true, 'localhost');
