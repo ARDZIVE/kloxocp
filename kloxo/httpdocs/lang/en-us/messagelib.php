@@ -834,7 +834,10 @@ $__information['pserver_updateform_commandcenter_pre'] = "<p>You can execute ssh
 
 // SSH Terminal paints its own WebConsole-like box; no extra help paragraph.
 
-// $__information['traceroute_list__pre'] = "<p>No information...</p>";
+$__information['traceroute_list__pre'] = "<p>Enter a host name or IP address and click <b>Trace</b>. ".
+	"The hop list below is from the last trace (stored for this login session).</p>".
+	"<p>Needs the <code>traceroute</code> or <code>iputils-tracepath</code> package on the server.</p>";
+$__information['traceroute_addform__pre'] = $__information['traceroute_list__pre'];
 
 $__information['phpini_updateform_edit_pre'] = $__information['phpini_updateform_edit_admin_pre'];
 

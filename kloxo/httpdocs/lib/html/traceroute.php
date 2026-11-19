@@ -1,13 +1,14 @@
-<?php 
+<?php
 
 class traceroute extends lxclass
 {
 
 	static $__desc = array("n", "",  "traceroute");
 	static $__desc_nname	 = array("n", "",  "");
-	static $__desc_ip	 = array("n", "",  "IP");
+	static $__desc_ip	 = array("n", "",  "host_/_ip");
 	static $__desc_responsetimes	 = array("n", "",  "response_time");
 	static $__acdesc_list = array("n", "",  "traceroute");
+	static $__acdesc_add = array("n", "",  "traceroute");
 
 	function write() {}
 	function get() {}
@@ -74,6 +75,76 @@ class traceroute extends lxclass
 		return $alist;
 	}
 
+	static function createListAddForm($parent, $class)
+	{
+		return true;
+	}
+
+	static function addform($parent, $class, $typetd = null)
+	{
+		$vlist['ip'] = null;
+		$vlist['__v_button'] = 'Trace';
+
+		return array('variable' => $vlist, 'action' => 'add');
+	}
+
+	/**
+	 * Store the target host in the panel session and reload the list.
+	 * Does not write a traceroute row (ephemeral hops only).
+	 */
+	static function add($parent, $class, $param)
+	{
+		global $gbl, $ghtml, $login;
+
+		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
+
+		$raw = '';
+		if (isset($param['ip']) && is_string($param['ip'])) {
+			$raw = trim($param['ip']);
+		} elseif (isset($param['nname']) && is_string($param['nname'])) {
+			$raw = trim($param['nname']);
+		}
+		$host = class_exists('KloxoTraceroute', false)
+			? KloxoTraceroute::safeHost($raw) : '';
+		if ($host === '') {
+			throw new lxException(
+				is_object($login) && method_exists($login, 'getThrow')
+					? $login->getThrow('invalid_ipaddress')
+					: 'invalid_ipaddress',
+				'ip',
+				$raw
+			);
+		}
+
+		if (is_object($gbl) && method_exists($gbl, 'setSessionV')) {
+			$gbl->setSessionV('__kloxo_traceroute_host', $host);
+		}
+
+		$url = '/display.php?frm_action=list&frm_o_cname=traceroute';
+		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+			try {
+				$u = $ghtml->getFullUrl('a=list&c=traceroute');
+				if (is_string($u) && $u !== '') {
+					$url = $u;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+		$sep = str_contains($url, '?') ? '&' : '?';
+		if (is_object($gbl)) {
+			$gbl->__this_redirect = $url . $sep . 'frm_smessage=updated_successfully'
+				. '&frm_m_smessage_data=' . rawurlencode('Traceroute ' . $host);
+		}
+		if (function_exists('kloxo_skip_was_now')) {
+			kloxo_skip_was_now();
+		}
+		if (function_exists('kloxo_finish_local_redirect')) {
+			kloxo_finish_local_redirect();
+		}
+
+		return $param;
+	}
+
 	static function createListNlist($parent, $view)
 	{
 		$nlist['ip'] = '10%';
@@ -92,28 +163,67 @@ class traceroute extends lxclass
 	static function perPage() { return 5000; }
 	static function initThisListRule($parent, $class) { return null; }
 
+	/** Session / request host for the hop list. */
+	static function targetHost()
+	{
+		global $gbl;
+
+		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
+		if (!class_exists('KloxoTraceroute', false)) {
+			return '';
+		}
+		$host = '';
+		if (is_object($gbl) && method_exists($gbl, 'getSessionV')) {
+			$v = $gbl->getSessionV('__kloxo_traceroute_host');
+			if (is_string($v)) {
+				$host = $v;
+			}
+		}
+		$host = KloxoTraceroute::safeHost(trim((string) $host));
+
+		return $host;
+	}
+
 	static function initThisList($parent, $class)
 	{
 		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
 
-		$host = class_exists('KloxoTraceroute', false)
-			? KloxoTraceroute::clientHost()
-			: '127.0.0.1';
+		$host = self::targetHost();
+		if ($host === '') {
+			// No destination yet — show the add form only (not a blank auto-run).
+			return array();
+		}
 
-		$_result = rl_exec_get(null, "localhost", array("traceroute", "exec_traceroute"), array($host));
+		$_result = null;
+		try {
+			if (function_exists('rl_exec_get')) {
+				$_result = rl_exec_get(null, 'localhost',
+					array('traceroute', 'exec_traceroute'), array($host), false);
+			}
+		} catch (Throwable $e) {
+			$_result = null;
+		}
+		if (!is_array($_result) || count($_result) === 0) {
+			// Backend down or no hops: try in-process (traceroute often needs no root).
+			$_result = self::exec_traceroute($host);
+		}
 
 		if (!is_array($_result) || count($_result) === 0) {
 			return array();
 		}
 
 		try {
-			$object = new Traceroute(null, null, '__name__');
-			$hops = $object->Net_Traceroute_Result($_result, "linux");
+			$object = new traceroute(null, null, '__name__');
+			$hops = $object->Net_Traceroute_Result($_result, 'linux');
 		} catch (Throwable $e) {
 			return array();
 		}
 
-		return is_array($hops) ? $hops : array();
+		if (!is_array($hops) || $hops === array()) {
+			return array();
+		}
+
+		return array_values($hops);
 	}
 
 	static function exec_traceroute($host)
@@ -420,4 +530,3 @@ class traceroute extends lxclass
 		return $this->_sysname;
 	}
 }
-

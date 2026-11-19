@@ -33,12 +33,21 @@ if ($lines === []) {
 }
 
 $src = (string)file_get_contents($root . '/kloxo/httpdocs/lib/html/traceroute.php');
-if (strpos($src, 'throw new lxException') === false
-    && !preg_match('/\bexec\s*\(/', $src)
-    && strpos($src, 'KloxoTraceroute::run') !== false) {
-    $ok('traceroute list does not throw or exec a shell string');
+if (!preg_match('/\bexec\s*\(/', $src)
+    && strpos($src, 'KloxoTraceroute::run') !== false
+    && strpos($src, 'createListAddForm') !== false
+    && strpos($src, '__kloxo_traceroute_host') !== false
+    && strpos($src, 'kloxo_finish_local_redirect') !== false
+    && strpos($src, "array('traceroute', 'exec_traceroute')") !== false) {
+    $ok('traceroute has Trace form, session host, backend+local run, no shell exec()');
 } else {
-    $bad('traceroute list does not throw or exec a shell string');
+    $bad('traceroute has Trace form, session host, backend+local run, no shell exec()');
+}
+$install = (string) file_get_contents($root . '/install.sh');
+if (str_contains($install, 'traceroute') && str_contains($install, 'iputils-tracepath')) {
+    $ok('install.sh packages traceroute and iputils-tracepath');
+} else {
+    $bad('install.sh packages traceroute and iputils-tracepath');
 }
 
 if (!class_exists('lxclass', false)) {

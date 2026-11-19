@@ -472,6 +472,7 @@ $__description["reversename"] = array("Reversename");
 $__description["all_reversedns"] = array("All Reverse DNS");
 $__description["all_reverse_dns"] = array("All Reverse DNS");
 $__description["traceroute"] = array("Traceroute");
+$__description["host_/_ip"] = array("Host / IP");
 $__description["IP"] = array("IP");
 $__description["response_time"] = array("Response Time");
 //$__description["cron_scheduled_task"] = array("Cron Scheduled Task");

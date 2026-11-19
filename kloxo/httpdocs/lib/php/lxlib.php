@@ -1701,7 +1701,7 @@ function kloxo_skip_find_class($class)
 		'llog', 'driver', 'phpini', 'lxbackup', 'serverweb', 'serverftp',
 		'sshconfig', 'lxguard', 'ufwfirewall', 'fail2ban', 'logwatch', 'sshclient', 'ffile', 'ticket', 'notification',
 		'lxupdate', 'dns', 'dnstemplate', 'dns_record_a', 'web', 'mmail', 'servermail', 'mail_graylist_wlist_a',
-		'mailqueue',
+		'mailqueue', 'traceroute',
 		'lxguardhitdisplay', 'rawlxguardhit', 'lxguardwhitelist', 'lxguardhit',
 		'dbadmin',
 	);

@@ -69,10 +69,24 @@ final class KloxoTraceroute
         if ($host === '') {
             return [];
         }
-        $bin = self::findBinary();
-        if ($bin === '') {
-            return [];
+        foreach (self::BINS as $bin) {
+            if (!is_executable($bin)) {
+                continue;
+            }
+            $lines = self::runBinary($bin, $host);
+            if ($lines !== []) {
+                return $lines;
+            }
         }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function runBinary(string $bin, string $host): array
+    {
         $args = str_contains($bin, 'tracepath')
             ? [$bin, '-n', $host]
             : [$bin, '-q', '1', '-n', '-w', '2', '-m', '15', $host];
@@ -80,15 +94,28 @@ final class KloxoTraceroute
         if (!is_resource($p)) {
             return [];
         }
-        stream_set_timeout($pipes[1], 20);
+        stream_set_timeout($pipes[1], 45);
+        if (isset($pipes[2]) && is_resource($pipes[2])) {
+            stream_set_timeout($pipes[2], 45);
+        }
         $out = stream_get_contents($pipes[1]);
+        $err = isset($pipes[2]) ? stream_get_contents($pipes[2]) : '';
         fclose($pipes[1]);
-        fclose($pipes[2]);
+        if (isset($pipes[2]) && is_resource($pipes[2])) {
+            fclose($pipes[2]);
+        }
         proc_close($p);
-        if (!is_string($out) || $out === '') {
+        $text = '';
+        if (is_string($out) && $out !== '') {
+            $text = $out;
+        } elseif (is_string($err) && $err !== '') {
+            // Some traceroute builds print the path on stderr.
+            $text = $err;
+        }
+        if ($text === '') {
             return [];
         }
-        $lines = preg_split('/\r\n|\n|\r/', $out);
+        $lines = preg_split('/\r\n|\n|\r/', $text);
         if (!is_array($lines)) {
             return [];
         }

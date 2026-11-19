@@ -56,7 +56,7 @@ KLOXO_GIT_URL="${KLOXO_GIT_URL:-https://github.com/ARDZIVE/kloxocp.git}"
 KLOXO_GIT_BRANCH="${KLOXO_GIT_BRANCH:-main}"
 KLOXO_SRC_DEFAULT="/usr/local/src/kloxo-cp"
 KLOXO_ROOT_DEFAULT="/opt/kloxo"
-KCP_VERSION="10.1-2026111910"
+KCP_VERSION="10.1-2026111911"
 
 # Default is full (Exim/Dovecot/Rspamd). Use --profile=core for a panel-only host.
 PROFILE="full"
@@ -726,7 +726,7 @@ wait_for_apt_locks
 apt-get install -y ca-certificates git curl openssl rsync \
   php-cli php-fpm php-mysql php-sqlite3 php-xml php-mbstring php-curl \
   mariadb-server nginx apache2 bind9 knot knot-dnsutils knot-dnssecutils \
-  pure-ftpd redis-server iproute2 ufw imagemagick \
+  pure-ftpd redis-server iproute2 traceroute iputils-tracepath ufw imagemagick \
   fail2ban python3-systemd nftables logwatch certbot \
   build-essential cmake make gcc pkg-config libssl-dev zlib1g-dev
 

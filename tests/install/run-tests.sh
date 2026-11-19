@@ -682,10 +682,12 @@ else
 fi
 check "php -l phpmodule__linuxlib.php" php -l "$ROOT/kloxo/httpdocs/driver/pserver/phpmodule__linuxlib.php"
 check "phpmodule list rows" php "$HERE/test_phpmodule.php"
-if grep -q 'KloxoTraceroute::run' "$ROOT/kloxo/httpdocs/lib/html/traceroute.php" && ! grep -q 'throw new lxException' "$ROOT/kloxo/httpdocs/lib/html/traceroute.php"; then
-  ok "traceroute list does not throw traceroute_failed"
+if grep -q 'KloxoTraceroute::run' "$ROOT/kloxo/httpdocs/lib/html/traceroute.php" \
+  && grep -q 'createListAddForm' "$ROOT/kloxo/httpdocs/lib/html/traceroute.php" \
+  && grep -q '__kloxo_traceroute_host' "$ROOT/kloxo/httpdocs/lib/html/traceroute.php"; then
+  ok "traceroute has Trace form and session host"
 else
-  bad "traceroute list does not throw traceroute_failed"
+  bad "traceroute has Trace form and session host"
 fi
 if grep -q 'setDefaultValue("realhostname"' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php" && grep -q 'realhostname = ' "$ROOT/kloxo/httpdocs/driver/pserver/pservercorelib.php"; then
   ok "server information prefills description and FQDN"
