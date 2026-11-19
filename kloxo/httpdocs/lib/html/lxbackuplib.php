@@ -587,12 +587,9 @@ class lxbackup extends Lxdb
 
 	function createShowUpdateform()
 	{
-		// Classic Backup Now / Restore forms under the console (reliable fallback).
-		$uflist['backup'] = null;
-		$uflist['restore_from_file'] = null;
-		$uflist['restore_from_ftp'] = null;
-
-		return $uflist;
+		// Console owns Backup/Restore on show. Use Settings / File Manager / Upload tabs
+		// for FTP mirror, schedule, browse and classic upload — no duplicate forms here.
+		return array();
 	}
 
 	function showRawPrint($subaction = null)
@@ -601,6 +598,9 @@ class lxbackup extends Lxdb
 
 		if (!class_exists('KloxoBackupUi', false)) {
 			include_once dirname(__DIR__) . '/php/kloxo_backup_ui.php';
+		}
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__) . '/php/kloxo_backup.php';
 		}
 		$parent = $this->backupParent();
 		$account = 'admin';
@@ -619,11 +619,25 @@ class lxbackup extends Lxdb
 		}
 		$ftpServer = isset($this->ftp_server) ? (string) $this->ftp_server : '';
 		$ftpUser = isset($this->rm_username) ? (string) $this->rm_username : '';
+		$dir = '';
+		$archives = array();
+		try {
+			$dir = KloxoBackup::backupDir('client', $account);
+			if (!is_dir($dir)) {
+				@mkdir($dir, 0755, true);
+			}
+			$archives = KloxoBackupUi::listArchives($dir);
+		} catch (Throwable $e) {
+			$archives = array();
+		}
 		KloxoBackupUi::renderConsole(array(
 			'account' => $account,
 			'token' => $token,
 			'api' => '/theme/lbin/backup-api.php',
 			'upload' => '/theme/lbin/backup-upload.php',
+			'dir' => $dir,
+			'archives' => $archives,
+			'writable' => ($dir !== '' && is_dir($dir) && is_writable($dir)),
 			'backupstage' => isset($this->backupstage) ? (string) $this->backupstage : '',
 			'restorestage' => isset($this->restorestage) ? (string) $this->restorestage : '',
 			'ftp_server' => $ftpServer,

@@ -287,20 +287,10 @@ $__information['resourceplan_show__pre'] = "<p><b>Note:</b> ".
 $__information['resourceplan_addform__pre'] = "<p>You can set 'Resource Plan' here and then create client based on it.</p>".
 	"<p>Note: for 'Number Of FastCGI Children', 'Unlimited' equal to '4'</p>";
 
-$__information['lxbackup_show__pre'] = "<p>Use the console below: <b>Backup now</b>, <b>Add archive</b> (computer / URL / FTP, up to 10&nbsp;GB), then <b>Restore</b> from the list. Settings holds remote FTP mirror and schedule.</p>".
-	"<p><b>A backup is a copy of this account</b> (for admin: everyone under you). It is not a copy of the whole server. The other machine must already have [%_programname_%] installed.</p>".
-	"<p><b>Saved:</b> panel records, website files, mail folders, customer databases, DKIM keys, Let's Encrypt files, and (admin) the mail database. Hostname, IPs, Switch Program and PHP versions are recorded so restore can apply them.</p>".
-	"<p><b>Not saved:</b> the panel itself, UFW, Fail2Ban, panel SSL, the recovery password.</p>".
-	"<p><b>Before you backup:</b> if you will restore on another server, match Switch Program (web, DNS, mail) and install the same PHP versions there first.</p>".
-	"<p><b>After restore:</b> web, DNS, mail, DKIM, certificates and DNS IPs are applied automatically. Last Restore Status lists anything still for you.</p>".
-	"<p><b>You may still need to:</b></p>".
-	"<ol>".
-	"<li>Point nameservers at this server at the registrar (when the IP changed).</li>".
-	"<li>Set Switch Program to match the backup if it was different, then sites are already rebuilt.</li>".
-	"<li>Install a missing PHP version on Webserver Configure and re-apply PHP Selected.</li>".
-	"<li>Redo UFW, Fail2Ban, panel SSL and the recovery password if you had customised them.</li>".
-	"</ol>".
-	"<p>Same server, same IP and programs: restore is enough. A failed backup or restore is reported instead of a half-done archive.</p>";
+$__information['lxbackup_show__pre'] = "<p><b>Backup / Restore</b> — create a backup, add an archive (computer / HTTPS URL / FTP, up to 10&nbsp;GB), then restore from the list. "
+	. "<b>Settings</b> = remote FTP mirror + schedule. <b>File Manager</b> / <b>Upload</b> tabs are available for browse and classic upload.</p>"
+	. "<p>A backup is a copy of this account (admin: everyone under you), not the whole server. Saved: panel records, sites, mail, DBs, DKIM, Let's Encrypt. "
+	. "Not saved: the panel itself, UFW, Fail2Ban, panel SSL, recovery password. After restore, web/DNS/mail are applied automatically; leftover steps appear in the status.</p>";
 
 $__information['lxbackup_updateform_backup_pre'] = $__information['lxbackup_show__pre'];
 

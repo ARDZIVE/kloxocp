@@ -628,7 +628,8 @@ final class KloxoBackupUi
 	{
 		$css = '/theme/css/kloxo-backup-ui.css';
 		$js = '/theme/js/kloxo-backup-ui.js';
-		$ver = '20261119b';
+		$ver = '20261119c';
+		$archives = (isset($cfg['archives']) && is_array($cfg['archives'])) ? $cfg['archives'] : array();
 		$boot = array(
 			'account' => (string) ($cfg['account'] ?? ''),
 			'token' => (string) ($cfg['token'] ?? ''),
@@ -636,6 +637,9 @@ final class KloxoBackupUi
 			'upload' => (string) ($cfg['upload'] ?? '/theme/lbin/backup-upload.php'),
 			'maxBytes' => self::MAX_BYTES,
 			'chunkBytes' => self::CHUNK_BYTES,
+			'dir' => (string) ($cfg['dir'] ?? ''),
+			'writable' => !empty($cfg['writable']),
+			'archives' => $archives,
 			'backupstage' => (string) ($cfg['backupstage'] ?? ''),
 			'restorestage' => (string) ($cfg['restorestage'] ?? ''),
 			'ftp' => array(
@@ -658,9 +662,26 @@ final class KloxoBackupUi
 		echo '<div id="kloxo-backup-ui" class="kbu" data-kloxo-nobusy="1">';
 		echo '<div class="kbu-hero">';
 		echo '<h2 class="kbu-title">Backup &amp; Restore</h2>';
-		echo '<p class="kbu-lead">Create a backup, add an archive (computer, HTTPS URL or FTP), then restore from the list. Archives up to <strong>10&nbsp;GB</strong>. Classic forms below still work if needed.</p>';
+		echo '<p class="kbu-lead">Create a backup, add an archive (computer, HTTPS URL or FTP), then restore from the list. Up to <strong>10&nbsp;GB</strong>.</p>';
 		if (($cfg['token'] ?? '') === '') {
 			echo '<p class="kbu-status is-err">Session token missing — refresh the page before using the console.</p>';
+		} elseif (empty($cfg['writable'])) {
+			$dirHint = (string) ($cfg['dir'] ?? '/home/kloxo/client/<account>/__backup');
+			echo '<p class="kbu-status is-err">Backup folder may not be writable: '
+				. htmlspecialchars($dirHint, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				. ' — as root: <code>chown -R lxlabs:lxlabs '
+				. htmlspecialchars(dirname($dirHint), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				. '</code></p>';
+		}
+		$stage = trim((string) ($cfg['backupstage'] ?? ''));
+		if ($stage !== '' && $stage !== 'done' && !str_starts_with($stage, 'done')) {
+			echo '<p class="kbu-status is-busy">Last backup status: '
+				. htmlspecialchars($stage, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+		}
+		$rst = trim((string) ($cfg['restorestage'] ?? ''));
+		if ($rst !== '' && !str_starts_with($rst, 'done')) {
+			echo '<p class="kbu-status is-busy">Last restore status: '
+				. htmlspecialchars($rst, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
 		}
 		echo '</div>';
 
@@ -689,14 +710,13 @@ final class KloxoBackupUi
 		echo '<div class="kbu-drop" id="kbu-drop" tabindex="0">';
 		echo '<input type="file" id="kbu-file" class="kbu-file" accept=".tgz,.tar.gz,.tar,.gz,.zip,application/gzip,application/x-gzip,application/x-tar,application/zip" />';
 		echo '<p class="kbu-drop-title">Drop a backup archive here, or click to browse</p>';
-		echo '<p class="kbu-hint">.tgz / .tar.gz / .zip — up to 10&nbsp;GB. Keep this tab open while uploading.</p>';
+		echo '<p class="kbu-hint">.tgz / .tar.gz / .zip — up to 10&nbsp;GB. Upload starts when you choose a file.</p>';
 		echo '</div>';
 		echo '<div class="kbu-progress" id="kbu-progress" hidden>';
 		echo '<div class="kbu-progress-bar"><div class="kbu-progress-fill" id="kbu-progress-fill"></div></div>';
 		echo '<div class="kbu-progress-meta"><span id="kbu-progress-pct">0%</span> <span id="kbu-progress-detail"></span></div>';
 		echo '</div>';
-		echo '<button type="button" class="kbu-btn kbu-btn-primary" id="kbu-btn-upload" disabled>Upload</button>';
-		echo '<button type="button" class="kbu-btn kbu-btn-ghost" id="kbu-btn-cancel-upload" hidden>Cancel</button>';
+		echo '<button type="button" class="kbu-btn kbu-btn-ghost" id="kbu-btn-cancel-upload" hidden>Cancel upload</button>';
 		echo '</div>';
 
 		echo '<div class="kbu-pane" data-pane="url" hidden>';
@@ -725,23 +745,61 @@ final class KloxoBackupUi
 		echo '<div class="kbu-card-b">';
 		echo '<div class="kbu-table-wrap"><table class="kbu-table" id="kbu-table">';
 		echo '<thead><tr><th>File</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>';
-		echo '<tbody id="kbu-tbody"><tr><td colspan="4" class="kbu-empty">Loading…</td></tr></tbody>';
-		echo '</table></div>';
+		echo '<tbody id="kbu-tbody">';
+		echo self::renderArchiveRowsHtml($archives);
+		echo '</tbody></table></div>';
 		echo '<div class="kbu-status" id="kbu-list-status" hidden></div>';
 		echo '</div></section>';
 
-		echo '<dialog class="kbu-dialog" id="kbu-restore-dialog">';
-		echo '<form method="dialog" class="kbu-dialog-inner">';
-		echo '<h3>Restore archive?</h3>';
+		echo '<div class="kbu-dialog" id="kbu-restore-dialog" hidden>';
+		echo '<div class="kbu-dialog-inner" role="dialog" aria-modal="true" aria-labelledby="kbu-restore-title">';
+		echo '<h3 id="kbu-restore-title">Restore archive?</h3>';
 		echo '<p id="kbu-restore-msg">This replaces account data from the selected backup. Continue only if you are sure.</p>';
-		echo '<menu class="kbu-dialog-actions">';
-		echo '<button type="submit" value="cancel" class="kbu-btn kbu-btn-ghost">Cancel</button>';
-		echo '<button type="submit" value="ok" class="kbu-btn kbu-btn-danger" id="kbu-btn-restore-confirm">Restore now</button>';
-		echo '</menu></form></dialog>';
+		echo '<div class="kbu-dialog-actions">';
+		echo '<button type="button" class="kbu-btn kbu-btn-ghost" id="kbu-btn-restore-cancel">Cancel</button>';
+		echo '<button type="button" class="kbu-btn kbu-btn-danger" id="kbu-btn-restore-confirm">Restore now</button>';
+		echo '</div></div></div>';
 
 		echo '</div>';
 		echo '<script type="application/json" id="kbu-boot">' . $bootJson . '</script>';
-		// No defer: panel frames sometimes finish paint before deferred scripts run.
 		echo '<script src="' . $jsEsc . '"></script>';
+	}
+
+	/**
+	 * @param list<array{name?:string,size?:int,mtime?:int,human?:string}> $archives
+	 */
+	public static function renderArchiveRowsHtml(array $archives): string
+	{
+		if ($archives === array()) {
+			return '<tr><td colspan="4" class="kbu-empty">No archives yet. Create a backup or add one above.</td></tr>';
+		}
+		$html = '';
+		foreach ($archives as $a) {
+			if (!is_array($a)) {
+				continue;
+			}
+			$name = (string) ($a['name'] ?? '');
+			if ($name === '') {
+				continue;
+			}
+			$size = isset($a['human']) ? (string) $a['human'] : self::humanBytes((int) ($a['size'] ?? 0));
+			$mtime = (int) ($a['mtime'] ?? 0);
+			$when = $mtime > 0 ? date('Y-m-d H:i', $mtime) : '—';
+			$esc = htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$html .= '<tr data-name="' . $esc . '">'
+				. '<td class="kbu-fname">' . $esc . '</td>'
+				. '<td>' . htmlspecialchars($size, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</td>'
+				. '<td>' . htmlspecialchars($when, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</td>'
+				. '<td>'
+				. '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-primary" data-act="restore">Restore</button> '
+				. '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-ghost" data-act="download">Download</button> '
+				. '<button type="button" class="kbu-btn kbu-btn-sm kbu-btn-ghost" data-act="delete">Delete</button>'
+				. '</td></tr>';
+		}
+		if ($html === '') {
+			return '<tr><td colspan="4" class="kbu-empty">No archives yet. Create a backup or add one above.</td></tr>';
+		}
+
+		return $html;
 	}
 }
