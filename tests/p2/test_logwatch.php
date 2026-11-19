@@ -293,6 +293,31 @@ if (str_contains($inc, 'kloxo_logwatch.php')
 } else {
 	bad('KloxoLogwatch is loadable for kloxo-backend rl_exec (Update / Email last report)');
 }
+$redirFn = '';
+if (preg_match('/function redirectToShow\(.*?^\\tfunction /sm', $lwSrc, $rm) === 1) {
+	$redirFn = $rm[0];
+}
+if ($redirFn !== ''
+	&& str_contains($redirFn, 'kloxo_finish_local_redirect')
+	&& !str_contains($redirFn, 'htmlspecialchars((string) $data')) {
+	ok('LogWatch Update redirects immediately (no login->was hang; no &#039; in toast data)');
+} else {
+	bad('LogWatch Update redirects immediately (no login->was hang; no &#039; in toast data)');
+}
+if (str_contains($lwSrc, "REQUEST_METHOD")
+	&& str_contains($lwSrc, 'Do not RPC status here')) {
+	ok('LogWatch Update POST skips status RPC before setSettings');
+} else {
+	bad('LogWatch Update POST skips status RPC before setSettings');
+}
+$lwLib = (string) file_get_contents($doc . '/lib/php/kloxo_logwatch.php');
+if (str_contains($lwLib, 'function runProc')
+	&& str_contains($lwLib, 'timeout after')
+	&& str_contains($lwLib, 'proc_terminate')) {
+	ok('logwatch/sendmail runs are time-bounded');
+} else {
+	bad('logwatch/sendmail runs are time-bounded');
+}
 
 $inst = (string) file_get_contents(dirname($root) . '/install.sh');
 if (str_contains($inst, 'prepare_logwatch')

@@ -495,40 +495,102 @@ final class KloxoLogwatch
      * @param list<string> $argv
      * @return array{code:int,out:string,err:string}
      */
-    private static function runCmdWithStdin(array $argv, string $stdin): array
+    /**
+     * @param list<string> $argv
+     * @return array{code:int,out:string,err:string}
+     */
+    private static function runCmdWithStdin(array $argv, string $stdin, int $timeoutSec = 60): array
     {
-        $desc = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $proc = @proc_open($argv, $desc, $pipes, null, null, ['bypass_shell' => true]);
-        if (!is_resource($proc)) {
-            return ['code' => 127, 'out' => '', 'err' => 'proc_open failed'];
-        }
-        fwrite($pipes[0], $stdin);
-        fclose($pipes[0]);
-        $out = stream_get_contents($pipes[1]) ?: '';
-        $err = stream_get_contents($pipes[2]) ?: '';
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        $code = proc_close($proc);
-
-        return ['code' => (int) $code, 'out' => $out, 'err' => $err];
+        return self::runProc($argv, $stdin, $timeoutSec);
     }
 
     /**
      * @param list<string> $argv
      * @return array{code:int,out:string,err:string}
      */
-    private static function runCmd(array $argv): array
+    private static function runCmd(array $argv, int $timeoutSec = 300): array
     {
+        return self::runProc($argv, null, $timeoutSec);
+    }
+
+    /**
+     * Bounded proc_open so a wedged logwatch/sendmail cannot stick the panel.
+     *
+     * @param list<string> $argv
+     * @return array{code:int,out:string,err:string}
+     */
+    private static function runProc(array $argv, ?string $stdin, int $timeoutSec): array
+    {
+        $timeoutSec = max(5, min(600, $timeoutSec));
         $desc = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
         $proc = @proc_open($argv, $desc, $pipes, null, null, ['bypass_shell' => true]);
         if (!is_resource($proc)) {
             return ['code' => 127, 'out' => '', 'err' => 'proc_open failed'];
         }
+        if ($stdin !== null) {
+            fwrite($pipes[0], $stdin);
+        }
         fclose($pipes[0]);
-        $out = stream_get_contents($pipes[1]) ?: '';
-        $err = stream_get_contents($pipes[2]) ?: '';
-        fclose($pipes[1]);
-        fclose($pipes[2]);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+        $out = '';
+        $err = '';
+        $deadline = microtime(true) + $timeoutSec;
+        while (true) {
+            $st = proc_get_status($proc);
+            $read = [];
+            if (is_resource($pipes[1])) {
+                $read[] = $pipes[1];
+            }
+            if (is_resource($pipes[2])) {
+                $read[] = $pipes[2];
+            }
+            if ($read !== []) {
+                $w = null;
+                $e = null;
+                $left = $deadline - microtime(true);
+                if ($left <= 0) {
+                    break;
+                }
+                $sec = (int) $left;
+                $usec = (int) (($left - $sec) * 1000000);
+                @stream_select($read, $w, $e, $sec, $usec);
+                foreach ($read as $r) {
+                    $chunk = fread($r, 8192);
+                    if ($chunk === false || $chunk === '') {
+                        continue;
+                    }
+                    if ($r === $pipes[1]) {
+                        $out .= $chunk;
+                    } else {
+                        $err .= $chunk;
+                    }
+                }
+            }
+            if (empty($st['running'])) {
+                break;
+            }
+            if (microtime(true) >= $deadline) {
+                @proc_terminate($proc, 9);
+                $err .= ($err !== '' ? "\n" : '') . 'timeout after ' . $timeoutSec . 's';
+                break;
+            }
+            usleep(20000);
+        }
+        if (is_resource($pipes[1])) {
+            $tail = stream_get_contents($pipes[1]);
+            if (is_string($tail) && $tail !== '') {
+                $out .= $tail;
+            }
+            fclose($pipes[1]);
+        }
+        if (is_resource($pipes[2])) {
+            $tail = stream_get_contents($pipes[2]);
+            if (is_string($tail) && $tail !== '') {
+                $err .= $tail;
+            }
+            fclose($pipes[2]);
+        }
         $code = proc_close($proc);
 
         return ['code' => (int) $code, 'out' => $out, 'err' => $err];

@@ -146,8 +146,15 @@ class logwatch extends lxclass
 			return $vlist;
 		}
 
-		$st = $this->execLw('status', array());
-		$cfg = (isset($st['config']) && is_array($st['config'])) ? $st['config'] : KloxoLogwatch::defaults();
+		// On Update POST, do_update() calls updateform only for the field list.
+		// Do not RPC status here — that second backend wait left "Please wait..."
+		// up while setSettings still had to run (and felt like a stuck Update).
+		$isPost = (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST');
+		$cfg = KloxoLogwatch::defaults();
+		if (!$isPost) {
+			$st = $this->execLw('status', array());
+			$cfg = (isset($st['config']) && is_array($st['config'])) ? $st['config'] : $cfg;
+		}
 		if (class_exists('KloxoLogwatch') && is_callable(array('KloxoLogwatch', 'normalizeConfig'))) {
 			try {
 				$cfg = KloxoLogwatch::normalizeConfig($cfg);
@@ -327,9 +334,19 @@ class logwatch extends lxclass
 		$tail = '&' . $flag . '=' . rawurlencode($msgKey);
 		if ((string) $data !== '') {
 			$dataKey = $error ? 'frm_m_emessage_data' : 'frm_m_smessage_data';
-			$tail .= '&' . $dataKey . '=' . rawurlencode(htmlspecialchars((string) $data, ENT_QUOTES));
+			// Plain text for the toast/query — do not pre-htmlspecialchars
+			// (that showed literal &#039; in the UI).
+			$tail .= '&' . $dataKey . '=' . rawurlencode((string) $data);
 		}
 		$gbl->__this_redirect = $this->urlFor('a=show') . $tail;
+		// Settings already applied via kloxo-backend. Skip login->was() and
+		// stub-redirect now so Update does not sit on Please wait...
+		if (function_exists('kloxo_finish_local_redirect')) {
+			kloxo_finish_local_redirect();
+		}
+		if (function_exists('kloxo_skip_was_now')) {
+			kloxo_skip_was_now();
+		}
 	}
 
 	function assertAdmin()
