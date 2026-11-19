@@ -459,9 +459,9 @@ $__information['easyinstaller_addform__pre'] = "<p>To install an application in 
 	"and you will be able to get same form with the new domain as the parent.</p>".
 	"<p>A message with login and url information will be sent to the contact email address you provide here.</p>";
 
-$__information['mysqldb_updateform_restore_pre'] = "<p>You can use this only to restore the backups that were explicitly taken in Kloxo CP ".
-	"itself using the <b>Get Backup</b> tab.</p>".
-	"<p>To restore normal mysql dump file, please use phpMyAdmin.</p>";
+$__information['mysqldb_updateform_restore_pre'] = "<p>Upload a <b>.sql</b> dump from this panel's <b>Backup Now</b> tab, ".
+	"or a Kloxo CP database archive. The dump is imported into this database.</p>".
+	"<p>For other tools' dumps you can also use SQL Manager (phpMyAdmin).</p>";
 
 $__information['updateform_search_engine_pre'] = "<p>Some engines may require your e-mail confirmation for submission.</p>".
 	"<p>Do not enter your main e-mail address, since you may recieve spam messages.</p>".

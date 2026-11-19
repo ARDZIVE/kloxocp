@@ -716,6 +716,18 @@ check(str_contains($ddb, 'function updateBackup')
 	&& str_contains($lxdb, 'kloxo_dbbackup_frame')
 	&& str_contains($lxdb, '__v_form_iframe'),
 	'MySQL Backup Now dumps .sql (iframe form) instead of a blank tab');
+check(str_contains($ddb, 'function updateRestore')
+	&& str_contains($ddb, 'resolveMysqldbRestoreSql')
+	&& str_contains($ddb, 'KloxoBackup::restoreMysql')
+	&& str_contains($ddb, 'frm_smessage=updated_successfully')
+	&& str_contains($mysql, 'function restoreFromFileserv')
+	&& str_contains($lxdb, "'Restore'"),
+	'MySQL Restore imports .sql and redirects with a toast (no blank page)');
+$lxlibSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
+check(str_contains($lxlibSrc, 'function kloxo_is_long_backend_update')
+	&& str_contains($lxlibSrc, "kloxo_request_object_class() !== 'lxbackup'")
+	&& str_contains($lxlibSrc, 'restore_confirm_confirm'),
+	'MySQL Restore is not treated as a long lxbackup job');
 // Runtime: dumpMysql path used by updateBackup writes a .sql file.
 $mdbDir = sys_get_temp_dir() . '/kloxo-mysqldb-bak-' . getmypid();
 @mkdir($mdbDir, 0700, true);

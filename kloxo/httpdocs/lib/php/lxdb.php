@@ -142,7 +142,10 @@ abstract class Lxdb extends Lxclass
 				return $vlist;
 
 			case "restore":
+				$vlist['__v_info'] = array('M',
+					'Upload a .sql dump from Backup Now, or a Kloxo CP database archive.');
 				$vlist['restore_file_f'] = null;
+				$vlist['__v_button'] = 'Restore';
 				$sgbl->method = 'post';
 
 				return $vlist;

@@ -183,6 +183,44 @@ class Mysqldb__mysql extends lxDriverClass
 		KloxoBackup::restoreMysql((string) $dbname, (string) $dbuser, (string) $dbpass, (string) $docf);
 	}
 
+	/**
+	 * Restore a .sql registered with fileserv (panel Backup Now fallback).
+	 *
+	 * @param array{file:string,pass?:string,size?:int} $filepass
+	 */
+	static function restoreFromFileserv($dbname, $dbuser, $dbpass, $filepass)
+	{
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
+		$dbname = (string) $dbname;
+		if ($dbname === '' || preg_match('/^[A-Za-z0-9_]{1,64}$/', $dbname) !== 1) {
+			throw new Exception('invalid database name');
+		}
+		if (!is_array($filepass) || !isset($filepass['file'])) {
+			throw new Exception('missing fileserv token');
+		}
+		$dir = rtrim(sys_get_temp_dir(), '/') . '/kloxo-mysqldb-rfs-' . getmypid()
+			. '-' . bin2hex(random_bytes(4));
+		@mkdir($dir, 0700, true);
+		$docf = $dir . '/' . $dbname . '.sql';
+		try {
+			if (!function_exists('getFromFileserv')) {
+				throw new Exception('getFromFileserv missing');
+			}
+			getFromFileserv('localhost', $filepass, $docf);
+			if (!is_file($docf) || (int) filesize($docf) < 1) {
+				throw new Exception('empty restore file');
+			}
+			KloxoBackup::restoreMysql($dbname, (string) $dbuser, (string) $dbpass, $docf);
+
+			return 'ok';
+		} finally {
+			@unlink($docf);
+			@rmdir($dir);
+		}
+	}
+
 	function do_backup()
 	{
 		global $login;
@@ -251,19 +289,46 @@ class Mysqldb__mysql extends lxDriverClass
 		mkdir($vd, 0700);
 
 		$docf = "{$vd}/mysql-{$dbname}.dump";
+		$sqlDirect = "{$vd}/{$dbname}.sql";
 
-		try {
-			if (!class_exists('KloxoBackup', false)) {
-				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		// Plain .sql from Backup Now: copy as the import file.
+		$head = is_readable($docd) ? (string) @file_get_contents($docd, false, null, 0, 512) : '';
+		$plainSql = str_ends_with(strtolower((string) $docd), '.sql')
+			|| stripos($head, 'CREATE TABLE') !== false
+			|| stripos($head, 'INSERT INTO') !== false
+			|| str_starts_with(ltrim($head), '--');
+		if ($plainSql && is_readable($docd)) {
+			@copy($docd, $sqlDirect);
+			$docf = $sqlDirect;
+		} else {
+			try {
+				KloxoBackup::extractArchive($docd, $vd);
+			} catch (Throwable $e) {
+				lxshell_unzip('__system__', $vd, $docd);
 			}
-			KloxoBackup::extractArchive($docd, $vd);
-		} catch (Throwable $e) {
-			lxshell_unzip('__system__', $vd, $docd);
+		}
+
+		if (!lxfile_exists($docf)) {
+			// Prefer any .sql/.dump extracted from a legacy archive.
+			foreach ((array) @scandir($vd) as $f) {
+				if ($f === '.' || $f === '..') {
+					continue;
+				}
+				$low = strtolower($f);
+				if (str_ends_with($low, '.sql') || str_ends_with($low, '.dump')) {
+					$docf = $vd . '/' . $f;
+					break;
+				}
+			}
 		}
 
 		if (!lxfile_exists($docf)) {
 			log_log("restore", "- Not match $docf file for database");
 			lxfile_tmp_rm_rec($vd);
+			if (is_object($login) && method_exists($login, 'getThrow')) {
+				throw new lxException($login->getThrow('could_not_get_file'), '',
+					'no .sql dump in upload');
+			}
 
 			return;
 		}

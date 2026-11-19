@@ -711,6 +711,260 @@ class mysqldb extends databasecore
 		@rmdir($dir);
 	}
 
+	/**
+	 * Import an uploaded .sql (or legacy archive) into this database, then
+	 * redirect to show with a Status toast — never a blank deferred page.
+	 */
+	function updateRestore($param)
+	{
+		global $login, $gbl, $ghtml;
+
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
+		if (!function_exists('kloxo_pma_normalize_db_password')) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
+		}
+
+		$file = '';
+		if (isset($_FILES['restore_file_f']['tmp_name'])
+			&& is_string($_FILES['restore_file_f']['tmp_name'])) {
+			$file = $_FILES['restore_file_f']['tmp_name'];
+		}
+		$orig = '';
+		if (isset($_FILES['restore_file_f']['name']) && is_string($_FILES['restore_file_f']['name'])) {
+			$orig = $_FILES['restore_file_f']['name'];
+		}
+		if ($file === '' || !lxfile_exists($file)) {
+			throw new lxException(
+				is_object($login) ? $login->getThrow('could_not_get_file') : 'could_not_get_file',
+				'',
+				$orig !== '' ? $orig : $file
+			);
+		}
+		$size = @filesize($file);
+		if ($size === false || (int) $size < 1) {
+			throw new lxException(
+				is_object($login) ? $login->getThrow('could_not_get_file') : 'could_not_get_file',
+				'',
+				'empty upload'
+			);
+		}
+		// Cap at 512 MiB for panel upload restore (larger dumps → SQL Manager).
+		if ((int) $size > 512 * 1024 * 1024) {
+			throw new lxException(
+				is_object($login) ? $login->getThrow('file_too_large') : 'file_too_large',
+				'',
+				'512M'
+			);
+		}
+
+		$dbname = '';
+		if (isset($this->dbname) && is_string($this->dbname) && $this->dbname !== '') {
+			$dbname = $this->dbname;
+		} elseif (isset($this->nname) && is_string($this->nname)) {
+			$dbname = $this->nname;
+		}
+		if ($dbname === '' || preg_match('/^[A-Za-z0-9_]{1,64}$/', $dbname) !== 1) {
+			throw new lxException(
+				is_object($login) ? $login->getThrow('invalid_database_name') : 'invalid_database_name',
+				'',
+				$dbname
+			);
+		}
+
+		try {
+			$this->createExtraVariables();
+		} catch (Throwable $e) {
+		}
+		$admin = (isset($this->__var_dbadmin) && is_string($this->__var_dbadmin))
+			? $this->__var_dbadmin : '';
+		$adminPass = (isset($this->__var_dbpassword) && is_string($this->__var_dbpassword))
+			? $this->__var_dbpassword : '';
+		$user = (isset($this->username) && is_string($this->username)) ? $this->username : '';
+		$pass = (isset($this->dbpassword) && is_string($this->dbpassword)) ? $this->dbpassword : '';
+		if (function_exists('kloxo_pma_normalize_db_password')) {
+			$pass = kloxo_pma_normalize_db_password($pass);
+		}
+
+		$dir = rtrim(sys_get_temp_dir(), '/') . '/kloxo-mysqldb-restore-' . getmypid()
+			. '-' . bin2hex(random_bytes(4));
+		@mkdir($dir, 0700, true);
+		$sqlFile = '';
+		try {
+			$sqlFile = $this->resolveMysqldbRestoreSql($file, $orig, $dbname, $dir);
+			$attempts = array();
+			if ($admin !== '') {
+				$attempts[] = array($admin, $adminPass);
+			}
+			if ($user !== '' && ($user !== $admin || $pass !== $adminPass)) {
+				$attempts[] = array($user, $pass);
+			}
+			if ($attempts === array()) {
+				throw new lxException(
+					is_object($login) ? $login->getThrow('could_not_connect_to_db') : 'could_not_connect_to_db',
+					'',
+					'no database credentials'
+				);
+			}
+			$lastErr = '';
+			$ok = false;
+			foreach ($attempts as $cred) {
+				try {
+					KloxoBackup::restoreMysql($dbname, $cred[0], $cred[1], $sqlFile);
+					$ok = true;
+					$lastErr = '';
+					break;
+				} catch (Throwable $e) {
+					$lastErr = $e->getMessage();
+				}
+			}
+			if (!$ok) {
+				$sync = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
+					? $this->syncserver : 'localhost';
+				if (function_exists('rl_exec_get') && function_exists('cp_fileserv')) {
+					try {
+						$dumpUser = $admin !== '' ? $admin : $user;
+						$dumpPass = $admin !== '' ? $adminPass : $pass;
+						$serv = cp_fileserv($sqlFile);
+						$got = rl_exec_get(null, $sync, array('Mysqldb__mysql', 'restoreFromFileserv'),
+							array($dbname, $dumpUser, $dumpPass, $serv), false);
+						if ($got === true || $got === null || $got === 1 || $got === 'ok') {
+							$ok = true;
+							$lastErr = '';
+						} elseif (is_string($got) && $got !== '') {
+							$lastErr = $got;
+						}
+					} catch (Throwable $e) {
+						$lastErr = $e->getMessage();
+					}
+				}
+			}
+			if (!$ok) {
+				throw new lxException(
+					is_object($login) ? $login->getThrow('could_not_connect_to_db') : 'could_not_connect_to_db',
+					'',
+					$lastErr !== '' ? $lastErr : 'restore failed'
+				);
+			}
+		} finally {
+			$this->cleanupMysqldbDumpDir($dir);
+		}
+
+		$this->dbaction = 'clean';
+		$url = '/display.php?frm_action=show';
+		if (is_object($ghtml) && method_exists($ghtml, 'getFullUrl')) {
+			try {
+				$u = $ghtml->getFullUrl('a=show');
+				if (is_string($u) && $u !== '') {
+					$url = $u;
+				}
+			} catch (Throwable $e) {
+			}
+		}
+		$sep = str_contains($url, '?') ? '&' : '?';
+		if (is_object($gbl)) {
+			$gbl->__this_redirect = $url . $sep . 'frm_smessage=updated_successfully'
+				. '&frm_m_smessage_data=' . rawurlencode('Database');
+		}
+
+		return null;
+	}
+
+	/**
+	 * Turn an uploaded .sql or legacy zip/tgz into a path to a single .sql file.
+	 */
+	private function resolveMysqldbRestoreSql(string $upload, string $origName, string $dbname, string $dir): string
+	{
+		global $login;
+
+		$base = strtolower(basename($origName !== '' ? $origName : $upload));
+		$dest = $dir . '/upload.bin';
+		if (!@copy($upload, $dest) && !(function_exists('lxfile_cp') && lxfile_cp($upload, $dest))) {
+			throw new lxException(
+				is_object($login) ? $login->getThrow('could_not_get_file') : 'could_not_get_file',
+				'',
+				$origName
+			);
+		}
+
+		$head = (string) @file_get_contents($dest, false, null, 0, 2048);
+		$looksSql = str_starts_with(ltrim($head), '--')
+			|| stripos($head, 'CREATE TABLE') !== false
+			|| stripos($head, 'INSERT INTO') !== false
+			|| stripos($head, 'DROP TABLE') !== false
+			|| preg_match('/^\s*\/\*!/', $head) === 1;
+		if (str_ends_with($base, '.sql') || str_ends_with($base, '.dump') || $looksSql) {
+			$sql = $dir . '/' . $dbname . '.sql';
+			@rename($dest, $sql);
+			if (!is_file($sql)) {
+				@copy($dest, $sql);
+			}
+			if (!is_file($sql) || (int) filesize($sql) < 1) {
+				throw new lxException(
+					is_object($login) ? $login->getThrow('could_not_get_file') : 'could_not_get_file',
+					'',
+					'empty sql'
+				);
+			}
+
+			return $sql;
+		}
+
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/lib/php/kloxo_backup.php';
+		}
+		$ex = $dir . '/ex';
+		@mkdir($ex, 0700, true);
+		try {
+			KloxoBackup::extractArchive($dest, $ex);
+		} catch (Throwable $e) {
+			if (function_exists('lxshell_unzip')) {
+				lxshell_unzip('__system__', $ex, $dest);
+			} else {
+				throw new lxException(
+					is_object($login) ? $login->getThrow('could_not_get_file') : 'could_not_get_file',
+					'',
+					'not a sql dump or archive'
+				);
+			}
+		}
+
+		$prefer = array(
+			$ex . '/mysql-' . $dbname . '.dump',
+			$ex . '/' . $dbname . '.sql',
+			$ex . '/' . $dbname . '.dump',
+		);
+		foreach ($prefer as $cand) {
+			if (is_file($cand) && (int) filesize($cand) > 0) {
+				return $cand;
+			}
+		}
+		$found = '';
+		$it = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator($ex, FilesystemIterator::SKIP_DOTS)
+		);
+		foreach ($it as $info) {
+			if (!$info->isFile()) {
+				continue;
+			}
+			$name = strtolower($info->getFilename());
+			if (str_ends_with($name, '.sql') || str_ends_with($name, '.dump')) {
+				$found = $info->getPathname();
+				break;
+			}
+		}
+		if ($found === '' || !is_file($found)) {
+			throw new lxException(
+				is_object($login) ? $login->getThrow('could_not_get_file') : 'could_not_get_file',
+				'',
+				'no .sql in archive'
+			);
+		}
+
+		return $found;
+	}
+
 	function createShowPropertyList(&$alist)
 	{
 		global $gbl, $sgbl, $login, $ghtml;

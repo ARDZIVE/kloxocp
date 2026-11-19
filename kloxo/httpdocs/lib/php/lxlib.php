@@ -3662,7 +3662,9 @@ function kloxo_is_long_backend_update(): bool
 	if ($action !== 'update') {
 		return false;
 	}
-	if ($sub === 'backup' && kloxo_request_object_class() !== 'lxbackup') {
+	// Account Backup/Restore only. MySQL Database backup/restore are local
+	// dump/import (not the long lxbackup job that deferred chrome for).
+	if (kloxo_request_object_class() !== 'lxbackup') {
 		return false;
 	}
 
