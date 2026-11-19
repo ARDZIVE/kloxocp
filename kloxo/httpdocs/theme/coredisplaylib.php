@@ -2464,8 +2464,19 @@ function do_addform($object, $class, $dttype = null, $notitleflag = false)
 		$cdesc = $dttype['val'];
 	}
 
+	$ret = exec_class_method($class, 'addform', $object, $class, $dttype);
+	if (!is_array($ret)) {
+		$ret = array('variable' => array(), 'action' => 'add');
+	}
+	if (!isset($ret['variable']) || !is_array($ret['variable'])) {
+		$ret['variable'] = array();
+	}
+
 	if ($notitleflag) {
 		$title = null;
+	} elseif (isset($ret['variable']['__v_title']) && is_string($ret['variable']['__v_title'])
+		&& $ret['variable']['__v_title'] !== '') {
+		$title = $ret['variable']['__v_title'];
 	} else {
 		$title = "Add $cdesc";
 	}
@@ -2474,8 +2485,6 @@ function do_addform($object, $class, $dttype = null, $notitleflag = false)
 	$string[] = $ghtml->object_inherit_classpath();
 	$string[] = $ghtml->object_variable_hidden("frm_o_cname", $class);
 	$string[] = $ghtml->object_variable_hidden("frm_dttype", $dttype);
-
-	$ret = exec_class_method($class, 'addform', $object, $class, $dttype);
 
 	if (is_array($dttype) && isset($dttype['var'])) {
 		$ret['variable'][$dttype['var']] = array('h', $dttype['val'] ?? '');

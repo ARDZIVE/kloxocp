@@ -100,6 +100,7 @@ class traceroute extends lxclass
 	static function addform($parent, $class, $typetd = null)
 	{
 		$host = self::targetHost();
+		$vlist['__v_title'] = 'Host / IP Trace';
 		$vlist['ip'] = $host !== '' ? array('m', $host) : null;
 		$vlist['__v_button'] = 'Trace';
 
@@ -107,9 +108,8 @@ class traceroute extends lxclass
 	}
 
 	/**
-	 * Store the target host in the panel session and reload the list.
-	 * Does not write a traceroute row (ephemeral hops only).
-	 * Always exits via stub redirect when the panel helpers are loaded.
+	 * Run traceroute now (busy spinner covers this POST), store hops in the
+	 * session, then stub-redirect to the list. No DB row; never says "saved".
 	 *
 	 * @param array|null $param
 	 */
@@ -140,8 +140,10 @@ class traceroute extends lxclass
 			);
 		}
 
+		$lines = self::collectTraceLines($host);
 		if (is_object($gbl) && method_exists($gbl, 'setSessionV')) {
 			$gbl->setSessionV('__kloxo_traceroute_host', $host);
+			$gbl->setSessionV('__kloxo_traceroute_lines', is_array($lines) ? $lines : array());
 		}
 
 		$url = '/display.php?frm_action=list&frm_o_cname=traceroute';
@@ -156,9 +158,9 @@ class traceroute extends lxclass
 		}
 		$sep = str_contains($url, '?') ? '&' : '?';
 		if (is_object($gbl)) {
-			$gbl->__this_redirect = $url . $sep . 'frm_list_refresh=yes'
-				. '&frm_smessage=updated_successfully'
-				. '&frm_m_smessage_data=' . rawurlencode('Traceroute ' . $host);
+			// traceroute_completed → "Trace to google.com complete." (not "saved")
+			$gbl->__this_redirect = $url . $sep . 'frm_smessage=traceroute_completed'
+				. '&frm_m_smessage_data=' . rawurlencode($host);
 		}
 		if (function_exists('kloxo_skip_was_now')) {
 			kloxo_skip_was_now();
@@ -171,6 +173,33 @@ class traceroute extends lxclass
 			exit(0);
 		}
 		exit(0);
+	}
+
+	/**
+	 * Backend (root) then local. Used by Trace POST and by Refresh.
+	 *
+	 * @return list<string>
+	 */
+	static function collectTraceLines(string $host)
+	{
+		$host = trim($host);
+		if ($host === '') {
+			return array();
+		}
+		$lines = null;
+		try {
+			if (function_exists('rl_exec_get')) {
+				$lines = rl_exec_get(null, 'localhost',
+					array('traceroute', 'exec_traceroute'), array($host), false);
+			}
+		} catch (Throwable $e) {
+			$lines = null;
+		}
+		if (!is_array($lines) || count($lines) === 0) {
+			$lines = self::exec_traceroute($host);
+		}
+
+		return is_array($lines) ? array_values($lines) : array();
 	}
 
 	/**
@@ -250,29 +279,40 @@ class traceroute extends lxclass
 
 	static function initThisList($parent, $class)
 	{
+		global $gbl, $ghtml;
+
 		include_once dirname(__DIR__) . '/php/kloxo_traceroute.php';
 
 		$host = self::targetHost();
 		if ($host === '') {
-			// No destination yet — show the Trace form only (not a blank auto-run).
+			// Before Trace: form only, empty hop table.
 			return array();
 		}
 
-		$_result = null;
-		try {
-			if (function_exists('rl_exec_get')) {
-				$_result = rl_exec_get(null, 'localhost',
-					array('traceroute', 'exec_traceroute'), array($host), false);
-			}
-		} catch (Throwable $e) {
-			$_result = null;
+		$refresh = '';
+		if (is_object($ghtml) && isset($ghtml->frm_list_refresh)) {
+			$refresh = (string) $ghtml->frm_list_refresh;
 		}
-		if (!is_array($_result) || count($_result) === 0) {
-			// Backend down or no hops: try in-process (tracepath often needs no root).
-			$_result = self::exec_traceroute($host);
+		// Refresh: drop cached lines and run again (busy spinner covers the GET).
+		if ($refresh === 'yes' && is_object($gbl) && method_exists($gbl, 'unsetSessionV')) {
+			$gbl->unsetSessionV('__kloxo_traceroute_lines');
 		}
 
-		if (!is_array($_result) || count($_result) === 0) {
+		$_result = null;
+		if (is_object($gbl) && method_exists($gbl, 'getSessionV')) {
+			$cached = $gbl->getSessionV('__kloxo_traceroute_lines');
+			if (is_array($cached)) {
+				$_result = $cached;
+			}
+		}
+		if (!is_array($_result)) {
+			$_result = self::collectTraceLines($host);
+			if (is_object($gbl) && method_exists($gbl, 'setSessionV')) {
+				$gbl->setSessionV('__kloxo_traceroute_lines', $_result);
+			}
+		}
+
+		if (count($_result) === 0) {
 			return self::emptyResultRows($host);
 		}
 

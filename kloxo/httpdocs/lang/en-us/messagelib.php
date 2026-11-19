@@ -64,6 +64,7 @@ $__emessage['mis_changed'] = 'Display settings saved.';
 $__emessage['password_sent'] = 'Password reset and sent.';
 $__emessage['added_successfully'] = '[%s] added.';
 $__emessage['updated_successfully'] = '[%s] saved.';
+$__emessage['traceroute_completed'] = 'Trace to [%s] complete.';
 $__emessage['deleted_successfully'] = '[%s] deleted.';
 $__emessage['update_failed'] = 'Update failed: [%s]';
 $__emessage['enabled_successfully'] = '[%s] enabled.';

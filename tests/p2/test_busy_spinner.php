@@ -122,7 +122,7 @@ if ($domFin !== ''
 	&& str_contains($js, 'frm_smessage=')
 	&& str_contains($js, 'hasToastQuery()')
 	&& str_contains($html, 'kloxo-busy.js')
-	&& (str_contains($html, "'?v=15'") || str_contains($html, '"?v=15"'))
+	&& (str_contains($html, "'?v=17'") || str_contains($html, '"?v=17"'))
 	&& str_contains($js, 'MAX_AGE = 3 * 60 * 1000')
 	&& str_contains($js, 'MAX_WAIT = 3 * 60 * 1000')
 	&& str_contains($js, 'DELAY = 300')
@@ -325,16 +325,18 @@ if (preg_match('~var heavyRe = /(.+)/[gimuy]*;~', $js, $mH)) {
 		'/display.php?frm_action=update&frm_subaction=backup',
 		'/display.php?frm_action=show&frm_o_o[1][class]=fail2ban',
 		'/display.php?frm_action=list&frm_o_cname=service',
+		'frm_action=add&frm_o_cname=traceroute',
 		'frm_subaction=restore_confirm_confirm',
 	) as $u) {
 		if (!preg_match($heavy, $u)) {
 			$heavyOk = false;
 		}
 	}
-	if ($heavyOk && !preg_match($heavy, '/display.php?frm_action=show&frm_o_o[0][class]=client')) {
-		ok('heavy URL patterns cover Switch Program / Backup / Fail2Ban / Services');
+	if ($heavyOk && !preg_match($heavy, '/display.php?frm_action=show&frm_o_o[0][class]=client')
+		&& str_contains($js, 'Tracing route...')) {
+		ok('heavy URL patterns cover Switch Program / Backup / Fail2Ban / Services / Traceroute');
 	} else {
-		bad('heavy URL patterns cover Switch Program / Backup / Fail2Ban / Services');
+		bad('heavy URL patterns cover Switch Program / Backup / Fail2Ban / Services / Traceroute');
 	}
 } else {
 	bad('heavy URL patterns cover Switch Program / Backup / Fail2Ban / Services', 'heavyRe missing');

@@ -37,14 +37,33 @@ if (!preg_match('/\bexec\s*\(/', $src)
     && strpos($src, 'KloxoTraceroute::run') !== false
     && strpos($src, 'createListAddForm') !== false
     && strpos($src, '__kloxo_traceroute_host') !== false
+    && strpos($src, '__kloxo_traceroute_lines') !== false
+    && strpos($src, 'collectTraceLines') !== false
     && strpos($src, 'submitTraceAndRedirect') !== false
     && strpos($src, 'emptyResultRows') !== false
     && strpos($src, 'getquotaclass') !== false
+    && strpos($src, 'traceroute_completed') !== false
+    && strpos($src, 'updated_successfully') === false
     && strpos($src, 'kloxo_finish_local_redirect') !== false
     && strpos($src, "array('traceroute', 'exec_traceroute')") !== false) {
     $ok('traceroute has Trace form, session host, backend+local run, no shell exec()');
 } else {
     $bad('traceroute has Trace form, session host, backend+local run, no shell exec()');
+}
+
+$msg = (string) file_get_contents($root . '/kloxo/httpdocs/lang/en-us/messagelib.php');
+if (strpos($msg, "traceroute_completed'] = 'Trace to [%s] complete.'") !== false) {
+    $ok('toast says Trace complete, not saved');
+} else {
+    $bad('toast says Trace complete, not saved');
+}
+
+$busyJs = (string) file_get_contents($root . '/kloxo/httpdocs/theme/js/kloxo-busy.js');
+if (strpos($busyJs, 'frm_o_cname=(?:service|traceroute)') !== false
+    && strpos($busyJs, "Tracing route...") !== false) {
+    $ok('busy spinner treats Traceroute as heavy with Tracing route...');
+} else {
+    $bad('busy spinner treats Traceroute as heavy with Tracing route...');
 }
 
 $core = (string) file_get_contents($root . '/kloxo/httpdocs/theme/coredisplaylib.php');

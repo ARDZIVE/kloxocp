@@ -366,7 +366,7 @@
 	 * Switch Program, Backup/Restore, Fail2Ban, SSH Terminal, Multiple PHP,
 	 * fixweb/dns/mail, reboot, and similar slow pages/actions.
 	 */
-	var heavyRe = /(?:^|[?&#]|frm_)(?:subaction|action)=(?:switchprogram|backup|restore(?:_confirm(?:_confirm)?)?|start|stop|restart|toggle_state|toggle_boot_state|reboot|poweroff|installphp|phpbranch|multi(?:ple)?_?php|sitephp|fixweb|fixdns|fixmail|updateall|optimize|mysqlconvert|chown|hostname)|frm_o_cname=service|(?:\[class\]|%5Bclass%5D)=(?:fail2ban|sshclient|lxbackup|service|serverweb|ufwfirewall|logwatch)|(?:^|[?&])o=(?:fail2ban|sshclient|lxbackup|service|serverweb)|sa=(?:switchprogram|backup|restore)/i;
+	var heavyRe = /(?:^|[?&#]|frm_)(?:subaction|action)=(?:switchprogram|backup|restore(?:_confirm(?:_confirm)?)?|start|stop|restart|toggle_state|toggle_boot_state|reboot|poweroff|installphp|phpbranch|multi(?:ple)?_?php|sitephp|fixweb|fixdns|fixmail|updateall|optimize|mysqlconvert|chown|hostname)|frm_o_cname=(?:service|traceroute)|(?:\[class\]|%5Bclass%5D)=(?:fail2ban|sshclient|lxbackup|service|serverweb|ufwfirewall|logwatch)|(?:^|[?&])o=(?:fail2ban|sshclient|lxbackup|service|serverweb)|sa=(?:switchprogram|backup|restore)/i;
 
 	function isHeavy(src) {
 		return !!(src && heavyRe.test(String(src)));
@@ -400,6 +400,9 @@
 		}
 		if (/reboot|poweroff/i.test(s)) {
 			return 'Sending power command...';
+		}
+		if (/frm_o_cname=traceroute|traceroute/i.test(s)) {
+			return 'Tracing route...';
 		}
 		if (/frm_o_cname=service|\[class\]=service|%5Bclass%5D=service/i.test(s)) {
 			return 'Working on service...';

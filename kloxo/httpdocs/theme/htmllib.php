@@ -6264,7 +6264,7 @@ class HtmlLib
 		$this->print_jscript_source($preop_path);
 		$busyJs = str_replace(getcwd(), "", getLinkCustomfile("/theme/js", "kloxo-busy.js"));
 		if (is_string($busyJs) && $busyJs !== '' && !str_contains($busyJs, '?')) {
-			$busyJs .= '?v=16';
+			$busyJs .= '?v=17';
 		}
 		$__panel_csrf = function_exists('getCSRFToken') ? (string) getCSRFToken() : '';
 ?>

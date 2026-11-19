@@ -180,6 +180,7 @@ if (function_exists('kloxo_toast_plain')) {
 	$plainKey = kloxo_toast_plain('create_certificate_failed', 'certbot failed: ' . str_repeat('x', 80));
 	$plainFree = kloxo_toast_plain('Domain successfully deleted.');
 	$plainUpload = kloxo_toast_plain('file_uploaded');
+	$plainTrace = kloxo_toast_plain('traceroute_completed', 'google.com');
 	$okPlain = ($plainAdd === 'Client added.')
 		&& ($plainUpd === 'Password saved.')
 		&& ($plainUpdEmpty === 'Settings saved.')
@@ -189,12 +190,14 @@ if (function_exists('kloxo_toast_plain')) {
 		&& strlen($plainLong) <= 100
 		&& strlen($plainKey) <= 100
 		&& str_contains(strtolower($plainFree), 'deleted')
-		&& ($plainUpload === 'File uploaded.');
+		&& ($plainUpload === 'File uploaded.')
+		&& ($plainTrace === 'Trace to google.com complete.')
+		&& kloxo_toast_kind('traceroute_completed', 's') === 'success';
 	if ($okPlain) {
 		ok('kloxo_toast_plain is short, resolves keys, and names what was saved');
 	} else {
 		bad('kloxo_toast_plain is short, resolves keys, and names what was saved',
-			"add=$plainAdd upd=$plainUpd empty=$plainUpdEmpty del=$plainDel fail=$plainFail en=$plainEn");
+			"add=$plainAdd upd=$plainUpd empty=$plainUpdEmpty del=$plainDel fail=$plainFail en=$plainEn trace=$plainTrace");
 	}
 } else {
 	bad('kloxo_toast_plain is short, resolves keys, and names what was saved', 'missing function');
