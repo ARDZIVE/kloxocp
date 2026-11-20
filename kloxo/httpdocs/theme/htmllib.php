@@ -10812,7 +10812,7 @@ function uploadAbort(e) { // upload abort
 			$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind((string) $cgi_frm_smessage, 'info') : 'info';
 			$this->__toast_kind = $kind;
 			$plain = function_exists('kloxo_toast_plain')
-				? kloxo_toast_plain((string) $cgi_frm_smessage, $value, 100)
+				? kloxo_toast_plain((string) $cgi_frm_smessage, $value)
 				: (string) $cgi_frm_smessage;
 
 			if ($peek) {
@@ -10835,7 +10835,7 @@ function uploadAbort(e) { // upload abort
 			$kind = function_exists('kloxo_toast_kind') ? kloxo_toast_kind((string) $cgi_message, 'error') : 'error';
 			$this->__toast_kind = $kind;
 			$plain = function_exists('kloxo_toast_plain')
-				? kloxo_toast_plain((string) $cgi_message, $value, 100)
+				? kloxo_toast_plain((string) $cgi_message, $value)
 				: (string) $cgi_message;
 
 			if ($peek) {

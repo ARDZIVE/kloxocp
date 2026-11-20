@@ -1902,12 +1902,7 @@ function kloxo_toast_update_what($object = null, $subaction = null, $listClass =
 		&& stripos($label, $nname) === false
 		&& in_array($class, $entityClass, true)
 		&& !in_array($sa, $settingsSa, true)) {
-		$short = strlen($nname) > 24 ? (rtrim(substr($nname, 0, 23)) . '…') : $nname;
-		$label .= ' (' . $short . ')';
-	}
-
-	if (strlen($label) > 40) {
-		$label = rtrim(substr($label, 0, 39)) . '…';
+		$label .= ' (' . $nname . ')';
 	}
 
 	return $label;
@@ -1944,9 +1939,6 @@ function kloxo_toast_update_pair($object = null, $subaction = null, $listClass =
 		if ($entity === '' || preg_match('/^(enable|disable|restart)d?$/i', $entity) === 1) {
 			$entity = 'Item';
 		}
-		if (strlen($entity) > 40) {
-			$entity = rtrim(substr($entity, 0, 39)) . '…';
-		}
 		if ($sa === 'enable') {
 			return array('enabled_successfully', $entity);
 		}
@@ -1961,20 +1953,17 @@ function kloxo_toast_update_pair($object = null, $subaction = null, $listClass =
 }
 
 /**
- * Short plain text for Status / inline toasts. Resolves messagelib keys,
- * strips HTML and "click here" links, caps length. Always returns a non-empty
- * string when $message is non-empty.
+ * Plain toast copy: resolve messagelib keys, strip HTML/links, keep the full text.
+ * $max is ignored (kept for call-site compatibility); messages are not ellipsized.
+ * Always returns a non-empty string when $message is non-empty.
  */
-function kloxo_toast_plain($message, $value = '', int $max = 100): string
+function kloxo_toast_plain($message, $value = '', int $max = 0): string
 {
 	global $g_language_mes;
 
 	$key = trim(kloxo_string($message));
 	if ($key === '') {
 		return '';
-	}
-	if ($max < 24) {
-		$max = 24;
 	}
 
 	$text = $key;
@@ -2001,9 +1990,6 @@ function kloxo_toast_plain($message, $value = '', int $max = 100): string
 		$val = preg_replace('/\s+/', ' ', $val) ?? $val;
 		$val = preg_replace('/<[^>]+>/', '', $val) ?? $val;
 		$val = trim($val);
-		if (strlen($val) > 40) {
-			$val = rtrim(substr($val, 0, 39)) . '…';
-		}
 		if (str_contains($text, '[%s]') || str_contains($text, '[%cs]')) {
 			$text = str_replace(array('[%s]', '[%cs]'), $val, $text);
 		} elseif ($val !== '' && !str_contains($text, $val)) {
@@ -2030,9 +2016,6 @@ function kloxo_toast_plain($message, $value = '', int $max = 100): string
 	$text = trim($text, " \t:-");
 	if ($text === '') {
 		$text = kloxo_toast_humanize_key($key);
-	}
-	if (strlen($text) > $max) {
-		$text = rtrim(substr($text, 0, $max - 1)) . '…';
 	}
 
 	return $text;

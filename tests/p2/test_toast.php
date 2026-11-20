@@ -177,7 +177,8 @@ if (function_exists('kloxo_toast_plain')) {
 	$plainFail = kloxo_toast_plain('update_failed', 'Hostname');
 	$plainEn = kloxo_toast_plain('enabled_successfully', 'opcache');
 	$plainLong = kloxo_toast_plain('smtp_server_not_running');
-	$plainKey = kloxo_toast_plain('create_certificate_failed', 'certbot failed: ' . str_repeat('x', 80));
+	$detail = 'certbot failed: ' . str_repeat('x', 80);
+	$plainKey = kloxo_toast_plain('create_certificate_failed', $detail);
 	$plainFree = kloxo_toast_plain('Domain successfully deleted.');
 	$plainUpload = kloxo_toast_plain('file_uploaded');
 	$plainTrace = kloxo_toast_plain('traceroute_completed', 'google.com');
@@ -187,8 +188,10 @@ if (function_exists('kloxo_toast_plain')) {
 		&& ($plainDel === 'Domain deleted.')
 		&& ($plainFail === 'Update failed: Hostname')
 		&& ($plainEn === 'opcache enabled.')
-		&& strlen($plainLong) <= 100
-		&& strlen($plainKey) <= 100
+		&& ($plainLong === 'SMTP is not running. Panel mail will not send.')
+		&& str_contains($plainKey, $detail)
+		&& !str_contains($plainKey, '…')
+		&& !str_contains($plainLong, '…')
 		&& str_contains(strtolower($plainFree), 'deleted')
 		&& ($plainUpload === 'File uploaded.')
 		&& ($plainTrace === 'Trace to google.com complete.')
@@ -199,13 +202,13 @@ if (function_exists('kloxo_toast_plain')) {
 		&& kloxo_toast_kind('upload_saving_refresh', 's') === 'warning'
 		&& kloxo_toast_kind('upload_failed_use_scp', 'e') === 'error';
 	if ($okPlain) {
-		ok('kloxo_toast_plain is short, resolves keys, and names what was saved');
+		ok('kloxo_toast_plain shows the full message (no ellipsis cut-off)');
 	} else {
-		bad('kloxo_toast_plain is short, resolves keys, and names what was saved',
-			"add=$plainAdd upd=$plainUpd empty=$plainUpdEmpty del=$plainDel fail=$plainFail en=$plainEn trace=$plainTrace");
+		bad('kloxo_toast_plain shows the full message (no ellipsis cut-off)',
+			"add=$plainAdd upd=$plainUpd empty=$plainUpdEmpty del=$plainDel fail=$plainFail en=$plainEn long=$plainLong keyLen=" . strlen($plainKey));
 	}
 } else {
-	bad('kloxo_toast_plain is short, resolves keys, and names what was saved', 'missing function');
+	bad('kloxo_toast_plain shows the full message (no ellipsis cut-off)', 'missing function');
 }
 
 if (function_exists('kloxo_toast_update_what') && function_exists('kloxo_toast_update_pair')) {

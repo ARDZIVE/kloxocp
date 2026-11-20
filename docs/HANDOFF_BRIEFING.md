@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026111923**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026112001**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -474,7 +474,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     so a long restore/backup message is not jammed into Status / Show /
     Clock; it peeks `frm_emessage` / `frm_smessage` without consuming them
     and auto-opens for 15s. Toast copy is `kloxo_toast_plain` (short plain
-    text, HTML/links stripped, ~100 chars). Update/delete use language keys
+    text, HTML/links stripped; full message, no ellipsis). Update/delete use language keys
     `updated_successfully` / `deleted_successfully` / `update_failed`.
     Restore failure throws key `restore_failed`. All panel toasts (Status,
     `print_inline_alert`, login, form-load failures, password-force warning)
@@ -1299,7 +1299,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026111923**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026112001**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`
