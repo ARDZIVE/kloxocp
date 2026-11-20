@@ -272,10 +272,30 @@ class Mysqldb__mysql extends lxDriverClass
 				(string) ($cred['host'] ?? '127.0.0.1')
 			);
 		} catch (Throwable $e) {
+			$detail = $e->getMessage();
+			// Panel still has the mysqldb row but MariaDB dropped the schema
+			// (1049). Skip that DB so the rest of Backup Now can finish.
+			if (KloxoBackup::isUnknownDatabaseError($detail)) {
+				@unlink($docf);
+				$note = "{$vd}/mysql-{$dbname}.skipped.txt";
+				$safeDb = preg_match('/^[A-Za-z0-9_]{1,64}$/', $dbname) === 1 ? $dbname : 'database';
+				@file_put_contents(
+					$note,
+					"Skipped: MariaDB has no schema named {$safeDb}.\n"
+					. "The panel still lists this database; remove it under Databases "
+					. "or recreate it, then run Backup Now again if you need its data.\n"
+					. "mysqldump: {$detail}\n"
+				);
+				KloxoBackup::noteBackupWarning("skipped missing DB: {$safeDb}");
+				log_log("backup", "- Warning: skipped missing MariaDB schema '{$dbname}': {$detail}");
+				print("Skipped missing database '{$dbname}' (not in MariaDB)\n");
+
+				return array($vd, array(basename($note)));
+			}
 			lxfile_tmp_rm_rec($vd);
-			log_log("backup", "- Error '{$e->getMessage()}' for '{$dbname}'");
+			log_log("backup", "- Error '{$detail}' for '{$dbname}'");
 			if (is_object($login) && method_exists($login, 'getThrow')) {
-				throw new lxException($login->getThrow('could_not_connect_to_db'), '', $e->getMessage());
+				throw new lxException($login->getThrow('could_not_connect_to_db'), '', $detail);
 			}
 			throw $e;
 		}
@@ -353,6 +373,20 @@ class Mysqldb__mysql extends lxDriverClass
 		}
 
 		if (!lxfile_exists($docf)) {
+			// Backup Now may pack only a .skipped.txt when MariaDB had no schema.
+			$hadSkip = false;
+			foreach ((array) @scandir($vd) as $f) {
+				if (is_string($f) && str_ends_with(strtolower($f), '.skipped.txt')) {
+					$hadSkip = true;
+					break;
+				}
+			}
+			if ($hadSkip) {
+				log_log("restore", "- Skip restore of '{$dbname}': backup noted missing MariaDB schema");
+				lxfile_tmp_rm_rec($vd);
+
+				return;
+			}
 			log_log("restore", "- Not match $docf file for database");
 			lxfile_tmp_rm_rec($vd);
 			if (is_object($login) && method_exists($login, 'getThrow')) {

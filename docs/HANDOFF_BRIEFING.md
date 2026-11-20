@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026112003**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026112004**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -1033,10 +1033,13 @@ Work in this order. Keep every change small, tested and committed separately. Do
     `print_content_begin`). Backup Now / Restore (admin and client) go through
     `KloxoBackup` (`lib/php/kloxo_backup.php`): absolute `bin/common/backup.php`
     / `restore.php`, argument-array `mysqldump`/`mysql`/`tar`, `/var/vmail`
-    packs for mmail, Ubuntu `www-data` on client restore. Client mysqldb packs
+    packs for mmail, Ubuntu `www-data` on client restore.     Client mysqldb packs
     use `mysqlLoginForDump` → `kloxo_pma`@`127.0.0.1` from `pma.pass` (defaults
     file with `host=`; never `dbadmin` root over TCP — unix_socket / 1698).
-    Failed dumps append mysqldump stderr into `could_not_connect_to_db`. PHP 8
+    Failed dumps append mysqldump stderr into `could_not_connect_to_db`. A panel
+    mysqldb row whose MariaDB schema is gone (error 1049 / Unknown database) is
+    skipped (`.skipped.txt` note + Last Backup Status `done — skipped missing
+    DB: …`); other dump failures still abort the backup. PHP 8
     crashes that aborted every run are fixed (`getRpmBranchList('unbackup')`,
     `Throwable` in the object loops, no `getFromFileserv` on a null driver
     result, tgz metadata extract instead of unzip). `lxbackup` writes the row
@@ -1302,7 +1305,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026112003**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026112004**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

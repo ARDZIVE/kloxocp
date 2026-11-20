@@ -6567,6 +6567,17 @@ abstract class Lxclass
 				print("Failed for taking backup of '{$d->get__table()}:{$d->nname}'\n");
 				log_log("backup", "- Alert: Failed backup of '{$d->get__table()}:{$d->nname}'\n");
 				$table = method_exists($d, 'get__table') ? (string) $d->get__table() : '';
+				$exMsg = isset($ex->__full_message) ? (string) $ex->__full_message : $ex->getMessage();
+				// Orphan panel DB row (MariaDB 1049): do not abort the whole backup.
+				if ($table === 'mysqldb' && class_exists('KloxoBackup', false)
+					&& KloxoBackup::isUnknownDatabaseError($exMsg)) {
+					$skipName = isset($d->nname) ? (string) $d->nname : '';
+					KloxoBackup::noteBackupWarning(
+						'skipped missing DB: ' . ($skipName !== '' ? $skipName : 'database')
+					);
+					print("Skipped missing database '{$skipName}' (not in MariaDB)\n");
+					continue;
+				}
 				if (in_array($table, array('client', 'mysqldb', 'mmail'), true)) {
 					throw $ex;
 				}

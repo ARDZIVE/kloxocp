@@ -26,6 +26,64 @@ final class KloxoBackup
 	/** Tests skip systemd-run and only record the php argv. */
 	public static bool $launchDirect = false;
 
+	/**
+	 * Soft warnings collected during Backup Now (e.g. panel DB row with no
+	 * MariaDB schema). Cleared by takeBackupWarnings() after the job.
+	 *
+	 * @var list<string>
+	 */
+	public static array $backupWarnings = array();
+
+	public static function noteBackupWarning(string $msg): void
+	{
+		$msg = trim($msg);
+		if ($msg === '') {
+			return;
+		}
+		self::$backupWarnings[] = $msg;
+	}
+
+	/** @return list<string> */
+	public static function takeBackupWarnings(): array
+	{
+		$w = self::$backupWarnings;
+		self::$backupWarnings = array();
+
+		return $w;
+	}
+
+	/** Stage text: "done" or "done — skipped missing DB: …". */
+	public static function doneBackupStage(?array $warnings = null): string
+	{
+		if ($warnings === null) {
+			$warnings = self::takeBackupWarnings();
+		}
+		if ($warnings === array()) {
+			return 'done';
+		}
+		$bits = array();
+		foreach ($warnings as $w) {
+			$w = trim((string) $w);
+			if ($w !== '') {
+				$bits[] = $w;
+			}
+		}
+		if ($bits === array()) {
+			return 'done';
+		}
+
+		return 'done — ' . implode('; ', $bits);
+	}
+
+	/** True when mysqldump/MariaDB says the schema is gone (panel orphan row). */
+	public static function isUnknownDatabaseError(string $detail): bool
+	{
+		$d = strtolower($detail);
+
+		return str_contains($d, 'unknown database')
+			|| preg_match('/\b1049\b/', $d) === 1;
+	}
+
 	public static function programRoot(): string
 	{
 		if (function_exists('kloxo_program_root')) {

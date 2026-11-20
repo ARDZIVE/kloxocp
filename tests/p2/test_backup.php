@@ -155,6 +155,17 @@ $fallbackUser = KloxoBackup::mysqlLoginForDump('dbadminx', 'adminpass', '', '');
 check(($fallbackUser['user'] ?? '') === 'dbadminx'
 	|| ($fallbackUser['user'] ?? '') === 'kloxo_pma',
 	'mysqlLoginForDump accepts non-root dbadmin when pma unavailable or prefers pma');
+check(KloxoBackup::isUnknownDatabaseError('mysqldump: Got error: 1049: "Unknown database \'aklorcom_db\'"')
+	&& KloxoBackup::isUnknownDatabaseError('ERROR 1049 (42000): Unknown database')
+	&& !KloxoBackup::isUnknownDatabaseError('Access denied for user')
+	&& !KloxoBackup::isUnknownDatabaseError('mysqldump failed for x'),
+	'isUnknownDatabaseError matches MariaDB 1049 only');
+KloxoBackup::$backupWarnings = array();
+KloxoBackup::noteBackupWarning('skipped missing DB: aklorcom_db');
+check(KloxoBackup::doneBackupStage() === 'done — skipped missing DB: aklorcom_db'
+	&& KloxoBackup::$backupWarnings === array(),
+	'doneBackupStage appends skip warnings then clears them');
+check(KloxoBackup::doneBackupStage() === 'done', 'doneBackupStage is plain done with no warnings');
 $threw = false;
 try {
 	KloxoBackup::dumpArgv('/usr/bin/mysqldump', 'mysql', 'kloxo_pma', '');
@@ -769,8 +780,10 @@ check(str_contains($bak, '$this->write();')
 check(str_contains($mysql, 'KloxoBackup::dumpMysql')
 	&& str_contains($mysql, 'KloxoBackup::restoreMysql')
 	&& str_contains($mysql, 'KloxoBackup::mysqlLoginForDump')
+	&& str_contains($mysql, 'isUnknownDatabaseError')
+	&& str_contains($mysql, 'skipped missing DB')
 	&& !str_contains($mysql, 'system("{$cmd}'),
-	'mysqldb dump/restore uses mysqlLoginForDump (no system() shell)');
+	'mysqldb dump skips orphan 1049 DBs; other dump errors still fail');
 $ddb = (string) file_get_contents($doc . '/driver/pserver/ddatabaselib.php');
 $lxdb = (string) file_get_contents($doc . '/lib/php/lxdb.php');
 check(str_contains($ddb, 'function updateBackup')
@@ -827,8 +840,12 @@ check(str_contains($bphp, 'catch (Throwable')
 check(str_contains($lx, 'KloxoBackup::writeEnvironment')
 	&& str_contains($lx, 'KloxoBackup::packExtras')
 	&& str_contains($lx, 'KloxoBackup::applyAfterRestore')
-	&& str_contains($lx, "in_array(\$table, array('client', 'mysqldb', 'mmail')"),
-	'backup writes kloxo.env.json and extras; incomplete client/mail/db backup aborts');
+	&& str_contains($lx, "in_array(\$table, array('client', 'mysqldb', 'mmail')")
+	&& str_contains($lx, 'isUnknownDatabaseError'),
+	'backup writes kloxo.env.json; client/mail/db abort except orphan 1049 DBs');
+check(str_contains($bak, 'doneBackupStage')
+	&& str_contains((string) file_get_contents($repo . '/kloxo/bin/common/backup.php'), 'doneBackupStage'),
+	'Backup Now status records done — skipped missing DB warnings');
 check(!str_contains($rphp, 'fixdnschangeip')
 	&& str_contains($rphp, 'Still do by hand')
 	&& str_contains($rphp, 'Restore finished. No extra steps'),

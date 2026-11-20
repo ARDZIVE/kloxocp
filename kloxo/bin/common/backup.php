@@ -86,7 +86,12 @@ function backup_main()
 
 	try {
 		$backup->doUpdateBackup($param);
-		$backup->backupstage = 'done';
+		if (!class_exists('KloxoBackup', false)) {
+			include_once dirname(__DIR__, 2) . '/httpdocs/lib/php/kloxo_backup.php';
+		}
+		$backup->backupstage = class_exists('KloxoBackup', false)
+			? KloxoBackup::doneBackupStage()
+			: 'done';
 		$parent = null;
 		try {
 			$parent = $backup->getParentO();
@@ -96,7 +101,13 @@ function backup_main()
 		$table = (is_object($parent) && method_exists($parent, 'get__table')) ? $parent->get__table() : 'client';
 		$pname = (is_object($parent) && isset($parent->nname)) ? $parent->nname : $name;
 		print("Backup has been saved in {$sgbl->__path_program_home}/{$table}/{$pname}/__backup/\n");
+		if (is_string($backup->backupstage) && str_starts_with($backup->backupstage, 'done —')) {
+			print($backup->backupstage . "\n");
+		}
 	} catch (Throwable $e) {
+		if (class_exists('KloxoBackup', false)) {
+			KloxoBackup::takeBackupWarnings();
+		}
 		$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
 		if ($mess === '') {
 			$mess = 'unknown backup error';

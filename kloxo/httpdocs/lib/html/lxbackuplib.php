@@ -944,8 +944,16 @@ class lxbackup extends Lxdb
 
 		try {
 			$backup->doUpdateBackup($param);
-			$backup->backupstage = 'done';
+			if (!class_exists('KloxoBackup', false)) {
+				include_once dirname(__DIR__) . '/php/kloxo_backup.php';
+			}
+			$backup->backupstage = class_exists('KloxoBackup', false)
+				? KloxoBackup::doneBackupStage()
+				: 'done';
 		} catch (Throwable $e) {
+			if (class_exists('KloxoBackup', false)) {
+				KloxoBackup::takeBackupWarnings();
+			}
 			$mess = isset($e->__full_message) ? (string) $e->__full_message : $e->getMessage();
 			if ($mess === '') {
 				$mess = 'unknown backup error';
