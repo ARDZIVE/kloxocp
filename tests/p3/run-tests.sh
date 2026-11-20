@@ -49,11 +49,29 @@ echo 'wrapper' > "$FAKE/init/php-cli.sh"
 echo 'login' > "$FAKE/httpdocs/login/index.php"
 echo 'secret' > "$FAKE/file/ssl/default.pem"
 chmod 600 "$FAKE/file/ssl/default.pem"
+# Live servers often leave a broken kloxo-phpcgi symlink (old CGI era); snapshot
+# must skip it instead of aborting upcp with "Copy failed: …/kloxo-phpcgi".
+ln -s /nonexistent/kloxo-phpcgi-missing "$FAKE/init/kloxo-phpcgi"
+touch "$FAKE/init/kloxo-phpcgi.pid" "$FAKE/init/kloxo-phpcgi.sock"
 
 if "${TOOL[@]}" snapshot --root="$FAKE" --snap-dir="$SNAP" --json >"$T/snap.json"; then
   ok "snapshot into empty snap-dir"
 else
   bad "snapshot into empty snap-dir"
+fi
+# Runtime junk must not be snapshotted (and must not fail the copy).
+stamp="$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["stamp"] ?? "";' "$T/snap.json" 2>/dev/null || true)"
+if [ -z "$stamp" ]; then
+  stamp="$(ls -1 "$SNAP" 2>/dev/null | head -1)"
+fi
+if [ -n "$stamp" ] && [ -d "$SNAP/$stamp/init" ] \
+  && [ ! -e "$SNAP/$stamp/init/kloxo-phpcgi" ] \
+  && [ ! -e "$SNAP/$stamp/init/kloxo-phpcgi.pid" ] \
+  && [ ! -e "$SNAP/$stamp/init/kloxo-phpcgi.sock" ] \
+  && [ -f "$SNAP/$stamp/init/php-cli.sh" ]; then
+  ok "snapshot skips broken kloxo-phpcgi and pid/sock junk"
+else
+  bad "snapshot skips broken kloxo-phpcgi and pid/sock junk" "stamp=$stamp ls=$(ls -la "$SNAP/$stamp/init" 2>&1 | tr '\n' ' ')"
 fi
 echo 'mutated' > "$FAKE/httpdocs/login/index.php"
 if "${TOOL[@]}" rollback --root="$FAKE" --snap-dir="$SNAP" >/dev/null; then

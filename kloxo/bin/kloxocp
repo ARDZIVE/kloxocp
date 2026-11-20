@@ -73,7 +73,7 @@ declare(strict_types=1);
 	}
 })();
 
-const KCP_VERSION = '10.1-2026112001';
+const KCP_VERSION = '10.1-2026112002';
 
 /** Paths copied by snapshot / rollback, relative to the program root. */
 const KCP_SNAP_PATHS = [
@@ -175,9 +175,49 @@ final class Fs
         return $real;
     }
 
+    /** Runtime leftovers under init/ (and similar) that must not abort snapshot/upcp. */
+    public static function isRuntimeJunk(string $path): bool
+    {
+        $base = basename($path);
+        if ($base === 'kloxo-phpcgi' || $base === 'kloxo-hiawatha.pid') {
+            return true;
+        }
+        if (str_ends_with($base, '.pid') || str_ends_with($base, '.sock')) {
+            return true;
+        }
+
+        return false;
+    }
+
     public static function copyPath(string $src, string $dst): void
     {
-        if (is_link($src) || is_file($src)) {
+        // Broken leftover links (e.g. /opt/kloxo/init/kloxo-phpcgi) used to
+        // abort upcp at snapshot: PHP copy() cannot open them.
+        if (is_link($src)) {
+            if (self::isRuntimeJunk($src) || !file_exists($src)) {
+                return;
+            }
+            $dir = dirname($dst);
+            if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+                throw new KcpException("Cannot create $dir");
+            }
+            $target = readlink($src);
+            if ($target === false) {
+                return;
+            }
+            if (is_link($dst) || is_file($dst)) {
+                @unlink($dst);
+            }
+            if (!@symlink($target, $dst) && !is_link($dst)) {
+                throw new KcpException("Symlink failed: $src");
+            }
+
+            return;
+        }
+        if (is_file($src)) {
+            if (self::isRuntimeJunk($src)) {
+                return;
+            }
             $dir = dirname($dst);
             if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
                 throw new KcpException("Cannot create $dir");
@@ -198,6 +238,7 @@ final class Fs
             if ($mode !== false) {
                 chmod($dst, $mode & 0777);
             }
+
             return;
         }
         if (!is_dir($src)) {
@@ -1661,6 +1702,19 @@ TXT;
             $p = $pscript . '/' . $name;
             if (is_file($p)) {
                 @chmod($p, 0755);
+            }
+        }
+
+        // Drop legacy CGI leftover that broke snapshot/upcp (broken symlink).
+        $legacyCgi = $this->root . '/init/kloxo-phpcgi';
+        if (is_link($legacyCgi) && !file_exists($legacyCgi)) {
+            @unlink($legacyCgi);
+            $done[] = 'removed broken init/kloxo-phpcgi';
+        }
+        foreach (['kloxo-phpcgi.pid', 'kloxo-phpcgi.sock'] as $junk) {
+            $p = $this->root . '/init/' . $junk;
+            if (is_file($p) || is_link($p)) {
+                @unlink($p);
             }
         }
 
