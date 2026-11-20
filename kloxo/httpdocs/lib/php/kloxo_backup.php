@@ -436,14 +436,19 @@ final class KloxoBackup
 	/**
 	 * Write a 0600 MySQL client defaults file (security BB2).
 	 * Password never appears on argv / in `ps`.
+	 * Default host is 127.0.0.1 so kloxo_pma works (root@localhost is unix_socket).
 	 */
-	public static function mysqlDefaultsFile(string $user, string $pass): string
+	public static function mysqlDefaultsFile(string $user, string $pass, string $host = '127.0.0.1'): string
 	{
 		if ($user === '' || preg_match('/^[A-Za-z0-9_]+$/', $user) !== 1) {
 			throw new KloxoBackupException('invalid dump user');
 		}
 		if (str_contains($pass, "\0")) {
 			throw new KloxoBackupException('invalid dump password');
+		}
+		$host = trim($host);
+		if ($host === '' || !in_array($host, array('127.0.0.1', 'localhost'), true)) {
+			$host = '127.0.0.1';
 		}
 		$dir = self::programRoot() . '/pid';
 		if (!is_dir($dir)) {
@@ -454,8 +459,19 @@ final class KloxoBackup
 			throw new KloxoBackupException('cannot write mysql defaults file');
 		}
 		@chmod($file, 0600);
-		$body = "[client]\nuser=" . $user . "\npassword="
-			. str_replace(array("\n", "\r"), '', $pass) . "\n";
+		$body = "[client]\n"
+			. 'user=' . $user . "\n"
+			. 'host=' . $host . "\n";
+		if ($pass !== '') {
+			$passEsc = str_replace(array('\\', '"', "\n", "\r"), array('\\\\', '\\"', '', ''), $pass);
+			$body .= 'password="' . $passEsc . "\"\n";
+		}
+		if ($host === 'localhost') {
+			$sock = self::mysqlSocketPath();
+			if ($sock !== '') {
+				$body .= 'socket=' . $sock . "\n";
+			}
+		}
 		if (@file_put_contents($file, $body) === false) {
 			@unlink($file);
 			throw new KloxoBackupException('cannot write mysql defaults file');
@@ -463,6 +479,66 @@ final class KloxoBackup
 		@chmod($file, 0600);
 
 		return $file;
+	}
+
+	/** Live mysqld unix socket, or empty. */
+	public static function mysqlSocketPath(): string
+	{
+		foreach (array(
+			'/run/mysqld/mysqld.sock',
+			'/var/run/mysqld/mysqld.sock',
+			'/tmp/mysql.sock',
+		) as $s) {
+			if (@is_string($s) && $s !== '' && @file_exists($s)) {
+				return $s;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Login for mysqldump / mysql restore on Ubuntu.
+	 * Prefer kloxo_pma@127.0.0.1 (pma.pass); never use root over TCP (unix_socket / 1698).
+	 *
+	 * @return array{user:string,pass:string,host:string}
+	 */
+	public static function mysqlLoginForDump(string $dbadmin = '', string $dbpass = '', string $dbUser = '', string $dbUserPass = ''): array
+	{
+		if (!function_exists('kloxo_pma_login')) {
+			$pma = self::programRoot() . '/httpdocs/lib/php/kloxo_pma.php';
+			if (is_file($pma)) {
+				include_once $pma;
+			}
+		}
+		if (function_exists('kloxo_pma_login')) {
+			try {
+				$cred = kloxo_pma_login(self::programRoot());
+				$u = isset($cred['user']) ? trim((string) $cred['user']) : '';
+				$p = isset($cred['pass']) ? (string) $cred['pass'] : '';
+				if ($u !== '' && $p !== '' && preg_match('/^[A-Za-z0-9_]+$/', $u) === 1) {
+					return array('user' => $u, 'pass' => $p, 'host' => '127.0.0.1');
+				}
+			} catch (Throwable $e) {
+				// fall through
+			}
+		}
+		$dbadmin = trim($dbadmin);
+		if ($dbadmin !== '' && strtolower($dbadmin) !== 'root'
+			&& preg_match('/^[A-Za-z0-9_]+$/', $dbadmin) === 1 && $dbpass !== '') {
+			return array('user' => $dbadmin, 'pass' => $dbpass, 'host' => '127.0.0.1');
+		}
+		$dbUser = trim($dbUser);
+		if ($dbUser !== '' && preg_match('/^[A-Za-z0-9_]+$/', $dbUser) === 1 && $dbUserPass !== '') {
+			return array('user' => $dbUser, 'pass' => $dbUserPass, 'host' => '127.0.0.1');
+		}
+		// Root via unix_socket only when this process is root (kloxo-backend).
+		if (function_exists('posix_geteuid') && @posix_geteuid() === 0 && self::mysqlSocketPath() !== '') {
+			return array('user' => 'root', 'pass' => '', 'host' => 'localhost');
+		}
+		throw new KloxoBackupException(
+			'no MariaDB dump login (need etc/conf/pma.pass / kloxo_pma, or a database user password)'
+		);
 	}
 
 	/**
@@ -521,12 +597,14 @@ final class KloxoBackup
 		return $argv;
 	}
 
-	public static function dumpMysql(string $dbname, string $user, string $pass, string $outfile): void
+	public static function dumpMysql(string $dbname, string $user, string $pass, string $outfile, string $host = '127.0.0.1'): void
 	{
 		$bin = self::firstExec(array('/usr/bin/mysqldump', '/usr/bin/mariadb-dump', 'mysqldump'));
 		$cnf = '';
 		try {
-			$cnf = ($pass !== '') ? self::mysqlDefaultsFile($user, $pass) : '';
+			// Always use a defaults file so host=127.0.0.1 (or localhost+socket)
+			// is set. Plain `-u` without -h hits unix_socket and fails for kloxo_pma.
+			$cnf = self::mysqlDefaultsFile($user, $pass, $host);
 			$argv = self::dumpArgv($bin !== '' ? $bin : 'mysqldump', $dbname, $user, $pass, $cnf);
 			$dir = dirname($outfile);
 			if ($dir !== '' && $dir !== '.' && !is_dir($dir)) {
@@ -534,7 +612,15 @@ final class KloxoBackup
 			}
 			$r = self::run($argv, $outfile);
 			if (($r['code'] ?? 1) !== 0) {
-				throw new KloxoBackupException('mysqldump failed for ' . $dbname);
+				$detail = trim((string) ($r['out'] ?? ''));
+				$detail = preg_replace('/\s+/', ' ', $detail) ?? $detail;
+				if (strlen($detail) > 220) {
+					$detail = substr($detail, 0, 220);
+				}
+				throw new KloxoBackupException(
+					'mysqldump failed for ' . $dbname
+					. ($detail !== '' ? (': ' . $detail) : '')
+				);
 			}
 			if (!is_file($outfile) || filesize($outfile) === 0) {
 				throw new KloxoBackupException('mysqldump wrote no data for ' . $dbname);
@@ -546,7 +632,7 @@ final class KloxoBackup
 		}
 	}
 
-	public static function restoreMysql(string $dbname, string $user, string $pass, string $infile): void
+	public static function restoreMysql(string $dbname, string $user, string $pass, string $infile, string $host = '127.0.0.1'): void
 	{
 		if (!is_file($infile) || !is_readable($infile)) {
 			throw new KloxoBackupException('mysql dump file missing');
@@ -554,11 +640,19 @@ final class KloxoBackup
 		$bin = self::firstExec(array('/usr/bin/mysql', '/usr/bin/mariadb', 'mysql'));
 		$cnf = '';
 		try {
-			$cnf = ($pass !== '') ? self::mysqlDefaultsFile($user, $pass) : '';
+			$cnf = self::mysqlDefaultsFile($user, $pass, $host);
 			$argv = self::restoreDumpArgv($bin !== '' ? $bin : 'mysql', $dbname, $user, $pass, $cnf);
 			$r = self::run($argv, null, $infile);
 			if (($r['code'] ?? 1) !== 0) {
-				throw new KloxoBackupException('mysql restore failed for ' . $dbname);
+				$detail = trim((string) ($r['out'] ?? ''));
+				$detail = preg_replace('/\s+/', ' ', $detail) ?? $detail;
+				if (strlen($detail) > 220) {
+					$detail = substr($detail, 0, 220);
+				}
+				throw new KloxoBackupException(
+					'mysql restore failed for ' . $dbname
+					. ($detail !== '' ? (': ' . $detail) : '')
+				);
 			}
 		} finally {
 			if ($cnf !== '' && is_file($cnf)) {

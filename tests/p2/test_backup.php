@@ -121,6 +121,40 @@ check($dump[0] === '/usr/bin/mysqldump'
 	&& end($dump) === 'acme_wp',
 	'mysqldump argv uses defaults-extra-file (no --password=)');
 @unlink($cnf);
+
+$defTcp = KloxoBackup::mysqlDefaultsFile('kloxo_pma', 's3cret', '127.0.0.1');
+$defBody = is_file($defTcp) ? (string) file_get_contents($defTcp) : '';
+@unlink($defTcp);
+check(str_contains($defBody, 'user=kloxo_pma')
+	&& str_contains($defBody, 'host=127.0.0.1')
+	&& str_contains($defBody, 'password="s3cret"')
+	&& !str_contains($defBody, 'socket='),
+	'mysqlDefaultsFile uses TCP host 127.0.0.1 (not unix_socket)');
+$defEmpty = KloxoBackup::mysqlDefaultsFile('root', '', 'localhost');
+$defEmptyBody = is_file($defEmpty) ? (string) file_get_contents($defEmpty) : '';
+@unlink($defEmpty);
+check(str_contains($defEmptyBody, 'user=root')
+	&& str_contains($defEmptyBody, 'host=localhost')
+	&& !str_contains($defEmptyBody, 'password='),
+	'mysqlDefaultsFile omits empty password line (root socket)');
+
+$loginDumpOk = false;
+try {
+	$loginDump = KloxoBackup::mysqlLoginForDump('root', 'wrong', 'aklorcom_db', 'dbpass');
+	$u = strtolower((string) ($loginDump['user'] ?? ''));
+	$loginDumpOk = is_array($loginDump)
+		&& $u !== 'root'
+		&& ($loginDump['host'] ?? '') === '127.0.0.1'
+		&& ($loginDump['pass'] ?? '') !== ''
+		&& ($u === 'kloxo_pma' || $u === 'aklorcom_db');
+} catch (Throwable $e) {
+	$loginDumpOk = false;
+}
+check($loginDumpOk, 'mysqlLoginForDump prefers kloxo_pma@127.0.0.1 over root');
+$fallbackUser = KloxoBackup::mysqlLoginForDump('dbadminx', 'adminpass', '', '');
+check(($fallbackUser['user'] ?? '') === 'dbadminx'
+	|| ($fallbackUser['user'] ?? '') === 'kloxo_pma',
+	'mysqlLoginForDump accepts non-root dbadmin when pma unavailable or prefers pma');
 $threw = false;
 try {
 	KloxoBackup::dumpArgv('/usr/bin/mysqldump', 'mysql', 'kloxo_pma', '');
@@ -151,11 +185,41 @@ KloxoBackup::$runCmd = static function (array $argv) use (&$calls): array {
 	return array('code' => 0, 'out' => "--\nCREATE TABLE t (id int);\n");
 };
 $dumpFile = $base . '/mysql-acme_wp.dump';
+$dumpCnfSeen = '';
+KloxoBackup::$runCmd = static function (array $argv) use (&$calls, &$dumpCnfSeen): array {
+	$calls[] = $argv;
+	foreach ($argv as $a) {
+		if (is_string($a) && str_starts_with($a, '--defaults-extra-file=')) {
+			$p = substr($a, strlen('--defaults-extra-file='));
+			if (is_file($p)) {
+				$dumpCnfSeen = (string) file_get_contents($p);
+			}
+		}
+	}
+	$cz = array_search('-czf', $argv, true);
+	if ($cz !== false && isset($argv[$cz + 1]) && is_string($argv[$cz + 1])) {
+		@file_put_contents($argv[$cz + 1], "tgz\n");
+	}
+	return array('code' => 0, 'out' => "--\nCREATE TABLE t (id int);\n");
+};
 KloxoBackup::dumpMysql('acme_wp', 'kloxo_pma', 'pw', $dumpFile);
 check(is_file($dumpFile) && filesize($dumpFile) > 0, 'dumpMysql writes the outfile via runCmd');
 check($calls !== array() && ($calls[0][0] === 'mysqldump' || str_contains((string) $calls[0][0], 'mysqldump')
 	|| str_contains((string) $calls[0][0], 'mariadb-dump')),
 	'dumpMysql invoked mysqldump');
+check(str_contains($dumpCnfSeen, 'host=127.0.0.1')
+	&& str_contains($dumpCnfSeen, 'user=kloxo_pma')
+	&& str_contains($dumpCnfSeen, 'password="pw"'),
+	'dumpMysql defaults file sets host=127.0.0.1 for kloxo_pma');
+// Restore the pack-friendly fake for later tar calls.
+KloxoBackup::$runCmd = static function (array $argv) use (&$calls): array {
+	$calls[] = $argv;
+	$cz = array_search('-czf', $argv, true);
+	if ($cz !== false && isset($argv[$cz + 1]) && is_string($argv[$cz + 1])) {
+		@file_put_contents($argv[$cz + 1], "tgz\n");
+	}
+	return array('code' => 0, 'out' => "--\nCREATE TABLE t (id int);\n");
+};
 
 $mailRoot = $base . '/var/vmail/example.com';
 @mkdir($mailRoot, 0755, true);
@@ -704,25 +768,29 @@ check(str_contains($bak, '$this->write();')
 	'Backup Now writes the lxbackup row before starting backup.php');
 check(str_contains($mysql, 'KloxoBackup::dumpMysql')
 	&& str_contains($mysql, 'KloxoBackup::restoreMysql')
+	&& str_contains($mysql, 'KloxoBackup::mysqlLoginForDump')
 	&& !str_contains($mysql, 'system("{$cmd}'),
-	'mysqldb dump/restore no longer uses system() shell strings');
+	'mysqldb dump/restore uses mysqlLoginForDump (no system() shell)');
 $ddb = (string) file_get_contents($doc . '/driver/pserver/ddatabaselib.php');
 $lxdb = (string) file_get_contents($doc . '/lib/php/lxdb.php');
 check(str_contains($ddb, 'function updateBackup')
 	&& str_contains($ddb, 'KloxoBackup::dumpMysql')
+	&& str_contains($ddb, 'KloxoBackup::mysqlLoginForDump')
+	&& str_contains($ddb, 'kloxo_pma')
 	&& str_contains($ddb, 'kloxo_send_download_headers')
 	&& str_contains($ddb, 'dumpToFileserv')
 	&& str_contains($mysql, 'function dumpToFileserv')
 	&& str_contains($lxdb, 'kloxo_dbbackup_frame')
 	&& str_contains($lxdb, '__v_form_iframe'),
-	'MySQL Backup Now dumps .sql (iframe form) instead of a blank tab');
+	'MySQL Backup Now dumps .sql via kloxo_pma login (iframe form)');
 check(str_contains($ddb, 'function updateRestore')
 	&& str_contains($ddb, 'resolveMysqldbRestoreSql')
 	&& str_contains($ddb, 'KloxoBackup::restoreMysql')
+	&& str_contains($ddb, 'KloxoBackup::mysqlLoginForDump')
 	&& str_contains($ddb, 'frm_smessage=updated_successfully')
 	&& str_contains($mysql, 'function restoreFromFileserv')
 	&& str_contains($lxdb, "'Restore'"),
-	'MySQL Restore imports .sql and redirects with a toast (no blank page)');
+	'MySQL Restore imports .sql via mysqlLoginForDump (toast, no blank page)');
 $lxlibSrc = (string) file_get_contents($doc . '/lib/php/lxlib.php');
 check(str_contains($lxlibSrc, 'function kloxo_is_long_backend_update')
 	&& str_contains($lxlibSrc, "kloxo_request_object_class() !== 'lxbackup'")

@@ -53,17 +53,43 @@ class databasecore extends Lxdb
 		$dbtype = (isset($this->dbtype) && is_string($this->dbtype) && $this->dbtype !== '')
 			? $this->dbtype : 'mysql';
 		if ($dbtype === 'mysql') {
-			try {
-				$ret = $this->getDbAdminPass();
-				$this->__var_dbadmin = $ret['dbadmin'];
-				$this->__var_dbpassword = $ret['dbpassword'];
-			} catch (Throwable $e) {
-				if (!function_exists('kloxo_pma_login')) {
-					include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
+			// Prefer kloxo_pma from pma.pass (TCP). A dbadmin row of root +
+			// password fails on Ubuntu (root@localhost is unix_socket).
+			$pmaUser = '';
+			$pmaPass = '';
+			if (!function_exists('kloxo_pma_login')) {
+				include_once dirname(__DIR__, 2) . '/lib/php/kloxo_pma.php';
+			}
+			if (function_exists('kloxo_pma_login')) {
+				try {
+					$cred = kloxo_pma_login();
+					$pmaUser = isset($cred['user']) ? trim((string) $cred['user']) : '';
+					$pmaPass = isset($cred['pass']) ? (string) $cred['pass'] : '';
+				} catch (Throwable $e) {
+					$pmaUser = '';
+					$pmaPass = '';
 				}
-				$cred = function_exists('kloxo_pma_login') ? kloxo_pma_login() : array('user' => 'kloxo_pma', 'pass' => '');
-				$this->__var_dbadmin = $cred['user'] ?? 'kloxo_pma';
-				$this->__var_dbpassword = $cred['pass'] ?? '';
+			}
+			if ($pmaUser !== '' && $pmaPass !== '') {
+				$this->__var_dbadmin = $pmaUser;
+				$this->__var_dbpassword = $pmaPass;
+			} else {
+				try {
+					$ret = $this->getDbAdminPass();
+					$admin = isset($ret['dbadmin']) ? trim((string) $ret['dbadmin']) : '';
+					$pass = isset($ret['dbpassword']) ? (string) $ret['dbpassword'] : '';
+					if (strtolower($admin) === 'root') {
+						// Never keep root for TCP dumps from panel FPM.
+						$this->__var_dbadmin = 'kloxo_pma';
+						$this->__var_dbpassword = '';
+					} else {
+						$this->__var_dbadmin = $admin;
+						$this->__var_dbpassword = $pass;
+					}
+				} catch (Throwable $e) {
+					$this->__var_dbadmin = 'kloxo_pma';
+					$this->__var_dbpassword = '';
+				}
 			}
 		}
 		// No md5 of DB password — MariaDB uses the plain via KloxoMariadb (security JJ3).
@@ -614,24 +640,20 @@ class mysqldb extends databasecore
 		@mkdir($dir, 0700, true);
 		$outfile = $dir . '/' . $dbname . '.sql';
 		$lastErr = '';
+		$dumpUser = $admin !== '' ? $admin : $user;
+		$dumpPass = $admin !== '' ? $adminPass : $pass;
+		$dumpHost = '127.0.0.1';
 
-		$attempts = array();
-		if ($admin !== '') {
-			$attempts[] = array($admin, $adminPass);
-		}
-		if ($user !== '' && ($user !== $admin || $pass !== $adminPass)) {
-			$attempts[] = array($user, $pass);
-		}
-
-		foreach ($attempts as $cred) {
-			try {
-				KloxoBackup::dumpMysql($dbname, $cred[0], $cred[1], $outfile);
-				$lastErr = '';
-				break;
-			} catch (Throwable $e) {
-				$lastErr = $e->getMessage();
-				@unlink($outfile);
-			}
+		try {
+			$cred = KloxoBackup::mysqlLoginForDump($admin, $adminPass, $user, $pass);
+			$dumpUser = (string) $cred['user'];
+			$dumpPass = (string) $cred['pass'];
+			$dumpHost = (string) ($cred['host'] ?? '127.0.0.1');
+			KloxoBackup::dumpMysql($dbname, $dumpUser, $dumpPass, $outfile, $dumpHost);
+			$lastErr = '';
+		} catch (Throwable $e) {
+			$lastErr = $e->getMessage();
+			@unlink($outfile);
 		}
 
 		$serv = null;
@@ -640,8 +662,6 @@ class mysqldb extends databasecore
 				? $this->syncserver : 'localhost';
 			if (function_exists('rl_exec_get')) {
 				try {
-					$dumpUser = $admin !== '' ? $admin : $user;
-					$dumpPass = $admin !== '' ? $adminPass : $pass;
 					$got = rl_exec_get(null, $sync, array('Mysqldb__mysql', 'dumpToFileserv'),
 						array($dbname, $dumpUser, $dumpPass), false);
 					if (is_array($got) && isset($got['file'])) {
@@ -793,39 +813,27 @@ class mysqldb extends databasecore
 		$sqlFile = '';
 		try {
 			$sqlFile = $this->resolveMysqldbRestoreSql($file, $orig, $dbname, $dir);
-			$attempts = array();
-			if ($admin !== '') {
-				$attempts[] = array($admin, $adminPass);
-			}
-			if ($user !== '' && ($user !== $admin || $pass !== $adminPass)) {
-				$attempts[] = array($user, $pass);
-			}
-			if ($attempts === array()) {
-				throw new lxException(
-					is_object($login) ? $login->getThrow('could_not_connect_to_db') : 'could_not_connect_to_db',
-					'',
-					'no database credentials'
-				);
-			}
+			$dumpUser = $admin !== '' ? $admin : $user;
+			$dumpPass = $admin !== '' ? $adminPass : $pass;
+			$dumpHost = '127.0.0.1';
 			$lastErr = '';
 			$ok = false;
-			foreach ($attempts as $cred) {
-				try {
-					KloxoBackup::restoreMysql($dbname, $cred[0], $cred[1], $sqlFile);
-					$ok = true;
-					$lastErr = '';
-					break;
-				} catch (Throwable $e) {
-					$lastErr = $e->getMessage();
-				}
+			try {
+				$cred = KloxoBackup::mysqlLoginForDump($admin, $adminPass, $user, $pass);
+				$dumpUser = (string) $cred['user'];
+				$dumpPass = (string) $cred['pass'];
+				$dumpHost = (string) ($cred['host'] ?? '127.0.0.1');
+				KloxoBackup::restoreMysql($dbname, $dumpUser, $dumpPass, $sqlFile, $dumpHost);
+				$ok = true;
+				$lastErr = '';
+			} catch (Throwable $e) {
+				$lastErr = $e->getMessage();
 			}
 			if (!$ok) {
 				$sync = (isset($this->syncserver) && is_string($this->syncserver) && $this->syncserver !== '')
 					? $this->syncserver : 'localhost';
 				if (function_exists('rl_exec_get') && function_exists('cp_fileserv')) {
 					try {
-						$dumpUser = $admin !== '' ? $admin : $user;
-						$dumpPass = $admin !== '' ? $adminPass : $pass;
 						$serv = cp_fileserv($sqlFile);
 						$got = rl_exec_get(null, $sync, array('Mysqldb__mysql', 'restoreFromFileserv'),
 							array($dbname, $dumpUser, $dumpPass, $serv), false);

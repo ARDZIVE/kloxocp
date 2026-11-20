@@ -143,7 +143,14 @@ class Mysqldb__mysql extends lxDriverClass
 		@mkdir($dir, 0700, true);
 		$docf = $dir . '/' . $dbname . '.sql';
 		try {
-			KloxoBackup::dumpMysql($dbname, $dbuser, $dbpass, $docf);
+			$cred = KloxoBackup::mysqlLoginForDump($dbuser, $dbpass, $dbuser, $dbpass);
+			KloxoBackup::dumpMysql(
+				$dbname,
+				(string) $cred['user'],
+				(string) $cred['pass'],
+				$docf,
+				(string) ($cred['host'] ?? '127.0.0.1')
+			);
 			if (!function_exists('cp_fileserv')) {
 				throw new Exception('cp_fileserv missing');
 			}
@@ -212,7 +219,19 @@ class Mysqldb__mysql extends lxDriverClass
 			if (!is_file($docf) || (int) filesize($docf) < 1) {
 				throw new Exception('empty restore file');
 			}
-			KloxoBackup::restoreMysql($dbname, (string) $dbuser, (string) $dbpass, $docf);
+			$cred = KloxoBackup::mysqlLoginForDump(
+				(string) $dbuser,
+				(string) $dbpass,
+				(string) $dbuser,
+				(string) $dbpass
+			);
+			KloxoBackup::restoreMysql(
+				$dbname,
+				(string) $cred['user'],
+				(string) $cred['pass'],
+				$docf,
+				(string) ($cred['host'] ?? '127.0.0.1')
+			);
 
 			return 'ok';
 		} finally {
@@ -232,6 +251,8 @@ class Mysqldb__mysql extends lxDriverClass
 		$dbadmin = isset($this->main->__var_dbadmin) ? (string) $this->main->__var_dbadmin : '';
 		$dbpass = isset($this->main->__var_dbpassword) ? (string) $this->main->__var_dbpassword : '';
 		$dbname = isset($this->main->dbname) ? (string) $this->main->dbname : '';
+		$dbUser = isset($this->main->username) ? (string) $this->main->username : '';
+		$dbUserPass = isset($this->main->dbpassword) ? (string) $this->main->dbpassword : '';
 
 		$vd = tempnam("/tmp", "mysqldump");
 		lunlink($vd);
@@ -240,7 +261,16 @@ class Mysqldb__mysql extends lxDriverClass
 		$docf = "{$vd}/mysql-{$dbname}.dump";
 
 		try {
-			KloxoBackup::dumpMysql($dbname, $dbadmin, $dbpass, $docf);
+			// Prefer kloxo_pma@127.0.0.1 (pma.pass). root@localhost is unix_socket
+			// and fails for non-root / wrong dbadmin password (error 1698).
+			$cred = KloxoBackup::mysqlLoginForDump($dbadmin, $dbpass, $dbUser, $dbUserPass);
+			KloxoBackup::dumpMysql(
+				$dbname,
+				(string) $cred['user'],
+				(string) $cred['pass'],
+				$docf,
+				(string) ($cred['host'] ?? '127.0.0.1')
+			);
 		} catch (Throwable $e) {
 			lxfile_tmp_rm_rec($vd);
 			log_log("backup", "- Error '{$e->getMessage()}' for '{$dbname}'");
@@ -334,7 +364,16 @@ class Mysqldb__mysql extends lxDriverClass
 		}
 
 		try {
-			KloxoBackup::restoreMysql($dbname, $dbadmin, $dbpass, $docf);
+			$dbUser = isset($this->main->username) ? (string) $this->main->username : '';
+			$dbUserPass = isset($this->main->dbpassword) ? (string) $this->main->dbpassword : '';
+			$cred = KloxoBackup::mysqlLoginForDump($dbadmin, $dbpass, $dbUser, $dbUserPass);
+			KloxoBackup::restoreMysql(
+				$dbname,
+				(string) $cred['user'],
+				(string) $cred['pass'],
+				$docf,
+				(string) ($cred['host'] ?? '127.0.0.1')
+			);
 		} catch (Throwable $e) {
 			lxfile_tmp_rm_rec($vd);
 			if (is_object($login) && method_exists($login, 'getThrow')) {

@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026112002. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026112003. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -57,7 +57,7 @@ print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have
 text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
 htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
 The Update
-screen shows **10.1-2026112002** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026112003** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -205,9 +205,12 @@ and Upload under Backup create `__backup/` locally if kloxo-backend is down, kee
 `ttype=directory` for `/`, and the address bar is `(Backup / Restore: …) /`.
 Schedule privilege is read from the parent client (`checkButton`). Backup Now /
 Restore for admin and client go through `KloxoBackup` (absolute backup.php /
-restore.php, argument-array mysqldump, `/var/vmail` mail     packs, Ubuntu
+restore.php, argument-array mysqldump, `/var/vmail` mail packs, Ubuntu
 `www-data` on restore; PHP 8 `unbackup` constant and null fileserv crashes
-fixed). Restore lists archive members and refuses `../` / absolute paths
+fixed). Client DB dumps use `KloxoBackup::mysqlLoginForDump` → `kloxo_pma`@`127.0.0.1`
+(`pma.pass`, defaults-extra-file with `host=`; never panel `dbadmin` root over TCP —
+ubuntu root@localhost is unix_socket / error 1698; mysqldump stderr is surfaced in
+`could_not_connect_to_db`). Restore lists archive members and refuses `../` / absolute paths
 (`KloxoBackup::extractArchive`); `kloxo.file` is unserialized with an
 allow-list (`unserializeMetadata`), not a raw `unserialize`. Backup Now writes the archive into the same `__backup/` directory the
 File Manager tab lists (`KloxoBackup::ensureDir` / `installFile`, owned by
@@ -222,8 +225,8 @@ saved and what you still do by hand. Client Restore From File: unselected domain
     all; `restoreAccountInProcess` clears `__var_list_flag` and defaults
     `_accountselect` to `all`; `doCoreRestore` falls back `kloxo.file`→`lxadmin.file`
     on Throwable and skips notify mail when `contactemail` is empty.
-    `tests/p2/test_backup.php` (81 checks). Live Backup Now / Restore From File /
-    File Manager listing after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
+    `tests/p2/test_backup.php` (121 checks, fake mysqldump). Live Backup Now / Restore From File /
+    File Manager listing / client DB dump after deploy is UNVERIFIED. LxGuard first beige tab is **LxGuard**. LxGuard show has Switch To Another (pserver list, at least localhost)
 and the Connections / Raw Connections / White List tabs; those list tabs
 also omit the Find/search input. SSH Terminal is admin-only (under the server, not client
 home) and shows a WebConsole-like black terminal as root via kloxo-backend
