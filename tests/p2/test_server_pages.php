@@ -1152,16 +1152,25 @@ if (is_string($debsrc) && str_contains($debsrc, 'ipaddress::fixstatus')
 $pscoresrc = file_get_contents($doc . '/driver/pserver/pservercorelib.php');
 if (is_string($pscoresrc)
 	&& preg_match(
-		'/function updateReadIpAddress\(\$param\)\s*\{.*?return is_array\(\$param\) \? \$param : array\(\);/s',
+		'/function updateReadIpAddress\(\$param\)\s*\{.*?__v_readipaddress_ok.*?frm_smessage=updated_successfully.*?return \$param;/s',
 		$pscoresrc
 	)
 	&& !preg_match(
 		'/function updateReadIpAddress\(\$param\)\s*\{[^}]*return null;/s',
 		$pscoresrc
 	)) {
-	ok('Re Read IPaddress returns $param so success is not update_failed');
+	ok('Re Read IPaddress returns non-empty $param and sets success redirect');
 } else {
-	bad('Re Read IPaddress returns $param so success is not update_failed');
+	bad('Re Read IPaddress returns non-empty $param and sets success redirect');
+}
+// Runtime: do_desc_update treats ![] as failure — success marker must be truthy.
+$emptyParam = array();
+$fixedParam = $emptyParam;
+$fixedParam['__v_readipaddress_ok'] = 'on';
+if (!$emptyParam && $fixedParam) {
+	ok('empty update param is falsy; __v_readipaddress_ok marker is truthy');
+} else {
+	bad('empty update param is falsy; __v_readipaddress_ok marker is truthy');
 }
 
 if (class_exists('Ipaddress') && method_exists('Ipaddress', 'fixstatus')) {

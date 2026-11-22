@@ -1328,18 +1328,45 @@ STRIN;
 
 	function updateReadIpAddress($param)
 	{
+		global $gbl, $ghtml;
+
 		$this->getandwriteipaddress();
 
-		// do_desc_update treats a falsy return as failure (update_failed toast)
-		// even when the IP list was rewritten successfully.
-		return is_array($param) ? $param : array();
+		// do_desc_update: if (!$param) → update_failed. Re Read posts no form
+		// fields, so $param is often [] — empty arrays are falsy in PHP.
+		if (!is_array($param)) {
+			$param = array();
+		}
+		$param['__v_readipaddress_ok'] = 'on';
+
+		if (is_object($gbl) && !isset($gbl->__this_redirect)) {
+			$retUrl = function_exists('get_return_url') ? (string) get_return_url('update') : '';
+			if ($retUrl === '') {
+				$retUrl = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
+					? (string) $ghtml->getFullUrl('a=list&c=ipaddress')
+					: '/display.php?frm_action=list&frm_o_cname=ipaddress';
+			}
+			$what = function_exists('kloxo_toast_update_what')
+				? kloxo_toast_update_what($this, 'readipaddress')
+				: 'Re Read IPaddress';
+			$gbl->__this_redirect = $retUrl
+				. '&frm_smessage=updated_successfully'
+				. '&frm_m_smessage_data=' . rawurlencode($what);
+		}
+
+		return $param;
 	}
 
 	function updateLoadDriverInfo($param)
 	{
 		$this->getAndWriteModuleDriver();
 
-		return is_array($param) ? $param : array();
+		if (!is_array($param)) {
+			$param = array();
+		}
+		$param['__v_loaddriver_ok'] = 'on';
+
+		return $param;
 	}
 
 	function updateform($subaction, $param)
