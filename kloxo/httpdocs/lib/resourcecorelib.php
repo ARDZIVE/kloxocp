@@ -58,8 +58,6 @@ abstract class Resourcecore extends Lxclient
 //	static $__desc_dbtype_list =  array("Q", "",  "database_types");
 	static $__desc_dnstemplate_list = array("", "", "dns_template_pool");
 
-	static $__desc_rubyfcgiprocess_num = array("q", "", "rubyfcgi:number_of_ruby_process");
-	static $__desc_rubyrails_num = array("q", "", "rails:number_of_rails_apps", "");
 	static $__desc_client_num = array("q", "", "clients:number_of_clients", 'a=list&c=client');
 //	static $__desc_domain_num =  array("q", "",  "domains:number_of_domains", 'a=list&c=domain');
 	static $__desc_maindomain_num = array("q", "", "domains:number_of_domains", 'a=list&c=domain');

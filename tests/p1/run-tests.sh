@@ -50,6 +50,7 @@ $forbid = array(
   "dns__djbdns","dns__nsd","dns__mydns","dns__yadifa","dns__maradns",
   "davuser__lighttpd","davuser__apache",
   "dirprotect__lighttpd",
+  "rubyrails__linux",
 );
 $present = 0;
 foreach ($forbid as $c) {
@@ -70,6 +71,15 @@ if [ "$map_rc" -eq 0 ]; then
   ok "class map: kept drivers present, removed stacks unregistered, files exist"
 else
   bad "class map: kept drivers present, removed stacks unregistered, files exist" "$map_out"
+fi
+if ! grep -q 'rubyrails' "$ROOT/kloxo/httpdocs/lib/define.php" \
+  && [[ ! -f "$ROOT/kloxo/httpdocs/driver/web/rubyrailslib.php" ]] \
+  && [[ ! -f "$ROOT/kloxo/httpdocs/driver/web/rubyrails__linuxlib.php" ]] \
+  && [[ ! -f "$ROOT/kloxo/file/nginx/conf/globals/ror.conf" ]] \
+  && ! grep -q 'c=rubyrails' "$ROOT/kloxo/httpdocs/lib/domain/domainlib.php"; then
+  ok "Rails Apps UI/drivers and nginx ror.conf stub are removed"
+else
+  bad "Rails Apps UI/drivers and nginx ror.conf stub are removed"
 fi
 
 echo "== template trees"

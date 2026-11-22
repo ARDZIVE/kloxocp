@@ -1744,13 +1744,7 @@ class Domaind extends DomainBase
 			"frm_o_o[0][class]=client&frm_o_o[0][nname]={$this->getParentName()}&frm_o_o[1][class]=phpini",
 			'purl' => "a=show&o=phpini", 'target' => "target='_self'"));
 	*/
-		if (is_object($login) && method_exists($login, 'isAdmin') && $login->isAdmin()) {
-		//	if ($web->__driverappclass === 'lighttpd') {
-			//	if (is_centosfive()) {
-					$alist[] = "n=web&a=list&c=rubyrails";
-			//	}
-		//	}
-		}
+		// Rails Apps UI removed (dead Kloxo-MR stub; no Nginx/Apache wiring).
 
 	/*
 		// MR -- permalink and rewrite rule disabling on 6.2.x because wrong code will be make webserver

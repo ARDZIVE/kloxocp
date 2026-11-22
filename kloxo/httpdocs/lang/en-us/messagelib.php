@@ -452,10 +452,6 @@ $__information['mailqueue_list__pre'] = "<p>It will take a little bit more time 
 $__information['mailqueue_updateform_update_pre'] = "<p>To see the log for the mail, please go back to the listing, and flush the mailqueue once, ".
 	"since only the log for the past hour is parsed.</p>";
 
-$__information['rubyrails_addform__pre'] = "<p>The application would be normally accessible at http://domain.com/applicationname.</p>".
-	"<p>The path would be /home/client/ror/domain.com/applicationname. If you specify the <b>accessible directly</b> flag, ".
-	"then the application would be accessible at http://domain.com itself.</p>";
-
 $__information['easyinstaller_addform__pre'] = "<p>To install an application in the document root, please leave the <b>Location</b> blank.</p>".
 	"<p>To install the same application for another domain, please use the select box on the top, and change the domain to another, ".
 	"and you will be able to get same form with the new domain as the parent.</p>".

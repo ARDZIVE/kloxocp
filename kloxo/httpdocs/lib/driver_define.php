@@ -54,8 +54,6 @@ $gl_class_array['serverweb__nginx'] = "driver/web/serverweb__nginxlib.php";
 $gl_class_array['serverweb__apache'] = "driver/web/serverweb__apachelib.php";
 $gl_class_array['serverweb__none'] = "driver/web/serverweb__nonelib.php";
 
-$gl_class_array['rubyrails__linux'] = "driver/web/rubyrails__linuxlib.php";
-
 $gl_class_array['pop3__dovecot'] = "driver/mmail/pop3__dovecotlib.php";
 $gl_class_array['pop3__none'] = "driver/mmail/pop3__nonelib.php";
 

@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026112204**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026112205**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -939,7 +939,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
 5. **DONE for defaults; slave TLS 7779 bind is in.** Bind localhost on a master, TLS 1.2+, 1 MiB cap, missing keys fail closed. Slave `install.sh --slave` writes `slave-db.db` and starts `kloxo-backend` with TLS 7779 on all interfaces. Long term: replace with an allow-listed privileged agent (Unix socket, JSON, audit log).
 
 ### P1: shrink the tree (phase 1b)
-1. **DONE for web/DNS.** Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`, `apache` (Nginx default; Apache 2.4 + PHP-FPM packaged, disabled). Webcache: `none`. DNS: `none`, `bind`, `knot` (BIND default; Knot DNS packaged, disabled). Panel Hiawatha kept in `init/`. Tests: `tests/p1/`.
+1. **DONE for web/DNS.** Lighttpd, Varnish, Squid, ATS, Hiawatha-as-site-server, Monkey, OpenLiteSpeed drivers/templates removed. Selectable web: `none`, `nginx`, `apache` (Nginx default; Apache 2.4 + PHP-FPM packaged, disabled). Webcache: `none`. DNS: `none`, `bind`, `knot` (BIND default; Knot DNS packaged, disabled). Panel Hiawatha kept in `init/`. **Rails Apps** UI/drivers removed (Kloxo-MR stub with empty `ror.conf` and no Nginx/Apache wiring; Domain Home tile, resource-plan rails quotas, `rubyrails` class map gone; DB quota columns left for schema compatibility). Tests: `tests/p1/`, `tests/p2/test_domain_home.php`.
 2. **PARTLY DONE.** qmail/courier/ezmlm/bogofilter/SpamAssassin drivers deleted; Switch Program Spam is none/rspamd only. Left on purpose: mailing-list UI without a backend, `mailtrafficlib` qmail-format log parser (needs an Exim parser), lxguard vpopmail log regex, legacy CentOS `kloxo/install/**` deleted.
 3. **PARTIAL.** No Ubuntu package; `install-hiawatha` builds pinned 12.4
    (sha256 in the script). Config check is `hiawatha -k -c <init>`. **UNVERIFIED**
@@ -1308,7 +1308,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026112204**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026112205**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

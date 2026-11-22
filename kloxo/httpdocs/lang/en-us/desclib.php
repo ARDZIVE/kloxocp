@@ -792,8 +792,6 @@ $__description["ip_address_pool"] = array("IP Address Pool");
 $__description["dns_server_pool"] = array("DNS Server Pool");
 $__description["mail_server_pool"] = array("Mail Server Pool");
 $__description["web_server_pool"] = array("Web Server Pool");
-$__description["rubyfcgi:number_of_ruby_process"] = array("Rubyfcgi:Number Of Ruby Process");
-$__description["rails:number_of_rails_apps"] = array("Rails:Number Of Rails Apps");
 $__description["clients:number_of_clients"] = array("Clients:Number Of Clients");
 $__description["domains:number_of_domains"] = array("Domains:Number Of Domains");
 $__description["subdomains:number_of_subdomains"] = array("Subdomains:Number Of Subdomains");
@@ -1428,8 +1426,6 @@ $__description["secondary_php_apache"] = array("Enable Multiple PHP as secondary
 $__description["secondary_php_nginx"] = array("Enable Multiple PHP as secondary PHP (for Nginx)");
 
 $__description["config"] = array("Configure");
-$__description["rails_app"] = array("Rails App");
-$__description["applicationname"] = array("Applicationname");
 $__description["accessible_directly"] = array("Accessible Directly");
 $__description["path"] = array("Path");
 

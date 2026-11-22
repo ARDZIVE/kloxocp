@@ -1584,7 +1584,6 @@ TXT;
             'pg_easyinstaller' => 'linux',
             'pg_all_easyinstaller' => 'linux',
             'pg_pserver' => 'linux',
-            'pg_rubyrails' => 'linux',
             'pg_uuser' => 'linux',
             'pg_ftpuser' => 'pureftp',
             'pg_web' => 'nginx',

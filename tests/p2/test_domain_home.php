@@ -361,5 +361,20 @@ if ($boomErr === '' && $boomSections >= 2 && $boomButtons >= 2) {
 		$boomErr !== '' ? $boomErr : ("sections={$boomSections} buttons={$boomButtons}"));
 }
 
+$domSrc = (string) file_get_contents($doc . '/lib/domain/domainlib.php');
+$defSrc = (string) file_get_contents($doc . '/lib/define.php');
+$drvSrc = (string) file_get_contents($doc . '/lib/driver_define.php');
+$webSrc = (string) file_get_contents($doc . '/driver/web/weblib.php');
+if (!str_contains($domSrc, 'c=rubyrails')
+	&& !str_contains($defSrc, 'rubyrails')
+	&& !str_contains($drvSrc, 'rubyrails')
+	&& !str_contains($webSrc, '__desc_rubyrails_l')
+	&& !is_file($doc . '/driver/web/rubyrailslib.php')
+	&& !is_file($doc . '/driver/web/rubyrails__linuxlib.php')) {
+	ok('Rails Apps UI and drivers are removed from Domain Home / class map');
+} else {
+	bad('Rails Apps UI and drivers are removed from Domain Home / class map');
+}
+
 printf("\n%d passed, %d failed\n", $pass, $fail);
 exit($fail === 0 ? 0 : 1);

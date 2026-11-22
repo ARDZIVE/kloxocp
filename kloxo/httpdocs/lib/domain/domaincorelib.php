@@ -16,7 +16,7 @@ abstract class DomainCore extends Lxclient
 	// static $__desc_dotnet_flag = array("q", "", "enable_asp.net_(ignored_on_linux)");
 //	static $__desc_phpfcgi_flag = array("q", "", "enable_php_fastcgi");
 //	static $__desc_phpfcgiprocess_num = array("qh", "", "phpfcgi:number_of_fastcgi_process");
-	static $__desc_rubyfcgiprocess_num = array("D", "", "rubyfcgi:number_of_ruby_process");
+	// rubyfcgi / rails quota UI removed (dead stub).
 	static $__desc_parent_name_change = array("", "", "owner");
 
 	static $__desc_traffic_last_usage = array("D", "", "LTraffic:traffic_usage_for_last_month");
@@ -29,7 +29,6 @@ abstract class DomainCore extends Lxclient
 	static $__desc_totaldisk_usage = array("D", "", "totDisk:total_disk_usage");
 	static $__desc_totalinode_usage = array("D", "", "totInode:total_inode_usage");
 	static $__desc_maildisk_usage = array("D", "", "MailDisk:mail_disk_usage");
-	static $__desc_rubyrails_num = array("D", "", "rails:number_of_rails_apps", "");
 	static $__desc_mailaccount_num = array("D", "", "Mailaccount:number_of_mail_account");
 	static $__desc_mailinglist_num = array("D", "", "mailinglist:number_of_mailing_lists");
 	static $__desc_addondomain_num = array("D", "", "pointer:number_of_pointer_domains");

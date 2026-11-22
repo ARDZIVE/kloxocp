@@ -334,9 +334,8 @@ class Web extends Lxdb
 //	static $__desc_php_manage_flag =  array("q", "",  "enable_php_management");
 	static $__desc_phpfcgi_flag = array("q", "", "a");
 	static $__desc_phpfcgiprocess_num = array("hq", "a", "");
-	static $__desc_rubyfcgiprocess_num = array("q", "", "");
+	// rubyfcgi / rubyrails quotas kept in DB schema only; UI removed.
 	static $__desc_ftpuser_num = array("q", "a", "");
-	static $__desc_rubyrails_num = array("q", "a", "");
 //	static $__desc_inc_flag =  array("q", "",  "enable_server_side_includes");
 	static $__desc_phpunsafe_flag = array("q", "", "can_enable_php_unsafe_mode");
 	static $__desc_disk_usage = array("D", "", "quota");
@@ -350,7 +349,6 @@ class Web extends Lxdb
 	static $__desc_ftpuser_l = array("Rqdtb", "", "");
 	// static $__desc_easyinstallersnapshot_l = array("d", "", "");
 	static $__desc_component_l = array("", "", "");
-	static $__desc_rubyrails_l = array("qdb", "", "");
 	static $__desc_odbc_l = array("db", "", "");
 	static $__desc_davuser_l = array("db", "", "");
 	static $__desc_phpini_o = array("db", "", "");
@@ -490,8 +488,6 @@ class Web extends Lxdb
 				$this->customer_name = $this->getRealClientParentO()->getPathFromName();
 			}
 		}
-
-		$this->__var_railspp = $this->getList('rubyrails');
 
 		$syncserver = ($this->syncserver) ? $this->syncserver : 'localhost';
 		$this->__syncserver = $syncserver;
