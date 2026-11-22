@@ -10,7 +10,7 @@ mail via Exim + Dovecot + Rspamd + MariaDB (templates done; re-run mail tests on
 rollback (`kloxocp upcp` / `update`: snapshot then auto-rollback on failure).
 
 ## Status
-10.1-2026112004. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
+10.1-2026112201. NOT safe to run. The legacy PHP does not run on PHP 8.3. Audit C1–C5 for phase 1a
 (`process_server_input` auth, daemon bind/TLS/size, committed keys, setuid helpers, easyinstaller
 HTTP) are closed. CentOS/RHEL installer (`kloxo/install/`), yum/rpm drivers and CentOS-only pscripts are removed (Ubuntu apt/systemd only). P1 web/DNS shrink is done (Nginx + panel Hiawatha; BIND/Knot DNS; qmail, courier-imap and
 ezmlm code deleted, mail dirs under `/var/vmail`). P2 first-party `php -l` is clean and `include.php` loads on PHP 8 (`tests/p2/test_boot.php`).
@@ -57,7 +57,7 @@ print a second toast on simplicity. Unread HelpDesk tickets do not set `you_have
 text from `getTitleWithSync` (`Server » linux`); the old HTML spans were
 htmlspecialchars'd into visible markup (`tests/p2/test_title_with_sync.php`).
 The Update
-screen shows **10.1-2026112004** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
+screen shows **10.1-2026112201** and note **Kloxo fork by Hampik TALATINIAN** (`kloxocp upcp` updates with auto-rollback).
 Switch Program DNS default is BIND (`pg_dns=bind`); **Knot DNS replaces PowerDNS** (all pdns code,
 templates, `install-pdns` and the MariaDB `powerdns` user are gone): `knot knot-dnsutils knot-dnssecutils` are packaged and
 prepared (`install-knot`) but the `knot` unit stays disabled until selected (apt postinst is blocked from
@@ -233,7 +233,9 @@ also omit the Find/search input. SSH Terminal is admin-only (under the server, n
 home) and shows a WebConsole-like black terminal as root via kloxo-backend
 (no Java applet, no NOPASSWD sudoers). Install seeds a Welcome HelpDesk ticket (Created By Kloxo). HelpDesk ticket show skips Find and lists Switch To Another. SSH Authorized Keys under localhost lists `/root/.ssh/authorized_keys` (via kloxo-backend); Full Key is prefilled with this server's public key (`id_ed25519.pub`, else rsa/ecdsa, else `/etc/ssh/ssh_host_*_key.pub`; generates `id_ed25519` as root only if none exist); Add appends; private key is not shown; `~/.ssh/config` is not written; Unix usernames are restricted (`^[A-Za-z_][A-Za-z0-9_-]{0,31}$`, no `/` or `..`) (`tests/p2/test_sshauthorizedkey.php`; live UNVERIFIED). List/driver calls guard a missing
 Ubuntu driver so the page does not TypeError. Re Read IPaddress
-uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu.
+uses `ipaddress::fixstatus` and live `ip -4 addr` on Ubuntu;
+`updateReadIpAddress` returns `$param` so a successful re-read is not
+toasted as `update_failed` (`do_desc_update` treats a falsy return as failure).
 Directory Index list does not `count()` a missing `dirindexlist_a`.
 Traceroute (admin Server / Task, client Home tile + Task): Host/IP Trace form
 on the list; session host + cached lines; no DB/quota child

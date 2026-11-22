@@ -1149,6 +1149,21 @@ if (is_string($debsrc) && str_contains($debsrc, 'ipaddress::fixstatus')
 	bad('debian reread IP uses fixstatus not missing listSystemIps');
 }
 
+$pscoresrc = file_get_contents($doc . '/driver/pserver/pservercorelib.php');
+if (is_string($pscoresrc)
+	&& preg_match(
+		'/function updateReadIpAddress\(\$param\)\s*\{.*?return is_array\(\$param\) \? \$param : array\(\);/s',
+		$pscoresrc
+	)
+	&& !preg_match(
+		'/function updateReadIpAddress\(\$param\)\s*\{[^}]*return null;/s',
+		$pscoresrc
+	)) {
+	ok('Re Read IPaddress returns $param so success is not update_failed');
+} else {
+	bad('Re Read IPaddress returns $param so success is not update_failed');
+}
+
 if (class_exists('Ipaddress') && method_exists('Ipaddress', 'fixstatus')) {
 	$fixed = Ipaddress::fixstatus(array(
 		array('devname' => 'ens160', 'ipaddr' => '37.59.173.71', 'status' => 'yes'),

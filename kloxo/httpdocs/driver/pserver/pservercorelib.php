@@ -1330,14 +1330,16 @@ STRIN;
 	{
 		$this->getandwriteipaddress();
 
-		return null;
+		// do_desc_update treats a falsy return as failure (update_failed toast)
+		// even when the IP list was rewritten successfully.
+		return is_array($param) ? $param : array();
 	}
 
 	function updateLoadDriverInfo($param)
 	{
 		$this->getAndWriteModuleDriver();
 
-		return null;
+		return is_array($param) ? $param : array();
 	}
 
 	function updateform($subaction, $param)
