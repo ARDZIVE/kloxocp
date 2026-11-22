@@ -1328,7 +1328,7 @@ STRIN;
 
 	function updateReadIpAddress($param)
 	{
-		global $gbl, $ghtml;
+		global $gbl;
 
 		$this->getandwriteipaddress();
 
@@ -1339,17 +1339,18 @@ STRIN;
 		}
 		$param['__v_readipaddress_ok'] = 'on';
 
-		if (is_object($gbl) && !isset($gbl->__this_redirect)) {
-			$retUrl = function_exists('get_return_url') ? (string) get_return_url('update') : '';
-			if ($retUrl === '') {
-				$retUrl = is_object($ghtml) && method_exists($ghtml, 'getFullUrl')
-					? (string) $ghtml->getFullUrl('a=list&c=ipaddress')
-					: '/display.php?frm_action=list&frm_o_cname=ipaddress';
-			}
+		// Resource → Re Read IPaddress must land on the IP Addresses list for
+		// this server (not the HTTP referer / previous page).
+		if (is_object($gbl)) {
+			$server = (isset($this->nname) && is_string($this->nname) && $this->nname !== '')
+				? $this->nname : 'localhost';
 			$what = function_exists('kloxo_toast_update_what')
 				? kloxo_toast_update_what($this, 'readipaddress')
 				: 'Re Read IPaddress';
-			$gbl->__this_redirect = $retUrl
+			$gbl->__this_redirect = '/display.php?frm_action=list'
+				. '&frm_o_o[0][class]=pserver'
+				. '&frm_o_o[0][nname]=' . rawurlencode($server)
+				. '&frm_o_cname=ipaddress'
 				. '&frm_smessage=updated_successfully'
 				. '&frm_m_smessage_data=' . rawurlencode($what);
 		}

@@ -257,7 +257,7 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Component Info list is **UNVERIFIED**.
     The admin Servers list always has a `localhost` pserver (`init-panel-db`
     seed + `pserver::ensureLocalhostServer()`); empty `ostype` no longer blanks
-    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026112202**
+    the hostname cell.     The Update screen (`lxupdate`) shows **10.1-2026112203**
     (Detected / Installed RPM / Latest RPM) and note **Kloxo fork by Hampik TALATINIAN**;
     it omits the left Find box; it reads the local `kloxoversion` (no `yum`). `exec_class_method` no longer TypeErrors on a
     missing `initThisObject`. The Update Now path does not run
@@ -673,8 +673,9 @@ Core: `httpdocs/lib` about 51k lines, `driver` about 30k, `theme` about 16k, `bi
     Debian package driver is `aptget` (`package__aptget`).
     Re Read IPaddress on Ubuntu uses `ipaddress::fixstatus` and
     `KloxoIpaddr::currentIpv4()`; it no longer calls the missing
-    `ipaddress::listSystemIps`. `updateReadIpAddress` returns `$param`
-    (not null) so a successful re-read is not toasted as `update_failed`.
+    `ipaddress::listSystemIps`. `updateReadIpAddress` returns a non-empty
+    `$param` and always redirects to that pserver’s IP Addresses list with
+    `updated_successfully` (Resource menu must not use the HTTP referer).
     Directory Index list does not `count()` a missing `dirindexlist_a`.
     Cron Tasks Mail To no longer throws `No socket connect to server
     [localhost]`.
@@ -1307,7 +1308,7 @@ Work in this order. Keep every change small, tested and committed separately. Do
    Version stamp `10.1-YYYYMMDDNN` lives in `kloxo/bin/kloxoversion`; `tools/bump-version`
    bumps it and syncs `install.sh` / `kloxocp` / PHP fallbacks / README / AGENTS / docs.
    `.githooks/pre-commit` runs the bump on every commit (`cp` into `.git/hooks/pre-commit`
-   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026112202**.
+   once per clone; `SKIP_VERSION_BUMP=1` to skip). Current: **10.1-2026112203**.
 2. **DONE: install.sh Ubuntu bootstrap.** Repo-root `install.sh` clones
    `https://github.com/ARDZIVE/kloxocp.git` when needed, installs Ubuntu 24.04
    or 26.x packages, links `/opt/kloxo`, generates TLS keys, enables `kloxo-php`

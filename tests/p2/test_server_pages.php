@@ -1152,16 +1152,23 @@ if (is_string($debsrc) && str_contains($debsrc, 'ipaddress::fixstatus')
 $pscoresrc = file_get_contents($doc . '/driver/pserver/pservercorelib.php');
 if (is_string($pscoresrc)
 	&& preg_match(
-		'/function updateReadIpAddress\(\$param\)\s*\{.*?__v_readipaddress_ok.*?frm_smessage=updated_successfully.*?return \$param;/s',
+		'/function updateReadIpAddress\(\$param\)\s*\{.*?__v_readipaddress_ok.*?frm_o_cname=ipaddress.*?frm_smessage=updated_successfully.*?return \$param;/s',
 		$pscoresrc
+	)
+	&& str_contains($pscoresrc, "frm_o_o[0][class]=pserver")
+	&& !str_contains(
+		preg_replace('/function updateLoadDriverInfo.*/s', '',
+			(string) preg_replace('/^.*?function updateReadIpAddress/s', 'function updateReadIpAddress', $pscoresrc, 1)
+		) ?: '',
+		'get_return_url'
 	)
 	&& !preg_match(
 		'/function updateReadIpAddress\(\$param\)\s*\{[^}]*return null;/s',
 		$pscoresrc
 	)) {
-	ok('Re Read IPaddress returns non-empty $param and sets success redirect');
+	ok('Re Read IPaddress redirects to IP Addresses list with success toast');
 } else {
-	bad('Re Read IPaddress returns non-empty $param and sets success redirect');
+	bad('Re Read IPaddress redirects to IP Addresses list with success toast');
 }
 // Runtime: do_desc_update treats ![] as failure — success marker must be truthy.
 $emptyParam = array();
