@@ -9,7 +9,6 @@ $driver['ffile'] = "linux";
 $driver['easyinstaller'] = "linux";
 $driver['all_easyinstaller'] = "linux";
 $driver['pserver'] = "linux";
-$driver['rubyrails'] = "linux";
 $driver['uuser'] = "linux";
 $driver['ftpuser'] = "pureftp";
 $driver['web'] = array("none", "nginx", "apache");

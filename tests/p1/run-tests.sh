@@ -73,6 +73,7 @@ else
   bad "class map: kept drivers present, removed stacks unregistered, files exist" "$map_out"
 fi
 if ! grep -q 'rubyrails' "$ROOT/kloxo/httpdocs/lib/define.php" \
+  && ! grep -q "driver\['rubyrails'\]" "$ROOT/kloxo/file/driver/linux.inc" \
   && [[ ! -f "$ROOT/kloxo/httpdocs/driver/web/rubyrailslib.php" ]] \
   && [[ ! -f "$ROOT/kloxo/httpdocs/driver/web/rubyrails__linuxlib.php" ]] \
   && [[ ! -f "$ROOT/kloxo/file/nginx/conf/globals/ror.conf" ]] \
