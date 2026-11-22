@@ -1344,15 +1344,11 @@ STRIN;
 		if (is_object($gbl)) {
 			$server = (isset($this->nname) && is_string($this->nname) && $this->nname !== '')
 				? $this->nname : 'localhost';
-			$what = function_exists('kloxo_toast_update_what')
-				? kloxo_toast_update_what($this, 'readipaddress')
-				: 'Re Read IPaddress';
 			$gbl->__this_redirect = '/display.php?frm_action=list'
 				. '&frm_o_o[0][class]=pserver'
 				. '&frm_o_o[0][nname]=' . rawurlencode($server)
 				. '&frm_o_cname=ipaddress'
-				. '&frm_smessage=updated_successfully'
-				. '&frm_m_smessage_data=' . rawurlencode($what);
+				. '&frm_smessage=readipaddress_done_successfully';
 		}
 
 		return $param;

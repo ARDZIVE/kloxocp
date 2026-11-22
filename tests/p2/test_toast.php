@@ -182,6 +182,7 @@ if (function_exists('kloxo_toast_plain')) {
 	$plainFree = kloxo_toast_plain('Domain successfully deleted.');
 	$plainUpload = kloxo_toast_plain('file_uploaded');
 	$plainTrace = kloxo_toast_plain('traceroute_completed', 'google.com');
+	$plainReadIp = kloxo_toast_plain('readipaddress_done_successfully');
 	$okPlain = ($plainAdd === 'Client added.')
 		&& ($plainUpd === 'Password saved.')
 		&& ($plainUpdEmpty === 'Settings saved.')
@@ -195,7 +196,9 @@ if (function_exists('kloxo_toast_plain')) {
 		&& str_contains(strtolower($plainFree), 'deleted')
 		&& ($plainUpload === 'File uploaded.')
 		&& ($plainTrace === 'Trace to google.com complete.')
+		&& ($plainReadIp === 'Re Read IPaddress done successfully.')
 		&& kloxo_toast_kind('traceroute_completed', 's') === 'success'
+		&& kloxo_toast_kind('readipaddress_done_successfully', 's') === 'success'
 		&& kloxo_toast_kind('file_uploaded', 's') === 'success'
 		&& kloxo_toast_kind('backup_completed', 's') === 'success'
 		&& kloxo_toast_kind('restore_completed', 's') === 'success'

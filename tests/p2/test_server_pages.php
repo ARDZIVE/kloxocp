@@ -1152,7 +1152,7 @@ if (is_string($debsrc) && str_contains($debsrc, 'ipaddress::fixstatus')
 $pscoresrc = file_get_contents($doc . '/driver/pserver/pservercorelib.php');
 if (is_string($pscoresrc)
 	&& preg_match(
-		'/function updateReadIpAddress\(\$param\)\s*\{.*?__v_readipaddress_ok.*?frm_o_cname=ipaddress.*?frm_smessage=updated_successfully.*?return \$param;/s',
+		'/function updateReadIpAddress\(\$param\)\s*\{.*?__v_readipaddress_ok.*?frm_o_cname=ipaddress.*?frm_smessage=readipaddress_done_successfully.*?return \$param;/s',
 		$pscoresrc
 	)
 	&& str_contains($pscoresrc, "frm_o_o[0][class]=pserver")
@@ -1166,9 +1166,16 @@ if (is_string($pscoresrc)
 		'/function updateReadIpAddress\(\$param\)\s*\{[^}]*return null;/s',
 		$pscoresrc
 	)) {
-	ok('Re Read IPaddress redirects to IP Addresses list with success toast');
+	ok('Re Read IPaddress redirects to IP Addresses list with done-successfully toast');
 } else {
-	bad('Re Read IPaddress redirects to IP Addresses list with success toast');
+	bad('Re Read IPaddress redirects to IP Addresses list with done-successfully toast');
+}
+$msgLib = (string) file_get_contents($doc . '/lang/en-us/messagelib.php');
+if (str_contains($msgLib, "readipaddress_done_successfully")
+	&& str_contains($msgLib, 'Re Read IPaddress done successfully')) {
+	ok('messagelib has Re Read IPaddress done successfully');
+} else {
+	bad('messagelib has Re Read IPaddress done successfully');
 }
 // Runtime: do_desc_update treats ![] as failure — success marker must be truthy.
 $emptyParam = array();
